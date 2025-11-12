@@ -14,7 +14,8 @@
       "Bash(php check_ventas.php:*)",
       "Bash(php reasignar_ventas.php:*)",
       "Bash(git add:*)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nRestaurar selector de cajas en header (FUNCIONAL)\n\n- Selector de cajas restaurado en header desktop\n- Selector de cajas restaurado en menú móvil\n- Funcionalidad completa: cambio de caja, filtro de ventas, eventos\n- Sistema completamente funcional y probado\n\nEstado: TODO FUNCIONANDO CORRECTAMENTE\n\n🤖 Generated with Claude Code\nhttps://claude.com/claude-code\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(git commit -m \"$(cat <<''EOF''\nRestaurar selector de cajas en header (FUNCIONAL)\n\n- Selector de cajas restaurado en header desktop\n- Selector de cajas restaurado en menú móvil\n- Funcionalidad completa: cambio de caja, filtro de ventas, eventos\n- Sistema completamente funcional y probado\n\nEstado: TODO FUNCIONANDO CORRECTAMENTE\n\n🤖 Generated with Claude Code\nhttps://claude.com/claude-code\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

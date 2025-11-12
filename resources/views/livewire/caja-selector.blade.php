@@ -18,12 +18,12 @@
 
             <!-- Badge de estado -->
             @if($cajaActual && $cajaActual->estado === 'abierta')
-                <span class="hidden md:inline-flex items-center px-2 py-0.5 text-xs font-medium text-green-800 bg-green-100 rounded">
-                    Abierta
+                <span class="hidden md:inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-green-800 bg-green-100 rounded-full" title="Abierta">
+                    A
                 </span>
             @elseif($cajaActual)
-                <span class="hidden md:inline-flex items-center px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-100 rounded">
-                    Cerrada
+                <span class="hidden md:inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-gray-600 bg-gray-100 rounded-full" title="Cerrada">
+                    C
                 </span>
             @endif
 
@@ -73,12 +73,16 @@
                             </div>
 
                             <!-- Tipo y estado de la caja -->
-                            <div class="text-xs text-gray-500">
-                                {{ ucfirst($caja->tipo) }}
+                            <div class="flex items-center gap-2 text-xs text-gray-500">
+                                <span>{{ ucfirst($caja->tipo) }}</span>
                                 @if($caja->estado === 'abierta')
-                                    <span class="text-green-600">• Abierta</span>
+                                    <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-green-800 bg-green-100 rounded-full" title="Abierta">
+                                        A
+                                    </span>
                                 @else
-                                    <span class="text-gray-400">• Cerrada</span>
+                                    <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-gray-600 bg-gray-100 rounded-full" title="Cerrada">
+                                        C
+                                    </span>
                                 @endif
                             </div>
                         </div>
@@ -98,8 +102,8 @@
             <span class="hidden md:inline">{{ $cajaActual->nombre }}</span>
 
             @if($cajaActual->estado === 'abierta')
-                <span class="hidden md:inline-flex items-center px-2 py-0.5 text-xs font-medium text-green-800 bg-green-100 rounded">
-                    Abierta
+                <span class="hidden md:inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-green-800 bg-green-100 rounded-full" title="Abierta">
+                    A
                 </span>
             @endif
         </div>
