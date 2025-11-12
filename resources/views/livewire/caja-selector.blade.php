@@ -76,12 +76,12 @@
                             <div class="flex items-center gap-2 text-xs text-gray-500">
                                 <span>{{ ucfirst($caja->tipo) }}</span>
                                 @if($caja->estado === 'abierta')
-                                    <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-green-800 bg-green-100 rounded-full" title="Abierta">
-                                        A
+                                    <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium text-green-800 bg-green-100 rounded">
+                                        Abierta
                                     </span>
                                 @else
-                                    <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-gray-600 bg-gray-100 rounded-full" title="Cerrada">
-                                        C
+                                    <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-100 rounded">
+                                        Cerrada
                                     </span>
                                 @endif
                             </div>
