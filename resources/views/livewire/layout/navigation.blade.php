@@ -216,6 +216,9 @@ new class extends Component
                 <!-- Selector de Sucursal -->
                 <livewire:sucursal-selector />
 
+                <!-- Selector de Caja -->
+                <livewire:caja-selector :key="'caja-selector-' . (session('sucursal_id') ?? 'default')" />
+
                 <x-dropdown align="right" width="48">
                     <x-slot name="trigger">
                         <button class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-bcn-light bg-bcn-secondary hover:text-bcn-white hover:bg-opacity-80 focus:outline-none transition ease-in-out duration-150">
@@ -416,6 +419,11 @@ new class extends Component
         {{-- Selector de Sucursal para móvil --}}
         <div class="mb-3">
             <livewire:sucursal-selector />
+        </div>
+
+        {{-- Selector de Caja para móvil --}}
+        <div class="mb-3">
+            <livewire:caja-selector :key="'caja-selector-mobile-' . (session('sucursal_id') ?? 'default')" />
         </div>
 
         <div class="space-y-1">
