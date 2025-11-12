@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php artisan livewire:list:*)",
+      "Bash(php artisan livewire:discover:*)",
+      "Bash(php artisan optimize:clear:*)",
+      "Bash(php artisan view:clear:*)",
+      "Bash(php artisan:*)",
+      "Bash(composer dump-autoload:*)",
+      "Bash(net stop Apache2.4)",
+      "Bash(net start:*)",
+      "Bash(mysql:*)",
+      "Bash(php -r:*)",
+      "Bash(php check_ventas.php:*)",
+      "Bash(php reasignar_ventas.php:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

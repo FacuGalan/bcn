@@ -16,20 +16,107 @@
 - Tailwind CSS
 - Vite
 
+**Bases de Datos:**
+- **config**: Almacena comercios, usuarios, sesiones y tablas del sistema
+- **pymes**: Almacena datos de cada comercio con prefijo (000001_, 000002_, etc.)
+
+**Arquitectura Multi-Tenant Implementada:**
+- [x] Conexiones múltiples de base de datos (config y pymes_tenant)
+- [x] Modelo `Comercio` con relaciones y métodos utilitarios
+- [x] Modelo `User` modificado con campo `username` y relaciones many-to-many con comercios
+- [x] Tabla pivot `user_comercio` para gestión multi-comercio
+- [x] Servicio `TenantService` para gestionar comercio activo y conexión dinámica
+- [x] Comando `php artisan comercio:init {id}` para inicializar tablas de nuevo comercio
+- [x] Seeder con datos de prueba (2 comercios, 3 usuarios)
+- [x] Tablas con prefijo creadas automáticamente (roles, permissions, artículos, ventas_encabezado)
+
+**Credenciales de Prueba:**
+```
+Comercios:
+- comercio1@bcnpymes.com (Comercio Demo 1)
+- comercio2@bcnpymes.com (Comercio Demo 2)
+
+Usuarios:
+- Username: admin | Password: password (Acceso a ambos comercios)
+- Username: user1 | Password: password (Solo Comercio 1)
+- Username: multiuser | Password: password (Acceso a ambos comercios)
+```
+
 **Configuración:**
-- Base de datos MySQL "pymes" configurada
 - Locale: Español (es)
-- Migraciones ejecutadas (users, cache, jobs, sessions, permissions)
-- Modelo User configurado con trait HasRoles
+- Migraciones ejecutadas en ambas bases de datos
 - Git inicializado con commit inicial
 - Servidor de desarrollo funcional en http://127.0.0.1:8000
 
 **Funcionalidades Base:**
-- Sistema de autenticación completo (login, registro, recuperación de contraseña)
+- Sistema de autenticación completo (login, registro, recuperación de contraseña) *[Pendiente: Adaptar a multi-tenant]*
 - Dashboard
 - Perfil de usuario
 - Verificación de email
-- Sistema de roles y permisos (tablas creadas)
+- Sistema de roles y permisos por comercio con tablas prefijadas
+
+---
+
+## 🏗️ Arquitectura Multi-Tenant
+
+### Estructura de Bases de Datos
+
+**Base `config`:**
+```
+- users (username, email, password)
+- comercios (mail, nombre)
+- user_comercio (pivot table)
+- sessions, cache, jobs (sistema)
+- migrations, permissions, roles (sistema global)
+```
+
+**Base `pymes`:**
+```
+Comercio 1 (ID: 1):
+- 000001_roles
+- 000001_permissions
+- 000001_model_has_roles
+- 000001_model_has_permissions
+- 000001_role_has_permissions
+- 000001_articulos
+- 000001_ventas_encabezado
+... (más tablas según necesidad)
+
+Comercio 2 (ID: 2):
+- 000002_roles
+- 000002_permissions
+... (misma estructura con prefijo 000002_)
+```
+
+### Flujo de Login Multi-Tenant (A Implementar)
+
+1. Usuario ingresa:
+   - Email del comercio: `comercio1@bcnpymes.com`
+   - Username: `admin`
+   - Password: `password`
+
+2. Sistema busca comercio por email en `config.comercios`
+3. Obtiene `comercio_id`
+4. Busca usuario con username en `config.users`
+5. Verifica en `user_comercio` que el usuario tiene acceso al comercio
+6. Establece comercio activo en sesión con `TenantService`
+7. Configura conexión `pymes_tenant` con prefijo del comercio
+8. Redirecciona al dashboard del comercio
+
+### Servicios y Comandos Disponibles
+
+**TenantService:**
+```php
+app(TenantService::class)->setComercio($comercioId);
+app(TenantService::class)->getComercio(); // Retorna Comercio actual
+app(TenantService::class)->getTablePrefix(); // Retorna "000001_"
+app(TenantService::class)->switchComercio($newComercioId, $userId);
+```
+
+**Comando de Inicialización:**
+```bash
+php artisan comercio:init 1  # Crea tablas para comercio ID 1
+```
 
 ---
 

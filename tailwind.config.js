@@ -14,6 +14,14 @@ export default {
             fontFamily: {
                 sans: ['Figtree', ...defaultTheme.fontFamily.sans],
             },
+            colors: {
+                'bcn': {
+                    'primary': '#FFAF22',    // Naranja/Amarillo principal
+                    'secondary': '#222036',  // Azul oscuro/Púrpura oscuro
+                    'light': '#F7F7F7',      // Gris muy claro
+                    'white': '#FFFFFF',      // Blanco
+                },
+            },
         },
     },
 
