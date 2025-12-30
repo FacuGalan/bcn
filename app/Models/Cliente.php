@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -12,6 +13,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * Representa un cliente del comercio. Los clientes se gestionan de forma
  * centralizada y pueden tener configuraciones específicas por sucursal
  * (listas de precios, descuentos, límites de crédito).
+ *
+ * SISTEMA DE LISTAS DE PRECIOS:
+ * - Un cliente puede tener una lista de precios global asignada (lista_precio_id)
+ * - Esta lista se usa como predeterminada al venderle al cliente
+ * - El vendedor puede seleccionar manualmente otra lista que pisa la del cliente
  *
  * @property int $id
  * @property string $codigo
@@ -23,11 +29,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $direccion
  * @property string|null $telefono
  * @property string|null $email
- * @property string $condicion_iva
+ * @property int|null $condicion_iva_id FK a condiciones_iva
+ * @property int|null $lista_precio_id Lista de precios asignada al cliente
  * @property bool $activo
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  *
+ * @property-read CondicionIva|null $condicionIva
+ * @property-read ListaPrecio|null $listaPrecio
  * @property-read \Illuminate\Database\Eloquent\Collection|Sucursal[] $sucursales
  * @property-read \Illuminate\Database\Eloquent\Collection|Venta[] $ventas
  */
@@ -37,16 +46,14 @@ class Cliente extends Model
     protected $table = 'clientes';
 
     protected $fillable = [
-        'codigo',
         'nombre',
-        'nombre_fiscal',
-        'cuit_cuil',
-        'tipo_doc',
-        'numero_doc',
-        'direccion',
-        'telefono',
         'email',
-        'condicion_iva',
+        'telefono',
+        'direccion',
+        'cuit',
+        'tipo_cliente',
+        'condicion_iva_id',
+        'lista_precio_id',
         'activo',
     ];
 
@@ -55,6 +62,24 @@ class Cliente extends Model
     ];
 
     // Relaciones
+
+    /**
+     * Condición de IVA del cliente
+     * Relación cross-database a la tabla condiciones_iva en config
+     */
+    public function condicionIva(): BelongsTo
+    {
+        return $this->belongsTo(CondicionIva::class, 'condicion_iva_id');
+    }
+
+    /**
+     * Lista de precios asignada al cliente (global)
+     */
+    public function listaPrecio(): BelongsTo
+    {
+        return $this->belongsTo(ListaPrecio::class, 'lista_precio_id');
+    }
+
     public function sucursales(): BelongsToMany
     {
         return $this->belongsToMany(Sucursal::class, 'clientes_sucursales', 'cliente_id', 'sucursal_id')
@@ -73,9 +98,15 @@ class Cliente extends Model
         return $query->where('activo', true);
     }
 
-    public function scopePorCondicionIva($query, string $condicion)
+    public function scopePorCondicionIva($query, int $condicionIvaId)
     {
-        return $query->where('condicion_iva', $condicion);
+        return $query->where('condicion_iva_id', $condicionIvaId);
+    }
+
+    public function scopePorCodigoCondicionIva($query, int $codigoAfip)
+    {
+        $condicion = CondicionIva::where('codigo', $codigoAfip)->first();
+        return $query->where('condicion_iva_id', $condicion?->id);
     }
 
     public function scopePorDocumento($query, string $tipo, string $numero)
@@ -98,12 +129,25 @@ class Cliente extends Model
 
     public function scopeResponsablesInscriptos($query)
     {
-        return $query->where('condicion_iva', 'responsable_inscripto');
+        return $query->whereHas('condicionIva', fn($q) => $q->where('codigo', CondicionIva::RESPONSABLE_INSCRIPTO));
     }
 
     public function scopeConsumidoresFinales($query)
     {
-        return $query->where('condicion_iva', 'consumidor_final');
+        return $query->whereHas('condicionIva', fn($q) => $q->where('codigo', CondicionIva::CONSUMIDOR_FINAL));
+    }
+
+    public function scopeMonotributistas($query)
+    {
+        return $query->whereHas('condicionIva', fn($q) => $q->whereIn('codigo', [
+            CondicionIva::RESPONSABLE_MONOTRIBUTO,
+            CondicionIva::MONOTRIBUTISTA_SOCIAL,
+        ]));
+    }
+
+    public function scopeExentos($query)
+    {
+        return $query->whereHas('condicionIva', fn($q) => $q->where('codigo', CondicionIva::SUJETO_EXENTO));
     }
 
     // Métodos auxiliares
@@ -230,6 +274,46 @@ class Cliente extends Model
      */
     public function requiereFacturaA(): bool
     {
-        return $this->condicion_iva === 'responsable_inscripto';
+        return $this->condicionIva?->esResponsableInscripto() ?? false;
+    }
+
+    /**
+     * Verifica si es Consumidor Final
+     */
+    public function esConsumidorFinal(): bool
+    {
+        return $this->condicionIva?->esConsumidorFinal() ?? true;
+    }
+
+    /**
+     * Verifica si es Monotributista
+     */
+    public function esMonotributista(): bool
+    {
+        return $this->condicionIva?->esMonotributista() ?? false;
+    }
+
+    /**
+     * Verifica si es Exento
+     */
+    public function esExento(): bool
+    {
+        return $this->condicionIva?->esExento() ?? false;
+    }
+
+    /**
+     * Verifica si requiere CUIT para facturación
+     */
+    public function requiereCuit(): bool
+    {
+        return $this->condicionIva?->requiereCuit() ?? false;
+    }
+
+    /**
+     * Obtiene el código AFIP de la condición de IVA
+     */
+    public function getCodigoCondicionIvaAfip(): int
+    {
+        return $this->condicionIva?->codigo ?? CondicionIva::CONSUMIDOR_FINAL;
     }
 }

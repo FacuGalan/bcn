@@ -1,8 +1,8 @@
-<div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gray-100">
-    <div class="w-full sm:max-w-2xl mt-6 px-6 py-8 bg-white shadow-md overflow-hidden sm:rounded-lg">
+<div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gray-100 dark:bg-gray-900">
+    <div class="w-full sm:max-w-2xl mt-6 px-6 py-8 bg-white dark:bg-gray-800 shadow-md overflow-hidden sm:rounded-lg">
         <div class="mb-6">
-            <h2 class="text-2xl font-bold text-gray-900">Selecciona un Comercio</h2>
-            <p class="mt-2 text-sm text-gray-600">Elige el comercio con el que deseas trabajar</p>
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Selecciona un Comercio</h2>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">Elige el comercio con el que deseas trabajar</p>
         </div>
 
         <!-- Messages -->
@@ -23,17 +23,17 @@
             @forelse ($comercios as $comercio)
                 <button
                     wire:click="selectComercio({{ $comercio->id }})"
-                    class="p-6 text-left border-2 rounded-lg transition-all hover:border-indigo-500 hover:shadow-lg {{ $comercioActual && $comercioActual->id === $comercio->id ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 bg-white' }}"
+                    class="p-6 text-left border-2 rounded-lg transition-all hover:border-indigo-500 hover:shadow-lg {{ $comercioActual && $comercioActual->id === $comercio->id ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700' }}"
                 >
                     <div class="flex items-start justify-between">
                         <div class="flex-1">
-                            <h3 class="text-lg font-semibold text-gray-900">
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
                                 {{ $comercio->nombre }}
                             </h3>
-                            <p class="mt-1 text-sm text-gray-600">
+                            <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
                                 {{ $comercio->mail }}
                             </p>
-                            <p class="mt-2 text-xs text-gray-500">
+                            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
                                 ID: {{ $comercio->getFormattedId() }}
                             </p>
                         </div>
@@ -57,17 +57,17 @@
                     <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                     </svg>
-                    <h3 class="mt-2 text-sm font-medium text-gray-900">No tienes comercios asignados</h3>
-                    <p class="mt-1 text-sm text-gray-500">Contacta con un administrador para obtener acceso.</p>
+                    <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No tienes comercios asignados</h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Contacta con un administrador para obtener acceso.</p>
                 </div>
             @endforelse
         </div>
 
         <!-- Logout Button -->
-        <div class="mt-6 pt-6 border-t border-gray-200">
+        <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
-                <button type="submit" class="w-full text-center text-sm text-gray-600 hover:text-gray-900 underline">
+                <button type="submit" class="w-full text-center text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white underline">
                     Cerrar Sesión
                 </button>
             </form>

@@ -11,12 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::connection('pymes_tenant')->table('cajas', function (Blueprint $table) {
-            $table->boolean('activo')
-                  ->default(true)
-                  ->after('sucursal_id')
-                  ->comment('Indica si la caja está activa');
-        });
+        $connection = 'pymes_tenant';
+
+        if (Schema::connection($connection)->hasTable('cajas') &&
+            !Schema::connection($connection)->hasColumn('cajas', 'activo')) {
+            Schema::connection($connection)->table('cajas', function (Blueprint $table) {
+                $table->boolean('activo')
+                      ->default(true)
+                      ->after('sucursal_id')
+                      ->comment('Indica si la caja está activa');
+            });
+        }
     }
 
     /**
@@ -24,8 +29,13 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('pymes_tenant')->table('cajas', function (Blueprint $table) {
-            $table->dropColumn('activo');
-        });
+        $connection = 'pymes_tenant';
+
+        if (Schema::connection($connection)->hasTable('cajas') &&
+            Schema::connection($connection)->hasColumn('cajas', 'activo')) {
+            Schema::connection($connection)->table('cajas', function (Blueprint $table) {
+                $table->dropColumn('activo');
+            });
+        }
     }
 };

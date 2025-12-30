@@ -82,3 +82,77 @@ if (!function_exists('tiene_acceso_caja')) {
         return CajaService::tieneAccesoACaja($cajaId);
     }
 }
+
+// =====================================================
+// HELPERS DE FORMATEO DE NÚMEROS Y PRECIOS
+// =====================================================
+
+if (!function_exists('formato_precio')) {
+    /**
+     * Formatea un valor como precio con separadores argentinos
+     * Separador de miles: punto (.)
+     * Separador de decimales: coma (,)
+     *
+     * @param float|int|string|null $valor
+     * @param int $decimales
+     * @param bool $conSigno Si incluir el signo $ al inicio
+     * @return string
+     */
+    function formato_precio($valor, int $decimales = 2, bool $conSigno = false): string
+    {
+        $valor = floatval($valor ?? 0);
+        $formateado = number_format($valor, $decimales, ',', '.');
+        return $conSigno ? '$ ' . $formateado : $formateado;
+    }
+}
+
+if (!function_exists('formato_numero')) {
+    /**
+     * Formatea un número con separadores argentinos
+     * Separador de miles: punto (.)
+     * Separador de decimales: coma (,)
+     *
+     * @param float|int|string|null $valor
+     * @param int $decimales
+     * @return string
+     */
+    function formato_numero($valor, int $decimales = 2): string
+    {
+        $valor = floatval($valor ?? 0);
+        return number_format($valor, $decimales, ',', '.');
+    }
+}
+
+if (!function_exists('formato_porcentaje')) {
+    /**
+     * Formatea un valor como porcentaje con separadores argentinos
+     *
+     * @param float|int|string|null $valor
+     * @param int $decimales
+     * @return string
+     */
+    function formato_porcentaje($valor, int $decimales = 2): string
+    {
+        $valor = floatval($valor ?? 0);
+        return number_format($valor, $decimales, ',', '.') . '%';
+    }
+}
+
+if (!function_exists('formato_cantidad')) {
+    /**
+     * Formatea una cantidad (puede tener decimales o no según el valor)
+     *
+     * @param float|int|string|null $valor
+     * @param int $decimales
+     * @return string
+     */
+    function formato_cantidad($valor, int $decimales = 2): string
+    {
+        $valor = floatval($valor ?? 0);
+        // Si es un número entero, no mostrar decimales
+        if (floor($valor) == $valor) {
+            return number_format($valor, 0, ',', '.');
+        }
+        return number_format($valor, $decimales, ',', '.');
+    }
+}

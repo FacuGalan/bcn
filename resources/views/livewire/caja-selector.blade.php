@@ -4,33 +4,28 @@
         <button
             @click="open = !open"
             type="button"
-            class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            class="w-full md:w-auto flex items-center justify-center md:justify-start gap-1.5 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-indigo-500"
         >
             <!-- Icono de caja registradora -->
-            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
             </svg>
 
             <!-- Nombre de la caja actual -->
-            <span class="hidden md:inline">
+            <span>
                 {{ $cajaActual ? $cajaActual->nombre : 'Seleccionar Caja' }}
             </span>
 
             <!-- Badge de estado -->
             @if($cajaActual && $cajaActual->estado === 'abierta')
-                <span class="hidden md:inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-green-800 bg-green-100 rounded-full" title="Abierta">
+                <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-green-800 bg-green-100 rounded-full" title="Abierta">
                     A
                 </span>
             @elseif($cajaActual)
-                <span class="hidden md:inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-gray-600 bg-gray-100 rounded-full" title="Cerrada">
+                <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-gray-600 bg-gray-100 rounded-full" title="Cerrada">
                     C
                 </span>
             @endif
-
-            <!-- Icono de flecha -->
-            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
         </button>
 
         <!-- Dropdown menu -->
@@ -43,12 +38,12 @@
             x-transition:leave="transition ease-in duration-75"
             x-transition:leave-start="transform opacity-100 scale-100"
             x-transition:leave-end="transform opacity-0 scale-95"
-            class="absolute right-0 z-50 w-64 mt-2 origin-top-right bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+            class="absolute left-0 md:right-0 md:left-auto z-50 w-full md:w-64 max-md:bottom-full max-md:mb-2 md:mt-2 origin-bottom-left md:origin-top-right bg-white dark:bg-gray-800 rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
             style="display: none;"
         >
             <div class="py-1">
                 <!-- Header del dropdown -->
-                <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase border-b">
+                <div class="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase border-b dark:border-gray-700">
                     Cambiar Caja
                 </div>
 
@@ -56,8 +51,8 @@
                 @foreach($cajasDisponibles as $caja)
                     <button
                         wire:click="cambiarCaja({{ $caja->id }})"
-                        class="flex items-center w-full px-4 py-2 text-sm text-left hover:bg-gray-100
-                               {{ $cajaActual && $cajaActual->id === $caja->id ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700' }}"
+                        class="flex items-center w-full px-4 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700
+                               {{ $cajaActual && $cajaActual->id === $caja->id ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400' : 'text-gray-700 dark:text-gray-300' }}"
                     >
                         <div class="flex-1">
                             <!-- Nombre de la caja -->
@@ -73,7 +68,7 @@
                             </div>
 
                             <!-- Tipo y estado de la caja -->
-                            <div class="flex items-center gap-2 text-xs text-gray-500">
+                            <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                                 <span>{{ ucfirst($caja->tipo) }}</span>
                                 @if($caja->estado === 'abierta')
                                     <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium text-green-800 bg-green-100 rounded">
@@ -92,17 +87,17 @@
         </div>
     @elseif($cajaActual)
         <!-- Si solo tiene una caja, mostrar sin dropdown -->
-        <div class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md">
+        <div class="w-full md:w-auto flex items-center justify-center md:justify-start gap-1.5 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-900 rounded-md">
             <!-- Icono de caja registradora -->
-            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
             </svg>
 
             <!-- Nombre de la caja -->
-            <span class="hidden md:inline">{{ $cajaActual->nombre }}</span>
+            <span>{{ $cajaActual->nombre }}</span>
 
             @if($cajaActual->estado === 'abierta')
-                <span class="hidden md:inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-green-800 bg-green-100 rounded-full" title="Abierta">
+                <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-green-800 bg-green-100 rounded-full" title="Abierta">
                     A
                 </span>
             @endif

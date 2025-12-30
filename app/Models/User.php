@@ -72,6 +72,7 @@ class User extends Authenticatable
         'password_visible',
         'max_concurrent_sessions',
         'activo',
+        'dark_mode',
     ];
 
     /**
@@ -96,6 +97,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'activo' => 'boolean',
+            'dark_mode' => 'boolean',
         ];
     }
 
@@ -272,6 +274,12 @@ class User extends Authenticatable
                 return [];
             }
 
+            // Verificar que el tenant esté configurado
+            $prefix = config('database.connections.pymes_tenant.prefix', '');
+            if (empty($prefix)) {
+                return [];
+            }
+
             $roles = $this->roles();
             if ($roles->isEmpty()) {
                 return [];
@@ -279,22 +287,27 @@ class User extends Authenticatable
 
             $roleIds = $roles->pluck('id')->toArray();
 
-            // Obtener todos los permission_ids en una sola query
-            $permissionIds = DB::connection('pymes_tenant')
-                ->table('role_has_permissions')
-                ->whereIn('role_id', $roleIds)
-                ->pluck('permission_id')
-                ->unique()
-                ->toArray();
+            try {
+                // Obtener todos los permission_ids en una sola query
+                $permissionIds = DB::connection('pymes_tenant')
+                    ->table('role_has_permissions')
+                    ->whereIn('role_id', $roleIds)
+                    ->pluck('permission_id')
+                    ->unique()
+                    ->toArray();
 
-            if (empty($permissionIds)) {
+                if (empty($permissionIds)) {
+                    return [];
+                }
+
+                // Obtener los nombres de permisos en una sola query
+                return Permission::whereIn('id', $permissionIds)
+                    ->pluck('name')
+                    ->toArray();
+            } catch (\Illuminate\Database\QueryException $e) {
+                Log::error('User::loadAllPermissions() - Error de base de datos: ' . $e->getMessage());
                 return [];
             }
-
-            // Obtener los nombres de permisos en una sola query
-            return Permission::whereIn('id', $permissionIds)
-                ->pluck('name')
-                ->toArray();
         });
     }
 
@@ -373,35 +386,72 @@ class User extends Authenticatable
             return collect();
         }
 
-        // Obtener sucursal activa (si existe)
-        $sucursalActiva = session('sucursal_id');
+        // IMPORTANTE: Verificar que el tenant esté configurado antes de hacer queries
+        // Esto previene errores cuando la conexión pymes_tenant no tiene prefijo establecido
+        try {
+            $prefix = config('database.connections.pymes_tenant.prefix', '');
+            if (empty($prefix)) {
+                // El tenant no está configurado, intentar configurarlo
+                $comercioId = session('comercio_activo_id');
+                if ($comercioId) {
+                    $tenantService = app(\App\Services\TenantService::class);
+                    $tenantService->setComercio($comercioId);
+                    $prefix = config('database.connections.pymes_tenant.prefix', '');
+                }
 
-        // Construir query base
-        $query = DB::connection('pymes_tenant')
-            ->table('model_has_roles')
-            ->where('model_id', $this->id)
-            ->where('model_type', static::class);
-
-        // Si hay sucursal activa, filtrar por sucursal
-        if ($sucursalActiva) {
-            $query->where(function($subQuery) use ($sucursalActiva) {
-                // Incluir roles con sucursal_id = 0 (acceso a todas las sucursales)
-                $subQuery->where('sucursal_id', 0)
-                    // O roles específicos de la sucursal activa
-                    ->orWhere('sucursal_id', $sucursalActiva);
-            });
-        }
-        // Si NO hay sucursal activa, retornar TODOS los roles (sin filtrar)
-        // Esto permite que el sistema funcione mientras se establece la sucursal
-
-        $roleIds = $query->pluck('role_id')->unique();
-
-        if ($roleIds->isEmpty()) {
+                // Si aún no hay prefijo, retornar vacío para evitar errores
+                if (empty($prefix)) {
+                    Log::warning('User::roles() - Tenant no configurado, retornando colección vacía', [
+                        'user_id' => $this->id,
+                        'comercio_id' => $comercioId ?? null
+                    ]);
+                    return collect();
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('User::roles() - Error verificando configuración de tenant: ' . $e->getMessage());
             return collect();
         }
 
-        // Obtener los roles completos desde la tabla de roles en pymes_tenant
-        return Role::whereIn('id', $roleIds)->get();
+        // Obtener sucursal activa (si existe)
+        $sucursalActiva = session('sucursal_id');
+
+        try {
+            // Construir query base
+            $query = DB::connection('pymes_tenant')
+                ->table('model_has_roles')
+                ->where('model_id', $this->id)
+                ->where('model_type', static::class);
+
+            // Si hay sucursal activa, filtrar por sucursal
+            if ($sucursalActiva) {
+                $query->where(function($subQuery) use ($sucursalActiva) {
+                    // Incluir roles con sucursal_id = 0 (acceso a todas las sucursales)
+                    $subQuery->where('sucursal_id', 0)
+                        // O roles específicos de la sucursal activa
+                        ->orWhere('sucursal_id', $sucursalActiva);
+                });
+            }
+            // Si NO hay sucursal activa, retornar TODOS los roles (sin filtrar)
+            // Esto permite que el sistema funcione mientras se establece la sucursal
+
+            $roleIds = $query->pluck('role_id')->unique();
+
+            if ($roleIds->isEmpty()) {
+                return collect();
+            }
+
+            // Obtener los roles completos desde la tabla de roles en pymes_tenant
+            return Role::whereIn('id', $roleIds)->get();
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Capturar errores de base de datos (tabla no existe, etc.)
+            Log::error('User::roles() - Error de base de datos: ' . $e->getMessage(), [
+                'user_id' => $this->id,
+                'comercio_id' => session('comercio_activo_id'),
+                'prefix' => config('database.connections.pymes_tenant.prefix', '')
+            ]);
+            return collect();
+        }
     }
 
     /**

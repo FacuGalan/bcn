@@ -37,23 +37,39 @@ class VentaDetalle extends Model
         'venta_id',
         'articulo_id',
         'tipo_iva_id',
+        'lista_precio_id',        // Lista de precios usada para calcular el precio
         'cantidad',
         'precio_unitario',
+        'precio_lista',           // Precio original de lista (antes de promociones)
         'iva_porcentaje',
         'precio_sin_iva',
         'descuento',
+        'descuento_promocion',    // Descuento aplicado por promociones
+        'tiene_promocion',        // Si tiene promoción aplicada
         'iva_monto',
         'subtotal',
+        'total',                  // Total del ítem
+        // Campos de ajuste manual de precio
+        'ajuste_manual_tipo',
+        'ajuste_manual_valor',
+        'precio_sin_ajuste_manual',
     ];
 
     protected $casts = [
         'cantidad' => 'decimal:2',
         'precio_unitario' => 'decimal:2',
+        'precio_lista' => 'decimal:2',
         'iva_porcentaje' => 'decimal:2',
         'precio_sin_iva' => 'decimal:2',
         'descuento' => 'decimal:2',
+        'descuento_promocion' => 'decimal:2',
+        'tiene_promocion' => 'boolean',
         'iva_monto' => 'decimal:2',
         'subtotal' => 'decimal:2',
+        'total' => 'decimal:2',
+        // Campos de ajuste manual
+        'ajuste_manual_valor' => 'decimal:2',
+        'precio_sin_ajuste_manual' => 'decimal:2',
     ];
 
     // Relaciones
@@ -70,6 +86,11 @@ class VentaDetalle extends Model
     public function tipoIva(): BelongsTo
     {
         return $this->belongsTo(TipoIva::class, 'tipo_iva_id');
+    }
+
+    public function listaPrecio(): BelongsTo
+    {
+        return $this->belongsTo(ListaPrecio::class, 'lista_precio_id');
     }
 
     // Métodos auxiliares

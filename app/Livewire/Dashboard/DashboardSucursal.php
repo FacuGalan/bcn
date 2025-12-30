@@ -94,13 +94,9 @@ class DashboardSucursal extends Component
             ->limit(5)
             ->get();
 
-        // Ventas por forma de pago (hoy)
-        $ventasPorFormaPago = Venta::where('sucursal_id', $this->sucursalSeleccionada)
-            ->whereDate('fecha', $this->fechaSeleccionada)
-            ->where('estado', '!=', 'cancelada')
-            ->select('forma_pago', DB::raw('SUM(total) as total'))
-            ->groupBy('forma_pago')
-            ->get();
+        // TODO: Actualizar consulta - el campo forma_pago fue migrado a tabla venta_pagos
+        // Por ahora devolvemos colección vacía hasta rediseñar el dashboard
+        $ventasPorFormaPago = collect([]);
 
         return view('livewire.dashboard.dashboard-sucursal', [
             'totalVentasHoy' => $totalVentasHoy,

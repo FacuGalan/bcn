@@ -47,15 +47,15 @@
         @endif
 
         {{-- Filtro de fecha --}}
-        <div class="mb-6 bg-white rounded-lg shadow p-4">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Fecha</label>
-            <input wire:model.live="fechaSeleccionada" type="date" class="block w-full md:w-64 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+        <div class="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Fecha</label>
+            <input wire:model.live="fechaSeleccionada" type="date" class="block w-full md:w-64 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
         </div>
 
         {{-- Métricas principales --}}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
             {{-- Ventas del día --}}
-            <div class="bg-white rounded-lg shadow p-6">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <div class="flex items-center">
                     <div class="flex-shrink-0 bg-indigo-500 rounded-md p-3">
                         <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -64,18 +64,18 @@
                     </div>
                     <div class="ml-5 w-0 flex-1">
                         <dl>
-                            <dt class="text-sm font-medium text-gray-500 truncate">Ventas del Día</dt>
+                            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Ventas del Día</dt>
                             <dd class="flex items-baseline">
-                                <div class="text-2xl font-semibold text-gray-900">${{ number_format($totalVentasHoy, 2) }}</div>
+                                <div class="text-2xl font-semibold text-gray-900 dark:text-white">$@precio($totalVentasHoy)</div>
                             </dd>
-                            <dd class="text-sm text-gray-500">{{ $cantidadVentasHoy }} operaciones</dd>
+                            <dd class="text-sm text-gray-500 dark:text-gray-400">{{ $cantidadVentasHoy }} operaciones</dd>
                         </dl>
                     </div>
                 </div>
             </div>
 
             {{-- Compras del día --}}
-            <div class="bg-white rounded-lg shadow p-6">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <div class="flex items-center">
                     <div class="flex-shrink-0 bg-green-500 rounded-md p-3">
                         <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -84,18 +84,18 @@
                     </div>
                     <div class="ml-5 w-0 flex-1">
                         <dl>
-                            <dt class="text-sm font-medium text-gray-500 truncate">Compras del Día</dt>
+                            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Compras del Día</dt>
                             <dd class="flex items-baseline">
-                                <div class="text-2xl font-semibold text-gray-900">${{ number_format($totalComprasHoy, 2) }}</div>
+                                <div class="text-2xl font-semibold text-gray-900 dark:text-white">$@precio($totalComprasHoy)</div>
                             </dd>
-                            <dd class="text-sm text-gray-500">{{ $cantidadComprasHoy }} operaciones</dd>
+                            <dd class="text-sm text-gray-500 dark:text-gray-400">{{ $cantidadComprasHoy }} operaciones</dd>
                         </dl>
                     </div>
                 </div>
             </div>
 
             {{-- Estado de cajas --}}
-            <div class="bg-white rounded-lg shadow p-6">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <div class="flex items-center">
                     <div class="flex-shrink-0 bg-yellow-500 rounded-md p-3">
                         <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -104,18 +104,18 @@
                     </div>
                     <div class="ml-5 w-0 flex-1">
                         <dl>
-                            <dt class="text-sm font-medium text-gray-500 truncate">Cajas Abiertas</dt>
+                            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Cajas Abiertas</dt>
                             <dd class="flex items-baseline">
-                                <div class="text-2xl font-semibold text-gray-900">{{ $cajasAbiertas }}/{{ $totalCajas }}</div>
+                                <div class="text-2xl font-semibold text-gray-900 dark:text-white">{{ $cajasAbiertas }}/{{ $totalCajas }}</div>
                             </dd>
-                            <dd class="text-sm text-gray-500">${{ number_format($totalEnCajas, 2) }} total</dd>
+                            <dd class="text-sm text-gray-500 dark:text-gray-400">$@precio($totalEnCajas) total</dd>
                         </dl>
                     </div>
                 </div>
             </div>
 
             {{-- Alertas de stock --}}
-            <div class="bg-white rounded-lg shadow p-6">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <div class="flex items-center">
                     <div class="flex-shrink-0 bg-red-500 rounded-md p-3">
                         <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -124,11 +124,11 @@
                     </div>
                     <div class="ml-5 w-0 flex-1">
                         <dl>
-                            <dt class="text-sm font-medium text-gray-500 truncate">Alertas de Stock</dt>
+                            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Alertas de Stock</dt>
                             <dd class="flex items-baseline">
-                                <div class="text-2xl font-semibold text-gray-900">{{ $stockBajoMinimo + $stockSinExistencia }}</div>
+                                <div class="text-2xl font-semibold text-gray-900 dark:text-white">{{ $stockBajoMinimo + $stockSinExistencia }}</div>
                             </dd>
-                            <dd class="text-sm text-gray-500">{{ $stockBajoMinimo }} bajo mínimo</dd>
+                            <dd class="text-sm text-gray-500 dark:text-gray-400">{{ $stockBajoMinimo }} bajo mínimo</dd>
                         </dl>
                     </div>
                 </div>
@@ -138,52 +138,52 @@
         {{-- Grid de información --}}
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {{-- Ventas por forma de pago --}}
-            <div class="bg-white rounded-lg shadow">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">Ventas por Forma de Pago</h3>
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white">Ventas por Forma de Pago</h3>
                 </div>
                 <div class="px-6 py-4">
                     @if($ventasPorFormaPago->count() > 0)
                         <div class="space-y-3">
                             @foreach($ventasPorFormaPago as $item)
                                 <div class="flex items-center justify-between">
-                                    <span class="text-sm font-medium text-gray-700">{{ ucfirst(str_replace('_', ' ', $item->forma_pago)) }}</span>
-                                    <span class="text-sm font-bold text-gray-900">${{ number_format($item->total, 2) }}</span>
+                                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ ucfirst(str_replace('_', ' ', $item->forma_pago)) }}</span>
+                                    <span class="text-sm font-bold text-gray-900 dark:text-white">$@precio($item->total)</span>
                                 </div>
-                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                                     <div class="bg-indigo-600 h-2 rounded-full" style="width: {{ ($item->total / $totalVentasHoy) * 100 }}%"></div>
                                 </div>
                             @endforeach
                         </div>
                     @else
-                        <p class="text-sm text-gray-500 text-center py-4">No hay ventas registradas</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No hay ventas registradas</p>
                     @endif
                 </div>
             </div>
 
             {{-- Últimas ventas --}}
-            <div class="bg-white rounded-lg shadow">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">Últimas Ventas</h3>
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white">Últimas Ventas</h3>
                 </div>
                 <div class="px-6 py-4">
                     @if($ultimasVentas->count() > 0)
                         <div class="space-y-3">
                             @foreach($ultimasVentas as $venta)
-                                <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                                <div class="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
                                     <div>
-                                        <p class="text-sm font-medium text-gray-900">#{{ $venta->numero_comprobante }}</p>
-                                        <p class="text-xs text-gray-500">{{ $venta->cliente->nombre ?? 'Consumidor Final' }}</p>
+                                        <p class="text-sm font-medium text-gray-900 dark:text-white">#{{ $venta->numero_comprobante }}</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ $venta->cliente->nombre ?? 'Consumidor Final' }}</p>
                                     </div>
                                     <div class="text-right">
-                                        <p class="text-sm font-bold text-gray-900">${{ number_format($venta->total, 2) }}</p>
-                                        <p class="text-xs text-gray-500">{{ $venta->created_at->format('H:i') }}</p>
+                                        <p class="text-sm font-bold text-gray-900 dark:text-white">$@precio($venta->total)</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ $venta->created_at->format('H:i') }}</p>
                                     </div>
                                 </div>
                             @endforeach
                         </div>
                     @else
-                        <p class="text-sm text-gray-500 text-center py-4">No hay ventas recientes</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No hay ventas recientes</p>
                     @endif
                 </div>
             </div>
@@ -191,28 +191,28 @@
 
         {{-- Accesos rápidos --}}
         <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <a href="#" class="bg-white rounded-lg shadow p-4 hover:shadow-lg transition-shadow">
+            <a href="#" class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 hover:shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-shadow">
                 <div class="flex flex-col items-center">
                     <svg class="h-8 w-8 text-indigo-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
-                    <span class="text-sm font-medium text-gray-900">Ventas</span>
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">Ventas</span>
                 </div>
             </a>
-            <a href="#" class="bg-white rounded-lg shadow p-4 hover:shadow-lg transition-shadow">
+            <a href="#" class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 hover:shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-shadow">
                 <div class="flex flex-col items-center">
                     <svg class="h-8 w-8 text-green-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                    <span class="text-sm font-medium text-gray-900">Compras</span>
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">Compras</span>
                 </div>
             </a>
-            <a href="#" class="bg-white rounded-lg shadow p-4 hover:shadow-lg transition-shadow">
+            <a href="#" class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 hover:shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-shadow">
                 <div class="flex flex-col items-center">
                     <svg class="h-8 w-8 text-purple-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                    <span class="text-sm font-medium text-gray-900">Stock</span>
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">Stock</span>
                 </div>
             </a>
-            <a href="#" class="bg-white rounded-lg shadow p-4 hover:shadow-lg transition-shadow">
+            <a href="#" class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 hover:shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-shadow">
                 <div class="flex flex-col items-center">
                     <svg class="h-8 w-8 text-yellow-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
-                    <span class="text-sm font-medium text-gray-900">Cajas</span>
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">Cajas</span>
                 </div>
             </a>
         </div>

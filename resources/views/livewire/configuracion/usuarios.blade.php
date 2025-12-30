@@ -1,5 +1,5 @@
-<div class="py-6 sm:py-12">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="py-4">
+    <div class="px-4 sm:px-6 lg:px-8">
         <!-- Header -->
         <div class="mb-4 sm:mb-6">
             <div class="flex justify-between items-start gap-3 sm:gap-4">
@@ -17,8 +17,8 @@
                             </svg>
                         </button>
                     </div>
-                    <p class="mt-1 text-xs sm:text-sm text-gray-600">Administra los usuarios y sus roles en el sistema</p>
-                    <p class="mt-1 text-xs text-gray-500">
+                    <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">Administra los usuarios y sus roles en el sistema</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         Usuarios: {{ $comercio->getCurrentUsersCount() }} de {{ $comercio->max_usuarios }}
                         @if($comercio->canAddMoreUsers())
                             <span class="text-green-600">({{ $comercio->getRemainingUsersSlots() }} disponibles)</span>
@@ -42,12 +42,12 @@
         </div>
 
         <!-- Filtros -->
-        <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-4 sm:mb-6">
+        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-4 sm:mb-6">
             <!-- Botón de filtros (solo móvil) -->
-            <div class="sm:hidden p-4 border-b border-gray-200">
+            <div class="sm:hidden p-4 border-b border-gray-200 dark:border-gray-700">
                 <button
                     wire:click="toggleFilters"
-                    class="w-full flex items-center justify-between text-left text-sm font-medium text-gray-700 hover:text-bcn-primary transition-colors"
+                    class="w-full flex items-center justify-between text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-bcn-primary transition-colors"
                 >
                     <span class="flex items-center">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -76,23 +76,23 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     <!-- Búsqueda -->
                     <div>
-                        <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
+                        <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Buscar</label>
                         <input
                             type="text"
                             id="search"
                             wire:model.live.debounce.300ms="search"
                             placeholder="Nombre, usuario o email..."
-                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         />
                     </div>
 
                     <!-- Filtro de estado -->
                     <div>
-                        <label for="filterStatus" class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                        <label for="filterStatus" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Estado</label>
                         <select
                             id="filterStatus"
                             wire:model.live="filterStatus"
-                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         >
                             <option value="all">Todos</option>
                             <option value="active">Activos</option>
@@ -102,11 +102,11 @@
 
                     <!-- Filtro de rol -->
                     <div>
-                        <label for="filterRole" class="block text-sm font-medium text-gray-700 mb-1">Rol</label>
+                        <label for="filterRole" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Rol</label>
                         <select
                             id="filterRole"
                             wire:model.live="filterRole"
-                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         >
                             <option value="all">Todos los roles</option>
                             @foreach($roles as $role)
@@ -124,7 +124,7 @@
                 @php
                     $roleName = $this->getUserRole($user);
                 @endphp
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center flex-1">
                             <div class="flex-shrink-0 h-12 w-12 bg-bcn-primary bg-opacity-20 rounded-full flex items-center justify-center">
@@ -133,14 +133,14 @@
                                 </span>
                             </div>
                             <div class="ml-3 flex-1">
-                                <div class="text-sm font-medium text-gray-900">{{ $user->name }}</div>
-                                <div class="text-xs text-gray-500">{{ '@' . $user->username }}</div>
+                                <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $user->name }}</div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">{{ '@' . $user->username }}</div>
                                 @if($roleName)
                                     <span class="inline-flex mt-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-bcn-primary bg-opacity-20 text-bcn-secondary">
                                         {{ $roleName }}
                                     </span>
                                 @else
-                                    <span class="inline-flex mt-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                                    <span class="inline-flex mt-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-white">
                                         Sin rol
                                     </span>
                                 @endif
@@ -148,7 +148,7 @@
                         </div>
                         <button
                             wire:click="edit({{ $user->id }})"
-                            class="ml-2 inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary transition-colors duration-150"
+                            class="ml-2 inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary transition-colors duration-150"
                             title="Editar usuario"
                         >
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -158,8 +158,8 @@
                     </div>
                 </div>
             @empty
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center text-gray-500">
-                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center text-gray-500 dark:text-gray-400">
+                    <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                     </svg>
                     <p class="mt-2 text-sm">No se encontraron usuarios</p>
@@ -173,31 +173,31 @@
         </div>
 
         <!-- Tabla de usuarios (Desktop) -->
-        <div class="hidden sm:block bg-white overflow-hidden shadow-sm sm:rounded-lg">
+        <div class="hidden sm:block bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-bcn-light">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-bcn-light dark:bg-gray-700">
                         <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                 Usuario
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                 Email
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                 Rol
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                 Estado
                             </th>
-                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                 Acciones
                             </th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
+                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                         @forelse($users as $user)
-                            <tr class="hover:bg-gray-50 transition-colors duration-150">
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex items-center">
                                         <div class="flex-shrink-0 h-10 w-10 bg-bcn-primary bg-opacity-20 rounded-full flex items-center justify-center">
@@ -206,13 +206,13 @@
                                             </span>
                                         </div>
                                         <div class="ml-4">
-                                            <div class="text-sm font-medium text-gray-900">{{ $user->name }}</div>
-                                            <div class="text-sm text-gray-500">{{ '@' . $user->username }}</div>
+                                            <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $user->name }}</div>
+                                            <div class="text-sm text-gray-500 dark:text-gray-400">{{ '@' . $user->username }}</div>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900">{{ $user->email }}</div>
+                                    <div class="text-sm text-gray-900 dark:text-white">{{ $user->email }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     @php
@@ -223,7 +223,7 @@
                                             {{ $roleName }}
                                         </span>
                                     @else
-                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-white">
                                             Sin rol
                                         </span>
                                     @endif
@@ -231,21 +231,21 @@
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <button
                                         wire:click="toggleStatus({{ $user->id }})"
-                                        class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $user->activo ? 'bg-green-600' : 'bg-gray-300' }}"
+                                        class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary {{ $user->activo ? 'bg-green-600' : 'bg-gray-300' }}"
                                     >
                                         <span class="sr-only">{{ $user->activo ? 'Desactivar' : 'Activar' }} usuario</span>
                                         <span
                                             class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $user->activo ? 'translate-x-5' : 'translate-x-0' }}"
                                         ></span>
                                     </button>
-                                    <span class="ml-2 text-xs text-gray-600">
+                                    <span class="ml-2 text-xs text-gray-600 dark:text-gray-300">
                                         {{ $user->activo ? 'Activo' : 'Inactivo' }}
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <button
                                         wire:click="edit({{ $user->id }})"
-                                        class="inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary transition-colors duration-150"
+                                        class="inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary transition-colors duration-150"
                                         title="Editar usuario"
                                     >
                                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -257,8 +257,8 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-6 py-12 text-center text-gray-500">
-                                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <td colspan="5" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                    <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                                     </svg>
                                     <p class="mt-2">No se encontraron usuarios</p>
@@ -270,7 +270,7 @@
             </div>
 
             <!-- Paginación Desktop -->
-            <div class="px-6 py-4 border-t border-gray-200">
+            <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
                 {{ $users->links() }}
             </div>
         </div>
@@ -297,24 +297,24 @@
 
                 <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-                <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
                     <form wire:submit="save">
-                        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                        <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                             <div class="sm:flex sm:items-start">
                                 <div class="w-full mt-3 sm:mt-0 text-left">
-                                    <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4" id="modal-title">
+                                    <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4" id="modal-title">
                                         {{ $editMode ? 'Editar Usuario' : 'Nuevo Usuario' }}
                                     </h3>
 
                                     <div class="space-y-4">
                                         <!-- Nombre -->
                                         <div>
-                                            <label for="name" class="block text-sm font-medium text-gray-700">Nombre completo *</label>
+                                            <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre completo *</label>
                                             <input
                                                 type="text"
                                                 id="name"
                                                 wire:model="name"
-                                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                                                 required
                                             />
                                             @error('name') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -322,12 +322,12 @@
 
                                         <!-- Username -->
                                         <div>
-                                            <label for="username" class="block text-sm font-medium text-gray-700">Nombre de usuario *</label>
+                                            <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre de usuario *</label>
                                             <input
                                                 type="text"
                                                 id="username"
                                                 wire:model="username"
-                                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                                                 required
                                             />
                                             @error('username') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -335,12 +335,12 @@
 
                                         <!-- Email -->
                                         <div>
-                                            <label for="email" class="block text-sm font-medium text-gray-700">Email *</label>
+                                            <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email *</label>
                                             <input
                                                 type="email"
                                                 id="email"
                                                 wire:model="email"
-                                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                                                 required
                                             />
                                             @error('email') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -384,7 +384,7 @@
 
                                         <!-- Contraseña -->
                                         <div>
-                                            <label for="password" class="block text-sm font-medium text-gray-700">
+                                            <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                                 {{ $editMode ? 'Nueva Contraseña (dejar en blanco para no cambiar)' : 'Contraseña *' }}
                                             </label>
                                             <input
@@ -392,7 +392,7 @@
                                                 id="password"
                                                 wire:model="password"
                                                 autocomplete="new-password"
-                                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                                                 {{ $editMode ? '' : 'required' }}
                                             />
                                             @error('password') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -400,23 +400,23 @@
 
                                         <!-- Confirmar contraseña -->
                                         <div>
-                                            <label for="password_confirmation" class="block text-sm font-medium text-gray-700">Confirmar contraseña</label>
+                                            <label for="password_confirmation" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Confirmar contraseña</label>
                                             <input
                                                 type="password"
                                                 id="password_confirmation"
                                                 wire:model="password_confirmation"
                                                 autocomplete="new-password"
-                                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                                             />
                                         </div>
 
                                         <!-- Rol -->
                                         <div>
-                                            <label for="roleId" class="block text-sm font-medium text-gray-700">Rol</label>
+                                            <label for="roleId" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Rol</label>
                                             <select
                                                 id="roleId"
                                                 wire:model="roleId"
-                                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                                             >
                                                 <option value="">Sin rol asignado</option>
                                                 @foreach($roles as $role)
@@ -428,8 +428,8 @@
 
                                         <!-- Sucursales (Solo para Super Admin) -->
                                         @if($currentUserIsSuperAdmin)
-                                            <div class="bg-blue-50 border border-blue-200 rounded-md p-4">
-                                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                            <div class="bg-blue-50 dark:bg-gray-700 border border-blue-200 dark:border-gray-600 rounded-md p-4">
+                                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                                     <svg class="w-4 h-4 inline mr-1 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
                                                     </svg>
@@ -443,14 +443,14 @@
                                                 </p>
                                                 <div class="space-y-2 max-h-48 overflow-y-auto">
                                                     @foreach($sucursales as $sucursal)
-                                                        <label class="flex items-center p-2 hover:bg-blue-100 rounded cursor-pointer transition-colors">
+                                                        <label class="flex items-center p-2 hover:bg-blue-100 dark:hover:bg-gray-600 rounded cursor-pointer transition-colors">
                                                             <input
                                                                 type="checkbox"
                                                                 wire:model="selectedSucursales"
                                                                 value="{{ $sucursal->id }}"
-                                                                class="rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary"
+                                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
                                                             />
-                                                            <span class="ml-2 text-sm text-gray-700 flex-1">
+                                                            <span class="ml-2 text-sm text-gray-700 dark:text-gray-300 flex-1">
                                                                 {{ $sucursal->nombre }}
                                                                 <span class="text-xs text-gray-500">({{ $sucursal->codigo }})</span>
                                                                 @if($sucursal->es_principal)
@@ -474,8 +474,8 @@
 
                                         <!-- Cajas (Solo para Super Admin) -->
                                         @if($currentUserIsSuperAdmin)
-                                            <div class="bg-indigo-50 border border-indigo-200 rounded-md p-4">
-                                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                            <div class="bg-indigo-50 dark:bg-gray-700 border border-indigo-200 dark:border-gray-600 rounded-md p-4">
+                                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                                     <svg class="w-4 h-4 inline mr-1 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
                                                     </svg>
@@ -501,8 +501,8 @@
                                                         @endphp
 
                                                         @if($sucursal && $cajasSucursal->isNotEmpty())
-                                                            <div class="bg-white border border-indigo-300 rounded-md p-3">
-                                                                <div class="text-xs font-semibold text-indigo-900 mb-2 flex items-center">
+                                                            <div class="bg-white dark:bg-gray-800 border border-indigo-300 dark:border-gray-600 rounded-md p-3">
+                                                                <div class="text-xs font-semibold text-indigo-900 dark:text-white mb-2 flex items-center">
                                                                     <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
                                                                     </svg>
@@ -510,14 +510,14 @@
                                                                 </div>
                                                                 <div class="space-y-1.5">
                                                                     @foreach($cajasSucursal as $caja)
-                                                                        <label class="flex items-center p-2 hover:bg-indigo-50 rounded cursor-pointer transition-colors">
+                                                                        <label class="flex items-center p-2 hover:bg-indigo-50 dark:hover:bg-gray-600 rounded cursor-pointer transition-colors">
                                                                             <input
                                                                                 type="checkbox"
                                                                                 wire:model="selectedCajas.{{ $sucursalId }}"
                                                                                 value="{{ $caja->id }}"
-                                                                                class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                                                class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
                                                                             />
-                                                                            <span class="ml-2 text-sm text-gray-700 flex-1 flex items-center justify-between">
+                                                                            <span class="ml-2 text-sm text-gray-700 dark:text-gray-300 flex-1 flex items-center justify-between">
                                                                                 <span>
                                                                                     {{ $caja->nombre }}
                                                                                 </span>
@@ -572,26 +572,26 @@
                                                 type="checkbox"
                                                 id="activo"
                                                 wire:model="activo"
-                                                class="rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary"
+                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
                                             />
-                                            <label for="activo" class="ml-2 block text-sm text-gray-700">Usuario activo</label>
+                                            <label for="activo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">Usuario activo</label>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                        <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                             <button
                                 type="submit"
-                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary sm:ml-3 sm:w-auto sm:text-sm"
+                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:ml-3 sm:w-auto sm:text-sm"
                             >
                                 {{ $editMode ? 'Actualizar' : 'Crear' }}
                             </button>
                             <button
                                 type="button"
                                 @click="show = false; $wire.cancel()"
-                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                             >
                                 Cancelar
                             </button>

@@ -28,33 +28,45 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::connection('pymes_tenant')->create('user_cajas', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('user_id')->comment('ID del usuario en tabla config.users');
-            $table->unsignedBigInteger('caja_id')->comment('ID de la caja');
-            $table->unsignedBigInteger('sucursal_id')->comment('ID de la sucursal (redundante pero útil para queries)');
-            $table->timestamps();
+        $connection = 'pymes_tenant';
 
-            // Foreign keys
-            $table->foreign('caja_id', 'fk_user_cajas_caja')
-                  ->references('id')
-                  ->on('cajas')
-                  ->onDelete('cascade');
+        if (!Schema::connection($connection)->hasTable('user_cajas')) {
+            Schema::connection($connection)->create('user_cajas', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('user_id')->comment('ID del usuario en tabla config.users');
+                $table->unsignedBigInteger('caja_id')->comment('ID de la caja');
+                $table->unsignedBigInteger('sucursal_id')->comment('ID de la sucursal (redundante pero útil para queries)');
+                $table->timestamps();
 
-            $table->foreign('sucursal_id', 'fk_user_cajas_sucursal')
-                  ->references('id')
-                  ->on('sucursales')
-                  ->onDelete('cascade');
+                // Índices para optimizar consultas
+                $table->index('user_id', 'idx_user');
+                $table->index('caja_id', 'idx_caja');
+                $table->index('sucursal_id', 'idx_sucursal');
+                $table->index(['user_id', 'sucursal_id'], 'idx_user_sucursal');
 
-            // Índices para optimizar consultas
-            $table->index('user_id', 'idx_user');
-            $table->index('caja_id', 'idx_caja');
-            $table->index('sucursal_id', 'idx_sucursal');
-            $table->index(['user_id', 'sucursal_id'], 'idx_user_sucursal');
+                // Unique constraint: un usuario no puede tener la misma caja duplicada
+                $table->unique(['user_id', 'caja_id'], 'uk_user_caja');
+            });
 
-            // Unique constraint: un usuario no puede tener la misma caja duplicada
-            $table->unique(['user_id', 'caja_id'], 'uk_user_caja');
-        });
+            // Agregar foreign keys después si las tablas existen
+            if (Schema::connection($connection)->hasTable('cajas')) {
+                Schema::connection($connection)->table('user_cajas', function (Blueprint $table) {
+                    $table->foreign('caja_id', 'fk_user_cajas_caja')
+                          ->references('id')
+                          ->on('cajas')
+                          ->onDelete('cascade');
+                });
+            }
+
+            if (Schema::connection($connection)->hasTable('sucursales')) {
+                Schema::connection($connection)->table('user_cajas', function (Blueprint $table) {
+                    $table->foreign('sucursal_id', 'fk_user_cajas_sucursal')
+                          ->references('id')
+                          ->on('sucursales')
+                          ->onDelete('cascade');
+                });
+            }
+        }
     }
 
     /**

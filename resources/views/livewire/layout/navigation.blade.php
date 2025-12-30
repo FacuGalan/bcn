@@ -146,17 +146,29 @@ new class extends Component
 <nav x-data="{ open: false }" class="bg-bcn-secondary border-b border-bcn-secondary">
     <!-- Primary Navigation Menu -->
     <div class="px-2">
-        <div class="flex justify-between h-16">
+        <div class="flex justify-between h-12">
+            <!-- Hamburger (móvil a la izquierda) -->
+            <div class="flex items-center md:hidden">
+                <button
+                    wire:click="toggleMobileMenu"
+                    class="inline-flex items-center justify-center p-2 rounded-md text-bcn-light hover:text-bcn-white hover:bg-bcn-secondary hover:bg-opacity-80 focus:outline-none focus:bg-bcn-secondary focus:bg-opacity-80 focus:text-bcn-white transition duration-150 ease-in-out"
+                >
+                    <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
+                        <path class="inline-flex" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </button>
+            </div>
+
             <div class="flex">
-                <!-- Logo -->
-                <div class="shrink-0 flex items-center">
+                <!-- Logo (móvil a la derecha, desktop a la izquierda) -->
+                <div class="shrink-0 flex items-center md:order-first order-last">
                     <a href="{{ route('dashboard') }}" wire:navigate>
-                        <x-application-logo class="block h-12 w-auto" />
+                        <img src="{{ asset('banner_bcn.png') }}" alt="BCN Pymes" class="block h-5 w-auto" />
                     </a>
                 </div>
 
                 <!-- Desktop Navigation Links - Menu Dinámico -->
-                <div class="hidden md:flex md:ms-10">
+                <div class="hidden md:flex md:ms-4">
                     @foreach($parentItems as $parent)
                         @if($parent->route_type === 'none')
                             {{-- Padre con hijos: Solo activa la banda de submenu (hijos precargados) --}}
@@ -205,7 +217,7 @@ new class extends Component
 
                         @if(!$loop->last)
                             {{-- Separador vertical delicado y centrado --}}
-                            <div class="h-7 w-0.5 bg-white/20 mx-1 self-center"></div>
+                            <div class="h-5 w-0.5 bg-white/20 mx-1 self-center"></div>
                         @endif
                     @endforeach
                 </div>
@@ -246,34 +258,22 @@ new class extends Component
                     </x-slot>
                 </x-dropdown>
             </div>
-
-            <!-- Hamburger -->
-            <div class="-me-2 flex items-center md:hidden">
-                <button
-                    wire:click="toggleMobileMenu"
-                    class="inline-flex items-center justify-center p-2 rounded-md text-bcn-light hover:text-bcn-white hover:bg-bcn-secondary hover:bg-opacity-80 focus:outline-none focus:bg-bcn-secondary focus:bg-opacity-80 focus:text-bcn-white transition duration-150 ease-in-out"
-                >
-                    <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
-                        <path class="inline-flex" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
-                </button>
-            </div>
         </div>
     </div>
 
     {{-- Banda secundaria con items hijos (Desktop) --}}
     @if($childrenItems->isNotEmpty())
-        <div class="hidden md:block bg-bcn-light border-t border-gray-200">
-            <div class="px-2">
-                <div class="flex space-x-6 h-12">
+        <div class="hidden md:block bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-sm">
+            <div class="px-4">
+                <div class="flex items-center h-9 gap-1">
                     @foreach($childrenItems as $child)
                         <a
                             href="{{ $child->getUrl() }}"
                             wire:navigate
-                            class="inline-flex items-center px-3 text-sm font-medium transition-colors duration-200
+                            class="relative inline-flex items-center px-3 py-1 text-sm font-medium rounded-full transition-all duration-200
                                 {{ $child->isCurrentRoute()
-                                    ? 'text-bcn-secondary bg-bcn-primary bg-opacity-20 rounded-md'
-                                    : 'text-gray-700 hover:text-bcn-secondary hover:bg-bcn-primary hover:bg-opacity-10 rounded-md'
+                                    ? 'text-bcn-secondary bg-bcn-primary shadow-md'
+                                    : 'text-gray-600 dark:text-gray-300 hover:text-white hover:bg-bcn-secondary hover:shadow-sm'
                                 }}"
                         >
                             @if($child->icono)
@@ -281,6 +281,10 @@ new class extends Component
                             @endif
                             {{ $child->nombre }}
                         </a>
+
+                        @if(!$loop->last)
+                            <span class="text-gray-300 dark:text-gray-600 mx-1">•</span>
+                        @endif
                     @endforeach
                 </div>
             </div>
@@ -299,7 +303,7 @@ new class extends Component
     x-transition:leave-start="opacity-100"
     x-transition:leave-end="opacity-0"
     @click="$wire.closeMobileMenu()"
-    class="fixed inset-0 bg-gray-600 bg-opacity-75 z-40 md:hidden"
+    class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 z-40 md:hidden"
     style="display: none;"
 ></div>
 
@@ -313,17 +317,24 @@ new class extends Component
     x-transition:leave="transition ease-in-out duration-300 transform"
     x-transition:leave-start="translate-x-0"
     x-transition:leave-end="-translate-x-full"
-    class="fixed inset-y-0 left-0 w-64 bg-bcn-white shadow-xl z-50 md:hidden overflow-y-auto"
+    class="fixed inset-y-0 left-0 w-64 bg-bcn-white dark:bg-gray-800 shadow-xl z-50 md:hidden overflow-y-auto"
     style="display: none;"
 >
-    {{-- Header del Sidebar --}}
-    <div class="flex items-center justify-between p-4 border-b border-gray-200 bg-bcn-secondary">
-        <div class="flex items-center">
-            <x-application-logo class="block h-8 w-auto" />
+    {{-- Header del Sidebar con información del usuario --}}
+    <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-bcn-secondary">
+        <div class="flex items-center flex-1 min-w-0">
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-bcn-white truncate">
+                    {{ auth()->user()->name }}
+                </p>
+                <p class="text-xs text-bcn-light truncate">
+                    {{ auth()->user()->email }}
+                </p>
+            </div>
         </div>
         <button
             wire:click="closeMobileMenu"
-            class="p-2 rounded-md text-bcn-light hover:text-bcn-white hover:bg-bcn-secondary hover:bg-opacity-80"
+            class="p-2 rounded-md text-bcn-light hover:text-bcn-white hover:bg-bcn-secondary hover:bg-opacity-80 flex-shrink-0"
         >
             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -339,16 +350,16 @@ new class extends Component
                 <div class="space-y-1">
                     <button
                         wire:click="toggleMobileParent({{ $parent->id }})"
-                        class="w-full flex items-center justify-between px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-bcn-secondary hover:bg-bcn-light"
+                        class="w-full flex items-center justify-between px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:text-bcn-secondary hover:bg-bcn-light dark:hover:bg-gray-700"
                     >
                         <div class="flex items-center">
                             @if($parent->icono)
-                                <x-dynamic-component :component="$parent->icono" class="h-5 w-5 mr-3 text-gray-500" />
+                                <x-dynamic-component :component="$parent->icono" class="h-5 w-5 mr-3 text-gray-500 dark:text-gray-400" />
                             @endif
                             {{ $parent->nombre }}
                         </div>
                         <svg
-                            class="h-5 w-5 text-gray-500 transition-transform duration-200 {{ $mobileExpandedParentId === $parent->id ? 'transform rotate-180' : '' }}"
+                            class="h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 {{ $mobileExpandedParentId === $parent->id ? 'transform rotate-180' : '' }}"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -368,7 +379,7 @@ new class extends Component
                                     class="block px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200
                                         {{ $child->isCurrentRoute()
                                             ? 'text-bcn-secondary bg-bcn-primary bg-opacity-20'
-                                            : 'text-gray-600 hover:text-bcn-secondary hover:bg-bcn-light'
+                                            : 'text-gray-600 dark:text-gray-300 hover:text-bcn-secondary hover:bg-bcn-light dark:hover:bg-gray-700'
                                         }}"
                                 >
                                     <div class="flex items-center">
@@ -391,11 +402,11 @@ new class extends Component
                     class="flex items-center px-3 py-2 rounded-md text-base font-medium transition-colors duration-200
                         {{ $parent->isCurrentRoute()
                             ? 'text-bcn-secondary bg-bcn-primary bg-opacity-20'
-                            : 'text-gray-700 hover:text-bcn-secondary hover:bg-bcn-light'
+                            : 'text-gray-700 dark:text-gray-300 hover:text-bcn-secondary hover:bg-bcn-light dark:hover:bg-gray-700'
                         }}"
                 >
                     @if($parent->icono)
-                        <x-dynamic-component :component="$parent->icono" class="h-5 w-5 mr-3 text-gray-500" />
+                        <x-dynamic-component :component="$parent->icono" class="h-5 w-5 mr-3 text-gray-500 dark:text-gray-400" />
                     @endif
                     {{ $parent->nombre }}
                 </a>
@@ -403,19 +414,8 @@ new class extends Component
         @endforeach
     </div>
 
-    {{-- Usuario y opciones en el footer del sidebar --}}
-    <div class="absolute bottom-0 left-0 right-0 border-t border-gray-200 bg-bcn-light p-4">
-        <div class="flex items-center mb-3">
-            <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-bcn-secondary truncate">
-                    {{ auth()->user()->name }}
-                </p>
-                <p class="text-xs text-gray-600 truncate">
-                    {{ auth()->user()->email }}
-                </p>
-            </div>
-        </div>
-
+    {{-- Selectores y opciones en el footer del sidebar --}}
+    <div class="absolute bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 bg-bcn-light dark:bg-gray-900 p-4">
         {{-- Selector de Sucursal para móvil --}}
         <div class="mb-3">
             <livewire:sucursal-selector />
@@ -431,18 +431,18 @@ new class extends Component
                 href="{{ route('profile') }}"
                 wire:navigate
                 wire:click="closeMobileMenu"
-                class="flex items-center px-3 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-bcn-white hover:text-bcn-secondary"
+                class="flex items-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-md hover:bg-bcn-white dark:hover:bg-gray-700 hover:text-bcn-secondary"
             >
-                <svg class="h-5 w-5 mr-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="h-5 w-5 mr-3 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
                 Profile
             </a>
             <button
                 wire:click="logout"
-                class="w-full flex items-center px-3 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-bcn-white hover:text-bcn-secondary"
+                class="w-full flex items-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-md hover:bg-bcn-white dark:hover:bg-gray-700 hover:text-bcn-secondary"
             >
-                <svg class="h-5 w-5 mr-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="h-5 w-5 mr-3 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
                 Log Out

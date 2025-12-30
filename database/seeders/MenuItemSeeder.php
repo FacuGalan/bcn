@@ -96,23 +96,12 @@ class MenuItemSeeder extends Seeder
         // Hijos de Artículos
         MenuItem::create([
             'parent_id' => $articulos->id,
-            'nombre' => 'Nuevo Artículo',
-            'slug' => 'nuevo-articulo',
-            'icono' => 'heroicon-o-plus-circle',
-            'route_type' => 'route',
-            'route_value' => 'articulos.create',
-            'orden' => 1,
-            'activo' => true,
-        ]);
-
-        MenuItem::create([
-            'parent_id' => $articulos->id,
             'nombre' => 'Listado de Artículos',
             'slug' => 'listado-articulos',
             'icono' => 'heroicon-o-list-bullet',
             'route_type' => 'route',
             'route_value' => 'articulos.index',
-            'orden' => 2,
+            'orden' => 1,
             'activo' => true,
         ]);
 
@@ -120,9 +109,20 @@ class MenuItemSeeder extends Seeder
             'parent_id' => $articulos->id,
             'nombre' => 'Categorías',
             'slug' => 'categorias',
-            'icono' => 'heroicon-o-tag',
+            'icono' => 'heroicon-o-folder',
             'route_type' => 'route',
             'route_value' => 'articulos.categorias',
+            'orden' => 2,
+            'activo' => true,
+        ]);
+
+        MenuItem::create([
+            'parent_id' => $articulos->id,
+            'nombre' => 'Etiquetas',
+            'slug' => 'etiquetas',
+            'icono' => 'heroicon-o-tag',
+            'route_type' => 'route',
+            'route_value' => 'articulos.etiquetas',
             'orden' => 3,
             'activo' => true,
         ]);

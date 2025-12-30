@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Spatie\Permission\Models\Role as SpatieRole;
 
 /**
@@ -53,6 +55,17 @@ class Role extends SpatieRole
     }
 
     /**
+     * Verifica si el tenant está correctamente configurado
+     *
+     * @return bool
+     */
+    protected static function isTenantConfigured(): bool
+    {
+        $prefix = config('database.connections.pymes_tenant.prefix', '');
+        return !empty($prefix);
+    }
+
+    /**
      * Da permisos al rol
      * Sobrescribe el método de Spatie para usar la conexión correcta
      *
@@ -61,6 +74,11 @@ class Role extends SpatieRole
      */
     public function givePermissionTo(...$permissions)
     {
+        if (!static::isTenantConfigured()) {
+            Log::warning('Role::givePermissionTo() - Tenant no configurado');
+            return $this;
+        }
+
         $permissions = collect($permissions)
             ->flatten()
             ->map(function ($permission) {
@@ -77,9 +95,13 @@ class Role extends SpatieRole
             })
             ->toArray();
 
-        \Illuminate\Support\Facades\DB::connection('pymes_tenant')
-            ->table('role_has_permissions')
-            ->insert($permissions);
+        try {
+            DB::connection('pymes_tenant')
+                ->table('role_has_permissions')
+                ->insert($permissions);
+        } catch (\Illuminate\Database\QueryException $e) {
+            Log::error('Role::givePermissionTo() - Error de base de datos: ' . $e->getMessage());
+        }
 
         return $this;
     }
@@ -93,6 +115,10 @@ class Role extends SpatieRole
      */
     public function hasPermissionTo($permission, ?string $guardName = null): bool
     {
+        if (!static::isTenantConfigured()) {
+            return false;
+        }
+
         if (is_string($permission)) {
             $permission = Permission::where('name', $permission)->first();
         }
@@ -101,10 +127,15 @@ class Role extends SpatieRole
             return false;
         }
 
-        return \Illuminate\Support\Facades\DB::connection('pymes_tenant')
-            ->table('role_has_permissions')
-            ->where('role_id', $this->id)
-            ->where('permission_id', $permission->id)
-            ->exists();
+        try {
+            return DB::connection('pymes_tenant')
+                ->table('role_has_permissions')
+                ->where('role_id', $this->id)
+                ->where('permission_id', $permission->id)
+                ->exists();
+        } catch (\Illuminate\Database\QueryException $e) {
+            Log::error('Role::hasPermissionTo() - Error de base de datos: ' . $e->getMessage());
+            return false;
+        }
     }
 }

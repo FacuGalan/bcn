@@ -89,14 +89,14 @@ new #[Layout('layouts.guest')] class extends Component
         </div>
     @endif
 
-    <form wire:submit="login">
+    <form wire:submit="login" class="space-y-5">
         <!-- Comercio Email -->
         <div>
-            <x-input-label for="comercio_email" value="Email del Comercio" />
+            <x-input-label for="comercio_email" value="Email del Comercio" class="text-sm font-medium text-gray-700" />
             <x-text-input
                 wire:model="form.comercio_email"
                 id="comercio_email"
-                class="block mt-1 w-full"
+                class="block mt-1.5 w-full py-3 px-4 text-base rounded-xl border-gray-300 focus:border-bcn-primary focus:ring-bcn-primary"
                 type="email"
                 name="comercio_email"
                 required
@@ -107,12 +107,12 @@ new #[Layout('layouts.guest')] class extends Component
         </div>
 
         <!-- Username -->
-        <div class="mt-4">
-            <x-input-label for="username" value="Usuario" />
+        <div>
+            <x-input-label for="username" value="Usuario" class="text-sm font-medium text-gray-700" />
             <x-text-input
                 wire:model="form.username"
                 id="username"
-                class="block mt-1 w-full"
+                class="block mt-1.5 w-full py-3 px-4 text-base rounded-xl border-gray-300 focus:border-bcn-primary focus:ring-bcn-primary"
                 type="text"
                 name="username"
                 required
@@ -122,47 +122,46 @@ new #[Layout('layouts.guest')] class extends Component
         </div>
 
         <!-- Password -->
-        <div class="mt-4">
-            <x-input-label for="password" :value="__('Password')" />
+        <div>
+            <x-input-label for="password" :value="__('Password')" class="text-sm font-medium text-gray-700" />
             <x-text-input
                 wire:model="form.password"
                 id="password"
-                class="block mt-1 w-full"
+                class="block mt-1.5 w-full py-3 px-4 text-base rounded-xl border-gray-300 focus:border-bcn-primary focus:ring-bcn-primary"
                 type="password"
                 name="password"
                 required
-                autocomplete="current-password" />
+                autocomplete="current-password"
+                placeholder="••••••••" />
             <x-input-error :messages="$errors->get('form.password')" class="mt-2" />
         </div>
 
-        <!-- Remember Me -->
-        <div class="block mt-4">
+        <!-- Remember Me & Forgot Password -->
+        <div class="flex items-center justify-between">
             <label for="remember" class="inline-flex items-center">
-                <input wire:model="form.remember" id="remember" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" name="remember">
+                <input wire:model="form.remember" id="remember" type="checkbox" class="w-4 h-4 rounded border-gray-300 text-bcn-primary shadow-sm focus:ring-bcn-primary" name="remember">
                 <span class="ms-2 text-sm text-gray-600">{{ __('Remember me') }}</span>
             </label>
-        </div>
 
-        <div class="flex items-center justify-end mt-4">
             @if (Route::has('password.request'))
-                <a class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" href="{{ route('password.request') }}" wire:navigate>
-                    {{ __('Forgot your password?') }}
+                <a class="text-sm text-bcn-secondary hover:text-bcn-primary font-medium transition-colors" href="{{ route('password.request') }}" wire:navigate>
+                    ¿Olvidaste tu contraseña?
                 </a>
             @endif
+        </div>
 
-            <x-primary-button class="ms-3">
-                {{ __('Log in') }}
-            </x-primary-button>
+        <!-- Submit Button -->
+        <div class="pt-2">
+            <button type="submit" class="w-full flex justify-center items-center py-3.5 px-4 bg-bcn-primary hover:bg-amber-500 text-bcn-secondary font-semibold text-base rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary">
+                <svg wire:loading class="animate-spin -ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span wire:loading.remove>Iniciar Sesión</span>
+                <span wire:loading>Ingresando...</span>
+            </button>
         </div>
     </form>
-
-    <!-- Helper Text -->
-    <div class="mt-6 text-xs text-gray-500 bg-gray-50 p-3 rounded-md">
-        <p class="font-semibold mb-1">Credenciales de prueba:</p>
-        <p>• Comercio: comercio1@bcnpymes.com</p>
-        <p>• Usuario: admin</p>
-        <p>• Password: password</p>
-    </div>
 
     <!-- Modal de Confirmación de Sesiones -->
     @if ($showConfirmationModal)

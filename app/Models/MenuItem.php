@@ -283,6 +283,41 @@ class MenuItem extends Model
             return false;
         }
 
-        return request()->routeIs($this->route_value . '*');
+        // Verificar coincidencia exacta primero
+        if (request()->routeIs($this->route_value)) {
+            return true;
+        }
+
+        // Verificar coincidencia con subrutas (ej: promociones.nueva, promociones.editar)
+        // Usamos un punto como separador para evitar falsos positivos
+        // Esto evita que "promociones" coincida con "promociones-especiales"
+        if (request()->routeIs($this->route_value . '.*')) {
+            return true;
+        }
+
+        // Rutas relacionadas: ciertas rutas de configuración pertenecen a sus módulos padre
+        $relatedRoutes = [
+            'articulos.gestionar' => [
+                'configuracion.articulos-sucursal',
+                'articulos.cambio-masivo-precios',
+            ],
+            'articulos.etiquetas' => [
+                'articulos.asignar-etiquetas',
+            ],
+            'configuracion.formas-pago' => [
+                'configuracion.formas-pago-sucursal',
+            ],
+        ];
+
+        // Si esta ruta tiene rutas relacionadas, verificar si estamos en alguna de ellas
+        if (isset($relatedRoutes[$this->route_value])) {
+            foreach ($relatedRoutes[$this->route_value] as $relatedRoute) {
+                if (request()->routeIs($relatedRoute) || request()->routeIs($relatedRoute . '.*')) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

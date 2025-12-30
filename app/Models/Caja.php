@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -45,6 +46,10 @@ class Caja extends Model
         'fecha_cierre',
         'estado',
         'activo',
+        'limite_efectivo',
+        'modo_carga_inicial',
+        'monto_fijo_inicial',
+        'grupo_cierre_id',
     ];
 
     protected $casts = [
@@ -53,12 +58,31 @@ class Caja extends Model
         'fecha_apertura' => 'datetime',
         'fecha_cierre' => 'datetime',
         'activo' => 'boolean',
+        'limite_efectivo' => 'decimal:2',
+        'monto_fijo_inicial' => 'decimal:2',
+    ];
+
+    /**
+     * Opciones para modo de carga inicial
+     */
+    public const MODOS_CARGA_INICIAL = [
+        'manual' => 'Manual',
+        'ultimo_cierre' => 'Automático (último cierre)',
+        'monto_fijo' => 'Automático (monto fijo)',
     ];
 
     // Relaciones
     public function sucursal(): BelongsTo
     {
         return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
+
+    /**
+     * Grupo de cierre al que pertenece la caja (si comparte cierre)
+     */
+    public function grupoCierre(): BelongsTo
+    {
+        return $this->belongsTo(GrupoCierre::class, 'grupo_cierre_id');
     }
 
     public function movimientos(): HasMany
@@ -74,6 +98,29 @@ class Caja extends Model
     public function compras(): HasMany
     {
         return $this->hasMany(Compra::class, 'caja_id');
+    }
+
+    public function puntosVenta(): BelongsToMany
+    {
+        return $this->belongsToMany(PuntoVenta::class, 'punto_venta_caja')
+            ->withPivot('es_defecto')
+            ->withTimestamps();
+    }
+
+    /**
+     * Historial de cierres de turno donde participó esta caja
+     */
+    public function cierresTurno(): HasMany
+    {
+        return $this->hasMany(CierreTurnoCaja::class, 'caja_id');
+    }
+
+    /**
+     * Obtiene el punto de venta por defecto de la caja
+     */
+    public function puntoVentaDefecto()
+    {
+        return $this->puntosVenta()->wherePivot('es_defecto', true)->first();
     }
 
     // Scopes
@@ -110,6 +157,22 @@ class Caja extends Model
     public function scopeBanco($query)
     {
         return $query->where('tipo', 'banco');
+    }
+
+    /**
+     * Cajas que cierran de forma individual (sin grupo)
+     */
+    public function scopeSinGrupo($query)
+    {
+        return $query->whereNull('grupo_cierre_id');
+    }
+
+    /**
+     * Cajas que pertenecen a un grupo de cierre
+     */
+    public function scopeConGrupo($query)
+    {
+        return $query->whereNotNull('grupo_cierre_id');
     }
 
     // Métodos auxiliares
@@ -258,5 +321,62 @@ class Caja extends Model
         return $this->movimientos()
                     ->where('tipo_movimiento', 'egreso')
                     ->sum('monto');
+    }
+
+    // ==================== MÉTODOS DE GRUPO DE CIERRE ====================
+
+    /**
+     * Verifica si la caja comparte cierre con otras cajas
+     */
+    public function comparteCierre(): bool
+    {
+        return $this->grupo_cierre_id !== null;
+    }
+
+    /**
+     * Verifica si la caja cierra de forma individual
+     */
+    public function cierraIndividual(): bool
+    {
+        return $this->grupo_cierre_id === null;
+    }
+
+    /**
+     * Obtiene las otras cajas del mismo grupo de cierre
+     */
+    public function cajasDelMismoGrupo()
+    {
+        if (!$this->comparteCierre()) {
+            return collect();
+        }
+
+        return static::where('grupo_cierre_id', $this->grupo_cierre_id)
+            ->where('id', '!=', $this->id)
+            ->get();
+    }
+
+    /**
+     * Obtiene todas las cajas del grupo (incluyendo esta)
+     */
+    public function todasLasCajasDelGrupo()
+    {
+        if (!$this->comparteCierre()) {
+            return collect([$this]);
+        }
+
+        return static::where('grupo_cierre_id', $this->grupo_cierre_id)->get();
+    }
+
+    /**
+     * Calcula el saldo total del grupo de cierre
+     */
+    public function getSaldoGrupoAttribute(): float
+    {
+        if (!$this->comparteCierre()) {
+            return $this->saldo_actual;
+        }
+
+        return static::where('grupo_cierre_id', $this->grupo_cierre_id)
+            ->sum('saldo_actual');
     }
 }
