@@ -12,7 +12,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        $prefix = TenantService::getTablePrefix();
+        $prefix = app(TenantService::class)->getTablePrefix();
         if (empty($prefix)) {
             // Si no hay tenant, no hacer nada (se ejecutará después con tenant:migrate)
             return;
@@ -32,7 +32,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        $prefix = TenantService::getTablePrefix();
+        $prefix = app(TenantService::class)->getTablePrefix();
         if (empty($prefix)) {
             return;
         }
