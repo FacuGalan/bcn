@@ -297,7 +297,7 @@
 
                 <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
                     <form wire:submit="save">
                         <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                             <div class="sm:flex sm:items-start">
@@ -307,275 +307,291 @@
                                     </h3>
 
                                     <div class="space-y-4">
-                                        <!-- Nombre -->
-                                        <div>
-                                            <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre completo *</label>
-                                            <input
-                                                type="text"
-                                                id="name"
-                                                wire:model="name"
-                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                required
-                                            />
-                                            @error('name') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                        </div>
-
-                                        <!-- Username -->
-                                        <div>
-                                            <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre de usuario *</label>
-                                            <input
-                                                type="text"
-                                                id="username"
-                                                wire:model="username"
-                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                required
-                                            />
-                                            @error('username') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                        </div>
-
-                                        <!-- Email -->
-                                        <div>
-                                            <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email *</label>
-                                            <input
-                                                type="email"
-                                                id="email"
-                                                wire:model="email"
-                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                required
-                                            />
-                                            @error('email') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                        </div>
-
-                                        <!-- Contraseña Visible (Solo si el usuario logueado es Super Administrador) -->
-                                        @if($currentUserIsSuperAdmin && $editMode)
-                                            <div class="bg-yellow-50 border border-yellow-200 rounded-md p-3">
-                                                <label class="block text-sm font-medium text-gray-700 mb-1">
-                                                    <svg class="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                                                    </svg>
-                                                    Contraseña Actual del Usuario
-                                                </label>
-                                                <div class="flex items-center space-x-2">
+                                        <!-- Grid de 2 columnas para datos básicos -->
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <!-- Columna 1 -->
+                                            <div class="space-y-4">
+                                                <!-- Nombre -->
+                                                <div>
+                                                    <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre completo *</label>
                                                     <input
                                                         type="text"
-                                                        value="{{ $passwordVisible ?: 'No disponible' }}"
-                                                        readonly
-                                                        class="flex-1 rounded-md border-gray-300 bg-yellow-50 text-gray-700 shadow-sm font-mono"
+                                                        id="name"
+                                                        wire:model="name"
+                                                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                                        required
                                                     />
-                                                    <button
-                                                        type="button"
-                                                        onclick="navigator.clipboard.writeText('{{ $passwordVisible }}')"
-                                                        class="px-3 py-2 bg-yellow-100 border border-yellow-300 rounded-md hover:bg-yellow-200 transition-colors"
-                                                        title="Copiar contraseña"
+                                                    @error('name') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                                </div>
+
+                                                <!-- Username -->
+                                                <div>
+                                                    <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre de usuario *</label>
+                                                    <input
+                                                        type="text"
+                                                        id="username"
+                                                        wire:model="username"
+                                                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                                        required
+                                                    />
+                                                    @error('username') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                                </div>
+
+                                                <!-- Email y Teléfono en una fila -->
+                                                <div class="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email *</label>
+                                                        <input
+                                                            type="email"
+                                                            id="email"
+                                                            wire:model="email"
+                                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                                            required
+                                                        />
+                                                        @error('email') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                                    </div>
+                                                    <div>
+                                                        <label for="telefono" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Teléfono</label>
+                                                        <input
+                                                            type="tel"
+                                                            id="telefono"
+                                                            wire:model="telefono"
+                                                            placeholder="Ej: +54 11 1234-5678"
+                                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                                        />
+                                                        @error('telefono') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                                    </div>
+                                                </div>
+
+                                                <!-- Rol -->
+                                                <div>
+                                                    <label for="roleId" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Rol</label>
+                                                    <select
+                                                        id="roleId"
+                                                        wire:model="roleId"
+                                                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                                                     >
-                                                        <svg class="w-4 h-4 text-yellow-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                                        </svg>
-                                                    </button>
+                                                        <option value="">Sin rol asignado</option>
+                                                        @foreach($roles as $role)
+                                                            <option value="{{ $role->id }}">{{ $role->name }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                    @error('roleId') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                                 </div>
-                                                <p class="mt-1 text-xs text-yellow-700">
-                                                    <svg class="w-3 h-3 inline" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
-                                                    </svg>
-                                                    Visible solo para Super Administradores
-                                                </p>
                                             </div>
-                                        @endif
 
-                                        <!-- Contraseña -->
-                                        <div>
-                                            <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                {{ $editMode ? 'Nueva Contraseña (dejar en blanco para no cambiar)' : 'Contraseña *' }}
-                                            </label>
-                                            <input
-                                                type="password"
-                                                id="password"
-                                                wire:model="password"
-                                                autocomplete="new-password"
-                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                {{ $editMode ? '' : 'required' }}
-                                            />
-                                            @error('password') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                        </div>
-
-                                        <!-- Confirmar contraseña -->
-                                        <div>
-                                            <label for="password_confirmation" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Confirmar contraseña</label>
-                                            <input
-                                                type="password"
-                                                id="password_confirmation"
-                                                wire:model="password_confirmation"
-                                                autocomplete="new-password"
-                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                            />
-                                        </div>
-
-                                        <!-- Rol -->
-                                        <div>
-                                            <label for="roleId" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Rol</label>
-                                            <select
-                                                id="roleId"
-                                                wire:model="roleId"
-                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                            >
-                                                <option value="">Sin rol asignado</option>
-                                                @foreach($roles as $role)
-                                                    <option value="{{ $role->id }}">{{ $role->name }}</option>
-                                                @endforeach
-                                            </select>
-                                            @error('roleId') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                        </div>
-
-                                        <!-- Sucursales (Solo para Super Admin) -->
-                                        @if($currentUserIsSuperAdmin)
-                                            <div class="bg-blue-50 dark:bg-gray-700 border border-blue-200 dark:border-gray-600 rounded-md p-4">
-                                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    <svg class="w-4 h-4 inline mr-1 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
-                                                    </svg>
-                                                    Sucursales con Acceso
-                                                </label>
-                                                <p class="text-xs text-blue-700 mb-3">
-                                                    <svg class="w-3 h-3 inline" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                                                    </svg>
-                                                    Selecciona las sucursales a las que tendrá acceso este usuario. Si no seleccionas ninguna, tendrá acceso a todas.
-                                                </p>
-                                                <div class="space-y-2 max-h-48 overflow-y-auto">
-                                                    @foreach($sucursales as $sucursal)
-                                                        <label class="flex items-center p-2 hover:bg-blue-100 dark:hover:bg-gray-600 rounded cursor-pointer transition-colors">
-                                                            <input
-                                                                type="checkbox"
-                                                                wire:model="selectedSucursales"
-                                                                value="{{ $sucursal->id }}"
-                                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
-                                                            />
-                                                            <span class="ml-2 text-sm text-gray-700 dark:text-gray-300 flex-1">
-                                                                {{ $sucursal->nombre }}
-                                                                <span class="text-xs text-gray-500">({{ $sucursal->codigo }})</span>
-                                                                @if($sucursal->es_principal)
-                                                                    <span class="ml-1 inline-flex items-center px-2 py-0.5 text-xs font-medium text-indigo-800 bg-indigo-100 rounded">
-                                                                        Principal
-                                                                    </span>
-                                                                @endif
-                                                            </span>
+                                            <!-- Columna 2 -->
+                                            <div class="space-y-4">
+                                                <!-- Contraseña Visible (Solo si el usuario logueado es Super Administrador) -->
+                                                @if($currentUserIsSuperAdmin && $editMode)
+                                                    <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-md p-3">
+                                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                            <svg class="w-4 h-4 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                                            </svg>
+                                                            Contraseña Actual
                                                         </label>
-                                                    @endforeach
+                                                        <div class="flex items-center space-x-2">
+                                                            <input
+                                                                type="text"
+                                                                value="{{ $passwordVisible ?: 'No disponible' }}"
+                                                                readonly
+                                                                class="flex-1 rounded-md border-gray-300 bg-yellow-50 dark:bg-yellow-900/30 text-gray-700 dark:text-gray-300 shadow-sm font-mono text-sm"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onclick="navigator.clipboard.writeText('{{ $passwordVisible }}')"
+                                                                class="px-3 py-2 bg-yellow-100 dark:bg-yellow-800 border border-yellow-300 dark:border-yellow-600 rounded-md hover:bg-yellow-200 dark:hover:bg-yellow-700 transition-colors"
+                                                                title="Copiar contraseña"
+                                                            >
+                                                                <svg class="w-4 h-4 text-yellow-700 dark:text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                @endif
+
+                                                <!-- Contraseña -->
+                                                <div>
+                                                    <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                        {{ $editMode ? 'Nueva Contraseña' : 'Contraseña *' }}
+                                                    </label>
+                                                    <input
+                                                        type="password"
+                                                        id="password"
+                                                        wire:model="password"
+                                                        autocomplete="new-password"
+                                                        placeholder="{{ $editMode ? 'Dejar en blanco para no cambiar' : '' }}"
+                                                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                                        {{ $editMode ? '' : 'required' }}
+                                                    />
+                                                    @error('password') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                                 </div>
-                                                <div class="mt-2 text-xs text-blue-600">
-                                                    @if(count($selectedSucursales) > 0)
-                                                        ✓ {{ count($selectedSucursales) }} sucursal(es) seleccionada(s)
-                                                    @else
-                                                        ℹ️ Acceso a todas las sucursales
-                                                    @endif
+
+                                                <!-- Confirmar contraseña -->
+                                                <div>
+                                                    <label for="password_confirmation" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Confirmar contraseña</label>
+                                                    <input
+                                                        type="password"
+                                                        id="password_confirmation"
+                                                        wire:model="password_confirmation"
+                                                        autocomplete="new-password"
+                                                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                                    />
                                                 </div>
                                             </div>
-                                        @endif
+                                        </div>
 
-                                        <!-- Cajas (Solo para Super Admin) -->
+                                        <!-- Switch Usuario Activo (arriba de permisos) -->
+                                        <div class="flex items-center justify-between py-3 px-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                                            <div class="flex items-center">
+                                                <svg class="w-5 h-5 text-gray-500 dark:text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Usuario Activo</span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                wire:click="$set('activo', !$activo)"
+                                                class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary {{ $activo ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600' }}"
+                                                role="switch"
+                                                aria-checked="{{ $activo ? 'true' : 'false' }}"
+                                            >
+                                                <span class="sr-only">Usuario activo</span>
+                                                <span
+                                                    class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $activo ? 'translate-x-5' : 'translate-x-0' }}"
+                                                ></span>
+                                            </button>
+                                        </div>
+
+                                        <!-- Sucursales y Cajas en grid de 2 columnas (Solo para Super Admin) -->
                                         @if($currentUserIsSuperAdmin)
-                                            <div class="bg-indigo-50 dark:bg-gray-700 border border-indigo-200 dark:border-gray-600 rounded-md p-4">
-                                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    <svg class="w-4 h-4 inline mr-1 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                                                    </svg>
-                                                    Cajas con Acceso por Sucursal
-                                                </label>
-                                                <p class="text-xs text-indigo-700 mb-3">
-                                                    <svg class="w-3 h-3 inline" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                                                    </svg>
-                                                    Selecciona las cajas a las que tendrá acceso en cada sucursal. Si no seleccionas ninguna, tendrá acceso a todas las cajas de la sucursal.
-                                                </p>
-
-                                                @php
-                                                    // Si no hay sucursales seleccionadas, mostrar todas
-                                                    $sucursalesParaCajas = !empty($selectedSucursales) ? $selectedSucursales : $sucursales->pluck('id')->toArray();
-                                                @endphp
-
-                                                <div class="space-y-3 max-h-80 overflow-y-auto">
-                                                    @foreach($sucursalesParaCajas as $sucursalId)
-                                                        @php
-                                                            $sucursal = $sucursales->firstWhere('id', $sucursalId);
-                                                            $cajasSucursal = $this->getCajas()->get($sucursalId, collect());
-                                                        @endphp
-
-                                                        @if($sucursal && $cajasSucursal->isNotEmpty())
-                                                            <div class="bg-white dark:bg-gray-800 border border-indigo-300 dark:border-gray-600 rounded-md p-3">
-                                                                <div class="text-xs font-semibold text-indigo-900 dark:text-white mb-2 flex items-center">
-                                                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
-                                                                    </svg>
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <!-- Sucursales -->
+                                                <div class="bg-blue-50 dark:bg-gray-700 border border-blue-200 dark:border-gray-600 rounded-md p-4">
+                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                        <svg class="w-4 h-4 inline mr-1 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                                                        </svg>
+                                                        Sucursales con Acceso
+                                                    </label>
+                                                    <p class="text-xs text-blue-700 dark:text-blue-300 mb-3">
+                                                        Si no seleccionas ninguna, tendrá acceso a todas.
+                                                    </p>
+                                                    <div class="space-y-2 max-h-64 overflow-y-auto">
+                                                        @foreach($sucursales as $sucursal)
+                                                            <label class="flex items-center p-2 hover:bg-blue-100 dark:hover:bg-gray-600 rounded cursor-pointer transition-colors">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    wire:model.live="selectedSucursales"
+                                                                    value="{{ $sucursal->id }}"
+                                                                    class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
+                                                                />
+                                                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300 flex-1">
                                                                     {{ $sucursal->nombre }}
-                                                                </div>
-                                                                <div class="space-y-1.5">
-                                                                    @foreach($cajasSucursal as $caja)
-                                                                        <label class="flex items-center p-2 hover:bg-indigo-50 dark:hover:bg-gray-600 rounded cursor-pointer transition-colors">
-                                                                            <input
-                                                                                type="checkbox"
-                                                                                wire:model="selectedCajas.{{ $sucursalId }}"
-                                                                                value="{{ $caja->id }}"
-                                                                                class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
-                                                                            />
-                                                                            <span class="ml-2 text-sm text-gray-700 dark:text-gray-300 flex-1 flex items-center justify-between">
-                                                                                <span>
-                                                                                    {{ $caja->nombre }}
+                                                                    <span class="text-xs text-gray-500">({{ $sucursal->codigo }})</span>
+                                                                    @if($sucursal->es_principal)
+                                                                        <span class="ml-1 inline-flex items-center px-2 py-0.5 text-xs font-medium text-indigo-800 bg-indigo-100 rounded">
+                                                                            Principal
+                                                                        </span>
+                                                                    @endif
+                                                                </span>
+                                                            </label>
+                                                        @endforeach
+                                                    </div>
+                                                    <div class="mt-2 text-xs text-blue-600 dark:text-blue-400">
+                                                        @if(count($selectedSucursales) > 0)
+                                                            {{ count($selectedSucursales) }} sucursal(es) seleccionada(s)
+                                                        @else
+                                                            Acceso a todas las sucursales
+                                                        @endif
+                                                    </div>
+                                                </div>
+
+                                                <!-- Cajas -->
+                                                <div class="bg-indigo-50 dark:bg-gray-700 border border-indigo-200 dark:border-gray-600 rounded-md p-4">
+                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                        <svg class="w-4 h-4 inline mr-1 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                                        </svg>
+                                                        Cajas con Acceso
+                                                    </label>
+                                                    <p class="text-xs text-indigo-700 dark:text-indigo-300 mb-3">
+                                                        Si no seleccionas ninguna, tendrá acceso a todas.
+                                                    </p>
+
+                                                    @php
+                                                        // Si no hay sucursales seleccionadas, mostrar todas
+                                                        $sucursalesParaCajas = !empty($selectedSucursales) ? $selectedSucursales : $sucursales->pluck('id')->toArray();
+                                                        $todasLasCajas = $this->getCajas();
+                                                    @endphp
+
+                                                    <div class="space-y-3 max-h-64 overflow-y-auto">
+                                                        @forelse($sucursalesParaCajas as $sucursalId)
+                                                            @php
+                                                                $sucursal = $sucursales->firstWhere('id', $sucursalId);
+                                                                $cajasSucursal = $todasLasCajas->get($sucursalId, collect());
+                                                            @endphp
+
+                                                            @if($sucursal && $cajasSucursal->isNotEmpty())
+                                                                <div class="bg-white dark:bg-gray-800 border border-indigo-300 dark:border-gray-600 rounded-md p-3">
+                                                                    <div class="text-xs font-semibold text-indigo-900 dark:text-white mb-2 flex items-center">
+                                                                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                                                                        </svg>
+                                                                        {{ $sucursal->nombre }}
+                                                                    </div>
+                                                                    <div class="space-y-1">
+                                                                        @foreach($cajasSucursal as $caja)
+                                                                            <label class="flex items-center p-1.5 hover:bg-indigo-50 dark:hover:bg-gray-600 rounded cursor-pointer transition-colors">
+                                                                                @php $sucursalIdKey = (string)$sucursalId; @endphp
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    wire:click="toggleCaja({{ $sucursalId }}, {{ $caja->id }})"
+                                                                                    @checked(isset($selectedCajas[$sucursalIdKey]) && is_array($selectedCajas[$sucursalIdKey]) && in_array($caja->id, $selectedCajas[$sucursalIdKey]))
+                                                                                    class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
+                                                                                />
+                                                                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300 flex-1 flex items-center justify-between">
+                                                                                    <span>{{ $caja->nombre }}</span>
+                                                                                    @if($caja->estado === 'abierta')
+                                                                                        <span class="ml-1 inline-flex items-center px-1.5 py-0.5 text-xs font-medium text-green-800 bg-green-100 rounded-full">
+                                                                                            Abierta
+                                                                                        </span>
+                                                                                    @endif
                                                                                 </span>
-                                                                                @if($caja->estado === 'abierta')
-                                                                                    <span class="ml-2 inline-flex items-center px-2 py-0.5 text-xs font-medium text-green-800 bg-green-100 rounded-full">
-                                                                                        ● Abierta
-                                                                                    </span>
-                                                                                @else
-                                                                                    <span class="ml-2 inline-flex items-center px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
-                                                                                        ● Cerrada
-                                                                                    </span>
-                                                                                @endif
-                                                                            </span>
-                                                                        </label>
-                                                                    @endforeach
-                                                                </div>
-                                                                @php
-                                                                    $cajasSeleccionadasEnSucursal = isset($selectedCajas[$sucursalId]) ? count($selectedCajas[$sucursalId]) : 0;
-                                                                @endphp
-                                                                <div class="mt-2 text-xs text-indigo-600">
+                                                                            </label>
+                                                                        @endforeach
+                                                                    </div>
+                                                                    @php
+                                                                        $sucursalIdKeyCount = (string)$sucursalId;
+                                                                        $cajasSeleccionadasEnSucursal = isset($selectedCajas[$sucursalIdKeyCount]) && is_array($selectedCajas[$sucursalIdKeyCount]) ? count($selectedCajas[$sucursalIdKeyCount]) : 0;
+                                                                    @endphp
                                                                     @if($cajasSeleccionadasEnSucursal > 0)
-                                                                        ✓ {{ $cajasSeleccionadasEnSucursal }} caja(s) seleccionada(s)
-                                                                    @else
-                                                                        ℹ️ Acceso a todas las cajas de esta sucursal
+                                                                        <div class="mt-1 text-xs text-indigo-600 dark:text-indigo-400">
+                                                                            {{ $cajasSeleccionadasEnSucursal }} caja(s) seleccionada(s)
+                                                                        </div>
                                                                     @endif
                                                                 </div>
-                                                            </div>
-                                                        @elseif($sucursal && $cajasSucursal->isEmpty())
-                                                            <div class="bg-amber-50 border border-amber-200 rounded-md p-3">
-                                                                <div class="text-xs font-semibold text-amber-900 mb-1 flex items-center">
-                                                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
-                                                                    </svg>
-                                                                    {{ $sucursal->nombre }}
+                                                            @elseif($sucursal && $cajasSucursal->isEmpty())
+                                                                <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md p-3">
+                                                                    <div class="text-xs font-semibold text-amber-900 dark:text-amber-400 flex items-center">
+                                                                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                                                                        </svg>
+                                                                        {{ $sucursal->nombre }} - Sin cajas activas
+                                                                    </div>
                                                                 </div>
-                                                                <p class="text-xs text-amber-700 flex items-center">
-                                                                    <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                                                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                                                                    </svg>
-                                                                    Sin cajas activas en esta sucursal
-                                                                </p>
+                                                            @endif
+                                                        @empty
+                                                            <div class="text-xs text-gray-500 dark:text-gray-400 text-center py-4">
+                                                                Selecciona al menos una sucursal para ver las cajas disponibles
                                                             </div>
-                                                        @endif
-                                                    @endforeach
+                                                        @endforelse
+                                                    </div>
                                                 </div>
                                             </div>
                                         @endif
-
-                                        <!-- Estado activo -->
-                                        <div class="flex items-center">
-                                            <input
-                                                type="checkbox"
-                                                id="activo"
-                                                wire:model="activo"
-                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
-                                            />
-                                            <label for="activo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">Usuario activo</label>
-                                        </div>
                                     </div>
                                 </div>
                             </div>

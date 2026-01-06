@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test QZ Tray - BCN Pymes</title>
+    <script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #cce5ff; color: #004085; }
+        .warning { background: #fff3cd; color: #856404; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f4f4f4; padding: 10px; overflow: auto; }
+        #log { height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; font-family: monospace; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>Test de QZ Tray - BCN Pymes</h1>
+
+    <div id="qz-status" class="status info">Verificando QZ Tray...</div>
+
+    <div style="margin: 20px 0;">
+        <button onclick="conectar()">1. Conectar a QZ Tray</button>
+        <button onclick="listarImpresoras()">2. Listar Impresoras</button>
+        <button onclick="pruebaImpresion()">3. Prueba de Impresion</button>
+    </div>
+
+    <h3>Impresoras detectadas:</h3>
+    <pre id="impresoras">Haz clic en "Listar Impresoras"</pre>
+
+    <h3>Log de eventos:</h3>
+    <div id="log"></div>
+
+    <script>
+        const statusEl = document.getElementById('qz-status');
+        const logEl = document.getElementById('log');
+        const impresorasEl = document.getElementById('impresoras');
+
+        function log(msg, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            logEl.innerHTML += `<div class="${type}">[${time}] ${msg}</div>`;
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(`[${type}] ${msg}`);
+        }
+
+        // Verificar si QZ esta cargado
+        if (typeof qz !== 'undefined') {
+            log('QZ Tray library cargada correctamente', 'success');
+            statusEl.className = 'status info';
+            statusEl.textContent = 'QZ Tray cargado. Haz clic en "Conectar a QZ Tray"';
+        } else {
+            log('ERROR: QZ Tray library no se cargo', 'error');
+            statusEl.className = 'status error';
+            statusEl.textContent = 'Error: No se pudo cargar la libreria QZ Tray';
+        }
+
+        // Configurar certificado
+        qz.security.setCertificatePromise(function(resolve, reject) {
+            log('Solicitando certificado...', 'info');
+            fetch('/bcn_pymes/public/qz/certificate.txt')
+                .then(response => {
+                    if (!response.ok) {
+                        log('Certificado no encontrado, usando modo sin firma', 'warning');
+                        resolve('');
+                        return;
+                    }
+                    return response.text();
+                })
+                .then(cert => {
+                    if (cert) {
+                        log('Certificado cargado (' + cert.length + ' bytes)', 'success');
+                    }
+                    resolve(cert || '');
+                })
+                .catch(err => {
+                    log('Error cargando certificado: ' + err.message, 'error');
+                    resolve('');
+                });
+        });
+
+        // Configurar firma (sin firma para prueba simple)
+        qz.security.setSignatureAlgorithm("SHA512");
+        qz.security.setSignaturePromise(function(toSign) {
+            return function(resolve, reject) {
+                log('Firmando mensaje... (longitud: ' + toSign.length + ')', 'info');
+                // Intentar firmar via API
+                fetch('/bcn_pymes/public/api/qz/sign', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ request: toSign })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.signature) {
+                        log('Mensaje firmado correctamente', 'success');
+                        resolve(data.signature);
+                    } else {
+                        log('Sin firma disponible', 'warning');
+                        resolve('');
+                    }
+                })
+                .catch(err => {
+                    log('Error firmando: ' + err.message + ' - continuando sin firma', 'warning');
+                    resolve('');
+                });
+            };
+        });
+
+        async function conectar() {
+            log('Intentando conectar a QZ Tray...', 'info');
+            statusEl.className = 'status info';
+            statusEl.textContent = 'Conectando...';
+
+            try {
+                if (qz.websocket.isActive()) {
+                    log('Ya estaba conectado', 'success');
+                    statusEl.className = 'status success';
+                    statusEl.textContent = 'Conectado a QZ Tray';
+                    return;
+                }
+
+                await qz.websocket.connect();
+                log('Conectado exitosamente a QZ Tray!', 'success');
+                statusEl.className = 'status success';
+                statusEl.textContent = 'Conectado a QZ Tray correctamente!';
+
+            } catch (err) {
+                log('Error conectando: ' + err.message, 'error');
+                statusEl.className = 'status error';
+                statusEl.textContent = 'Error: ' + err.message;
+
+                if (err.message.includes('Unable to connect')) {
+                    log('Asegurate de que QZ Tray este instalado y ejecutandose', 'warning');
+                    log('Descarga: https://qz.io/download/', 'info');
+                }
+            }
+        }
+
+        async function listarImpresoras() {
+            log('Obteniendo lista de impresoras...', 'info');
+
+            try {
+                if (!qz.websocket.isActive()) {
+                    log('No conectado, intentando conectar primero...', 'warning');
+                    await conectar();
+                }
+
+                const impresoras = await qz.printers.find();
+                log('Encontradas ' + impresoras.length + ' impresoras', 'success');
+
+                impresorasEl.textContent = JSON.stringify(impresoras, null, 2);
+
+                impresoras.forEach((imp, i) => {
+                    log((i+1) + '. ' + imp, 'info');
+                });
+
+            } catch (err) {
+                log('Error listando impresoras: ' + err.message, 'error');
+                impresorasEl.textContent = 'Error: ' + err.message;
+            }
+        }
+
+        async function pruebaImpresion() {
+            log('Iniciando prueba de impresion...', 'info');
+
+            try {
+                if (!qz.websocket.isActive()) {
+                    await conectar();
+                }
+
+                const impresoras = await qz.printers.find();
+                if (impresoras.length === 0) {
+                    log('No hay impresoras disponibles', 'error');
+                    return;
+                }
+
+                const impresora = impresoras[0];
+                log('Usando impresora: ' + impresora, 'info');
+
+                const config = qz.configs.create(impresora);
+                const data = [
+                    { type: 'raw', format: 'plain', data: '\x1B\x40' }, // Init
+                    { type: 'raw', format: 'plain', data: '\x1B\x61\x01' }, // Center
+                    { type: 'raw', format: 'plain', data: 'PRUEBA BCN PYMES\n' },
+                    { type: 'raw', format: 'plain', data: '================\n' },
+                    { type: 'raw', format: 'plain', data: 'QZ Tray funciona!\n' },
+                    { type: 'raw', format: 'plain', data: new Date().toLocaleString() + '\n' },
+                    { type: 'raw', format: 'plain', data: '\n\n\n' },
+                    { type: 'raw', format: 'plain', data: '\x1D\x56\x01' }, // Cut
+                ];
+
+                await qz.print(config, data);
+                log('Impresion enviada correctamente!', 'success');
+
+            } catch (err) {
+                log('Error en prueba de impresion: ' + err.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

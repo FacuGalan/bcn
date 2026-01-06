@@ -32,19 +32,29 @@ class CajaService
             return collect();
         }
 
+        // Verificar que hay un comercio activo antes de consultar el tenant
+        $comercioActivoId = session('comercio_activo_id');
+        if (!$comercioActivoId) {
+            return collect();
+        }
+
         $sucursalId = SucursalService::getSucursalActiva();
 
         if (!$sucursalId) {
             return collect();
         }
 
-        // Obtener cajas asignadas al usuario en esta sucursal
-        $cajaIdsPermitidas = DB::connection('pymes_tenant')
-            ->table('user_cajas')
-            ->where('user_id', auth()->id())
-            ->where('sucursal_id', $sucursalId)
-            ->pluck('caja_id')
-            ->toArray();
+        try {
+            // Obtener cajas asignadas al usuario en esta sucursal
+            $cajaIdsPermitidas = DB::connection('pymes_tenant')
+                ->table('user_cajas')
+                ->where('user_id', auth()->id())
+                ->where('sucursal_id', $sucursalId)
+                ->pluck('caja_id')
+                ->toArray();
+        } catch (\Exception $e) {
+            return collect();
+        }
 
         // Construir query base: sucursal activa, cajas activas Y ABIERTAS
         $query = Caja::where('sucursal_id', $sucursalId)
@@ -143,6 +153,12 @@ class CajaService
             return false;
         }
 
+        // Verificar que hay un comercio activo antes de consultar el tenant
+        $comercioActivoId = session('comercio_activo_id');
+        if (!$comercioActivoId) {
+            return false;
+        }
+
         $sucursalId = SucursalService::getSucursalActiva();
 
         if (!$sucursalId) {
@@ -160,27 +176,31 @@ class CajaService
             return false;
         }
 
-        // Verificar si el usuario tiene restricciones de cajas
-        $tieneRestriccion = DB::connection('pymes_tenant')
-            ->table('user_cajas')
-            ->where('user_id', auth()->id())
-            ->where('sucursal_id', $sucursalId)
-            ->exists();
+        try {
+            // Verificar si el usuario tiene restricciones de cajas
+            $tieneRestriccion = DB::connection('pymes_tenant')
+                ->table('user_cajas')
+                ->where('user_id', auth()->id())
+                ->where('sucursal_id', $sucursalId)
+                ->exists();
 
-        // Si no tiene restricciones, puede acceder a todas las cajas abiertas
-        if (!$tieneRestriccion) {
-            return true;
+            // Si no tiene restricciones, puede acceder a todas las cajas abiertas
+            if (!$tieneRestriccion) {
+                return true;
+            }
+
+            // Si tiene restricciones, verificar que tenga acceso a esta caja específica
+            $tieneAcceso = DB::connection('pymes_tenant')
+                ->table('user_cajas')
+                ->where('user_id', auth()->id())
+                ->where('caja_id', $cajaId)
+                ->where('sucursal_id', $sucursalId)
+                ->exists();
+
+            return $tieneAcceso;
+        } catch (\Exception $e) {
+            return false;
         }
-
-        // Si tiene restricciones, verificar que tenga acceso a esta caja específica
-        $tieneAcceso = DB::connection('pymes_tenant')
-            ->table('user_cajas')
-            ->where('user_id', auth()->id())
-            ->where('caja_id', $cajaId)
-            ->where('sucursal_id', $sucursalId)
-            ->exists();
-
-        return $tieneAcceso;
     }
 
     public static function getCajaIdsDisponibles(): array

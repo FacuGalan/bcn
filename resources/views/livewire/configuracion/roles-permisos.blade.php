@@ -128,92 +128,190 @@
 
                 <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
+                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-6xl sm:w-full">
                     <form wire:submit="save">
-                        <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                            <div class="sm:flex sm:items-start">
-                                <div class="w-full mt-3 text-center sm:mt-0 sm:text-left">
-                                    <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4" id="modal-title">
-                                        {{ $editMode ? 'Editar Rol' : 'Nuevo Rol' }}
-                                    </h3>
+                        <div class="bg-white dark:bg-gray-800 px-6 py-4 sm:px-8 sm:py-5">
+                            <div class="w-full">
+                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4" id="modal-title">
+                                    @if($isSuperAdmin)
+                                        Ver Rol
+                                    @elseif($editMode)
+                                        Editar Rol
+                                    @else
+                                        Nuevo Rol
+                                    @endif
+                                </h3>
 
-                                    <div class="space-y-4">
-                                        <!-- Nombre del rol -->
-                                        <div>
-                                            <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre del rol *</label>
-                                            <input
-                                                type="text"
-                                                id="name"
-                                                wire:model="name"
-                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                required
-                                            />
-                                            @error('name') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                <div class="space-y-4">
+                                    <!-- Nombre del rol -->
+                                    <div class="max-w-md">
+                                        <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del rol *</label>
+                                        <input
+                                            type="text"
+                                            id="name"
+                                            wire:model="name"
+                                            class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 {{ $isSuperAdmin ? 'bg-gray-100 dark:bg-gray-600 cursor-not-allowed' : '' }}"
+                                            placeholder="Ej: Vendedor, Cajero, Supervisor..."
+                                            {{ $isSuperAdmin ? 'readonly' : 'required' }}
+                                        />
+                                        @error('name') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                    </div>
+
+                                    @if($isSuperAdmin)
+                                        <!-- Mensaje informativo para Super Administrador -->
+                                        <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                                            <div class="flex items-start">
+                                                <svg class="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                                </svg>
+                                                <div class="ml-3">
+                                                    <h4 class="text-sm font-semibold text-blue-800 dark:text-blue-200">Rol Protegido</h4>
+                                                    <p class="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                                                        El rol <strong>Super Administrador</strong> tiene acceso completo a todas las funciones del sistema.
+                                                        Este rol no puede ser modificado ni eliminado.
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </div>
+                                    @endif
 
+                                    <!-- Grid de 2 columnas para permisos -->
+                                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
                                         <!-- Permisos de menú -->
                                         <div>
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Permisos de acceso al menú</label>
-                                            <div class="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-4 space-y-4">
-                                                @foreach($groupedPermissions as $moduleName => $permissions)
-                                                    <div class="border-b border-gray-200 dark:border-gray-700 pb-3 last:border-b-0">
-                                                        <!-- Permiso padre (módulo) -->
-                                                        <div class="flex items-center mb-2">
-                                                            <input
-                                                                type="checkbox"
-                                                                id="perm_{{ $permissions['parent']->id }}"
-                                                                value="{{ $permissions['parent']->id }}"
-                                                                wire:model="selectedPermissions"
-                                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
-                                                            />
-                                                            <label for="perm_{{ $permissions['parent']->id }}" class="ml-2 text-sm font-semibold text-gray-900 dark:text-white">
-                                                                {{ $moduleName }}
-                                                            </label>
-                                                        </div>
-
-                                                        <!-- Permisos hijos -->
-                                                        @if(count($permissions['children']) > 0)
-                                                            <div class="ml-6 space-y-2">
-                                                                @foreach($permissions['children'] as $childPermission)
-                                                                    <div class="flex items-center">
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            id="perm_{{ $childPermission->id }}"
-                                                                            value="{{ $childPermission->id }}"
-                                                                            wire:model="selectedPermissions"
-                                                                            class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
-                                                                        />
-                                                                        <label for="perm_{{ $childPermission->id }}" class="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                                                                            {{ str_replace('menu.', '', $childPermission->name) }}
-                                                                        </label>
-                                                                    </div>
-                                                                @endforeach
+                                            <label class="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                                                <svg class="w-5 h-5 inline mr-2 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                                                </svg>
+                                                Acceso al Menú
+                                            </label>
+                                                <div class="max-h-[450px] overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-4 space-y-3 bg-gray-50 dark:bg-gray-700/50">
+                                                    @foreach($groupedPermissions as $moduleName => $permissions)
+                                                        <div class="border-b border-gray-200 dark:border-gray-600 pb-2 last:border-b-0">
+                                                            <!-- Permiso padre (módulo) -->
+                                                            <div class="flex items-center mb-1">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    id="perm_{{ $permissions['parent']->id }}"
+                                                                    value="{{ $permissions['parent']->id }}"
+                                                                    @if($isSuperAdmin)
+                                                                        checked
+                                                                        disabled
+                                                                        class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary cursor-not-allowed opacity-60"
+                                                                    @else
+                                                                        wire:model="selectedPermissions"
+                                                                        class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
+                                                                    @endif
+                                                                />
+                                                                <label for="perm_{{ $permissions['parent']->id }}" class="ml-2 text-sm font-semibold text-gray-900 dark:text-white">
+                                                                    {{ $moduleName }}
+                                                                </label>
                                                             </div>
-                                                        @endif
+
+                                                            <!-- Permisos hijos -->
+                                                            @if(count($permissions['children']) > 0)
+                                                                <div class="ml-6 space-y-1">
+                                                                    @foreach($permissions['children'] as $childPermission)
+                                                                        <div class="flex items-center">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                id="perm_{{ $childPermission->id }}"
+                                                                                value="{{ $childPermission->id }}"
+                                                                                @if($isSuperAdmin)
+                                                                                    checked
+                                                                                    disabled
+                                                                                    class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary cursor-not-allowed opacity-60"
+                                                                                @else
+                                                                                    wire:model="selectedPermissions"
+                                                                                    class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
+                                                                                @endif
+                                                                            />
+                                                                            <label for="perm_{{ $childPermission->id }}" class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                                                                                {{ str_replace('menu.', '', $childPermission->name) }}
+                                                                            </label>
+                                                                        </div>
+                                                                    @endforeach
+                                                                </div>
+                                                            @endif
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                                @error('selectedPermissions') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                            </div>
+
+                                        <!-- Permisos Especiales (Funcionales) -->
+                                        <div>
+                                            <label class="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                                                <svg class="w-5 h-5 inline mr-2 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                                </svg>
+                                                Permisos Especiales
+                                            </label>
+                                            <div class="max-h-[450px] overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-4 space-y-3 bg-gray-50 dark:bg-gray-700/50">
+                                                @foreach($permisosFuncionales as $grupo => $permisos)
+                                                    <div class="bg-white dark:bg-gray-800 rounded-md p-3 border border-gray-200 dark:border-gray-600">
+                                                        <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 flex items-center">
+                                                            <span class="w-2 h-2 rounded-full bg-bcn-primary mr-2"></span>
+                                                            {{ $grupo }}
+                                                        </h4>
+                                                        <div class="space-y-2">
+                                                            @foreach($permisos as $permiso)
+                                                                <label class="flex items-start p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded {{ $isSuperAdmin ? 'cursor-not-allowed' : 'cursor-pointer' }} transition-colors">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        value="{{ $permiso['codigo'] }}"
+                                                                        @if($isSuperAdmin)
+                                                                            checked
+                                                                            disabled
+                                                                            class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary cursor-not-allowed opacity-60"
+                                                                        @else
+                                                                            wire:model="selectedFuncPermissions"
+                                                                            class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
+                                                                        @endif
+                                                                    />
+                                                                    <div class="ml-3 flex-1">
+                                                                        <span class="text-sm font-medium text-gray-900 dark:text-white block">{{ $permiso['etiqueta'] }}</span>
+                                                                        @if(!empty($permiso['descripcion']))
+                                                                            <span class="text-xs text-gray-500 dark:text-gray-400 block leading-tight mt-0.5">{{ $permiso['descripcion'] }}</span>
+                                                                        @endif
+                                                                    </div>
+                                                                </label>
+                                                            @endforeach
+                                                        </div>
                                                     </div>
                                                 @endforeach
                                             </div>
-                                            @error('selectedPermissions') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                            @error('selectedFuncPermissions') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                            <button
-                                type="submit"
-                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:ml-3 sm:w-auto sm:text-sm"
-                            >
-                                {{ $editMode ? 'Actualizar' : 'Crear' }}
-                            </button>
-                            <button
-                                type="button"
-                                @click="show = false; $wire.cancel()"
-                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                            >
-                                Cancelar
-                            </button>
+                        <div class="bg-gray-50 dark:bg-gray-700 px-6 py-3 sm:px-8 sm:flex sm:flex-row-reverse border-t border-gray-200 dark:border-gray-600">
+                            @if($isSuperAdmin)
+                                <button
+                                    type="button"
+                                    @click="show = false; $wire.cancel()"
+                                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:w-auto"
+                                >
+                                    Cerrar
+                                </button>
+                            @else
+                                <button
+                                    type="submit"
+                                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-sm font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:ml-3 sm:w-auto"
+                                >
+                                    {{ $editMode ? 'Actualizar' : 'Crear' }}
+                                </button>
+                                <button
+                                    type="button"
+                                    @click="show = false; $wire.cancel()"
+                                    class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:mt-0 sm:ml-3 sm:w-auto"
+                                >
+                                    Cancelar
+                                </button>
+                            @endif
                         </div>
                     </form>
                 </div>

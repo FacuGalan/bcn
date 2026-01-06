@@ -115,6 +115,11 @@ class Role extends SpatieRole
      */
     public function hasPermissionTo($permission, ?string $guardName = null): bool
     {
+        // Super Administrador tiene TODOS los permisos
+        if ($this->name === 'Super Administrador') {
+            return true;
+        }
+
         if (!static::isTenantConfigured()) {
             return false;
         }
@@ -137,5 +142,15 @@ class Role extends SpatieRole
             Log::error('Role::hasPermissionTo() - Error de base de datos: ' . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Verifica si este rol es Super Administrador
+     *
+     * @return bool
+     */
+    public function isSuperAdmin(): bool
+    {
+        return $this->name === 'Super Administrador';
     }
 }

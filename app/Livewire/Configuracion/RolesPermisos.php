@@ -5,6 +5,7 @@ namespace App\Livewire\Configuracion;
 use App\Models\Role;
 use App\Models\Permission;
 use App\Models\MenuItem;
+use App\Models\PermisoFuncional;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -14,7 +15,7 @@ use Livewire\Attributes\Layout;
  * Componente Livewire para gestión de roles y permisos
  *
  * Permite crear, editar, eliminar y listar roles del comercio activo.
- * Incluye asignación de permisos basados en los items del menú.
+ * Incluye asignación de permisos basados en los items del menú y permisos funcionales.
  *
  * @package App\Livewire\Configuracion
  */
@@ -30,13 +31,18 @@ class RolesPermisos extends Component
     public bool $showModal = false;
     public bool $editMode = false;
     public ?int $roleId = null;
+    public bool $isSuperAdmin = false;
 
     // Propiedades del formulario
     public string $name = '';
     public array $selectedPermissions = [];
+    public array $selectedFuncPermissions = []; // Permisos funcionales seleccionados (códigos)
 
-    // Colección de permisos agrupados
+    // Colección de permisos agrupados (menú)
     public $groupedPermissions;
+
+    // Colección de permisos funcionales agrupados
+    public $permisosFuncionales;
 
     /**
      * Inicialización del componente
@@ -45,6 +51,17 @@ class RolesPermisos extends Component
     public function mount(): void
     {
         $this->loadGroupedPermissions();
+        $this->loadPermisosFuncionales();
+    }
+
+    /**
+     * Carga los permisos funcionales agrupados
+     */
+    protected function loadPermisosFuncionales(): void
+    {
+        // Convertir a array para evitar problemas de serialización de Livewire
+        $grouped = PermisoFuncional::getActivosAgrupados();
+        $this->permisosFuncionales = $grouped->map(fn($permisos) => $permisos->toArray())->toArray();
     }
 
     /**
@@ -143,8 +160,9 @@ class RolesPermisos extends Component
      */
     public function create(): void
     {
-        $this->reset(['name', 'selectedPermissions', 'roleId']);
+        $this->reset(['name', 'selectedPermissions', 'selectedFuncPermissions', 'roleId']);
         $this->editMode = false;
+        $this->isSuperAdmin = false;
         $this->showModal = true;
     }
 
@@ -155,16 +173,11 @@ class RolesPermisos extends Component
     {
         $role = Role::findOrFail($roleId);
 
-        // Validar que no sea Super Administrador (se protegerá después)
-        if ($role->name === 'Super Administrador') {
-            $this->dispatch('notify', message: 'El rol Super Administrador no puede ser modificado', type: 'warning');
-            return;
-        }
-
         $this->roleId = $role->id;
         $this->name = $role->name;
+        $this->isSuperAdmin = $role->name === 'Super Administrador';
 
-        // Obtener permisos actuales del rol
+        // Obtener permisos de menú actuales del rol
         $permissions = DB::connection('pymes_tenant')
             ->table('role_has_permissions')
             ->where('role_id', $role->id)
@@ -172,6 +185,10 @@ class RolesPermisos extends Component
             ->toArray();
 
         $this->selectedPermissions = $permissions;
+
+        // Obtener permisos funcionales del rol (códigos sin prefijo)
+        $this->selectedFuncPermissions = PermisoFuncional::getCodigosForRole($role->id);
+
         $this->editMode = true;
         $this->showModal = true;
     }
@@ -181,10 +198,18 @@ class RolesPermisos extends Component
      */
     public function save(): void
     {
+        // Super Administrador no puede ser modificado
+        if ($this->isSuperAdmin) {
+            $this->dispatch('notify', message: 'El rol Super Administrador no puede ser modificado', type: 'warning');
+            $this->showModal = false;
+            return;
+        }
+
         $this->validate([
             'name' => 'required|string|max:125|unique:pymes_tenant.roles,name,' . $this->roleId,
             'selectedPermissions' => 'nullable|array',
             'selectedPermissions.*' => 'exists:pymes.permissions,id',
+            'selectedFuncPermissions' => 'nullable|array',
         ]);
 
         DB::transaction(function () {
@@ -212,14 +237,23 @@ class RolesPermisos extends Component
                 ->where('role_id', $role->id)
                 ->delete();
 
-            // Luego insertar los nuevos permisos seleccionados
-            if (!empty($this->selectedPermissions)) {
+            // Combinar permisos de menú + permisos funcionales
+            $allPermissionIds = $this->selectedPermissions;
+
+            // Obtener IDs de permisos funcionales seleccionados
+            if (!empty($this->selectedFuncPermissions)) {
+                $funcPermissionIds = PermisoFuncional::getPermissionIds($this->selectedFuncPermissions);
+                $allPermissionIds = array_merge($allPermissionIds, $funcPermissionIds);
+            }
+
+            // Insertar todos los permisos
+            if (!empty($allPermissionIds)) {
                 $insertData = array_map(function ($permissionId) use ($role) {
                     return [
                         'permission_id' => $permissionId,
                         'role_id' => $role->id,
                     ];
-                }, $this->selectedPermissions);
+                }, array_unique($allPermissionIds));
 
                 DB::connection('pymes_tenant')
                     ->table('role_has_permissions')
@@ -231,7 +265,7 @@ class RolesPermisos extends Component
         });
 
         $this->showModal = false;
-        $this->reset(['name', 'selectedPermissions', 'roleId']);
+        $this->reset(['name', 'selectedPermissions', 'selectedFuncPermissions', 'roleId']);
     }
 
     /**
@@ -240,7 +274,7 @@ class RolesPermisos extends Component
     public function cancel(): void
     {
         $this->showModal = false;
-        $this->reset(['name', 'selectedPermissions', 'roleId']);
+        $this->reset(['name', 'selectedPermissions', 'selectedFuncPermissions', 'roleId', 'isSuperAdmin']);
     }
 
     /**

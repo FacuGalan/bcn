@@ -38,6 +38,13 @@ new #[Layout('layouts.guest')] class extends Component
 
         // Si no necesita confirmación, completar el login
         Session::regenerate();
+
+        // Si es System Admin, redirigir al selector de comercios
+        if ($result['isSystemAdmin'] ?? false) {
+            $this->redirect(route('comercio.selector'), navigate: true);
+            return;
+        }
+
         $this->redirectIntended(default: route('dashboard', absolute: false), navigate: true);
     }
 
@@ -54,13 +61,20 @@ new #[Layout('layouts.guest')] class extends Component
         }
 
         // Completar login pasando las sesiones seleccionadas
-        $this->form->completeLogin($this->selectedSessions);
+        $result = $this->form->completeLogin($this->selectedSessions);
 
         Session::regenerate();
 
         $this->showConfirmationModal = false;
         $this->selectedSessions = [];
         $this->selectionError = '';
+
+        // Si es System Admin, redirigir al selector de comercios
+        if ($result['isSystemAdmin'] ?? false) {
+            $this->redirect(route('comercio.selector'), navigate: true);
+            return;
+        }
+
         $this->redirectIntended(default: route('dashboard', absolute: false), navigate: true);
     }
 
@@ -89,8 +103,14 @@ new #[Layout('layouts.guest')] class extends Component
         </div>
     @endif
 
-    <form wire:submit="login" class="space-y-5">
-        <!-- Comercio Email -->
+    <form wire:submit="login" class="space-y-5" x-data="{}" x-init="
+            // Cargar el email del comercio guardado en localStorage
+            const savedEmail = localStorage.getItem('bcn_comercio_email');
+            if (savedEmail) {
+                $wire.set('form.comercio_email', savedEmail);
+            }
+        ">
+        <!-- Comercio Email (opcional para System Admin) -->
         <div>
             <x-input-label for="comercio_email" value="Email del Comercio" class="text-sm font-medium text-gray-700" />
             <x-text-input
@@ -99,10 +119,10 @@ new #[Layout('layouts.guest')] class extends Component
                 class="block mt-1.5 w-full py-3 px-4 text-base rounded-xl border-gray-300 focus:border-bcn-primary focus:ring-bcn-primary"
                 type="email"
                 name="comercio_email"
-                required
                 autofocus
                 autocomplete="off"
-                placeholder="comercio@ejemplo.com" />
+                placeholder="comercio@ejemplo.com"
+                x-on:change="localStorage.setItem('bcn_comercio_email', $event.target.value)" />
             <x-input-error :messages="$errors->get('form.comercio_email')" class="mt-2" />
         </div>
 

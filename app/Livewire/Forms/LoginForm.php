@@ -34,10 +34,11 @@ class LoginForm extends Form
 {
     /**
      * Email del comercio al que se quiere acceder
+     * Opcional para System Admins
      *
      * @var string
      */
-    #[Validate('required|string|email')]
+    #[Validate('nullable|string|email')]
     public string $comercio_email = '';
 
     /**
@@ -94,18 +95,7 @@ class LoginForm extends Form
     {
         $this->ensureIsNotRateLimited();
 
-        // 1. Buscar el comercio por email
-        $comercio = Comercio::where('email', $this->comercio_email)->first();
-
-        if (!$comercio) {
-            RateLimiter::hit($this->throttleKey());
-
-            throw ValidationException::withMessages([
-                'form.comercio_email' => 'El comercio no existe.',
-            ]);
-        }
-
-        // 2. Buscar el usuario por username
+        // 1. Buscar el usuario por username primero
         $user = User::where('username', $this->username)->first();
 
         if (!$user) {
@@ -116,7 +106,7 @@ class LoginForm extends Form
             ]);
         }
 
-        // 3. Verificar la contraseña
+        // 2. Verificar la contraseña
         if (!Hash::check($this->password, $user->password)) {
             RateLimiter::hit($this->throttleKey());
 
@@ -125,7 +115,7 @@ class LoginForm extends Form
             ]);
         }
 
-        // 3.5. Verificar que el usuario esté activo
+        // 3. Verificar que el usuario esté activo
         if (!$user->activo) {
             RateLimiter::hit($this->throttleKey());
 
@@ -134,7 +124,47 @@ class LoginForm extends Form
             ]);
         }
 
-        // 4. Verificar que el usuario tenga acceso al comercio
+        // 4. Si es System Admin, no necesita comercio - va directo al selector
+        if ($user->isSystemAdmin()) {
+            $sessionManager = app(SessionManagerService::class);
+
+            Session::put(self::SESSION_VALIDATED_USER_ID, $user->id);
+            Session::put(self::SESSION_VALIDATED_COMERCIO_ID, null);
+
+            if ($sessionManager->hasReachedSessionLimit($user)) {
+                $sessionsInfo = $sessionManager->getSessionsInfo($user);
+                $sessionsToClose = $sessionManager->getActiveSessionsCount($user) - $user->max_concurrent_sessions + 1;
+
+                return [
+                    'needsConfirmation' => true,
+                    'sessionsToClose' => $sessionsToClose,
+                    'sessionsInfo' => $sessionsInfo,
+                    'maxSessions' => $user->max_concurrent_sessions,
+                    'isSystemAdmin' => true,
+                ];
+            }
+
+            return $this->completeLogin();
+        }
+
+        // 5. Para usuarios normales, verificar comercio
+        if (empty($this->comercio_email)) {
+            throw ValidationException::withMessages([
+                'form.comercio_email' => 'Debes ingresar el email del comercio.',
+            ]);
+        }
+
+        $comercio = Comercio::where('email', $this->comercio_email)->first();
+
+        if (!$comercio) {
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'form.comercio_email' => 'El comercio no existe.',
+            ]);
+        }
+
+        // 6. Verificar que el usuario tenga acceso al comercio
         if (!$user->hasAccessToComercio($comercio->id)) {
             RateLimiter::hit($this->throttleKey());
 
@@ -143,7 +173,7 @@ class LoginForm extends Form
             ]);
         }
 
-        // 5. Controlar sesiones concurrentes
+        // 7. Controlar sesiones concurrentes
         $sessionManager = app(SessionManagerService::class);
 
         // Guardar IDs en sesión para uso posterior (persiste entre requests de Livewire)
@@ -180,16 +210,15 @@ class LoginForm extends Form
         $userId = Session::get(self::SESSION_VALIDATED_USER_ID);
         $comercioId = Session::get(self::SESSION_VALIDATED_COMERCIO_ID);
 
-        if (!$userId || !$comercioId) {
-            throw new \Exception('No hay usuario o comercio validado. Debe llamar authenticate() primero.');
+        if (!$userId) {
+            throw new \Exception('No hay usuario validado. Debe llamar authenticate() primero.');
         }
 
-        // Obtener modelos desde BD
+        // Obtener modelo de usuario
         $user = User::find($userId);
-        $comercio = Comercio::find($comercioId);
 
-        if (!$user || !$comercio) {
-            throw new \Exception('Usuario o comercio no encontrado en base de datos.');
+        if (!$user) {
+            throw new \Exception('Usuario no encontrado en base de datos.');
         }
 
         $sessionManager = app(SessionManagerService::class);
@@ -214,6 +243,35 @@ class LoginForm extends Form
         // Autenticar al usuario
         Auth::login($user, $this->remember);
 
+        // Si es System Admin, no establecer comercio - irá al selector
+        if ($user->isSystemAdmin()) {
+            // Limpiar rate limiting
+            RateLimiter::clear($this->throttleKey());
+
+            // Limpiar datos temporales de la sesión
+            Session::forget([
+                self::SESSION_VALIDATED_USER_ID,
+                self::SESSION_VALIDATED_COMERCIO_ID,
+            ]);
+
+            return [
+                'needsConfirmation' => false,
+                'success' => true,
+                'isSystemAdmin' => true,
+            ];
+        }
+
+        // Para usuarios normales, establecer el comercio
+        if (!$comercioId) {
+            throw new \Exception('No hay comercio validado para usuario normal.');
+        }
+
+        $comercio = Comercio::find($comercioId);
+
+        if (!$comercio) {
+            throw new \Exception('Comercio no encontrado en base de datos.');
+        }
+
         // Establecer el comercio activo en la sesión
         $tenantService = app(TenantService::class);
         $tenantService->setComercio($comercio);
@@ -233,6 +291,7 @@ class LoginForm extends Form
         return [
             'needsConfirmation' => false,
             'success' => true,
+            'isSystemAdmin' => false,
         ];
     }
 

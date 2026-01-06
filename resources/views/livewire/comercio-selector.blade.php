@@ -1,76 +1,118 @@
-<div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gray-100 dark:bg-gray-900">
-    <div class="w-full sm:max-w-2xl mt-6 px-6 py-8 bg-white dark:bg-gray-800 shadow-md overflow-hidden sm:rounded-lg">
-        <div class="mb-6">
-            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Selecciona un Comercio</h2>
-            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">Elige el comercio con el que deseas trabajar</p>
+<div>
+    <div class="mb-4">
+        <h2 class="text-xl font-bold text-gray-900 dark:text-white text-center">
+            @if ($isSystemAdmin)
+                Administrador de Sistema
+            @else
+                Selecciona un Comercio
+            @endif
+        </h2>
+    </div>
+
+    <!-- Messages -->
+    @if (session('error'))
+        <div class="mb-4 p-3 text-sm text-red-800 bg-red-50 rounded-lg border border-red-200">
+            {{ session('error') }}
+        </div>
+    @endif
+
+    @if ($isSystemAdmin)
+        <!-- Buscador para System Admin -->
+        <div class="mb-4">
+            <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+                <input
+                    wire:model.live.debounce.300ms="search"
+                    type="text"
+                    placeholder="Buscar por nombre, email o ID..."
+                    class="w-full pl-10 pr-4 py-3 text-base rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring-bcn-primary"
+                    autofocus
+                />
+            </div>
         </div>
 
-        <!-- Messages -->
-        @if (session('error'))
-            <div class="mb-4 p-4 text-sm text-red-800 bg-red-50 rounded-lg border border-red-200">
-                {{ session('error') }}
+        <!-- Resultados de búsqueda -->
+        @if (count($searchResults) > 0)
+            <div class="space-y-2 max-h-64 overflow-y-auto">
+                @foreach ($searchResults as $comercio)
+                    <button
+                        wire:click="selectComercio({{ $comercio['id'] }})"
+                        class="w-full p-3 text-left border rounded-lg transition-all hover:border-bcn-primary hover:bg-amber-50 dark:hover:bg-gray-700 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800"
+                    >
+                        <div class="flex items-center justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-mono text-gray-500 dark:text-gray-400">
+                                        #{{ str_pad($comercio['id'], 5, '0', STR_PAD_LEFT) }}
+                                    </span>
+                                    <span class="font-medium text-gray-900 dark:text-white">
+                                        {{ $comercio['nombre'] }}
+                                    </span>
+                                </div>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                    {{ $comercio['email'] }}
+                                </p>
+                            </div>
+                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        </div>
+                    </button>
+                @endforeach
+            </div>
+        @elseif (strlen($search) >= 1)
+            <div class="text-center py-6 text-gray-500 dark:text-gray-400">
+                <p class="text-sm">No se encontraron comercios</p>
             </div>
         @endif
-
-        @if (session('success'))
-            <div class="mb-4 p-4 text-sm text-green-800 bg-green-50 rounded-lg border border-green-200">
-                {{ session('success') }}
-            </div>
-        @endif
-
-        <!-- Comercios Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    @else
+        <!-- Comercios para usuarios normales -->
+        <div class="space-y-2 max-h-64 overflow-y-auto">
             @forelse ($comercios as $comercio)
                 <button
                     wire:click="selectComercio({{ $comercio->id }})"
-                    class="p-6 text-left border-2 rounded-lg transition-all hover:border-indigo-500 hover:shadow-lg {{ $comercioActual && $comercioActual->id === $comercio->id ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700' }}"
+                    class="w-full p-3 text-left border rounded-lg transition-all hover:border-bcn-primary hover:bg-amber-50 dark:hover:bg-gray-700 {{ $comercioActual && $comercioActual->id === $comercio->id ? 'border-bcn-primary bg-amber-50 dark:bg-gray-700' : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800' }}"
                 >
-                    <div class="flex items-start justify-between">
+                    <div class="flex items-center justify-between">
                         <div class="flex-1">
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                                {{ $comercio->nombre }}
-                            </h3>
-                            <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                                {{ $comercio->mail }}
-                            </p>
-                            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                ID: {{ $comercio->getFormattedId() }}
+                            <div class="flex items-center gap-2">
+                                <span class="font-medium text-gray-900 dark:text-white">
+                                    {{ $comercio->nombre }}
+                                </span>
+                                @if ($comercioActual && $comercioActual->id === $comercio->id)
+                                    <span class="text-xs px-2 py-0.5 rounded-full bg-bcn-primary text-bcn-secondary">
+                                        Activo
+                                    </span>
+                                @endif
+                            </div>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                                {{ $comercio->email }}
                             </p>
                         </div>
-
-                        @if ($comercioActual && $comercioActual->id === $comercio->id)
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                                Activo
-                            </span>
-                        @endif
-                    </div>
-
-                    <div class="mt-4 flex items-center text-sm text-indigo-600 font-medium">
-                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                         </svg>
-                        Seleccionar comercio
                     </div>
                 </button>
             @empty
-                <div class="col-span-2 text-center py-12">
-                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                    </svg>
-                    <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No tienes comercios asignados</h3>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Contacta con un administrador para obtener acceso.</p>
+                <div class="text-center py-6 text-gray-500 dark:text-gray-400">
+                    <p class="text-sm">No tienes comercios asignados</p>
                 </div>
             @endforelse
         </div>
+    @endif
 
-        <!-- Logout Button -->
-        <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button type="submit" class="w-full text-center text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white underline">
-                    Cerrar Sesión
-                </button>
-            </form>
-        </div>
+    <!-- Logout Button -->
+    <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <form method="POST" action="{{ route('logout') }}">
+            @csrf
+            <button type="submit" class="w-full text-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                Cerrar Sesión
+            </button>
+        </form>
     </div>
 </div>

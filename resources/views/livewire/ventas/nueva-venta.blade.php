@@ -1678,6 +1678,106 @@
         </div>
     @endif
 
+    {{-- Modal: Selección de Punto de Venta Fiscal --}}
+    @if($showPuntoVentaModal)
+        <div
+            x-data="{ show: @entangle('showPuntoVentaModal').live }"
+            x-show="show"
+            x-cloak
+            class="fixed inset-0 z-[70] overflow-y-auto"
+            aria-labelledby="modal-punto-venta"
+            role="dialog"
+            aria-modal="true"
+        >
+            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                {{-- Overlay --}}
+                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-80 transition-opacity"></div>
+
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+                {{-- Modal Panel --}}
+                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                    {{-- Header --}}
+                    <div class="bg-bcn-primary px-4 py-3">
+                        <h3 class="text-lg font-semibold text-white flex items-center" id="modal-punto-venta">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Seleccionar Punto de Venta Fiscal
+                        </h3>
+                    </div>
+
+                    {{-- Content --}}
+                    <div class="px-4 py-5 sm:p-6">
+                        <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                            La caja tiene múltiples puntos de venta configurados. Seleccione con cuál desea emitir el comprobante fiscal:
+                        </p>
+
+                        <div class="space-y-2 max-h-64 overflow-y-auto">
+                            @foreach($puntosVentaDisponibles as $pv)
+                                <label
+                                    class="flex items-center p-3 border rounded-lg cursor-pointer transition-all
+                                        {{ $puntoVentaSeleccionadoId == $pv['id']
+                                            ? 'border-bcn-primary bg-bcn-primary/10 dark:bg-bcn-primary/20'
+                                            : 'border-gray-200 dark:border-gray-600 hover:border-bcn-primary/50' }}"
+                                >
+                                    <input
+                                        type="radio"
+                                        wire:model="puntoVentaSeleccionadoId"
+                                        value="{{ $pv['id'] }}"
+                                        class="h-4 w-4 text-bcn-primary focus:ring-bcn-primary border-gray-300 dark:border-gray-600"
+                                    >
+                                    <div class="ml-3 flex-1">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm font-semibold text-gray-900 dark:text-white">
+                                                PV {{ $pv['numero_formateado'] }}
+                                                @if($pv['nombre'])
+                                                    - {{ $pv['nombre'] }}
+                                                @endif
+                                            </span>
+                                            @if($pv['es_defecto'])
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                                    Por defecto
+                                                </span>
+                                            @endif
+                                        </div>
+                                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                            <span class="font-mono">{{ $pv['cuit_numero'] }}</span>
+                                            @if($pv['cuit_razon_social'])
+                                                <span class="ml-1">- {{ $pv['cuit_razon_social'] }}</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </label>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    {{-- Footer --}}
+                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 flex flex-row-reverse gap-2 border-t border-gray-200 dark:border-gray-600">
+                        <button
+                            wire:click="confirmarPuntoVenta"
+                            type="button"
+                            class="inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-sm font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary"
+                        >
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Confirmar y Facturar
+                        </button>
+                        <button
+                            wire:click="cancelarSeleccionPuntoVenta"
+                            type="button"
+                            class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary"
+                        >
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
     {{-- Script para scroll y efectos --}}
     <script>
         document.addEventListener('livewire:initialized', () => {
@@ -1693,6 +1793,70 @@
                         row.classList.remove('animate-pulse', 'bg-yellow-200');
                         @this.limpiarResaltado();
                     }, 2000);
+                }
+            });
+
+            // Listener para impresión automática de venta
+            Livewire.on('venta-completada', async (data) => {
+                // Verificar que QZIntegration esté disponible
+                if (typeof window.QZIntegration === 'undefined') {
+                    console.warn('QZIntegration no está disponible. QZ Tray no instalado o no conectado.');
+                    return;
+                }
+
+                const { ventaId, imprimirTicket, imprimirFactura, comprobanteId } = data[0] || data;
+
+                try {
+                    // Conectar a QZ Tray si no está conectado
+                    const conectado = await window.QZIntegration.conectar();
+                    if (!conectado) {
+                        console.warn('No se pudo conectar a QZ Tray');
+                        return;
+                    }
+
+                    // Imprimir ticket si está habilitado
+                    if (imprimirTicket && ventaId) {
+                        const ticketResponse = await fetch(`/api/impresion/venta/${ventaId}/ticket`);
+                        if (ticketResponse.ok) {
+                            const ticketData = await ticketResponse.json();
+                            if (ticketData.tipo === 'escpos') {
+                                await window.QZIntegration.imprimirESCPOS(
+                                    ticketData.impresora,
+                                    ticketData.datos,
+                                    ticketData.opciones
+                                );
+                            } else {
+                                await window.QZIntegration.imprimirHTML(
+                                    ticketData.impresora,
+                                    ticketData.datos,
+                                    ticketData.opciones
+                                );
+                            }
+                        }
+                    }
+
+                    // Imprimir factura si está habilitado
+                    if (imprimirFactura && comprobanteId) {
+                        const facturaResponse = await fetch(`/api/impresion/factura/${comprobanteId}`);
+                        if (facturaResponse.ok) {
+                            const facturaData = await facturaResponse.json();
+                            if (facturaData.tipo === 'escpos') {
+                                await window.QZIntegration.imprimirESCPOS(
+                                    facturaData.impresora,
+                                    facturaData.datos,
+                                    facturaData.opciones
+                                );
+                            } else {
+                                await window.QZIntegration.imprimirHTML(
+                                    facturaData.impresora,
+                                    facturaData.datos,
+                                    facturaData.opciones
+                                );
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error al imprimir:', error);
                 }
             });
         });

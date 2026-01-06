@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\MenuItem;
 use App\Models\Permission;
+use App\Models\PermisoFuncional;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -40,16 +41,19 @@ class RolePermissionSeeder extends Seeder
         // 1. Verificar/crear permisos compartidos desde el menú
         $permissions = $this->ensurePermissionsFromMenu();
 
-        // 2. Limpiar roles del comercio actual (son por comercio)
+        // 2. Sincronizar permisos funcionales con Spatie
+        PermisoFuncional::syncAllToSpatie();
+
+        // 3. Limpiar roles del comercio actual (son por comercio)
         Role::query()->delete();
 
-        // 3. Crear roles predeterminados para el comercio
+        // 4. Crear roles predeterminados para el comercio
         $roles = $this->createDefaultRoles();
 
-        // 4. Asignar permisos a roles
+        // 5. Asignar permisos a roles
         $this->assignPermissionsToRoles($roles, $permissions);
 
-        // 5. Asignar roles a usuarios existentes (opcional)
+        // 6. Asignar roles a usuarios existentes (opcional)
         $this->assignRolesToUsers($roles);
     }
 
@@ -132,13 +136,26 @@ class RolePermissionSeeder extends Seeder
      */
     protected function assignPermissionsToRoles($roles, $permissions): void
     {
-        // Super Administrador: Acceso a TODO (protegido)
-        $superAdminRole = $roles->firstWhere('name', 'Super Administrador');
-        $superAdminRole->givePermissionTo($permissions->pluck('name')->toArray());
+        // Obtener todos los permisos funcionales
+        $funcPermissions = Permission::where('name', 'like', PermisoFuncional::PERMISSION_PREFIX . '%')
+            ->pluck('name')
+            ->toArray();
 
-        // Administrador: Acceso a TODO
+        // Combinar permisos de menú + funcionales para acceso total
+        $allPermissions = array_merge(
+            $permissions->pluck('name')->toArray(),
+            $funcPermissions
+        );
+
+        // Super Administrador: Acceso a TODO (protegido)
+        // Nota: hasPermissionTo() ya retorna true para Super Administrador,
+        // pero asignamos los permisos explícitamente para consistencia
+        $superAdminRole = $roles->firstWhere('name', 'Super Administrador');
+        $superAdminRole->givePermissionTo($allPermissions);
+
+        // Administrador: Acceso a TODO (menú + funcionales)
         $adminRole = $roles->firstWhere('name', 'Administrador');
-        $adminRole->givePermissionTo($permissions->pluck('name')->toArray());
+        $adminRole->givePermissionTo($allPermissions);
 
         // Gerente: Ventas + Artículos + Empresa (sin Dashboard, accesible desde logo)
         $gerenteRole = $roles->firstWhere('name', 'Gerente');

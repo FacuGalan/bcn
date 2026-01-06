@@ -14,6 +14,7 @@ use App\Livewire\Configuracion\Promociones\WizardPromocion;
 use App\Livewire\Configuracion\PromocionesEspeciales\ListarPromocionesEspeciales;
 use App\Livewire\Configuracion\PromocionesEspeciales\WizardPromocionEspecial;
 use App\Livewire\Configuracion\FormasPago\ListarFormasPago;
+use App\Livewire\Configuracion\Impresoras;
 use App\Livewire\Ventas\Ventas;
 use App\Livewire\Ventas\NuevaVenta;
 use App\Livewire\Compras\Compras;
@@ -179,6 +180,12 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
          * Configuración de disponibilidad de artículos por sucursal
          */
         Route::get('articulos-sucursal', ArticulosSucursal::class)->name('articulos-sucursal');
+
+        /**
+         * Impresoras
+         * Configuración de impresoras por sucursal/caja
+         */
+        Route::get('impresoras', Impresoras::class)->name('impresoras');
     });
 });
 

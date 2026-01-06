@@ -107,14 +107,28 @@ class SucursalService
             return self::$sucursalesCache;
         }
 
-        // Obtener sucursales a las que el usuario tiene acceso desde model_has_roles
-        $sucursalIds = DB::connection('pymes_tenant')
-            ->table('model_has_roles')
-            ->where('model_type', 'App\\Models\\User')
-            ->where('model_id', $user->id)
-            ->pluck('sucursal_id')
-            ->unique()
-            ->toArray();
+        // Verificar que hay un comercio activo en sesión antes de consultar el tenant
+        // Esto previene errores cuando el usuario tiene "recordarme" pero no hay comercio seleccionado
+        $comercioActivoId = session('comercio_activo_id');
+        if (!$comercioActivoId) {
+            self::$sucursalesCache = collect();
+            return self::$sucursalesCache;
+        }
+
+        try {
+            // Obtener sucursales a las que el usuario tiene acceso desde model_has_roles
+            $sucursalIds = DB::connection('pymes_tenant')
+                ->table('model_has_roles')
+                ->where('model_type', 'App\\Models\\User')
+                ->where('model_id', $user->id)
+                ->pluck('sucursal_id')
+                ->unique()
+                ->toArray();
+        } catch (\Exception $e) {
+            // Si hay error de conexión o tabla no existe, retornar colección vacía
+            self::$sucursalesCache = collect();
+            return self::$sucursalesCache;
+        }
 
         if (empty($sucursalIds)) {
             self::$sucursalesCache = collect();

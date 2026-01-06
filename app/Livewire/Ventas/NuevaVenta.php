@@ -23,6 +23,7 @@ use App\Models\ListaPrecioArticulo;
 use App\Models\Categoria;
 use App\Models\Promocion;
 use App\Models\PromocionEspecial;
+use App\Models\PuntoVenta;
 use App\Models\TipoIva;
 use App\Models\CondicionIva;
 use App\Models\MovimientoCaja;
@@ -272,6 +273,22 @@ class NuevaVenta extends Component
 
     /** @var array Desglose de IVA para la factura fiscal (recalculado) */
     public $desgloseIvaFiscal = [];
+
+    // =========================================
+    // PROPIEDADES DE SELECCIÓN DE PUNTO DE VENTA FISCAL
+    // =========================================
+
+    /** @var bool Mostrar modal de selección de punto de venta */
+    public $showPuntoVentaModal = false;
+
+    /** @var int|null ID del punto de venta seleccionado para facturación */
+    public $puntoVentaSeleccionadoId = null;
+
+    /** @var array Puntos de venta disponibles para la caja actual */
+    public $puntosVentaDisponibles = [];
+
+    /** @var bool Indica si el usuario puede seleccionar punto de venta */
+    public $puedeSeleccionarPuntoVenta = false;
 
     // =========================================
     // INYECCIÓN DE DEPENDENCIAS
@@ -3348,6 +3365,115 @@ class NuevaVenta extends Component
         ];
     }
 
+    // =========================================
+    // SELECCIÓN DE PUNTO DE VENTA FISCAL
+    // =========================================
+
+    /**
+     * Verifica si el usuario puede y debe seleccionar un punto de venta para facturación
+     * Retorna true si:
+     * - El usuario tiene el permiso 'func.seleccion_cuit'
+     * - La caja actual tiene más de un punto de venta configurado
+     */
+    protected function debeSeleccionarPuntoVenta(): bool
+    {
+        $cajaId = $this->cajaSeleccionada ?? caja_activa();
+        if (!$cajaId) {
+            return false;
+        }
+
+        // Verificar permiso del usuario
+        $user = Auth::user();
+        if (!$user || !$user->hasPermissionTo('func.seleccion_cuit')) {
+            return false;
+        }
+
+        // Verificar si la caja tiene múltiples puntos de venta
+        $caja = Caja::find($cajaId);
+        if (!$caja) {
+            return false;
+        }
+
+        $cantidadPV = $caja->puntosVenta()->count();
+        return $cantidadPV > 1;
+    }
+
+    /**
+     * Carga los puntos de venta disponibles para la caja actual
+     */
+    protected function cargarPuntosVentaDisponibles(): void
+    {
+        $cajaId = $this->cajaSeleccionada ?? caja_activa();
+        if (!$cajaId) {
+            $this->puntosVentaDisponibles = [];
+            return;
+        }
+
+        $caja = Caja::find($cajaId);
+        if (!$caja) {
+            $this->puntosVentaDisponibles = [];
+            return;
+        }
+
+        // Obtener puntos de venta con información del CUIT
+        $puntosVenta = $caja->puntosVenta()
+            ->with('cuit')
+            ->get()
+            ->map(function ($pv) {
+                return [
+                    'id' => $pv->id,
+                    'numero' => $pv->numero,
+                    'nombre' => $pv->nombre,
+                    'numero_formateado' => str_pad($pv->numero, 5, '0', STR_PAD_LEFT),
+                    'cuit_numero' => $pv->cuit?->numero_cuit ?? 'Sin CUIT',
+                    'cuit_razon_social' => $pv->cuit?->razon_social ?? '',
+                    'es_defecto' => $pv->pivot->es_defecto ?? false,
+                ];
+            })
+            ->toArray();
+
+        $this->puntosVentaDisponibles = $puntosVenta;
+
+        // Preseleccionar el punto de venta por defecto
+        $pvDefecto = collect($puntosVenta)->firstWhere('es_defecto', true);
+        $this->puntoVentaSeleccionadoId = $pvDefecto['id'] ?? ($puntosVenta[0]['id'] ?? null);
+    }
+
+    /**
+     * Muestra el modal de selección de punto de venta
+     */
+    public function mostrarSeleccionPuntoVenta(): void
+    {
+        $this->cargarPuntosVentaDisponibles();
+        $this->showPuntoVentaModal = true;
+    }
+
+    /**
+     * Confirma la selección del punto de venta y continúa con la venta
+     */
+    public function confirmarPuntoVenta(): void
+    {
+        if (!$this->puntoVentaSeleccionadoId) {
+            $this->dispatch('toast-error', message: 'Seleccione un punto de venta');
+            return;
+        }
+
+        $this->showPuntoVentaModal = false;
+
+        // Continuar con el procesamiento de la venta
+        $this->procesarVentaConDesglose();
+    }
+
+    /**
+     * Cancela la selección de punto de venta y vuelve a la venta
+     */
+    public function cancelarSeleccionPuntoVenta(): void
+    {
+        // Solo cerrar el modal sin procesar nada
+        $this->showPuntoVentaModal = false;
+        $this->puntoVentaSeleccionadoId = null;
+    }
+
     /**
      * Inicia el proceso de cobro
      * Para pagos simples: procesa directamente
@@ -3367,9 +3493,9 @@ class NuevaVenta extends Component
 
         // Si es mixta
         if ($this->ajusteFormaPagoInfo['es_mixta']) {
-            // Si ya hay un desglose completo, procesar
+            // Si ya hay un desglose completo, verificar y procesar
             if ($this->desgloseCompleto()) {
-                $this->procesarVentaConDesglose();
+                $this->verificarPuntoVentaYProcesar();
                 return;
             }
             // Si no, abrir modal para desglosar
@@ -3421,7 +3547,36 @@ class NuevaVenta extends Component
         // Calcular el monto fiscal
         $this->calcularMontoFacturaFiscal();
 
-        // Procesar la venta directamente
+        // Verificar si necesita selección de punto de venta
+        $this->verificarPuntoVentaYProcesar();
+    }
+
+    /**
+     * Verifica si se debe mostrar el modal de selección de punto de venta
+     * antes de procesar la venta. Si no es necesario, procesa directamente.
+     */
+    protected function verificarPuntoVentaYProcesar(): void
+    {
+        // Determinar si se va a generar factura fiscal
+        $sucursal = Sucursal::find($this->sucursalId);
+        if (!$sucursal) {
+            $this->procesarVentaConDesglose();
+            return;
+        }
+
+        $comprobanteFiscalService = new ComprobanteFiscalService();
+        $debeFacturarAutomatico = $comprobanteFiscalService->debeGenerarFacturaFiscal($sucursal, $this->desglosePagos);
+        $debeFacturarManual = $this->emitirFacturaFiscal;
+        $debeFacturarDesglose = collect($this->desglosePagos)->contains('factura_fiscal', true);
+        $debeFacturar = $debeFacturarAutomatico || $debeFacturarManual || $debeFacturarDesglose;
+
+        // Si se va a facturar Y el usuario puede seleccionar punto de venta → mostrar modal
+        if ($debeFacturar && $this->debeSeleccionarPuntoVenta()) {
+            $this->mostrarSeleccionPuntoVenta();
+            return;
+        }
+
+        // Si no se necesita selección, procesar directamente
         $this->procesarVentaConDesglose();
     }
 
@@ -4159,6 +4314,14 @@ class NuevaVenta extends Component
                             $opcionesFiscal['total_a_facturar'] = $this->montoFacturaFiscal;
                         }
 
+                        // Pasar el punto de venta seleccionado si el usuario eligió uno
+                        if ($this->puntoVentaSeleccionadoId) {
+                            $puntoVentaSeleccionado = PuntoVenta::with('cuit')->find($this->puntoVentaSeleccionadoId);
+                            if ($puntoVentaSeleccionado) {
+                                $opcionesFiscal['punto_venta'] = $puntoVentaSeleccionado;
+                            }
+                        }
+
                         $comprobanteFiscal = $comprobanteFiscalService->crearComprobanteFiscal($venta, $opcionesFiscal);
 
                         Log::info('Comprobante fiscal emitido', [
@@ -4190,6 +4353,10 @@ class NuevaVenta extends Component
                 }
 
                 $this->dispatch('toast-success', message: $mensaje);
+
+                // Disparar evento para impresion automatica
+                $this->dispararEventoImpresion($venta, $comprobanteFiscal);
+
                 $this->limpiarCarrito(false); // Sin mensaje, ya mostramos toast-success
 
             } catch (Exception $e) {
@@ -4389,6 +4556,10 @@ class NuevaVenta extends Component
                 }
 
                 $this->dispatch('toast-success', message: $mensaje);
+
+                // Disparar evento para impresion automatica
+                $this->dispararEventoImpresion($venta, $comprobanteFiscal);
+
                 $this->limpiarCarrito(false); // Sin mensaje, ya mostramos toast-success
 
             } catch (Exception $e) {
@@ -4471,6 +4642,11 @@ class NuevaVenta extends Component
         // Reestablecer emitirFacturaFiscal según la forma de pago por defecto
         $this->actualizarFacturaFiscalSegunFP();
 
+        // Resetear selección de punto de venta fiscal
+        $this->showPuntoVentaModal = false;
+        $this->puntoVentaSeleccionadoId = null;
+        $this->puntosVentaDisponibles = [];
+
         // Resetear modales
         $this->mostrarModalConsulta = false;
         $this->mostrarModalConcepto = false;
@@ -4495,6 +4671,36 @@ class NuevaVenta extends Component
 
         if ($mostrarMensaje) {
             $this->dispatch('toast-info', message: 'Carrito limpiado');
+        }
+    }
+
+    /**
+     * Dispara el evento para impresion automatica despues de una venta
+     */
+    protected function dispararEventoImpresion($venta, $comprobanteFiscal = null): void
+    {
+        try {
+            // Obtener configuracion de impresion de la sucursal
+            $config = \App\Models\ConfiguracionImpresion::where('sucursal_id', $this->sucursalId)->first();
+
+            $imprimirTicket = $config?->impresion_automatica_venta ?? true;
+            $imprimirFactura = $comprobanteFiscal && ($config?->impresion_automatica_factura ?? true);
+
+            // Solo disparar si hay algo que imprimir
+            if ($imprimirTicket || $imprimirFactura) {
+                $this->dispatch('venta-completada', [
+                    'ventaId' => $venta->id,
+                    'imprimirTicket' => $imprimirTicket,
+                    'imprimirFactura' => $imprimirFactura,
+                    'comprobanteId' => $comprobanteFiscal?->id,
+                ]);
+            }
+        } catch (\Exception $e) {
+            // No interrumpir el flujo si falla la impresion
+            \Illuminate\Support\Facades\Log::warning('Error al disparar evento de impresion', [
+                'venta_id' => $venta->id,
+                'error' => $e->getMessage()
+            ]);
         }
     }
 }

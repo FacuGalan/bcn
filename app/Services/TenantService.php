@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Comercio;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Session;
@@ -74,6 +75,12 @@ class TenantService
 
         // Cachear en memoria para evitar queries posteriores en este request
         $this->comercioCache = $comercioModel;
+
+        // Guardar como último comercio usado para el usuario autenticado
+        $user = Auth::user();
+        if ($user && $user->ultimo_comercio_id !== $comercioId) {
+            $user->setUltimoComercio($comercioId);
+        }
 
         // Configurar la conexión con el prefijo
         $this->configureConnection($comercioModel);

@@ -365,6 +365,15 @@ XML;
                 throw new Exception('Ya existe una sesión activa con AFIP. Espere 10-15 minutos antes de reintentar.');
             }
 
+            // Error de fecha/hora del sistema
+            if (str_contains($mensaje, 'generationTime') || str_contains($mensaje, 'expirationTime')) {
+                Log::error('WSAA: Error de fecha/hora del sistema', [
+                    'cuit' => $this->cuit->numero_cuit,
+                    'error_original' => $mensaje,
+                ]);
+                throw new Exception('La fecha y hora de su computadora no están correctas. Por favor, verifique que la fecha, hora y zona horaria de su sistema estén configuradas correctamente y vuelva a intentar.');
+            }
+
             Log::error('Error WSAA', [
                 'error' => $mensaje,
                 'cuit' => $this->cuit->numero_cuit,

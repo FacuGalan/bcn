@@ -183,5 +183,16 @@ class MenuItemSeeder extends Seeder
             'orden' => 4,
             'activo' => true,
         ]);
+
+        MenuItem::create([
+            'parent_id' => $configuracion->id,
+            'nombre' => 'Impresoras',
+            'slug' => 'impresoras',
+            'icono' => 'heroicon-o-printer',
+            'route_type' => 'route',
+            'route_value' => 'configuracion.impresoras',
+            'orden' => 5,
+            'activo' => true,
+        ]);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -33,12 +34,15 @@ use App\Models\Role;
  * @property string|null $password_visible Contraseña cifrada para visualización
  * @property int $max_concurrent_sessions Número máximo de sesiones simultáneas
  * @property bool $activo Indica si el usuario está activo (puede iniciar sesión)
+ * @property int|null $ultimo_comercio_id ID del último comercio usado
+ * @property bool $is_system_admin Si tiene acceso a todos los comercios del sistema
  * @property string|null $remember_token Token para recordar sesión
  * @property \Illuminate\Support\Carbon $created_at Fecha de creación
  * @property \Illuminate\Support\Carbon $updated_at Fecha de última actualización
  *
  * @property-read \Illuminate\Database\Eloquent\Collection|\App\Models\Comercio[] $comercios Comercios asociados
  * @property-read int $comercios_count Cantidad de comercios asociados
+ * @property-read \App\Models\Comercio|null $ultimoComercio Último comercio usado
  */
 class User extends Authenticatable
 {
@@ -68,11 +72,14 @@ class User extends Authenticatable
         'name',
         'username',
         'email',
+        'telefono',
         'password',
         'password_visible',
         'max_concurrent_sessions',
         'activo',
         'dark_mode',
+        'ultimo_comercio_id',
+        'is_system_admin',
     ];
 
     /**
@@ -98,6 +105,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'activo' => 'boolean',
             'dark_mode' => 'boolean',
+            'is_system_admin' => 'boolean',
         ];
     }
 
@@ -116,15 +124,54 @@ class User extends Authenticatable
     }
 
     /**
+     * Relación con el último comercio usado
+     *
+     * @return BelongsTo
+     */
+    public function ultimoComercio(): BelongsTo
+    {
+        return $this->belongsTo(Comercio::class, 'ultimo_comercio_id');
+    }
+
+    /**
      * Verifica si el usuario tiene acceso a un comercio específico
+     *
+     * Los administradores de sistema tienen acceso a todos los comercios.
      *
      * @param int|Comercio $comercio Comercio o ID del comercio
      * @return bool
      */
     public function hasAccessToComercio($comercio): bool
     {
+        // System admin tiene acceso a todos los comercios
+        if ($this->is_system_admin) {
+            return true;
+        }
+
         $comercioId = $comercio instanceof Comercio ? $comercio->id : $comercio;
         return $this->comercios()->where('comercio_id', $comercioId)->exists();
+    }
+
+    /**
+     * Verifica si el usuario es administrador de sistema
+     *
+     * @return bool
+     */
+    public function isSystemAdmin(): bool
+    {
+        return $this->is_system_admin === true;
+    }
+
+    /**
+     * Guarda el último comercio usado por el usuario
+     *
+     * @param int|Comercio $comercio
+     * @return void
+     */
+    public function setUltimoComercio($comercio): void
+    {
+        $comercioId = $comercio instanceof Comercio ? $comercio->id : $comercio;
+        $this->update(['ultimo_comercio_id' => $comercioId]);
     }
 
     /**
@@ -270,6 +317,11 @@ class User extends Authenticatable
         $cacheKey = 'user_permissions_' . $this->id . '_' . session('comercio_activo_id');
 
         return cache()->remember($cacheKey, 300, function () {
+            // System Admin tiene TODOS los permisos
+            if ($this->isSystemAdmin()) {
+                return Permission::pluck('name')->toArray();
+            }
+
             if (!session()->has('comercio_activo_id')) {
                 return [];
             }
@@ -334,12 +386,27 @@ class User extends Authenticatable
      */
     public function hasPermissionTo($permission, $guardName = null): bool
     {
+        // System Admin tiene TODOS los permisos en cualquier comercio
+        if ($this->isSystemAdmin()) {
+            return true;
+        }
+
         // Si no hay comercio activo, no hay permisos
         if (!session()->has('comercio_activo_id')) {
             return false;
         }
 
         try {
+            // Verificar si el usuario tiene el permiso a través de sus roles
+            $roles = $this->roles(); // Ya retorna una Collection
+
+            // Super Administrador tiene TODOS los permisos
+            foreach ($roles as $role) {
+                if ($role->name === 'Super Administrador') {
+                    return true;
+                }
+            }
+
             // Asegurar que estamos usando la conexión correcta
             if (is_string($permission)) {
                 $permissionModel = Permission::where('name', $permission)
@@ -352,9 +419,6 @@ class User extends Authenticatable
 
                 $permission = $permissionModel;
             }
-
-            // Verificar si el usuario tiene el permiso a través de sus roles
-            $roles = $this->roles(); // Ya retorna una Collection
 
             foreach ($roles as $role) {
                 if ($role->hasPermissionTo($permission)) {

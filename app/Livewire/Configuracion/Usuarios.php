@@ -43,6 +43,7 @@ class Usuarios extends Component
     public string $name = '';
     public string $username = '';
     public string $email = '';
+    public string $telefono = '';
     public string $password = '';
     public string $password_confirmation = '';
     public bool $activo = true;
@@ -165,6 +166,55 @@ class Usuarios extends Component
     }
 
     /**
+     * Cuando se actualizan las sucursales seleccionadas, limpia las cajas de sucursales que ya no están seleccionadas
+     */
+    public function updatedSelectedSucursales(): void
+    {
+        // Si hay sucursales seleccionadas, limpiar cajas de sucursales no seleccionadas
+        if (!empty($this->selectedSucursales)) {
+            // Convertir a strings para consistencia con claves de selectedCajas
+            $sucursalesIds = array_map('strval', $this->selectedSucursales);
+            $this->selectedCajas = array_filter(
+                $this->selectedCajas,
+                fn($key) => in_array((string)$key, $sucursalesIds),
+                ARRAY_FILTER_USE_KEY
+            );
+        }
+    }
+
+    /**
+     * Toggle de selección de caja individual
+     */
+    public function toggleCaja(int $sucursalId, int $cajaId): void
+    {
+        // Usar string como clave para consistencia con Livewire (JSON usa strings)
+        $sucursalIdKey = (string)$sucursalId;
+
+        // Inicializar el array de la sucursal si no existe
+        if (!isset($this->selectedCajas[$sucursalIdKey]) || !is_array($this->selectedCajas[$sucursalIdKey])) {
+            $this->selectedCajas[$sucursalIdKey] = [];
+        }
+
+        // Buscar si la caja ya está en el array
+        $index = array_search($cajaId, $this->selectedCajas[$sucursalIdKey]);
+
+        if ($index !== false) {
+            // Si existe, quitarla
+            unset($this->selectedCajas[$sucursalIdKey][$index]);
+            // Reindexar el array
+            $this->selectedCajas[$sucursalIdKey] = array_values($this->selectedCajas[$sucursalIdKey]);
+        } else {
+            // Si no existe, agregarla
+            $this->selectedCajas[$sucursalIdKey][] = $cajaId;
+        }
+
+        // Si el array quedó vacío, eliminarlo
+        if (empty($this->selectedCajas[$sucursalIdKey])) {
+            unset($this->selectedCajas[$sucursalIdKey]);
+        }
+    }
+
+    /**
      * Alterna la visibilidad de los filtros
      */
     public function toggleFilters(): void
@@ -281,7 +331,7 @@ class Usuarios extends Component
             return;
         }
 
-        $this->reset(['name', 'username', 'email', 'password', 'password_confirmation', 'activo', 'roleId', 'userId', 'passwordVisible', 'selectedSucursales', 'selectedCajas']);
+        $this->reset(['name', 'username', 'email', 'telefono', 'password', 'password_confirmation', 'activo', 'roleId', 'userId', 'passwordVisible', 'selectedSucursales', 'selectedCajas']);
         $this->editMode = false;
         $this->activo = true;
         $this->showModal = true;
@@ -298,6 +348,7 @@ class Usuarios extends Component
         $this->name = $user->name;
         $this->username = $user->username;
         $this->email = $user->email;
+        $this->telefono = $user->telefono ?? '';
         $this->activo = $user->activo;
 
         // Obtener el rol actual del usuario
@@ -323,13 +374,14 @@ class Usuarios extends Component
                 ->where('user_id', $user->id)
                 ->get();
 
-            // Agrupar cajas por sucursal
+            // Agrupar cajas por sucursal (usar strings como claves para consistencia con Livewire)
             $this->selectedCajas = [];
             foreach ($cajasAsignadas as $asignacion) {
-                if (!isset($this->selectedCajas[$asignacion->sucursal_id])) {
-                    $this->selectedCajas[$asignacion->sucursal_id] = [];
+                $sucursalIdKey = (string)$asignacion->sucursal_id;
+                if (!isset($this->selectedCajas[$sucursalIdKey])) {
+                    $this->selectedCajas[$sucursalIdKey] = [];
                 }
-                $this->selectedCajas[$asignacion->sucursal_id][] = $asignacion->caja_id;
+                $this->selectedCajas[$sucursalIdKey][] = $asignacion->caja_id;
             }
         }
 
@@ -376,6 +428,7 @@ class Usuarios extends Component
             'name' => 'required|string|max:191',
             'username' => 'required|string|max:191|unique:config.users,username,' . $this->userId,
             'email' => 'required|email|max:191|unique:config.users,email,' . $this->userId,
+            'telefono' => 'nullable|string|max:50',
             'activo' => 'boolean',
             'roleId' => 'nullable|exists:pymes_tenant.roles,id',
         ];
@@ -395,6 +448,7 @@ class Usuarios extends Component
                 $user->name = $this->name;
                 $user->username = $this->username;
                 $user->email = $this->email;
+                $user->telefono = $this->telefono ?: null;
                 $user->activo = $this->activo;
 
                 if ($this->password) {
@@ -411,6 +465,7 @@ class Usuarios extends Component
                     'name' => $this->name,
                     'username' => $this->username,
                     'email' => $this->email,
+                    'telefono' => $this->telefono ?: null,
                     'password' => Hash::make($this->password),
                     'activo' => $this->activo,
                 ]);
@@ -460,32 +515,32 @@ class Usuarios extends Component
                 }
             }
 
-            // Asignar cajas por sucursal (solo si es Super Admin)
-            if ($this->currentUserIsSuperAdmin && !empty($this->selectedSucursales)) {
-                // Eliminar asignaciones previas de cajas
+            // Gestionar cajas por sucursal (solo si es Super Admin)
+            if ($this->currentUserIsSuperAdmin) {
+                // Siempre eliminar asignaciones previas de cajas
                 DB::connection('pymes_tenant')
                     ->table('user_cajas')
                     ->where('user_id', $user->id)
                     ->delete();
 
-                // Asignar cajas por cada sucursal seleccionada
-                foreach ($this->selectedSucursales as $sucursalId) {
-                    // Si hay cajas seleccionadas para esta sucursal, asignarlas
-                    if (isset($this->selectedCajas[$sucursalId]) && is_array($this->selectedCajas[$sucursalId]) && !empty($this->selectedCajas[$sucursalId])) {
-                        foreach ($this->selectedCajas[$sucursalId] as $cajaId) {
+                // Guardar las cajas seleccionadas independientemente de las sucursales
+                // - Sin sucursales seleccionadas = acceso a todas las sucursales
+                // - Sin cajas seleccionadas en una sucursal = acceso a todas las cajas de esa sucursal
+                // - Pero se pueden restringir cajas específicas aunque tenga acceso a todas las sucursales
+                foreach ($this->selectedCajas as $sucursalIdKey => $cajas) {
+                    if (is_array($cajas) && !empty($cajas)) {
+                        foreach ($cajas as $cajaId) {
                             DB::connection('pymes_tenant')
                                 ->table('user_cajas')
                                 ->insert([
                                     'user_id' => $user->id,
-                                    'caja_id' => $cajaId,
-                                    'sucursal_id' => $sucursalId,
+                                    'caja_id' => (int)$cajaId,
+                                    'sucursal_id' => (int)$sucursalIdKey,
                                     'created_at' => now(),
                                     'updated_at' => now(),
                                 ]);
                         }
                     }
-                    // Si no hay cajas seleccionadas para esta sucursal, no asignamos ninguna
-                    // El usuario NO tendrá acceso a ninguna caja en esa sucursal
                 }
             }
 
@@ -500,7 +555,7 @@ class Usuarios extends Component
         });
 
         $this->showModal = false;
-        $this->reset(['name', 'username', 'email', 'password', 'password_confirmation', 'activo', 'roleId', 'userId', 'passwordVisible', 'selectedSucursales', 'selectedCajas']);
+        $this->reset(['name', 'username', 'email', 'telefono', 'password', 'password_confirmation', 'activo', 'roleId', 'userId', 'passwordVisible', 'selectedSucursales', 'selectedCajas']);
     }
 
     /**
@@ -509,7 +564,7 @@ class Usuarios extends Component
     public function cancel(): void
     {
         $this->showModal = false;
-        $this->reset(['name', 'username', 'email', 'password', 'password_confirmation', 'activo', 'roleId', 'userId', 'passwordVisible', 'selectedSucursales', 'selectedCajas']);
+        $this->reset(['name', 'username', 'email', 'telefono', 'password', 'password_confirmation', 'activo', 'roleId', 'userId', 'passwordVisible', 'selectedSucursales', 'selectedCajas']);
     }
 
     /**
