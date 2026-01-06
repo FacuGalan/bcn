@@ -39,7 +39,8 @@
       "Bash(npm run build:*)",
       "Bash(curl:*)",
       "Bash(echo:*)",
-      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\xampp\\\\htdocs\\\\bcn_pymes\\\\install_qz_cert.ps1\")"
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\xampp\\\\htdocs\\\\bcn_pymes\\\\install_qz_cert.ps1\")",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
