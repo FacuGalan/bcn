@@ -26,6 +26,11 @@ return Application::configure(basePath: dirname(__DIR__))
             // Asegurar que el usuario siempre tenga una sucursal seleccionada
             \App\Http\Middleware\EnsureSucursalSelected::class,
         ]);
+
+        // Excluir ruta de firma QZ Tray del CSRF (necesario para impresion silenciosa)
+        $middleware->validateCsrfTokens(except: [
+            'api/qz/sign',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

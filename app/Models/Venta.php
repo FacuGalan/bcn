@@ -173,6 +173,23 @@ class Venta extends Model
         return $this->hasMany(VentaPago::class, 'venta_id');
     }
 
+    public function promociones(): HasMany
+    {
+        return $this->hasMany(VentaPromocion::class, 'venta_id');
+    }
+
+    public function promocionesEspeciales(): HasMany
+    {
+        return $this->hasMany(VentaPromocion::class, 'venta_id')
+            ->where('tipo_promocion', 'promocion_especial');
+    }
+
+    public function promocionesComunes(): HasMany
+    {
+        return $this->hasMany(VentaPromocion::class, 'venta_id')
+            ->where('tipo_promocion', 'promocion');
+    }
+
     // Scopes
     public function scopeCompletadas($query)
     {

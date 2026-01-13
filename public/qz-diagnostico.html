@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnostico QZ Tray - BCN Pymes</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        h1 {
+            color: #222036;
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        h1 svg { width: 32px; height: 32px; }
+        .check-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        .check-item.success { background: #d4edda; border-left: 4px solid #28a745; }
+        .check-item.error { background: #f8d7da; border-left: 4px solid #dc3545; }
+        .check-item.warning { background: #fff3cd; border-left: 4px solid #ffc107; }
+        .check-item.loading { background: #e2e3e5; }
+        .check-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        .check-content { flex: 1; }
+        .check-title { font-weight: 600; color: #333; }
+        .check-detail { font-size: 13px; color: #666; margin-top: 4px; }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #6366f1;
+            color: white;
+        }
+        .btn-primary:hover { background: #4f46e5; }
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+        .btn-secondary:hover { background: #d1d5db; }
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ddd;
+            border-top-color: #666;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+        }
+        .section h2 {
+            color: #222036;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+        code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Diagnostico QZ Tray
+        </h1>
+        <p style="color:#666; margin-bottom: 30px;">
+            Esta herramienta verifica que QZ Tray este configurado correctamente para impresion silenciosa.
+        </p>
+
+        <div id="checks">
+            <div class="check-item loading" id="check-script">
+                <div class="spinner check-icon"></div>
+                <div class="check-content">
+                    <div class="check-title">Cargando libreria QZ Tray...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button class="btn btn-primary" onclick="ejecutarDiagnostico()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Ejecutar Diagnostico
+            </button>
+            <button class="btn btn-secondary" onclick="probarImpresion()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Probar Impresion
+            </button>
+        </div>
+
+        <div class="section">
+            <h2>Solucion: Instalar Certificado como Trusted</h2>
+            <p>Para eliminar el cartel de "Allow", ejecuta este comando en PowerShell como Administrador:</p>
+            <pre>cd "C:\xampp\htdocs\bcn_pymes"
+powershell -ExecutionPolicy Bypass -File install_qz_certificate.ps1</pre>
+            <p style="margin-top: 15px;">O manualmente:</p>
+            <ol style="color: #666; line-height: 1.8;">
+                <li>Copia el archivo <code>public/qz/certificate.txt</code></li>
+                <li>Pegalo en <code>%LOCALAPPDATA%\QZ Tray\trusted\</code> con extension <code>.crt</code></li>
+                <li>Reinicia QZ Tray</li>
+            </ol>
+        </div>
+
+        <div class="section" id="log-section" style="display:none;">
+            <h2>Log de Diagnostico</h2>
+            <pre id="log"></pre>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.min.js"></script>
+    <script>
+        const checks = document.getElementById('checks');
+        const logEl = document.getElementById('log');
+        let logs = [];
+
+        function log(msg) {
+            logs.push(`[${new Date().toLocaleTimeString()}] ${msg}`);
+            logEl.textContent = logs.join('\n');
+            document.getElementById('log-section').style.display = 'block';
+            console.log(msg);
+        }
+
+        function renderCheck(id, status, title, detail = '') {
+            const icons = {
+                loading: '<div class="spinner check-icon"></div>',
+                success: '<svg class="check-icon" fill="none" stroke="#28a745" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>',
+                error: '<svg class="check-icon" fill="none" stroke="#dc3545" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>',
+                warning: '<svg class="check-icon" fill="none" stroke="#ffc107" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>'
+            };
+
+            let el = document.getElementById(id);
+            if (!el) {
+                el = document.createElement('div');
+                el.id = id;
+                checks.appendChild(el);
+            }
+
+            el.className = `check-item ${status}`;
+            el.innerHTML = `
+                ${icons[status]}
+                <div class="check-content">
+                    <div class="check-title">${title}</div>
+                    ${detail ? `<div class="check-detail">${detail}</div>` : ''}
+                </div>
+            `;
+        }
+
+        async function ejecutarDiagnostico() {
+            logs = [];
+
+            // 1. Verificar que QZ esta cargado
+            renderCheck('check-script', 'loading', 'Verificando libreria QZ Tray...');
+            await new Promise(r => setTimeout(r, 300));
+
+            if (typeof qz === 'undefined') {
+                renderCheck('check-script', 'error', 'Libreria QZ Tray no cargada', 'No se pudo cargar qz-tray.min.js');
+                log('ERROR: qz-tray.min.js no cargado');
+                return;
+            }
+            renderCheck('check-script', 'success', 'Libreria QZ Tray cargada', 'Version: ' + (qz.version || 'desconocida'));
+            log('OK: Libreria QZ Tray cargada');
+
+            // 2. Verificar certificado
+            renderCheck('check-cert', 'loading', 'Verificando certificado...');
+            try {
+                const certResp = await fetch('/qz/certificate.txt');
+                if (certResp.ok) {
+                    const cert = await certResp.text();
+                    if (cert.includes('BEGIN CERTIFICATE')) {
+                        renderCheck('check-cert', 'success', 'Certificado encontrado', 'public/qz/certificate.txt');
+                        log('OK: Certificado publico disponible');
+                    } else {
+                        renderCheck('check-cert', 'error', 'Certificado invalido', 'El archivo no contiene un certificado valido');
+                        log('ERROR: Certificado invalido');
+                    }
+                } else {
+                    renderCheck('check-cert', 'error', 'Certificado no encontrado', 'Falta public/qz/certificate.txt');
+                    log('ERROR: Certificado no encontrado');
+                }
+            } catch (e) {
+                renderCheck('check-cert', 'error', 'Error verificando certificado', e.message);
+                log('ERROR: ' + e.message);
+            }
+
+            // 3. Configurar seguridad
+            renderCheck('check-security', 'loading', 'Configurando seguridad...');
+            try {
+                qz.security.setCertificatePromise(function(resolve, reject) {
+                    fetch('/qz/certificate.txt')
+                        .then(r => r.ok ? r.text() : '')
+                        .then(cert => resolve(cert))
+                        .catch(() => resolve(''));
+                });
+
+                qz.security.setSignatureAlgorithm("SHA512");
+                qz.security.setSignaturePromise(function(toSign) {
+                    return function(resolve, reject) {
+                        fetch('/api/qz/sign', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({ request: toSign })
+                        })
+                        .then(r => r.json())
+                        .then(data => {
+                            log('Firma obtenida: ' + (data.signature ? 'OK (' + data.signature.substring(0,20) + '...)' : 'vacia'));
+                            resolve(data.signature || '');
+                        })
+                        .catch(e => {
+                            log('Error obteniendo firma: ' + e.message);
+                            resolve('');
+                        });
+                    };
+                });
+
+                renderCheck('check-security', 'success', 'Seguridad configurada', 'Certificado y firma listos');
+                log('OK: Seguridad configurada');
+            } catch (e) {
+                renderCheck('check-security', 'error', 'Error configurando seguridad', e.message);
+                log('ERROR: ' + e.message);
+            }
+
+            // 4. Verificar endpoint de firma
+            renderCheck('check-sign', 'loading', 'Verificando endpoint de firma...');
+            try {
+                const signResp = await fetch('/api/qz/sign', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ request: 'test-message' })
+                });
+
+                if (signResp.ok) {
+                    const signData = await signResp.json();
+                    if (signData.signature) {
+                        renderCheck('check-sign', 'success', 'Endpoint de firma funcionando', 'La clave privada esta configurada');
+                        log('OK: Firma generada correctamente');
+                    } else {
+                        renderCheck('check-sign', 'warning', 'Firma vacia', 'Verifica que existe storage/app/qz/private-key.pem');
+                        log('WARNING: Firma vacia - falta clave privada?');
+                    }
+                } else {
+                    const err = await signResp.text();
+                    renderCheck('check-sign', 'error', 'Error en endpoint de firma', `HTTP ${signResp.status}`);
+                    log('ERROR: HTTP ' + signResp.status + ' - ' + err);
+                }
+            } catch (e) {
+                renderCheck('check-sign', 'error', 'Error conectando al endpoint', e.message);
+                log('ERROR: ' + e.message);
+            }
+
+            // 5. Conectar a QZ Tray
+            renderCheck('check-connect', 'loading', 'Conectando a QZ Tray...');
+            try {
+                if (!qz.websocket.isActive()) {
+                    await qz.websocket.connect();
+                }
+                renderCheck('check-connect', 'success', 'Conectado a QZ Tray', 'WebSocket activo');
+                log('OK: Conectado a QZ Tray via WebSocket');
+            } catch (e) {
+                if (e.message && e.message.includes('Unable to connect')) {
+                    renderCheck('check-connect', 'error', 'QZ Tray no esta ejecutandose', 'Inicia QZ Tray y vuelve a intentar');
+                } else {
+                    renderCheck('check-connect', 'error', 'Error conectando', e.message);
+                }
+                log('ERROR: ' + e.message);
+                return;
+            }
+
+            // 6. Listar impresoras
+            renderCheck('check-printers', 'loading', 'Obteniendo impresoras...');
+            try {
+                const printers = await qz.printers.find();
+                if (printers.length > 0) {
+                    renderCheck('check-printers', 'success', `${printers.length} impresora(s) encontrada(s)`, printers.join(', '));
+                    log('OK: Impresoras: ' + printers.join(', '));
+                } else {
+                    renderCheck('check-printers', 'warning', 'No hay impresoras instaladas', 'Instala al menos una impresora');
+                    log('WARNING: No hay impresoras');
+                }
+            } catch (e) {
+                renderCheck('check-printers', 'error', 'Error obteniendo impresoras', e.message);
+                log('ERROR: ' + e.message);
+            }
+
+            // 7. Verificar certificado trusted
+            renderCheck('check-trusted', 'loading', 'Verificando si el certificado es trusted...');
+            // No hay forma directa de verificar esto, pero si llegamos aqui sin cartel es que funciona
+            renderCheck('check-trusted', 'warning', 'Verificacion manual requerida',
+                'Si no viste el cartel de "Allow", el certificado esta trusted. Si lo viste, ejecuta el script de instalacion.');
+            log('INFO: Verifica manualmente si aparecio el cartel de Allow');
+
+            log('=== Diagnostico completado ===');
+        }
+
+        async function probarImpresion() {
+            try {
+                if (!qz.websocket.isActive()) {
+                    alert('Primero ejecuta el diagnostico para conectar a QZ Tray');
+                    return;
+                }
+
+                const printers = await qz.printers.find();
+                if (printers.length === 0) {
+                    alert('No hay impresoras disponibles');
+                    return;
+                }
+
+                const printer = prompt('Ingresa el nombre de la impresora:\n\n' + printers.join('\n'), printers[0]);
+                if (!printer) return;
+
+                const config = qz.configs.create(printer);
+                const data = [{
+                    type: 'raw',
+                    format: 'plain',
+                    data: '\x1B\x40' + // Init
+                          '\x1B\x61\x01' + // Center
+                          '\x1B\x45\x01' + // Bold on
+                          'PRUEBA QZ TRAY\n' +
+                          '\x1B\x45\x00' + // Bold off
+                          '========================\n' +
+                          'BCN Pymes\n' +
+                          'Certificado: OK\n' +
+                          'Fecha: ' + new Date().toLocaleString() + '\n' +
+                          '========================\n' +
+                          '\n\n\n' +
+                          '\x1D\x56\x01' // Cut
+                }];
+
+                await qz.print(config, data);
+                alert('Impresion enviada correctamente!');
+                log('OK: Prueba de impresion enviada a ' + printer);
+
+            } catch (e) {
+                alert('Error: ' + e.message);
+                log('ERROR: ' + e.message);
+            }
+        }
+
+        // Auto-ejecutar al cargar
+        window.onload = function() {
+            setTimeout(ejecutarDiagnostico, 500);
+        };
+    </script>
+</body>
+</html>

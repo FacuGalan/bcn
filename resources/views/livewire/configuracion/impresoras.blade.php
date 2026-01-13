@@ -297,106 +297,192 @@
     <!-- Modal Asignaciones -->
     @if($showModalAsignacion)
         <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-asignacion" role="dialog" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                <div wire:click="cancel" class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full max-h-[90vh] overflow-y-auto">
-                    <div class="bg-white dark:bg-gray-800 px-6 py-4">
-                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                            Asignar Impresora a Sucursales/Cajas
-                        </h3>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                            Selecciona los tipos de documento que esta impresora puede imprimir en cada sucursal/caja.
-                        </p>
+            <div class="flex items-center justify-center min-h-screen p-4">
+                <div wire:click="cancel" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity"></div>
 
-                        <div class="space-y-6">
+                <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl transform transition-all w-full max-w-3xl max-h-[85vh] flex flex-col">
+                    <!-- Header fijo -->
+                    <div class="px-6 py-5 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="p-2 bg-bcn-primary/10 rounded-lg">
+                                    <svg class="w-6 h-6 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                                        Asignar Impresora
+                                    </h3>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                                        Configura donde y que documentos imprimira
+                                    </p>
+                                </div>
+                            </div>
+                            <button wire:click="cancel" class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Contenido scrolleable -->
+                    <div class="flex-1 overflow-y-auto px-6 py-4">
+                        <!-- Leyenda de tipos de documento -->
+                        <div class="mb-5 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700/50 dark:to-gray-700/30 rounded-lg border border-blue-100 dark:border-gray-600">
+                            <h4 class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-3">Tipos de Documento</h4>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                @foreach($tiposDocumento as $tipo => $label)
+                                    <div class="flex items-center space-x-2 text-sm">
+                                        @php
+                                            $iconos = [
+                                                'ticket' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />',
+                                                'factura' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />',
+                                                'remito' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />',
+                                                'presupuesto' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />',
+                                                'nota_credito' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />',
+                                                'cierre_caja' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />',
+                                                'etiqueta' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />',
+                                            ];
+                                            $icono = $iconos[$tipo] ?? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />';
+                                        @endphp
+                                        <svg class="w-4 h-4 text-bcn-primary flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">{!! $icono !!}</svg>
+                                        <span class="text-gray-600 dark:text-gray-300 truncate">{{ $label }}</span>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        <!-- Lista de sucursales -->
+                        <div class="space-y-4">
                             @foreach($sucursales as $sucursal)
-                                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                                    <h4 class="font-medium text-gray-900 dark:text-white mb-3">{{ $sucursal->nombre }}</h4>
-
-                                    <!-- Para toda la sucursal -->
-                                    <div class="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded">
-                                        <div class="flex items-center justify-between mb-2">
-                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Toda la sucursal</span>
-                                            <label class="flex items-center text-xs">
-                                                <input
-                                                    type="checkbox"
-                                                    wire:click="toggleDefecto({{ $sucursal->id }}, 'all')"
-                                                    {{ $this->esDefecto($sucursal->id, 'all') ? 'checked' : '' }}
-                                                    class="rounded border-gray-300 text-bcn-primary mr-1"
-                                                />
-                                                Por defecto
-                                            </label>
-                                        </div>
-                                        <div class="flex flex-wrap gap-2">
-                                            @foreach($tiposDocumento as $tipo => $label)
-                                                <label class="inline-flex items-center text-xs">
-                                                    <input
-                                                        type="checkbox"
-                                                        wire:click="toggleAsignacion({{ $sucursal->id }}, 'all', '{{ $tipo }}')"
-                                                        {{ $this->tieneAsignacion($sucursal->id, 'all', $tipo) ? 'checked' : '' }}
-                                                        class="rounded border-gray-300 text-bcn-primary mr-1"
-                                                    />
-                                                    {{ $label }}
-                                                </label>
-                                            @endforeach
+                                <div class="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                                    <!-- Cabecera de sucursal -->
+                                    <div class="bg-gray-50 dark:bg-gray-700/50 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex items-center space-x-2">
+                                                <svg class="w-5 h-5 text-bcn-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                                </svg>
+                                                <h4 class="font-semibold text-gray-900 dark:text-white">{{ $sucursal->nombre }}</h4>
+                                            </div>
+                                            <span class="text-xs text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded-full">
+                                                {{ $sucursal->cajas->count() }} {{ $sucursal->cajas->count() === 1 ? 'caja' : 'cajas' }}
+                                            </span>
                                         </div>
                                     </div>
 
-                                    <!-- Por caja -->
-                                    @if($sucursal->cajas->count() > 0)
-                                        <div class="space-y-2">
-                                            @foreach($sucursal->cajas as $caja)
-                                                <div class="p-3 border border-gray-200 dark:border-gray-600 rounded">
-                                                    <div class="flex items-center justify-between mb-2">
-                                                        <span class="text-sm text-gray-700 dark:text-gray-300">{{ $caja->nombre }}</span>
-                                                        <label class="flex items-center text-xs">
-                                                            <input
-                                                                type="checkbox"
-                                                                wire:click="toggleDefecto({{ $sucursal->id }}, {{ $caja->id }})"
-                                                                {{ $this->esDefecto($sucursal->id, $caja->id) ? 'checked' : '' }}
-                                                                class="rounded border-gray-300 text-bcn-primary mr-1"
-                                                            />
-                                                            Por defecto
-                                                        </label>
-                                                    </div>
-                                                    <div class="flex flex-wrap gap-2">
-                                                        @foreach($tiposDocumento as $tipo => $label)
-                                                            <label class="inline-flex items-center text-xs">
+                                    <div class="p-4 space-y-3">
+                                        <!-- Asignacion para toda la sucursal -->
+                                        <div class="bg-gradient-to-r from-bcn-primary/5 to-transparent dark:from-bcn-primary/10 rounded-lg p-4 border border-bcn-primary/20">
+                                            <div class="flex items-center justify-between mb-3">
+                                                <div class="flex items-center space-x-2">
+                                                    <svg class="w-4 h-4 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                    <span class="text-sm font-medium text-bcn-primary">Toda la sucursal</span>
+                                                </div>
+                                                <label class="inline-flex items-center cursor-pointer group">
+                                                    <input
+                                                        type="checkbox"
+                                                        wire:click="toggleDefecto({{ $sucursal->id }}, 'all')"
+                                                        {{ $this->esDefecto($sucursal->id, 'all') ? 'checked' : '' }}
+                                                        class="sr-only peer"
+                                                    />
+                                                    <div class="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-bcn-primary/50 dark:peer-focus:ring-bcn-primary rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-bcn-primary"></div>
+                                                    <span class="ms-2 text-xs font-medium text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300">Por defecto</span>
+                                                </label>
+                                            </div>
+                                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                                @foreach($tiposDocumento as $tipo => $label)
+                                                    <label class="flex items-center p-2 rounded-lg cursor-pointer transition-all {{ $this->tieneAsignacion($sucursal->id, 'all', $tipo) ? 'bg-bcn-primary/10 border border-bcn-primary/30' : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:border-bcn-primary/50' }}">
+                                                        <input
+                                                            type="checkbox"
+                                                            wire:click="toggleAsignacion({{ $sucursal->id }}, 'all', '{{ $tipo }}')"
+                                                            {{ $this->tieneAsignacion($sucursal->id, 'all', $tipo) ? 'checked' : '' }}
+                                                            class="rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary h-4 w-4"
+                                                        />
+                                                        <span class="ml-2 text-xs text-gray-700 dark:text-gray-300 truncate">{{ $label }}</span>
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                        </div>
+
+                                        <!-- Asignaciones por caja -->
+                                        @if($sucursal->cajas->count() > 0)
+                                            <div class="space-y-2">
+                                                <div class="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400 px-1">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                                    </svg>
+                                                    <span>Configuracion por caja (sobrescribe la sucursal)</span>
+                                                </div>
+
+                                                @foreach($sucursal->cajas as $caja)
+                                                    <div class="bg-white dark:bg-gray-700/30 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+                                                        <div class="flex items-center justify-between mb-2">
+                                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ $caja->nombre }}</span>
+                                                            <label class="inline-flex items-center cursor-pointer group">
                                                                 <input
                                                                     type="checkbox"
-                                                                    wire:click="toggleAsignacion({{ $sucursal->id }}, {{ $caja->id }}, '{{ $tipo }}')"
-                                                                    {{ $this->tieneAsignacion($sucursal->id, $caja->id, $tipo) ? 'checked' : '' }}
-                                                                    class="rounded border-gray-300 text-bcn-primary mr-1"
+                                                                    wire:click="toggleDefecto({{ $sucursal->id }}, {{ $caja->id }})"
+                                                                    {{ $this->esDefecto($sucursal->id, $caja->id) ? 'checked' : '' }}
+                                                                    class="sr-only peer"
                                                                 />
-                                                                {{ $label }}
+                                                                <div class="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-bcn-primary/50 dark:peer-focus:ring-bcn-primary rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-bcn-primary"></div>
+                                                                <span class="ms-2 text-xs font-medium text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300">Por defecto</span>
                                                             </label>
-                                                        @endforeach
+                                                        </div>
+                                                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                                            @foreach($tiposDocumento as $tipo => $label)
+                                                                <label class="flex items-center p-2 rounded-lg cursor-pointer transition-all {{ $this->tieneAsignacion($sucursal->id, $caja->id, $tipo) ? 'bg-green-50 dark:bg-green-900/20 border border-green-300 dark:border-green-700' : 'bg-gray-50 dark:bg-gray-600/50 border border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500' }}">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        wire:click="toggleAsignacion({{ $sucursal->id }}, {{ $caja->id }}, '{{ $tipo }}')"
+                                                                        {{ $this->tieneAsignacion($sucursal->id, $caja->id, $tipo) ? 'checked' : '' }}
+                                                                        class="rounded border-gray-300 text-green-600 focus:ring-green-500 h-4 w-4"
+                                                                    />
+                                                                    <span class="ml-2 text-xs text-gray-600 dark:text-gray-300 truncate">{{ $label }}</span>
+                                                                </label>
+                                                            @endforeach
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                    @endif
+                                                @endforeach
+                                            </div>
+                                        @endif
+                                    </div>
                                 </div>
                             @endforeach
                         </div>
                     </div>
 
-                    <div class="bg-gray-50 dark:bg-gray-700 px-6 py-3 flex justify-end space-x-3">
-                        <button
-                            type="button"
-                            wire:click="cancel"
-                            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            type="button"
-                            wire:click="guardarAsignaciones"
-                            class="px-4 py-2 bg-bcn-primary border border-transparent rounded-md text-sm font-medium text-white hover:bg-opacity-90"
-                        >
-                            Guardar Asignaciones
-                        </button>
+                    <!-- Footer fijo -->
+                    <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+                        <div class="flex items-center justify-between">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                Los cambios se guardan al presionar el boton
+                            </p>
+                            <div class="flex space-x-3">
+                                <button
+                                    type="button"
+                                    wire:click="cancel"
+                                    class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="button"
+                                    wire:click="guardarAsignaciones"
+                                    class="px-5 py-2 bg-bcn-primary rounded-lg text-sm font-medium text-white hover:bg-opacity-90 transition-colors flex items-center space-x-2"
+                                >
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>Guardar</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

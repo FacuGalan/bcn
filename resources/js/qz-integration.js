@@ -168,7 +168,7 @@ window.QZIntegration = (function() {
     }
 
     /**
-     * Imprime contenido HTML (impresoras A4)
+     * Imprime contenido HTML (impresoras A4 y termicas)
      */
     async function imprimirHTML(impresora, html, opciones = {}) {
         if (!qzConectado) {
@@ -179,19 +179,44 @@ window.QZIntegration = (function() {
         }
 
         try {
-            const config = qz.configs.create(impresora, {
-                size: {
-                    width: opciones.formato === 'a4' ? 210 : 216,
-                    height: opciones.formato === 'a4' ? 297 : 279
-                },
-                units: 'mm',
-                margins: { top: 10, right: 10, bottom: 10, left: 10 }
-            });
+            // Determinar tamano de papel segun formato
+            let configOpts = { units: 'mm' };
+
+            if (opciones.formato === '80mm') {
+                // Papel termico 80mm - ancho fijo, alto continuo
+                configOpts.size = { width: 72, height: null };
+                configOpts.margins = { top: 0, right: 0, bottom: 0, left: 0 };
+                configOpts.scaleContent = true;
+                configOpts.rasterize = true;
+                configOpts.density = [203, 203]; // DPI nativo de impresoras termicas
+                configOpts.colorType = 'blackwhite';
+                configOpts.interpolation = 'nearest-neighbor'; // Sin suavizado para texto mas nitido
+                configOpts.altPrinting = true; // Metodo alternativo en Windows
+            } else if (opciones.formato === '58mm') {
+                // Papel termico 58mm - ancho fijo, alto continuo
+                configOpts.size = { width: 48, height: null };
+                configOpts.margins = { top: 0, right: 0, bottom: 0, left: 0 };
+                configOpts.scaleContent = true;
+                configOpts.rasterize = true;
+                configOpts.density = [203, 203]; // DPI nativo de impresoras termicas
+                configOpts.colorType = 'blackwhite';
+                configOpts.interpolation = 'nearest-neighbor';
+                configOpts.altPrinting = true;
+            } else if (opciones.formato === 'a4') {
+                configOpts.size = { width: 210, height: 297 };
+                configOpts.margins = { top: 10, right: 10, bottom: 10, left: 10 };
+            } else {
+                // Carta por defecto
+                configOpts.size = { width: 216, height: 279 };
+                configOpts.margins = { top: 10, right: 10, bottom: 10, left: 10 };
+            }
+
+            const config = qz.configs.create(impresora, configOpts);
 
             const data = [{ type: 'html', format: 'plain', data: html }];
 
             await qz.print(config, data);
-            console.log('Impresion HTML exitosa');
+            console.log('Impresion HTML exitosa en formato:', opciones.formato || 'default');
             return true;
 
         } catch (error) {
@@ -398,22 +423,8 @@ window.QZIntegration = (function() {
             probarImpresion(data.impresoraId, data.impresora, data.tipo);
         });
 
-        // Impresion automatica despues de venta
-        Livewire.on('venta-completada', async (event) => {
-            const data = Array.isArray(event) ? event[0] : event;
-
-            if (!estaDisponible()) {
-                console.log('QZ Tray no disponible, saltando impresion automatica');
-                return;
-            }
-
-            if (data.imprimirTicket && data.ventaId) {
-                await imprimirTicketVenta(data.ventaId);
-            }
-            if (data.imprimirFactura && data.comprobanteId) {
-                await imprimirFactura(data.comprobanteId);
-            }
-        });
+        // NOTA: El evento 'venta-completada' se maneja en nueva-venta.blade.php
+        // para evitar duplicacion de impresiones
     });
 
     // Auto-inicializar cuando el DOM este listo

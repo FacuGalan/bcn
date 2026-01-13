@@ -38,6 +38,18 @@ class GeneradorHTML
     }
 
     /**
+     * Genera HTML para factura en impresora térmica (con fuente Arial)
+     */
+    public function generarFacturaTermica(ComprobanteFiscal $comprobante, Impresora $impresora, ?ConfiguracionImpresion $config): string
+    {
+        return View::make('impresion.factura-termica', [
+            'comprobante' => $comprobante,
+            'impresora' => $impresora,
+            'config' => $config,
+        ])->render();
+    }
+
+    /**
      * Genera HTML para prueba de impresión
      */
     public function generarPrueba(Impresora $impresora): string

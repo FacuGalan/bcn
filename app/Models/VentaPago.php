@@ -57,6 +57,8 @@ class VentaPago extends Model
         'afecta_caja',
         'estado',
         'movimiento_caja_id',
+        'comprobante_fiscal_id',
+        'monto_facturado',
         'anulado_por_usuario_id',
         'anulado_at',
         'motivo_anulacion',
@@ -73,6 +75,7 @@ class VentaPago extends Model
         'recargo_cuotas_porcentaje' => 'decimal:2',
         'recargo_cuotas_monto' => 'decimal:2',
         'monto_cuota' => 'decimal:2',
+        'monto_facturado' => 'decimal:2',
         'es_cuenta_corriente' => 'boolean',
         'afecta_caja' => 'boolean',
         'anulado_at' => 'datetime',
@@ -100,6 +103,11 @@ class VentaPago extends Model
     public function movimientoCaja(): BelongsTo
     {
         return $this->belongsTo(MovimientoCaja::class, 'movimiento_caja_id');
+    }
+
+    public function comprobanteFiscal(): BelongsTo
+    {
+        return $this->belongsTo(ComprobanteFiscal::class, 'comprobante_fiscal_id');
     }
 
     // =========================================
@@ -133,9 +141,27 @@ class VentaPago extends Model
         });
     }
 
+    public function scopeFacturados($query)
+    {
+        return $query->whereNotNull('comprobante_fiscal_id');
+    }
+
+    public function scopeNoFacturados($query)
+    {
+        return $query->whereNull('comprobante_fiscal_id');
+    }
+
     // =========================================
     // MÉTODOS AUXILIARES
     // =========================================
+
+    /**
+     * Verifica si el pago está facturado fiscalmente
+     */
+    public function estaFacturado(): bool
+    {
+        return $this->comprobante_fiscal_id !== null;
+    }
 
     /**
      * Verifica si el pago tiene cuotas

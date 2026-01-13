@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Modelo VentaDetalle
@@ -91,6 +92,20 @@ class VentaDetalle extends Model
     public function listaPrecio(): BelongsTo
     {
         return $this->belongsTo(ListaPrecio::class, 'lista_precio_id');
+    }
+
+    public function promocionesAplicadas(): HasMany
+    {
+        return $this->hasMany(VentaDetallePromocion::class, 'venta_detalle_id');
+    }
+
+    /**
+     * Obtiene el nombre de la primera promoción aplicada
+     */
+    public function getNombrePromocionAttribute(): ?string
+    {
+        $promo = $this->promocionesAplicadas->first();
+        return $promo?->descripcion_promocion;
     }
 
     // Métodos auxiliares

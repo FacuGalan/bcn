@@ -89,6 +89,27 @@
                                     </div>
                                 </div>
 
+                                {{-- Input para lector de código de barras --}}
+                                <div class="relative w-36"
+                                     x-data="{ focused: false }"
+                                     x-on:focus-codigo-barras.window="$refs.inputCodigoBarras.focus()">
+                                    <input
+                                        x-ref="inputCodigoBarras"
+                                        wire:model="codigoBarrasInput"
+                                        wire:keydown.enter="agregarPorCodigoBarras"
+                                        @focus="focused = true"
+                                        @blur="focused = false"
+                                        type="text"
+                                        autocomplete="off"
+                                        class="block w-full pl-8 pr-2 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                                        placeholder="Cód. barras">
+                                    <div class="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                                        <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
+                                        </svg>
+                                    </div>
+                                </div>
+
                                 {{-- Botón Consulta de Precios --}}
                                 <button
                                     wire:click="activarModoConsulta"

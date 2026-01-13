@@ -62,6 +62,9 @@ class NuevaVenta extends Component
     /** @var string Búsqueda de artículos */
     public $busquedaArticulo = '';
 
+    /** @var string Input para lector de código de barras */
+    public $codigoBarrasInput = '';
+
     /** @var array Artículos encontrados en la búsqueda */
     public $articulosResultados = [];
 
@@ -656,6 +659,35 @@ class NuevaVenta extends Component
 
         // Modo normal: agregar al carrito
         $this->agregarArticulo($articuloId);
+    }
+
+    /**
+     * Agrega un artículo por código de barras (para lector)
+     * Sin debounce, busca coincidencia exacta
+     */
+    public function agregarPorCodigoBarras()
+    {
+        $codigo = trim($this->codigoBarrasInput);
+
+        if (empty($codigo)) {
+            return;
+        }
+
+        // Buscar coincidencia exacta por código de barras o código
+        $articulo = Articulo::where('activo', true)
+            ->where(function($q) use ($codigo) {
+                $q->where('codigo_barras', $codigo)
+                  ->orWhere('codigo', $codigo);
+            })
+            ->first();
+
+        if ($articulo) {
+            $this->agregarArticulo($articulo->id);
+            $this->codigoBarrasInput = '';
+        } else {
+            $this->dispatch('toast-error', message: "No se encontró artículo con código: {$codigo}");
+            $this->codigoBarrasInput = '';
+        }
     }
 
     public function eliminarItem($index)
@@ -4590,6 +4622,7 @@ class NuevaVenta extends Component
 
         // Resetear búsqueda de artículos
         $this->busquedaArticulo = '';
+        $this->codigoBarrasInput = '';
         $this->articulosResultados = [];
 
         // Resetear observaciones
@@ -4683,8 +4716,23 @@ class NuevaVenta extends Component
             // Obtener configuracion de impresion de la sucursal
             $config = \App\Models\ConfiguracionImpresion::where('sucursal_id', $this->sucursalId)->first();
 
-            $imprimirTicket = $config?->impresion_automatica_venta ?? true;
-            $imprimirFactura = $comprobanteFiscal && ($config?->impresion_automatica_factura ?? true);
+            $imprimirFacturaConfig = $config?->impresion_automatica_factura ?? true;
+            $imprimirTicketConfig = $config?->impresion_automatica_venta ?? true;
+
+            // Determinar si hay porcion no fiscal comparando totales
+            $totalVenta = (float) $venta->total_final;
+            $totalFacturado = $comprobanteFiscal ? (float) $comprobanteFiscal->total : 0;
+
+            // Hay porcion no fiscal si el total facturado es menor al total de la venta
+            $tieneMontoNoFiscal = $totalFacturado < ($totalVenta - 0.01); // tolerancia de 1 centavo
+
+            // Si hay factura fiscal y esta habilitada su impresion
+            $imprimirFactura = $comprobanteFiscal && $imprimirFacturaConfig;
+
+            // Imprimir ticket si:
+            // - Hay monto no fiscal (venta mixta) Y ticket habilitado
+            // - O no hay factura Y ticket habilitado
+            $imprimirTicket = $imprimirTicketConfig && ($tieneMontoNoFiscal || !$comprobanteFiscal);
 
             // Solo disparar si hay algo que imprimir
             if ($imprimirTicket || $imprimirFactura) {

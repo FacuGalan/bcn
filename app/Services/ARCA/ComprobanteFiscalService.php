@@ -15,6 +15,7 @@ use App\Models\PuntoVenta;
 use App\Models\Sucursal;
 use App\Models\Venta;
 use App\Models\VentaDetalle;
+use App\Models\VentaPago;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\DB;
@@ -223,6 +224,9 @@ class ComprobanteFiscalService
         DB::connection('pymes_tenant')->beginTransaction();
 
         try {
+            // Determinar si es por el total de la venta o parcial (mixto)
+            $esTotalVenta = abs($totalAFacturar - $venta->total_final) < 0.01;
+
             // Crear el comprobante en la BD (estado pendiente)
             $comprobante = ComprobanteFiscal::create([
                 'sucursal_id' => $sucursal->id,
@@ -247,6 +251,7 @@ class ComprobanteFiscalService
                 'total' => $totalAFacturar,
                 'estado' => 'pendiente',
                 'usuario_id' => $venta->usuario_id,
+                'es_total_venta' => $esTotalVenta,
             ]);
 
             // Guardar desglose de IVA
@@ -306,6 +311,32 @@ class ComprobanteFiscalService
                 'monto_fiscal_cache' => $venta->total_final,
                 'monto_no_fiscal_cache' => 0,
             ]);
+
+            // Marcar los pagos como facturados
+            if ($esTotalVenta) {
+                // Factura por el total: marcar todos los pagos
+                foreach ($venta->pagos as $pago) {
+                    $pago->update([
+                        'comprobante_fiscal_id' => $comprobante->id,
+                        'monto_facturado' => $pago->monto_final,
+                    ]);
+                }
+            } elseif (!empty($opciones['pagos_facturar'])) {
+                // Factura parcial: marcar solo los pagos especificados
+                foreach ($opciones['pagos_facturar'] as $pagoData) {
+                    $pagoId = $pagoData['id'] ?? null;
+                    if ($pagoId) {
+                        $pago = VentaPago::find($pagoId);
+                        if ($pago) {
+                            $montoFacturado = $pagoData['monto_facturado'] ?? $pagoData['monto_final'] ?? $pago->monto_final;
+                            $pago->update([
+                                'comprobante_fiscal_id' => $comprobante->id,
+                                'monto_facturado' => $montoFacturado,
+                            ]);
+                        }
+                    }
+                }
+            }
 
             DB::connection('pymes_tenant')->commit();
 

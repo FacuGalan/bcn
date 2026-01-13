@@ -74,7 +74,16 @@ class ImpresionService
         }
 
         $config = ConfiguracionImpresion::where('sucursal_id', $venta->sucursal_id)->first();
-        $venta->load(['detalles.articulo', 'cliente', 'sucursal', 'caja', 'pagos.formaPago', 'usuario']);
+        $venta->load([
+            'detalles.articulo',
+            'detalles.promocionesAplicadas',
+            'cliente',
+            'sucursal',
+            'caja',
+            'pagos.formaPago',
+            'usuario',
+            'promociones',
+        ]);
 
         if ($impresora->esTermica()) {
             return [
@@ -103,6 +112,21 @@ class ImpresionService
      */
     public function generarFactura(ComprobanteFiscal $comprobante): array
     {
+        // Cargar todas las relaciones necesarias para la impresión PRIMERO
+        $comprobante->load([
+            'items',
+            'detallesIva',
+            'cuit',
+            'puntoVenta',
+            'cliente',
+            'sucursal',
+            'pagosFacturados.formaPago', // Para mostrar pagos facturados en factura parcial
+            'ventas.detalles.articulo',
+            'ventas.detalles.promocionesAplicadas',
+            'ventas.promociones',
+            'ventas.pagos.formaPago',
+        ]);
+
         $venta = $comprobante->ventas->first();
         $sucursalId = $comprobante->sucursal_id;
         $cajaId = $venta?->caja_id;
@@ -126,14 +150,16 @@ class ImpresionService
         }
 
         $config = ConfiguracionImpresion::where('sucursal_id', $sucursalId)->first();
-        $comprobante->load(['items', 'detallesIva', 'cuit', 'puntoVenta', 'cliente', 'sucursal']);
 
+        // Usar HTML para todas las impresoras (térmicas y láser/inkjet)
+        // Esto permite usar fuentes del sistema como Arial
         if ($impresora->esTermica()) {
             return [
-                'tipo' => 'escpos',
+                'tipo' => 'html',
                 'impresora' => $impresora->nombre_sistema,
-                'datos' => $this->escpos->generarFactura($comprobante, $impresora, $config),
+                'datos' => $this->html->generarFacturaTermica($comprobante, $impresora, $config),
                 'opciones' => [
+                    'formato' => $impresora->formato_papel,
                     'cortar' => $config?->cortar_papel_automatico ?? true,
                 ]
             ];

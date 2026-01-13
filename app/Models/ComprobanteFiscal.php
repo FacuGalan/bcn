@@ -54,6 +54,7 @@ class ComprobanteFiscal extends Model
         'comprobante_asociado_id',
         'usuario_id',
         'observaciones',
+        'es_total_venta', // true = factura por el total, false = factura parcial (mixto)
     ];
 
     protected $casts = [
@@ -70,6 +71,7 @@ class ComprobanteFiscal extends Model
         'cotizacion' => 'decimal:6',
         'punto_venta_numero' => 'integer',
         'numero_comprobante' => 'integer',
+        'es_total_venta' => 'boolean',
     ];
 
     // ==================== Relaciones ====================
@@ -118,13 +120,20 @@ class ComprobanteFiscal extends Model
     public function ventas(): BelongsToMany
     {
         return $this->belongsToMany(Venta::class, 'comprobante_fiscal_ventas')
-            ->withPivot(['monto', 'es_anulacion'])
-            ->withTimestamps();
+            ->withPivot(['monto', 'es_anulacion', 'created_at']);
     }
 
     public function comprobanteFiscalVentas(): HasMany
     {
         return $this->hasMany(ComprobanteFiscalVenta::class);
+    }
+
+    /**
+     * Pagos de venta asociados a este comprobante fiscal
+     */
+    public function pagosFacturados(): HasMany
+    {
+        return $this->hasMany(VentaPago::class, 'comprobante_fiscal_id');
     }
 
     // ==================== Scopes ====================
