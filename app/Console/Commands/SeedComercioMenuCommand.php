@@ -105,9 +105,9 @@ class SeedComercioMenuCommand extends Command
                 [
                     ['Comercio', $comercio->nombre],
                     ['Prefijo', $comercio->getTablePrefix()],
-                    ['Items de Menú', '13 (4 padres + 9 hijos)'],
-                    ['Permisos', '13 (menu.{slug})'],
-                    ['Roles', '4 (Admin, Gerente, Vendedor, Visualizador)'],
+                    ['Items de Menú', '20 (4 padres + 16 hijos)'],
+                    ['Permisos', '20 (menu.{slug})'],
+                    ['Roles', '5 (Super Admin, Admin, Gerente, Vendedor, Visualizador)'],
                 ]
             );
 

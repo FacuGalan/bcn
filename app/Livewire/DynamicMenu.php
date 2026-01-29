@@ -98,8 +98,9 @@ class DynamicMenu extends Component
         $this->allChildrenItems = $menuData['children'];
 
         // Detectar qué padre debe estar activo según la ruta actual
+        // Si estamos en el dashboard, no seleccionar ningún item
+        $this->activeParentId = null;
         if ($this->parentItems->isNotEmpty()) {
-            $this->activeParentId = $this->parentItems->first()->id;
             $this->detectActiveParent();
         }
     }
@@ -200,17 +201,33 @@ class DynamicMenu extends Component
     /**
      * Renderiza el componente
      * Usa la data pre-cargada, sin consultas adicionales
+     * Recalcula activeParentId en cada render para detectar la ruta actual
      */
     public function render()
     {
-        // Obtener hijos del padre activo desde la data pre-cargada
-        $childrenItems = $this->activeParentId
-            ? $this->getChildrenItems($this->activeParentId)
-            : collect();
+        // Recalcular el padre activo en cada render para detectar cambios de ruta
+        $this->activeParentId = null;
+
+        // Si estamos en el dashboard, no seleccionar nada
+        $isDashboard = request()->routeIs('dashboard');
+
+        \Log::info('DynamicMenu render', [
+            'isDashboard' => $isDashboard,
+            'currentRoute' => request()->route()?->getName(),
+            'activeParentId_before' => $this->activeParentId,
+        ]);
+
+        if (!$isDashboard) {
+            $this->detectActiveParent();
+        }
+
+        \Log::info('DynamicMenu after detect', [
+            'activeParentId_after' => $this->activeParentId,
+        ]);
 
         return view('livewire.dynamic-menu', [
             'parentItems' => $this->parentItems,
-            'childrenItems' => $childrenItems,
+            'allChildrenItems' => $this->allChildrenItems,
         ]);
     }
 }

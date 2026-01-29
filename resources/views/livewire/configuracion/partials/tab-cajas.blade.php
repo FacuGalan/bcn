@@ -131,6 +131,14 @@
                                                             <span class="font-semibold text-sm text-gray-900 dark:text-white truncate">
                                                                 {{ $grupo->nombre ?? "Grupo #{$grupo->id}" }}
                                                             </span>
+                                                            @if($grupo->fondo_comun)
+                                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700 dark:bg-green-800/30 dark:text-green-300" title="Fondo compartido entre todas las cajas">
+                                                                    <svg class="w-3 h-3 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                                                    </svg>
+                                                                    Com&uacute;n
+                                                                </span>
+                                                            @endif
                                                         </div>
                                                         <div class="flex flex-wrap gap-1">
                                                             @foreach($grupo->cajas as $caja)
@@ -214,6 +222,7 @@
                     <div class="mt-2 text-sm text-blue-700 dark:text-blue-400">
                         <ul class="list-disc list-inside space-y-1">
                             <li><strong>Grupos de Cierre:</strong> Las cajas en un grupo comparten el cierre de turno y sus movimientos se consolidan</li>
+                            <li><strong>Fondo Com&uacute;n:</strong> Si est&aacute; activo, el grupo maneja un &uacute;nico fondo compartido; si no, cada caja tiene su fondo individual</li>
                             <li><strong>Cajas Individuales:</strong> Cierran de forma independiente</li>
                             <li><strong>Configurar:</strong> Define l&iacute;mites de efectivo y modo de carga inicial del turno</li>
                             <li><strong>Puntos Fiscales:</strong> Asigna los puntos de venta AFIP para facturaci&oacute;n electr&oacute;nica</li>
@@ -266,6 +275,24 @@
                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm"
                                 placeholder="Ej: Cajas Mostrador, Delivery..."
                             >
+                        </div>
+
+                        {{-- Tipo de fondo --}}
+                        <div class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                            <label class="flex items-start gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    wire:model="grupoFondoComun"
+                                    class="mt-1 h-4 w-4 text-bcn-primary border-gray-300 rounded focus:ring-bcn-primary dark:bg-gray-700 dark:border-gray-600"
+                                >
+                                <div>
+                                    <span class="font-medium text-gray-900 dark:text-white">Fondo Com&uacute;n</span>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                                        Si est&aacute; activo, el grupo maneja un &uacute;nico fondo compartido al abrir turno.
+                                        Si no, cada caja tiene su propio fondo inicial individual.
+                                    </p>
+                                </div>
+                            </label>
                         </div>
 
                         {{-- Selecci&oacute;n de cajas --}}

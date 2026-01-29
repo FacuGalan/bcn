@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * @property int $id
  * @property int $sucursal_id
+ * @property int $numero Número de caja dentro de la sucursal (prefijo para ventas)
  * @property string $nombre
  * @property string $tipo
  * @property float $saldo_actual
@@ -38,6 +39,7 @@ class Caja extends Model
 
     protected $fillable = [
         'sucursal_id',
+        'numero',
         'nombre',
         'tipo',
         'saldo_actual',
@@ -60,7 +62,41 @@ class Caja extends Model
         'activo' => 'boolean',
         'limite_efectivo' => 'decimal:2',
         'monto_fijo_inicial' => 'decimal:2',
+        'numero' => 'integer',
     ];
+
+    /**
+     * Boot del modelo - Auto asigna número si no viene
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($caja) {
+            if (empty($caja->numero)) {
+                $caja->numero = static::siguienteNumero($caja->sucursal_id);
+            }
+        });
+    }
+
+    /**
+     * Obtiene el siguiente número de caja disponible para una sucursal
+     */
+    public static function siguienteNumero(int $sucursalId): int
+    {
+        $ultimoNumero = static::where('sucursal_id', $sucursalId)
+            ->max('numero');
+
+        return ($ultimoNumero ?? 0) + 1;
+    }
+
+    /**
+     * Obtiene el número formateado (4 dígitos)
+     */
+    public function getNumeroFormateadoAttribute(): string
+    {
+        return sprintf('%04d', $this->numero ?? 0);
+    }
 
     /**
      * Opciones para modo de carga inicial

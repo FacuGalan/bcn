@@ -34,6 +34,7 @@ class CobroPago extends Model
         'afecta_caja',
         'movimiento_caja_id',
         'estado',
+        'cierre_turno_id',
     ];
 
     protected $casts = [
@@ -70,6 +71,11 @@ class CobroPago extends Model
     public function movimientoCaja(): BelongsTo
     {
         return $this->belongsTo(MovimientoCaja::class);
+    }
+
+    public function cierreTurno(): BelongsTo
+    {
+        return $this->belongsTo(CierreTurno::class, 'cierre_turno_id');
     }
 
     // ==================== Scopes ====================

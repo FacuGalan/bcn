@@ -39,6 +39,7 @@ class Cobro extends Model
         'anulado_por_usuario_id',
         'anulado_at',
         'motivo_anulacion',
+        'cierre_turno_id',
     ];
 
     protected $casts = [
@@ -84,6 +85,11 @@ class Cobro extends Model
     public function pagos(): HasMany
     {
         return $this->hasMany(CobroPago::class);
+    }
+
+    public function cierreTurno(): BelongsTo
+    {
+        return $this->belongsTo(CierreTurno::class, 'cierre_turno_id');
     }
 
     // ==================== Scopes ====================

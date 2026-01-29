@@ -163,10 +163,92 @@ class Ventas extends Component
     public $filterCaja = 'actual';
 
     /**
+     * Filtro por comprobante fiscal
+     * all = todas, con = con comprobante fiscal, sin = sin comprobante fiscal
+     * @var string
+     */
+    public $filterComprobanteFiscal = 'all';
+
+    /**
      * Controla visibilidad de filtros en móvil
      * @var bool
      */
     public $showFilters = false;
+
+    // =========================================
+    // PROPIEDADES DEL MODAL DE REIMPRESIÓN
+    // =========================================
+
+    /**
+     * Controla visibilidad del modal de confirmación de reimpresión
+     * @var bool
+     */
+    public $showReimprimirModal = false;
+
+    /**
+     * Tipo de documento a reimprimir: 'ticket' o 'fiscal'
+     * @var string|null
+     */
+    public $reimprimirTipo = null;
+
+    /**
+     * ID del documento a reimprimir
+     * @var int|null
+     */
+    public $reimprimirId = null;
+
+    /**
+     * Título del documento a reimprimir (para mostrar en el modal)
+     * @var string
+     */
+    public $reimprimirTitulo = '';
+
+    // =========================================
+    // PROPIEDADES DEL MODAL DE CANCELACIÓN
+    // =========================================
+
+    /**
+     * Controla visibilidad del modal de cancelación
+     * @var bool
+     */
+    public $showCancelarModal = false;
+
+    /**
+     * ID de la venta a cancelar
+     * @var int|null
+     */
+    public $cancelarVentaId = null;
+
+    /**
+     * Indica si la venta a cancelar permite conversión a cuenta corriente
+     * (solo si NO es ya cuenta corriente y tiene cliente)
+     * @var bool
+     */
+    public $cancelarPermiteCtaCte = false;
+
+    /**
+     * Motivo de cancelación ingresado por el usuario
+     * @var string
+     */
+    public $cancelarMotivo = '';
+
+    /**
+     * Información de la venta a cancelar para mostrar en el modal
+     * @var array
+     */
+    public $cancelarVentaInfo = [];
+
+    /**
+     * Indica si la venta tiene comprobantes fiscales (facturas autorizadas)
+     * @var bool
+     */
+    public $cancelarTieneComprobanteFiscal = false;
+
+    /**
+     * Lista de comprobantes fiscales de la venta a cancelar
+     * @var array
+     */
+    public $cancelarComprobantesFiscales = [];
 
     // =========================================
     // PROPIEDADES DEL POS / CARRITO
@@ -369,11 +451,31 @@ class Ventas extends Component
                     ->activas()
                     ->get();
 
+        // Obtener formas de pago activas de la sucursal
+        $formasPago = \App\Models\FormaPagoSucursal::with('formaPago')
+            ->porSucursal($this->obtenerSucursalActual())
+            ->activos()
+            ->get()
+            ->pluck('formaPago')
+            ->filter()
+            ->sortBy('nombre');
+
         return view('livewire.ventas.ventas', [
             'ventas' => $ventas,
             'clientes' => $clientes,
             'cajas' => $cajas,
-            'ventaDetalle' => $this->ventaDetalleId ? Venta::with(['detalles.articulo', 'cliente', 'caja'])->find($this->ventaDetalleId) : null,
+            'formasPago' => $formasPago,
+            'ventaDetalle' => $this->ventaDetalleId ? Venta::with([
+                'detalles.articulo',
+                'cliente',
+                'caja',
+                'formaPago',
+                'pagos.formaPago',
+                'pagos.comprobanteFiscal',
+                'promociones',
+                'comprobantesFiscales',
+                'usuario',
+            ])->find($this->ventaDetalleId) : null,
         ]);
     }
 
@@ -388,16 +490,48 @@ class Ventas extends Component
      */
     protected function obtenerVentas()
     {
-        $query = Venta::with(['cliente', 'caja', 'usuario'])
+        $query = Venta::with(['cliente', 'caja', 'usuario', 'formaPago', 'comprobantesFiscales', 'pagos.formaPago'])
                      ->where('sucursal_id', $this->obtenerSucursalActual());
 
         // Filtro de búsqueda
         if ($this->search) {
-            $query->where(function ($q) {
-                $q->where('numero_comprobante', 'like', "%{$this->search}%")
-                  ->orWhereHas('cliente', function ($q2) {
-                      $q2->where('nombre', 'like', "%{$this->search}%");
-                  });
+            $searchTerm = trim($this->search);
+            $query->where(function ($q) use ($searchTerm) {
+                // 1. Buscar por ID de venta (si es numérico)
+                if (is_numeric($searchTerm)) {
+                    $q->where('id', $searchTerm);
+                }
+
+                // 2. Buscar por número de ticket (comprobante no fiscal)
+                // SOLO si la venta NO tiene comprobante fiscal con es_total_venta = true
+                // (porque si tiene factura por el total, el ticket no se muestra)
+                $q->orWhere(function ($q2) use ($searchTerm) {
+                    $q2->where('numero', 'like', "%{$searchTerm}%")
+                       ->whereDoesntHave('comprobantesFiscales', function ($q3) {
+                           $q3->where('es_total_venta', true);
+                       });
+                });
+
+                // 3. Buscar por nombre de cliente
+                $q->orWhereHas('cliente', function ($q2) use ($searchTerm) {
+                    $q2->where('nombre', 'like', "%{$searchTerm}%")
+                       ->orWhere('razon_social', 'like', "%{$searchTerm}%");
+                });
+
+                // 4. Buscar por comprobante fiscal (número formateado XXXX-XXXXXXXX)
+                $q->orWhereHas('comprobantesFiscales', function ($q3) use ($searchTerm) {
+                    // Si el término tiene formato XXXX-XXXXXXXX, extraer punto de venta y número
+                    if (preg_match('/^(\d{1,4})-(\d{1,8})$/', $searchTerm, $matches)) {
+                        $puntoVenta = intval($matches[1]);
+                        $numeroComprobante = intval($matches[2]);
+                        $q3->where('punto_venta_numero', $puntoVenta)
+                           ->where('numero_comprobante', $numeroComprobante);
+                    } else {
+                        // Buscar parcial en número de comprobante o CAE
+                        $q3->where('numero_comprobante', 'like', "%{$searchTerm}%")
+                           ->orWhere('cae', 'like', "%{$searchTerm}%");
+                    }
+                });
             });
         }
 
@@ -406,9 +540,17 @@ class Ventas extends Component
             $query->where('estado', $this->filterEstado);
         }
 
-        // Filtro de forma de pago
+        // Filtro de forma de pago (busca en los pagos de la venta para incluir mixtas)
         if ($this->filterFormaPago !== 'all') {
-            $query->where('forma_pago', $this->filterFormaPago);
+            $formaPagoId = $this->filterFormaPago;
+            $query->where(function ($q) use ($formaPagoId) {
+                // Buscar en forma_pago_id principal O en los pagos de la venta
+                $q->where('forma_pago_id', $formaPagoId)
+                  ->orWhereHas('pagos', function ($q2) use ($formaPagoId) {
+                      $q2->where('forma_pago_id', $formaPagoId)
+                         ->where('estado', '!=', 'anulado');
+                  });
+            });
         }
 
         // Filtro de fechas
@@ -422,10 +564,24 @@ class Ventas extends Component
 
         // Filtro de caja
         if ($this->filterCaja === 'actual') {
+            // Solo la caja activa
             $cajaActual = caja_activa();
             if ($cajaActual) {
                 $query->where('caja_id', $cajaActual);
             }
+        } elseif ($this->filterCaja === 'all') {
+            // Todas las cajas a las que el usuario tiene acceso
+            $cajasDisponibles = $this->cajasDisponibles();
+            if ($cajasDisponibles->isNotEmpty()) {
+                $query->whereIn('caja_id', $cajasDisponibles->pluck('id'));
+            }
+        }
+
+        // Filtro por comprobante fiscal
+        if ($this->filterComprobanteFiscal === 'con') {
+            $query->whereHas('comprobantesFiscales');
+        } elseif ($this->filterComprobanteFiscal === 'sin') {
+            $query->whereDoesntHave('comprobantesFiscales');
         }
 
         return $query->orderBy('created_at', 'desc')
@@ -459,6 +615,7 @@ class Ventas extends Component
         $this->filterEstado = 'all';
         $this->filterFormaPago = 'all';
         $this->filterCaja = 'actual';
+        $this->filterComprobanteFiscal = 'all';
         $this->filterFechaDesde = now()->subMonth()->format('Y-m-d');
         $this->filterFechaHasta = now()->format('Y-m-d');
     }
@@ -766,27 +923,206 @@ class Ventas extends Component
     }
 
     /**
-     * Cancela una venta
+     * Abre el modal de cancelación con las opciones disponibles
      *
      * @param int $ventaId
      */
-    public function cancelarVenta($ventaId)
+    public function abrirCancelarModal($ventaId)
     {
         try {
-            $this->ventaService->cancelarVenta($ventaId);
-            $this->dispatch('toast-success', message: 'Venta cancelada exitosamente');
+            $venta = Venta::with(['cliente', 'pagos', 'comprobantesFiscales'])->findOrFail($ventaId);
+
+            if ($venta->estaCancelada()) {
+                $this->dispatch('toast-error', message: 'La venta ya está cancelada');
+                return;
+            }
+
+            $this->cancelarVentaId = $ventaId;
+            $this->cancelarMotivo = '';
+
+            // Determinar si permite conversión a cuenta corriente
+            // Solo si NO es ya cuenta corriente Y tiene cliente asignado
+            $this->cancelarPermiteCtaCte = !$venta->es_cuenta_corriente && $venta->cliente_id !== null;
+
+            // Detectar comprobantes fiscales autorizados y calcular saldo neto
+            $todosComprobantes = $venta->comprobantesFiscales()
+                ->autorizados()
+                ->get();
+
+            // Calcular saldo neto fiscal: facturas suman, notas de crédito restan
+            $saldoFiscal = 0;
+            $facturasPendientes = [];
+
+            foreach ($todosComprobantes as $cf) {
+                if ($cf->esFactura()) {
+                    $saldoFiscal += floatval($cf->total);
+                    $facturasPendientes[] = [
+                        'id' => $cf->id,
+                        'tipo' => $cf->tipo_legible,
+                        'numero' => $cf->numero_formateado,
+                        'total' => $cf->total,
+                        'cae' => $cf->cae,
+                    ];
+                } elseif ($cf->esNotaCredito()) {
+                    $saldoFiscal -= floatval($cf->total);
+                }
+            }
+
+            // Si el saldo fiscal es 0 o menor, las facturas ya fueron anuladas
+            // con notas de crédito y no se requiere emitir más
+            $this->cancelarTieneComprobanteFiscal = $saldoFiscal > 0.01; // tolerancia para decimales
+            $this->cancelarComprobantesFiscales = $this->cancelarTieneComprobanteFiscal ? $facturasPendientes : [];
+
+            // Preparar información de pagos
+            $pagosInfo = $venta->pagos->map(function ($pago) {
+                return [
+                    'id' => $pago->id,
+                    'forma_pago' => $pago->formaPago?->nombre ?? 'Sin especificar',
+                    'monto' => $pago->monto_final,
+                    'facturado' => $pago->comprobante_fiscal_id !== null,
+                    'estado' => $pago->estado,
+                ];
+            })->toArray();
+
+            // Preparar información para mostrar en el modal
+            $this->cancelarVentaInfo = [
+                'numero' => $venta->numero,
+                'fecha' => $venta->fecha->format('d/m/Y H:i'),
+                'total' => $venta->total_final,
+                'cliente' => $venta->cliente?->nombre ?? 'Sin cliente',
+                'es_cuenta_corriente' => $venta->es_cuenta_corriente,
+                'pagos' => $pagosInfo,
+            ];
+
+            $this->showCancelarModal = true;
+
+        } catch (Exception $e) {
+            Log::error('Error al abrir modal de cancelación', [
+                'venta_id' => $ventaId,
+                'error' => $e->getMessage()
+            ]);
+            $this->dispatch('toast-error', message: 'Error al cargar datos de la venta');
+        }
+    }
+
+    /**
+     * Cierra el modal de cancelación
+     */
+    public function cerrarCancelarModal()
+    {
+        $this->showCancelarModal = false;
+        $this->cancelarVentaId = null;
+        $this->cancelarPermiteCtaCte = false;
+        $this->cancelarMotivo = '';
+        $this->cancelarVentaInfo = [];
+        $this->cancelarTieneComprobanteFiscal = false;
+        $this->cancelarComprobantesFiscales = [];
+    }
+
+    /**
+     * Cancela la venta completamente
+     * (revierte stock, pagos, saldo cliente si aplica)
+     * Si tiene comprobantes fiscales, emite notas de crédito
+     */
+    public function ejecutarCancelacionCompleta()
+    {
+        try {
+            $resultado = $this->ventaService->cancelarVentaCompleta(
+                $this->cancelarVentaId,
+                $this->cancelarMotivo ?: null,
+                true // emitir nota de crédito si tiene comprobantes fiscales
+            );
+
+            $mensaje = 'Venta cancelada completamente';
+            if (!empty($resultado['notas_credito'])) {
+                $cantNC = count($resultado['notas_credito']);
+                $mensaje .= ". Se emitieron {$cantNC} nota(s) de crédito.";
+            }
+
+            $this->dispatch('toast-success', message: $mensaje);
+            $this->cerrarCancelarModal();
 
             if ($this->showDetalleModal) {
                 $this->cerrarDetalle();
             }
 
         } catch (Exception $e) {
-            Log::error('Error al cancelar venta', [
-                'venta_id' => $ventaId,
+            Log::error('Error al cancelar venta completa', [
+                'venta_id' => $this->cancelarVentaId,
                 'error' => $e->getMessage()
             ]);
-            $this->dispatch('toast-error', message: 'Error al cancelar venta: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: 'Error al cancelar: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Anula los pagos y convierte la venta a cuenta corriente
+     * NO emite nota de crédito (mantiene la facturación fiscal)
+     */
+    public function ejecutarConversionACtaCte()
+    {
+        try {
+            $this->ventaService->anularPagosYPasarACtaCte(
+                $this->cancelarVentaId,
+                $this->cancelarMotivo ?: null
+            );
+
+            $this->dispatch('toast-success', message: 'Pagos anulados. La venta se pasó a cuenta corriente.');
+            $this->cerrarCancelarModal();
+
+            if ($this->showDetalleModal) {
+                $this->cerrarDetalle();
+            }
+
+        } catch (Exception $e) {
+            Log::error('Error al convertir venta a cuenta corriente', [
+                'venta_id' => $this->cancelarVentaId,
+                'error' => $e->getMessage()
+            ]);
+            $this->dispatch('toast-error', message: 'Error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Anula solo la parte fiscal de la venta
+     * - Emite nota de crédito para cada comprobante fiscal
+     * - NO cancela la venta ni los pagos
+     * - NO revierte stock
+     * - Desmarca los pagos como facturados
+     */
+    public function ejecutarAnulacionFiscal()
+    {
+        try {
+            $resultado = $this->ventaService->anularSoloParteFiscal(
+                $this->cancelarVentaId,
+                $this->cancelarMotivo ?: null
+            );
+
+            $cantNC = count($resultado['notas_credito']);
+            $this->dispatch('toast-success', message: "Se emitieron {$cantNC} nota(s) de crédito. La venta permanece activa.");
+            $this->cerrarCancelarModal();
+
+            if ($this->showDetalleModal) {
+                $this->cerrarDetalle();
+            }
+
+        } catch (Exception $e) {
+            Log::error('Error al anular parte fiscal', [
+                'venta_id' => $this->cancelarVentaId,
+                'error' => $e->getMessage()
+            ]);
+            $this->dispatch('toast-error', message: 'Error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Cancela una venta (método legacy - ahora abre el modal de opciones)
+     *
+     * @param int $ventaId
+     */
+    public function cancelarVenta($ventaId)
+    {
+        $this->abrirCancelarModal($ventaId);
     }
 
     // =========================================
@@ -842,5 +1178,80 @@ class Ventas extends Component
     public function updatedDescuentoGeneral()
     {
         $this->calcularTotales();
+    }
+
+    // =========================================
+    // MÉTODOS DE REIMPRESIÓN
+    // =========================================
+
+    /**
+     * Abre el modal para confirmar reimpresión de ticket
+     */
+    public function confirmarReimprimirTicket($ventaId, $numero)
+    {
+        $this->reimprimirTipo = 'ticket';
+        $this->reimprimirId = $ventaId;
+        $this->reimprimirTitulo = "Ticket de Venta #{$numero}";
+        $this->showReimprimirModal = true;
+    }
+
+    /**
+     * Abre el modal para confirmar reimpresión de comprobante fiscal
+     */
+    public function confirmarReimprimirFiscal($comprobanteId, $tipoLegible, $numero)
+    {
+        $this->reimprimirTipo = 'fiscal';
+        $this->reimprimirId = $comprobanteId;
+        $this->reimprimirTitulo = "{$tipoLegible} {$numero}";
+        $this->showReimprimirModal = true;
+    }
+
+    /**
+     * Ejecuta la reimpresión confirmada
+     */
+    public function ejecutarReimpresion()
+    {
+        if ($this->reimprimirTipo === 'ticket') {
+            $this->dispatch('imprimir-ticket', ventaId: $this->reimprimirId);
+            $this->dispatch('toast-info', message: 'Enviando ticket a impresión...');
+        } elseif ($this->reimprimirTipo === 'fiscal') {
+            $this->dispatch('imprimir-comprobante-fiscal', comprobanteId: $this->reimprimirId);
+            $this->dispatch('toast-info', message: 'Enviando comprobante fiscal a impresión...');
+        }
+
+        $this->cerrarReimprimirModal();
+    }
+
+    /**
+     * Cierra el modal de reimpresión
+     */
+    public function cerrarReimprimirModal()
+    {
+        $this->showReimprimirModal = false;
+        $this->reimprimirTipo = null;
+        $this->reimprimirId = null;
+        $this->reimprimirTitulo = '';
+    }
+
+    /**
+     * Reimprimir ticket de venta (método directo para el modal de detalle)
+     */
+    public function reimprimirTicket($ventaId)
+    {
+        $venta = Venta::find($ventaId);
+        if ($venta) {
+            $this->confirmarReimprimirTicket($ventaId, $venta->numero);
+        }
+    }
+
+    /**
+     * Reimprimir comprobante fiscal (método directo para el modal de detalle)
+     */
+    public function reimprimirComprobanteFiscal($comprobanteId)
+    {
+        $comprobante = \App\Models\ComprobanteFiscal::find($comprobanteId);
+        if ($comprobante) {
+            $this->confirmarReimprimirFiscal($comprobanteId, $comprobante->tipo_legible, $comprobante->numero_formateado);
+        }
     }
 }

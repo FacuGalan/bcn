@@ -44,22 +44,15 @@ class TransferenciaEfectivo extends Model
         'caja_origen_id',
         'caja_destino_id',
         'monto',
-        'concepto',
+        'usuario_id',
+        'fecha',
         'estado',
-        'usuario_solicita_id',
-        'usuario_autoriza_id',
-        'usuario_recibe_id',
-        'fecha_solicitud',
-        'fecha_autorizacion',
-        'fecha_recepcion',
         'observaciones',
     ];
 
     protected $casts = [
         'monto' => 'decimal:2',
-        'fecha_solicitud' => 'datetime',
-        'fecha_autorizacion' => 'datetime',
-        'fecha_recepcion' => 'datetime',
+        'fecha' => 'datetime',
     ];
 
     // Relaciones
@@ -73,24 +66,9 @@ class TransferenciaEfectivo extends Model
         return $this->belongsTo(Caja::class, 'caja_destino_id');
     }
 
-    public function usuarioSolicita(): BelongsTo
+    public function usuario(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'usuario_solicita_id');
-    }
-
-    public function usuarioAutoriza(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'usuario_autoriza_id');
-    }
-
-    public function usuarioRecibe(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'usuario_recibe_id');
-    }
-
-    public function movimientos(): HasMany
-    {
-        return $this->hasMany(MovimientoCaja::class, 'transferencia_id');
+        return $this->belongsTo(User::class, 'usuario_id');
     }
 
     // Scopes
@@ -122,11 +100,11 @@ class TransferenciaEfectivo extends Model
     public function scopePorFecha($query, $desde = null, $hasta = null)
     {
         if ($desde) {
-            $query->where('fecha_solicitud', '>=', $desde);
+            $query->where('fecha', '>=', $desde);
         }
 
         if ($hasta) {
-            $query->where('fecha_solicitud', '<=', $hasta);
+            $query->where('fecha', '<=', $hasta);
         }
 
         return $query;
@@ -167,33 +145,15 @@ class TransferenciaEfectivo extends Model
     }
 
     /**
-     * Autoriza la transferencia
-     */
-    public function autorizar(int $usuarioId): bool
-    {
-        if (!$this->estaPendiente()) {
-            return false;
-        }
-
-        $this->usuario_autoriza_id = $usuarioId;
-        $this->fecha_autorizacion = now();
-
-        return $this->save();
-    }
-
-    /**
      * Completa la transferencia
      */
-    public function completar(int $usuarioId): bool
+    public function completar(): bool
     {
         if (!$this->estaPendiente()) {
             return false;
         }
 
-        $this->usuario_recibe_id = $usuarioId;
-        $this->fecha_recepcion = now();
         $this->estado = 'completada';
-
         return $this->save();
     }
 

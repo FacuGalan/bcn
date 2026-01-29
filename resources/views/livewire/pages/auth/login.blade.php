@@ -103,13 +103,7 @@ new #[Layout('layouts.guest')] class extends Component
         </div>
     @endif
 
-    <form wire:submit="login" class="space-y-5" x-data="{}" x-init="
-            // Cargar el email del comercio guardado en localStorage
-            const savedEmail = localStorage.getItem('bcn_comercio_email');
-            if (savedEmail) {
-                $wire.set('form.comercio_email', savedEmail);
-            }
-        ">
+    <form wire:submit="login" class="space-y-5" x-data="{ savedEmail: localStorage.getItem('bcn_comercio_email') }" x-init="if (savedEmail) $wire.set('form.comercio_email', savedEmail)">
         <!-- Comercio Email (opcional para System Admin) -->
         <div>
             <x-input-label for="comercio_email" value="Email del Comercio" class="text-sm font-medium text-gray-700" />
@@ -173,11 +167,11 @@ new #[Layout('layouts.guest')] class extends Component
         <!-- Submit Button -->
         <div class="pt-2">
             <button type="submit" class="w-full flex justify-center items-center py-3.5 px-4 bg-bcn-primary hover:bg-amber-500 text-bcn-secondary font-semibold text-base rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary">
-                <svg wire:loading class="animate-spin -ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg wire:loading class="animate-spin -ml-1 mr-2 h-5 w-5" xmlns="https://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span wire:loading.remove>Iniciar Sesión</span>
+                <span wire:loading.remove>Iniciar Sesión</span> 
                 <span wire:loading>Ingresando...</span>
             </button>
         </div>

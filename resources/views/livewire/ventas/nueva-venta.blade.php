@@ -16,6 +16,10 @@
      @keydown.window.prevent.ctrl.b="$wire.activarModoBusqueda()"
      @keydown.window.prevent.ctrl.c="$wire.abrirModalConcepto()"
      @keydown.window.prevent.ctrl.a="$dispatch('focus-busqueda')">
+
+    {{-- Overlay de Caja Operativa Requerida --}}
+    <x-caja-operativa-requerida :estado-caja="$estadoCaja" ruta-turno="cajas.turno-actual" permiso-turno="cajas.ver">
+
     {{-- Contenido Principal del POS --}}
     <div class="flex-1 px-3 sm:px-4 lg:px-6 min-h-0">
         <div class="h-full bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden flex flex-col">
@@ -35,7 +39,7 @@
                                 <div class="relative flex-1">
                                     <input
                                         x-ref="inputBusqueda"
-                                        wire:model.live.debounce.300ms="busquedaArticulo"
+                                        wire:model.live="busquedaArticulo"
                                         wire:keydown.enter="agregarPrimerArticulo"
                                         wire:keydown.escape="desactivarModos"
                                         @focus="inputFocused = true"
@@ -182,16 +186,6 @@
                                                                 <span class="ml-2 text-indigo-600">{{ $articulo['categoria_nombre'] }}</span>
                                                             @endif
                                                         </p>
-                                                    </div>
-                                                    <div class="ml-4 flex-shrink-0 text-right">
-                                                        <p class="text-sm font-semibold text-indigo-600">
-                                                            $@precio($articulo['precio'])
-                                                        </p>
-                                                        @if($articulo['tiene_ajuste'])
-                                                            <p class="text-xs text-gray-400 line-through">
-                                                                $@precio($articulo['precio_base'])
-                                                            </p>
-                                                        @endif
                                                     </div>
                                                 </div>
                                             </button>
@@ -945,22 +939,23 @@
                                 wire:click="iniciarCobro"
                                 wire:loading.attr="disabled"
                                 wire:loading.class="opacity-50 cursor-not-allowed"
+                                wire:target="iniciarCobro"
                                 @if(empty($items)) disabled @endif
                                 class="w-full inline-flex justify-center items-center px-3 py-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed">
-                                <svg wire:loading.remove class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg wire:loading.remove wire:target="iniciarCobro" class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
                                 </svg>
-                                <svg wire:loading class="animate-spin h-4 w-4 text-white mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <svg wire:loading wire:target="iniciarCobro" class="animate-spin h-4 w-4 text-white mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                <span wire:loading.remove>
+                                <span wire:loading.remove wire:target="iniciarCobro">
                                     Cobrar
                                     @if($totalACobrar > 0)
                                         <span class="ml-1">${{ number_format($totalACobrar, 2, ',', '.') }}</span>
                                     @endif
                                 </span>
-                                <span wire:loading>...</span>
+                                <span wire:loading wire:target="iniciarCobro">...</span>
                             </button>
                             <button
                                 wire:click="limpiarCarrito"
@@ -1882,4 +1877,9 @@
             });
         });
     </script>
+
+    </x-caja-operativa-requerida>
+
+    {{-- Modal de Apertura de Turno (desde AperturaTurnoTrait) --}}
+    @include('components.modal-apertura-turno')
 </div>

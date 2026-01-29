@@ -94,6 +94,16 @@ class ARCAService
         );
         $nuevoNumero = $ultimoNumero + 1;
 
+        // Construir detalle
+        $detalleComprobante = $this->construirDetalleComprobante($comprobante, $nuevoNumero);
+
+        // DEBUG: Mostrar detalle que se enviará
+        Log::info('=== DEBUG ARCA: Detalle comprobante construido ===', [
+            'comprobante_input' => $comprobante,
+            'detalle_construido' => $detalleComprobante,
+            'tiene_iva' => isset($detalleComprobante['Iva']),
+        ]);
+
         // Construir request
         $request = [
             'Auth' => $this->getAuthParams(),
@@ -104,7 +114,7 @@ class ARCAService
                     'CbteTipo' => $comprobante['tipo_comprobante'],
                 ],
                 'FeDetReq' => [
-                    'FECAEDetRequest' => $this->construirDetalleComprobante($comprobante, $nuevoNumero),
+                    'FECAEDetRequest' => $detalleComprobante,
                 ],
             ],
         ];
@@ -187,8 +197,10 @@ class ARCAService
             $detalle['FchVtoPago'] = $comprobante['fch_vto_pago'] ?? now()->format('Ymd');
         }
 
-        // Agregar IVA si corresponde (no para facturas C)
-        if (!empty($comprobante['iva']) && $comprobante['tipo_comprobante'] != 11) {
+        // Agregar IVA si corresponde (no para comprobantes tipo C que no discriminan IVA)
+        // Tipos C: Factura C (11), Nota de Débito C (12), Nota de Crédito C (13)
+        $tiposSinIVA = [11, 12, 13];
+        if (!empty($comprobante['iva']) && !in_array($comprobante['tipo_comprobante'], $tiposSinIVA)) {
             $detalle['Iva'] = ['AlicIva' => $comprobante['iva']];
         }
 

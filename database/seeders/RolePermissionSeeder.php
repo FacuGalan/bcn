@@ -157,22 +157,30 @@ class RolePermissionSeeder extends Seeder
         $adminRole = $roles->firstWhere('name', 'Administrador');
         $adminRole->givePermissionTo($allPermissions);
 
-        // Gerente: Ventas + Artículos + Empresa (sin Dashboard, accesible desde logo)
+        // Gerente: Ventas + Cajas (incluye Tesorería) + Artículos + Empresa (sin Dashboard, accesible desde logo)
         $gerenteRole = $roles->firstWhere('name', 'Gerente');
         $gerentePermissions = $permissions->filter(function ($perm) {
             return str_starts_with($perm->name, 'menu.ventas')
+                || str_starts_with($perm->name, 'menu.cajas')
+                || str_starts_with($perm->name, 'menu.turno-actual')
+                || str_starts_with($perm->name, 'menu.historial-turnos')
+                || str_starts_with($perm->name, 'menu.movimientos-manuales')
+                || str_starts_with($perm->name, 'menu.tesoreria')
+                || str_starts_with($perm->name, 'menu.reportes-cajas')
                 || str_starts_with($perm->name, 'menu.articulos')
                 || $perm->name === 'menu.configuracion'
                 || $perm->name === 'menu.empresa';
         });
         $gerenteRole->givePermissionTo($gerentePermissions->pluck('name')->toArray());
 
-        // Vendedor: Ventas (solo nueva y listado)
+        // Vendedor: Ventas (solo nueva y listado) + Turno actual
         $vendedorRole = $roles->firstWhere('name', 'Vendedor');
         $vendedorPermissions = $permissions->filter(function ($perm) {
             return $perm->name === 'menu.ventas'
                 || $perm->name === 'menu.nueva-venta'
-                || $perm->name === 'menu.listado-ventas';
+                || $perm->name === 'menu.listado-ventas'
+                || $perm->name === 'menu.cajas'
+                || $perm->name === 'menu.turno-actual';
         });
         $vendedorRole->givePermissionTo($vendedorPermissions->pluck('name')->toArray());
 

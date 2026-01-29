@@ -81,7 +81,75 @@ class MenuItemSeeder extends Seeder
             'activo' => true,
         ]);
 
-        // 2. ARTÍCULOS (padre con hijos)
+        // 2. CAJAS (padre con hijos)
+        $cajas = MenuItem::create([
+            'parent_id' => null,
+            'nombre' => 'Cajas',
+            'slug' => 'cajas',
+            'icono' => 'heroicon-o-calculator',
+            'route_type' => 'none',
+            'route_value' => null,
+            'orden' => 2,
+            'activo' => true,
+        ]);
+
+        // Hijos de Cajas
+        MenuItem::create([
+            'parent_id' => $cajas->id,
+            'nombre' => 'Turno Actual',
+            'slug' => 'turno-actual',
+            'icono' => 'heroicon-o-clock',
+            'route_type' => 'route',
+            'route_value' => 'cajas.turno-actual',
+            'orden' => 1,
+            'activo' => true,
+        ]);
+
+        MenuItem::create([
+            'parent_id' => $cajas->id,
+            'nombre' => 'Movimientos Manuales',
+            'slug' => 'movimientos-manuales',
+            'icono' => 'heroicon-o-arrows-right-left',
+            'route_type' => 'route',
+            'route_value' => 'cajas.movimientos-manuales',
+            'orden' => 2,
+            'activo' => true,
+        ]);
+
+        MenuItem::create([
+            'parent_id' => $cajas->id,
+            'nombre' => 'Historial de Turnos',
+            'slug' => 'historial-turnos',
+            'icono' => 'heroicon-o-document-text',
+            'route_type' => 'route',
+            'route_value' => 'cajas.historial-turnos',
+            'orden' => 3,
+            'activo' => true,
+        ]);
+
+        MenuItem::create([
+            'parent_id' => $cajas->id,
+            'nombre' => 'Tesorería',
+            'slug' => 'tesoreria',
+            'icono' => 'heroicon-o-banknotes',
+            'route_type' => 'route',
+            'route_value' => 'tesoreria.index',
+            'orden' => 4,
+            'activo' => true,
+        ]);
+
+        MenuItem::create([
+            'parent_id' => $cajas->id,
+            'nombre' => 'Reportes',
+            'slug' => 'reportes-cajas',
+            'icono' => 'heroicon-o-chart-bar',
+            'route_type' => 'route',
+            'route_value' => 'tesoreria.reportes',
+            'orden' => 5,
+            'activo' => true,
+        ]);
+
+        // 3. ARTÍCULOS (padre con hijos)
         $articulos = MenuItem::create([
             'parent_id' => null,
             'nombre' => 'Artículos',
@@ -89,7 +157,7 @@ class MenuItemSeeder extends Seeder
             'icono' => 'heroicon-o-cube',
             'route_type' => 'none',
             'route_value' => null,
-            'orden' => 2,
+            'orden' => 3,
             'activo' => true,
         ]);
 
@@ -100,7 +168,7 @@ class MenuItemSeeder extends Seeder
             'slug' => 'listado-articulos',
             'icono' => 'heroicon-o-list-bullet',
             'route_type' => 'route',
-            'route_value' => 'articulos.index',
+            'route_value' => 'articulos.gestionar',
             'orden' => 1,
             'activo' => true,
         ]);
@@ -127,7 +195,7 @@ class MenuItemSeeder extends Seeder
             'activo' => true,
         ]);
 
-        // 3. CONFIGURACIÓN (padre con hijos)
+        // 4. CONFIGURACIÓN (padre con hijos)
         $configuracion = MenuItem::create([
             'parent_id' => null,
             'nombre' => 'Configuración',
@@ -135,7 +203,7 @@ class MenuItemSeeder extends Seeder
             'icono' => 'heroicon-o-cog-6-tooth',
             'route_type' => 'none',
             'route_value' => null,
-            'orden' => 3,
+            'orden' => 4,
             'activo' => true,
         ]);
 

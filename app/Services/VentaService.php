@@ -4,13 +4,19 @@ namespace App\Services;
 
 use App\Models\Venta;
 use App\Models\VentaDetalle;
+use App\Models\VentaPago;
 use App\Models\Stock;
 use App\Models\Caja;
 use App\Models\MovimientoCaja;
 use App\Models\Cliente;
 use App\Models\Articulo;
+use App\Models\ConceptoPago;
+use App\Models\FormaPago;
+use App\Models\ComprobanteFiscal;
+use App\Services\ARCA\ComprobanteFiscalService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use Exception;
 
 /**
@@ -58,9 +64,9 @@ class VentaService
                 $this->validarCajaAbierta($data['caja_id']);
             }
 
-            // Generar número de venta si no viene
-            if (empty($data['numero'])) {
-                $data['numero'] = $this->generarNumeroVenta($data['sucursal_id']);
+            // Generar número de venta si no viene (por caja)
+            if (empty($data['numero']) && !empty($data['caja_id'])) {
+                $data['numero'] = $this->generarNumeroVenta($data['caja_id']);
             }
 
             // Verificar si vienen totales ya calculados
@@ -522,80 +528,384 @@ class VentaService
     }
 
     /**
-     * Genera un número de venta único secuencial por sucursal
+     * Genera un número de venta único secuencial por caja
      *
-     * @param int $sucursalId
+     * Formato: NUMERO_CAJA-SECUENCIAL (ej: 0001-00000001)
+     * La secuencia es independiente por cada caja.
+     *
+     * @param int $cajaId
      * @return string
      */
-    protected function generarNumeroVenta(int $sucursalId): string
+    protected function generarNumeroVenta(int $cajaId): string
     {
-        // Obtener el último número de venta para esta sucursal
-        $ultimaVenta = Venta::where('sucursal_id', $sucursalId)
+        $caja = Caja::findOrFail($cajaId);
+
+        // Obtener el último número de venta para esta caja
+        $ultimaVenta = Venta::where('caja_id', $cajaId)
+                           ->whereNotNull('numero')
                            ->orderBy('id', 'desc')
                            ->first();
 
-        $numero = 1;
+        $secuencial = 1;
         if ($ultimaVenta && $ultimaVenta->numero) {
-            // Extraer el número del formato actual (ej: "0001-00000001" -> 1)
+            // Extraer el número secuencial del formato actual (ej: "0001-00000001" -> 1)
             $partes = explode('-', $ultimaVenta->numero);
-            $ultimoNumero = end($partes);
-            $numero = intval($ultimoNumero) + 1;
+            $ultimoSecuencial = end($partes);
+            $secuencial = intval($ultimoSecuencial) + 1;
         }
 
-        // Formato: SUCURSAL-NUMERO (ej: 0001-00000001)
-        return sprintf('%04d-%08d', $sucursalId, $numero);
+        // Formato: NUMERO_CAJA-SECUENCIAL (ej: 0001-00000001)
+        return sprintf('%04d-%08d', $caja->numero, $secuencial);
     }
 
     /**
-     * Cancela una venta y revierte sus efectos
+     * Cancela una venta completamente y revierte todos sus efectos
+     * - Emite nota de crédito si tiene comprobantes fiscales (y emitirNotaCredito=true)
+     * - Revierte el stock
+     * - Anula todos los pagos
+     * - Revierte saldo del cliente si era cuenta corriente
+     * - Revierte movimientos de caja
+     * - Marca la venta como "cancelada"
      *
      * @param int $ventaId
-     * @return Venta
+     * @param string|null $motivo Motivo de la cancelación
+     * @param bool $emitirNotaCredito Si debe emitir NC para comprobantes fiscales
+     * @return array ['venta' => Venta, 'notas_credito' => ComprobanteFiscal[]]
      * @throws Exception
      */
-    public function cancelarVenta(int $ventaId): Venta
+    public function cancelarVentaCompleta(int $ventaId, ?string $motivo = null, bool $emitirNotaCredito = true): array
     {
         DB::connection('pymes_tenant')->beginTransaction();
 
         try {
-            $venta = Venta::findOrFail($ventaId);
+            $venta = Venta::with(['pagos', 'caja', 'cliente', 'comprobantesFiscales'])->findOrFail($ventaId);
 
             if ($venta->estaCancelada()) {
                 throw new Exception('La venta ya está cancelada');
             }
 
-            // Revertir stock
+            $usuarioId = Auth::id();
+            $ahora = now();
+            $notasCredito = [];
+
+            // 0. Si tiene comprobantes fiscales y se debe emitir NC
+            // Primero calculamos el saldo fiscal neto (facturas - notas de crédito)
+            $todosComprobantes = $venta->comprobantesFiscales()
+                ->autorizados()
+                ->get();
+
+            $saldoFiscal = 0;
+            $facturasParaAnular = [];
+
+            foreach ($todosComprobantes as $cf) {
+                if ($cf->esFactura()) {
+                    // Verificar si esta factura ya tiene NC asociada
+                    $ncAsociadas = $cf->notasCredito()->autorizados()->sum('total');
+                    $saldoPendiente = floatval($cf->total) - floatval($ncAsociadas);
+
+                    if ($saldoPendiente > 0.01) {
+                        $saldoFiscal += $saldoPendiente;
+                        $facturasParaAnular[] = $cf;
+                    }
+                }
+            }
+
+            // Solo emitir NC si hay saldo fiscal pendiente
+            if ($saldoFiscal > 0.01 && $emitirNotaCredito && count($facturasParaAnular) > 0) {
+                $comprobanteFiscalService = new ComprobanteFiscalService();
+
+                foreach ($facturasParaAnular as $comprobante) {
+                    $notaCredito = $comprobanteFiscalService->crearNotaCredito(
+                        $comprobante,
+                        $venta,
+                        $motivo ?? 'Cancelación de venta',
+                        $usuarioId
+                    );
+                    $notasCredito[] = $notaCredito;
+                }
+            }
+
+            // 1. Revertir stock
             $this->revertirStockPorVenta($venta);
 
-            // Revertir saldo del cliente si es cuenta corriente
-            if ($venta->cliente_id && $venta->forma_pago === 'cta_cte') {
+            // 2. Anular todos los pagos y revertir movimientos de caja
+            foreach ($venta->pagos as $pago) {
+                // Si el pago afecta caja y tiene movimiento, revertirlo
+                if ($pago->afecta_caja && $pago->movimiento_caja_id) {
+                    $movimiento = MovimientoCaja::find($pago->movimiento_caja_id);
+                    if ($movimiento && $venta->caja) {
+                        $venta->caja->disminuirSaldo($pago->monto_final);
+                    }
+                }
+
+                // Marcar pago como anulado y desmarcar como facturado
+                $pago->update([
+                    'estado' => 'anulado',
+                    'anulado_por_usuario_id' => $usuarioId,
+                    'anulado_at' => $ahora,
+                    'motivo_anulacion' => $motivo ?? 'Cancelación completa de venta',
+                    'comprobante_fiscal_id' => null,
+                    'monto_facturado' => null,
+                ]);
+            }
+
+            // 3. Revertir saldo del cliente si era cuenta corriente
+            if ($venta->es_cuenta_corriente && $venta->cliente_id) {
                 $cliente = Cliente::findOrFail($venta->cliente_id);
-                $cliente->ajustarSaldoEnSucursal($venta->sucursal_id, -$venta->total);
+                // Disminuir el saldo que debía (ya no debe nada de esta venta)
+                $cliente->ajustarSaldoEnSucursal($venta->sucursal_id, -$venta->total_final);
             }
 
-            // Revertir movimiento de caja si existe
-            if ($venta->movimientoCaja) {
-                $caja = $venta->caja;
-                $caja->disminuirSaldo($venta->total);
-            }
-
-            // Marcar como cancelada
-            $venta->cancelar();
+            // 4. Marcar venta como cancelada y actualizar cache fiscal
+            $venta->update([
+                'estado' => 'cancelada',
+                'anulado_por_usuario_id' => $usuarioId,
+                'anulado_at' => $ahora,
+                'motivo_anulacion' => $motivo ?? 'Cancelación completa',
+                'monto_fiscal_cache' => 0,
+                'monto_no_fiscal_cache' => 0,
+            ]);
 
             DB::connection('pymes_tenant')->commit();
 
-            Log::info('Venta cancelada exitosamente', ['venta_id' => $venta->id]);
+            Log::info('Venta cancelada completamente', [
+                'venta_id' => $venta->id,
+                'usuario_id' => $usuarioId,
+                'motivo' => $motivo,
+                'notas_credito_emitidas' => count($notasCredito),
+            ]);
+
+            return [
+                'venta' => $venta->fresh(),
+                'notas_credito' => $notasCredito,
+            ];
+
+        } catch (Exception $e) {
+            DB::connection('pymes_tenant')->rollBack();
+            Log::error('Error al cancelar venta completa', [
+                'venta_id' => $ventaId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Anula solo la parte fiscal de una venta
+     * - Emite nota de crédito para cada comprobante fiscal
+     * - NO revierte stock (los artículos ya fueron entregados)
+     * - NO cancela la venta ni los pagos
+     * - Desmarca los pagos como facturados (comprobante_fiscal_id = null)
+     * - Actualiza el cache fiscal de la venta
+     *
+     * @param int $ventaId
+     * @param string|null $motivo Motivo de la anulación fiscal
+     * @return array ['venta' => Venta, 'notas_credito' => ComprobanteFiscal[]]
+     * @throws Exception
+     */
+    public function anularSoloParteFiscal(int $ventaId, ?string $motivo = null): array
+    {
+        DB::connection('pymes_tenant')->beginTransaction();
+
+        try {
+            $venta = Venta::with(['pagos', 'comprobantesFiscales'])->findOrFail($ventaId);
+
+            if ($venta->estaCancelada()) {
+                throw new Exception('La venta está cancelada');
+            }
+
+            // Obtener solo facturas autorizadas (no NC)
+            $comprobantesFiscales = $venta->comprobantesFiscales()
+                ->facturas()
+                ->autorizados()
+                ->get();
+
+            if ($comprobantesFiscales->count() === 0) {
+                throw new Exception('La venta no tiene comprobantes fiscales para anular');
+            }
+
+            $usuarioId = Auth::id();
+            $notasCredito = [];
+            $comprobanteFiscalService = new ComprobanteFiscalService();
+
+            // 1. Emitir nota de crédito para cada comprobante fiscal
+            foreach ($comprobantesFiscales as $comprobante) {
+                $notaCredito = $comprobanteFiscalService->crearNotaCredito(
+                    $comprobante,
+                    $venta,
+                    $motivo ?? 'Anulación fiscal',
+                    $usuarioId
+                );
+                $notasCredito[] = $notaCredito;
+            }
+
+            // 2. Desmarcar pagos como facturados (los que estaban marcados)
+            foreach ($venta->pagos as $pago) {
+                if ($pago->comprobante_fiscal_id) {
+                    $pago->update([
+                        'comprobante_fiscal_id' => null,
+                        'monto_facturado' => null,
+                    ]);
+                }
+            }
+
+            // 3. Actualizar cache fiscal de la venta
+            $venta->update([
+                'monto_fiscal_cache' => 0,
+                'monto_no_fiscal_cache' => $venta->total_final,
+            ]);
+
+            DB::connection('pymes_tenant')->commit();
+
+            Log::info('Parte fiscal de venta anulada', [
+                'venta_id' => $venta->id,
+                'usuario_id' => $usuarioId,
+                'motivo' => $motivo,
+                'notas_credito_emitidas' => count($notasCredito),
+            ]);
+
+            return [
+                'venta' => $venta->fresh(),
+                'notas_credito' => $notasCredito,
+            ];
+
+        } catch (Exception $e) {
+            DB::connection('pymes_tenant')->rollBack();
+            Log::error('Error al anular parte fiscal de venta', [
+                'venta_id' => $ventaId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Anula los pagos de una venta y la convierte a cuenta corriente
+     * - NO revierte el stock (los artículos ya fueron entregados)
+     * - Anula todos los pagos existentes
+     * - Crea un nuevo pago como cuenta corriente
+     * - Actualiza el saldo del cliente (ahora debe el total)
+     * - La venta permanece como "completada" pero ahora es cuenta corriente
+     *
+     * IMPORTANTE: Solo disponible si la venta NO es ya cuenta corriente
+     *
+     * @param int $ventaId
+     * @param string|null $motivo Motivo de la anulación de pagos
+     * @return Venta
+     * @throws Exception
+     */
+    public function anularPagosYPasarACtaCte(int $ventaId, ?string $motivo = null): Venta
+    {
+        DB::connection('pymes_tenant')->beginTransaction();
+
+        try {
+            $venta = Venta::with(['pagos', 'caja', 'cliente'])->findOrFail($ventaId);
+
+            if ($venta->estaCancelada()) {
+                throw new Exception('La venta está cancelada');
+            }
+
+            if ($venta->es_cuenta_corriente) {
+                throw new Exception('La venta ya es cuenta corriente');
+            }
+
+            if (!$venta->cliente_id) {
+                throw new Exception('La venta debe tener un cliente asignado para pasar a cuenta corriente');
+            }
+
+            $usuarioId = Auth::id();
+            $ahora = now();
+
+            // 1. Anular todos los pagos existentes y revertir movimientos de caja
+            foreach ($venta->pagos as $pago) {
+                // Si el pago afecta caja y tiene movimiento, revertirlo
+                if ($pago->afecta_caja && $pago->movimiento_caja_id) {
+                    $movimiento = MovimientoCaja::find($pago->movimiento_caja_id);
+                    if ($movimiento && $venta->caja) {
+                        $venta->caja->disminuirSaldo($pago->monto_final);
+                    }
+                }
+
+                // Marcar pago como anulado
+                $pago->update([
+                    'estado' => 'anulado',
+                    'anulado_por_usuario_id' => $usuarioId,
+                    'anulado_at' => $ahora,
+                    'motivo_anulacion' => $motivo ?? 'Conversión a cuenta corriente',
+                ]);
+            }
+
+            // 2. Buscar la forma de pago de tipo cuenta corriente (crédito cliente)
+            $formaPagoCtaCte = FormaPago::whereHas('conceptoPago', function ($q) {
+                $q->where('codigo', ConceptoPago::CREDITO_CLIENTE);
+            })->first();
+
+            if (!$formaPagoCtaCte) {
+                throw new Exception('No se encontró la forma de pago de cuenta corriente configurada');
+            }
+
+            // 3. Crear nuevo pago como cuenta corriente
+            VentaPago::create([
+                'venta_id' => $venta->id,
+                'forma_pago_id' => $formaPagoCtaCte->id,
+                'concepto_pago_id' => $formaPagoCtaCte->concepto_pago_id,
+                'monto_base' => $venta->total_final,
+                'ajuste_porcentaje' => 0,
+                'monto_ajuste' => 0,
+                'monto_final' => $venta->total_final,
+                'es_cuenta_corriente' => true,
+                'afecta_caja' => false,
+                'estado' => 'pendiente',
+                'observaciones' => $motivo ?? 'Pago convertido a cuenta corriente',
+            ]);
+
+            // 4. Actualizar saldo del cliente (ahora debe el total)
+            $cliente = Cliente::findOrFail($venta->cliente_id);
+            $cliente->ajustarSaldoEnSucursal($venta->sucursal_id, $venta->total_final);
+
+            // 5. Actualizar la venta
+            $venta->update([
+                'es_cuenta_corriente' => true,
+                'saldo_pendiente_cache' => $venta->total_final,
+                'estado' => 'pendiente', // Ahora está pendiente de cobro
+            ]);
+
+            DB::connection('pymes_tenant')->commit();
+
+            Log::info('Venta convertida a cuenta corriente', [
+                'venta_id' => $venta->id,
+                'cliente_id' => $venta->cliente_id,
+                'monto' => $venta->total_final,
+                'usuario_id' => $usuarioId,
+                'motivo' => $motivo,
+            ]);
 
             return $venta->fresh();
 
         } catch (Exception $e) {
             DB::connection('pymes_tenant')->rollBack();
-            Log::error('Error al cancelar venta', [
+            Log::error('Error al convertir venta a cuenta corriente', [
                 'venta_id' => $ventaId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * Cancela una venta (método legacy - redirige a cancelarVentaCompleta)
+     *
+     * @param int $ventaId
+     * @return Venta
+     * @throws Exception
+     * @deprecated Usar cancelarVentaCompleta() en su lugar
+     */
+    public function cancelarVenta(int $ventaId): Venta
+    {
+        return $this->cancelarVentaCompleta($ventaId);
     }
 
     /**

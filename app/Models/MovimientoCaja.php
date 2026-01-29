@@ -68,6 +68,9 @@ class MovimientoCaja extends Model
     public const REF_AJUSTE = 'ajuste';
     public const REF_APERTURA = 'apertura';
     public const REF_RETIRO = 'retiro';
+    public const REF_TRANSFERENCIA = 'transferencia';
+    public const REF_INGRESO_MANUAL = 'ingreso_manual';
+    public const REF_EGRESO_MANUAL = 'egreso_manual';
 
     // ==================== Relaciones ====================
 

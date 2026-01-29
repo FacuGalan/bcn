@@ -20,6 +20,11 @@ use App\Livewire\Ventas\NuevaVenta;
 use App\Livewire\Compras\Compras;
 use App\Livewire\Stock\StockInventario;
 use App\Livewire\Cajas\GestionCajas;
+use App\Livewire\Cajas\TurnoActual;
+use App\Livewire\Cajas\MovimientosManuales;
+use App\Livewire\Cajas\HistorialTurnos;
+use App\Livewire\Tesoreria\GestionTesoreria;
+use App\Livewire\Tesoreria\ReportesTesoreria;
 use App\Livewire\Dashboard\DashboardSucursal;
 use App\Livewire\Articulos\GestionarArticulos;
 use App\Livewire\Articulos\GestionarCategorias;
@@ -78,6 +83,36 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
      * Gestión de cajas, apertura, cierre, movimientos
      */
     Route::get('cajas', GestionCajas::class)->name('cajas.index');
+
+    Route::prefix('cajas')->name('cajas.')->group(function () {
+        // Turno actual - estado del turno, movimientos del día, etc.
+        Route::get('turno-actual', TurnoActual::class)->name('turno-actual');
+
+        // Historial de turnos - cierres anteriores
+        Route::get('historial-turnos', HistorialTurnos::class)->name('historial-turnos');
+
+        // Saldos de cajas - redirige a tesorería (el tesorero gestiona los saldos)
+        Route::redirect('saldos', '/tesoreria')->name('saldos');
+
+        // Movimientos manuales - ingresos/egresos manuales, transferencias
+        Route::get('movimientos-manuales', MovimientosManuales::class)->name('movimientos-manuales');
+    });
+
+    // =========================================
+    // TESORERÍA
+    // =========================================
+
+    /**
+     * Tesorería
+     * Gestión de fondos, provisiones, rendiciones y arqueos
+     */
+    Route::prefix('tesoreria')->name('tesoreria.')->group(function () {
+        // Gestión principal de tesorería
+        Route::get('/', GestionTesoreria::class)->name('index');
+
+        // Reportes de tesorería
+        Route::get('reportes', ReportesTesoreria::class)->name('reportes');
+    });
 
     // =========================================
     // ARTÍCULOS

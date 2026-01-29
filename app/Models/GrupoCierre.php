@@ -16,11 +16,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $id
  * @property int $sucursal_id
  * @property string|null $nombre
+ * @property bool $fondo_comun Si es true, todas las cajas comparten un fondo común
+ * @property float $saldo_fondo_comun Saldo del fondo común del grupo
+ * @property int|null $tesoreria_id Tesorería asociada al grupo
  * @property bool $activo
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  *
  * @property-read Sucursal $sucursal
+ * @property-read Tesoreria|null $tesoreria
  * @property-read \Illuminate\Database\Eloquent\Collection|Caja[] $cajas
  */
 class GrupoCierre extends Model
@@ -31,11 +35,16 @@ class GrupoCierre extends Model
     protected $fillable = [
         'sucursal_id',
         'nombre',
+        'fondo_comun',
+        'saldo_fondo_comun',
+        'tesoreria_id',
         'activo',
     ];
 
     protected $casts = [
         'activo' => 'boolean',
+        'fondo_comun' => 'boolean',
+        'saldo_fondo_comun' => 'decimal:2',
     ];
 
     // ==================== RELACIONES ====================
@@ -46,6 +55,14 @@ class GrupoCierre extends Model
     public function sucursal(): BelongsTo
     {
         return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
+
+    /**
+     * Tesorería asociada al grupo
+     */
+    public function tesoreria(): BelongsTo
+    {
+        return $this->belongsTo(Tesoreria::class, 'tesoreria_id');
     }
 
     /**
@@ -122,5 +139,62 @@ class GrupoCierre extends Model
     public function getSaldoTotalAttribute(): float
     {
         return $this->cajas()->sum('saldo_actual');
+    }
+
+    // ==================== MÉTODOS DE FONDO COMÚN ====================
+
+    /**
+     * Verifica si el grupo usa fondo común
+     */
+    public function usaFondoComun(): bool
+    {
+        return $this->fondo_comun === true;
+    }
+
+    /**
+     * Obtiene el saldo disponible del fondo común
+     */
+    public function getSaldoFondoDisponible(): float
+    {
+        return $this->saldo_fondo_comun ?? 0;
+    }
+
+    /**
+     * Provisiona fondo a una caja desde el fondo común
+     */
+    public function provisionarACaja(float $monto): bool
+    {
+        if (!$this->usaFondoComun()) {
+            return false;
+        }
+
+        if ($this->saldo_fondo_comun < $monto) {
+            return false;
+        }
+
+        $this->saldo_fondo_comun -= $monto;
+        return $this->save();
+    }
+
+    /**
+     * Recibe fondo de una caja al fondo común
+     */
+    public function recibirDeCaja(float $monto): bool
+    {
+        if (!$this->usaFondoComun()) {
+            return false;
+        }
+
+        $this->saldo_fondo_comun += $monto;
+        return $this->save();
+    }
+
+    /**
+     * Establece el fondo común inicial
+     */
+    public function establecerFondoComun(float $monto): bool
+    {
+        $this->saldo_fondo_comun = $monto;
+        return $this->save();
     }
 }

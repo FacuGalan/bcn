@@ -17,6 +17,43 @@
             </button>
         </div>
 
+        <!-- Requisitos QZ Tray -->
+        <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div class="flex items-start space-x-3">
+                    <svg class="w-6 h-6 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                        <h4 class="text-sm font-semibold text-blue-800 dark:text-blue-200">Requisitos para impresion</h4>
+                        <p class="text-xs text-blue-600 dark:text-blue-300 mt-1">Para imprimir desde el navegador necesitas QZ Tray instalado y el certificado de BCN Pymes.</p>
+                    </div>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-2 sm:flex-shrink-0">
+                    <a
+                        href="https://qz.io/download/"
+                        target="_blank"
+                        class="inline-flex items-center justify-center px-4 py-2 bg-white dark:bg-gray-700 border border-blue-300 dark:border-blue-600 rounded-md text-sm font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-gray-600 transition-colors"
+                    >
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Descargar QZ Tray
+                    </a>
+                    <a
+                        href="/qz/instalar-certificado-bcn.bat"
+                        download
+                        class="inline-flex items-center justify-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md text-sm font-medium text-white hover:bg-opacity-90 transition-colors"
+                    >
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                        Instalar Certificado
+                    </a>
+                </div>
+            </div>
+        </div>
+
         <!-- Filtros -->
         <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-6">
             <div class="p-6">

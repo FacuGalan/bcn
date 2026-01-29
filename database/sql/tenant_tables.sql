@@ -970,11 +970,15 @@ CREATE TABLE `{{PREFIX}}grupos_cierre` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `sucursal_id` bigint(20) unsigned NOT NULL,
   `nombre` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Nombre descriptivo del grupo',
+  `fondo_comun` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si es true, todas las cajas comparten un fondo común',
+  `saldo_fondo_comun` decimal(14,2) DEFAULT '0.00' COMMENT 'Saldo del fondo común del grupo',
+  `tesoreria_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Tesorería asociada al grupo',
   `activo` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `{{PREFIX}}grupos_cierre_sucursal_id_activo_index` (`sucursal_id`,`activo`),
+  KEY `{{PREFIX}}grupos_cierre_tesoreria_id_index` (`tesoreria_id`),
   CONSTRAINT `{{PREFIX}}grupos_cierre_sucursal_id_foreign` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1122,6 +1126,7 @@ CREATE TABLE `{{PREFIX}}ventas` (
   `anulado_at` timestamp NULL DEFAULT NULL COMMENT 'Fecha/hora de anulación',
   `motivo_anulacion` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Motivo de la anulación',
   `observaciones` text COLLATE utf8mb4_unicode_ci,
+  `cierre_turno_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Cierre de turno donde se registró la venta',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL,
@@ -1134,6 +1139,7 @@ CREATE TABLE `{{PREFIX}}ventas` (
   KEY `{{PREFIX}}ventas_caja_id_foreign` (`caja_id`),
   KEY `idx_ventas_deleted` (`deleted_at`),
   KEY `idx_ventas_forma_pago` (`forma_pago_id`),
+  KEY `idx_ventas_cierre_turno` (`cierre_turno_id`),
   CONSTRAINT `{{PREFIX}}ventas_caja_id_foreign` FOREIGN KEY (`caja_id`) REFERENCES `{{PREFIX}}cajas` (`id`),
   CONSTRAINT `{{PREFIX}}ventas_cliente_id_foreign` FOREIGN KEY (`cliente_id`) REFERENCES `{{PREFIX}}clientes` (`id`),
   CONSTRAINT `{{PREFIX}}ventas_sucursal_id_foreign` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`),
@@ -1203,6 +1209,7 @@ CREATE TABLE `{{PREFIX}}venta_pagos` (
   `anulado_por_usuario_id` bigint(20) unsigned DEFAULT NULL,
   `anulado_at` timestamp NULL DEFAULT NULL,
   `motivo_anulacion` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `cierre_turno_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Cierre de turno donde se procesó este pago',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -1213,6 +1220,7 @@ CREATE TABLE `{{PREFIX}}venta_pagos` (
   KEY `idx_vp_cuenta_corriente` (`es_cuenta_corriente`),
   KEY `idx_vp_estado` (`estado`),
   KEY `idx_vp_afecta_caja` (`afecta_caja`),
+  KEY `idx_venta_pagos_cierre_turno` (`cierre_turno_id`),
   CONSTRAINT `fk_venta_pagos_concepto` FOREIGN KEY (`concepto_pago_id`) REFERENCES `{{PREFIX}}conceptos_pago` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_venta_pagos_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`),
   CONSTRAINT `fk_venta_pagos_mov_caja` FOREIGN KEY (`movimiento_caja_id`) REFERENCES `{{PREFIX}}movimientos_caja` (`id`) ON DELETE SET NULL,
@@ -1297,6 +1305,7 @@ CREATE TABLE `{{PREFIX}}cobros` (
   `anulado_por_usuario_id` bigint(20) unsigned DEFAULT NULL,
   `anulado_at` timestamp NULL DEFAULT NULL,
   `motivo_anulacion` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `cierre_turno_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Cierre de turno donde se registró el cobro',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL,
@@ -1307,6 +1316,7 @@ CREATE TABLE `{{PREFIX}}cobros` (
   KEY `idx_cobros_cliente` (`cliente_id`),
   KEY `idx_cobros_estado` (`estado`),
   KEY `idx_cobros_fecha` (`fecha`),
+  KEY `idx_cobros_cierre_turno` (`cierre_turno_id`),
   CONSTRAINT `fk_cobros_caja` FOREIGN KEY (`caja_id`) REFERENCES `{{PREFIX}}cajas` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_cobros_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `{{PREFIX}}clientes` (`id`),
   CONSTRAINT `fk_cobros_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`)
@@ -1353,6 +1363,7 @@ CREATE TABLE `{{PREFIX}}cobro_pagos` (
   `afecta_caja` tinyint(1) NOT NULL DEFAULT '1',
   `movimiento_caja_id` bigint(20) unsigned DEFAULT NULL,
   `estado` enum('activo','anulado') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'activo',
+  `cierre_turno_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Cierre de turno donde se procesó este pago',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -1361,6 +1372,7 @@ CREATE TABLE `{{PREFIX}}cobro_pagos` (
   KEY `idx_cp_cobro` (`cobro_id`),
   KEY `idx_cp_forma_pago` (`forma_pago_id`),
   KEY `idx_cp_estado` (`estado`),
+  KEY `idx_cobro_pagos_cierre_turno` (`cierre_turno_id`),
   CONSTRAINT `fk_cp_cobro` FOREIGN KEY (`cobro_id`) REFERENCES `{{PREFIX}}cobros` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_cp_concepto` FOREIGN KEY (`concepto_pago_id`) REFERENCES `{{PREFIX}}conceptos_pago` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_cp_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`),
@@ -1480,6 +1492,202 @@ CREATE TABLE `{{PREFIX}}comprobante_fiscal_ventas` (
   CONSTRAINT `fk_cfv_comprobante` FOREIGN KEY (`comprobante_fiscal_id`) REFERENCES `{{PREFIX}}comprobantes_fiscales` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_cfv_venta` FOREIGN KEY (`venta_id`) REFERENCES `{{PREFIX}}ventas` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=61 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =====================================================
+-- SISTEMA DE TESORERÍA
+-- =====================================================
+
+-- Tabla: tesorerias
+-- Caja fuerte por sucursal que centraliza el manejo de efectivo
+DROP TABLE IF EXISTS `{{PREFIX}}tesorerias`;
+CREATE TABLE `{{PREFIX}}tesorerias` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `sucursal_id` bigint(20) unsigned NOT NULL,
+  `nombre` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Tesorería Principal',
+  `saldo_actual` decimal(14,2) NOT NULL DEFAULT '0.00' COMMENT 'Saldo actual de la tesorería',
+  `saldo_minimo` decimal(14,2) DEFAULT '0.00' COMMENT 'Saldo mínimo de alerta',
+  `saldo_maximo` decimal(14,2) DEFAULT NULL COMMENT 'Saldo máximo antes de depositar',
+  `activo` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}tesorerias_sucursal_id_index` (`sucursal_id`),
+  CONSTRAINT `{{PREFIX}}tesorerias_sucursal_id_foreign` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabla: movimientos_tesoreria
+-- Historial de movimientos con trazabilidad completa (saldo anterior/posterior)
+DROP TABLE IF EXISTS `{{PREFIX}}movimientos_tesoreria`;
+CREATE TABLE `{{PREFIX}}movimientos_tesoreria` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `tesoreria_id` bigint(20) unsigned NOT NULL,
+  `tipo` enum('ingreso','egreso') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `concepto` varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `monto` decimal(14,2) NOT NULL,
+  `saldo_anterior` decimal(14,2) NOT NULL COMMENT 'Saldo antes del movimiento',
+  `saldo_posterior` decimal(14,2) NOT NULL COMMENT 'Saldo después del movimiento',
+  `usuario_id` bigint(20) unsigned NOT NULL,
+  `referencia_tipo` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Tipo de entidad relacionada (provision_fondo, rendicion_fondo, deposito, etc)',
+  `referencia_id` bigint(20) unsigned DEFAULT NULL COMMENT 'ID de la entidad relacionada',
+  `observaciones` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}movimientos_tesoreria_tesoreria_id_index` (`tesoreria_id`),
+  KEY `{{PREFIX}}movimientos_tesoreria_tipo_index` (`tipo`),
+  KEY `{{PREFIX}}movimientos_tesoreria_usuario_id_index` (`usuario_id`),
+  KEY `{{PREFIX}}movimientos_tesoreria_referencia_index` (`referencia_tipo`,`referencia_id`),
+  KEY `{{PREFIX}}movimientos_tesoreria_created_at_index` (`created_at`),
+  CONSTRAINT `{{PREFIX}}movimientos_tesoreria_tesoreria_id_foreign` FOREIGN KEY (`tesoreria_id`) REFERENCES `{{PREFIX}}tesorerias` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabla: cuentas_bancarias
+-- Cuentas bancarias para depósitos
+DROP TABLE IF EXISTS `{{PREFIX}}cuentas_bancarias`;
+CREATE TABLE `{{PREFIX}}cuentas_bancarias` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `sucursal_id` bigint(20) unsigned NOT NULL,
+  `banco` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tipo_cuenta` enum('corriente','ahorro','caja_ahorro') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'corriente',
+  `numero_cuenta` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `cbu` varchar(22) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `alias` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `titular` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `moneda` varchar(3) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ARS',
+  `saldo_actual` decimal(14,2) NOT NULL DEFAULT '0.00',
+  `activo` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}cuentas_bancarias_sucursal_id_index` (`sucursal_id`),
+  CONSTRAINT `{{PREFIX}}cuentas_bancarias_sucursal_id_foreign` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabla: depositos_bancarios
+-- Registro de depósitos de tesorería a banco
+DROP TABLE IF EXISTS `{{PREFIX}}depositos_bancarios`;
+CREATE TABLE `{{PREFIX}}depositos_bancarios` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `tesoreria_id` bigint(20) unsigned NOT NULL,
+  `cuenta_bancaria_id` bigint(20) unsigned NOT NULL,
+  `monto` decimal(14,2) NOT NULL,
+  `fecha_deposito` date NOT NULL,
+  `numero_comprobante` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `usuario_id` bigint(20) unsigned NOT NULL,
+  `estado` enum('pendiente','confirmado','cancelado') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pendiente',
+  `fecha_confirmacion` timestamp NULL DEFAULT NULL,
+  `observaciones` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}depositos_bancarios_tesoreria_id_index` (`tesoreria_id`),
+  KEY `{{PREFIX}}depositos_bancarios_cuenta_bancaria_id_index` (`cuenta_bancaria_id`),
+  KEY `{{PREFIX}}depositos_bancarios_fecha_deposito_index` (`fecha_deposito`),
+  KEY `{{PREFIX}}depositos_bancarios_estado_index` (`estado`),
+  CONSTRAINT `{{PREFIX}}depositos_bancarios_tesoreria_id_foreign` FOREIGN KEY (`tesoreria_id`) REFERENCES `{{PREFIX}}tesorerias` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}depositos_bancarios_cuenta_bancaria_id_foreign` FOREIGN KEY (`cuenta_bancaria_id`) REFERENCES `{{PREFIX}}cuentas_bancarias` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabla: provision_fondos
+-- Entregas de tesorería a cajas (apertura de caja)
+DROP TABLE IF EXISTS `{{PREFIX}}provision_fondos`;
+CREATE TABLE `{{PREFIX}}provision_fondos` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `tesoreria_id` bigint(20) unsigned NOT NULL,
+  `caja_id` bigint(20) unsigned NOT NULL,
+  `monto` decimal(14,2) NOT NULL,
+  `usuario_entrega_id` bigint(20) unsigned NOT NULL COMMENT 'Usuario que entrega desde tesorería',
+  `usuario_recibe_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Usuario que recibe en caja',
+  `fecha` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `estado` enum('pendiente','confirmado','cancelado') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'confirmado',
+  `movimiento_tesoreria_id` bigint(20) unsigned DEFAULT NULL,
+  `movimiento_caja_id` bigint(20) unsigned DEFAULT NULL,
+  `observaciones` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}provision_fondos_tesoreria_id_index` (`tesoreria_id`),
+  KEY `{{PREFIX}}provision_fondos_caja_id_index` (`caja_id`),
+  KEY `{{PREFIX}}provision_fondos_fecha_index` (`fecha`),
+  CONSTRAINT `{{PREFIX}}provision_fondos_tesoreria_id_foreign` FOREIGN KEY (`tesoreria_id`) REFERENCES `{{PREFIX}}tesorerias` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}provision_fondos_caja_id_foreign` FOREIGN KEY (`caja_id`) REFERENCES `{{PREFIX}}cajas` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabla: rendicion_fondos
+-- Entregas de cajas a tesorería (cierre de caja)
+DROP TABLE IF EXISTS `{{PREFIX}}rendicion_fondos`;
+CREATE TABLE `{{PREFIX}}rendicion_fondos` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `caja_id` bigint(20) unsigned NOT NULL,
+  `tesoreria_id` bigint(20) unsigned NOT NULL,
+  `monto_declarado` decimal(14,2) NOT NULL COMMENT 'Monto declarado por el cajero',
+  `monto_sistema` decimal(14,2) NOT NULL COMMENT 'Monto calculado por el sistema',
+  `monto_entregado` decimal(14,2) NOT NULL COMMENT 'Monto efectivamente entregado',
+  `diferencia` decimal(14,2) NOT NULL DEFAULT '0.00' COMMENT 'Diferencia (sobrante/faltante)',
+  `usuario_entrega_id` bigint(20) unsigned NOT NULL COMMENT 'Cajero que entrega',
+  `usuario_recibe_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Usuario que recibe en tesorería',
+  `cierre_turno_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Cierre de turno asociado',
+  `fecha` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `estado` enum('pendiente','confirmado','cancelado') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pendiente',
+  `fecha_confirmacion` timestamp NULL DEFAULT NULL,
+  `movimiento_tesoreria_id` bigint(20) unsigned DEFAULT NULL,
+  `movimiento_caja_id` bigint(20) unsigned DEFAULT NULL,
+  `observaciones` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}rendicion_fondos_caja_id_index` (`caja_id`),
+  KEY `{{PREFIX}}rendicion_fondos_tesoreria_id_index` (`tesoreria_id`),
+  KEY `{{PREFIX}}rendicion_fondos_fecha_index` (`fecha`),
+  KEY `{{PREFIX}}rendicion_fondos_estado_index` (`estado`),
+  KEY `{{PREFIX}}rendicion_fondos_cierre_turno_id_index` (`cierre_turno_id`),
+  CONSTRAINT `{{PREFIX}}rendicion_fondos_caja_id_foreign` FOREIGN KEY (`caja_id`) REFERENCES `{{PREFIX}}cajas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}rendicion_fondos_tesoreria_id_foreign` FOREIGN KEY (`tesoreria_id`) REFERENCES `{{PREFIX}}tesorerias` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabla: arqueos_tesoreria
+-- Arqueos periódicos de la tesorería
+DROP TABLE IF EXISTS `{{PREFIX}}arqueos_tesoreria`;
+CREATE TABLE `{{PREFIX}}arqueos_tesoreria` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `tesoreria_id` bigint(20) unsigned NOT NULL,
+  `fecha` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `saldo_sistema` decimal(14,2) NOT NULL COMMENT 'Saldo según sistema',
+  `saldo_contado` decimal(14,2) NOT NULL COMMENT 'Saldo contado físicamente',
+  `diferencia` decimal(14,2) NOT NULL DEFAULT '0.00',
+  `usuario_id` bigint(20) unsigned NOT NULL,
+  `supervisor_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Supervisor que autorizó',
+  `estado` enum('pendiente','aprobado','rechazado') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pendiente',
+  `observaciones` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}arqueos_tesoreria_tesoreria_id_index` (`tesoreria_id`),
+  KEY `{{PREFIX}}arqueos_tesoreria_fecha_index` (`fecha`),
+  KEY `{{PREFIX}}arqueos_tesoreria_estado_index` (`estado`),
+  CONSTRAINT `{{PREFIX}}arqueos_tesoreria_tesoreria_id_foreign` FOREIGN KEY (`tesoreria_id`) REFERENCES `{{PREFIX}}tesorerias` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =====================================================
+-- MODIFICACIONES A TABLAS EXISTENTES
+-- =====================================================
+
+-- Agregar campos de trazabilidad a movimientos_caja
+-- ALTER TABLE `{{PREFIX}}movimientos_caja`
+--   ADD COLUMN `saldo_anterior` decimal(14,2) DEFAULT NULL AFTER `monto`,
+--   ADD COLUMN `saldo_posterior` decimal(14,2) DEFAULT NULL AFTER `saldo_anterior`,
+--   ADD COLUMN `provision_fondo_id` bigint(20) unsigned DEFAULT NULL AFTER `referencia_id`,
+--   ADD COLUMN `rendicion_fondo_id` bigint(20) unsigned DEFAULT NULL AFTER `provision_fondo_id`;
+
+-- Agregar tesoreria_id a cajas
+-- ALTER TABLE `{{PREFIX}}cajas`
+--   ADD COLUMN `tesoreria_id` bigint(20) unsigned DEFAULT NULL AFTER `grupo_cierre_id`;
+
+-- Agregar campos de rendición a cierres_turno
+-- ALTER TABLE `{{PREFIX}}cierres_turno`
+--   ADD COLUMN `tesoreria_id` bigint(20) unsigned DEFAULT NULL,
+--   ADD COLUMN `rendicion_fondo_id` bigint(20) unsigned DEFAULT NULL,
+--   ADD COLUMN `estado_rendicion` enum('pendiente','parcial','completa') DEFAULT 'pendiente';
 
 -- Tabla: migrations
 DROP TABLE IF EXISTS `{{PREFIX}}migrations`;

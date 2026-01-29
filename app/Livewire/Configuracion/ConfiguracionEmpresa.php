@@ -8,6 +8,7 @@ use App\Models\Cuit;
 use App\Models\EmpresaConfig;
 use App\Models\GrupoCierre;
 use App\Models\Localidad;
+use App\Models\MovimientoCaja;
 use App\Models\Provincia;
 use App\Models\PuntoVenta;
 use App\Models\PuntoVentaCaja;
@@ -120,6 +121,7 @@ class ConfiguracionEmpresa extends Component
     public $grupoSucursalId = null;
     public $grupoNombre = '';
     public $grupoCajasSeleccionadas = [];
+    public $grupoFondoComun = false;
 
     // Confirmación de eliminación de grupo
     public $mostrarConfirmacionEliminarGrupo = false;
@@ -898,10 +900,17 @@ class ConfiguracionEmpresa extends Component
     {
         $grupo = GrupoCierre::with('cajas')->findOrFail($grupoId);
 
+        // Verificar si el grupo tiene turno abierto
+        if ($this->grupoTieneTurnoAbierto($grupo)) {
+            $this->dispatch('notify', message: 'No se puede modificar el grupo porque tiene un turno abierto. Cierre el turno primero.', type: 'warning');
+            return;
+        }
+
         $this->grupoId = $grupo->id;
         $this->grupoSucursalId = $grupo->sucursal_id;
         $this->grupoNombre = $grupo->nombre ?? '';
         $this->grupoCajasSeleccionadas = $grupo->cajas->pluck('id')->toArray();
+        $this->grupoFondoComun = (bool) $grupo->fondo_comun;
 
         $this->modoEdicionGrupo = true;
         $this->mostrarModalGrupoCierre = true;
@@ -939,12 +948,14 @@ class ConfiguracionEmpresa extends Component
             if ($this->modoEdicionGrupo) {
                 $grupo = GrupoCierre::findOrFail($this->grupoId);
                 $grupo->nombre = $this->grupoNombre ?: null;
+                $grupo->fondo_comun = $this->grupoFondoComun;
                 $grupo->save();
                 $mensaje = 'Grupo de cierre actualizado correctamente';
             } else {
                 $grupo = GrupoCierre::create([
                     'sucursal_id' => $this->grupoSucursalId,
                     'nombre' => $this->grupoNombre ?: null,
+                    'fondo_comun' => $this->grupoFondoComun,
                     'activo' => true,
                 ]);
                 $mensaje = 'Grupo de cierre creado correctamente';
@@ -972,6 +983,19 @@ class ConfiguracionEmpresa extends Component
      */
     public function confirmarEliminarGrupo($grupoId)
     {
+        $grupo = GrupoCierre::with('cajas')->find($grupoId);
+
+        if (!$grupo) {
+            $this->dispatch('notify', message: 'Grupo no encontrado', type: 'error');
+            return;
+        }
+
+        // Verificar si el grupo tiene turno abierto
+        if ($this->grupoTieneTurnoAbierto($grupo)) {
+            $this->dispatch('notify', message: 'No se puede eliminar el grupo porque tiene un turno abierto. Cierre el turno primero.', type: 'warning');
+            return;
+        }
+
         $this->grupoEliminarId = $grupoId;
         $this->mostrarConfirmacionEliminarGrupo = true;
     }
@@ -982,7 +1006,14 @@ class ConfiguracionEmpresa extends Component
     public function eliminarGrupoCierre()
     {
         try {
-            $grupo = GrupoCierre::findOrFail($this->grupoEliminarId);
+            $grupo = GrupoCierre::with('cajas')->findOrFail($this->grupoEliminarId);
+
+            // Verificar nuevamente si el grupo tiene turno abierto
+            if ($this->grupoTieneTurnoAbierto($grupo)) {
+                $this->dispatch('notify', message: 'No se puede eliminar el grupo porque tiene un turno abierto.', type: 'warning');
+                $this->mostrarConfirmacionEliminarGrupo = false;
+                return;
+            }
 
             // Quitar las cajas del grupo (pasan a individuales)
             Caja::where('grupo_cierre_id', $grupo->id)
@@ -1027,8 +1058,24 @@ class ConfiguracionEmpresa extends Component
         $this->grupoSucursalId = null;
         $this->grupoNombre = '';
         $this->grupoCajasSeleccionadas = [];
+        $this->grupoFondoComun = false;
         $this->modoEdicionGrupo = false;
         $this->resetErrorBag();
+    }
+
+    /**
+     * Verifica si un grupo tiene alguna caja con turno abierto
+     */
+    protected function grupoTieneTurnoAbierto(GrupoCierre $grupo): bool
+    {
+        // Un grupo tiene turno abierto si alguna de sus cajas está abierta
+        // o tiene movimientos sin cerrar
+        return $grupo->cajas->contains(function ($caja) {
+            return $caja->estado === 'abierta' ||
+                   MovimientoCaja::where('caja_id', $caja->id)
+                       ->whereNull('cierre_turno_id')
+                       ->exists();
+        });
     }
 
     /**

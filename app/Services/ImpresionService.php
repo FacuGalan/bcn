@@ -87,10 +87,11 @@ class ImpresionService
 
         if ($impresora->esTermica()) {
             return [
-                'tipo' => 'escpos',
+                'tipo' => 'html',
                 'impresora' => $impresora->nombre_sistema,
-                'datos' => $this->escpos->generarTicketVenta($venta, $impresora, $config),
+                'datos' => $this->html->generarTicketVentaTermica($venta, $impresora, $config),
                 'opciones' => [
+                    'formato' => $impresora->formato_papel,
                     'cortar' => $config?->cortar_papel_automatico ?? true,
                     'abrir_cajon' => $this->debeAbrirCajon($venta, $config),
                 ]

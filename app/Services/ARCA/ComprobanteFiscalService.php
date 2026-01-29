@@ -171,7 +171,7 @@ class ComprobanteFiscalService
 
         // Para Factura A/B: usar el desglose de IVA ya calculado si viene del frontend
         // Para Factura C: calcular directamente (no discrimina IVA)
-        $esFacturaC = str_contains($tipoComprobante, '_c');
+        $esFacturaC = str_ends_with($tipoComprobante, '_c');
 
         if (!$esFacturaC && !empty($opciones['desglose_iva'])) {
             // Usar el desglose ya calculado por el frontend DIRECTAMENTE
@@ -323,6 +323,11 @@ class ComprobanteFiscalService
                 }
             } elseif (!empty($opciones['pagos_facturar'])) {
                 // Factura parcial: marcar solo los pagos especificados
+                Log::info('Marcando pagos como facturados (parcial)', [
+                    'comprobante_id' => $comprobante->id,
+                    'pagos_facturar' => $opciones['pagos_facturar'],
+                ]);
+
                 foreach ($opciones['pagos_facturar'] as $pagoData) {
                     $pagoId = $pagoData['id'] ?? null;
                     if ($pagoId) {
@@ -331,6 +336,11 @@ class ComprobanteFiscalService
                             $montoFacturado = $pagoData['monto_facturado'] ?? $pagoData['monto_final'] ?? $pago->monto_final;
                             $pago->update([
                                 'comprobante_fiscal_id' => $comprobante->id,
+                                'monto_facturado' => $montoFacturado,
+                            ]);
+
+                            Log::info('Pago marcado como facturado', [
+                                'pago_id' => $pagoId,
                                 'monto_facturado' => $montoFacturado,
                             ]);
                         }
@@ -433,7 +443,7 @@ class ComprobanteFiscalService
         $netoNoGravado = 0;
         $netoExento = 0;
         $ivaTotal = 0;
-        $esFacturaC = str_contains($tipoComprobante, '_c');
+        $esFacturaC = str_ends_with($tipoComprobante, '_c');
 
         // Para Factura C: no se discrimina IVA, todo va como neto
         if ($esFacturaC) {
@@ -549,7 +559,7 @@ class ComprobanteFiscalService
         PuntoVenta $puntoVenta
     ): array {
         $tipoComprobanteAFIP = ARCAService::getTipoComprobanteAFIP($comprobante->tipo);
-        $esFacturaC = str_contains($comprobante->tipo, '_c');
+        $esFacturaC = str_ends_with($comprobante->tipo, '_c');
 
         // Para Factura C: todo va como neto, sin discriminar IVA
         if ($esFacturaC) {
@@ -635,14 +645,352 @@ class ComprobanteFiscalService
     }
 
     /**
-     * Crea una nota de crédito para anular un comprobante
+     * Crea una nota de crédito para anular un comprobante fiscal
+     *
+     * @param ComprobanteFiscal $comprobanteOriginal Comprobante a anular
+     * @param Venta $venta La venta asociada
+     * @param string|null $motivo Motivo de la anulación
+     * @param int|null $usuarioId ID del usuario que realiza la operación
+     * @return ComprobanteFiscal
      */
-    public function crearNotaCredito(ComprobanteFiscal $comprobanteOriginal, float $monto, string $motivo): ComprobanteFiscal
-    {
+    public function crearNotaCredito(
+        ComprobanteFiscal $comprobanteOriginal,
+        Venta $venta,
+        ?string $motivo = null,
+        ?int $usuarioId = null
+    ): ComprobanteFiscal {
+        if (!$comprobanteOriginal->esFactura()) {
+            throw new Exception('Solo se pueden anular facturas');
+        }
+
+        if (!$comprobanteOriginal->estaAutorizado()) {
+            throw new Exception('Solo se pueden anular comprobantes autorizados');
+        }
+
+        // Cargar relaciones necesarias del comprobante original
+        $comprobanteOriginal->load(['detallesIva', 'items', 'sucursal', 'puntoVenta', 'cuit', 'cliente.condicionIva']);
+
         // Determinar tipo de nota de crédito según el comprobante original
         $tipoNC = str_replace('factura_', 'nota_credito_', $comprobanteOriginal->tipo);
 
-        // TODO: Implementar lógica completa de nota de crédito
-        throw new Exception('Funcionalidad de Nota de Crédito en desarrollo');
+        $sucursal = $comprobanteOriginal->sucursal;
+        $puntoVenta = $comprobanteOriginal->puntoVenta;
+        $cuit = $comprobanteOriginal->cuit;
+
+        if (!$cuit->activo) {
+            throw new Exception("El CUIT {$cuit->numero_formateado} está inactivo");
+        }
+
+        // Preparar datos del receptor (los mismos que la factura original)
+        $datosReceptor = [
+            'nombre' => $comprobanteOriginal->receptor_nombre,
+            'doc_tipo' => $comprobanteOriginal->receptor_documento_tipo,
+            'doc_nro' => $comprobanteOriginal->receptor_documento_numero,
+            'domicilio' => $comprobanteOriginal->receptor_domicilio,
+            'condicion_iva_id' => $comprobanteOriginal->condicion_iva_id,
+            'condicion_iva_codigo_afip' => $comprobanteOriginal->cliente?->condicionIva?->codigo
+                ?? CondicionIva::CONSUMIDOR_FINAL,
+        ];
+
+        // Determinar si es Factura C (no discrimina IVA)
+        $esFacturaC = str_ends_with($comprobanteOriginal->tipo, '_c');
+
+        // Obtener desglose de IVA del comprobante original
+        $detallesIva = [
+            'neto_gravado' => floatval($comprobanteOriginal->neto_gravado),
+            'neto_no_gravado' => floatval($comprobanteOriginal->neto_no_gravado),
+            'neto_exento' => floatval($comprobanteOriginal->neto_exento),
+            'iva_total' => floatval($comprobanteOriginal->iva_total),
+            'alicuotas' => [],
+        ];
+
+        // Recuperar alícuotas de IVA del comprobante original
+        foreach ($comprobanteOriginal->detallesIva as $iva) {
+            $detallesIva['alicuotas'][] = [
+                'codigo_afip' => $iva->codigo_afip,
+                'porcentaje' => $iva->alicuota,
+                'base_imponible' => floatval($iva->base_imponible),
+                'importe' => floatval($iva->importe),
+            ];
+        }
+
+        // Si no hay alícuotas guardadas pero hay neto gravado, crear una alícuota por defecto
+        // Esto puede pasar en comprobantes antiguos que no tenían desglose de IVA guardado
+        // AFIP requiere IVA si ImpNeto > 0 para Facturas A/B
+        if (empty($detallesIva['alicuotas']) && !$esFacturaC && $detallesIva['neto_gravado'] > 0) {
+            // Si no hay IVA guardado, recalcular asumiendo 21%
+            $ivaImporte = $detallesIva['iva_total'];
+            if ($ivaImporte <= 0) {
+                $ivaImporte = round($detallesIva['neto_gravado'] * 0.21, 2);
+                $detallesIva['iva_total'] = $ivaImporte;
+            }
+            $detallesIva['alicuotas'][] = [
+                'codigo_afip' => 5, // 21%
+                'porcentaje' => 21,
+                'base_imponible' => $detallesIva['neto_gravado'],
+                'importe' => $ivaImporte,
+            ];
+
+            Log::warning('Usando alícuota de IVA por defecto (21%) para NC', [
+                'comprobante_original_id' => $comprobanteOriginal->id,
+                'neto_gravado' => $detallesIva['neto_gravado'],
+                'iva_importe' => $ivaImporte,
+            ]);
+        }
+
+        Log::info('Creando Nota de Crédito', [
+            'comprobante_original_id' => $comprobanteOriginal->id,
+            'tipo_nc' => $tipoNC,
+            'es_factura_c' => $esFacturaC,
+            'neto_gravado' => $detallesIva['neto_gravado'],
+            'iva_total' => $detallesIva['iva_total'],
+            'alicuotas_count' => count($detallesIva['alicuotas']),
+            'alicuotas' => $detallesIva['alicuotas'],
+        ]);
+
+        DB::connection('pymes_tenant')->beginTransaction();
+
+        try {
+            // Crear el comprobante de nota de crédito en la BD (estado pendiente)
+            $notaCredito = ComprobanteFiscal::create([
+                'sucursal_id' => $sucursal->id,
+                'punto_venta_id' => $puntoVenta->id,
+                'cuit_id' => $cuit->id,
+                'tipo' => $tipoNC,
+                'letra' => $this->extraerLetra($tipoNC),
+                'punto_venta_numero' => $puntoVenta->numero,
+                'numero_comprobante' => 0, // Se actualizará con respuesta de AFIP
+                'fecha_emision' => now()->toDateString(),
+                'cliente_id' => $comprobanteOriginal->cliente_id,
+                'condicion_iva_id' => $datosReceptor['condicion_iva_id'],
+                'receptor_nombre' => $datosReceptor['nombre'],
+                'receptor_documento_tipo' => $datosReceptor['doc_tipo'],
+                'receptor_documento_numero' => $datosReceptor['doc_nro'],
+                'receptor_domicilio' => $datosReceptor['domicilio'],
+                'neto_gravado' => $detallesIva['neto_gravado'],
+                'neto_no_gravado' => $detallesIva['neto_no_gravado'],
+                'neto_exento' => $detallesIva['neto_exento'],
+                'iva_total' => $detallesIva['iva_total'],
+                'tributos' => 0,
+                'total' => floatval($comprobanteOriginal->total),
+                'estado' => 'pendiente',
+                'comprobante_asociado_id' => $comprobanteOriginal->id,
+                'usuario_id' => $usuarioId ?? $venta->usuario_id,
+                'observaciones' => $motivo ?? 'Anulación de comprobante',
+                'es_total_venta' => $comprobanteOriginal->es_total_venta, // Copiar del comprobante original
+            ]);
+
+            // Guardar desglose de IVA
+            foreach ($detallesIva['alicuotas'] as $alicuota) {
+                ComprobanteFiscalIva::create([
+                    'comprobante_fiscal_id' => $notaCredito->id,
+                    'codigo_afip' => $alicuota['codigo_afip'],
+                    'alicuota' => $alicuota['porcentaje'],
+                    'base_imponible' => $alicuota['base_imponible'],
+                    'importe' => $alicuota['importe'],
+                ]);
+            }
+
+            // Guardar items (copiados del comprobante original)
+            foreach ($comprobanteOriginal->items as $item) {
+                ComprobanteFiscalItem::create([
+                    'comprobante_fiscal_id' => $notaCredito->id,
+                    'venta_detalle_id' => $item->venta_detalle_id,
+                    'codigo' => $item->codigo,
+                    'descripcion' => $item->descripcion,
+                    'cantidad' => $item->cantidad,
+                    'unidad_medida' => $item->unidad_medida,
+                    'precio_unitario' => $item->precio_unitario,
+                    'bonificacion' => $item->bonificacion,
+                    'subtotal' => $item->subtotal,
+                    'iva_codigo_afip' => $item->iva_codigo_afip,
+                    'iva_alicuota' => $item->iva_alicuota,
+                    'iva_importe' => $item->iva_importe,
+                ]);
+            }
+
+            // Guardar relación con la venta (marcando como anulación)
+            ComprobanteFiscalVenta::create([
+                'comprobante_fiscal_id' => $notaCredito->id,
+                'venta_id' => $venta->id,
+                'monto' => floatval($comprobanteOriginal->total),
+                'es_anulacion' => true,
+            ]);
+
+            // Solicitar CAE a AFIP
+            $this->arcaService = new ARCAService($cuit);
+
+            // DEBUG: Mostrar datos antes de preparar para AFIP
+            Log::info('=== DEBUG NC: Datos antes de preparar para AFIP ===', [
+                'comprobante_original' => [
+                    'id' => $comprobanteOriginal->id,
+                    'tipo' => $comprobanteOriginal->tipo,
+                    'total' => $comprobanteOriginal->total,
+                    'neto_gravado' => $comprobanteOriginal->neto_gravado,
+                    'iva_total' => $comprobanteOriginal->iva_total,
+                    'detallesIva_count' => $comprobanteOriginal->detallesIva->count(),
+                    'detallesIva_raw' => $comprobanteOriginal->detallesIva->toArray(),
+                ],
+                'detallesIva_calculado' => $detallesIva,
+                'nota_credito' => [
+                    'id' => $notaCredito->id,
+                    'tipo' => $notaCredito->tipo,
+                    'total' => $notaCredito->total,
+                    'neto_gravado' => $notaCredito->neto_gravado,
+                    'iva_total' => $notaCredito->iva_total,
+                ],
+            ]);
+
+            $datosAFIP = $this->prepararDatosParaAFIPNotaCredito(
+                $notaCredito,
+                $comprobanteOriginal,
+                $detallesIva,
+                $datosReceptor,
+                $puntoVenta
+            );
+
+            // DEBUG: Mostrar datos que se enviarán a AFIP
+            Log::info('=== DEBUG NC: Datos a enviar a AFIP ===', [
+                'datosAFIP' => $datosAFIP,
+            ]);
+
+            $respuestaCAE = $this->arcaService->solicitarCAE($datosAFIP);
+
+            // Actualizar nota de crédito con respuesta de AFIP
+            $notaCredito->update([
+                'numero_comprobante' => $respuestaCAE['numero'],
+                'cae' => $respuestaCAE['cae'],
+                'cae_vencimiento' => Carbon::createFromFormat('Ymd', $respuestaCAE['vencimiento'])->toDateString(),
+                'estado' => 'autorizado',
+                'afip_response' => $respuestaCAE['response_raw'],
+            ]);
+
+            DB::connection('pymes_tenant')->commit();
+
+            Log::info('Nota de crédito creada exitosamente', [
+                'nota_credito_id' => $notaCredito->id,
+                'factura_original_id' => $comprobanteOriginal->id,
+                'cae' => $notaCredito->cae,
+                'venta_id' => $venta->id,
+            ]);
+
+            return $notaCredito->fresh();
+
+        } catch (Exception $e) {
+            DB::connection('pymes_tenant')->rollBack();
+
+            Log::error('Error al crear nota de crédito', [
+                'comprobante_original_id' => $comprobanteOriginal->id,
+                'venta_id' => $venta->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Prepara los datos para AFIP específicamente para Nota de Crédito
+     */
+    protected function prepararDatosParaAFIPNotaCredito(
+        ComprobanteFiscal $notaCredito,
+        ComprobanteFiscal $comprobanteOriginal,
+        array $detallesIva,
+        array $datosReceptor,
+        PuntoVenta $puntoVenta
+    ): array {
+        $tipoComprobanteAFIP = ARCAService::getTipoComprobanteAFIP($notaCredito->tipo);
+        // Usar str_ends_with para verificar si termina en _c (no str_contains que matchea _credito)
+        $esFacturaC = str_ends_with($notaCredito->tipo, '_c');
+
+        // Datos base del comprobante
+        if ($esFacturaC) {
+            $datos = [
+                'punto_venta' => $puntoVenta->numero,
+                'tipo_comprobante' => $tipoComprobanteAFIP,
+                'concepto' => 1, // Productos
+                'doc_tipo' => ARCAService::getTipoDocumentoAFIP($datosReceptor['doc_tipo']),
+                'doc_nro' => $datosReceptor['doc_nro'],
+                'condicion_iva_receptor' => $datosReceptor['condicion_iva_codigo_afip'],
+                'fecha' => now()->format('Ymd'),
+                'imp_total' => $notaCredito->total,
+                'imp_tot_conc' => 0,
+                'imp_neto' => $notaCredito->total,
+                'imp_op_ex' => 0,
+                'imp_iva' => 0,
+                'imp_trib' => 0,
+            ];
+        } else {
+            // Para Factura A/B: se discrimina IVA
+            // AFIP requiere que si ImpNeto > 0, debe haber alícuotas de IVA
+            if ($detallesIva['neto_gravado'] > 0 && empty($detallesIva['alicuotas'])) {
+                throw new Exception('Se requieren alícuotas de IVA para nota de crédito A/B con neto gravado > 0');
+            }
+
+            $datos = [
+                'punto_venta' => $puntoVenta->numero,
+                'tipo_comprobante' => $tipoComprobanteAFIP,
+                'concepto' => 1, // Productos
+                'doc_tipo' => ARCAService::getTipoDocumentoAFIP($datosReceptor['doc_tipo']),
+                'doc_nro' => $datosReceptor['doc_nro'],
+                'condicion_iva_receptor' => $datosReceptor['condicion_iva_codigo_afip'],
+                'fecha' => now()->format('Ymd'),
+                'imp_total' => $notaCredito->total,
+                'imp_tot_conc' => $detallesIva['neto_no_gravado'],
+                'imp_neto' => $detallesIva['neto_gravado'],
+                'imp_op_ex' => $detallesIva['neto_exento'],
+                'imp_iva' => $detallesIva['iva_total'],
+                'imp_trib' => 0,
+            ];
+
+            // Agregar alícuotas de IVA (obligatorio si hay neto gravado)
+            if (!empty($detallesIva['alicuotas'])) {
+                $datos['iva'] = array_map(function ($alicuota) {
+                    return [
+                        'Id' => $alicuota['codigo_afip'],
+                        'BaseImp' => $alicuota['base_imponible'],
+                        'Importe' => $alicuota['importe'],
+                    ];
+                }, $detallesIva['alicuotas']);
+            }
+
+            // Validación final: si imp_neto > 0 debe haber IVA
+            if ($datos['imp_neto'] > 0 && empty($datos['iva'])) {
+                Log::error('Error: NC A/B con imp_neto > 0 pero sin alícuotas de IVA', [
+                    'tipo_comprobante' => $tipoComprobanteAFIP,
+                    'imp_neto' => $datos['imp_neto'],
+                    'detalles_iva' => $detallesIva,
+                    'comprobante_original' => [
+                        'id' => $comprobanteOriginal->id,
+                        'neto_gravado' => $comprobanteOriginal->neto_gravado,
+                        'iva_total' => $comprobanteOriginal->iva_total,
+                    ],
+                ]);
+                throw new Exception('Error interno: NC A/B requiere alícuotas de IVA cuando imp_neto > 0');
+            }
+
+            Log::info('Datos AFIP para Nota de Crédito A/B', [
+                'tipo_comprobante' => $tipoComprobanteAFIP,
+                'imp_neto' => $datos['imp_neto'],
+                'imp_iva' => $datos['imp_iva'],
+                'alicuotas_count' => count($datos['iva'] ?? []),
+                'alicuotas' => $datos['iva'] ?? [],
+            ]);
+        }
+
+        // Agregar comprobante asociado (OBLIGATORIO para NC)
+        $tipoComprobanteOriginalAFIP = ARCAService::getTipoComprobanteAFIP($comprobanteOriginal->tipo);
+        $datos['cbtes_asoc'] = [
+            [
+                'Tipo' => $tipoComprobanteOriginalAFIP,
+                'PtoVta' => $comprobanteOriginal->punto_venta_numero,
+                'Nro' => $comprobanteOriginal->numero_comprobante,
+                'Cuit' => $comprobanteOriginal->cuit->numero_cuit,
+                'CbteFch' => Carbon::parse($comprobanteOriginal->fecha_emision)->format('Ymd'),
+            ],
+        ];
+
+        return $datos;
     }
 }

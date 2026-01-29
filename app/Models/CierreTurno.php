@@ -33,6 +33,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read User $usuario
  * @property-read \Illuminate\Database\Eloquent\Collection|CierreTurnoCaja[] $detalleCajas
  * @property-read \Illuminate\Database\Eloquent\Collection|MovimientoCaja[] $movimientos
+ * @property-read \Illuminate\Database\Eloquent\Collection|Venta[] $ventas
+ * @property-read \Illuminate\Database\Eloquent\Collection|VentaPago[] $ventaPagos
+ * @property-read \Illuminate\Database\Eloquent\Collection|Cobro[] $cobros
+ * @property-read \Illuminate\Database\Eloquent\Collection|CobroPago[] $cobroPagos
  */
 class CierreTurno extends Model
 {
@@ -95,6 +99,38 @@ class CierreTurno extends Model
     public function movimientos(): HasMany
     {
         return $this->hasMany(MovimientoCaja::class, 'cierre_turno_id');
+    }
+
+    /**
+     * Ventas registradas en este cierre
+     */
+    public function ventas(): HasMany
+    {
+        return $this->hasMany(Venta::class, 'cierre_turno_id');
+    }
+
+    /**
+     * Pagos de ventas procesados en este cierre
+     */
+    public function ventaPagos(): HasMany
+    {
+        return $this->hasMany(VentaPago::class, 'cierre_turno_id');
+    }
+
+    /**
+     * Cobros registrados en este cierre
+     */
+    public function cobros(): HasMany
+    {
+        return $this->hasMany(Cobro::class, 'cierre_turno_id');
+    }
+
+    /**
+     * Pagos de cobros procesados en este cierre
+     */
+    public function cobroPagos(): HasMany
+    {
+        return $this->hasMany(CobroPago::class, 'cierre_turno_id');
     }
 
     // ==================== SCOPES ====================

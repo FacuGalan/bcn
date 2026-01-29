@@ -1,9 +1,10 @@
-const CACHE_NAME = 'bcn-pymes-v1';
+const CACHE_NAME = 'bcn-pymes-v4';
 const OFFLINE_URL = '/offline.html';
 
 // Recursos para cachear inmediatamente
 const PRECACHE_ASSETS = [
     '/',
+    '/dashboard',
     '/offline.html',
     '/manifest.json'
 ];
@@ -45,6 +46,11 @@ self.addEventListener('fetch', (event) => {
 
     // Ignorar peticiones a livewire (necesitan ser siempre frescas)
     if (event.request.url.includes('/livewire/')) {
+        return;
+    }
+
+    // No cachear el manifest (siempre fresco)
+    if (event.request.url.includes('/manifest.json')) {
         return;
     }
 

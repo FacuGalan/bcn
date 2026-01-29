@@ -39,15 +39,42 @@ class CajaSelector extends Component
     public $mostrarDropdown = false;
 
     /**
-     * Escuchar eventos de cambio de sucursal
+     * Escuchar eventos de cambio de sucursal y actualización de cajas
      */
     protected $listeners = [
-        'sucursal-changed' => 'handleSucursalChanged'
+        'sucursal-changed' => 'handleSucursalChanged',
+        'caja-actualizada' => 'handleCajaActualizada',
     ];
 
     public function mount()
     {
         $this->cargarCajas();
+    }
+
+    /**
+     * Maneja la actualización de estado de cajas (activar, pausar, abrir/cerrar turno)
+     * Recarga la lista de cajas para reflejar los cambios de estado
+     */
+    public function handleCajaActualizada($cajaId = null, $accion = null)
+    {
+        \Log::info('CajaSelector::handleCajaActualizada llamado', [
+            'cajaId' => $cajaId,
+            'accion' => $accion,
+        ]);
+
+        // Limpiar caché de cajas
+        CajaService::clearCache();
+
+        // Recargar cajas para reflejar cambios de estado
+        $this->cargarCajas();
+
+        // Emitir evento caja-changed para que NuevaVenta y otros se actualicen
+        if ($this->cajaActual) {
+            $this->dispatch('caja-changed',
+                cajaId: $this->cajaActual->id,
+                cajaNombre: $this->cajaActual->nombre
+            );
+        }
     }
 
     /**
@@ -94,6 +121,12 @@ class CajaSelector extends Component
         // Obtener cajas disponibles usando el servicio (usa caché)
         $this->cajasDisponibles = CajaService::getCajasDisponibles();
 
+        // Para cada caja, calcular su estado operativo
+        $this->cajasDisponibles->each(function ($caja) {
+            $validacion = CajaService::validarCajaOperativa($caja->id);
+            $caja->estado_operativo = $validacion['estado'];
+        });
+
         // Obtener caja actual de la sesión
         $cajaActualId = caja_activa();
 
@@ -102,9 +135,11 @@ class CajaSelector extends Component
             $this->cajaActual = $this->cajasDisponibles->firstWhere('id', $cajaActualId);
         }
 
-        // Si no hay caja en sesión, usar la primera disponible
+        // Si no hay caja en sesión, usar la primera disponible (preferir operativa)
         if (!$this->cajaActual && $this->cajasDisponibles->isNotEmpty()) {
-            $this->cajaActual = $this->cajasDisponibles->first();
+            // Intentar encontrar una caja operativa primero
+            $cajaOperativa = $this->cajasDisponibles->firstWhere('estado_operativo', 'operativa');
+            $this->cajaActual = $cajaOperativa ?? $this->cajasDisponibles->first();
             session(['caja_activa' => $this->cajaActual->id]);
         }
     }
@@ -130,6 +165,12 @@ class CajaSelector extends Component
             // Limpiar caché del servicio de cajas
             CajaService::clearCache();
 
+            // Asegurar que tiene el estado_operativo calculado
+            if (!isset($caja->estado_operativo)) {
+                $validacion = CajaService::validarCajaOperativa($caja->id);
+                $caja->estado_operativo = $validacion['estado'];
+            }
+
             // Actualizar caja actual
             $this->cajaActual = $caja;
 
@@ -143,9 +184,15 @@ class CajaSelector extends Component
                 cajaNombre: $caja->nombre
             );
 
-            // Mostrar notificación
+            // Mostrar notificación con estado
+            $estadoTexto = match($caja->estado_operativo) {
+                'operativa' => '',
+                'pausada' => ' (Pausada)',
+                'sin_turno' => ' (Sin turno)',
+                default => '',
+            };
             $this->dispatch('notify',
-                message: "Cambiado a caja: {$caja->nombre}",
+                message: "Cambiado a caja: {$caja->nombre}{$estadoTexto}",
                 type: 'success'
             );
 

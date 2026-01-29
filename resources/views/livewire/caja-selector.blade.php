@@ -16,15 +16,24 @@
                 {{ $cajaActual ? $cajaActual->nombre : 'Seleccionar Caja' }}
             </span>
 
-            <!-- Badge de estado -->
-            @if($cajaActual && $cajaActual->estado === 'abierta')
-                <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-green-800 bg-green-100 rounded-full" title="Abierta">
-                    A
-                </span>
-            @elseif($cajaActual)
-                <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-gray-600 bg-gray-100 rounded-full" title="Cerrada">
-                    C
-                </span>
+            <!-- Badge de estado operativo -->
+            @if($cajaActual)
+                @php
+                    $estadoOp = $cajaActual->estado_operativo ?? ($cajaActual->estado === 'abierta' ? 'operativa' : 'sin_turno');
+                @endphp
+                @if($estadoOp === 'operativa')
+                    <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-green-800 bg-green-100 dark:text-green-200 dark:bg-green-900/50 rounded-full" title="Operativa">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                    </span>
+                @elseif($estadoOp === 'pausada')
+                    <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-amber-800 bg-amber-100 dark:text-amber-200 dark:bg-amber-900/50 rounded-full" title="Pausada">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                    </span>
+                @else
+                    <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700 rounded-full" title="Sin turno">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clip-rule="evenodd"></path></svg>
+                    </span>
+                @endif
             @endif
         </button>
 
@@ -70,13 +79,20 @@
                             <!-- Tipo y estado de la caja -->
                             <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                                 <span>{{ ucfirst($caja->tipo) }}</span>
-                                @if($caja->estado === 'abierta')
-                                    <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium text-green-800 bg-green-100 rounded">
-                                        Abierta
+                                @php
+                                    $estadoOpCaja = $caja->estado_operativo ?? ($caja->estado === 'abierta' ? 'operativa' : 'sin_turno');
+                                @endphp
+                                @if($estadoOpCaja === 'operativa')
+                                    <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium text-green-800 bg-green-100 dark:text-green-200 dark:bg-green-900/50 rounded">
+                                        Operativa
+                                    </span>
+                                @elseif($estadoOpCaja === 'pausada')
+                                    <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium text-amber-800 bg-amber-100 dark:text-amber-200 dark:bg-amber-900/50 rounded">
+                                        Pausada
                                     </span>
                                 @else
-                                    <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-100 rounded">
-                                        Cerrada
+                                    <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700 rounded">
+                                        Sin turno
                                     </span>
                                 @endif
                             </div>
@@ -96,9 +112,20 @@
             <!-- Nombre de la caja -->
             <span>{{ $cajaActual->nombre }}</span>
 
-            @if($cajaActual->estado === 'abierta')
-                <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-green-800 bg-green-100 rounded-full" title="Abierta">
-                    A
+            @php
+                $estadoOpUnica = $cajaActual->estado_operativo ?? ($cajaActual->estado === 'abierta' ? 'operativa' : 'sin_turno');
+            @endphp
+            @if($estadoOpUnica === 'operativa')
+                <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-green-800 bg-green-100 dark:text-green-200 dark:bg-green-900/50 rounded-full" title="Operativa">
+                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                </span>
+            @elseif($estadoOpUnica === 'pausada')
+                <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-amber-800 bg-amber-100 dark:text-amber-200 dark:bg-amber-900/50 rounded-full" title="Pausada">
+                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                </span>
+            @else
+                <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700 rounded-full" title="Sin turno">
+                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clip-rule="evenodd"></path></svg>
                 </span>
             @endif
         </div>

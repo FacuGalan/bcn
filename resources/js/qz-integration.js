@@ -57,7 +57,7 @@ window.QZIntegration = (function() {
     async function configurarCertificado() {
         // Certificado publico (puede ser auto-firmado en desarrollo)
         qz.security.setCertificatePromise(function(resolve, reject) {
-            fetch('/qz/certificate.txt')
+            fetch('/qz/certificate-v2.txt?v=' + Date.now())
                 .then(response => {
                     if (!response.ok) {
                         // Sin certificado, usar modo desarrollo
@@ -74,24 +74,34 @@ window.QZIntegration = (function() {
         qz.security.setSignatureAlgorithm("SHA512");
         qz.security.setSignaturePromise(function(toSign) {
             return function(resolve, reject) {
-                const csrfToken = document.querySelector('meta[name="csrf-token"]');
-                if (!csrfToken) {
-                    resolve('');
-                    return;
-                }
-
                 fetch('/api/qz/sign', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken.content,
                         'Accept': 'application/json'
                     },
                     body: JSON.stringify({ request: toSign })
                 })
-                .then(response => response.json())
-                .then(data => resolve(data.signature || ''))
-                .catch(() => resolve(''));
+                .then(response => {
+                    if (!response.ok) {
+                        console.error('QZ Sign: Error HTTP', response.status);
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.signature) {
+                        console.log('QZ Sign: Firma obtenida correctamente');
+                        resolve(data.signature);
+                    } else {
+                        console.error('QZ Sign: Respuesta sin firma', data);
+                        resolve('');
+                    }
+                })
+                .catch(err => {
+                    console.error('QZ Sign: Error en peticion', err);
+                    resolve('');
+                });
             };
         });
     }
@@ -183,25 +193,17 @@ window.QZIntegration = (function() {
             let configOpts = { units: 'mm' };
 
             if (opciones.formato === '80mm') {
-                // Papel termico 80mm - ancho fijo, alto continuo
+                // Papel termico 80mm - sin rasterizar para maxima nitidez
                 configOpts.size = { width: 72, height: null };
                 configOpts.margins = { top: 0, right: 0, bottom: 0, left: 0 };
                 configOpts.scaleContent = true;
-                configOpts.rasterize = true;
-                configOpts.density = [203, 203]; // DPI nativo de impresoras termicas
-                configOpts.colorType = 'blackwhite';
-                configOpts.interpolation = 'nearest-neighbor'; // Sin suavizado para texto mas nitido
-                configOpts.altPrinting = true; // Metodo alternativo en Windows
+                // Sin rasterize - usa impresion vectorial nativa del sistema
             } else if (opciones.formato === '58mm') {
-                // Papel termico 58mm - ancho fijo, alto continuo
+                // Papel termico 58mm - sin rasterizar para maxima nitidez
                 configOpts.size = { width: 48, height: null };
                 configOpts.margins = { top: 0, right: 0, bottom: 0, left: 0 };
                 configOpts.scaleContent = true;
-                configOpts.rasterize = true;
-                configOpts.density = [203, 203]; // DPI nativo de impresoras termicas
-                configOpts.colorType = 'blackwhite';
-                configOpts.interpolation = 'nearest-neighbor';
-                configOpts.altPrinting = true;
+                // Sin rasterize - usa impresion vectorial nativa del sistema
             } else if (opciones.formato === 'a4') {
                 configOpts.size = { width: 210, height: 297 };
                 configOpts.margins = { top: 10, right: 10, bottom: 10, left: 10 };

@@ -96,6 +96,11 @@ class PermisosFuncionalesSeeder extends Seeder
                 'etiqueta' => 'Ver movimientos de caja',
                 'descripcion' => 'Permite ver el detalle de movimientos de la caja',
             ],
+            [
+                'codigo' => 'cerrar_caja_individual',
+                'etiqueta' => 'Cerrar caja individual',
+                'descripcion' => 'Permite cerrar una caja individualmente aunque pertenezca a un grupo de cierre',
+            ],
         ],
         'Artículos' => [
             [

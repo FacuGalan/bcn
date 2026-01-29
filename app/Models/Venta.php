@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -41,11 +42,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property \Carbon\Carbon|null $anulado_at
  * @property string|null $motivo_anulacion
  * @property string|null $observaciones
+ * @property int|null $cierre_turno_id
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  * @property \Carbon\Carbon|null $deleted_at
  *
  * @property-read Sucursal $sucursal
+ * @property-read CierreTurno|null $cierreTurno
  * @property-read Cliente|null $cliente
  * @property-read Caja|null $caja
  * @property-read FormaPago|null $formaPago
@@ -89,6 +92,7 @@ class Venta extends Model
         'anulado_at',
         'motivo_anulacion',
         'observaciones',
+        'cierre_turno_id',
     ];
 
     protected $casts = [
@@ -158,6 +162,11 @@ class Venta extends Model
         return $this->belongsTo(User::class, 'anulado_por_usuario_id');
     }
 
+    public function cierreTurno(): BelongsTo
+    {
+        return $this->belongsTo(CierreTurno::class, 'cierre_turno_id');
+    }
+
     public function detalles(): HasMany
     {
         return $this->hasMany(VentaDetalle::class, 'venta_id');
@@ -188,6 +197,12 @@ class Venta extends Model
     {
         return $this->hasMany(VentaPromocion::class, 'venta_id')
             ->where('tipo_promocion', 'promocion');
+    }
+
+    public function comprobantesFiscales(): BelongsToMany
+    {
+        return $this->belongsToMany(ComprobanteFiscal::class, 'comprobante_fiscal_ventas')
+            ->withPivot(['monto', 'es_anulacion', 'created_at']);
     }
 
     // Scopes

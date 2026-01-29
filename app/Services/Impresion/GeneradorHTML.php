@@ -26,6 +26,18 @@ class GeneradorHTML
     }
 
     /**
+     * Genera HTML para ticket de venta en impresora térmica
+     */
+    public function generarTicketVentaTermica(Venta $venta, Impresora $impresora, ?ConfiguracionImpresion $config): string
+    {
+        return View::make('impresion.ticket-venta-termica', [
+            'venta' => $venta,
+            'impresora' => $impresora,
+            'config' => $config,
+        ])->render();
+    }
+
+    /**
      * Genera HTML para factura A4
      */
     public function generarFactura(ComprobanteFiscal $comprobante, Impresora $impresora, ?ConfiguracionImpresion $config): string

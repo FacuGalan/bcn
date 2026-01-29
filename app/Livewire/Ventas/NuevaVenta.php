@@ -5,6 +5,8 @@ namespace App\Livewire\Ventas;
 use Livewire\Component;
 use Livewire\Attributes\On;
 use App\Traits\CajaAware;
+use App\Traits\AperturaTurnoTrait;
+use App\Services\CajaService;
 use App\Services\VentaService;
 use App\Models\Cliente;
 use App\Models\Articulo;
@@ -48,6 +50,7 @@ use Exception;
 class NuevaVenta extends Component
 {
     use CajaAware;
+    use AperturaTurnoTrait;
 
     // =========================================
     // PROPIEDADES DEL POS / CARRITO
@@ -147,6 +150,14 @@ class NuevaVenta extends Component
 
     /** @var int|null ID de la caja seleccionada */
     public $cajaSeleccionada = null;
+
+    /** @var array Estado de validación de la caja (operativa, estado, mensaje, caja) */
+    public $estadoCaja = [
+        'operativa' => false,
+        'estado' => 'sin_caja',
+        'mensaje' => 'No hay caja seleccionada',
+        'caja' => null,
+    ];
 
     /** @var string Tipo de comprobante */
     public $tipoComprobante = 'ticket';
@@ -313,6 +324,9 @@ class NuevaVenta extends Component
         $this->sucursalId = sucursal_activa() ?? Sucursal::activas()->first()?->id ?? 1;
         $this->cajaSeleccionada = caja_activa();
 
+        // Validar estado de la caja
+        $this->actualizarEstadoCaja();
+
         // Cargar colecciones
         $this->formasVenta = FormaVenta::activas()->get()->toArray();
         $this->canalesVenta = CanalVenta::activos()->get()->toArray();
@@ -377,6 +391,8 @@ class NuevaVenta extends Component
     public function handleCajaChanged($cajaId = null, $cajaNombre = null)
     {
         $this->cajaSeleccionada = $cajaId;
+        $this->actualizarEstadoCaja();
+
         if (!empty($this->items)) {
             $this->items = [];
             $this->resultado = null;
@@ -384,13 +400,84 @@ class NuevaVenta extends Component
         }
     }
 
+    /**
+     * Maneja la actualización de estado de cajas (activar, pausar, abrir/cerrar turno)
+     * Solo actualiza el estado, no limpia el carrito
+     */
+    #[On('caja-actualizada')]
+    public function handleCajaActualizada($cajaId = null, $accion = null)
+    {
+        CajaService::clearCache();
+        $this->actualizarEstadoCaja();
+    }
+
     public function cambiarCaja($cajaId)
     {
-        \App\Services\CajaService::establecerCajaActiva($cajaId);
-        \App\Services\CajaService::clearCache();
+        CajaService::establecerCajaActiva($cajaId);
+        CajaService::clearCache();
         $caja = Caja::find($cajaId);
         if ($caja) {
             $this->dispatch('caja-changed', cajaId: $caja->id, cajaNombre: $caja->nombre);
+        }
+    }
+
+    /**
+     * Actualiza el estado de validación de la caja seleccionada
+     * Este método determina si la caja está operativa para realizar ventas
+     */
+    public function actualizarEstadoCaja(): void
+    {
+        $resultado = CajaService::validarCajaOperativa($this->cajaSeleccionada);
+
+        // Convertir el modelo Caja a array para evitar problemas con Livewire
+        $this->estadoCaja = [
+            'operativa' => $resultado['operativa'],
+            'estado' => $resultado['estado'],
+            'mensaje' => $resultado['mensaje'],
+            'caja' => $resultado['caja'] ? [
+                'id' => $resultado['caja']->id,
+                'nombre' => $resultado['caja']->nombre,
+                'estado' => $resultado['caja']->estado,
+            ] : null,
+        ];
+    }
+
+    /**
+     * Activa una caja que está pausada (tiene turno abierto pero está inactiva)
+     */
+    public function activarCaja(int $cajaId): void
+    {
+        try {
+            $caja = Caja::find($cajaId);
+
+            if (!$caja) {
+                $this->dispatch('toast-error', message: 'Caja no encontrada');
+                return;
+            }
+
+            // Verificar que la caja esté cerrada pero tenga movimientos pendientes (pausada)
+            if ($caja->estado === 'abierta') {
+                $this->dispatch('toast-info', message: 'La caja ya está activa');
+                $this->actualizarEstadoCaja();
+                return;
+            }
+
+            // Activar la caja (cambiar estado a abierta)
+            $caja->update([
+                'estado' => 'abierta',
+            ]);
+
+            CajaService::clearCache();
+            $this->actualizarEstadoCaja();
+
+            // Notificar a otros componentes (CajaSelector, TurnoActual)
+            $this->dispatch('caja-actualizada', cajaId: $caja->id, accion: 'activada');
+
+            $this->dispatch('toast-success', message: 'Caja activada correctamente');
+
+        } catch (\Exception $e) {
+            Log::error('Error al activar caja', ['error' => $e->getMessage(), 'caja_id' => $cajaId]);
+            $this->dispatch('toast-error', message: 'Error al activar la caja: ' . $e->getMessage());
         }
     }
 
@@ -486,7 +573,6 @@ class NuevaVenta extends Component
         $articulos = $query->orderBy('nombre')->limit(15)->get();
 
         $this->articulosResultados = $articulos->map(function($art) {
-            $precioInfo = $this->obtenerPrecioConLista($art);
             return [
                 'id' => $art->id,
                 'nombre' => $art->nombre,
@@ -494,9 +580,6 @@ class NuevaVenta extends Component
                 'codigo_barras' => $art->codigo_barras,
                 'categoria_id' => $art->categoria_id,
                 'categoria_nombre' => $art->categoriaModel?->nombre,
-                'precio_base' => $precioInfo['precio_base'],
-                'precio' => $precioInfo['precio'],
-                'tiene_ajuste' => $precioInfo['tiene_ajuste'],
             ];
         })->toArray();
     }
@@ -4267,7 +4350,8 @@ class NuevaVenta extends Component
                 $venta = $this->ventaService->crearVenta($datosVenta, $detalles);
 
                 // Guardar desglose de pagos con nuevos campos
-                foreach ($this->desglosePagos as $pago) {
+                $pagosCreados = []; // Mapeo de índice => VentaPago ID para facturación parcial
+                foreach ($this->desglosePagos as $index => $pago) {
                     $fp = FormaPago::find($pago['forma_pago_id']);
                     $esCuentaCorriente = $fp && strtoupper($fp->codigo) === 'CTA_CTE';
 
@@ -4294,7 +4378,7 @@ class NuevaVenta extends Component
                         $caja->aumentarSaldo($pago['monto_final']);
                     }
 
-                    VentaPago::create([
+                    $ventaPago = VentaPago::create([
                         'venta_id' => $venta->id,
                         'forma_pago_id' => $pago['forma_pago_id'],
                         'concepto_pago_id' => $pago['concepto_pago_id'],
@@ -4318,6 +4402,13 @@ class NuevaVenta extends Component
                         'estado' => 'activo',
                         'movimiento_caja_id' => $movimientoCajaId,
                     ]);
+
+                    // Guardar ID y si requiere factura fiscal para usarlo después
+                    $pagosCreados[$index] = [
+                        'id' => $ventaPago->id,
+                        'monto_final' => $ventaPago->monto_final,
+                        'factura_fiscal' => $pago['factura_fiscal'] ?? false,
+                    ];
                 }
 
                 // Actualizar saldo del cliente si hay cuenta corriente
@@ -4331,13 +4422,21 @@ class NuevaVenta extends Component
                 $comprobanteFiscal = null;
                 if ($debeFacturar) {
                     try {
-                        // Filtrar pagos que tienen factura_fiscal = true para facturación parcial
-                        $pagosConFactura = array_filter($this->desglosePagos, fn($p) => $p['factura_fiscal'] ?? false);
+                        // Filtrar pagos creados que tienen factura_fiscal = true
+                        // Ahora usamos los IDs reales de VentaPago
+                        $pagosConFactura = array_filter($pagosCreados, fn($p) => $p['factura_fiscal'] ?? false);
                         $opcionesFiscal = [];
 
                         // Si hay pagos específicos con factura fiscal, pasar para facturación parcial
                         if (!empty($pagosConFactura)) {
                             $opcionesFiscal['pagos_facturar'] = array_values($pagosConFactura);
+
+                            Log::info('Facturación parcial - pagos con factura fiscal', [
+                                'venta_id' => $venta->id,
+                                'total_pagos_creados' => count($pagosCreados),
+                                'pagos_con_factura' => count($pagosConFactura),
+                                'pagos_facturar' => $opcionesFiscal['pagos_facturar'],
+                            ]);
                         }
 
                         // Pasar el desglose de IVA ya calculado (con proporciones correctas)

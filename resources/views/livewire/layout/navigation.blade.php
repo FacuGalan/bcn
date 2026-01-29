@@ -49,8 +49,8 @@ new class extends Component
         $this->allChildrenItems = $menuData['children'];
 
         // Detectar qué padre debe estar activo según la ruta actual
-        if ($this->parentItems->isNotEmpty()) {
-            $this->activeParentId = $this->parentItems->first()->id;
+        // Solo si NO estamos en el dashboard
+        if ($this->parentItems->isNotEmpty() && !request()->routeIs('dashboard')) {
             $this->detectActiveParent();
         }
     }
@@ -131,6 +131,13 @@ new class extends Component
 
     public function with(): array
     {
+        // Recalcular el padre activo en cada render para detectar cambios de ruta (wire:navigate)
+        // Si estamos en el dashboard, ningún item debe estar seleccionado
+        $this->activeParentId = null;
+        if (!request()->routeIs('dashboard') && $this->parentItems && count($this->parentItems) > 0) {
+            $this->detectActiveParent();
+        }
+
         $childrenItems = $this->activeParentId
             ? $this->getChildrenItems($this->activeParentId)
             : collect();
@@ -142,15 +149,33 @@ new class extends Component
     }
 }; ?>
 
-<div>
-<nav x-data="{ open: false }" class="bg-bcn-secondary border-b border-bcn-secondary">
+<div x-data="{
+    mobileMenuOpen: false,
+    expandedParent: null,
+    activeParentId: {{ $activeParentId ?? 'null' }},
+    toggleMenu() {
+        this.mobileMenuOpen = !this.mobileMenuOpen;
+        document.body.classList.toggle('overflow-hidden', this.mobileMenuOpen);
+    },
+    closeMenu() {
+        this.mobileMenuOpen = false;
+        document.body.classList.remove('overflow-hidden');
+    },
+    toggleParent(id) {
+        this.expandedParent = this.expandedParent === id ? null : id;
+    },
+    setActiveParent(id) {
+        this.activeParentId = id;
+    }
+}">
+<nav class="bg-bcn-secondary border-b border-bcn-secondary relative z-40">
     <!-- Primary Navigation Menu -->
     <div class="px-2">
         <div class="flex justify-between h-12">
             <!-- Hamburger (móvil a la izquierda) -->
             <div class="flex items-center md:hidden">
                 <button
-                    wire:click="toggleMobileMenu"
+                    @click="toggleMenu()"
                     class="inline-flex items-center justify-center p-2 rounded-md text-bcn-light hover:text-bcn-white hover:bg-bcn-secondary hover:bg-opacity-80 focus:outline-none focus:bg-bcn-secondary focus:bg-opacity-80 focus:text-bcn-white transition duration-150 ease-in-out"
                 >
                     <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
@@ -173,21 +198,21 @@ new class extends Component
                         @if($parent->route_type === 'none')
                             {{-- Padre con hijos: Solo activa la banda de submenu (hijos precargados) --}}
                             <button
-                                wire:click="setActiveParent({{ $parent->id }})"
-                                class="group relative inline-flex items-center px-4 pt-1 border-b-4 text-sm font-medium transition-all duration-300
-                                    {{ $activeParentId === $parent->id
-                                        ? 'border-bcn-primary text-bcn-white'
-                                        : 'border-transparent text-bcn-light hover:border-gray-300 hover:text-bcn-white'
-                                    }}"
+                                @click="setActiveParent({{ $parent->id }})"
+                                class="group relative inline-flex items-center px-4 pt-1 border-b-4 text-sm font-medium transition-all duration-200"
+                                :class="activeParentId === {{ $parent->id }}
+                                    ? 'border-bcn-primary text-bcn-white'
+                                    : 'border-transparent text-bcn-light hover:border-gray-300 hover:text-bcn-white'"
                             >
                                 @if($parent->icono)
                                     <x-dynamic-component :component="$parent->icono" class="h-5 w-5 flex-shrink-0" />
                                 @endif
-                                <span class="inline-block whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out
-                                    {{ $activeParentId === $parent->id
+                                <span
+                                    class="inline-block whitespace-nowrap overflow-hidden transition-all duration-200 ease-in-out"
+                                    :class="activeParentId === {{ $parent->id }}
                                         ? 'max-w-xs ml-2 opacity-100'
-                                        : 'max-w-0 ml-0 opacity-0 group-hover:max-w-xs group-hover:ml-2 group-hover:opacity-100'
-                                    }}">
+                                        : 'max-w-0 ml-0 opacity-0 group-hover:max-w-xs group-hover:ml-2 group-hover:opacity-100'"
+                                >
                                     {{ $parent->nombre }}
                                 </span>
                             </button>
@@ -196,20 +221,21 @@ new class extends Component
                             <a
                                 href="{{ $parent->getUrl() }}"
                                 wire:navigate
-                                class="group relative inline-flex items-center px-4 pt-1 border-b-4 text-sm font-medium transition-all duration-300
-                                    {{ $parent->isCurrentRoute()
-                                        ? 'border-bcn-primary text-bcn-white'
-                                        : 'border-transparent text-bcn-light hover:border-gray-300 hover:text-bcn-white'
-                                    }}"
+                                @click="setActiveParent({{ $parent->id }})"
+                                class="group relative inline-flex items-center px-4 pt-1 border-b-4 text-sm font-medium transition-all duration-200"
+                                :class="activeParentId === {{ $parent->id }}
+                                    ? 'border-bcn-primary text-bcn-white'
+                                    : 'border-transparent text-bcn-light hover:border-gray-300 hover:text-bcn-white'"
                             >
                                 @if($parent->icono)
                                     <x-dynamic-component :component="$parent->icono" class="h-5 w-5 flex-shrink-0" />
                                 @endif
-                                <span class="inline-block whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out
-                                    {{ $parent->isCurrentRoute()
+                                <span
+                                    class="inline-block whitespace-nowrap overflow-hidden transition-all duration-200 ease-in-out"
+                                    :class="activeParentId === {{ $parent->id }}
                                         ? 'max-w-xs ml-2 opacity-100'
-                                        : 'max-w-0 ml-0 opacity-0 group-hover:max-w-xs group-hover:ml-2 group-hover:opacity-100'
-                                    }}">
+                                        : 'max-w-0 ml-0 opacity-0 group-hover:max-w-xs group-hover:ml-2 group-hover:opacity-100'"
+                                >
                                     {{ $parent->nombre }}
                                 </span>
                             </a>
@@ -249,6 +275,42 @@ new class extends Component
                             {{ __('Profile') }}
                         </x-dropdown-link>
 
+                        <!-- PWA Install Button (Desktop) -->
+                        <div
+                            x-data="{
+                                canInstall: false,
+                                isStandalone: false,
+                                init() {
+                                    this.checkInstallability();
+                                    window.addEventListener('beforeinstallprompt', () => this.checkInstallability());
+                                    window.addEventListener('appinstalled', () => this.checkInstallability());
+                                },
+                                checkInstallability() {
+                                    this.$nextTick(() => {
+                                        this.isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+                                        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                                        this.canInstall = !this.isStandalone && (isIOS || window.pwaInstallManager?.deferredPrompt);
+                                    });
+                                }
+                            }"
+                            x-show="canInstall"
+                            x-cloak
+                            data-pwa-install-container
+                        >
+                            <button
+                                @click="window.installPWA()"
+                                class="block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:bg-gray-100 dark:focus:bg-gray-700 transition duration-150 ease-in-out"
+                                data-pwa-install-button
+                            >
+                                <span class="flex items-center">
+                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                    {{ __('Instalar App') }}
+                                </span>
+                            </button>
+                        </div>
+
                         <!-- Authentication -->
                         <button wire:click="logout" class="w-full text-start">
                             <x-dropdown-link>
@@ -261,63 +323,67 @@ new class extends Component
         </div>
     </div>
 
-    {{-- Banda secundaria con items hijos (Desktop) --}}
-    @if($childrenItems->isNotEmpty())
-        <div class="hidden md:block bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-sm">
-            <div class="px-4">
-                <div class="flex items-center h-9 gap-1">
-                    @foreach($childrenItems as $child)
-                        <a
-                            href="{{ $child->getUrl() }}"
-                            wire:navigate
-                            class="relative inline-flex items-center px-3 py-1 text-sm font-medium rounded-full transition-all duration-200
-                                {{ $child->isCurrentRoute()
-                                    ? 'text-bcn-secondary bg-bcn-primary shadow-md'
-                                    : 'text-gray-600 dark:text-gray-300 hover:text-white hover:bg-bcn-secondary hover:shadow-sm'
-                                }}"
-                        >
-                            @if($child->icono)
-                                <x-dynamic-component :component="$child->icono" class="h-4 w-4 mr-1.5" />
-                            @endif
-                            {{ $child->nombre }}
-                        </a>
+    {{-- Banda secundaria con items hijos (Desktop) - Pre-renderizada para cada padre --}}
+    @foreach($parentItems as $parent)
+        @if($parent->route_type === 'none' && $this->getChildrenItems($parent->id)->isNotEmpty())
+            <div
+                x-show="activeParentId === {{ $parent->id }}"
+                x-cloak
+                class="hidden md:block bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-sm relative z-40"
+            >
+                <div class="px-4">
+                    <div class="flex items-center h-9 gap-1">
+                        @foreach($this->getChildrenItems($parent->id) as $child)
+                            <a
+                                href="{{ $child->getUrl() }}"
+                                wire:navigate
+                                class="relative inline-flex items-center px-3 py-1 text-sm font-medium rounded-full transition-all duration-150
+                                    {{ $child->isCurrentRoute()
+                                        ? 'text-bcn-secondary bg-bcn-primary shadow-md'
+                                        : 'text-gray-600 dark:text-gray-300 hover:text-white hover:bg-bcn-secondary hover:shadow-sm'
+                                    }}"
+                            >
+                                @if($child->icono)
+                                    <x-dynamic-component :component="$child->icono" class="h-4 w-4 mr-1.5" />
+                                @endif
+                                {{ $child->nombre }}
+                            </a>
 
-                        @if(!$loop->last)
-                            <span class="text-gray-300 dark:text-gray-600 mx-1">•</span>
-                        @endif
-                    @endforeach
+                            @if(!$loop->last)
+                                <span class="text-gray-300 dark:text-gray-600 mx-1">•</span>
+                            @endif
+                        @endforeach
+                    </div>
                 </div>
             </div>
-        </div>
-    @endif
+        @endif
+    @endforeach
 </nav>
 
 {{-- Overlay para móvil --}}
 <div
-    x-data="{ show: @entangle('mobileMenuOpen').live }"
-    x-show="show"
-    x-transition:enter="transition-opacity ease-linear duration-300"
+    x-show="mobileMenuOpen"
+    x-transition:enter="transition-opacity ease-linear duration-200"
     x-transition:enter-start="opacity-0"
     x-transition:enter-end="opacity-100"
-    x-transition:leave="transition-opacity ease-linear duration-300"
+    x-transition:leave="transition-opacity ease-linear duration-200"
     x-transition:leave-start="opacity-100"
     x-transition:leave-end="opacity-0"
-    @click="$wire.closeMobileMenu()"
+    @click="closeMenu()"
     class="fixed inset-0 bg-gray-600 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 z-40 md:hidden"
     style="display: none;"
 ></div>
 
 {{-- Sidebar móvil --}}
 <div
-    x-data="{ show: @entangle('mobileMenuOpen').live }"
-    x-show="show"
-    x-transition:enter="transition ease-in-out duration-300 transform"
+    x-show="mobileMenuOpen"
+    x-transition:enter="transition ease-in-out duration-200 transform"
     x-transition:enter-start="-translate-x-full"
     x-transition:enter-end="translate-x-0"
-    x-transition:leave="transition ease-in-out duration-300 transform"
+    x-transition:leave="transition ease-in-out duration-200 transform"
     x-transition:leave-start="translate-x-0"
     x-transition:leave-end="-translate-x-full"
-    class="fixed inset-y-0 left-0 w-64 bg-bcn-white dark:bg-gray-800 shadow-xl z-50 md:hidden overflow-y-auto"
+    class="fixed inset-y-0 left-0 w-64 bg-bcn-white dark:bg-gray-800 shadow-xl z-50 md:hidden flex flex-col"
     style="display: none;"
 >
     {{-- Header del Sidebar con información del usuario --}}
@@ -333,7 +399,7 @@ new class extends Component
             </div>
         </div>
         <button
-            wire:click="closeMobileMenu"
+            @click="closeMenu()"
             class="p-2 rounded-md text-bcn-light hover:text-bcn-white hover:bg-bcn-secondary hover:bg-opacity-80 flex-shrink-0"
         >
             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -342,14 +408,14 @@ new class extends Component
         </button>
     </div>
 
-    {{-- Contenido del Sidebar --}}
-    <div class="px-2 py-4 space-y-1">
+    {{-- Contenido del Sidebar (scrollable) --}}
+    <div class="flex-1 overflow-y-auto px-2 py-4 space-y-1">
         @foreach($parentItems as $parent)
             @if($parent->route_type === 'none' && $this->getChildrenItems($parent->id)->isNotEmpty())
                 {{-- Padre con hijos: Acordeón --}}
                 <div class="space-y-1">
                     <button
-                        wire:click="toggleMobileParent({{ $parent->id }})"
+                        @click="toggleParent({{ $parent->id }})"
                         class="w-full flex items-center justify-between px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:text-bcn-secondary hover:bg-bcn-light dark:hover:bg-gray-700"
                     >
                         <div class="flex items-center">
@@ -359,7 +425,8 @@ new class extends Component
                             {{ $parent->nombre }}
                         </div>
                         <svg
-                            class="h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform duration-200 {{ $mobileExpandedParentId === $parent->id ? 'transform rotate-180' : '' }}"
+                            class="h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform duration-200"
+                            :class="expandedParent === {{ $parent->id }} ? 'rotate-180' : ''"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -369,36 +436,38 @@ new class extends Component
                     </button>
 
                     {{-- Hijos del acordeón --}}
-                    @if($mobileExpandedParentId === $parent->id)
-                        <div class="pl-11 pr-3 space-y-1">
-                            @foreach($this->getChildrenItems($parent->id) as $child)
-                                <a
-                                    href="{{ $child->getUrl() }}"
-                                    wire:navigate
-                                    wire:click="closeMobileMenu"
-                                    class="block px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200
-                                        {{ $child->isCurrentRoute()
-                                            ? 'text-bcn-secondary bg-bcn-primary bg-opacity-20'
-                                            : 'text-gray-600 dark:text-gray-300 hover:text-bcn-secondary hover:bg-bcn-light dark:hover:bg-gray-700'
-                                        }}"
-                                >
-                                    <div class="flex items-center">
-                                        @if($child->icono)
-                                            <x-dynamic-component :component="$child->icono" class="h-4 w-4 mr-2" />
-                                        @endif
-                                        {{ $child->nombre }}
-                                    </div>
-                                </a>
-                            @endforeach
-                        </div>
-                    @endif
+                    <div
+                        x-show="expandedParent === {{ $parent->id }}"
+                        x-collapse
+                        class="pl-11 pr-3 space-y-1"
+                    >
+                        @foreach($this->getChildrenItems($parent->id) as $child)
+                            <a
+                                href="{{ $child->getUrl() }}"
+                                wire:navigate
+                                @click="closeMenu()"
+                                class="block px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200
+                                    {{ $child->isCurrentRoute()
+                                        ? 'text-bcn-secondary bg-bcn-primary bg-opacity-20'
+                                        : 'text-gray-600 dark:text-gray-300 hover:text-bcn-secondary hover:bg-bcn-light dark:hover:bg-gray-700'
+                                    }}"
+                            >
+                                <div class="flex items-center">
+                                    @if($child->icono)
+                                        <x-dynamic-component :component="$child->icono" class="h-4 w-4 mr-2" />
+                                    @endif
+                                    {{ $child->nombre }}
+                                </div>
+                            </a>
+                        @endforeach
+                    </div>
                 </div>
             @else
                 {{-- Padre sin hijos: Link directo --}}
                 <a
                     href="{{ $parent->getUrl() }}"
                     wire:navigate
-                    wire:click="closeMobileMenu"
+                    @click="closeMenu()"
                     class="flex items-center px-3 py-2 rounded-md text-base font-medium transition-colors duration-200
                         {{ $parent->isCurrentRoute()
                             ? 'text-bcn-secondary bg-bcn-primary bg-opacity-20'
@@ -415,7 +484,7 @@ new class extends Component
     </div>
 
     {{-- Selectores y opciones en el footer del sidebar --}}
-    <div class="absolute bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 bg-bcn-light dark:bg-gray-900 p-4">
+    <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-bcn-light dark:bg-gray-900 p-4">
         {{-- Selector de Sucursal para móvil --}}
         <div class="mb-3">
             <livewire:sucursal-selector />
@@ -430,7 +499,7 @@ new class extends Component
             <a
                 href="{{ route('profile') }}"
                 wire:navigate
-                wire:click="closeMobileMenu"
+                @click="closeMenu()"
                 class="flex items-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-md hover:bg-bcn-white dark:hover:bg-gray-700 hover:text-bcn-secondary"
             >
                 <svg class="h-5 w-5 mr-3 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -438,6 +507,41 @@ new class extends Component
                 </svg>
                 Profile
             </a>
+
+            <!-- PWA Install Button (Mobile) -->
+            <div
+                x-data="{
+                    canInstall: false,
+                    isStandalone: false,
+                    init() {
+                        this.checkInstallability();
+                        window.addEventListener('beforeinstallprompt', () => this.checkInstallability());
+                        window.addEventListener('appinstalled', () => this.checkInstallability());
+                    },
+                    checkInstallability() {
+                        this.$nextTick(() => {
+                            this.isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+                            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                            this.canInstall = !this.isStandalone && (isIOS || window.pwaInstallManager?.deferredPrompt);
+                        });
+                    }
+                }"
+                x-show="canInstall"
+                x-cloak
+                data-pwa-install-container
+            >
+                <button
+                    @click="window.installPWA()"
+                    class="w-full flex items-center px-3 py-2 text-sm font-medium text-bcn-primary rounded-md hover:bg-bcn-white dark:hover:bg-gray-700 hover:text-bcn-secondary"
+                    data-pwa-install-button
+                >
+                    <svg class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Instalar App
+                </button>
+            </div>
+
             <button
                 wire:click="logout"
                 class="w-full flex items-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 rounded-md hover:bg-bcn-white dark:hover:bg-gray-700 hover:text-bcn-secondary"
@@ -446,6 +550,248 @@ new class extends Component
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
                 Log Out
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- Overlay de instalación PWA --}}
+<div
+    x-data="{ status: 'idle', installEventCount: 0 }"
+    x-init="
+        window.addEventListener('pwa-installing', () => {
+            status = 'installing';
+            installEventCount = 0;
+        });
+        window.addEventListener('appinstalled', () => {
+            installEventCount++;
+            if (installEventCount >= 2) {
+                status = 'installed';
+                setTimeout(() => status = 'idle', 5000);
+            }
+        });
+    "
+    x-show="status !== 'idle'"
+    x-cloak
+    x-transition:enter="ease-out duration-300"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="ease-in duration-300"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    class="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-bcn-secondary bg-opacity-95"
+>
+    {{-- Flecha arriba (solo cuando está instalado) --}}
+    <div
+        x-show="status === 'installed'"
+        x-transition:enter="ease-out duration-500"
+        x-transition:enter-start="opacity-0 -translate-y-4"
+        x-transition:enter-end="opacity-100 translate-y-0"
+        class="absolute top-16 left-1/2 transform -translate-x-1/2"
+    >
+        <div class="animate-bounce">
+            <svg class="w-10 h-10 text-green-500 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+            </svg>
+        </div>
+    </div>
+
+    {{-- Contenido central --}}
+    <div class="text-center p-8">
+        {{-- Icono con transición --}}
+        <div class="relative w-20 h-20 mx-auto mb-6">
+            {{-- Icono descarga (instalando) --}}
+            <div
+                x-show="status === 'installing'"
+                x-transition:leave="ease-in duration-300"
+                x-transition:leave-start="opacity-100 scale-100"
+                x-transition:leave-end="opacity-0 scale-75"
+                class="absolute inset-0 flex items-center justify-center rounded-full bg-bcn-primary bg-opacity-20"
+            >
+                <svg class="w-10 h-10 text-bcn-primary animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+            </div>
+
+            {{-- Icono tilde (instalado) --}}
+            <div
+                x-show="status === 'installed'"
+                x-transition:enter="ease-out duration-500 delay-200"
+                x-transition:enter-start="opacity-0 scale-75"
+                x-transition:enter-end="opacity-100 scale-100"
+                class="absolute inset-0 flex items-center justify-center rounded-full bg-green-500 bg-opacity-20"
+            >
+                <svg class="w-10 h-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+            </div>
+        </div>
+
+        {{-- Título --}}
+        <h2
+            class="text-2xl font-bold mb-2 transition-colors duration-300"
+            :class="status === 'installed' ? 'text-green-500' : 'text-white'"
+            x-text="status === 'installed' ? 'Aplicación Instalada' : 'Instalando BCN Pymes'"
+        ></h2>
+
+        {{-- Texto instalando --}}
+        <div
+            x-show="status === 'installing'"
+            x-transition:leave="ease-in duration-200"
+            x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"
+        >
+            <p class="text-bcn-light mb-4">La aplicación se está instalando en tu dispositivo...</p>
+            <div class="flex justify-center">
+                <svg class="animate-spin h-8 w-8 text-bcn-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </div>
+        </div>
+
+        {{-- Texto instalado --}}
+        <p
+            x-show="status === 'installed'"
+            x-transition:enter="ease-out duration-500 delay-300"
+            x-transition:enter-start="opacity-0"
+            x-transition:enter-end="opacity-100"
+            class="text-white text-base"
+        >
+            Hacé click en la notificación para abrir la App
+        </p>
+    </div>
+</div>
+
+{{-- Modal de instrucciones para iOS --}}
+<div
+    x-data="{ showIOSModal: false }"
+    x-init="
+        window.addEventListener('show-ios-install-modal', () => { showIOSModal = true });
+        window.addEventListener('close-ios-install-modal', () => { showIOSModal = false });
+    "
+    x-show="showIOSModal"
+    x-cloak
+    class="fixed inset-0 z-[200]"
+    aria-labelledby="modal-title"
+    role="dialog"
+    aria-modal="true"
+>
+    {{-- Overlay --}}
+    <div
+        x-show="showIOSModal"
+        x-transition:enter="ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-bcn-secondary bg-opacity-95 transition-opacity"
+        @click="showIOSModal = false"
+    ></div>
+
+    {{-- Flecha animada apuntando al botón compartir (esquina superior derecha) --}}
+    <div
+        x-show="showIOSModal"
+        x-transition:enter="ease-out duration-500 delay-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        class="fixed top-3 right-1 animate-bounce"
+    >
+        <svg class="w-12 h-12 text-bcn-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+        </svg>
+    </div>
+
+    {{-- Modal en la parte superior --}}
+    <div class="fixed top-24 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-sm">
+        <div
+            x-show="showIOSModal"
+            x-transition:enter="ease-out duration-300"
+            x-transition:enter-start="opacity-0 -translate-y-4"
+            x-transition:enter-end="opacity-100 translate-y-0"
+            x-transition:leave="ease-in duration-200"
+            x-transition:leave-start="opacity-100 translate-y-0"
+            x-transition:leave-end="opacity-0 -translate-y-4"
+            class="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-5"
+        >
+            {{-- Botón cerrar --}}
+            <button
+                @click="showIOSModal = false"
+                class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+
+            {{-- Header --}}
+            <div class="text-center mb-4">
+                <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-bcn-primary bg-opacity-10 mb-3">
+                    <svg class="h-7 w-7 text-bcn-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">
+                    Instalar BCN Pymes
+                </h3>
+            </div>
+
+            {{-- Pasos --}}
+            <div class="space-y-3">
+                {{-- Paso 1 --}}
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                    <div class="flex items-center">
+                        <span class="flex-shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-bcn-primary text-white text-xs font-bold">
+                            1
+                        </span>
+                        <div class="ml-3 flex items-center">
+                            <svg class="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            <span class="text-sm text-gray-700 dark:text-gray-200">Tocá el botón <strong>Compartir</strong></span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-10">Es el ícono con una flecha hacia arriba</p>
+                </div>
+
+                {{-- Paso 2 --}}
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                    <div class="flex items-center">
+                        <span class="flex-shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-bcn-primary text-white text-xs font-bold">
+                            2
+                        </span>
+                        <div class="ml-3 flex items-center">
+                            <svg class="h-5 w-5 mr-2 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                            </svg>
+                            <span class="text-sm text-gray-700 dark:text-gray-200">Buscá <strong>Agregar a inicio</strong></span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-10">También puede aparecer como "Añadir a pantalla de inicio". Si no lo ves, tocá <strong>Más...</strong> para encontrarlo.</p>
+                </div>
+
+                {{-- Paso 3 --}}
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                    <div class="flex items-center">
+                        <span class="flex-shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-bcn-primary text-white text-xs font-bold">
+                            3
+                        </span>
+                        <div class="ml-3">
+                            <span class="text-sm text-gray-700 dark:text-gray-200">Tocá <strong>Agregar</strong> para confirmar</span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-10">¡Listo! La app aparecerá en tu pantalla de inicio.</p>
+                </div>
+            </div>
+
+            {{-- Botón entendido --}}
+            <button
+                @click="showIOSModal = false"
+                type="button"
+                class="w-full mt-4 inline-flex justify-center items-center rounded-xl bg-bcn-primary px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-opacity-90 transition-all"
+            >
+                Entendido
             </button>
         </div>
     </div>
