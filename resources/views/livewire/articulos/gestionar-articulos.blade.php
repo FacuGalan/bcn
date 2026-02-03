@@ -5,14 +5,14 @@
             <div class="flex justify-between items-start gap-3 sm:gap-4">
                 <div class="flex-1">
                     <div class="flex items-center justify-between gap-3 sm:block">
-                        <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white flex items-center h-10 sm:h-auto">Gestión de Artículos</h2>
+                        <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white flex items-center h-10 sm:h-auto">{{ __('Gestión de Artículos') }}</h2>
                         <!-- Botones de acción - Solo iconos en móviles -->
                         <div class="sm:hidden flex gap-2">
                             <a
                                 href="{{ route('configuracion.articulos-sucursal') }}"
                                 wire:navigate
                                 class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                                title="Configurar por sucursal"
+                                :title="__('Configurar por sucursal')"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -22,7 +22,7 @@
                                 href="{{ route('articulos.cambio-masivo-precios') }}"
                                 wire:navigate
                                 class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                                title="Cambio masivo de precios"
+                                :title="__('Cambio masivo de precios')"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -31,7 +31,7 @@
                             <button
                                 wire:click="create"
                                 class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-bcn-primary border border-transparent rounded-md text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
-                                title="Crear nuevo artículo"
+                                :title="__('Crear nuevo artículo')"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -39,7 +39,7 @@
                             </button>
                         </div>
                     </div>
-                    <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">Administra los productos y servicios de tu negocio</p>
+                    <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">{{ __('Administra los productos y servicios de tu negocio') }}</p>
                 </div>
                 <!-- Botones de acciones - Desktop -->
                 <div class="hidden sm:flex gap-3">
@@ -47,33 +47,33 @@
                         href="{{ route('configuracion.articulos-sucursal') }}"
                         wire:navigate
                         class="inline-flex items-center justify-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-200 uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                        title="Configurar artículos por sucursal"
+                        :title="__('Configurar artículos por sucursal')"
                     >
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                         </svg>
-                        Por Sucursal
+                        {{ __('Por Sucursal') }}
                     </a>
                     <a
                         href="{{ route('articulos.cambio-masivo-precios') }}"
                         wire:navigate
                         class="inline-flex items-center justify-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-200 uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                        title="Cambio masivo de precios"
+                        :title="__('Cambio masivo de precios')"
                     >
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        Cambiar Precios
+                        {{ __('Cambiar Precios') }}
                     </a>
                     <button
                         wire:click="create"
                         class="inline-flex items-center justify-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
-                        title="Crear nuevo artículo"
+                        :title="__('Crear nuevo artículo')"
                     >
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                         </svg>
-                        Nuevo Artículo
+                        {{ __('Nuevo Artículo') }}
                     </button>
                 </div>
             </div>
@@ -91,10 +91,10 @@
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                         </svg>
-                        Filtros
+                        {{ __('Filtros') }}
                         @if($search || $filterStatus !== 'all' || $filterSucursal !== 'all' || $filterCategory !== 'all')
                             <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-bcn-primary text-white">
-                                Activos
+                                {{ __('Activos') }}
                             </span>
                         @endif
                     </span>
@@ -114,26 +114,26 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <!-- Búsqueda -->
                     <div>
-                        <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Buscar</label>
+                        <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar') }}</label>
                         <input
                             type="text"
                             id="search"
                             wire:model.live.debounce.300ms="search"
-                            placeholder="Código, nombre, marca..."
+                            :placeholder="__('Código, nombre, marca...')"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         />
                     </div>
 
                     <!-- Filtro de categoría -->
                     <div>
-                        <label for="filterCategory" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Categoría</label>
+                        <label for="filterCategory" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Categoría') }}</label>
                         <select
                             id="filterCategory"
                             wire:model.live="filterCategory"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         >
-                            <option value="all">Todas</option>
-                            <option value="none">Sin categoría</option>
+                            <option value="all">{{ __('Todas') }}</option>
+                            <option value="none">{{ __('Sin categoría') }}</option>
                             @foreach($categorias as $categoria)
                                 <option value="{{ $categoria->id }}">{{ $categoria->nombre }}</option>
                             @endforeach
@@ -142,13 +142,13 @@
 
                     <!-- Filtro de sucursal -->
                     <div>
-                        <label for="filterSucursal" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sucursal</label>
+                        <label for="filterSucursal" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Sucursal') }}</label>
                         <select
                             id="filterSucursal"
                             wire:model.live="filterSucursal"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         >
-                            <option value="all">Todas</option>
+                            <option value="all">{{ __('Todas') }}</option>
                             @foreach($sucursalesUsuario as $sucursal)
                                 <option value="{{ $sucursal->id }}">{{ $sucursal->nombre }}</option>
                             @endforeach
@@ -157,15 +157,15 @@
 
                     <!-- Filtro de estado -->
                     <div>
-                        <label for="filterStatus" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Estado</label>
+                        <label for="filterStatus" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Estado') }}</label>
                         <select
                             id="filterStatus"
                             wire:model.live="filterStatus"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         >
-                            <option value="all">Todos</option>
-                            <option value="active">Activos</option>
-                            <option value="inactive">Inactivos</option>
+                            <option value="all">{{ __('Todos') }}</option>
+                            <option value="active">{{ __('Activos') }}</option>
+                            <option value="inactive">{{ __('Inactivos') }}</option>
                         </select>
                     </div>
                 </div>
@@ -179,13 +179,13 @@
                     <div class="flex items-start justify-between mb-3">
                         <div class="flex-1">
                             <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $articulo->nombre }}</div>
-                            <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Código: {{ $articulo->codigo }}</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Código:') }} {{ $articulo->codigo }}</div>
                         </div>
                         <div class="flex gap-2">
                             <button
                                 wire:click="edit({{ $articulo->id }})"
                                 class="inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary transition-colors duration-150"
-                                title="Editar artículo"
+                                :title="__('Editar artículo')"
                             >
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -194,7 +194,7 @@
                             <button
                                 wire:click="confirmarEliminar({{ $articulo->id }})"
                                 class="inline-flex items-center justify-center px-3 py-2 border border-red-600 text-sm font-medium rounded-md text-red-600 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 transition-colors duration-150"
-                                title="Eliminar artículo"
+                                :title="__('Eliminar artículo')"
                             >
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -212,7 +212,7 @@
                                 </span>
                             @endif
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $articulo->activo ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }}">
-                                {{ $articulo->activo ? 'Activo' : 'Inactivo' }}
+                                {{ $articulo->activo ? __('Activo') : __('Inactivo') }}
                             </span>
                             @if($articulo->sucursales->count() > 0)
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800" title="{{ $articulo->sucursales->pluck('nombre')->join(', ') }}">
@@ -233,7 +233,7 @@
                     <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                     </svg>
-                    <p class="mt-2 text-sm">No se encontraron artículos</p>
+                    <p class="mt-2 text-sm">{{ __('No se encontraron artículos') }}</p>
                 </div>
             @endforelse
 
@@ -249,27 +249,13 @@
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead class="bg-bcn-light dark:bg-gray-700">
                         <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Código
-                            </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Artículo
-                            </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Categoría
-                            </th>
-                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Precio Base
-                            </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Sucursales
-                            </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Estado
-                            </th>
-                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Acciones
-                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Código') }}</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Artículo') }}</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Categoría') }}</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Precio Base') }}</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Sucursales') }}</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Estado') }}</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Acciones') }}</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -288,7 +274,7 @@
                                             {{ $articulo->categoriaModel->nombre }}
                                         </span>
                                     @else
-                                        <span class="text-xs text-gray-400 dark:text-gray-500">Sin categoría</span>
+                                        <span class="text-xs text-gray-400 dark:text-gray-500">{{ __('Sin categoría') }}</span>
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right">
@@ -319,13 +305,13 @@
                                         wire:click="toggleStatus({{ $articulo->id }})"
                                         class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary dark:focus:ring-offset-gray-800 {{ $articulo->activo ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600' }}"
                                     >
-                                        <span class="sr-only">{{ $articulo->activo ? 'Desactivar' : 'Activar' }} artículo</span>
+                                        <span class="sr-only">{{ $articulo->activo ? __('Desactivar') : __('Activar') }} {{ __('artículo') }}</span>
                                         <span
                                             class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $articulo->activo ? 'translate-x-5' : 'translate-x-0' }}"
                                         ></span>
                                     </button>
                                     <span class="ml-2 text-xs text-gray-600 dark:text-gray-400">
-                                        {{ $articulo->activo ? 'Activo' : 'Inactivo' }}
+                                        {{ $articulo->activo ? __('Activo') : __('Inactivo') }}
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -333,17 +319,17 @@
                                         <button
                                             wire:click="edit({{ $articulo->id }})"
                                             class="inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary transition-colors duration-150"
-                                            title="Editar artículo"
+                                            :title="__('Editar artículo')"
                                         >
                                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                             </svg>
-                                            Editar
+                                            {{ __('Editar') }}
                                         </button>
                                         <button
                                             wire:click="confirmarEliminar({{ $articulo->id }})"
                                             class="inline-flex items-center justify-center px-3 py-2 border border-red-600 text-sm font-medium rounded-md text-red-600 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 transition-colors duration-150"
-                                            title="Eliminar artículo"
+                                            :title="__('Eliminar artículo')"
                                         >
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -358,7 +344,7 @@
                                     <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                                     </svg>
-                                    <p class="mt-2">No se encontraron artículos</p>
+                                    <p class="mt-2">{{ __('No se encontraron artículos') }}</p>
                                 </td>
                             </tr>
                         @endforelse
@@ -400,14 +386,14 @@
                             <div class="sm:flex sm:items-start">
                                 <div class="w-full mt-3 sm:mt-0 text-left">
                                     <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4" id="modal-title">
-                                        {{ $editMode ? 'Editar Artículo' : 'Nuevo Artículo' }}
+                                        {{ $editMode ? __('Editar Artículo') : __('Nuevo Artículo') }}
                                     </h3>
 
                                     <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
                                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <!-- Código -->
                                             <div>
-                                                <label for="codigo" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Código *</label>
+                                                <label for="codigo" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Código') }} *</label>
                                                 <input
                                                     type="text"
                                                     id="codigo"
@@ -421,7 +407,7 @@
 
                                             <!-- Nombre -->
                                             <div>
-                                                <label for="nombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre *</label>
+                                                <label for="nombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
                                                 <input
                                                     type="text"
                                                     id="nombre"
@@ -435,35 +421,35 @@
 
                                             <!-- Unidad de Medida -->
                                             <div>
-                                                <label for="unidad_medida" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Unidad de Medida *</label>
+                                                <label for="unidad_medida" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Unidad de Medida') }} *</label>
                                                 <select
                                                     id="unidad_medida"
                                                     wire:model="unidad_medida"
                                                     class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                                                     required
                                                 >
-                                                    <option value="unidad">Unidad</option>
-                                                    <option value="kg">Kilogramo (kg)</option>
-                                                    <option value="gr">Gramo (gr)</option>
-                                                    <option value="lt">Litro (lt)</option>
-                                                    <option value="ml">Mililitro (ml)</option>
-                                                    <option value="mt">Metro (mt)</option>
-                                                    <option value="cm">Centímetro (cm)</option>
-                                                    <option value="caja">Caja</option>
-                                                    <option value="paquete">Paquete</option>
+                                                    <option value="unidad">{{ __('Unidad') }}</option>
+                                                    <option value="kg">{{ __('Kilogramo (kg)') }}</option>
+                                                    <option value="gr">{{ __('Gramo (gr)') }}</option>
+                                                    <option value="lt">{{ __('Litro (lt)') }}</option>
+                                                    <option value="ml">{{ __('Mililitro (ml)') }}</option>
+                                                    <option value="mt">{{ __('Metro (mt)') }}</option>
+                                                    <option value="cm">{{ __('Centímetro (cm)') }}</option>
+                                                    <option value="caja">{{ __('Caja') }}</option>
+                                                    <option value="paquete">{{ __('Paquete') }}</option>
                                                 </select>
                                                 @error('unidad_medida') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                             </div>
 
                                             <!-- Categoría -->
                                             <div>
-                                                <label for="categoria_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Categoría</label>
+                                                <label for="categoria_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Categoría') }}</label>
                                                 <select
                                                     id="categoria_id"
                                                     wire:model="categoria_id"
                                                     class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                                                 >
-                                                    <option value="">Sin categoría</option>
+                                                    <option value="">{{ __('Sin categoría') }}</option>
                                                     @foreach($categorias as $categoria)
                                                         <option value="{{ $categoria->id }}">{{ $categoria->nombre }}</option>
                                                     @endforeach
@@ -473,14 +459,14 @@
 
                                             <!-- Tipo IVA -->
                                             <div>
-                                                <label for="tipo_iva_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Tipo de IVA *</label>
+                                                <label for="tipo_iva_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Tipo de IVA') }} *</label>
                                                 <select
                                                     id="tipo_iva_id"
                                                     wire:model="tipo_iva_id"
                                                     class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                                                     required
                                                 >
-                                                    <option value="">Seleccionar...</option>
+                                                    <option value="">{{ __('Seleccionar...') }}</option>
                                                     @foreach($tiposIva as $tipoIva)
                                                         <option value="{{ $tipoIva->id }}">{{ $tipoIva->nombre }} ({{ $tipoIva->porcentaje }}%)</option>
                                                     @endforeach
@@ -491,8 +477,8 @@
                                             <!-- Precio Base -->
                                             <div>
                                                 <label for="precio_base" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                    Precio Base *
-                                                    <span class="text-xs text-gray-500 dark:text-gray-400 font-normal ml-1">(fallback global)</span>
+                                                    {{ __('Precio Base') }} *
+                                                    <span class="text-xs text-gray-500 dark:text-gray-400 font-normal ml-1">({{ __('fallback global') }})</span>
                                                 </label>
                                                 <div class="mt-1 relative rounded-md shadow-sm">
                                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -510,7 +496,7 @@
                                                     />
                                                 </div>
                                                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                    Precio predeterminado usado cuando no hay precio específico configurado
+                                                    {{ __('Precio predeterminado usado cuando no hay precio específico configurado') }}
                                                 </p>
                                                 @error('precio_base') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                             </div>
@@ -518,13 +504,13 @@
 
                                         <!-- Descripción -->
                                         <div>
-                                            <label for="descripcion" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Descripción</label>
+                                            <label for="descripcion" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Descripción') }}</label>
                                             <textarea
                                                 id="descripcion"
                                                 wire:model="descripcion"
                                                 rows="3"
                                                 class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                placeholder="Descripción detallada del artículo..."
+                                                :placeholder="__('Descripción detallada del artículo...')"
                                             ></textarea>
                                             @error('descripcion') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                         </div>
@@ -538,7 +524,7 @@
                                                     wire:model="es_servicio"
                                                     class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
                                                 />
-                                                <label for="es_servicio" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">Es Servicio</label>
+                                                <label for="es_servicio" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Es Servicio') }}</label>
                                             </div>
 
                                             <div class="flex items-center">
@@ -548,7 +534,7 @@
                                                     wire:model="controla_stock"
                                                     class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
                                                 />
-                                                <label for="controla_stock" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">Controla Stock</label>
+                                                <label for="controla_stock" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Controla Stock') }}</label>
                                             </div>
 
                                             <div class="flex items-center">
@@ -558,7 +544,7 @@
                                                     wire:model="precio_iva_incluido"
                                                     class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
                                                 />
-                                                <label for="precio_iva_incluido" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">IVA Incluido</label>
+                                                <label for="precio_iva_incluido" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('IVA Incluido') }}</label>
                                             </div>
 
                                             <div class="flex items-center">
@@ -568,7 +554,7 @@
                                                     wire:model="activo"
                                                     class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
                                                 />
-                                                <label for="activo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">Activo</label>
+                                                <label for="activo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Activo') }}</label>
                                             </div>
                                         </div>
 
@@ -577,7 +563,7 @@
                                             <!-- Sucursales -->
                                             <div>
                                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                                    Disponibilidad en Sucursales
+                                                    {{ __('Disponibilidad en Sucursales') }}
                                                 </label>
                                                 <div class="grid grid-cols-1 gap-2">
                                                     @foreach($sucursales as $sucursal)
@@ -600,10 +586,10 @@
                                             <!-- Etiquetas -->
                                             <div>
                                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    Etiquetas
+                                                    {{ __('Etiquetas') }}
                                                     @if(count($etiquetas_seleccionadas) > 0)
                                                         <span class="ml-2 px-2 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">
-                                                            {{ count($etiquetas_seleccionadas) }} seleccionadas
+                                                            {{ count($etiquetas_seleccionadas) }} {{ __('seleccionadas') }}
                                                         </span>
                                                     @endif
                                                 </label>
@@ -612,7 +598,7 @@
                                                     <input
                                                         type="text"
                                                         wire:model.live.debounce.300ms="busquedaEtiqueta"
-                                                        placeholder="Buscar grupo o etiqueta..."
+                                                        :placeholder="__('Buscar grupo o etiqueta...')"
                                                         class="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
                                                     >
                                                     <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -645,12 +631,12 @@
                                                         @endif
                                                     @empty
                                                         <div class="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-                                                            No hay etiquetas disponibles
+                                                            {{ __('No hay etiquetas disponibles') }}
                                                         </div>
                                                     @endforelse
                                                 </div>
                                                 <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                                    Asigna etiquetas para clasificar este artículo
+                                                    {{ __('Asigna etiquetas para clasificar este artículo') }}
                                                 </p>
                                             </div>
                                         </div>
@@ -664,14 +650,14 @@
                                 type="submit"
                                 class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary dark:focus:ring-offset-gray-800 sm:ml-3 sm:w-auto sm:text-sm"
                             >
-                                {{ $editMode ? 'Actualizar' : 'Crear' }}
+                                {{ $editMode ? __('Actualizar') : __('Crear') }}
                             </button>
                             <button
                                 type="button"
                                 @click="show = false; $wire.cancel()"
                                 class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary dark:focus:ring-offset-gray-800 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                             >
-                                Cancelar
+                                {{ __('Cancelar') }}
                             </button>
                         </div>
                     </form>
@@ -702,14 +688,14 @@
                             {{-- Contenido --}}
                             <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
                                 <h3 class="text-lg font-semibold leading-6 text-gray-900 dark:text-white" id="modal-title">
-                                    Eliminar articulo
+                                    {{ __('Eliminar articulo') }}
                                 </h3>
                                 <div class="mt-2">
                                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                                        ¿Estas seguro de eliminar el articulo <span class="font-semibold text-gray-700 dark:text-gray-200">"{{ $nombreArticuloAEliminar }}"</span>?
+                                        {{ __('¿Estas seguro de eliminar el articulo') }} <span class="font-semibold text-gray-700 dark:text-gray-200">"{{ $nombreArticuloAEliminar }}"</span>?
                                     </p>
                                     <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                                        Esta accion no eliminara permanentemente los datos, pero el articulo dejara de estar disponible en el sistema.
+                                        {{ __('Esta accion no eliminara permanentemente los datos, pero el articulo dejara de estar disponible en el sistema.') }}
                                     </p>
                                 </div>
                             </div>
@@ -723,12 +709,12 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                             </svg>
-                            Eliminar
+                            {{ __('Eliminar') }}
                         </button>
                         <button type="button"
                                 wire:click="cancelarEliminar"
                                 class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-600 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-200 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:w-auto transition-colors">
-                            Cancelar
+                            {{ __('Cancelar') }}
                         </button>
                     </div>
                 </div>

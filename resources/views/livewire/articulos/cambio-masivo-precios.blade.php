@@ -8,15 +8,15 @@
                         <button
                             wire:click="volver"
                             class="inline-flex items-center justify-center w-10 h-10 text-gray-500 dark:text-gray-400 hover:text-bcn-primary hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-                            title="Volver a artículos"
+                            :title="__('Volver a artículos')"
                         >
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                             </svg>
                         </button>
                         <div>
-                            <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white">Cambio Masivo de Precios</h2>
-                            <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">Actualiza los precios de múltiples artículos de forma rápida</p>
+                            <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white">{{ __('Cambio Masivo de Precios') }}</h2>
+                            <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">{{ __('Actualiza los precios de múltiples artículos de forma rápida') }}</p>
                         </div>
                     </div>
                 </div>
@@ -32,7 +32,7 @@
                         <div class="flex items-center justify-center w-10 h-10 rounded-full {{ $paso >= 1 ? 'bg-bcn-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300' }} font-semibold">
                             1
                         </div>
-                        <span class="ml-2 text-sm font-medium {{ $paso >= 1 ? 'text-bcn-primary' : 'text-gray-500 dark:text-gray-400' }}">Configurar</span>
+                        <span class="ml-2 text-sm font-medium {{ $paso >= 1 ? 'text-bcn-primary' : 'text-gray-500 dark:text-gray-400' }}">{{ __('Configurar') }}</span>
                     </div>
 
                     <!-- Línea -->
@@ -43,7 +43,7 @@
                         <div class="flex items-center justify-center w-10 h-10 rounded-full {{ $paso >= 2 ? 'bg-bcn-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300' }} font-semibold">
                             2
                         </div>
-                        <span class="ml-2 text-sm font-medium {{ $paso >= 2 ? 'text-bcn-primary' : 'text-gray-500 dark:text-gray-400' }}">Revisar y Aplicar</span>
+                        <span class="ml-2 text-sm font-medium {{ $paso >= 2 ? 'text-bcn-primary' : 'text-gray-500 dark:text-gray-400' }}">{{ __('Revisar y Aplicar') }}</span>
                     </div>
                 </div>
             </div>
@@ -56,12 +56,12 @@
                     <!-- Títulos alineados -->
                     <div class="grid grid-cols-1 lg:grid-cols-10 gap-6 mb-4">
                         <div class="lg:col-span-3">
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Configuración del ajuste</h3>
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Configuración del ajuste') }}</h3>
                         </div>
                         <div class="lg:col-span-7">
                             <div class="flex items-center justify-between">
-                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Filtros (opcional)</h3>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">Si no seleccionas ningún filtro, se aplicará a todos los artículos activos.</p>
+                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Filtros (opcional)') }}</h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Si no seleccionas ningún filtro, se aplicará a todos los artículos activos.') }}</p>
                             </div>
                         </div>
                     </div>
@@ -72,30 +72,30 @@
                         <div class="lg:col-span-3 space-y-4">
                             <!-- Tipo de ajuste -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tipo de ajuste</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Tipo de ajuste') }}</label>
                                 <div class="flex gap-4">
                                     <label class="flex items-center">
                                         <input type="radio" wire:model.live="tipoAjuste" value="descuento" class="text-bcn-primary focus:ring-bcn-primary">
-                                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Descuento</span>
+                                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ __('Descuento') }}</span>
                                     </label>
                                     <label class="flex items-center">
                                         <input type="radio" wire:model.live="tipoAjuste" value="recargo" class="text-bcn-primary focus:ring-bcn-primary">
-                                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Recargo</span>
+                                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ __('Recargo') }}</span>
                                     </label>
                                 </div>
                             </div>
 
                             <!-- Tipo de valor -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tipo de valor</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Tipo de valor') }}</label>
                                 <div class="flex gap-4">
                                     <label class="flex items-center">
                                         <input type="radio" wire:model.live="tipoValor" value="porcentual" class="text-bcn-primary focus:ring-bcn-primary">
-                                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Porcentual (%)</span>
+                                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ __('Porcentual (%)') }}</span>
                                     </label>
                                     <label class="flex items-center">
                                         <input type="radio" wire:model.live="tipoValor" value="fijo" class="text-bcn-primary focus:ring-bcn-primary">
-                                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Fijo ($)</span>
+                                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ __('Fijo ($)') }}</span>
                                     </label>
                                 </div>
                             </div>
@@ -103,7 +103,7 @@
                             <!-- Valor del ajuste -->
                             <div>
                                 <label for="valorAjuste" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Valor del {{ $tipoAjuste }} *
+                                    {{ __('Valor del') }} {{ $tipoAjuste }} *
                                 </label>
                                 <div class="relative rounded-md shadow-sm">
                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -123,22 +123,22 @@
 
                             <!-- Tipo de redondeo -->
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Redondeo</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Redondeo') }}</label>
                                 <select
                                     wire:model.live="tipoRedondeo"
                                     class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                                 >
-                                    <option value="sin_redondeo">Sin redondeo (2 decimales)</option>
-                                    <option value="entero">Entero (ej: 99.50 -> 100)</option>
-                                    <option value="decena">Decena (ej: 93 -> 90)</option>
-                                    <option value="centena">Centena (ej: 850 -> 900)</option>
+                                    <option value="sin_redondeo">{{ __('Sin redondeo (2 decimales)') }}</option>
+                                    <option value="entero">{{ __('Entero (ej: 99.50 -> 100)') }}</option>
+                                    <option value="decena">{{ __('Decena (ej: 93 -> 90)') }}</option>
+                                    <option value="centena">{{ __('Centena (ej: 850 -> 900)') }}</option>
                                 </select>
                             </div>
 
                             <!-- Ejemplo -->
                             @if($valorAjuste > 0)
                                 <div class="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                                    <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">Ejemplo:</p>
+                                    <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">{{ __('Ejemplo:') }}</p>
                                     @php
                                         $ejemploPrecio = 1000;
                                         $ejemploNuevo = $tipoValor === 'porcentual'
@@ -152,7 +152,7 @@
                                         };
                                     @endphp
                                     <p class="text-sm">
-                                        <span class="text-gray-500 dark:text-gray-400">Precio: $1,000</span>
+                                        <span class="text-gray-500 dark:text-gray-400">{{ __('Precio:') }} $1,000</span>
                                         <span class="mx-2">→</span>
                                         <span class="font-semibold {{ $tipoAjuste === 'descuento' ? 'text-green-600' : 'text-orange-600' }}">
                                             ${{ number_format($ejemploNuevo, 2, ',', '.') }}
@@ -169,10 +169,10 @@
                                 <!-- Categorías -->
                                 <div class="flex flex-col">
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Categorías
+                                        {{ __('Categorías') }}
                                         @if(count($categoriasSeleccionadas) > 0)
                                             <span class="ml-2 px-2 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">
-                                                {{ count($categoriasSeleccionadas) }} seleccionadas
+                                                {{ count($categoriasSeleccionadas) }} {{ __('seleccionadas') }}
                                             </span>
                                         @endif
                                     </label>
@@ -181,7 +181,7 @@
                                         <input
                                             type="text"
                                             wire:model.live.debounce.300ms="busquedaCategoria"
-                                            placeholder="Buscar categoría..."
+                                            :placeholder="__('Buscar categoría...')"
                                             class="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
                                         >
                                         <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -203,7 +203,7 @@
                                                 </span>
                                             </label>
                                         @empty
-                                            <p class="text-sm text-gray-500 dark:text-gray-400 p-2">No hay categorías disponibles</p>
+                                            <p class="text-sm text-gray-500 dark:text-gray-400 p-2">{{ __('No hay categorías disponibles') }}</p>
                                         @endforelse
                                     </div>
                                 </div>
@@ -211,10 +211,10 @@
                                 <!-- Etiquetas agrupadas -->
                                 <div class="flex flex-col">
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Etiquetas
+                                        {{ __('Etiquetas') }}
                                         @if(count($etiquetasSeleccionadas) > 0)
                                             <span class="ml-2 px-2 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">
-                                                {{ count($etiquetasSeleccionadas) }} seleccionadas
+                                                {{ count($etiquetasSeleccionadas) }} {{ __('seleccionadas') }}
                                             </span>
                                         @endif
                                     </label>
@@ -223,7 +223,7 @@
                                         <input
                                             type="text"
                                             wire:model.live.debounce.300ms="busquedaEtiqueta"
-                                            placeholder="Buscar grupo o etiqueta..."
+                                            :placeholder="__('Buscar grupo o etiqueta...')"
                                             class="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
                                         >
                                         <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -255,7 +255,7 @@
                                                 </div>
                                             @endif
                                         @empty
-                                            <p class="text-sm text-gray-500 dark:text-gray-400 p-3">No hay etiquetas disponibles</p>
+                                            <p class="text-sm text-gray-500 dark:text-gray-400 p-3">{{ __('No hay etiquetas disponibles') }}</p>
                                         @endforelse
                                     </div>
                                 </div>
@@ -269,7 +269,7 @@
                             wire:click="siguientePaso"
                             class="inline-flex items-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
                         >
-                            Procesar
+                            {{ __('Procesar') }}
                             <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                             </svg>
@@ -316,13 +316,13 @@
                                     </svg>
                                 </div>
                                 <div>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">Redondeo</p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">{{ __('Redondeo') }}</p>
                                     <p class="text-sm font-bold text-gray-700 dark:text-gray-300">
                                         {{ match($tipoRedondeo) {
-                                            'entero' => 'Entero',
-                                            'decena' => 'Decena',
-                                            'centena' => 'Centena',
-                                            default => 'Sin redondeo',
+                                            'entero' => __('Entero'),
+                                            'decena' => __('Decena'),
+                                            'centena' => __('Centena'),
+                                            default => __('Sin redondeo'),
                                         } }}
                                     </p>
                                 </div>
@@ -337,14 +337,14 @@
                                         </svg>
                                     </div>
                                     <div>
-                                        <p class="text-xs text-indigo-600 font-medium">Filtros</p>
+                                        <p class="text-xs text-indigo-600 font-medium">{{ __('Filtros') }}</p>
                                         <p class="text-sm font-bold text-indigo-700">
                                             @if(!empty($categoriasSeleccionadas) && !empty($etiquetasSeleccionadas))
-                                                {{ count($categoriasSeleccionadas) }} cat. · {{ count($etiquetasSeleccionadas) }} etiq.
+                                                {{ count($categoriasSeleccionadas) }} {{ __('cat.') }} · {{ count($etiquetasSeleccionadas) }} {{ __('etiq.') }}
                                             @elseif(!empty($categoriasSeleccionadas))
-                                                {{ count($categoriasSeleccionadas) }} categoría(s)
+                                                {{ count($categoriasSeleccionadas) }} {{ __('categoría(s)') }}
                                             @else
-                                                {{ count($etiquetasSeleccionadas) }} etiqueta(s)
+                                                {{ count($etiquetasSeleccionadas) }} {{ __('etiqueta(s)') }}
                                             @endif
                                         </p>
                                     </div>
@@ -357,8 +357,8 @@
                                         </svg>
                                     </div>
                                     <div>
-                                        <p class="text-xs text-blue-600 font-medium">Alcance</p>
-                                        <p class="text-sm font-bold text-blue-700">Todos los artículos</p>
+                                        <p class="text-xs text-blue-600 font-medium">{{ __('Alcance') }}</p>
+                                        <p class="text-sm font-bold text-blue-700">{{ __('Todos los artículos') }}</p>
                                     </div>
                                 </div>
                             @endif
@@ -372,7 +372,7 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
-                            Modificar filtros
+                            {{ __('Modificar filtros') }}
                         </button>
                     </div>
                 </div>
@@ -381,15 +381,15 @@
             <!-- Totales -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-                    <div class="text-sm text-gray-500 dark:text-gray-400">Artículos a modificar</div>
+                    <div class="text-sm text-gray-500 dark:text-gray-400">{{ __('Artículos a modificar') }}</div>
                     <div class="text-2xl font-bold text-bcn-secondary dark:text-white">{{ $totalArticulos }}</div>
                 </div>
                 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-                    <div class="text-sm text-gray-500 dark:text-gray-400">Total precio actual</div>
+                    <div class="text-sm text-gray-500 dark:text-gray-400">{{ __('Total precio actual') }}</div>
                     <div class="text-2xl font-bold text-gray-600 dark:text-gray-300">${{ number_format($totalPrecioViejo, 2, ',', '.') }}</div>
                 </div>
                 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-                    <div class="text-sm text-gray-500 dark:text-gray-400">Total precio nuevo</div>
+                    <div class="text-sm text-gray-500 dark:text-gray-400">{{ __('Total precio nuevo') }}</div>
                     <div class="text-2xl font-bold {{ $tipoAjuste === 'descuento' ? 'text-green-600' : 'text-orange-600' }}">${{ number_format($totalPrecioNuevo, 2, ',', '.') }}</div>
                 </div>
             </div>
@@ -403,7 +403,7 @@
                             <input
                                 type="text"
                                 wire:model.live.debounce.300ms="busquedaArticuloPreview"
-                                placeholder="Buscar por código o nombre..."
+                                :placeholder="__('Buscar por código o nombre...')"
                                 class="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors text-sm"
                             >
                             <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -413,7 +413,7 @@
                         <div class="flex items-center gap-3">
                             @if($busquedaArticuloPreview)
                                 <span class="text-sm text-gray-500 dark:text-gray-400">
-                                    Mostrando {{ count($articulosPreviewFiltrados) }} de {{ $totalArticulos }} artículos
+                                    {{ __('Mostrando') }} {{ count($articulosPreviewFiltrados) }} {{ __('de') }} {{ $totalArticulos }} {{ __('artículos') }}
                                 </span>
                             @endif
                             <button
@@ -423,7 +423,7 @@
                                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                                 </svg>
-                                Agregar artículo
+                                {{ __('Agregar artículo') }}
                             </button>
                         </div>
                     </div>
@@ -434,25 +434,25 @@
                         <thead class="bg-bcn-light dark:bg-gray-700">
                             <tr>
                                 <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    Código
+                                    {{ __('Código') }}
                                 </th>
                                 <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    Artículo
+                                    {{ __('Artículo') }}
                                 </th>
                                 <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    Categoría
+                                    {{ __('Categoría') }}
                                 </th>
                                 <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    Precio Actual
+                                    {{ __('Precio Actual') }}
                                 </th>
                                 <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    Precio Nuevo
+                                    {{ __('Precio Nuevo') }}
                                 </th>
                                 <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    Diferencia
+                                    {{ __('Diferencia') }}
                                 </th>
                                 <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    Acciones
+                                    {{ __('Acciones') }}
                                 </th>
                             </tr>
                         </thead>
@@ -494,7 +494,7 @@
                                         <button
                                             wire:click="quitarArticulo({{ $articulo['id'] }})"
                                             class="text-red-500 hover:text-red-700 transition-colors"
-                                            title="Quitar de la lista"
+                                            :title="__('Quitar de la lista')"
                                         >
                                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -508,7 +508,7 @@
                                         <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                                         </svg>
-                                        <p class="mt-2">No se encontraron artículos con los filtros seleccionados</p>
+                                        <p class="mt-2">{{ __('No se encontraron artículos con los filtros seleccionados') }}</p>
                                     </td>
                                 </tr>
                             @endforelse
@@ -526,7 +526,7 @@
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                             </svg>
-                            Aplicar Cambios ({{ $totalArticulos }} artículos)
+                            {{ __('Aplicar Cambios') }} ({{ $totalArticulos }} {{ __('artículos') }})
                         </button>
                     </div>
                 @endif
@@ -544,7 +544,7 @@
                     <div class="bg-white dark:bg-gray-800 px-4 pb-4 pt-5 sm:p-6">
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="text-lg font-semibold text-gray-900 dark:text-white" id="modal-agregar-title">
-                                Agregar artículo a la lista
+                                {{ __('Agregar artículo a la lista') }}
                             </h3>
                             <button
                                 wire:click="cerrarModalAgregarArticulo"
@@ -561,7 +561,7 @@
                             <input
                                 type="text"
                                 wire:model.live.debounce.300ms="busquedaArticuloAgregar"
-                                placeholder="Buscar por código o nombre..."
+                                :placeholder="__('Buscar por código o nombre...')"
                                 class="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors text-sm"
                                 autofocus
                             >
@@ -617,18 +617,18 @@
                                     </div>
                                 @empty
                                     <div class="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-                                        No se encontraron artículos
+                                        {{ __('No se encontraron artículos') }}
                                     </div>
                                 @endforelse
                             @else
                                 <div class="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-                                    Escribe al menos 2 caracteres para buscar
+                                    {{ __('Escribe al menos 2 caracteres para buscar') }}
                                 </div>
                             @endif
                         </div>
 
                         <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                            Haz clic en un artículo para agregarlo a la lista con el ajuste configurado.
+                            {{ __('Haz clic en un artículo para agregarlo a la lista con el ajuste configurado.') }}
                         </p>
                     </div>
                 </div>
@@ -652,17 +652,17 @@
                             </div>
                             <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
                                 <h3 class="text-lg font-semibold leading-6 text-gray-900 dark:text-white" id="modal-title">
-                                    Confirmar cambio de precios
+                                    {{ __('Confirmar cambio de precios') }}
                                 </h3>
                                 <div class="mt-2">
                                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                                        Estás a punto de modificar el precio de <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $totalArticulos }} artículos</span>.
+                                        {{ __('Estás a punto de modificar el precio de') }} <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $totalArticulos }} {{ __('artículos') }}</span>.
                                     </p>
                                     <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                                        Esta acción también actualizará los precios fijos en las listas de precios donde estos artículos participen.
+                                        {{ __('Esta acción también actualizará los precios fijos en las listas de precios donde estos artículos participen.') }}
                                     </p>
                                     <p class="text-sm text-red-600 mt-2 font-medium">
-                                        Esta acción no se puede deshacer.
+                                        {{ __('Esta acción no se puede deshacer.') }}
                                     </p>
                                 </div>
                             </div>
@@ -677,14 +677,14 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                             </svg>
-                            Confirmar
+                            {{ __('Confirmar') }}
                         </button>
                         <button
                             type="button"
                             wire:click="cancelarConfirmacion"
                             class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-600 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:w-auto transition-colors"
                         >
-                            Cancelar
+                            {{ __('Cancelar') }}
                         </button>
                     </div>
                 </div>

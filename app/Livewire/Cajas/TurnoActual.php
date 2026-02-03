@@ -67,6 +67,13 @@ class TurnoActual extends Component
     public bool $grupoUsaFondoComun = false;
     public $fondoComunTotal = ''; // String para permitir input vacío
 
+    // Modal de detalle de movimientos
+    public bool $showDetalleModal = false;
+    public ?int $cajaDetalleId = null;
+    public array $detalleMovimientos = [];
+    public array $detalleOtrosConceptos = [];
+    public array $detalleInfo = [];
+
     // Datos calculados
     public Collection $cajas;
     public array $totalesGenerales = [];
@@ -1177,6 +1184,159 @@ class TurnoActual extends Component
     public function cambiarVistaMovimientos(string $vista): void
     {
         $this->vistaMovimientos = $vista;
+    }
+
+    // ==================== MODAL DE DETALLE DE MOVIMIENTOS ====================
+
+    /**
+     * Abre el modal de detalle de movimientos para una caja
+     */
+    public function abrirModalDetalle(int $cajaId): void
+    {
+        $caja = Caja::with('grupoCierre')->find($cajaId);
+        if (!$caja) return;
+
+        $this->cajaDetalleId = $cajaId;
+
+        // Determinar si excluir apertura/provisión (fondo común)
+        $esFondoComun = $caja->grupo_cierre_id
+            && $caja->grupoCierre
+            && $caja->grupoCierre->usaFondoComun();
+
+        // ── Grilla 1: Movimientos en efectivo ──
+        $movimientos = MovimientoCaja::where('caja_id', $cajaId)
+            ->whereNull('cierre_turno_id')
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        $etiquetas = [
+            'apertura' => 'Apertura',
+            'venta' => 'Venta',
+            'cobro' => 'Cobro',
+            'compra' => 'Compra',
+            'pago_proveedor' => 'Pago Proveedor',
+            'ajuste' => 'Ajuste',
+            'retiro' => 'Retiro',
+            'transferencia' => 'Transferencia',
+            'ingreso_manual' => 'Ingreso Manual',
+            'egreso_manual' => 'Egreso Manual',
+            'ingreso_manual_caja' => 'Ingreso Manual',
+            'egreso_manual_caja' => 'Egreso Manual',
+            'provision_fondo' => 'Provisión Fondo',
+            'rendicion_fondo' => 'Rendición Fondo',
+        ];
+
+        $tiposExcluidosFondoComun = ['apertura', 'provision_fondo'];
+
+        $saldoAcumulado = 0;
+        $totalIngresos = 0;
+        $totalEgresos = 0;
+        $lista = [];
+
+        foreach ($movimientos as $mov) {
+            // Para fondo común, excluir apertura/provisión del balance
+            if ($esFondoComun && in_array($mov->referencia_tipo, $tiposExcluidosFondoComun)) {
+                continue;
+            }
+
+            if ($mov->tipo === 'ingreso') {
+                $saldoAcumulado += $mov->monto;
+                $totalIngresos += $mov->monto;
+            } else {
+                $saldoAcumulado -= $mov->monto;
+                $totalEgresos += $mov->monto;
+            }
+
+            $lista[] = [
+                'fecha' => $mov->created_at->format('H:i'),
+                'concepto' => $mov->concepto,
+                'tipo' => $mov->tipo,
+                'monto' => $mov->monto,
+                'etiqueta' => $etiquetas[$mov->referencia_tipo] ?? ucfirst($mov->referencia_tipo ?? 'Otro'),
+                'referencia_tipo' => $mov->referencia_tipo,
+                'saldo_acumulado' => round($saldoAcumulado, 2),
+            ];
+        }
+
+        $this->detalleMovimientos = $lista;
+
+        // ── Grilla 2: Otros medios de pago (no-efectivo) ──
+        $fechaDesde = $caja->fecha_apertura ?? today();
+
+        // VentaPago no-efectivo
+        $ventaPagos = VentaPago::whereHas('venta', function ($q) use ($cajaId, $fechaDesde) {
+                $q->where('caja_id', $cajaId)
+                  ->where('estado', 'completada')
+                  ->where('created_at', '>=', $fechaDesde);
+            })
+            ->where('afecta_caja', false)
+            ->with(['conceptoPago', 'venta:id,numero'])
+            ->get();
+
+        // CobroPago no-efectivo
+        $cobroPagos = CobroPago::whereHas('cobro', function ($q) use ($cajaId, $fechaDesde) {
+                $q->where('caja_id', $cajaId)
+                  ->where('created_at', '>=', $fechaDesde);
+            })
+            ->where('afecta_caja', false)
+            ->with(['conceptoPago', 'cobro:id'])
+            ->get();
+
+        $conceptos = [];
+
+        foreach ($ventaPagos as $pago) {
+            $codigo = $pago->conceptoPago?->codigo ?? 'otros';
+            $nombre = $pago->conceptoPago?->nombre ?? 'Otros';
+            if (!isset($conceptos[$codigo])) {
+                $conceptos[$codigo] = ['nombre' => $nombre, 'monto_total' => 0, 'cantidad' => 0, 'detalle' => []];
+            }
+            $conceptos[$codigo]['monto_total'] += $pago->monto_final;
+            $conceptos[$codigo]['cantidad']++;
+            $conceptos[$codigo]['detalle'][] = [
+                'referencia' => 'Venta #' . ($pago->venta->numero ?? $pago->venta_id),
+                'monto' => $pago->monto_final,
+            ];
+        }
+
+        foreach ($cobroPagos as $pago) {
+            $codigo = $pago->conceptoPago?->codigo ?? 'otros';
+            $nombre = $pago->conceptoPago?->nombre ?? 'Otros';
+            if (!isset($conceptos[$codigo])) {
+                $conceptos[$codigo] = ['nombre' => $nombre, 'monto_total' => 0, 'cantidad' => 0, 'detalle' => []];
+            }
+            $conceptos[$codigo]['monto_total'] += $pago->monto_final;
+            $conceptos[$codigo]['cantidad']++;
+            $conceptos[$codigo]['detalle'][] = [
+                'referencia' => 'Cobro #' . ($pago->cobro->id ?? $pago->cobro_id),
+                'monto' => $pago->monto_final,
+            ];
+        }
+
+        $this->detalleOtrosConceptos = array_values($conceptos);
+
+        $this->detalleInfo = [
+            'nombre' => $caja->nombre,
+            'numero' => $caja->numero_formateado ?? '',
+            'saldo_actual' => $caja->saldo_actual,
+            'total_ingresos' => round($totalIngresos, 2),
+            'total_egresos' => round($totalEgresos, 2),
+            'cantidad_movimientos' => count($lista),
+            'es_fondo_comun' => $esFondoComun,
+        ];
+
+        $this->showDetalleModal = true;
+    }
+
+    /**
+     * Cierra el modal de detalle
+     */
+    public function cerrarModalDetalle(): void
+    {
+        $this->showDetalleModal = false;
+        $this->cajaDetalleId = null;
+        $this->detalleMovimientos = [];
+        $this->detalleOtrosConceptos = [];
+        $this->detalleInfo = [];
     }
 
     /**

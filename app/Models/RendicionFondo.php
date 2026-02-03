@@ -59,6 +59,9 @@ class RendicionFondo extends Model
         'movimiento_tesoreria_id',
         'movimiento_caja_id',
         'observaciones',
+        'motivo_rechazo',
+        'usuario_rechazo_id',
+        'fecha_rechazo',
     ];
 
     protected $casts = [
@@ -68,17 +71,20 @@ class RendicionFondo extends Model
         'diferencia' => 'decimal:2',
         'fecha' => 'datetime',
         'fecha_confirmacion' => 'datetime',
+        'fecha_rechazo' => 'datetime',
     ];
 
     // Estados
     public const ESTADO_PENDIENTE = 'pendiente';
     public const ESTADO_CONFIRMADO = 'confirmado';
     public const ESTADO_CANCELADO = 'cancelado';
+    public const ESTADO_RECHAZADO = 'rechazado';
 
     public const ESTADOS = [
         self::ESTADO_PENDIENTE => 'Pendiente',
         self::ESTADO_CONFIRMADO => 'Confirmado',
         self::ESTADO_CANCELADO => 'Cancelado',
+        self::ESTADO_RECHAZADO => 'Rechazado',
     ];
 
     // ==================== RELACIONES ====================
@@ -116,6 +122,11 @@ class RendicionFondo extends Model
     public function movimientoCaja(): BelongsTo
     {
         return $this->belongsTo(MovimientoCaja::class, 'movimiento_caja_id');
+    }
+
+    public function usuarioRechazo(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'usuario_rechazo_id');
     }
 
     // ==================== SCOPES ====================
@@ -180,6 +191,11 @@ class RendicionFondo extends Model
     public function getEstaCanceladoAttribute(): bool
     {
         return $this->estado === self::ESTADO_CANCELADO;
+    }
+
+    public function getEstaRechazadoAttribute(): bool
+    {
+        return $this->estado === self::ESTADO_RECHAZADO;
     }
 
     public function getEstadoLabelAttribute(): string
@@ -252,6 +268,23 @@ class RendicionFondo extends Model
         }
 
         return true;
+    }
+
+    /**
+     * Rechaza la rendición (por tesorería)
+     */
+    public function rechazar(int $usuarioId, ?string $motivo = null): bool
+    {
+        if (!$this->esta_pendiente) {
+            return false;
+        }
+
+        $this->estado = self::ESTADO_RECHAZADO;
+        $this->usuario_rechazo_id = $usuarioId;
+        $this->fecha_rechazo = now();
+        $this->motivo_rechazo = $motivo;
+
+        return $this->save();
     }
 
     /**

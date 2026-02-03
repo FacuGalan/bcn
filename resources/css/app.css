@@ -6,3 +6,44 @@
 [x-cloak] {
     display: none !important;
 }
+
+/* Scrollbar personalizado global */
+@layer base {
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: #cbd5e1 transparent;
+    }
+    html.dark,
+    html.dark * {
+        scrollbar-color: #4b5563 transparent;
+    }
+    *::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    *::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    *::-webkit-scrollbar-thumb {
+        background-color: #cbd5e1;
+        border-radius: 3px;
+    }
+    *::-webkit-scrollbar-thumb:hover {
+        background-color: #94a3b8;
+    }
+    html.dark ::-webkit-scrollbar-thumb,
+    html.dark::-webkit-scrollbar-thumb {
+        background-color: #4b5563;
+    }
+    html.dark ::-webkit-scrollbar-thumb:hover,
+    html.dark::-webkit-scrollbar-thumb:hover {
+        background-color: #6b7280;
+    }
+}
+
+/* Dark mode: texto bcn-secondary (#222036) es muy oscuro, cambiarlo a blanco */
+@layer utilities {
+    html.dark .text-bcn-secondary {
+        color: #ffffff;
+    }
+}

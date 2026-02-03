@@ -168,6 +168,12 @@ class RolePermissionSeeder extends Seeder
                 || str_starts_with($perm->name, 'menu.tesoreria')
                 || str_starts_with($perm->name, 'menu.reportes-cajas')
                 || str_starts_with($perm->name, 'menu.articulos')
+                || $perm->name === 'menu.listado-articulos'
+                || $perm->name === 'menu.categorias'
+                || $perm->name === 'menu.etiquetas'
+                || $perm->name === 'menu.listas-precios'
+                || $perm->name === 'menu.promociones'
+                || $perm->name === 'menu.promociones-especiales'
                 || $perm->name === 'menu.configuracion'
                 || $perm->name === 'menu.empresa';
         });

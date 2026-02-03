@@ -42,7 +42,7 @@ class ListarFormasPago extends Component
             $formaPago->activo = !$formaPago->activo;
             $formaPago->save();
             $this->cargarFormasPago();
-            session()->flash('message', 'Estado actualizado correctamente');
+            session()->flash('message', __('Estado actualizado correctamente'));
         }
     }
 
@@ -54,13 +54,13 @@ class ListarFormasPago extends Component
 
         if ($exists) {
             $exists->delete();
-            session()->flash('message', 'Forma de pago deshabilitada para la sucursal');
+            session()->flash('message', __('Forma de pago deshabilitada para la sucursal'));
         } else {
             FormaPagoSucursal::create([
                 'forma_pago_id' => $formaPagoId,
                 'sucursal_id' => $sucursalId,
             ]);
-            session()->flash('message', 'Forma de pago habilitada para la sucursal');
+            session()->flash('message', __('Forma de pago habilitada para la sucursal'));
         }
     }
 
@@ -72,7 +72,7 @@ class ListarFormasPago extends Component
     public function agregarCuota()
     {
         if (!$this->nuevaCuota['cantidad_cuotas']) {
-            session()->flash('error', 'Debes ingresar la cantidad de cuotas');
+            session()->flash('error', __('Debes ingresar la cantidad de cuotas'));
             return;
         }
 
@@ -85,14 +85,14 @@ class ListarFormasPago extends Component
 
         $this->reset('nuevaCuota');
         $this->cargarFormasPago();
-        session()->flash('message', 'Plan de cuotas agregado correctamente');
+        session()->flash('message', __('Plan de cuotas agregado correctamente'));
     }
 
     public function eliminarCuota($cuotaId)
     {
         FormaPagoCuota::find($cuotaId)?->delete();
         $this->cargarFormasPago();
-        session()->flash('message', 'Plan de cuotas eliminado correctamente');
+        session()->flash('message', __('Plan de cuotas eliminado correctamente'));
     }
 
     public function cerrarModal()

@@ -3,10 +3,10 @@
         {{-- Header --}}
         <div class="mb-6">
             <h2 class="text-2xl font-bold text-bcn-secondary dark:text-white">
-                Configuración de Empresa
+                {{ __('Configuración de Empresa') }}
             </h2>
             <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                Gestiona los datos de tu empresa, CUITs y sucursales
+                {{ __('Gestiona los datos de tu empresa, CUITs y sucursales') }}
             </p>
         </div>
 
@@ -20,7 +20,7 @@
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                     </svg>
-                    Empresa
+                    {{ __('Empresa') }}
                 </button>
                 <button
                     wire:click="cambiarTab('cuits')"
@@ -29,7 +29,7 @@
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                     </svg>
-                    CUITs
+                    {{ __('CUITs') }}
                 </button>
                 <button
                     wire:click="cambiarTab('sucursales')"
@@ -39,7 +39,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
                     </svg>
-                    Sucursales
+                    {{ __('Sucursales') }}
                 </button>
                 <button
                     wire:click="cambiarTab('cajas')"
@@ -48,7 +48,7 @@
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
                     </svg>
-                    Cajas
+                    {{ __('Cajas') }}
                 </button>
             </nav>
         </div>
@@ -94,11 +94,11 @@
                                 </div>
                                 <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
                                     <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white" id="modal-title">
-                                        Eliminar CUIT
+                                        {{ __('Eliminar CUIT') }}
                                     </h3>
                                     <div class="mt-2">
                                         <p class="text-sm text-gray-500 dark:text-gray-400">
-                                            ¿Está seguro de que desea eliminar este CUIT? Esta acción eliminará también todos los puntos de venta asociados y no se puede deshacer.
+                                            {{ __('¿Está seguro de que desea eliminar este CUIT? Esta acción eliminará también todos los puntos de venta asociados y no se puede deshacer.') }}
                                         </p>
                                     </div>
                                 </div>
@@ -110,14 +110,14 @@
                                 type="button"
                                 class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
                             >
-                                Eliminar
+                                {{ __('Eliminar') }}
                             </button>
                             <button
                                 wire:click="$set('mostrarConfirmacionEliminarCuit', false)"
                                 type="button"
                                 class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                             >
-                                Cancelar
+                                {{ __('Cancelar') }}
                             </button>
                         </div>
                     </div>
@@ -139,10 +139,10 @@
                                 {{-- Header --}}
                                 <div class="mb-6">
                                     <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                                        Configurar Caja: {{ $configCajaNombre }}
+                                        {{ __('Configurar Caja') }}: {{ $configCajaNombre }}
                                     </h3>
                                     <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                        Define los parámetros de operación de la caja
+                                        {{ __('Define los parámetros de operación de la caja') }}
                                     </p>
                                 </div>
 
@@ -150,7 +150,7 @@
                                     {{-- Límite de Efectivo --}}
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                            Límite de Efectivo
+                                            {{ __('Límite de Efectivo') }}
                                         </label>
                                         <div class="mt-1 relative rounded-md shadow-sm">
                                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -166,7 +166,7 @@
                                             >
                                         </div>
                                         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                            Monto máximo de efectivo permitido en caja. Dejar vacío para sin límite.
+                                            {{ __('Monto máximo de efectivo permitido en caja. Dejar vacío para sin límite.') }}
                                         </p>
                                         @error('configCajaLimiteEfectivo')
                                             <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
@@ -176,7 +176,7 @@
                                     {{-- Modo de Carga Inicial --}}
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                            Modo de Carga Inicial del Turno
+                                            {{ __('Modo de Carga Inicial del Turno') }}
                                         </label>
                                         <select
                                             wire:model.live="configCajaModoCargaInicial"
@@ -188,11 +188,11 @@
                                         </select>
                                         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                             @if($configCajaModoCargaInicial === 'manual')
-                                                El operador ingresa manualmente el monto inicial al abrir el turno
+                                                {{ __('El operador ingresa manualmente el monto inicial al abrir el turno') }}
                                             @elseif($configCajaModoCargaInicial === 'ultimo_cierre')
-                                                Se usa automáticamente el saldo del último cierre
+                                                {{ __('Se usa automáticamente el saldo del último cierre') }}
                                             @else
-                                                Se usa automáticamente el monto fijo definido
+                                                {{ __('Se usa automáticamente el monto fijo definido') }}
                                             @endif
                                         </p>
                                         @error('configCajaModoCargaInicial')
@@ -204,7 +204,7 @@
                                     @if($configCajaModoCargaInicial === 'monto_fijo')
                                         <div>
                                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                Monto Fijo Inicial <span class="text-red-500">*</span>
+                                                {{ __('Monto Fijo Inicial') }} <span class="text-red-500">*</span>
                                             </label>
                                             <div class="mt-1 relative rounded-md shadow-sm">
                                                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -220,7 +220,7 @@
                                                 >
                                             </div>
                                             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                Este monto se usará automáticamente al abrir cada turno
+                                                {{ __('Este monto se usará automáticamente al abrir cada turno') }}
                                             </p>
                                             @error('configCajaMontoFijoInicial')
                                                 <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
@@ -235,14 +235,14 @@
                                     type="submit"
                                     class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-bcn-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary sm:ml-3 sm:w-auto sm:text-sm"
                                 >
-                                    Guardar
+                                    {{ __('Guardar') }}
                                 </button>
                                 <button
                                     type="button"
                                     wire:click="cerrarModalConfigCaja"
                                     class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                                 >
-                                    Cancelar
+                                    {{ __('Cancelar') }}
                                 </button>
                             </div>
                         </form>
@@ -269,11 +269,11 @@
                                 </div>
                                 <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
                                     <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white" id="modal-title">
-                                        Eliminar Punto de Venta
+                                        {{ __('Eliminar Punto de Venta') }}
                                     </h3>
                                     <div class="mt-2">
                                         <p class="text-sm text-gray-500 dark:text-gray-400">
-                                            ¿Está seguro de que desea eliminar el punto de venta <span class="font-mono font-semibold text-gray-700 dark:text-gray-300">{{ $pvEliminarNumero }}</span>? Esta acción no se puede deshacer.
+                                            {{ __('¿Está seguro de que desea eliminar el punto de venta') }} <span class="font-mono font-semibold text-gray-700 dark:text-gray-300">{{ $pvEliminarNumero }}</span>{{ __('? Esta acción no se puede deshacer.') }}
                                         </p>
                                     </div>
                                 </div>
@@ -285,14 +285,14 @@
                                 type="button"
                                 class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
                             >
-                                Eliminar
+                                {{ __('Eliminar') }}
                             </button>
                             <button
                                 wire:click="cancelarEliminarPuntoVenta"
                                 type="button"
                                 class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                             >
-                                Cancelar
+                                {{ __('Cancelar') }}
                             </button>
                         </div>
                     </div>

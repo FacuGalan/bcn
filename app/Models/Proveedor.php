@@ -12,22 +12,29 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * Representa un proveedor del comercio. Puede ser un proveedor externo
  * o una sucursal interna (para transferencias fiscales entre sucursales).
  *
+ * VINCULACIÓN CLIENTE-PROVEEDOR:
+ * - Un proveedor puede estar vinculado a un cliente (cliente_id)
+ * - Esto permite tener cuentas corrientes unificadas donde el mismo
+ *   ente es cliente y proveedor (ej: distribuidora que compra y vende)
+ *
  * @property int $id
- * @property string $codigo
+ * @property string|null $codigo
  * @property string $nombre
+ * @property string|null $razon_social
  * @property string|null $nombre_fiscal
- * @property string|null $cuit_cuil
- * @property string|null $direccion
- * @property string|null $telefono
+ * @property string|null $cuit
  * @property string|null $email
- * @property string $condicion_iva
+ * @property string|null $telefono
+ * @property string|null $direccion
+ * @property int|null $condicion_iva_id FK a condiciones_iva
  * @property bool $es_sucursal_interna
- * @property int|null $sucursal_id
- * @property int|null $cliente_id
+ * @property int|null $sucursal_id Sucursal vinculada si es interna
+ * @property int|null $cliente_id Cliente vinculado para cuentas unificadas
  * @property bool $activo
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  *
+ * @property-read CondicionIva|null $condicionIva
  * @property-read Sucursal|null $sucursal
  * @property-read Cliente|null $cliente
  * @property-read \Illuminate\Database\Eloquent\Collection|Compra[] $compras
@@ -40,12 +47,13 @@ class Proveedor extends Model
     protected $fillable = [
         'codigo',
         'nombre',
+        'razon_social',
         'nombre_fiscal',
-        'cuit_cuil',
-        'direccion',
-        'telefono',
+        'cuit',
         'email',
-        'condicion_iva',
+        'telefono',
+        'direccion',
+        'condicion_iva_id',
         'es_sucursal_interna',
         'sucursal_id',
         'cliente_id',
@@ -58,11 +66,27 @@ class Proveedor extends Model
     ];
 
     // Relaciones
+
+    /**
+     * Condición de IVA del proveedor
+     * Relación cross-database a la tabla condiciones_iva en config
+     */
+    public function condicionIva(): BelongsTo
+    {
+        return $this->belongsTo(CondicionIva::class, 'condicion_iva_id');
+    }
+
+    /**
+     * Sucursal vinculada (si es sucursal interna)
+     */
     public function sucursal(): BelongsTo
     {
         return $this->belongsTo(Sucursal::class, 'sucursal_id');
     }
 
+    /**
+     * Cliente vinculado (para cuentas corrientes unificadas)
+     */
     public function cliente(): BelongsTo
     {
         return $this->belongsTo(Cliente::class, 'cliente_id');
@@ -89,19 +113,29 @@ class Proveedor extends Model
         return $query->where('es_sucursal_interna', false);
     }
 
-    public function scopePorCondicionIva($query, string $condicion)
+    public function scopeConClienteVinculado($query)
     {
-        return $query->where('condicion_iva', $condicion);
+        return $query->whereNotNull('cliente_id');
+    }
+
+    public function scopeSinClienteVinculado($query)
+    {
+        return $query->whereNull('cliente_id');
+    }
+
+    public function scopePorCondicionIva($query, int $condicionIvaId)
+    {
+        return $query->where('condicion_iva_id', $condicionIvaId);
     }
 
     public function scopePorCuit($query, string $cuit)
     {
-        return $query->where('cuit_cuil', $cuit);
+        return $query->where('cuit', $cuit);
     }
 
     public function scopeResponsablesInscriptos($query)
     {
-        return $query->where('condicion_iva', 'responsable_inscripto');
+        return $query->whereHas('condicionIva', fn($q) => $q->where('codigo', CondicionIva::RESPONSABLE_INSCRIPTO));
     }
 
     // Métodos auxiliares
@@ -143,7 +177,7 @@ class Proveedor extends Model
      */
     public function obtenerNombreFiscal(): string
     {
-        return $this->nombre_fiscal ?? $this->nombre;
+        return $this->nombre_fiscal ?? $this->razon_social ?? $this->nombre;
     }
 
     /**
@@ -151,7 +185,31 @@ class Proveedor extends Model
      */
     public function esResponsableInscripto(): bool
     {
-        return $this->condicion_iva === 'responsable_inscripto';
+        return $this->condicionIva?->esResponsableInscripto() ?? false;
+    }
+
+    /**
+     * Verifica si es Consumidor Final
+     */
+    public function esConsumidorFinal(): bool
+    {
+        return $this->condicionIva?->esConsumidorFinal() ?? true;
+    }
+
+    /**
+     * Verifica si es Monotributista
+     */
+    public function esMonotributista(): bool
+    {
+        return $this->condicionIva?->esMonotributista() ?? false;
+    }
+
+    /**
+     * Obtiene el código AFIP de la condición de IVA
+     */
+    public function getCodigoCondicionIvaAfip(): int
+    {
+        return $this->condicionIva?->codigo ?? CondicionIva::CONSUMIDOR_FINAL;
     }
 
     /**

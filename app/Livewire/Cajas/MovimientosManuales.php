@@ -195,20 +195,20 @@ class MovimientosManuales extends Component
             'transferencia.monto' => 'required|numeric|min:0.01',
             'transferencia.motivo' => 'required|string|max:255',
         ], [
-            'transferencia.caja_destino_id.required' => 'Seleccione la caja destino',
-            'transferencia.monto.required' => 'Ingrese el monto',
-            'transferencia.monto.min' => 'El monto debe ser mayor a cero',
-            'transferencia.motivo.required' => 'Ingrese el motivo de la transferencia',
+            'transferencia.caja_destino_id.required' => __('Seleccione la caja destino'),
+            'transferencia.monto.required' => __('Ingrese el monto'),
+            'transferencia.monto.min' => __('El monto debe ser mayor a cero'),
+            'transferencia.motivo.required' => __('Ingrese el motivo de la transferencia'),
         ]);
 
         // Validaciones adicionales
         if ($this->transferencia['caja_destino_id'] == $this->cajaActualId) {
-            $this->addError('transferencia.caja_destino_id', 'La caja destino debe ser diferente a la actual');
+            $this->addError('transferencia.caja_destino_id', __('La caja destino debe ser diferente a la actual'));
             return;
         }
 
         if (!$this->cajaActual || $this->cajaActual->saldo_actual < $this->transferencia['monto']) {
-            $this->addError('transferencia.monto', 'Saldo insuficiente en la caja');
+            $this->addError('transferencia.monto', __('Saldo insuficiente en la caja'));
             return;
         }
 
@@ -283,12 +283,12 @@ class MovimientosManuales extends Component
             $this->cargarDatos();
 
             $this->dispatch('caja-actualizada', cajaId: $this->cajaActualId, accion: 'transferencia');
-            $this->dispatch('toast-success', message: 'Transferencia realizada correctamente');
+            $this->dispatch('toast-success', message: __('Transferencia realizada correctamente'));
 
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error en transferencia', ['error' => $e->getMessage()]);
-            $this->dispatch('toast-error', message: 'Error: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error') . ': ' . $e->getMessage());
         }
     }
 
@@ -301,19 +301,19 @@ class MovimientosManuales extends Component
             'ingreso.motivo' => 'required|string|max:255',
             'ingreso.origen' => 'required|in:tesoreria,otro',
         ], [
-            'ingreso.monto.required' => 'Ingrese el monto',
-            'ingreso.monto.min' => 'El monto debe ser mayor a cero',
-            'ingreso.motivo.required' => 'Ingrese el motivo del ingreso',
+            'ingreso.monto.required' => __('Ingrese el monto'),
+            'ingreso.monto.min' => __('El monto debe ser mayor a cero'),
+            'ingreso.motivo.required' => __('Ingrese el motivo del ingreso'),
         ]);
 
         // Si viene de tesorería, validar saldo
         if ($this->ingreso['origen'] === 'tesoreria') {
             if (!$this->tesoreriaActiva) {
-                $this->addError('ingreso.origen', 'No hay tesorería activa en esta sucursal');
+                $this->addError('ingreso.origen', __('No hay tesorería activa en esta sucursal'));
                 return;
             }
             if ($this->tesoreria->saldo_actual < $this->ingreso['monto']) {
-                $this->addError('ingreso.monto', 'Saldo insuficiente en tesorería');
+                $this->addError('ingreso.monto', __('Saldo insuficiente en tesorería'));
                 return;
             }
         }
@@ -323,7 +323,7 @@ class MovimientosManuales extends Component
             'caja' => $this->cajaActual->nombre,
             'monto' => $this->ingreso['monto'],
             'motivo' => $this->ingreso['motivo'],
-            'origen' => $this->ingreso['origen'] === 'tesoreria' ? 'Tesorería' : 'Otro origen',
+            'origen' => $this->ingreso['origen'] === 'tesoreria' ? __('Tesorería') : __('Otro origen'),
         ];
         $this->showConfirmModal = true;
     }
@@ -380,12 +380,12 @@ class MovimientosManuales extends Component
             $this->cargarDatos();
 
             $this->dispatch('caja-actualizada', cajaId: $this->cajaActualId, accion: 'ingreso_manual');
-            $this->dispatch('toast-success', message: 'Ingreso registrado correctamente');
+            $this->dispatch('toast-success', message: __('Ingreso registrado correctamente'));
 
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error en ingreso manual', ['error' => $e->getMessage()]);
-            $this->dispatch('toast-error', message: 'Error: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error') . ': ' . $e->getMessage());
         }
     }
 
@@ -398,20 +398,20 @@ class MovimientosManuales extends Component
             'egreso.motivo' => 'required|string|max:255',
             'egreso.destino' => 'required|in:tesoreria,otro',
         ], [
-            'egreso.monto.required' => 'Ingrese el monto',
-            'egreso.monto.min' => 'El monto debe ser mayor a cero',
-            'egreso.motivo.required' => 'Ingrese el motivo del egreso',
+            'egreso.monto.required' => __('Ingrese el monto'),
+            'egreso.monto.min' => __('El monto debe ser mayor a cero'),
+            'egreso.motivo.required' => __('Ingrese el motivo del egreso'),
         ]);
 
         // Validar saldo de caja
         if (!$this->cajaActual || $this->cajaActual->saldo_actual < $this->egreso['monto']) {
-            $this->addError('egreso.monto', 'Saldo insuficiente en la caja');
+            $this->addError('egreso.monto', __('Saldo insuficiente en la caja'));
             return;
         }
 
         // Si va a tesorería, validar que exista
         if ($this->egreso['destino'] === 'tesoreria' && !$this->tesoreriaActiva) {
-            $this->addError('egreso.destino', 'No hay tesorería activa en esta sucursal');
+            $this->addError('egreso.destino', __('No hay tesorería activa en esta sucursal'));
             return;
         }
 
@@ -420,7 +420,7 @@ class MovimientosManuales extends Component
             'caja' => $this->cajaActual->nombre,
             'monto' => $this->egreso['monto'],
             'motivo' => $this->egreso['motivo'],
-            'destino' => $this->egreso['destino'] === 'tesoreria' ? 'Tesorería' : 'Otro destino',
+            'destino' => $this->egreso['destino'] === 'tesoreria' ? __('Tesorería') : __('Otro destino'),
         ];
         $this->showConfirmModal = true;
     }
@@ -477,12 +477,12 @@ class MovimientosManuales extends Component
             $this->cargarDatos();
 
             $this->dispatch('caja-actualizada', cajaId: $this->cajaActualId, accion: 'egreso_manual');
-            $this->dispatch('toast-success', message: 'Egreso registrado correctamente');
+            $this->dispatch('toast-success', message: __('Egreso registrado correctamente'));
 
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error en egreso manual', ['error' => $e->getMessage()]);
-            $this->dispatch('toast-error', message: 'Error: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error') . ': ' . $e->getMessage());
         }
     }
 

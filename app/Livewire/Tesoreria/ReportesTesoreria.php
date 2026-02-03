@@ -113,7 +113,7 @@ class ReportesTesoreria extends Component
             return [
                 'fecha' => $mov->created_at->format('d/m/Y H:i'),
                 'concepto' => $mov->concepto,
-                'usuario' => $mov->usuario->name ?? 'Sistema',
+                'usuario' => $mov->usuario->name ?? __('Sistema'),
                 'tipo' => $mov->tipo,
                 'monto' => $mov->monto,
                 'saldo_anterior' => $mov->saldo_anterior,
@@ -223,8 +223,8 @@ class ReportesTesoreria extends Component
             $trazabilidad[] = [
                 'fecha' => $prov->fecha->format('d/m/Y H:i'),
                 'tipo' => 'provision',
-                'origen' => 'Tesorería',
-                'destino' => $prov->caja->nombre ?? 'Caja',
+                'origen' => __('Tesoreria'),
+                'destino' => $prov->caja->nombre ?? __('Caja'),
                 'monto' => $prov->monto,
                 'usuario_entrega' => $prov->usuarioEntrega->name ?? 'N/A',
                 'usuario_recibe' => $prov->usuarioRecibe->name ?? 'N/A',
@@ -244,13 +244,13 @@ class ReportesTesoreria extends Component
             $trazabilidad[] = [
                 'fecha' => $rend->fecha->format('d/m/Y H:i'),
                 'tipo' => 'rendicion',
-                'origen' => $rend->caja->nombre ?? 'Caja',
-                'destino' => 'Tesorería',
+                'origen' => $rend->caja->nombre ?? __('Caja'),
+                'destino' => __('Tesoreria'),
                 'monto' => $rend->monto_entregado,
                 'monto_sistema' => $rend->monto_sistema,
                 'diferencia' => $rend->diferencia,
                 'usuario_entrega' => $rend->usuarioEntrega->name ?? 'N/A',
-                'usuario_recibe' => $rend->usuarioRecibe->name ?? 'Pendiente',
+                'usuario_recibe' => $rend->usuarioRecibe->name ?? __('Pendiente'),
                 'estado' => $rend->estado,
                 'observaciones' => $rend->observaciones,
             ];
@@ -267,8 +267,8 @@ class ReportesTesoreria extends Component
             $trazabilidad[] = [
                 'fecha' => $dep->fecha_deposito->format('d/m/Y'),
                 'tipo' => 'deposito',
-                'origen' => 'Tesorería',
-                'destino' => $dep->cuentaBancaria->nombre_completo ?? 'Banco',
+                'origen' => __('Tesoreria'),
+                'destino' => $dep->cuentaBancaria->nombre_completo ?? __('Banco'),
                 'monto' => $dep->monto,
                 'usuario_entrega' => $dep->usuario->name ?? 'N/A',
                 'estado' => $dep->estado,

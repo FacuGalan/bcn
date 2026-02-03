@@ -109,7 +109,7 @@ class ComercioSelector extends Component
 
         // Verificar que el usuario tenga acceso al comercio
         if (!$user->hasAccessToComercio($comercioId)) {
-            session()->flash('error', 'No tienes acceso a este comercio.');
+            session()->flash('error', __('No tienes acceso a este comercio.'));
             return;
         }
 
@@ -122,7 +122,7 @@ class ComercioSelector extends Component
             if ($this->tenantService->switchComercio($comercioId, $user->id)) {
                 $this->redirect(route('dashboard'), navigate: true);
             } else {
-                session()->flash('error', 'Error al seleccionar el comercio.');
+                session()->flash('error', __('Error al seleccionar el comercio.'));
             }
         }
     }
@@ -147,6 +147,6 @@ class ComercioSelector extends Component
             'comercios' => $comercios,
             'comercioActual' => $comercioActual,
             'isSystemAdmin' => $isSystemAdmin,
-        ])->layout('layouts.guest', ['title' => $isSystemAdmin ? 'Administrador de Sistema' : 'Seleccionar Comercio']);
+        ])->layout('layouts.guest', ['title' => $isSystemAdmin ? __('Administrador de Sistema') : __('Seleccionar Comercio')]);
     }
 }

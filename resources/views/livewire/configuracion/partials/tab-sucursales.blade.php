@@ -2,9 +2,9 @@
 <div class="p-6">
     {{-- Header --}}
     <div class="mb-6">
-        <h3 class="text-lg font-medium text-gray-900 dark:text-white">Configuración de Sucursales</h3>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white">{{ __('Configuración de Sucursales') }}</h3>
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Configura el logo y datos adicionales de cada sucursal
+            {{ __('Configura el logo y datos adicionales de cada sucursal') }}
         </p>
     </div>
 
@@ -20,15 +20,15 @@
                                 {{-- Nombre Interno --}}
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        Nombre Interno <span class="text-red-500">*</span>
+                                        {{ __('Nombre Interno') }} <span class="text-red-500">*</span>
                                     </label>
                                     <input
                                         type="text"
                                         wire:model="sucursalNombre"
                                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                        placeholder="Ej: Sucursal Norte"
+                                        :placeholder="__('Ej: Sucursal Norte')"
                                     >
-                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Para uso interno del sistema</p>
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Para uso interno del sistema') }}</p>
                                     @error('sucursalNombre')
                                         <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
                                     @enderror
@@ -37,15 +37,15 @@
                                 {{-- Nombre Público --}}
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        Nombre Público
+                                        {{ __('Nombre Público') }}
                                     </label>
                                     <input
                                         type="text"
                                         wire:model="sucursalNombrePublico"
                                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                        placeholder="Ej: Helados Favoritos Rivadavia"
+                                        :placeholder="__('Ej: Helados Favoritos Rivadavia')"
                                     >
-                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Nombre comercial visible al público</p>
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Nombre comercial visible al público') }}</p>
                                     @error('sucursalNombrePublico')
                                         <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
                                     @enderror
@@ -54,7 +54,7 @@
                                 {{-- Dirección --}}
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        Dirección
+                                        {{ __('Dirección') }}
                                     </label>
                                     <input
                                         type="text"
@@ -67,7 +67,7 @@
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                            Teléfono
+                                            {{ __('Teléfono') }}
                                         </label>
                                         <input
                                             type="text"
@@ -77,7 +77,7 @@
                                     </div>
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                            Email
+                                            {{ __('Email') }}
                                         </label>
                                         <input
                                             type="email"
@@ -93,14 +93,14 @@
                                 {{-- Logo --}}
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Logo
+                                        {{ __('Logo') }}
                                     </label>
                                     <div class="flex items-center gap-4">
                                         <div class="w-16 h-16 rounded-lg bg-gray-200 dark:bg-gray-600 flex items-center justify-center overflow-hidden">
                                             @if($sucursalLogo)
-                                                <img src="{{ $sucursalLogo->temporaryUrl() }}" alt="Preview" class="w-full h-full object-cover">
+                                                <img src="{{ $sucursalLogo->temporaryUrl() }}" alt="{{ __('Preview') }}" class="w-full h-full object-cover">
                                             @elseif($sucursal->hasLogo())
-                                                <img src="{{ $sucursal->logo_url }}" alt="Logo" class="w-full h-full object-cover">
+                                                <img src="{{ $sucursal->logo_url }}" alt="{{ __('Logo') }}" class="w-full h-full object-cover">
                                             @else
                                                 <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -111,11 +111,11 @@
                                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
                                             </svg>
-                                            Cambiar
+                                            {{ __('Cambiar') }}
                                             <input type="file" wire:model="sucursalLogo" accept="image/*" class="hidden">
                                         </label>
                                         <div wire:loading wire:target="sucursalLogo" class="text-sm text-bcn-primary">
-                                            Subiendo...
+                                            {{ __('Subiendo...') }}
                                         </div>
                                     </div>
                                     @error('sucursalLogo')
@@ -130,7 +130,7 @@
                                         wire:click="cancelarEdicionSucursal"
                                         class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                                     >
-                                        Cancelar
+                                        {{ __('Cancelar') }}
                                     </button>
                                     <button
                                         type="submit"
@@ -139,7 +139,7 @@
                                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                                         </svg>
-                                        Guardar
+                                        {{ __('Guardar') }}
                                     </button>
                                 </div>
                             </div>
@@ -151,7 +151,7 @@
                             <div class="flex-shrink-0">
                                 <div class="w-20 h-20 rounded-lg bg-gray-200 dark:bg-gray-600 flex items-center justify-center overflow-hidden">
                                     @if($sucursal->hasLogo())
-                                        <img src="{{ $sucursal->logo_url }}" alt="Logo {{ $sucursal->nombre }}" class="w-full h-full object-cover">
+                                        <img src="{{ $sucursal->logo_url }}" alt="{{ __('Logo') }} {{ $sucursal->nombre }}" class="w-full h-full object-cover">
                                     @else
                                         <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
@@ -168,23 +168,23 @@
                                     </h4>
                                     @if($sucursal->es_principal)
                                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-bcn-primary/10 text-bcn-primary dark:bg-bcn-primary/20">
-                                            Principal
+                                            {{ __('Principal') }}
                                         </span>
                                     @endif
                                     @if($sucursal->activa)
                                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100">
-                                            Activa
+                                            {{ __('Activa') }}
                                         </span>
                                     @else
                                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100">
-                                            Inactiva
+                                            {{ __('Inactiva') }}
                                         </span>
                                     @endif
                                 </div>
 
                                 @if($sucursal->nombre_publico)
                                     <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                        <span class="font-medium">Público:</span> {{ $sucursal->nombre_publico }}
+                                        <span class="font-medium">{{ __('Público:') }}</span> {{ $sucursal->nombre_publico }}
                                     </p>
                                 @endif
 
@@ -225,7 +225,7 @@
                                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                                         </svg>
-                                        Editar
+                                        {{ __('Editar') }}
                                     </button>
                                     <button
                                         wire:click="abrirConfigSucursal({{ $sucursal->id }})"
@@ -235,7 +235,7 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                         </svg>
-                                        Configurar
+                                        {{ __('Configurar') }}
                                     </button>
                                     @if($sucursal->hasLogo())
                                         <button
@@ -245,7 +245,7 @@
                                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                                             </svg>
-                                            Quitar Logo
+                                            {{ __('Quitar Logo') }}
                                         </button>
                                     @endif
                                 </div>
@@ -261,9 +261,9 @@
             <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
             </svg>
-            <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No hay sucursales</h3>
+            <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">{{ __('No hay sucursales') }}</h3>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                No se encontraron sucursales configuradas.
+                {{ __('No se encontraron sucursales configuradas.') }}
             </p>
         </div>
     @endif

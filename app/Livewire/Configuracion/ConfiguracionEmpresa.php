@@ -211,10 +211,10 @@ class ConfiguracionEmpresa extends Component
             'empresaEmail' => 'nullable|email|max:100',
             'empresaLogo' => 'nullable|image|max:2048',
         ], [
-            'empresaNombre.required' => 'El nombre de la empresa es obligatorio.',
-            'empresaEmail.email' => 'El email no es válido.',
-            'empresaLogo.image' => 'El archivo debe ser una imagen.',
-            'empresaLogo.max' => 'La imagen no debe superar los 2MB.',
+            'empresaNombre.required' => __('El nombre de la empresa es obligatorio.'),
+            'empresaEmail.email' => __('El email no es válido.'),
+            'empresaLogo.image' => __('El archivo debe ser una imagen.'),
+            'empresaLogo.max' => __('La imagen no debe superar los 2MB.'),
         ]);
 
         $config = EmpresaConfig::getConfig();
@@ -231,7 +231,7 @@ class ConfiguracionEmpresa extends Component
 
         $config->save();
 
-        $this->dispatch('notify', message: 'Datos de empresa guardados correctamente', type: 'success');
+        $this->dispatch('notify', message: __('Datos de empresa guardados correctamente'), type: 'success');
     }
 
     public function eliminarLogoEmpresa()
@@ -240,7 +240,7 @@ class ConfiguracionEmpresa extends Component
         $config->deleteLogo();
         $this->empresaLogoActual = null;
 
-        $this->dispatch('notify', message: 'Logo eliminado', type: 'success');
+        $this->dispatch('notify', message: __('Logo eliminado'), type: 'success');
     }
 
     // ==================== TAB CUITS ====================
@@ -324,18 +324,18 @@ class ConfiguracionEmpresa extends Component
         }
 
         $this->validate($rules, [
-            'cuitNumeroCuit.required' => 'El número de CUIT es obligatorio.',
-            'cuitNumeroCuit.digits' => 'El CUIT debe tener 11 dígitos.',
-            'cuitNumeroCuit.unique' => 'Este CUIT ya está registrado.',
-            'cuitRazonSocial.required' => 'La razón social es obligatoria.',
-            'cuitCondicionIvaId.required' => 'La condición de IVA es obligatoria.',
-            'cuitCertificado.max' => 'El certificado no debe superar 1MB.',
-            'cuitClave.max' => 'La clave no debe superar 1MB.',
+            'cuitNumeroCuit.required' => __('El número de CUIT es obligatorio.'),
+            'cuitNumeroCuit.digits' => __('El CUIT debe tener 11 dígitos.'),
+            'cuitNumeroCuit.unique' => __('Este CUIT ya está registrado.'),
+            'cuitRazonSocial.required' => __('La razón social es obligatoria.'),
+            'cuitCondicionIvaId.required' => __('La condición de IVA es obligatoria.'),
+            'cuitCertificado.max' => __('El certificado no debe superar 1MB.'),
+            'cuitClave.max' => __('La clave no debe superar 1MB.'),
         ]);
 
         // Validar dígito verificador del CUIT
         if (!Cuit::validarCuit($this->cuitNumeroCuit)) {
-            $this->addError('cuitNumeroCuit', 'El número de CUIT no es válido.');
+            $this->addError('cuitNumeroCuit', __('El número de CUIT no es válido.'));
             return;
         }
 
@@ -357,12 +357,12 @@ class ConfiguracionEmpresa extends Component
             if ($this->modoEdicionCuit) {
                 $cuit = Cuit::findOrFail($this->cuitId);
                 $cuit->update($datos);
-                $mensaje = 'CUIT actualizado correctamente';
+                $mensaje = __('CUIT actualizado correctamente');
             } else {
                 $cuit = Cuit::create($datos);
                 $this->cuitId = $cuit->id;
                 $this->modoEdicionCuit = true;
-                $mensaje = 'CUIT creado correctamente';
+                $mensaje = __('CUIT creado correctamente');
             }
 
             // Guardar certificados si se subieron
@@ -382,7 +382,7 @@ class ConfiguracionEmpresa extends Component
 
             $this->dispatch('notify', message: $mensaje, type: 'success');
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: 'Error: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error: ') . $e->getMessage(), type: 'error');
         }
     }
 
@@ -399,9 +399,9 @@ class ConfiguracionEmpresa extends Component
             $this->cuitTieneCertificado = false;
             $this->cuitTieneClave = false;
 
-            $this->dispatch('notify', message: 'Certificados eliminados', type: 'success');
+            $this->dispatch('notify', message: __('Certificados eliminados'), type: 'success');
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: 'Error: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error: ') . $e->getMessage(), type: 'error');
         }
     }
 
@@ -427,9 +427,9 @@ class ConfiguracionEmpresa extends Component
             $this->mostrarConfirmacionEliminarCuit = false;
             $this->cuitEliminarId = null;
 
-            $this->dispatch('notify', message: 'CUIT eliminado correctamente', type: 'success');
+            $this->dispatch('notify', message: __('CUIT eliminado correctamente'), type: 'success');
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: 'Error: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error: ') . $e->getMessage(), type: 'error');
         }
     }
 
@@ -469,7 +469,7 @@ class ConfiguracionEmpresa extends Component
     public function agregarPuntoVenta()
     {
         if (!$this->cuitId) {
-            $this->dispatch('notify', message: 'Primero debe guardar el CUIT', type: 'warning');
+            $this->dispatch('notify', message: __('Primero debe guardar el CUIT'), type: 'warning');
             return;
         }
 
@@ -477,10 +477,10 @@ class ConfiguracionEmpresa extends Component
             'nuevoPuntoVentaNumero' => 'required|integer|min:1|max:99999',
             'nuevoPuntoVentaNombre' => 'nullable|max:100',
         ], [
-            'nuevoPuntoVentaNumero.required' => 'El número de punto de venta es obligatorio.',
-            'nuevoPuntoVentaNumero.integer' => 'El número debe ser un entero.',
-            'nuevoPuntoVentaNumero.min' => 'El número debe ser al menos 1.',
-            'nuevoPuntoVentaNumero.max' => 'El número no puede superar 99999.',
+            'nuevoPuntoVentaNumero.required' => __('El número de punto de venta es obligatorio.'),
+            'nuevoPuntoVentaNumero.integer' => __('El número debe ser un entero.'),
+            'nuevoPuntoVentaNumero.min' => __('El número debe ser al menos 1.'),
+            'nuevoPuntoVentaNumero.max' => __('El número no puede superar 99999.'),
         ]);
 
         // Verificar que no exista el número para este CUIT
@@ -489,7 +489,7 @@ class ConfiguracionEmpresa extends Component
             ->exists();
 
         if ($existe) {
-            $this->addError('nuevoPuntoVentaNumero', 'Este número de punto de venta ya existe para este CUIT.');
+            $this->addError('nuevoPuntoVentaNumero', __('Este número de punto de venta ya existe para este CUIT.'));
             return;
         }
 
@@ -504,9 +504,9 @@ class ConfiguracionEmpresa extends Component
             $this->resetFormularioPuntoVenta();
             $this->puntosVenta = Cuit::find($this->cuitId)->puntosVenta->toArray();
 
-            $this->dispatch('notify', message: 'Punto de venta agregado', type: 'success');
+            $this->dispatch('notify', message: __('Punto de venta agregado'), type: 'success');
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: 'Error: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error: ') . $e->getMessage(), type: 'error');
         }
     }
 
@@ -518,8 +518,8 @@ class ConfiguracionEmpresa extends Component
 
         $this->puntosVenta = Cuit::find($this->cuitId)->puntosVenta->toArray();
 
-        $estado = $pv->activo ? 'activado' : 'desactivado';
-        $this->dispatch('notify', message: "Punto de venta {$pv->numero_formateado} {$estado}", type: 'success');
+        $estado = $pv->activo ? __('activado') : __('desactivado');
+        $this->dispatch('notify', message: __('Punto de venta :numero :estado', ['numero' => $pv->numero_formateado, 'estado' => $estado]), type: 'success');
     }
 
     public function confirmarEliminarPuntoVenta($id)
@@ -542,9 +542,9 @@ class ConfiguracionEmpresa extends Component
             $this->pvEliminarId = null;
             $this->pvEliminarNumero = null;
 
-            $this->dispatch('notify', message: "Punto de venta {$numero} eliminado", type: 'success');
+            $this->dispatch('notify', message: __('Punto de venta :numero eliminado', ['numero' => $numero]), type: 'success');
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: 'Error: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error: ') . $e->getMessage(), type: 'error');
         }
     }
 
@@ -585,10 +585,10 @@ class ConfiguracionEmpresa extends Component
             'sucursalEmail' => 'nullable|email|max:100',
             'sucursalLogo' => 'nullable|image|max:2048',
         ], [
-            'sucursalNombre.required' => 'El nombre interno es obligatorio.',
-            'sucursalEmail.email' => 'El email no es válido.',
-            'sucursalLogo.image' => 'El archivo debe ser una imagen.',
-            'sucursalLogo.max' => 'La imagen no debe superar los 2MB.',
+            'sucursalNombre.required' => __('El nombre interno es obligatorio.'),
+            'sucursalEmail.email' => __('El email no es válido.'),
+            'sucursalLogo.image' => __('El archivo debe ser una imagen.'),
+            'sucursalLogo.max' => __('La imagen no debe superar los 2MB.'),
         ]);
 
         try {
@@ -609,9 +609,9 @@ class ConfiguracionEmpresa extends Component
 
             $this->cancelarEdicionSucursal();
 
-            $this->dispatch('notify', message: 'Sucursal actualizada correctamente', type: 'success');
+            $this->dispatch('notify', message: __('Sucursal actualizada correctamente'), type: 'success');
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: 'Error: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error: ') . $e->getMessage(), type: 'error');
         }
     }
 
@@ -632,7 +632,7 @@ class ConfiguracionEmpresa extends Component
         $sucursal = Sucursal::findOrFail($id);
         $sucursal->deleteLogo();
 
-        $this->dispatch('notify', message: 'Logo eliminado', type: 'success');
+        $this->dispatch('notify', message: __('Logo eliminado'), type: 'success');
     }
 
     // ==================== CONFIGURACIÓN DE SUCURSAL ====================
@@ -677,10 +677,10 @@ class ConfiguracionEmpresa extends Component
             'configMensajeWhatsappComanda' => 'nullable|max:500',
             'configMensajeWhatsappListo' => 'nullable|max:500',
         ], [
-            'configClaveAutorizacion.required' => 'Debe ingresar una clave de autorización.',
-            'configClaveAutorizacion.min' => 'La clave debe tener al menos 4 caracteres.',
-            'configMensajeWhatsappComanda.max' => 'El mensaje no puede superar 500 caracteres.',
-            'configMensajeWhatsappListo.max' => 'El mensaje no puede superar 500 caracteres.',
+            'configClaveAutorizacion.required' => __('Debe ingresar una clave de autorización.'),
+            'configClaveAutorizacion.min' => __('La clave debe tener al menos 4 caracteres.'),
+            'configMensajeWhatsappComanda.max' => __('El mensaje no puede superar 500 caracteres.'),
+            'configMensajeWhatsappListo.max' => __('El mensaje no puede superar 500 caracteres.'),
         ]);
 
         try {
@@ -705,10 +705,10 @@ class ConfiguracionEmpresa extends Component
             ]);
 
             $this->cerrarModalConfigSucursal();
-            $this->dispatch('notify', message: 'Configuración guardada correctamente', type: 'success');
+            $this->dispatch('notify', message: __('Configuración guardada correctamente'), type: 'success');
 
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: 'Error: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error: ') . $e->getMessage(), type: 'error');
         }
     }
 
@@ -756,10 +756,10 @@ class ConfiguracionEmpresa extends Component
             'configCajaModoCargaInicial' => 'required|in:manual,ultimo_cierre,monto_fijo',
             'configCajaMontoFijoInicial' => 'nullable|numeric|min:0',
         ], [
-            'configCajaLimiteEfectivo.numeric' => 'El límite debe ser un número.',
-            'configCajaLimiteEfectivo.min' => 'El límite no puede ser negativo.',
-            'configCajaMontoFijoInicial.numeric' => 'El monto fijo debe ser un número.',
-            'configCajaMontoFijoInicial.min' => 'El monto fijo no puede ser negativo.',
+            'configCajaLimiteEfectivo.numeric' => __('El límite debe ser un número.'),
+            'configCajaLimiteEfectivo.min' => __('El límite no puede ser negativo.'),
+            'configCajaMontoFijoInicial.numeric' => __('El monto fijo debe ser un número.'),
+            'configCajaMontoFijoInicial.min' => __('El monto fijo no puede ser negativo.'),
         ]);
 
         try {
@@ -775,9 +775,9 @@ class ConfiguracionEmpresa extends Component
 
             $this->cerrarModalConfigCaja();
 
-            $this->dispatch('notify', message: 'Configuración guardada correctamente', type: 'success');
+            $this->dispatch('notify', message: __('Configuración guardada correctamente'), type: 'success');
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: 'Error: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error: ') . $e->getMessage(), type: 'error');
         }
     }
 
@@ -867,9 +867,9 @@ class ConfiguracionEmpresa extends Component
 
             $this->cancelarEdicionPuntosCaja();
 
-            $this->dispatch('notify', message: 'Puntos de venta actualizados correctamente', type: 'success');
+            $this->dispatch('notify', message: __('Puntos de venta actualizados correctamente'), type: 'success');
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: 'Error: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error: ') . $e->getMessage(), type: 'error');
         }
     }
 
@@ -902,7 +902,7 @@ class ConfiguracionEmpresa extends Component
 
         // Verificar si el grupo tiene turno abierto
         if ($this->grupoTieneTurnoAbierto($grupo)) {
-            $this->dispatch('notify', message: 'No se puede modificar el grupo porque tiene un turno abierto. Cierre el turno primero.', type: 'warning');
+            $this->dispatch('notify', message: __('No se puede modificar el grupo porque tiene un turno abierto. Cierre el turno primero.'), type: 'warning');
             return;
         }
 
@@ -940,7 +940,7 @@ class ConfiguracionEmpresa extends Component
     {
         // Validación: mínimo 2 cajas para un grupo
         if (count($this->grupoCajasSeleccionadas) < 2) {
-            $this->dispatch('notify', message: 'Un grupo de cierre debe tener al menos 2 cajas', type: 'warning');
+            $this->dispatch('notify', message: __('Un grupo de cierre debe tener al menos 2 cajas'), type: 'warning');
             return;
         }
 
@@ -950,7 +950,7 @@ class ConfiguracionEmpresa extends Component
                 $grupo->nombre = $this->grupoNombre ?: null;
                 $grupo->fondo_comun = $this->grupoFondoComun;
                 $grupo->save();
-                $mensaje = 'Grupo de cierre actualizado correctamente';
+                $mensaje = __('Grupo de cierre actualizado correctamente');
             } else {
                 $grupo = GrupoCierre::create([
                     'sucursal_id' => $this->grupoSucursalId,
@@ -958,7 +958,7 @@ class ConfiguracionEmpresa extends Component
                     'fondo_comun' => $this->grupoFondoComun,
                     'activo' => true,
                 ]);
-                $mensaje = 'Grupo de cierre creado correctamente';
+                $mensaje = __('Grupo de cierre creado correctamente');
             }
 
             // Primero, quitar las cajas que ya no están en el grupo
@@ -974,7 +974,7 @@ class ConfiguracionEmpresa extends Component
             $this->dispatch('notify', message: $mensaje, type: 'success');
 
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: 'Error: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error: ') . $e->getMessage(), type: 'error');
         }
     }
 
@@ -986,13 +986,13 @@ class ConfiguracionEmpresa extends Component
         $grupo = GrupoCierre::with('cajas')->find($grupoId);
 
         if (!$grupo) {
-            $this->dispatch('notify', message: 'Grupo no encontrado', type: 'error');
+            $this->dispatch('notify', message: __('Grupo no encontrado'), type: 'error');
             return;
         }
 
         // Verificar si el grupo tiene turno abierto
         if ($this->grupoTieneTurnoAbierto($grupo)) {
-            $this->dispatch('notify', message: 'No se puede eliminar el grupo porque tiene un turno abierto. Cierre el turno primero.', type: 'warning');
+            $this->dispatch('notify', message: __('No se puede eliminar el grupo porque tiene un turno abierto. Cierre el turno primero.'), type: 'warning');
             return;
         }
 
@@ -1010,7 +1010,7 @@ class ConfiguracionEmpresa extends Component
 
             // Verificar nuevamente si el grupo tiene turno abierto
             if ($this->grupoTieneTurnoAbierto($grupo)) {
-                $this->dispatch('notify', message: 'No se puede eliminar el grupo porque tiene un turno abierto.', type: 'warning');
+                $this->dispatch('notify', message: __('No se puede eliminar el grupo porque tiene un turno abierto.'), type: 'warning');
                 $this->mostrarConfirmacionEliminarGrupo = false;
                 return;
             }
@@ -1024,7 +1024,7 @@ class ConfiguracionEmpresa extends Component
             $this->mostrarConfirmacionEliminarGrupo = false;
             $this->grupoEliminarId = null;
 
-            $this->dispatch('notify', message: 'Grupo eliminado. Las cajas ahora cierran de forma individual.', type: 'success');
+            $this->dispatch('notify', message: __('Grupo eliminado. Las cajas ahora cierran de forma individual.'), type: 'success');
 
         } catch (\Exception $e) {
             $this->dispatch('notify', message: 'Error: ' . $e->getMessage(), type: 'error');

@@ -14,10 +14,10 @@
                     <div>
                         <h1 class="text-2xl md:text-3xl font-bold">{{ $sucursal->nombre }}</h1>
                         <div class="flex items-center gap-3 mt-1 flex-wrap">
-                            <p class="text-white/80 text-sm">Cod: {{ $sucursal->codigo }}</p>
+                            <p class="text-white/80 text-sm">{{ __('Cod:') }} {{ $sucursal->codigo }}</p>
                             @if($sucursal->es_principal)
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-400 text-yellow-900">
-                                    Principal
+                                    {{ __('Principal') }}
                                 </span>
                             @endif
                         </div>
@@ -28,15 +28,15 @@
                     <div class="inline-flex rounded-lg bg-white/20 p-1">
                         <button wire:click="cambiarPeriodo('hoy')"
                             class="px-4 py-2 text-sm font-medium rounded-md transition-colors {{ $periodoSeleccionado === 'hoy' ? 'bg-white text-bcn-primary' : 'text-white hover:bg-white/10' }}">
-                            Hoy
+                            {{ __('Hoy') }}
                         </button>
                         <button wire:click="cambiarPeriodo('semana')"
                             class="px-4 py-2 text-sm font-medium rounded-md transition-colors {{ $periodoSeleccionado === 'semana' ? 'bg-white text-bcn-primary' : 'text-white hover:bg-white/10' }}">
-                            Semana
+                            {{ __('Semana') }}
                         </button>
                         <button wire:click="cambiarPeriodo('mes')"
                             class="px-4 py-2 text-sm font-medium rounded-md transition-colors {{ $periodoSeleccionado === 'mes' ? 'bg-white text-bcn-primary' : 'text-white hover:bg-white/10' }}">
-                            Mes
+                            {{ __('Mes') }}
                         </button>
                     </div>
                 </div>
@@ -72,9 +72,9 @@
                     @endif
                 </div>
                 <div class="mt-4">
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Ventas {{ $periodoLabel }}</p>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ __('Ventas') }} {{ $periodoLabel }}</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white">$@precio($metricas['total'])</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $metricas['cantidad'] }} operaciones</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $metricas['cantidad'] }} {{ __('operaciones') }}</p>
                 </div>
             </div>
 
@@ -86,10 +86,10 @@
                     </svg>
                 </div>
                 <div class="mt-4">
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Ticket Promedio</p>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ __('Ticket Promedio') }}</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white">$@precio($metricas['ticket_promedio'])</p>
                     @if($metricas['canceladas'] > 0)
-                        <p class="text-xs text-red-500 mt-1">{{ $metricas['canceladas'] }} cancelada(s)</p>
+                        <p class="text-xs text-red-500 mt-1">{{ $metricas['canceladas'] }} {{ __('cancelada(s)') }}</p>
                     @endif
                 </div>
             </div>
@@ -102,7 +102,7 @@
                     </svg>
                 </div>
                 <div class="mt-4">
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Facturado AFIP</p>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ __('Facturado AFIP') }}</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white">$@precio($fiscal['balance'])</p>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $fiscal['facturas_cantidad'] }} fact. / {{ $fiscal['nc_cantidad'] }} NC</p>
                 </div>
@@ -116,9 +116,9 @@
                     </svg>
                 </div>
                 <div class="mt-4">
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Cajas Abiertas</p>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ __('Cajas Abiertas') }}</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ $cajas['abiertas'] }}/{{ $cajas['total'] }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">${{ number_format($cajas['saldo_total'], 2, ',', '.') }} total</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">${{ number_format($cajas['saldo_total'], 2, ',', '.') }} {{ __('total') }}</p>
                 </div>
             </div>
         </div>
@@ -134,7 +134,7 @@
                         </svg>
                     </div>
                     <div>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">Compras</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Compras') }}</p>
                         <p class="text-lg font-bold text-gray-900 dark:text-white">$@precio($compras['total'])</p>
                     </div>
                 </div>
@@ -149,7 +149,7 @@
                         </svg>
                     </div>
                     <div>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">Cta. Cte. Pendiente</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Cta. Cte. Pendiente') }}</p>
                         <p class="text-lg font-bold text-gray-900 dark:text-white">$@precio($metricas['saldo_pendiente'])</p>
                     </div>
                 </div>
@@ -164,7 +164,7 @@
                         </svg>
                     </div>
                     <div>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">Cobros Recibidos</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Cobros Recibidos') }}</p>
                         <p class="text-lg font-bold text-gray-900 dark:text-white">$@precio($cobros['total_cobrado'])</p>
                     </div>
                 </div>
@@ -179,7 +179,7 @@
                         </svg>
                     </div>
                     <div>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">Descuentos Promos</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Descuentos Promos') }}</p>
                         <p class="text-lg font-bold text-gray-900 dark:text-white">$@precio($promociones['total_descuentos'])</p>
                     </div>
                 </div>
@@ -191,7 +191,7 @@
             {{-- Formas de pago --}}
             <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">Formas de Pago</h3>
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ __('Formas de Pago') }}</h3>
                     <span class="text-sm text-gray-500 dark:text-gray-400">${{ number_format($formasPago['total'], 2, ',', '.') }}</span>
                 </div>
                 <div class="p-5">
@@ -233,11 +233,11 @@
                         <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex items-center gap-4 text-xs">
                             <div class="flex items-center gap-1.5">
                                 <span class="w-3 h-3 rounded bg-green-500"></span>
-                                <span class="text-gray-500 dark:text-gray-400">Facturado: ${{ number_format($formasPago['facturado_total'], 2, ',', '.') }}</span>
+                                <span class="text-gray-500 dark:text-gray-400">{{ __('Facturado') }}: ${{ number_format($formasPago['facturado_total'], 2, ',', '.') }}</span>
                             </div>
                             <div class="flex items-center gap-1.5">
                                 <span class="w-3 h-3 rounded bg-bcn-primary"></span>
-                                <span class="text-gray-500 dark:text-gray-400">Sin facturar: ${{ number_format($formasPago['no_facturado_total'], 2, ',', '.') }}</span>
+                                <span class="text-gray-500 dark:text-gray-400">{{ __('Sin facturar') }}: ${{ number_format($formasPago['no_facturado_total'], 2, ',', '.') }}</span>
                             </div>
                         </div>
                     @else
@@ -245,7 +245,7 @@
                             <svg class="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"/>
                             </svg>
-                            <p>Sin pagos registrados</p>
+                            <p>{{ __('Sin pagos registrados') }}</p>
                         </div>
                     @endif
                 </div>
@@ -258,7 +258,7 @@
                         <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
-                        Comprobantes Fiscales
+                        {{ __('Comprobantes Fiscales') }}
                     </h3>
                 </div>
                 <div class="p-5">
@@ -268,7 +268,7 @@
                                 <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                                     <div>
                                         <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $tipo['tipo'] }}</p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ $tipo['cantidad'] }} emitido(s)</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ $tipo['cantidad'] }} {{ __('emitido(s)') }}</p>
                                     </div>
                                     <p class="text-sm font-bold text-gray-900 dark:text-white">${{ number_format($tipo['total'], 2, ',', '.') }}</p>
                                 </div>
@@ -277,11 +277,11 @@
                         <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                             <div class="grid grid-cols-2 gap-3 text-sm">
                                 <div>
-                                    <p class="text-gray-500 dark:text-gray-400">Neto</p>
+                                    <p class="text-gray-500 dark:text-gray-400">{{ __('Neto') }}</p>
                                     <p class="font-semibold text-gray-900 dark:text-white">${{ number_format($fiscal['neto_total'], 2, ',', '.') }}</p>
                                 </div>
                                 <div>
-                                    <p class="text-gray-500 dark:text-gray-400">IVA</p>
+                                    <p class="text-gray-500 dark:text-gray-400">{{ __('IVA') }}</p>
                                     <p class="font-semibold text-gray-900 dark:text-white">${{ number_format($fiscal['iva_total'], 2, ',', '.') }}</p>
                                 </div>
                             </div>
@@ -291,7 +291,7 @@
                             <svg class="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                             </svg>
-                            <p>Sin comprobantes fiscales</p>
+                            <p>{{ __('Sin comprobantes fiscales') }}</p>
                         </div>
                     @endif
                 </div>
@@ -303,8 +303,8 @@
             {{-- Últimas ventas --}}
             <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">Últimas Ventas</h3>
-                    <a href="{{ route('ventas.index') }}" class="text-sm text-bcn-primary hover:underline">Ver todas</a>
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ __('Últimas Ventas') }}</h3>
+                    <a href="{{ route('ventas.index') }}" class="text-sm text-bcn-primary hover:underline">{{ __('Ver todas') }}</a>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($ultimasVentas as $venta)
@@ -329,7 +329,7 @@
                                     <p class="text-sm font-medium text-gray-900 dark:text-white">
                                         #{{ $venta['numero'] }}
                                         @if($venta['estado'] === 'cancelada')
-                                            <span class="text-xs text-red-500 ml-1">CANCELADA</span>
+                                            <span class="text-xs text-red-500 ml-1">{{ __('CANCELADA') }}</span>
                                         @endif
                                     </p>
                                     <p class="text-xs text-gray-500 dark:text-gray-400">{{ $venta['cliente'] }}</p>
@@ -344,7 +344,7 @@
                         </div>
                     @empty
                         <div class="px-5 py-8 text-center text-gray-500 dark:text-gray-400">
-                            <p>No hay ventas recientes</p>
+                            <p>{{ __('No hay ventas recientes') }}</p>
                         </div>
                     @endforelse
                 </div>
@@ -357,7 +357,7 @@
                         <svg class="w-5 h-5 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
                         </svg>
-                        Promociones Aplicadas
+                        {{ __('Promociones Aplicadas') }}
                     </h3>
                 </div>
                 <div class="p-5">
@@ -367,7 +367,7 @@
                                 <div class="flex items-center justify-between">
                                     <div class="flex-1 min-w-0">
                                         <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ $promo['nombre'] }}</p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ $promo['veces_usada'] }} veces</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ $promo['veces_usada'] }} {{ __('veces') }}</p>
                                     </div>
                                     <span class="ml-2 text-sm font-semibold text-pink-600 dark:text-pink-400">
                                         -${{ number_format($promo['descuento_total'], 2, ',', '.') }}
@@ -377,7 +377,7 @@
                         </div>
                         <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                             <div class="flex justify-between text-sm">
-                                <span class="text-gray-500 dark:text-gray-400">Total aplicaciones:</span>
+                                <span class="text-gray-500 dark:text-gray-400">{{ __('Total aplicaciones:') }}</span>
                                 <span class="font-semibold text-gray-900 dark:text-white">{{ $promociones['cantidad_aplicaciones'] }}</span>
                             </div>
                         </div>
@@ -386,7 +386,7 @@
                             <svg class="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
                             </svg>
-                            <p>Sin promociones aplicadas</p>
+                            <p>{{ __('Sin promociones aplicadas') }}</p>
                         </div>
                     @endif
                 </div>
@@ -397,9 +397,9 @@
         @if($periodoSeleccionado === 'hoy' && count($ventasPorHora) > 0)
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 mb-6">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">Ventas por Hora</h3>
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ __('Ventas por Hora') }}</h3>
                     <span class="text-sm text-gray-500 dark:text-gray-400">
-                        Total: ${{ number_format(collect($ventasPorHora)->sum('total'), 2, ',', '.') }}
+                        {{ __('Total') }}: ${{ number_format(collect($ventasPorHora)->sum('total'), 2, ',', '.') }}
                     </span>
                 </div>
                 <div class="p-5">
@@ -417,7 +417,7 @@
                                     {{-- Tooltip --}}
                                     <div class="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
                                         <div class="font-semibold">${{ number_format($hora['total'], 0, ',', '.') }}</div>
-                                        <div class="text-gray-300">{{ $hora['cantidad'] }} venta(s)</div>
+                                        <div class="text-gray-300">{{ $hora['cantidad'] }} {{ __('venta(s)') }}</div>
                                     </div>
                                     {{-- Barra --}}
                                     <div
@@ -438,8 +438,8 @@
             {{-- Estado de cajas --}}
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">Estado de Cajas</h3>
-                    <a href="{{ route('cajas.index') }}" class="text-sm text-bcn-primary hover:underline">Gestionar</a>
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ __('Estado de Cajas') }}</h3>
+                    <a href="{{ route('cajas.index') }}" class="text-sm text-bcn-primary hover:underline">{{ __('Gestionar') }}</a>
                 </div>
                 <div class="p-5">
                     @if(count($cajas['detalle']) > 0)
@@ -451,7 +451,7 @@
                                             {{ $caja['nombre'] }}
                                         </span>
                                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $caja['estado'] === 'abierta' ? 'bg-green-100 text-green-700 dark:bg-green-800/50 dark:text-green-300' : 'bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-300' }}">
-                                            {{ $caja['estado'] === 'abierta' ? 'Abierta' : 'Cerrada' }}
+                                            {{ $caja['estado'] === 'abierta' ? __('Abierta') : __('Cerrada') }}
                                         </span>
                                     </div>
                                     @if($caja['estado'] === 'abierta')
@@ -464,7 +464,7 @@
                         </div>
                     @else
                         <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                            <p>No hay cajas configuradas</p>
+                            <p>{{ __('No hay cajas configuradas') }}</p>
                         </div>
                     @endif
                 </div>
@@ -480,9 +480,9 @@
                                 <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                             </span>
                         @endif
-                        Alertas de Stock
+                        {{ __('Alertas de Stock') }}
                     </h3>
-                    <a href="{{ route('stock.index') }}" class="text-sm text-bcn-primary hover:underline">Ver stock</a>
+                    <a href="{{ route('stock.index') }}" class="text-sm text-bcn-primary hover:underline">{{ __('Ver stock') }}</a>
                 </div>
                 <div class="p-5">
                     @if($alertasStock['bajo_minimo_count'] + $alertasStock['sin_existencia_count'] > 0)
@@ -490,12 +490,12 @@
                             {{-- Contador sin stock --}}
                             <div class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-center">
                                 <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ $alertasStock['sin_existencia_count'] }}</p>
-                                <p class="text-xs text-red-600 dark:text-red-400">Sin stock</p>
+                                <p class="text-xs text-red-600 dark:text-red-400">{{ __('Sin stock') }}</p>
                             </div>
                             {{-- Contador bajo mínimo --}}
                             <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-center">
                                 <p class="text-2xl font-bold text-amber-600 dark:text-amber-400">{{ $alertasStock['bajo_minimo_count'] }}</p>
-                                <p class="text-xs text-amber-600 dark:text-amber-400">Bajo mínimo</p>
+                                <p class="text-xs text-amber-600 dark:text-amber-400">{{ __('Bajo mínimo') }}</p>
                             </div>
                         </div>
 
@@ -519,7 +519,7 @@
 
                         @if($alertasStock['bajo_minimo_count'] + $alertasStock['sin_existencia_count'] > 5)
                             <p class="text-xs text-gray-500 dark:text-gray-400 mt-3 text-center">
-                                y {{ ($alertasStock['bajo_minimo_count'] + $alertasStock['sin_existencia_count']) - 5 }} artículos más...
+                                {{ __('y') }} {{ ($alertasStock['bajo_minimo_count'] + $alertasStock['sin_existencia_count']) - 5 }} {{ __('artículos más...') }}
                             </p>
                         @endif
                     @else
@@ -529,8 +529,8 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                                 </svg>
                             </div>
-                            <p class="text-green-600 dark:text-green-400 font-medium">Stock sin alertas</p>
-                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Todos los artículos tienen stock suficiente</p>
+                            <p class="text-green-600 dark:text-green-400 font-medium">{{ __('Stock sin alertas') }}</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('Todos los artículos tienen stock suficiente') }}</p>
                         </div>
                     @endif
                 </div>
@@ -539,7 +539,7 @@
 
         {{-- Accesos rápidos --}}
         <div class="mt-6">
-            <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Accesos rápidos</h3>
+            <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">{{ __('Accesos rápidos') }}</h3>
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
                 <a href="{{ route('ventas.create') }}" class="flex flex-col items-center p-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md hover:border-bcn-primary/50 transition-all group">
                     <div class="p-2 rounded-lg bg-bcn-primary/10 group-hover:bg-bcn-primary/20 transition-colors">
@@ -547,7 +547,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
                         </svg>
                     </div>
-                    <span class="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">Nueva Venta</span>
+                    <span class="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nueva Venta') }}</span>
                 </a>
                 <a href="{{ route('ventas.index') }}" class="flex flex-col items-center p-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md hover:border-bcn-primary/50 transition-all group">
                     <div class="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50 transition-colors">
@@ -555,7 +555,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                         </svg>
                     </div>
-                    <span class="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">Ventas</span>
+                    <span class="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Ventas') }}</span>
                 </a>
                 <a href="{{ route('cajas.index') }}" class="flex flex-col items-center p-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md hover:border-bcn-primary/50 transition-all group">
                     <div class="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30 group-hover:bg-amber-200 dark:group-hover:bg-amber-900/50 transition-colors">
@@ -563,7 +563,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
                         </svg>
                     </div>
-                    <span class="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">Cajas</span>
+                    <span class="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Cajas') }}</span>
                 </a>
                 <a href="{{ route('stock.index') }}" class="flex flex-col items-center p-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md hover:border-bcn-primary/50 transition-all group">
                     <div class="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30 group-hover:bg-purple-200 dark:group-hover:bg-purple-900/50 transition-colors">
@@ -571,7 +571,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                         </svg>
                     </div>
-                    <span class="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">Stock</span>
+                    <span class="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Stock') }}</span>
                 </a>
                 <a href="{{ route('articulos.gestionar') }}" class="flex flex-col items-center p-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md hover:border-bcn-primary/50 transition-all group">
                     <div class="p-2 rounded-lg bg-green-100 dark:bg-green-900/30 group-hover:bg-green-200 dark:group-hover:bg-green-900/50 transition-colors">
@@ -579,7 +579,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
                         </svg>
                     </div>
-                    <span class="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">Artículos</span>
+                    <span class="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Artículos') }}</span>
                 </a>
                 <a href="{{ route('configuracion.empresa') }}" class="flex flex-col items-center p-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md hover:border-bcn-primary/50 transition-all group">
                     <div class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-600 transition-colors">
@@ -588,7 +588,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                         </svg>
                     </div>
-                    <span class="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">Configuración</span>
+                    <span class="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Configuración') }}</span>
                 </a>
             </div>
         </div>

@@ -5,30 +5,30 @@
             <div class="flex justify-between items-start gap-3 sm:gap-4">
                 <div class="flex-1">
                     <div class="flex items-center justify-between gap-3 sm:block">
-                        <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary flex items-center h-10 sm:h-auto">Gestión de Categorías</h2>
+                        <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary flex items-center h-10 sm:h-auto">{{ __('Gestión de Categorías') }}</h2>
                         <!-- Botón Nueva Categoría - Solo icono en móviles -->
                         <button
                             wire:click="create"
                             class="sm:hidden inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-bcn-primary border border-transparent rounded-md text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
-                            title="Crear nueva categoría"
+                            :title="__('Crear nueva categoría')"
                         >
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                             </svg>
                         </button>
                     </div>
-                    <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">Administra las categorías de artículos del sistema</p>
+                    <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">{{ __('Administra las categorías de artículos del sistema') }}</p>
                 </div>
                 <!-- Botón Nueva Categoría - Desktop -->
                 <button
                     wire:click="create"
                     class="hidden sm:inline-flex items-center justify-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
-                    title="Crear nueva categoría"
+                    :title="__('Crear nueva categoría')"
                 >
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                     </svg>
-                    Nueva Categoría
+                    {{ __('Nueva Categoría') }}
                 </button>
             </div>
         </div>
@@ -45,10 +45,10 @@
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                         </svg>
-                        Filtros
+                        {{ __('Filtros') }}
                         @if($search || $filterStatus !== 'all')
                             <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-bcn-primary text-white">
-                                Activos
+                                {{ __('Activos') }}
                             </span>
                         @endif
                     </span>
@@ -68,27 +68,27 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <!-- Búsqueda -->
                     <div>
-                        <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Buscar</label>
+                        <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar') }}</label>
                         <input
                             type="text"
                             id="search"
                             wire:model.live.debounce.300ms="search"
-                            placeholder="Nombre de categoría..."
+                            :placeholder="__('Nombre de categoría...')"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         />
                     </div>
 
                     <!-- Filtro de estado -->
                     <div>
-                        <label for="filterStatus" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Estado</label>
+                        <label for="filterStatus" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Estado') }}</label>
                         <select
                             id="filterStatus"
                             wire:model.live="filterStatus"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         >
-                            <option value="all">Todas</option>
-                            <option value="active">Activas</option>
-                            <option value="inactive">Inactivas</option>
+                            <option value="all">{{ __('Todas') }}</option>
+                            <option value="active">{{ __('Activas') }}</option>
+                            <option value="inactive">{{ __('Inactivas') }}</option>
                         </select>
                     </div>
                 </div>
@@ -112,7 +112,7 @@
                                 <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $categoria->nombre }}</div>
                                 <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $categoria->activo ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }}">
-                                        {{ $categoria->activo ? 'Activa' : 'Inactiva' }}
+                                        {{ $categoria->activo ? __('Activa') : __('Inactiva') }}
                                     </span>
                                 </div>
                             </div>
@@ -121,7 +121,7 @@
                             <button
                                 wire:click="edit({{ $categoria->id }})"
                                 class="inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary transition-colors duration-150"
-                                title="Editar categoría"
+                                :title="__('Editar categoría')"
                             >
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -130,7 +130,7 @@
                             <button
                                 wire:click="confirmarEliminar({{ $categoria->id }})"
                                 class="inline-flex items-center justify-center px-3 py-2 border border-red-600 text-sm font-medium rounded-md text-red-600 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 transition-colors duration-150"
-                                title="Eliminar categoría"
+                                :title="__('Eliminar categoría')"
                             >
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -144,7 +144,7 @@
                     <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                     </svg>
-                    <p class="mt-2 text-sm">No se encontraron categorías</p>
+                    <p class="mt-2 text-sm">{{ __('No se encontraron categorías') }}</p>
                 </div>
             @endforelse
 
@@ -161,16 +161,16 @@
                     <thead class="bg-bcn-light dark:bg-gray-900">
                         <tr>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Categoría
+                                {{ __('Categoría') }}
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Color
+                                {{ __('Color') }}
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Estado
+                                {{ __('Estado') }}
                             </th>
                             <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Acciones
+                                {{ __('Acciones') }}
                             </th>
                         </tr>
                     </thead>
@@ -202,13 +202,13 @@
                                         wire:click="toggleStatus({{ $categoria->id }})"
                                         class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $categoria->activo ? 'bg-green-600' : 'bg-gray-300' }}"
                                     >
-                                        <span class="sr-only">{{ $categoria->activo ? 'Desactivar' : 'Activar' }} categoría</span>
+                                        <span class="sr-only">{{ $categoria->activo ? __('Desactivar') : __('Activar') }} {{ __('categoría') }}</span>
                                         <span
                                             class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $categoria->activo ? 'translate-x-5' : 'translate-x-0' }}"
                                         ></span>
                                     </button>
                                     <span class="ml-2 text-xs text-gray-600 dark:text-gray-300">
-                                        {{ $categoria->activo ? 'Activa' : 'Inactiva' }}
+                                        {{ $categoria->activo ? __('Activa') : __('Inactiva') }}
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -216,17 +216,17 @@
                                         <button
                                             wire:click="edit({{ $categoria->id }})"
                                             class="inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary transition-colors duration-150"
-                                            title="Editar categoría"
+                                            :title="__('Editar categoría')"
                                         >
                                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                             </svg>
-                                            Editar
+                                            {{ __('Editar') }}
                                         </button>
                                         <button
                                             wire:click="confirmarEliminar({{ $categoria->id }})"
                                             class="inline-flex items-center justify-center px-3 py-2 border border-red-600 text-sm font-medium rounded-md text-red-600 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 transition-colors duration-150"
-                                            title="Eliminar categoría"
+                                            :title="__('Eliminar categoría')"
                                         >
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -241,7 +241,7 @@
                                     <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                                     </svg>
-                                    <p class="mt-2">No se encontraron categorías</p>
+                                    <p class="mt-2">{{ __('No se encontraron categorías') }}</p>
                                 </td>
                             </tr>
                         @endforelse
@@ -283,19 +283,19 @@
                             <div class="sm:flex sm:items-start">
                                 <div class="w-full mt-3 sm:mt-0 text-left">
                                     <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4" id="modal-title">
-                                        {{ $editMode ? 'Editar Categoría' : 'Nueva Categoría' }}
+                                        {{ $editMode ? __('Editar Categoría') : __('Nueva Categoría') }}
                                     </h3>
 
                                     <div class="space-y-4">
                                         <!-- Nombre -->
                                         <div>
-                                            <label for="nombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre *</label>
+                                            <label for="nombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
                                             <input
                                                 type="text"
                                                 id="nombre"
                                                 wire:model="nombre"
                                                 class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                placeholder="Ej: Bebidas, Alimentos, Electrónica..."
+                                                :placeholder="__('Ej: Bebidas, Alimentos, Electrónica...')"
                                                 required
                                             />
                                             @error('nombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -303,7 +303,7 @@
 
                                         <!-- Color -->
                                         <div>
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Color *</label>
+                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Color') }} *</label>
                                             <div class="flex items-center gap-3">
                                                 <input
                                                     type="color"
@@ -324,7 +324,7 @@
                                         <!-- Icono -->
                                         <div x-data="{ openCategory: null }">
                                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                Icono (opcional)
+                                                {{ __('Icono (opcional)') }}
                                                 @if($icono)
                                                     <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">- {{ $icono }}</span>
                                                 @endif
@@ -333,7 +333,7 @@
                                             {{-- Icono seleccionado actualmente --}}
                                             @if($icono)
                                                 <div class="mb-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-md flex items-center gap-2">
-                                                    <span class="text-xs text-gray-500 dark:text-gray-400">Seleccionado:</span>
+                                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Seleccionado:') }}</span>
                                                     <div class="h-10 w-10 flex items-center justify-center rounded border-2 border-bcn-primary bg-bcn-primary bg-opacity-10 text-bcn-primary">
                                                         <x-dynamic-component :component="$icono" class="h-5 w-5" />
                                                     </div>
@@ -342,7 +342,7 @@
                                                         wire:click="$set('icono', '')"
                                                         class="ml-auto text-xs text-red-600 hover:text-red-800"
                                                     >
-                                                        Quitar
+                                                        {{ __('Quitar') }}
                                                     </button>
                                                 </div>
                                             @endif
@@ -350,7 +350,7 @@
                                             <div class="max-h-80 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700">
                                                 @php
                                                     $categorias_iconos = [
-                                                        'Gastronomía & Bebidas' => [
+                                                        __('Gastronomía & Bebidas') => [
                                                             'food.pizza', 'food.hamburguesa', 'food.hot-dog', 'food.helado',
                                                             'food.galleta', 'food.manzana', 'food.zanahoria', 'food.chile',
                                                             'food.pescado', 'food.pollo', 'food.pan', 'food.queso',
@@ -359,35 +359,35 @@
                                                             'food.cerveza', 'food.champan', 'food.whiskey', 'food.martini',
                                                             'food.coctel', 'food.taza-cafe', 'food.licuado',
                                                         ],
-                                                        'Comercio & Ventas' => [
+                                                        __('Comercio & Ventas') => [
                                                             'icon.tag', 'icon.shopping-bag', 'icon.shopping-cart',
                                                             'icon.credit-card', 'icon.dollar-sign',
                                                         ],
-                                                        'Celebración' => [
+                                                        __('Celebración') => [
                                                             'icon.gift', 'icon.heart', 'icon.star', 'icon.sparkles', 'icon.bolt',
                                                         ],
-                                                        'Hogar' => [
+                                                        __('Hogar') => [
                                                             'icon.house', 'icon.building', 'icon.lightbulb', 'icon.key',
                                                         ],
-                                                        'Naturaleza' => [
+                                                        __('Naturaleza') => [
                                                             'icon.sun', 'icon.moon', 'icon.cloud',
                                                         ],
-                                                        'Tecnología' => [
+                                                        __('Tecnología') => [
                                                             'icon.mobile', 'icon.desktop', 'icon.tv', 'icon.camera',
                                                             'icon.printer', 'icon.wifi',
                                                         ],
-                                                        'Herramientas' => [
+                                                        __('Herramientas') => [
                                                             'icon.wrench', 'icon.scissors', 'icon.pencil', 'icon.paintbrush',
                                                         ],
-                                                        'Organización' => [
+                                                        __('Organización') => [
                                                             'icon.folder', 'icon.folder-open', 'icon.box-archive',
                                                             'icon.inbox', 'icon.clipboard', 'icon.file', 'icon.bookmark',
                                                             'icon.cube', 'icon.table-cells', 'icon.layer-group',
                                                         ],
-                                                        'Transporte' => [
+                                                        __('Transporte') => [
                                                             'icon.truck', 'icon.location-dot', 'icon.map', 'icon.globe',
                                                         ],
-                                                        'Otros' => [
+                                                        __('Otros') => [
                                                             'icon.music', 'icon.volume-high', 'icon.microphone',
                                                             'icon.shield-halved', 'icon.lock', 'icon.eye',
                                                             'icon.comment', 'icon.envelope', 'icon.phone',
@@ -443,7 +443,7 @@
                                                 wire:model="activo"
                                                 class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
                                             />
-                                            <label for="activo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">Categoría activa</label>
+                                            <label for="activo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Categoría activa') }}</label>
                                         </div>
                                     </div>
                                 </div>
@@ -455,14 +455,14 @@
                                 type="submit"
                                 class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:ml-3 sm:w-auto sm:text-sm"
                             >
-                                {{ $editMode ? 'Actualizar' : 'Crear' }}
+                                {{ $editMode ? __('Actualizar') : __('Crear') }}
                             </button>
                             <button
                                 type="button"
                                 @click="show = false; $wire.cancel()"
                                 class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                             >
-                                Cancelar
+                                {{ __('Cancelar') }}
                             </button>
                         </div>
                     </form>
@@ -493,14 +493,14 @@
                             {{-- Contenido --}}
                             <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
                                 <h3 class="text-lg font-semibold leading-6 text-gray-900 dark:text-white" id="modal-title">
-                                    Eliminar categoria
+                                    {{ __('Eliminar categoria') }}
                                 </h3>
                                 <div class="mt-2">
                                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                                        ¿Estas seguro de eliminar la categoria <span class="font-semibold text-gray-700 dark:text-gray-300">"{{ $nombreCategoriaAEliminar }}"</span>?
+                                        {{ __('¿Estas seguro de eliminar la categoria') }} <span class="font-semibold text-gray-700 dark:text-gray-300">"{{ $nombreCategoriaAEliminar }}"</span>?
                                     </p>
                                     <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                                        Esta accion no eliminara permanentemente los datos, pero la categoria dejara de estar disponible en el sistema.
+                                        {{ __('Esta accion no eliminara permanentemente los datos, pero la categoria dejara de estar disponible en el sistema.') }}
                                     </p>
                                 </div>
                             </div>
@@ -514,12 +514,12 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                             </svg>
-                            Eliminar
+                            {{ __('Eliminar') }}
                         </button>
                         <button type="button"
                                 wire:click="cancelarEliminar"
                                 class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-300 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 sm:mt-0 sm:w-auto transition-colors">
-                            Cancelar
+                            {{ __('Cancelar') }}
                         </button>
                     </div>
                 </div>

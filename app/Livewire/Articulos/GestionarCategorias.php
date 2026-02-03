@@ -138,7 +138,7 @@ class GestionarCategorias extends Component
             $categoria->activo = $this->activo;
             $categoria->save();
 
-            $message = 'Categoría actualizada correctamente';
+            $message = __('Categoría actualizada correctamente');
         } else {
             // Crear nueva categoría
             Categoria::create([
@@ -148,7 +148,7 @@ class GestionarCategorias extends Component
                 'activo' => $this->activo,
             ]);
 
-            $message = 'Categoría creada correctamente';
+            $message = __('Categoría creada correctamente');
         }
 
         $this->dispatch('notify', message: $message, type: 'success');
@@ -174,8 +174,8 @@ class GestionarCategorias extends Component
         $categoria->activo = !$categoria->activo;
         $categoria->save();
 
-        $status = $categoria->activo ? 'activada' : 'desactivada';
-        $this->dispatch('notify', message: "Categoría {$status} correctamente", type: 'success');
+        $status = $categoria->activo ? __('activada') : __('desactivada');
+        $this->dispatch('notify', message: __('Categoría :status correctamente', ['status' => $status]), type: 'success');
     }
 
     /**
@@ -213,7 +213,7 @@ class GestionarCategorias extends Component
         $categoria = Categoria::find($this->categoriaAEliminar);
         if ($categoria) {
             $categoria->delete(); // Soft delete
-            $this->js("window.notify('Categoría eliminada correctamente', 'success')");
+            $this->js("window.notify('" . __('Categoría eliminada correctamente') . "', 'success')");
         }
 
         $this->cancelarEliminar();

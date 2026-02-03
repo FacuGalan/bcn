@@ -75,8 +75,8 @@ class ListarPromocionesEspeciales extends Component
             $promocion->activo = !$promocion->activo;
             $promocion->save();
 
-            $mensaje = $promocion->activo ? 'Promoción activada' : 'Promoción desactivada';
-            $this->js("window.notify('$mensaje', 'success')");
+            $mensaje = $promocion->activo ? __('Promoción activada') : __('Promoción desactivada');
+            $this->js("window.notify('" . addslashes($mensaje) . "', 'success')");
         }
     }
 
@@ -85,7 +85,7 @@ class ListarPromocionesEspeciales extends Component
         $promocion = PromocionEspecial::find($promocionId);
         if ($promocion) {
             $promocion->delete();
-            $this->js("window.notify('Promoción eliminada correctamente', 'success')");
+            $this->js("window.notify('" . __('Promoción eliminada correctamente') . "', 'success')");
         }
     }
 
@@ -123,7 +123,7 @@ class ListarPromocionesEspeciales extends Component
                 ]);
             }
 
-            $this->js("window.notify('Promocion duplicada correctamente', 'success')");
+            $this->js("window.notify('" . __('Promoción duplicada correctamente') . "', 'success')");
         }
     }
 

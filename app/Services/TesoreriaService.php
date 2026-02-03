@@ -12,6 +12,12 @@ use App\Models\RendicionFondo;
 use App\Models\DepositoBancario;
 use App\Models\CuentaBancaria;
 use App\Models\ArqueoTesoreria;
+use App\Models\CierreTurno;
+use App\Models\CierreTurnoCaja;
+use App\Models\Venta;
+use App\Models\VentaPago;
+use App\Models\Cobro;
+use App\Models\CobroPago;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
@@ -355,6 +361,256 @@ class TesoreriaService
         }
 
         return $rendicion->confirmarRecepcion($usuarioRecibeId);
+    }
+
+    /**
+     * Rechaza una rendición pendiente y revierte completamente el cierre de turno asociado.
+     *
+     * Maneja 3 escenarios:
+     * - Individual: 1 caja, 1 rendición
+     * - Grupo CON fondo común: N cajas, 1 rendición consolidada
+     * - Grupo SIN fondo común: N cajas, N rendiciones individuales
+     *
+     * @throws \Exception
+     */
+    public static function rechazarYRevertirCierre(
+        RendicionFondo $rendicion,
+        int $usuarioId,
+        ?string $motivo = null
+    ): bool {
+        // ── Validaciones previas ──
+
+        if (!$rendicion->esta_pendiente) {
+            throw new \Exception('La rendición no está pendiente, no se puede rechazar');
+        }
+
+        $cierre = $rendicion->cierreTurno;
+        if (!$cierre) {
+            throw new \Exception('La rendición no tiene un cierre de turno asociado');
+        }
+
+        if ($cierre->estaRevertido()) {
+            throw new \Exception('El cierre de turno ya fue revertido anteriormente');
+        }
+
+        // Validar que las cajas no estén abiertas con un nuevo turno
+        foreach ($cierre->detalleCajas as $detalleCaja) {
+            $caja = Caja::find($detalleCaja->caja_id);
+            if ($caja && $caja->estado === 'abierta') {
+                throw new \Exception('No se puede revertir: las cajas ya tienen un turno activo');
+            }
+        }
+
+        // Validar que sea el último cierre para esa caja/grupo
+        if ($cierre->esIndividual()) {
+            $detalleCaja = $cierre->detalleCajas->first();
+            if (!$detalleCaja) {
+                throw new \Exception('No se encontró el detalle de caja del cierre');
+            }
+            $ultimoCierre = CierreTurno::noRevertidos()
+                ->whereHas('detalleCajas', fn($q) => $q->where('caja_id', $detalleCaja->caja_id))
+                ->orderBy('fecha_cierre', 'desc')
+                ->first();
+            if (!$ultimoCierre || $ultimoCierre->id !== $cierre->id) {
+                throw new \Exception('Solo se puede revertir el último cierre de esta caja');
+            }
+        } else {
+            // Grupal
+            $ultimoCierreGrupo = CierreTurno::noRevertidos()
+                ->where('grupo_cierre_id', $cierre->grupo_cierre_id)
+                ->orderBy('fecha_cierre', 'desc')
+                ->first();
+            if (!$ultimoCierreGrupo || $ultimoCierreGrupo->id !== $cierre->id) {
+                throw new \Exception('Solo se puede revertir el último cierre de este grupo');
+            }
+        }
+
+        // Determinar escenario
+        $esGrupalConFondoComun = $cierre->esGrupal()
+            && $cierre->grupoCierre
+            && $cierre->grupoCierre->usaFondoComun();
+
+        // Para grupo sin fondo común, verificar que TODAS las rendiciones estén pendientes
+        if ($cierre->esGrupal() && !$esGrupalConFondoComun) {
+            $rendicionesDelCierre = RendicionFondo::where('cierre_turno_id', $cierre->id)->get();
+            $noPendientes = $rendicionesDelCierre->filter(fn($r) => !$r->esta_pendiente);
+            if ($noPendientes->isNotEmpty()) {
+                throw new \Exception('No se puede revertir: hay rendiciones de este cierre que ya fueron confirmadas o procesadas');
+            }
+        }
+
+        // ── Ejecutar reversión en transacción ──
+
+        return DB::transaction(function () use ($rendicion, $cierre, $usuarioId, $motivo, $esGrupalConFondoComun) {
+            $tesoreria = $rendicion->tesoreria;
+
+            if ($esGrupalConFondoComun) {
+                // ── Escenario B: Grupo CON fondo común ──
+                // Una sola rendición consolidada, sin MovimientoCaja
+
+                // Verificar saldo suficiente en tesorería para el contra-movimiento
+                if (!$tesoreria->tieneSaldoSuficiente($rendicion->monto_entregado)) {
+                    throw new \Exception('Saldo insuficiente en tesorería para revertir la rendición');
+                }
+
+                // 1. Rechazar la rendición
+                $rendicion->rechazar($usuarioId, $motivo);
+
+                // 2. Contra-movimiento en tesorería (egreso)
+                $tesoreria->egreso(
+                    $rendicion->monto_entregado,
+                    "Reversión de rendición #{$rendicion->id} - Rechazo de cierre",
+                    $usuarioId,
+                    MovimientoTesoreria::REFERENCIA_RENDICION,
+                    $rendicion->id,
+                    'Contra-movimiento por rechazo: ' . ($motivo ?? 'Sin motivo')
+                );
+
+                // 3. Restaurar fondo común del grupo al valor que tenía ANTES del cierre
+                // cierre.total_saldo_inicial = grupo.saldo_fondo_comun al momento del cierre
+                // NO usar monto_sistema porque ese ya incluye ingresos/egresos que se re-contarían
+                $grupo = $cierre->grupoCierre;
+                $grupo->update(['saldo_fondo_comun' => $cierre->total_saldo_inicial]);
+
+                // 4. Reabrir todas las cajas del grupo con su saldo operativo individual
+                // Aunque el fondo es común, cada caja acumula saldo_actual durante la operación
+                // CierreTurnoCaja guarda total_ingresos y total_egresos por caja
+                foreach ($cierre->detalleCajas as $detalleCaja) {
+                    $caja = Caja::find($detalleCaja->caja_id);
+                    if ($caja) {
+                        $saldoCaja = $detalleCaja->total_ingresos - $detalleCaja->total_egresos;
+                        $caja->update([
+                            'estado' => 'abierta',
+                            'saldo_actual' => $saldoCaja,
+                            'fecha_cierre' => null,
+                            'usuario_cierre_id' => null,
+                        ]);
+                    }
+                }
+
+            } elseif ($cierre->esGrupal()) {
+                // ── Escenario C: Grupo SIN fondo común ──
+                // Múltiples rendiciones, una por caja
+
+                $rendicionesDelCierre = RendicionFondo::where('cierre_turno_id', $cierre->id)->get();
+
+                // Verificar saldo total necesario
+                $montoTotalARevertir = $rendicionesDelCierre->sum('monto_entregado');
+                if (!$tesoreria->tieneSaldoSuficiente($montoTotalARevertir)) {
+                    throw new \Exception('Saldo insuficiente en tesorería para revertir todas las rendiciones');
+                }
+
+                foreach ($rendicionesDelCierre as $rend) {
+                    // 1. Rechazar cada rendición
+                    $rend->rechazar($usuarioId, $motivo);
+
+                    // 2. Contra-movimiento en tesorería (egreso)
+                    $tesoreria->refresh(); // refrescar saldo actualizado
+                    $tesoreria->egreso(
+                        $rend->monto_entregado,
+                        "Reversión de rendición #{$rend->id} - Rechazo de cierre",
+                        $usuarioId,
+                        MovimientoTesoreria::REFERENCIA_RENDICION,
+                        $rend->id,
+                        'Contra-movimiento por rechazo: ' . ($motivo ?? 'Sin motivo')
+                    );
+
+                    // 3. Contra-movimiento en caja (ingreso)
+                    if ($rend->movimiento_caja_id) {
+                        MovimientoCaja::create([
+                            'caja_id' => $rend->caja_id,
+                            'tipo' => 'ingreso',
+                            'concepto' => "Reversión de rendición #{$rend->id} - Rechazo de cierre",
+                            'monto' => $rend->monto_entregado,
+                            'usuario_id' => $usuarioId,
+                            'referencia_tipo' => 'rendicion_fondo',
+                            'referencia_id' => $rend->id,
+                        ]);
+                    }
+                }
+
+                // 4. Reabrir cada caja con su saldo sistema
+                foreach ($cierre->detalleCajas as $detalleCaja) {
+                    $caja = Caja::find($detalleCaja->caja_id);
+                    if ($caja) {
+                        $caja->update([
+                            'estado' => 'abierta',
+                            'saldo_actual' => $detalleCaja->saldo_sistema,
+                            'fecha_cierre' => null,
+                            'usuario_cierre_id' => null,
+                        ]);
+                    }
+                }
+
+            } else {
+                // ── Escenario A: Caja individual ──
+
+                // Verificar saldo suficiente
+                if (!$tesoreria->tieneSaldoSuficiente($rendicion->monto_entregado)) {
+                    throw new \Exception('Saldo insuficiente en tesorería para revertir la rendición');
+                }
+
+                // 1. Rechazar la rendición
+                $rendicion->rechazar($usuarioId, $motivo);
+
+                // 2. Contra-movimiento en tesorería (egreso)
+                $tesoreria->egreso(
+                    $rendicion->monto_entregado,
+                    "Reversión de rendición #{$rendicion->id} - Rechazo de cierre",
+                    $usuarioId,
+                    MovimientoTesoreria::REFERENCIA_RENDICION,
+                    $rendicion->id,
+                    'Contra-movimiento por rechazo: ' . ($motivo ?? 'Sin motivo')
+                );
+
+                // 3. Contra-movimiento en caja (ingreso)
+                if ($rendicion->movimiento_caja_id) {
+                    MovimientoCaja::create([
+                        'caja_id' => $rendicion->caja_id,
+                        'tipo' => 'ingreso',
+                        'concepto' => "Reversión de rendición #{$rendicion->id} - Rechazo de cierre",
+                        'monto' => $rendicion->monto_entregado,
+                        'usuario_id' => $usuarioId,
+                        'referencia_tipo' => 'rendicion_fondo',
+                        'referencia_id' => $rendicion->id,
+                    ]);
+                }
+
+                // 4. Reabrir la caja
+                $detalleCaja = $cierre->detalleCajas->first();
+                $caja = Caja::find($detalleCaja->caja_id);
+                if ($caja) {
+                    $caja->update([
+                        'estado' => 'abierta',
+                        'saldo_actual' => $detalleCaja->saldo_sistema,
+                        'fecha_cierre' => null,
+                        'usuario_cierre_id' => null,
+                    ]);
+                }
+            }
+
+            // ── Pasos comunes a los 3 escenarios ──
+
+            // 5. Limpiar cierre_turno_id de transacciones asociadas
+            Venta::where('cierre_turno_id', $cierre->id)->update(['cierre_turno_id' => null]);
+            VentaPago::where('cierre_turno_id', $cierre->id)->update(['cierre_turno_id' => null]);
+            Cobro::where('cierre_turno_id', $cierre->id)->update(['cierre_turno_id' => null]);
+            CobroPago::where('cierre_turno_id', $cierre->id)->update(['cierre_turno_id' => null]);
+            MovimientoCaja::where('cierre_turno_id', $cierre->id)->update(['cierre_turno_id' => null]);
+
+            // 6. Marcar el cierre como revertido
+            $cierre->marcarComoRevertido($usuarioId, $motivo);
+
+            Log::info('Cierre de turno revertido', [
+                'cierre_turno_id' => $cierre->id,
+                'tipo' => $cierre->tipo,
+                'rendicion_id' => $rendicion->id,
+                'usuario_id' => $usuarioId,
+                'motivo' => $motivo,
+            ]);
+
+            return true;
+        });
     }
 
     /**

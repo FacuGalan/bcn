@@ -33,11 +33,11 @@ new class extends Component
 <section>
     <header>
         <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
-            Apariencia
+            {{ __('Apariencia') }}
         </h2>
 
         <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Personaliza la apariencia de la aplicación.
+            {{ __('Personaliza la apariencia de la aplicación.') }}
         </p>
     </header>
 
@@ -59,10 +59,10 @@ new class extends Component
 
                 <div>
                     <p class="font-medium text-gray-900 dark:text-gray-100">
-                        Modo Oscuro
+                        {{ __('Modo Oscuro') }}
                     </p>
                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                        {{ $darkMode ? 'Activado' : 'Desactivado' }}
+                        {{ $darkMode ? __('Activado') : __('Desactivado') }}
                     </p>
                 </div>
             </div>
@@ -75,7 +75,7 @@ new class extends Component
                 role="switch"
                 aria-checked="{{ $darkMode ? 'true' : 'false' }}"
             >
-                <span class="sr-only">Activar modo oscuro</span>
+                <span class="sr-only">{{ __('Activar modo oscuro') }}</span>
                 <span
                     class="pointer-events-none relative inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $darkMode ? 'translate-x-5' : 'translate-x-0' }}"
                 >

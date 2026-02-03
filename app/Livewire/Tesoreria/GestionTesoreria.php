@@ -12,6 +12,7 @@ use App\Models\DepositoBancario;
 use App\Models\ArqueoTesoreria;
 use App\Models\CuentaBancaria;
 use App\Models\Caja;
+use App\Models\CierreTurno;
 use App\Services\TesoreriaService;
 use App\Services\SucursalService;
 use Illuminate\Support\Facades\DB;
@@ -76,6 +77,11 @@ class GestionTesoreria extends Component
     public bool $showArqueoDetalleModal = false;
     public ?ArqueoTesoreria $arqueoDetalle = null;
 
+    // Modal de rechazo de rendición
+    public bool $showRechazoModal = false;
+    public ?int $rendicionARechazar = null;
+    public string $motivoRechazo = '';
+
     protected $listeners = ['tesoreria-actualizada' => 'cargarDatos'];
 
     public function mount(): void
@@ -101,13 +107,18 @@ class GestionTesoreria extends Component
         // Cargar estadísticas del día
         $this->estadisticasHoy = TesoreriaService::estadisticasHoy($this->tesoreria);
 
-        // Cargar rendiciones pendientes
-        $this->rendicionesPendientes = RendicionFondo::where('tesoreria_id', $this->tesoreria->id)
+        // Cargar rendiciones pendientes con flag de revertibilidad
+        $rendiciones = RendicionFondo::where('tesoreria_id', $this->tesoreria->id)
             ->pendientes()
-            ->with(['caja', 'usuarioEntrega'])
+            ->with(['caja', 'usuarioEntrega', 'cierreTurno.detalleCajas', 'cierreTurno.grupoCierre'])
             ->orderBy('fecha', 'desc')
-            ->get()
-            ->toArray();
+            ->get();
+
+        $this->rendicionesPendientes = $rendiciones->map(function ($rendicion) {
+            $data = $rendicion->toArray();
+            $data['puede_revertir'] = $this->evaluarRevertibilidad($rendicion);
+            return $data;
+        })->toArray();
     }
 
     /**
@@ -287,9 +298,9 @@ class GestionTesoreria extends Component
             'cajaProvisionId' => 'required|exists:pymes_tenant.cajas,id',
             'montoProvision' => 'required|numeric|min:0.01',
         ], [
-            'cajaProvisionId.required' => 'Seleccione una caja',
-            'montoProvision.required' => 'Ingrese el monto',
-            'montoProvision.min' => 'El monto debe ser mayor a 0',
+            'cajaProvisionId.required' => __('Seleccione una caja'),
+            'montoProvision.required' => __('Ingrese el monto'),
+            'montoProvision.min' => __('El monto debe ser mayor a 0'),
         ]);
 
         try {
@@ -306,7 +317,7 @@ class GestionTesoreria extends Component
             $this->showProvisionModal = false;
             $this->cargarDatos();
 
-            $this->dispatch('toast-success', message: "Provisión de \${$this->montoProvision} realizada a {$caja->nombre}");
+            $this->dispatch('toast-success', message: __('Provision de :monto realizada a :caja', ['monto' => '$' . $this->montoProvision, 'caja' => $caja->nombre]));
 
         } catch (\Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
@@ -328,18 +339,111 @@ class GestionTesoreria extends Component
             $rendicion = RendicionFondo::find($rendicionId);
 
             if (!$rendicion) {
-                throw new \Exception('Rendición no encontrada');
+                throw new \Exception(__('Rendicion no encontrada'));
             }
 
             TesoreriaService::confirmarRendicion($rendicion, auth()->id());
 
             $this->cargarDatos();
 
-            $this->dispatch('toast-success', message: "Rendición de caja {$rendicion->caja->nombre} confirmada");
+            $this->dispatch('toast-success', message: __('Rendicion de caja :caja confirmada', ['caja' => $rendicion->caja->nombre]));
 
         } catch (\Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
         }
+    }
+
+    // ==================== RECHAZO Y REVERSIÓN ====================
+
+    public function abrirModalRechazo(int $rendicionId): void
+    {
+        $this->rendicionARechazar = $rendicionId;
+        $this->motivoRechazo = '';
+        $this->showRechazoModal = true;
+    }
+
+    public function rechazarYRevertirCierre(): void
+    {
+        try {
+            $rendicion = RendicionFondo::find($this->rendicionARechazar);
+
+            if (!$rendicion) {
+                throw new \Exception(__('Rendicion no encontrada'));
+            }
+
+            TesoreriaService::rechazarYRevertirCierre(
+                $rendicion,
+                auth()->id(),
+                $this->motivoRechazo ?: null
+            );
+
+            $this->showRechazoModal = false;
+            $this->rendicionARechazar = null;
+            $this->motivoRechazo = '';
+            $this->cargarDatos();
+
+            $this->dispatch('toast-success', message: __('Cierre de turno rechazado y revertido correctamente'));
+
+        } catch (\Exception $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
+    }
+
+    /**
+     * Evalúa si una rendición pendiente puede ser revertida.
+     * Condiciones: cierre no revertido, es el último cierre de esa caja/grupo,
+     * y (para grupo sin fondo común) todas las rendiciones del cierre están pendientes.
+     */
+    protected function evaluarRevertibilidad(RendicionFondo $rendicion): bool
+    {
+        $cierre = $rendicion->cierreTurno;
+        if (!$cierre || $cierre->estaRevertido()) {
+            return false;
+        }
+
+        // Verificar que las cajas del cierre no estén abiertas con un nuevo turno
+        foreach ($cierre->detalleCajas as $detalleCaja) {
+            $caja = Caja::find($detalleCaja->caja_id);
+            if ($caja && $caja->estado === 'abierta') {
+                return false;
+            }
+        }
+
+        // Verificar que sea el último cierre para esa caja/grupo
+        if ($cierre->esIndividual()) {
+            $detalleCaja = $cierre->detalleCajas->first();
+            if (!$detalleCaja) {
+                return false;
+            }
+            $ultimoCierre = CierreTurno::noRevertidos()
+                ->whereHas('detalleCajas', fn($q) => $q->where('caja_id', $detalleCaja->caja_id))
+                ->orderBy('fecha_cierre', 'desc')
+                ->first();
+            if (!$ultimoCierre || $ultimoCierre->id !== $cierre->id) {
+                return false;
+            }
+        } else {
+            $ultimoCierreGrupo = CierreTurno::noRevertidos()
+                ->where('grupo_cierre_id', $cierre->grupo_cierre_id)
+                ->orderBy('fecha_cierre', 'desc')
+                ->first();
+            if (!$ultimoCierreGrupo || $ultimoCierreGrupo->id !== $cierre->id) {
+                return false;
+            }
+
+            // Para grupo sin fondo común: verificar que todas las rendiciones estén pendientes
+            $esGrupalConFondoComun = $cierre->grupoCierre && $cierre->grupoCierre->usaFondoComun();
+            if (!$esGrupalConFondoComun) {
+                $tieneNoPendientes = RendicionFondo::where('cierre_turno_id', $cierre->id)
+                    ->where('estado', '!=', RendicionFondo::ESTADO_PENDIENTE)
+                    ->exists();
+                if ($tieneNoPendientes) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     // ==================== DEPÓSITO BANCARIO ====================
@@ -358,10 +462,10 @@ class GestionTesoreria extends Component
             'montoDeposito' => 'required|numeric|min:0.01',
             'fechaDeposito' => 'required|date',
         ], [
-            'cuentaBancariaId.required' => 'Seleccione una cuenta bancaria',
-            'montoDeposito.required' => 'Ingrese el monto',
-            'montoDeposito.min' => 'El monto debe ser mayor a 0',
-            'fechaDeposito.required' => 'Ingrese la fecha del depósito',
+            'cuentaBancariaId.required' => __('Seleccione una cuenta bancaria'),
+            'montoDeposito.required' => __('Ingrese el monto'),
+            'montoDeposito.min' => __('El monto debe ser mayor a 0'),
+            'fechaDeposito.required' => __('Ingrese la fecha del deposito'),
         ]);
 
         try {
@@ -380,7 +484,7 @@ class GestionTesoreria extends Component
             $this->showDepositoModal = false;
             $this->cargarDatos();
 
-            $this->dispatch('toast-success', message: "Depósito de \${$this->montoDeposito} registrado en {$cuenta->banco}");
+            $this->dispatch('toast-success', message: __('Deposito de :monto registrado en :banco', ['monto' => '$' . $this->montoDeposito, 'banco' => $cuenta->banco]));
 
         } catch (\Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
@@ -401,8 +505,8 @@ class GestionTesoreria extends Component
         $this->validate([
             'saldoContado' => 'required|numeric|min:0',
         ], [
-            'saldoContado.required' => 'Ingrese el saldo contado',
-            'saldoContado.min' => 'El saldo no puede ser negativo',
+            'saldoContado.required' => __('Ingrese el saldo contado'),
+            'saldoContado.min' => __('El saldo no puede ser negativo'),
         ]);
 
         try {
@@ -418,11 +522,11 @@ class GestionTesoreria extends Component
 
             $diferencia = $arqueo->diferencia;
             if ($diferencia == 0) {
-                $this->dispatch('toast-success', message: 'Arqueo realizado - Caja cuadrada');
+                $this->dispatch('toast-success', message: __('Arqueo realizado - Caja cuadrada'));
             } elseif ($diferencia > 0) {
-                $this->dispatch('toast-success', message: "Arqueo realizado - Sobrante: \$" . number_format($diferencia, 2));
+                $this->dispatch('toast-success', message: __('Arqueo realizado - Sobrante:') . " \$" . number_format($diferencia, 2));
             } else {
-                $this->dispatch('toast-error', message: "Arqueo realizado - Faltante: \$" . number_format(abs($diferencia), 2));
+                $this->dispatch('toast-error', message: __('Arqueo realizado - Faltante:') . " \$" . number_format(abs($diferencia), 2));
             }
 
         } catch (\Exception $e) {
@@ -438,12 +542,12 @@ class GestionTesoreria extends Component
             $deposito = DepositoBancario::find($depositoId);
 
             if (!$deposito) {
-                throw new \Exception('Depósito no encontrado');
+                throw new \Exception(__('Deposito no encontrado'));
             }
 
             TesoreriaService::confirmarDeposito($deposito);
 
-            $this->dispatch('toast-success', message: "Depósito de \${$deposito->monto} confirmado");
+            $this->dispatch('toast-success', message: __('Deposito de :monto confirmado', ['monto' => '$' . $deposito->monto]));
 
         } catch (\Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
@@ -456,13 +560,13 @@ class GestionTesoreria extends Component
             $deposito = DepositoBancario::find($depositoId);
 
             if (!$deposito) {
-                throw new \Exception('Depósito no encontrado');
+                throw new \Exception(__('Deposito no encontrado'));
             }
 
             $deposito->cancelar();
             $this->cargarDatos();
 
-            $this->dispatch('toast-info', message: 'Depósito cancelado - Monto devuelto a tesorería');
+            $this->dispatch('toast-info', message: __('Deposito cancelado - Monto devuelto a tesoreria'));
 
         } catch (\Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
@@ -490,7 +594,7 @@ class GestionTesoreria extends Component
             $arqueo = ArqueoTesoreria::find($arqueoId);
 
             if (!$arqueo) {
-                throw new \Exception('Arqueo no encontrado');
+                throw new \Exception(__('Arqueo no encontrado'));
             }
 
             TesoreriaService::aprobarArqueo($arqueo, auth()->id(), $aplicarAjuste);
@@ -499,8 +603,8 @@ class GestionTesoreria extends Component
             $this->arqueoDetalle = null;
 
             $mensaje = $aplicarAjuste && $arqueo->diferencia != 0
-                ? 'Arqueo aprobado y ajuste aplicado'
-                : 'Arqueo aprobado';
+                ? __('Arqueo aprobado y ajuste aplicado')
+                : __('Arqueo aprobado');
 
             $this->dispatch('toast-success', message: $mensaje);
 

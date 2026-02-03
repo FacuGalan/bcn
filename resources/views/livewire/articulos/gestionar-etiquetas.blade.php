@@ -5,13 +5,13 @@
             <div class="flex justify-between items-start gap-3 sm:gap-4">
                 <div class="flex-1">
                     <div class="flex items-center justify-between gap-3 sm:block">
-                        <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary flex items-center h-10 sm:h-auto">Gestión de Etiquetas</h2>
+                        <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary flex items-center h-10 sm:h-auto">{{ __('Gestión de Etiquetas') }}</h2>
                         <!-- Botones móviles -->
                         <div class="sm:hidden flex items-center gap-2">
                             <a
                                 href="{{ route('articulos.asignar-etiquetas') }}"
                                 class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-bcn-secondary border border-transparent rounded-md text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-secondary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                                title="Asignar etiquetas a artículos"
+                                :title="__('Asignar etiquetas a artículos')"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14v6m-3-3h6M6 10h2a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2zm10 0h2a2 2 0 002-2V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2zM6 20h2a2 2 0 002-2v-2a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z" />
@@ -20,7 +20,7 @@
                             <button
                                 wire:click="createGrupo"
                                 class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-bcn-primary border border-transparent rounded-md text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                                title="Crear nuevo grupo de etiquetas"
+                                :title="__('Crear nuevo grupo de etiquetas')"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -28,29 +28,29 @@
                             </button>
                         </div>
                     </div>
-                    <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">Administra los grupos de etiquetas y sus valores para clasificar artículos</p>
+                    <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">{{ __('Administra los grupos de etiquetas y sus valores para clasificar artículos') }}</p>
                 </div>
                 <!-- Botones Desktop -->
                 <div class="hidden sm:flex items-center gap-2">
                     <a
                         href="{{ route('articulos.asignar-etiquetas') }}"
                         class="inline-flex items-center justify-center px-4 py-2 bg-bcn-secondary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-secondary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                        title="Asignar etiquetas a artículos"
+                        :title="__('Asignar etiquetas a artículos')"
                     >
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14v6m-3-3h6M6 10h2a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2zm10 0h2a2 2 0 002-2V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2zM6 20h2a2 2 0 002-2v-2a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z" />
                         </svg>
-                        Asignar a Artículos
+                        {{ __('Asignar a Artículos') }}
                     </a>
                     <button
                         wire:click="createGrupo"
                         class="inline-flex items-center justify-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                        title="Crear nuevo grupo de etiquetas"
+                        :title="__('Crear nuevo grupo de etiquetas')"
                     >
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                         </svg>
-                        Nuevo Grupo
+                        {{ __('Nuevo Grupo') }}
                     </button>
                 </div>
             </div>
@@ -68,10 +68,10 @@
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                         </svg>
-                        Filtros
+                        {{ __('Filtros') }}
                         @if($search || $filterStatus !== 'all')
                             <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-bcn-primary text-white">
-                                Activos
+                                {{ __('Activos') }}
                             </span>
                         @endif
                     </span>
@@ -86,27 +86,27 @@
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <!-- Búsqueda -->
                     <div class="sm:col-span-2">
-                        <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Buscar</label>
+                        <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar') }}</label>
                         <input
                             type="text"
                             id="search"
                             wire:model.live.debounce.300ms="search"
-                            placeholder="Nombre de grupo o etiqueta..."
+                            :placeholder="__('Nombre de grupo o etiqueta...')"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         />
                     </div>
 
                     <!-- Filtro de estado -->
                     <div>
-                        <label for="filterStatus" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Estado</label>
+                        <label for="filterStatus" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Estado') }}</label>
                         <select
                             id="filterStatus"
                             wire:model.live="filterStatus"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         >
-                            <option value="all">Todos</option>
-                            <option value="active">Activos</option>
-                            <option value="inactive">Inactivos</option>
+                            <option value="all">{{ __('Todos') }}</option>
+                            <option value="active">{{ __('Activos') }}</option>
+                            <option value="inactive">{{ __('Inactivos') }}</option>
                         </select>
                     </div>
                 </div>
@@ -117,14 +117,14 @@
                         wire:click="expandirTodos"
                         class="text-xs text-bcn-primary hover:text-bcn-secondary transition-colors"
                     >
-                        Expandir todos
+                        {{ __('Expandir todos') }}
                     </button>
                     <span class="text-gray-300">|</span>
                     <button
                         wire:click="colapsarTodos"
                         class="text-xs text-bcn-primary hover:text-bcn-secondary transition-colors"
                     >
-                        Colapsar todos
+                        {{ __('Colapsar todos') }}
                     </button>
                 </div>
             </div>
@@ -158,9 +158,9 @@
                                     @endif
                                 </div>
                                 <div class="flex items-center gap-2 mt-1">
-                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ $grupo->etiquetas_count }} etiqueta(s)</span>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ $grupo->etiquetas_count }} {{ __('etiqueta(s)') }}</span>
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $grupo->activo ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }}">
-                                        {{ $grupo->activo ? 'Activo' : 'Inactivo' }}
+                                        {{ $grupo->activo ? __('Activo') : __('Inactivo') }}
                                     </span>
                                 </div>
                             </div>
@@ -171,7 +171,7 @@
                             <button
                                 wire:click="createEtiqueta({{ $grupo->id }})"
                                 class="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 dark:hover:bg-gray-600 rounded-md transition-colors"
-                                title="Agregar etiqueta"
+                                :title="__('Agregar etiqueta')"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -180,7 +180,7 @@
                             <button
                                 wire:click="editGrupo({{ $grupo->id }})"
                                 class="p-2 text-bcn-primary hover:text-bcn-secondary hover:bg-bcn-light dark:hover:bg-gray-600 rounded-md transition-colors"
-                                title="Editar grupo"
+                                :title="__('Editar grupo')"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -189,7 +189,7 @@
                             <button
                                 wire:click="toggleGrupoStatus({{ $grupo->id }})"
                                 class="p-2 {{ $grupo->activo ? 'text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50' : 'text-green-600 hover:text-green-800 hover:bg-green-50' }} dark:hover:bg-gray-600 rounded-md transition-colors"
-                                title="{{ $grupo->activo ? 'Desactivar' : 'Activar' }} grupo"
+                                :title="__($grupo->activo ? 'Desactivar' : 'Activar') + ' ' + __('grupo')"
                             >
                                 @if($grupo->activo)
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -204,7 +204,7 @@
                             <button
                                 wire:click="confirmarEliminarGrupo({{ $grupo->id }})"
                                 class="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-gray-600 rounded-md transition-colors"
-                                title="Eliminar grupo"
+                                :title="__('Eliminar grupo')"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -230,7 +230,7 @@
                                                                 <span class="text-xs text-gray-400 dark:text-gray-500 font-mono">({{ $etiqueta->codigo }})</span>
                                                             @endif
                                                             @if(!$etiqueta->activo)
-                                                                <span class="text-xs text-gray-400 dark:text-gray-500 italic">- Inactiva</span>
+                                                                <span class="text-xs text-gray-400 dark:text-gray-500 italic">- {{ __('Inactiva') }}</span>
                                                             @endif
                                                         </div>
                                                     </td>
@@ -239,7 +239,7 @@
                                                             <button
                                                                 wire:click="editEtiqueta({{ $etiqueta->id }})"
                                                                 class="p-1.5 text-bcn-primary hover:text-bcn-secondary hover:bg-bcn-light dark:hover:bg-gray-700 rounded transition-colors"
-                                                                title="Editar"
+                                                                :title="__('Editar')"
                                                             >
                                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -248,7 +248,7 @@
                                                             <button
                                                                 wire:click="toggleEtiquetaStatus({{ $etiqueta->id }})"
                                                                 class="p-1.5 rounded transition-colors {{ $etiqueta->activo ? 'text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50 dark:hover:bg-gray-700' : 'text-green-600 hover:text-green-800 hover:bg-green-50 dark:hover:bg-gray-700' }}"
-                                                                title="{{ $etiqueta->activo ? 'Desactivar' : 'Activar' }}"
+                                                                :title="__($etiqueta->activo ? 'Desactivar' : 'Activar')"
                                                             >
                                                                 @if($etiqueta->activo)
                                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -263,7 +263,7 @@
                                                             <button
                                                                 wire:click="confirmarEliminarEtiqueta({{ $etiqueta->id }})"
                                                                 class="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-gray-700 rounded transition-colors"
-                                                                title="Eliminar"
+                                                                :title="__('Eliminar')"
                                                             >
                                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -281,7 +281,7 @@
                                     <svg class="mx-auto h-8 w-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                                     </svg>
-                                    <p class="mt-2 text-sm">Este grupo no tiene etiquetas</p>
+                                    <p class="mt-2 text-sm">{{ __('Este grupo no tiene etiquetas') }}</p>
                                     <button
                                         wire:click="createEtiqueta({{ $grupo->id }})"
                                         class="mt-3 inline-flex items-center px-3 py-1.5 border border-bcn-primary text-xs font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white transition-colors"
@@ -289,7 +289,7 @@
                                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                                         </svg>
-                                        Agregar primera etiqueta
+                                        {{ __('Agregar primera etiqueta') }}
                                     </button>
                                 </div>
                             @endif
@@ -301,8 +301,8 @@
                     <svg class="mx-auto h-16 w-16 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                     </svg>
-                    <h3 class="mt-4 text-lg font-medium text-gray-900 dark:text-white">No hay grupos de etiquetas</h3>
-                    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Crea tu primer grupo de etiquetas para empezar a clasificar artículos.</p>
+                    <h3 class="mt-4 text-lg font-medium text-gray-900 dark:text-white">{{ __('No hay grupos de etiquetas') }}</h3>
+                    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ __('Crea tu primer grupo de etiquetas para empezar a clasificar artículos.') }}</p>
                     <button
                         wire:click="createGrupo"
                         class="mt-4 inline-flex items-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 transition"
@@ -310,7 +310,7 @@
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                         </svg>
-                        Crear Primer Grupo
+                        {{ __('Crear Primer Grupo') }}
                     </button>
                 </div>
             @endforelse
@@ -329,19 +329,19 @@
                         <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                             <div class="w-full">
                                 <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4" id="modal-title">
-                                    {{ $editModeGrupo ? 'Editar Grupo de Etiquetas' : 'Nuevo Grupo de Etiquetas' }}
+                                    {{ $editModeGrupo ? __('Editar Grupo de Etiquetas') : __('Nuevo Grupo de Etiquetas') }}
                                 </h3>
 
                                 <div class="space-y-4">
                                     <!-- Nombre -->
                                     <div>
-                                        <label for="grupoNombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre *</label>
+                                        <label for="grupoNombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
                                         <input
                                             type="text"
                                             id="grupoNombre"
                                             wire:model="grupoNombre"
                                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                            placeholder="Ej: Marca, Color, Tamaño..."
+                                            :placeholder="__('Ej: Marca, Color, Tamaño...')"
                                             required
                                         />
                                         @error('grupoNombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -349,13 +349,13 @@
 
                                     <!-- Código -->
                                     <div>
-                                        <label for="grupoCodigo" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Código (opcional)</label>
+                                        <label for="grupoCodigo" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Código (opcional)') }}</label>
                                         <input
                                             type="text"
                                             id="grupoCodigo"
                                             wire:model="grupoCodigo"
                                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono uppercase"
-                                            placeholder="Ej: MARCA"
+                                            :placeholder="__('Ej: MARCA')"
                                             maxlength="50"
                                         />
                                         @error('grupoCodigo') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -363,20 +363,20 @@
 
                                     <!-- Descripción -->
                                     <div>
-                                        <label for="grupoDescripcion" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Descripción (opcional)</label>
+                                        <label for="grupoDescripcion" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Descripción (opcional)') }}</label>
                                         <textarea
                                             id="grupoDescripcion"
                                             wire:model="grupoDescripcion"
                                             rows="2"
                                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                            placeholder="Descripción del grupo..."
+                                            :placeholder="__('Descripción del grupo...')"
                                         ></textarea>
                                         @error('grupoDescripcion') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                     </div>
 
                                     <!-- Color -->
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Color *</label>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Color') }} *</label>
                                         <div class="flex items-center gap-3">
                                             <input
                                                 type="color"
@@ -402,7 +402,7 @@
                                             wire:model="grupoActivo"
                                             class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
                                         />
-                                        <label for="grupoActivo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">Grupo activo</label>
+                                        <label for="grupoActivo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Grupo activo') }}</label>
                                     </div>
                                 </div>
                             </div>
@@ -413,14 +413,14 @@
                                 type="submit"
                                 class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:ml-3 sm:w-auto sm:text-sm"
                             >
-                                {{ $editModeGrupo ? 'Actualizar' : 'Crear' }}
+                                {{ $editModeGrupo ? __('Actualizar') : __('Crear') }}
                             </button>
                             <button
                                 type="button"
                                 wire:click="cancelGrupo"
                                 class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                             >
-                                Cancelar
+                                {{ __('Cancelar') }}
                             </button>
                         </div>
                     </form>
@@ -441,19 +441,19 @@
                         <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                             <div class="w-full">
                                 <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4" id="modal-title">
-                                    {{ $editModeEtiqueta ? 'Editar Etiqueta' : 'Nueva Etiqueta' }}
+                                    {{ $editModeEtiqueta ? __('Editar Etiqueta') : __('Nueva Etiqueta') }}
                                 </h3>
 
                                 <div class="space-y-4">
                                     <!-- Nombre -->
                                     <div>
-                                        <label for="etiquetaNombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre *</label>
+                                        <label for="etiquetaNombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
                                         <input
                                             type="text"
                                             id="etiquetaNombre"
                                             wire:model="etiquetaNombre"
                                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                            placeholder="Ej: Samsung, Rojo, Grande..."
+                                            :placeholder="__('Ej: Samsung, Rojo, Grande...')"
                                             required
                                         />
                                         @error('etiquetaNombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -461,13 +461,13 @@
 
                                     <!-- Código -->
                                     <div>
-                                        <label for="etiquetaCodigo" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Código (opcional)</label>
+                                        <label for="etiquetaCodigo" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Código (opcional)') }}</label>
                                         <input
                                             type="text"
                                             id="etiquetaCodigo"
                                             wire:model="etiquetaCodigo"
                                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono uppercase"
-                                            placeholder="Ej: SAMS"
+                                            :placeholder="__('Ej: SAMS')"
                                             maxlength="50"
                                         />
                                         @error('etiquetaCodigo') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -476,8 +476,8 @@
                                     <!-- Color (opcional) -->
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                            Color específico (opcional)
-                                            <span class="text-xs text-gray-500 dark:text-gray-400 font-normal ml-1">- Si no se define, usa el color del grupo</span>
+                                            {{ __('Color específico (opcional)') }}
+                                            <span class="text-xs text-gray-500 dark:text-gray-400 font-normal ml-1">- {{ __('Si no se define, usa el color del grupo') }}</span>
                                         </label>
                                         <div class="flex items-center gap-3">
                                             <input
@@ -490,7 +490,7 @@
                                                 type="text"
                                                 wire:model.live="etiquetaColor"
                                                 class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono text-sm"
-                                                placeholder="Vacío = usa color del grupo"
+                                                :placeholder="__('Vacío = usa color del grupo')"
                                                 maxlength="7"
                                             />
                                             @if($etiquetaColor)
@@ -499,7 +499,7 @@
                                                     wire:click="$set('etiquetaColor', null)"
                                                     class="text-xs text-red-600 hover:text-red-800"
                                                 >
-                                                    Limpiar
+                                                    {{ __('Limpiar') }}
                                                 </button>
                                             @endif
                                         </div>
@@ -514,7 +514,7 @@
                                             wire:model="etiquetaActivo"
                                             class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
                                         />
-                                        <label for="etiquetaActivo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">Etiqueta activa</label>
+                                        <label for="etiquetaActivo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Etiqueta activa') }}</label>
                                     </div>
                                 </div>
                             </div>
@@ -525,14 +525,14 @@
                                 type="submit"
                                 class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:ml-3 sm:w-auto sm:text-sm"
                             >
-                                {{ $editModeEtiqueta ? 'Actualizar' : 'Crear' }}
+                                {{ $editModeEtiqueta ? __('Actualizar') : __('Crear') }}
                             </button>
                             <button
                                 type="button"
                                 wire:click="cancelEtiqueta"
                                 class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                             >
-                                Cancelar
+                                {{ __('Cancelar') }}
                             </button>
                         </div>
                     </form>
@@ -557,16 +557,16 @@
                             </div>
                             <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
                                 <h3 class="text-lg font-semibold leading-6 text-gray-900 dark:text-white" id="modal-title">
-                                    Eliminar {{ $deleteType === 'grupo' ? 'grupo' : 'etiqueta' }}
+                                    {{ __('Eliminar') }} {{ $deleteType === 'grupo' ? __('grupo') : __('etiqueta') }}
                                 </h3>
                                 <div class="mt-2">
                                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                                        ¿Estás seguro de eliminar {{ $deleteType === 'grupo' ? 'el grupo' : 'la etiqueta' }}
+                                        {{ __('¿Estás seguro de eliminar') }} {{ $deleteType === 'grupo' ? __('el grupo') : __('la etiqueta') }}
                                         <span class="font-semibold text-gray-700 dark:text-gray-300">"{{ $nombreItemAEliminar }}"</span>?
                                     </p>
                                     @if($deleteType === 'grupo')
                                         <p class="text-sm text-red-600 mt-2">
-                                            Esta acción también eliminará todas las etiquetas del grupo.
+                                            {{ __('Esta acción también eliminará todas las etiquetas del grupo.') }}
                                         </p>
                                     @endif
                                 </div>
@@ -582,14 +582,14 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                             </svg>
-                            Eliminar
+                            {{ __('Eliminar') }}
                         </button>
                         <button
                             type="button"
                             wire:click="cancelarEliminar"
                             class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-300 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 sm:mt-0 sm:w-auto transition-colors"
                         >
-                            Cancelar
+                            {{ __('Cancelar') }}
                         </button>
                     </div>
                 </div>

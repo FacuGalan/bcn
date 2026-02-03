@@ -663,14 +663,14 @@ class Ventas extends Component
 
             // Validar que el artículo esté disponible en la sucursal
             if (!$articulo->estaDisponibleEnSucursal($this->obtenerSucursalActual())) {
-                $this->dispatch('toast-error', message: 'El artículo no está disponible en esta sucursal');
+                $this->dispatch('toast-error', message: __('El artículo no está disponible en esta sucursal'));
                 return;
             }
 
             // Validar stock si controla stock
             if ($articulo->controla_stock) {
                 if (!$articulo->tieneStockSuficiente($this->obtenerSucursalActual(), 1)) {
-                    $this->dispatch('toast-error', message: 'Stock insuficiente para este artículo');
+                    $this->dispatch('toast-error', message: __('Stock insuficiente para este artículo'));
                     return;
                 }
             }
@@ -699,14 +699,14 @@ class Ventas extends Component
 
             $this->calcularTotales();
             $this->buscarArticulo = ''; // Limpiar búsqueda
-            $this->dispatch('toast-success', message: 'Artículo agregado al carrito');
+            $this->dispatch('toast-success', message: __('Artículo agregado al carrito'));
 
         } catch (Exception $e) {
             Log::error('Error al agregar artículo al carrito', [
                 'articulo_id' => $articuloId,
                 'error' => $e->getMessage()
             ]);
-            $this->dispatch('toast-error', message: 'Error al agregar artículo: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error al agregar artículo: ') . $e->getMessage());
         }
     }
 
@@ -737,7 +737,7 @@ class Ventas extends Component
             unset($this->carrito[$index]);
             $this->carrito = array_values($this->carrito); // Reindexar array
             $this->calcularTotales();
-            $this->dispatch('toast-success', message: 'Artículo eliminado del carrito');
+            $this->dispatch('toast-success', message: __('Artículo eliminado del carrito'));
         }
     }
 
@@ -829,13 +829,13 @@ class Ventas extends Component
         try {
             // Validar carrito no vacío
             if (empty($this->carrito)) {
-                $this->dispatch('toast-error', message: 'El carrito está vacío');
+                $this->dispatch('toast-error', message: __('El carrito está vacío'));
                 return;
             }
 
             // Validar cliente si es cuenta corriente
             if ($this->formaPago === 'cta_cte' && !$this->clienteSeleccionado) {
-                $this->dispatch('toast-error', message: 'Debe seleccionar un cliente para ventas a cuenta corriente');
+                $this->dispatch('toast-error', message: __('Debe seleccionar un cliente para ventas a cuenta corriente'));
                 return;
             }
 
@@ -844,7 +844,7 @@ class Ventas extends Component
 
             // Validar caja si no es cuenta corriente
             if ($this->formaPago !== 'cta_cte' && !$cajaId) {
-                $this->dispatch('toast-error', message: 'Debe seleccionar una caja o tener una caja activa');
+                $this->dispatch('toast-error', message: __('Debe seleccionar una caja o tener una caja activa'));
                 return;
             }
 
@@ -876,7 +876,7 @@ class Ventas extends Component
             $venta = $this->ventaService->crearVenta($datosVenta, $detalles);
 
             // Éxito
-            $this->dispatch('toast-success', message: "Venta #{$venta->numero_comprobante} creada exitosamente");
+            $this->dispatch('toast-success', message: __('Venta #:numero creada exitosamente', ['numero' => $venta->numero_comprobante]));
             $this->showPosModal = false;
             $this->resetPOS();
 
@@ -885,7 +885,7 @@ class Ventas extends Component
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            $this->dispatch('toast-error', message: 'Error al procesar venta: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error al procesar venta: ') . $e->getMessage());
         }
     }
 
@@ -933,7 +933,7 @@ class Ventas extends Component
             $venta = Venta::with(['cliente', 'pagos', 'comprobantesFiscales'])->findOrFail($ventaId);
 
             if ($venta->estaCancelada()) {
-                $this->dispatch('toast-error', message: 'La venta ya está cancelada');
+                $this->dispatch('toast-error', message: __('La venta ya está cancelada'));
                 return;
             }
 
@@ -977,7 +977,7 @@ class Ventas extends Component
             $pagosInfo = $venta->pagos->map(function ($pago) {
                 return [
                     'id' => $pago->id,
-                    'forma_pago' => $pago->formaPago?->nombre ?? 'Sin especificar',
+                    'forma_pago' => $pago->formaPago?->nombre ?? __('Sin especificar'),
                     'monto' => $pago->monto_final,
                     'facturado' => $pago->comprobante_fiscal_id !== null,
                     'estado' => $pago->estado,
@@ -989,7 +989,7 @@ class Ventas extends Component
                 'numero' => $venta->numero,
                 'fecha' => $venta->fecha->format('d/m/Y H:i'),
                 'total' => $venta->total_final,
-                'cliente' => $venta->cliente?->nombre ?? 'Sin cliente',
+                'cliente' => $venta->cliente?->nombre ?? __('Sin cliente'),
                 'es_cuenta_corriente' => $venta->es_cuenta_corriente,
                 'pagos' => $pagosInfo,
             ];
@@ -1001,7 +1001,7 @@ class Ventas extends Component
                 'venta_id' => $ventaId,
                 'error' => $e->getMessage()
             ]);
-            $this->dispatch('toast-error', message: 'Error al cargar datos de la venta');
+            $this->dispatch('toast-error', message: __('Error al cargar datos de la venta'));
         }
     }
 
@@ -1033,10 +1033,10 @@ class Ventas extends Component
                 true // emitir nota de crédito si tiene comprobantes fiscales
             );
 
-            $mensaje = 'Venta cancelada completamente';
+            $mensaje = __('Venta cancelada completamente');
             if (!empty($resultado['notas_credito'])) {
                 $cantNC = count($resultado['notas_credito']);
-                $mensaje .= ". Se emitieron {$cantNC} nota(s) de crédito.";
+                $mensaje .= '. ' . __('Se emitieron :cantidad nota(s) de crédito.', ['cantidad' => $cantNC]);
             }
 
             $this->dispatch('toast-success', message: $mensaje);
@@ -1051,7 +1051,7 @@ class Ventas extends Component
                 'venta_id' => $this->cancelarVentaId,
                 'error' => $e->getMessage()
             ]);
-            $this->dispatch('toast-error', message: 'Error al cancelar: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error al cancelar: ') . $e->getMessage());
         }
     }
 
@@ -1067,7 +1067,7 @@ class Ventas extends Component
                 $this->cancelarMotivo ?: null
             );
 
-            $this->dispatch('toast-success', message: 'Pagos anulados. La venta se pasó a cuenta corriente.');
+            $this->dispatch('toast-success', message: __('Pagos anulados. La venta se pasó a cuenta corriente.'));
             $this->cerrarCancelarModal();
 
             if ($this->showDetalleModal) {
@@ -1079,7 +1079,7 @@ class Ventas extends Component
                 'venta_id' => $this->cancelarVentaId,
                 'error' => $e->getMessage()
             ]);
-            $this->dispatch('toast-error', message: 'Error: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error: ') . $e->getMessage());
         }
     }
 
@@ -1099,7 +1099,7 @@ class Ventas extends Component
             );
 
             $cantNC = count($resultado['notas_credito']);
-            $this->dispatch('toast-success', message: "Se emitieron {$cantNC} nota(s) de crédito. La venta permanece activa.");
+            $this->dispatch('toast-success', message: __('Se emitieron :cantidad nota(s) de crédito. La venta permanece activa.', ['cantidad' => $cantNC]));
             $this->cerrarCancelarModal();
 
             if ($this->showDetalleModal) {
@@ -1111,7 +1111,7 @@ class Ventas extends Component
                 'venta_id' => $this->cancelarVentaId,
                 'error' => $e->getMessage()
             ]);
-            $this->dispatch('toast-error', message: 'Error: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error: ') . $e->getMessage());
         }
     }
 
@@ -1191,7 +1191,7 @@ class Ventas extends Component
     {
         $this->reimprimirTipo = 'ticket';
         $this->reimprimirId = $ventaId;
-        $this->reimprimirTitulo = "Ticket de Venta #{$numero}";
+        $this->reimprimirTitulo = __('Ticket de Venta #:numero', ['numero' => $numero]);
         $this->showReimprimirModal = true;
     }
 
@@ -1213,10 +1213,10 @@ class Ventas extends Component
     {
         if ($this->reimprimirTipo === 'ticket') {
             $this->dispatch('imprimir-ticket', ventaId: $this->reimprimirId);
-            $this->dispatch('toast-info', message: 'Enviando ticket a impresión...');
+            $this->dispatch('toast-info', message: __('Enviando ticket a impresión...'));
         } elseif ($this->reimprimirTipo === 'fiscal') {
             $this->dispatch('imprimir-comprobante-fiscal', comprobanteId: $this->reimprimirId);
-            $this->dispatch('toast-info', message: 'Enviando comprobante fiscal a impresión...');
+            $this->dispatch('toast-info', message: __('Enviando comprobante fiscal a impresión...'));
         }
 
         $this->cerrarReimprimirModal();

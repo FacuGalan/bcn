@@ -31,6 +31,7 @@ use App\Livewire\Articulos\GestionarCategorias;
 use App\Livewire\Articulos\GestionarEtiquetas;
 use App\Livewire\Articulos\AsignarEtiquetas;
 use App\Livewire\Articulos\CambioMasivoPrecios;
+use App\Livewire\Clientes\GestionarClientes;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome');
@@ -148,6 +149,18 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
          * Actualización de precios en lote con filtros y vista previa
          */
         Route::get('cambio-masivo-precios', CambioMasivoPrecios::class)->name('cambio-masivo-precios');
+    });
+
+    // =========================================
+    // CLIENTES
+    // =========================================
+
+    Route::prefix('clientes')->name('clientes.')->group(function () {
+        /**
+         * Listado de Clientes
+         * Gestión completa de clientes
+         */
+        Route::get('/', GestionarClientes::class)->name('index');
     });
 
     // =========================================

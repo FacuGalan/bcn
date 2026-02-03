@@ -195,7 +195,64 @@ class MenuItemSeeder extends Seeder
             'activo' => true,
         ]);
 
-        // 4. CONFIGURACIÓN (padre con hijos)
+        MenuItem::create([
+            'parent_id' => $articulos->id,
+            'nombre' => 'Listas de Precios',
+            'slug' => 'listas-precios',
+            'icono' => 'heroicon-o-currency-dollar',
+            'route_type' => 'route',
+            'route_value' => 'configuracion.precios',
+            'orden' => 4,
+            'activo' => true,
+        ]);
+
+        MenuItem::create([
+            'parent_id' => $articulos->id,
+            'nombre' => 'Promociones',
+            'slug' => 'promociones',
+            'icono' => 'heroicon-o-gift',
+            'route_type' => 'route',
+            'route_value' => 'configuracion.promociones',
+            'orden' => 5,
+            'activo' => true,
+        ]);
+
+        MenuItem::create([
+            'parent_id' => $articulos->id,
+            'nombre' => 'Promociones Especiales',
+            'slug' => 'promociones-especiales',
+            'icono' => 'heroicon-o-star',
+            'route_type' => 'route',
+            'route_value' => 'configuracion.promociones-especiales',
+            'orden' => 6,
+            'activo' => true,
+        ]);
+
+        // 4. CLIENTES (padre con hijos)
+        $clientes = MenuItem::create([
+            'parent_id' => null,
+            'nombre' => 'Clientes',
+            'slug' => 'clientes',
+            'icono' => 'heroicon-o-user-group',
+            'route_type' => 'none',
+            'route_value' => null,
+            'orden' => 4,
+            'activo' => true,
+        ]);
+
+        // Hijos de Clientes
+        MenuItem::create([
+            'parent_id' => $clientes->id,
+            'nombre' => 'Listado de Clientes',
+            'slug' => 'listado-clientes',
+            'icono' => 'heroicon-o-list-bullet',
+            'route_type' => 'route',
+            'route_value' => 'clientes.index',
+            'orden' => 1,
+            'activo' => true,
+        ]);
+
+        // 5. CONFIGURACIÓN (padre con hijos)
         $configuracion = MenuItem::create([
             'parent_id' => null,
             'nombre' => 'Configuración',
@@ -203,7 +260,7 @@ class MenuItemSeeder extends Seeder
             'icono' => 'heroicon-o-cog-6-tooth',
             'route_type' => 'none',
             'route_value' => null,
-            'orden' => 4,
+            'orden' => 5,
             'activo' => true,
         ]);
 
@@ -260,6 +317,17 @@ class MenuItemSeeder extends Seeder
             'route_type' => 'route',
             'route_value' => 'configuracion.impresoras',
             'orden' => 5,
+            'activo' => true,
+        ]);
+
+        MenuItem::create([
+            'parent_id' => $configuracion->id,
+            'nombre' => 'Formas de Pago',
+            'slug' => 'formas-pago',
+            'icono' => 'heroicon-o-credit-card',
+            'route_type' => 'route',
+            'route_value' => 'configuracion.formas-pago',
+            'orden' => 6,
             'activo' => true,
         ]);
     }

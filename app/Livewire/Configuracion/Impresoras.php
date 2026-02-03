@@ -157,8 +157,8 @@ class Impresoras extends Component
             'formatoPapel' => 'required|in:80mm,58mm,a4,carta',
             'anchoCaracteres' => 'required|integer|min:20|max:100',
         ], [
-            'nombre.required' => 'El nombre es obligatorio',
-            'nombreSistema.required' => 'Debe seleccionar una impresora del sistema',
+            'nombre.required' => __('El nombre es obligatorio'),
+            'nombreSistema.required' => __('Debe seleccionar una impresora del sistema'),
         ]);
 
         $data = [
@@ -173,10 +173,10 @@ class Impresoras extends Component
 
         if ($this->editMode) {
             Impresora::find($this->impresoraId)->update($data);
-            $message = 'Impresora actualizada correctamente';
+            $message = __('Impresora actualizada correctamente');
         } else {
             Impresora::create($data);
-            $message = 'Impresora creada correctamente';
+            $message = __('Impresora creada correctamente');
         }
 
         $this->dispatch('notify', message: $message, type: 'success');
@@ -187,7 +187,7 @@ class Impresoras extends Component
     {
         $impresora = Impresora::findOrFail($id);
         $impresora->delete();
-        $this->dispatch('notify', message: 'Impresora eliminada correctamente', type: 'success');
+        $this->dispatch('notify', message: __('Impresora eliminada correctamente'), type: 'success');
     }
 
     public function toggleStatus(int $id): void
@@ -196,8 +196,8 @@ class Impresoras extends Component
         $impresora->activa = !$impresora->activa;
         $impresora->save();
 
-        $status = $impresora->activa ? 'activada' : 'desactivada';
-        $this->dispatch('notify', message: "Impresora {$status}", type: 'success');
+        $status = $impresora->activa ? __('activada') : __('desactivada');
+        $this->dispatch('notify', message: __('Impresora :status', ['status' => $status]), type: 'success');
     }
 
     // Asignaciones
@@ -303,7 +303,7 @@ class Impresoras extends Component
             }
         });
 
-        $this->dispatch('notify', message: 'Asignaciones guardadas correctamente', type: 'success');
+        $this->dispatch('notify', message: __('Asignaciones guardadas correctamente'), type: 'success');
         $this->showModalAsignacion = false;
     }
 
@@ -335,7 +335,7 @@ class Impresoras extends Component
             'texto_legal_factura' => $this->configTextoLegalFactura ?: null,
         ]);
 
-        $this->dispatch('notify', message: 'Configuracion guardada correctamente', type: 'success');
+        $this->dispatch('notify', message: __('Configuración guardada correctamente'), type: 'success');
         $this->showModalConfig = false;
     }
 

@@ -4,8 +4,8 @@
         <div class="mb-4 sm:mb-6">
             <div class="flex justify-between items-start gap-3 sm:gap-4">
                 <div class="flex-1">
-                    <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white">Configurar Artículos por Sucursal</h2>
-                    <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">Selecciona una sucursal y configura qué artículos están disponibles en ella</p>
+                    <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white">{{ __('Configurar Artículos por Sucursal') }}</h2>
+                    <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">{{ __('Selecciona una sucursal y configura qué artículos están disponibles en ella') }}</p>
                 </div>
                 <!-- Botón Volver -->
                 <a
@@ -16,7 +16,7 @@
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                     </svg>
-                    Volver
+                    {{ __('Volver') }}
                 </a>
             </div>
         </div>
@@ -27,13 +27,13 @@
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <!-- Selector de Sucursal -->
                     <div>
-                        <label for="sucursal_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sucursal</label>
+                        <label for="sucursal_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Sucursal') }}</label>
                         <select
                             id="sucursal_id"
                             wire:model.live="sucursal_id"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         >
-                            <option value="">Seleccionar sucursal...</option>
+                            <option value="">{{ __('Seleccionar sucursal...') }}</option>
                             @foreach($sucursales as $sucursal)
                                 <option value="{{ $sucursal->id }}">{{ $sucursal->nombre }}</option>
                             @endforeach
@@ -42,28 +42,28 @@
 
                     <!-- Filtro de Categoría -->
                     <div>
-                        <label for="filterCategory" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Categoría</label>
+                        <label for="filterCategory" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Categoría') }}</label>
                         <select
                             id="filterCategory"
                             wire:model.live="filterCategory"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         >
-                            <option value="all">Todas las categorías</option>
+                            <option value="all">{{ __('Todas las categorías') }}</option>
                             @foreach($categorias as $categoria)
                                 <option value="{{ $categoria->id }}">{{ $categoria->nombre }}</option>
                             @endforeach
-                            <option value="none">Sin categoría</option>
+                            <option value="none">{{ __('Sin categoría') }}</option>
                         </select>
                     </div>
 
                     <!-- Búsqueda -->
                     <div>
-                        <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Buscar artículo</label>
+                        <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar artículo') }}</label>
                         <input
                             type="text"
                             id="search"
                             wire:model.live.debounce.300ms="search"
-                            placeholder="Código, nombre..."
+                            :placeholder="__('Código, nombre...')"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         />
                     </div>
@@ -77,17 +77,17 @@
                             wire:click="selectAll"
                             class="text-sm text-bcn-primary hover:text-opacity-80 font-medium"
                         >
-                            Seleccionar todos
+                            {{ __('Seleccionar todos') }}
                         </button>
                         <button
                             type="button"
                             wire:click="deselectAll"
                             class="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white font-medium"
                         >
-                            Deseleccionar todos
+                            {{ __('Deseleccionar todos') }}
                         </button>
                         <span class="ml-auto text-xs text-gray-500 dark:text-gray-400 italic">
-                            Los cambios se guardan automáticamente
+                            {{ __('Los cambios se guardan automáticamente') }}
                         </span>
                     </div>
                 @endif
@@ -117,7 +117,7 @@
                                     <div class="flex items-start justify-between gap-2 mb-1">
                                         <div class="flex-1 min-w-0">
                                             <h3 class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ $articulo->nombre }}</h3>
-                                            <p class="text-xs text-gray-600 dark:text-gray-300">Código: {{ $articulo->codigo }}</p>
+                                            <p class="text-xs text-gray-600 dark:text-gray-300">{{ __('Código') }}: {{ $articulo->codigo }}</p>
                                         </div>
                                     </div>
 
@@ -138,7 +138,7 @@
                             <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                             </svg>
-                            <p class="mt-2">No se encontraron artículos</p>
+                            <p class="mt-2">{{ __('No se encontraron artículos') }}</p>
                         </div>
                     @endforelse
                 </div>
@@ -152,13 +152,13 @@
                                     <!-- Checkbox header -->
                                 </th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    Código
+                                    {{ __('Código') }}
                                 </th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    Nombre
+                                    {{ __('Nombre') }}
                                 </th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    Categoría
+                                    {{ __('Categoría') }}
                                 </th>
                             </tr>
                         </thead>
@@ -199,7 +199,7 @@
                                         <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                                         </svg>
-                                        <p class="mt-2">No se encontraron artículos</p>
+                                        <p class="mt-2">{{ __('No se encontraron artículos') }}</p>
                                     </td>
                                 </tr>
                             @endforelse
@@ -220,9 +220,9 @@
                 <svg class="mx-auto h-16 w-16 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
-                <h3 class="mt-4 text-lg font-medium text-gray-900 dark:text-white">Selecciona una sucursal</h3>
+                <h3 class="mt-4 text-lg font-medium text-gray-900 dark:text-white">{{ __('Selecciona una sucursal') }}</h3>
                 <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                    Selecciona una sucursal en el selector de arriba para configurar sus artículos disponibles
+                    {{ __('Selecciona una sucursal en el selector de arriba para configurar sus artículos disponibles') }}
                 </p>
             </div>
         @endif

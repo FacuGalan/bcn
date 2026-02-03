@@ -2,9 +2,9 @@
     {{-- Header --}}
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Historial de Turnos</h1>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ __('Historial de Turnos') }}</h1>
             <p class="text-sm text-gray-500 dark:text-gray-400">
-                Consulta y detalle de cierres de turno anteriores
+                {{ __('Consulta y detalle de cierres de turno anteriores') }}
             </p>
         </div>
         <div class="flex items-center gap-2">
@@ -13,14 +13,14 @@
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
                 </svg>
-                Movimientos
+                {{ __('Movimientos') }}
             </a>
             <a href="{{ route('cajas.turno-actual') }}"
                class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"/>
                 </svg>
-                Turno Actual
+                {{ __('Turno Actual') }}
             </a>
         </div>
     </div>
@@ -36,10 +36,10 @@
                 <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
                 </svg>
-                <span class="font-medium text-gray-700 dark:text-gray-300">Filtros</span>
-                @if($filtroTipo || $filtroCajaId)
+                <span class="font-medium text-gray-700 dark:text-gray-300">{{ __('Filtros') }}</span>
+                @if($filtroTipo || $filtroCajaId || $filtroEstado !== 'activos')
                 <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                    Activos
+                    {{ __('Activos') }}
                 </span>
                 @endif
             </div>
@@ -50,38 +50,49 @@
 
         {{-- Contenido de filtros --}}
         <div x-show="filtrosAbiertos" x-collapse class="px-4 pb-4 pt-2 sm:py-4 border-t sm:border-t-0 border-gray-200 dark:border-gray-700">
-            <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
                 {{-- Fecha Desde --}}
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Desde</label>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('Desde') }}</label>
                     <input type="date" wire:model.live="filtroFechaDesde"
                            class="w-full text-sm rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-bcn-primary focus:border-bcn-primary">
                 </div>
 
                 {{-- Fecha Hasta --}}
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Hasta</label>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('Hasta') }}</label>
                     <input type="date" wire:model.live="filtroFechaHasta"
                            class="w-full text-sm rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-bcn-primary focus:border-bcn-primary">
                 </div>
 
                 {{-- Tipo --}}
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Tipo</label>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('Tipo') }}</label>
                     <select wire:model.live="filtroTipo"
                             class="w-full text-sm rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-bcn-primary focus:border-bcn-primary">
-                        <option value="">Todos</option>
-                        <option value="individual">Individual</option>
-                        <option value="grupo">Grupal</option>
+                        <option value="">{{ __('Todos') }}</option>
+                        <option value="individual">{{ __('Individual') }}</option>
+                        <option value="grupo">{{ __('Grupal') }}</option>
+                    </select>
+                </div>
+
+                {{-- Estado --}}
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('Estado') }}</label>
+                    <select wire:model.live="filtroEstado"
+                            class="w-full text-sm rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-bcn-primary focus:border-bcn-primary">
+                        <option value="activos">{{ __('Activos') }}</option>
+                        <option value="revertidos">{{ __('Revertidos') }}</option>
+                        <option value="todos">{{ __('Todos') }}</option>
                     </select>
                 </div>
 
                 {{-- Caja --}}
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Caja</label>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('Caja') }}</label>
                     <select wire:model.live="filtroCajaId"
                             class="w-full text-sm rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-bcn-primary focus:border-bcn-primary">
-                        <option value="">Todas</option>
+                        <option value="">{{ __('Todas') }}</option>
                         @foreach($cajasDisponibles as $caja)
                         <option value="{{ $caja->id }}">{{ $caja->nombre }}</option>
                         @endforeach
@@ -95,7 +106,7 @@
                         <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                         </svg>
-                        Limpiar
+                        {{ __('Limpiar') }}
                     </button>
                 </div>
             </div>
@@ -105,7 +116,7 @@
     {{-- Resumen del Periodo --}}
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
         <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Resumen del Periodo</h3>
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Resumen del Periodo') }}</h3>
             <span class="text-xs text-gray-500 dark:text-gray-400">
                 {{ $filtroFechaDesde ? \Carbon\Carbon::parse($filtroFechaDesde)->format('d/m/Y') : '' }}
                 -
@@ -115,25 +126,25 @@
         <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4">
             <div class="text-center p-2 sm:p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                 <p class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{{ $resumen['total_cierres'] }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">Cierres</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Cierres') }}</p>
             </div>
             <div class="text-center p-2 sm:p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                 <p class="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400">${{ number_format($resumen['total_ingresos'], 0, ',', '.') }}</p>
-                <p class="text-xs text-green-600 dark:text-green-400">Ingresos</p>
+                <p class="text-xs text-green-600 dark:text-green-400">{{ __('Ingresos') }}</p>
             </div>
             <div class="text-center p-2 sm:p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
                 <p class="text-xl sm:text-2xl font-bold text-red-600 dark:text-red-400">${{ number_format($resumen['total_egresos'], 0, ',', '.') }}</p>
-                <p class="text-xs text-red-600 dark:text-red-400">Egresos</p>
+                <p class="text-xs text-red-600 dark:text-red-400">{{ __('Egresos') }}</p>
             </div>
             <div class="text-center p-2 sm:p-3 {{ $resumen['total_diferencia'] == 0 ? 'bg-gray-50 dark:bg-gray-700/50' : ($resumen['total_diferencia'] > 0 ? 'bg-amber-50 dark:bg-amber-900/20' : 'bg-red-50 dark:bg-red-900/20') }} rounded-lg">
                 <p class="text-xl sm:text-2xl font-bold {{ $resumen['total_diferencia'] == 0 ? 'text-gray-600 dark:text-gray-400' : ($resumen['total_diferencia'] > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400') }}">
                     {{ $resumen['total_diferencia'] >= 0 ? '+' : '' }}${{ number_format($resumen['total_diferencia'], 0, ',', '.') }}
                 </p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">Diferencia</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Diferencia') }}</p>
             </div>
             <div class="text-center p-2 sm:p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg col-span-2 sm:col-span-1">
                 <p class="text-xl sm:text-2xl font-bold {{ $resumen['cierres_con_diferencia'] > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-600 dark:text-gray-400' }}">{{ $resumen['cierres_con_diferencia'] }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">Con Diferencia</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Con Diferencia') }}</p>
             </div>
         </div>
     </div>
@@ -143,17 +154,17 @@
         {{-- Header de la tabla --}}
         <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
             <div class="hidden lg:grid lg:grid-cols-12 gap-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                <div class="col-span-2">Fecha/Hora</div>
-                <div class="col-span-3">Turno</div>
-                <div class="col-span-1 text-right">Inicial</div>
-                <div class="col-span-1 text-right">Ingresos</div>
-                <div class="col-span-1 text-right">Egresos</div>
-                <div class="col-span-1 text-right">Final</div>
-                <div class="col-span-1 text-right">Diferencia</div>
-                <div class="col-span-2 text-center">Acciones</div>
+                <div class="col-span-2">{{ __('Fecha/Hora') }}</div>
+                <div class="col-span-3">{{ __('Turno') }}</div>
+                <div class="col-span-1 text-right">{{ __('Inicial') }}</div>
+                <div class="col-span-1 text-right">{{ __('Ingresos') }}</div>
+                <div class="col-span-1 text-right">{{ __('Egresos') }}</div>
+                <div class="col-span-1 text-right">{{ __('Final') }}</div>
+                <div class="col-span-1 text-right">{{ __('Diferencia') }}</div>
+                <div class="col-span-2 text-center">{{ __('Acciones') }}</div>
             </div>
             <div class="lg:hidden text-xs font-medium text-gray-500 dark:text-gray-400">
-                {{ $cierres->total() }} cierres encontrados
+                {{ $cierres->total() }} {{ __('cierres encontrados') }}
             </div>
         </div>
 
@@ -163,8 +174,8 @@
             <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
             </svg>
-            <h3 class="mt-2 text-lg font-medium text-gray-900 dark:text-white">Sin cierres de turno</h3>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">No se encontraron cierres en el periodo seleccionado.</p>
+            <h3 class="mt-2 text-lg font-medium text-gray-900 dark:text-white">{{ __('Sin cierres de turno') }}</h3>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ __('No se encontraron cierres en el periodo seleccionado.') }}</p>
         </div>
         @else
         <div class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -181,13 +192,18 @@
                         <div class="min-w-0 flex-1">
                             <p class="font-medium text-gray-900 dark:text-white">
                                 {{ $cierre->fecha_cierre->format('d/m/Y H:i') }}
+                                @if($cierre->revertido)
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-300 line-through-label">
+                                    {{ __('REVERTIDO') }}
+                                </span>
+                                @endif
                             </p>
                             <p class="text-sm text-gray-500 dark:text-gray-400 truncate">
                                 @if($cierre->esGrupal())
-                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">Grupo</span>
-                                    {{ $cierre->grupoCierre?->nombre ?? 'Grupo' }}
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">{{ __('Grupo') }}</span>
+                                    {{ $cierre->grupoCierre?->nombre ?? __('Grupo') }}
                                 @else
-                                    {{ $cierre->detalleCajas->first()?->caja_nombre ?? 'Caja' }}
+                                    {{ $cierre->detalleCajas->first()?->caja_nombre ?? __('Caja') }}
                                 @endif
                             </p>
                             <p class="text-xs text-gray-400 dark:text-gray-500">{{ $cierre->usuario?->name }}</p>
@@ -206,7 +222,7 @@
                     <div class="flex gap-2">
                         <button wire:click="verDetalle({{ $cierre->id }})"
                                 class="flex-1 px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40">
-                            Ver Detalle
+                            {{ __('Ver Detalle') }}
                         </button>
                         <button wire:click="reimprimir({{ $cierre->id }})"
                                 class="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
@@ -218,7 +234,7 @@
                 </div>
 
                 {{-- Vista desktop --}}
-                <div class="hidden lg:grid lg:grid-cols-12 gap-4 items-center">
+                <div class="hidden lg:grid lg:grid-cols-12 gap-4 items-center {{ $cierre->revertido ? 'opacity-60' : '' }}">
                     {{-- Fecha/Hora --}}
                     <div class="col-span-2">
                         <p class="font-medium text-gray-900 dark:text-white">{{ $cierre->fecha_cierre->format('d/m/Y') }}</p>
@@ -228,6 +244,11 @@
                     {{-- Turno --}}
                     <div class="col-span-3">
                         <div class="flex items-center gap-2">
+                            @if($cierre->revertido)
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-300">
+                                {{ __('REVERTIDO') }}
+                            </span>
+                            @endif
                             @if($cierre->esGrupal())
                             <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
                                 <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -235,9 +256,9 @@
                                 </svg>
                                 {{ $cantidadCajas }}
                             </span>
-                            <span class="font-medium text-gray-900 dark:text-white truncate">{{ $cierre->grupoCierre?->nombre ?? 'Grupo' }}</span>
+                            <span class="font-medium text-gray-900 dark:text-white truncate">{{ $cierre->grupoCierre?->nombre ?? __('Grupo') }}</span>
                             @else
-                            <span class="font-medium text-gray-900 dark:text-white truncate">{{ $cierre->detalleCajas->first()?->caja_nombre ?? 'Caja' }}</span>
+                            <span class="font-medium text-gray-900 dark:text-white truncate">{{ $cierre->detalleCajas->first()?->caja_nombre ?? __('Caja') }}</span>
                             @endif
                         </div>
                         <p class="text-sm text-gray-500 dark:text-gray-400 truncate">{{ $cierre->usuario?->name }}</p>
@@ -284,10 +305,10 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                             </svg>
-                            Detalle
+                            {{ __('Detalle') }}
                         </button>
                         <button wire:click="reimprimir({{ $cierre->id }})"
-                                title="Reimprimir"
+                                :title="__('Reimprimir')"
                                 class="inline-flex items-center px-2.5 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
@@ -324,7 +345,12 @@
                             <svg class="w-5 h-5 sm:w-6 sm:h-6 mr-2 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                             </svg>
-                            <span class="truncate">Cierre #{{ $cierreDetalle->id }}</span>
+                            <span class="truncate">{{ __('Cierre') }} #{{ $cierreDetalle->id }}</span>
+                            @if($cierreDetalle->revertido)
+                            <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-300">
+                                {{ __('REVERTIDO') }}
+                            </span>
+                            @endif
                         </h3>
                         <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                             {{ $cierreDetalle->fecha_cierre->format('d/m/Y H:i') }}
@@ -337,7 +363,7 @@
                             <svg class="w-4 h-4 sm:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
                             </svg>
-                            <span class="hidden sm:inline">Reimprimir</span>
+                            <span class="hidden sm:inline">{{ __('Reimprimir') }}</span>
                         </button>
                         <button wire:click="cerrarDetalle" class="p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -352,41 +378,41 @@
             <div class="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
                 {{-- Información General --}}
                 <div class="mb-6">
-                    <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Resumen General</h4>
+                    <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">{{ __('Resumen General') }}</h4>
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-center">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">Tipo</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">{{ __('Tipo') }}</p>
                             <p class="text-base sm:text-lg font-bold text-gray-900 dark:text-white mt-1">
                                 @if($cierreDetalle->esGrupal())
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs sm:text-sm bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                                        Grupal
+                                        {{ __('Grupal') }}
                                     </span>
                                 @else
-                                    Individual
+                                    {{ __('Individual') }}
                                 @endif
                             </p>
                         </div>
                         <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-center">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">Inicial</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">{{ __('Inicial') }}</p>
                             <p class="text-base sm:text-lg font-bold text-gray-900 dark:text-white mt-1">${{ number_format($cierreDetalle->total_saldo_inicial, 0, ',', '.') }}</p>
                         </div>
                         <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-center">
-                            <p class="text-xs text-green-600 dark:text-green-400 uppercase">Ingresos</p>
+                            <p class="text-xs text-green-600 dark:text-green-400 uppercase">{{ __('Ingresos') }}</p>
                             <p class="text-base sm:text-lg font-bold text-green-700 dark:text-green-300 mt-1">+${{ number_format($cierreDetalle->total_ingresos, 0, ',', '.') }}</p>
                         </div>
                         <div class="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 text-center">
-                            <p class="text-xs text-red-600 dark:text-red-400 uppercase">Egresos</p>
+                            <p class="text-xs text-red-600 dark:text-red-400 uppercase">{{ __('Egresos') }}</p>
                             <p class="text-base sm:text-lg font-bold text-red-700 dark:text-red-300 mt-1">-${{ number_format($cierreDetalle->total_egresos, 0, ',', '.') }}</p>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
                         <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-center">
-                            <p class="text-xs text-blue-600 dark:text-blue-400 uppercase">Saldo Final</p>
+                            <p class="text-xs text-blue-600 dark:text-blue-400 uppercase">{{ __('Saldo Final') }}</p>
                             <p class="text-lg sm:text-xl font-bold text-blue-700 dark:text-blue-300 mt-1">${{ number_format($cierreDetalle->total_saldo_final, 0, ',', '.') }}</p>
                         </div>
                         <div class="{{ $cierreDetalle->total_diferencia == 0 ? 'bg-green-50 dark:bg-green-900/20' : ($cierreDetalle->total_diferencia > 0 ? 'bg-amber-50 dark:bg-amber-900/20' : 'bg-red-50 dark:bg-red-900/20') }} rounded-lg p-3 text-center">
-                            <p class="text-xs {{ $cierreDetalle->total_diferencia == 0 ? 'text-green-600 dark:text-green-400' : ($cierreDetalle->total_diferencia > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400') }} uppercase">Diferencia</p>
+                            <p class="text-xs {{ $cierreDetalle->total_diferencia == 0 ? 'text-green-600 dark:text-green-400' : ($cierreDetalle->total_diferencia > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400') }} uppercase">{{ __('Diferencia') }}</p>
                             <p class="text-lg sm:text-xl font-bold {{ $cierreDetalle->total_diferencia == 0 ? 'text-green-700 dark:text-green-300' : ($cierreDetalle->total_diferencia > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-red-700 dark:text-red-300') }} mt-1">
                                 @if($cierreDetalle->total_diferencia == 0)
                                     OK
@@ -397,13 +423,38 @@
                         </div>
                         @if($cierreDetalle->fecha_apertura)
                         <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-center col-span-2 sm:col-span-1">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">Duracion</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">{{ __('Duracion') }}</p>
                             <p class="text-base sm:text-lg font-bold text-gray-900 dark:text-white mt-1">
                                 {{ $cierreDetalle->duracion_horas ? number_format($cierreDetalle->duracion_horas, 1) . 'h' : '-' }}
                             </p>
                         </div>
                         @endif
                     </div>
+
+                    {{-- Aviso de Reversión --}}
+                    @if($cierreDetalle->revertido)
+                    <div class="mt-4 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600">
+                        <div class="flex items-start gap-3">
+                            <div class="flex-shrink-0 mt-0.5">
+                                <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">{{ __('Este cierre fue revertido') }}</h4>
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                    {{ __('Revertido el') }} {{ $cierreDetalle->fecha_reversion?->format('d/m/Y H:i') }}
+                                    {{ __('por') }} {{ $cierreDetalle->usuarioReversion?->name ?? __('Usuario desconocido') }}
+                                </p>
+                                @if($cierreDetalle->motivo_reversion)
+                                <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                                    <span class="font-medium">{{ __('Motivo') }}:</span> {{ $cierreDetalle->motivo_reversion }}
+                                </p>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                    @endif
 
                     {{-- Totales por Concepto (consolidado de todas las cajas) --}}
                     @php
@@ -428,13 +479,13 @@
 
                     @if($totalesPorConcepto->count() > 0 || $totalesPorFormaPago->count() > 0)
                     <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <p class="text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold mb-2">Totales Consolidados</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold mb-2">{{ __('Totales Consolidados') }}</p>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {{-- Por Forma de Pago --}}
                             @if($totalesPorFormaPago->count() > 0)
                             <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                                <p class="text-xs text-gray-400 dark:text-gray-500 mb-2">Por Forma de Pago</p>
+                                <p class="text-xs text-gray-400 dark:text-gray-500 mb-2">{{ __('Por Forma de Pago') }}</p>
                                 <div class="flex flex-wrap gap-1.5">
                                     @foreach($totalesPorFormaPago->sortByDesc(fn($v) => $v) as $forma => $monto)
                                     <span class="inline-flex items-center px-2 py-1 rounded bg-white dark:bg-gray-600 text-xs border border-gray-200 dark:border-gray-500">
@@ -449,7 +500,7 @@
                             {{-- Por Concepto --}}
                             @if($totalesPorConcepto->count() > 0)
                             <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
-                                <p class="text-xs text-blue-500 dark:text-blue-400 mb-2">Por Concepto</p>
+                                <p class="text-xs text-blue-500 dark:text-blue-400 mb-2">{{ __('Por Concepto') }}</p>
                                 <div class="flex flex-wrap gap-1.5">
                                     @foreach($totalesPorConcepto->sortByDesc(fn($v) => $v) as $concepto => $monto)
                                     <span class="inline-flex items-center px-2 py-1 rounded bg-white dark:bg-blue-900/30 text-xs border border-blue-200 dark:border-blue-700">
@@ -468,7 +519,7 @@
                 {{-- Detalle por Caja --}}
                 @if($cierreDetalle->detalleCajas->count() > 0)
                 <div class="mb-6">
-                    <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Detalle por Caja</h4>
+                    <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">{{ __('Detalle por Caja') }}</h4>
                     <div class="space-y-3">
                         @foreach($cierreDetalle->detalleCajas as $detalleCaja)
                         <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-600">
@@ -486,23 +537,23 @@
                             </div>
                             <div class="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 text-xs sm:text-sm">
                                 <div>
-                                    <p class="text-gray-500 dark:text-gray-400">Inicial</p>
+                                    <p class="text-gray-500 dark:text-gray-400">{{ __('Inicial') }}</p>
                                     <p class="font-medium text-gray-900 dark:text-white">${{ number_format($detalleCaja->saldo_inicial, 0, ',', '.') }}</p>
                                 </div>
                                 <div>
-                                    <p class="text-gray-500 dark:text-gray-400">Ingresos</p>
+                                    <p class="text-gray-500 dark:text-gray-400">{{ __('Ingresos') }}</p>
                                     <p class="font-medium text-green-600 dark:text-green-400">+${{ number_format($detalleCaja->total_ingresos, 0, ',', '.') }}</p>
                                 </div>
                                 <div>
-                                    <p class="text-gray-500 dark:text-gray-400">Egresos</p>
+                                    <p class="text-gray-500 dark:text-gray-400">{{ __('Egresos') }}</p>
                                     <p class="font-medium text-red-600 dark:text-red-400">-${{ number_format($detalleCaja->total_egresos, 0, ',', '.') }}</p>
                                 </div>
                                 <div class="hidden sm:block">
-                                    <p class="text-gray-500 dark:text-gray-400">Sistema</p>
+                                    <p class="text-gray-500 dark:text-gray-400">{{ __('Sistema') }}</p>
                                     <p class="font-medium text-gray-900 dark:text-white">${{ number_format($detalleCaja->saldo_sistema, 0, ',', '.') }}</p>
                                 </div>
                                 <div class="hidden sm:block">
-                                    <p class="text-gray-500 dark:text-gray-400">Declarado</p>
+                                    <p class="text-gray-500 dark:text-gray-400">{{ __('Declarado') }}</p>
                                     <p class="font-medium text-gray-900 dark:text-white">${{ number_format($detalleCaja->saldo_declarado, 0, ',', '.') }}</p>
                                 </div>
                             </div>
@@ -510,7 +561,7 @@
                             {{-- Desglose por Forma de Pago --}}
                             @if($detalleCaja->desglose_formas_pago && count($detalleCaja->desglose_formas_pago) > 0)
                             <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Por Forma de Pago</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ __('Por Forma de Pago') }}</p>
                                 <div class="flex flex-wrap gap-1.5">
                                     @foreach($detalleCaja->desglose_formas_pago as $forma => $monto)
                                     <span class="inline-flex items-center px-2 py-1 rounded bg-gray-100 dark:bg-gray-600 text-xs">
@@ -525,7 +576,7 @@
                             {{-- Desglose por Concepto --}}
                             @if($detalleCaja->desglose_conceptos && count($detalleCaja->desglose_conceptos) > 0)
                             <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Por Concepto</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ __('Por Concepto') }}</p>
                                 <div class="flex flex-wrap gap-1.5">
                                     @foreach($detalleCaja->desglose_conceptos as $concepto => $monto)
                                     <span class="inline-flex items-center px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/30 text-xs">
@@ -546,16 +597,16 @@
                 @if($cierreDetalle->movimientos->count() > 0)
                 <div class="mb-6">
                     <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                        Movimientos en Efectivo ({{ $cierreDetalle->movimientos->count() }})
+                        {{ __('Movimientos en Efectivo') }} ({{ $cierreDetalle->movimientos->count() }})
                     </h4>
                     <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden">
                         <div class="max-h-48 sm:max-h-60 overflow-y-auto">
                             <table class="w-full text-xs sm:text-sm">
                                 <thead class="bg-gray-100 dark:bg-gray-600 sticky top-0">
                                     <tr>
-                                        <th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Hora</th>
-                                        <th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Concepto</th>
-                                        <th class="px-2 sm:px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Monto</th>
+                                        <th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">{{ __('Hora') }}</th>
+                                        <th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">{{ __('Concepto') }}</th>
+                                        <th class="px-2 sm:px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">{{ __('Monto') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
@@ -573,7 +624,7 @@
                         </div>
                         @if($cierreDetalle->movimientos->count() > 50)
                         <div class="px-3 py-2 bg-gray-100 dark:bg-gray-600 text-center text-xs text-gray-500 dark:text-gray-400">
-                            Mostrando 50 de {{ $cierreDetalle->movimientos->count() }} movimientos
+                            {{ __('Mostrando 50 de') }} {{ $cierreDetalle->movimientos->count() }} {{ __('movimientos') }}
                         </div>
                         @endif
                     </div>
@@ -589,7 +640,7 @@
                 @if($totalPagos > 0)
                 <div class="mb-6">
                     <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                        Pagos del Turno ({{ $totalPagos }})
+                        {{ __('Pagos del Turno') }} ({{ $totalPagos }})
                     </h4>
 
                     {{-- Resumen de pagos por forma de pago --}}
@@ -633,7 +684,7 @@
                             <div class="text-xs">
                                 <p class="font-medium text-indigo-700 dark:text-indigo-300">{{ $forma }}</p>
                                 <p class="text-indigo-600 dark:text-indigo-400">
-                                    {{ $datos['cantidad'] }} {{ $datos['cantidad'] == 1 ? 'pago' : 'pagos' }} •
+                                    {{ $datos['cantidad'] }} {{ $datos['cantidad'] == 1 ? __('pago') : __('pagos') }} •
                                     <span class="font-semibold">${{ number_format($datos['total'], 0, ',', '.') }}</span>
                                 </p>
                             </div>
@@ -647,12 +698,12 @@
                             <button @click="tabActiva = 'ventas'"
                                     :class="tabActiva === 'ventas' ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
                                     class="py-2 px-4 text-sm font-medium border-b-2 transition-colors">
-                                Pagos Ventas ({{ $totalVentaPagos }})
+                                {{ __('Pagos Ventas') }} ({{ $totalVentaPagos }})
                             </button>
                             <button @click="tabActiva = 'cobros'"
                                     :class="tabActiva === 'cobros' ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
                                     class="py-2 px-4 text-sm font-medium border-b-2 transition-colors">
-                                Pagos Cobros ({{ $totalCobroPagos }})
+                                {{ __('Pagos Cobros') }} ({{ $totalCobroPagos }})
                             </button>
                         </div>
 
@@ -664,10 +715,10 @@
                                     <table class="w-full text-xs sm:text-sm">
                                         <thead class="bg-gray-100 dark:bg-gray-600 sticky top-0">
                                             <tr>
-                                                <th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Venta</th>
-                                                <th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Forma Pago</th>
-                                                <th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 hidden sm:table-cell">Referencia</th>
-                                                <th class="px-2 sm:px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Monto</th>
+                                                <th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">{{ __('Venta') }}</th>
+                                                <th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">{{ __('Forma Pago') }}</th>
+                                                <th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 hidden sm:table-cell">{{ __('Referencia') }}</th>
+                                                <th class="px-2 sm:px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">{{ __('Monto') }}</th>
                                             </tr>
                                         </thead>
                                         <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
@@ -695,12 +746,12 @@
                                 </div>
                                 @if($totalVentaPagos > 50)
                                 <div class="px-3 py-2 bg-gray-100 dark:bg-gray-600 text-center text-xs text-gray-500 dark:text-gray-400">
-                                    Mostrando 50 de {{ $totalVentaPagos }} pagos
+                                    {{ __('Mostrando 50 de') }} {{ $totalVentaPagos }} {{ __('pagos') }}
                                 </div>
                                 @endif
                             </div>
                             @else
-                            <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Sin pagos de ventas</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">{{ __('Sin pagos de ventas') }}</p>
                             @endif
                         </div>
 
@@ -712,10 +763,10 @@
                                     <table class="w-full text-xs sm:text-sm">
                                         <thead class="bg-gray-100 dark:bg-gray-600 sticky top-0">
                                             <tr>
-                                                <th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Cobro</th>
-                                                <th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Forma Pago</th>
-                                                <th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 hidden sm:table-cell">Referencia</th>
-                                                <th class="px-2 sm:px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Monto</th>
+                                                <th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">{{ __('Cobro') }}</th>
+                                                <th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">{{ __('Forma Pago') }}</th>
+                                                <th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 hidden sm:table-cell">{{ __('Referencia') }}</th>
+                                                <th class="px-2 sm:px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">{{ __('Monto') }}</th>
                                             </tr>
                                         </thead>
                                         <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
@@ -743,12 +794,12 @@
                                 </div>
                                 @if($totalCobroPagos > 50)
                                 <div class="px-3 py-2 bg-gray-100 dark:bg-gray-600 text-center text-xs text-gray-500 dark:text-gray-400">
-                                    Mostrando 50 de {{ $totalCobroPagos }} pagos
+                                    {{ __('Mostrando 50 de') }} {{ $totalCobroPagos }} {{ __('pagos') }}
                                 </div>
                                 @endif
                             </div>
                             @else
-                            <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Sin pagos de cobros</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">{{ __('Sin pagos de cobros') }}</p>
                             @endif
                         </div>
                     </div>
@@ -758,7 +809,7 @@
                 {{-- Observaciones --}}
                 @if($cierreDetalle->observaciones)
                 <div>
-                    <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Observaciones</h4>
+                    <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">{{ __('Observaciones') }}</h4>
                     <p class="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">{{ $cierreDetalle->observaciones }}</p>
                 </div>
                 @endif
@@ -769,7 +820,7 @@
                 <div class="flex justify-end">
                     <button wire:click="cerrarDetalle"
                             class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
-                        Cerrar
+                        {{ __('Cerrar') }}
                     </button>
                 </div>
             </div>

@@ -4,9 +4,9 @@
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
             </svg>
-            Simulador de Venta
+            {{ __('Simulador de Venta') }}
         </h3>
-        <p class="text-xs text-purple-700 dark:text-purple-400 mt-1">Prueba cómo se aplicarían las promociones</p>
+        <p class="text-xs text-purple-700 dark:text-purple-400 mt-1">{{ __('Prueba cómo se aplicarían las promociones') }}</p>
     </div>
 
     <div class="p-3 sm:p-4 space-y-3">
@@ -20,7 +20,7 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
                     </svg>
-                    Contexto de la venta
+                    {{ __('Contexto de la venta') }}
                 </span>
                 <svg class="w-4 h-4 transition-transform {{ $mostrarFiltrosSimulador ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -34,7 +34,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {{-- Sucursal --}}
                     <div>
-                        <label class="text-xs text-gray-500 dark:text-gray-400 block mb-1">Sucursal</label>
+                        <label class="text-xs text-gray-500 dark:text-gray-400 block mb-1">{{ __('Sucursal') }}</label>
                         <select wire:model.live="simuladorSucursalId"
                                 class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                             @foreach($sucursales as $suc)
@@ -45,7 +45,7 @@
 
                     {{-- Lista de Precios --}}
                     <div wire:key="lista-precios-{{ $simuladorSucursalId }}">
-                        <label class="text-xs text-gray-500 dark:text-gray-400 block mb-1">Lista de Precios</label>
+                        <label class="text-xs text-gray-500 dark:text-gray-400 block mb-1">{{ __('Lista de Precios') }}</label>
                         <select wire:model.live="simuladorListaPrecioId"
                                 class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                             @forelse($listasPreciosSimulador as $lista)
@@ -58,17 +58,17 @@
                                     @endif
                                 </option>
                             @empty
-                                <option value="">Sin listas</option>
+                                <option value="">{{ __('Sin listas') }}</option>
                             @endforelse
                         </select>
                     </div>
 
                     {{-- Forma de Venta --}}
                     <div>
-                        <label class="text-xs text-gray-500 dark:text-gray-400 block mb-1">Forma Venta</label>
+                        <label class="text-xs text-gray-500 dark:text-gray-400 block mb-1">{{ __('Forma Venta') }}</label>
                         <select wire:model.live="simuladorFormaVentaId"
                                 class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                            <option value="">Todas</option>
+                            <option value="">{{ __('Todas') }}</option>
                             @foreach($formasVenta as $fv)
                                 <option value="{{ $fv->id }}">{{ $fv->nombre }}</option>
                             @endforeach
@@ -77,10 +77,10 @@
 
                     {{-- Canal de Venta --}}
                     <div>
-                        <label class="text-xs text-gray-500 dark:text-gray-400 block mb-1">Canal Venta</label>
+                        <label class="text-xs text-gray-500 dark:text-gray-400 block mb-1">{{ __('Canal Venta') }}</label>
                         <select wire:model.live="simuladorCanalVentaId"
                                 class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                            <option value="">Todos</option>
+                            <option value="">{{ __('Todos') }}</option>
                             @foreach($canalesVenta as $cv)
                                 <option value="{{ $cv->id }}">{{ $cv->nombre }}</option>
                             @endforeach
@@ -89,10 +89,10 @@
 
                     {{-- Forma de Pago --}}
                     <div class="sm:col-span-2">
-                        <label class="text-xs text-gray-500 dark:text-gray-400 block mb-1">Forma Pago</label>
+                        <label class="text-xs text-gray-500 dark:text-gray-400 block mb-1">{{ __('Forma Pago') }}</label>
                         <select wire:model.live="simuladorFormaPagoId"
                                 class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                            <option value="">Todas</option>
+                            <option value="">{{ __('Todas') }}</option>
                             @foreach($formasPago as $fp)
                                 <option value="{{ $fp->id }}">{{ $fp->nombre }}</option>
                             @endforeach
@@ -111,7 +111,7 @@
                     <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                     </svg>
-                    <span>Agregar artículo...</span>
+                    <span>{{ __('Agregar artículo...') }}</span>
                 </button>
             </div>
 
@@ -123,7 +123,7 @@
                                wire:model.live.debounce.200ms="busquedaArticuloSimulador"
                                wire:keydown.enter="agregarPrimerArticulo"
                                wire:keydown.escape="cerrarBuscadorArticulos"
-                               placeholder="Nombre, código o escanear código de barras..."
+                               :placeholder="__('Nombre, código o escanear código de barras...')"
                                x-init="$nextTick(() => $el.focus())"
                                class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                     </div>
@@ -156,16 +156,16 @@
                             </button>
                         @empty
                             <div class="px-3 py-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-                                No se encontraron artículos
+                                {{ __('No se encontraron artículos') }}
                             </div>
                         @endforelse
                     </div>
                     <div class="p-2 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-between">
-                        <span class="text-xs text-gray-400 dark:text-gray-500">Enter para agregar primero</span>
+                        <span class="text-xs text-gray-400 dark:text-gray-500">{{ __('Enter para agregar primero') }}</span>
                         <button type="button"
                                 wire:click="cerrarBuscadorArticulos"
                                 class="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition">
-                            Cerrar
+                            {{ __('Cerrar') }}
                         </button>
                     </div>
                 </div>
@@ -176,7 +176,7 @@
         @if(count($itemsSimulador) > 0)
             <div class="space-y-2">
                 <div class="flex items-center justify-between">
-                    <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Artículos ({{ count($itemsSimulador) }})</span>
+                    <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Artículos') }} ({{ count($itemsSimulador) }})</span>
                 </div>
 
                 <div class="space-y-1.5 max-h-64 overflow-y-auto">
@@ -281,7 +281,7 @@
                 <svg class="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
                 </svg>
-                <p>Agrega artículos para simular</p>
+                <p>{{ __('Agrega artículos para simular') }}</p>
             </div>
         @endif
 
@@ -297,7 +297,7 @@
 
                     @if($promoAplicadas->count() > 0)
                         <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-2">
-                            <p class="text-xs font-semibold text-green-800 dark:text-green-400 mb-1">Promociones aplicadas:</p>
+                            <p class="text-xs font-semibold text-green-800 dark:text-green-400 mb-1">{{ __('Promociones aplicadas:') }}</p>
                             @foreach($promoAplicadas as $pr)
                                 <div class="flex justify-between items-center text-xs {{ $pr['es_nueva'] ? 'bg-yellow-50 dark:bg-yellow-900/20 rounded px-1' : '' }}">
                                     <span class="{{ $pr['es_nueva'] ? 'text-yellow-800 dark:text-yellow-400' : 'text-gray-700 dark:text-gray-300' }}">
@@ -317,14 +317,14 @@
 
                     @if($promoNoAplicadas->count() > 0)
                         <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-2">
-                            <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">No aplicadas:</p>
+                            <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">{{ __('No aplicadas:') }}</p>
                             @foreach($promoNoAplicadas as $pr)
                                 <div class="text-xs text-gray-400 dark:text-gray-500 {{ $pr['es_nueva'] ? 'bg-yellow-50 dark:bg-yellow-900/20 rounded px-1' : '' }}">
                                     {{ $pr['nombre'] }}
                                     @if($pr['es_nueva'])
                                         <span class="px-1 bg-yellow-200 dark:bg-yellow-800 text-yellow-700 dark:text-yellow-300 rounded">NUEVA</span>
                                     @endif
-                                    - <span class="italic">{{ $pr['razon'] ?? 'No óptima' }}</span>
+                                    - <span class="italic">{{ $pr['razon'] ?? __('No óptima') }}</span>
                                 </div>
                             @endforeach
                         </div>
@@ -334,7 +334,7 @@
                 {{-- Promociones a nivel de venta (precio fijo) --}}
                 @if(!empty($resultadoSimulador['promociones_venta']))
                     <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-2 mt-2">
-                        <p class="text-xs font-semibold text-yellow-800 dark:text-yellow-400 mb-1">Promociones al total de la venta:</p>
+                        <p class="text-xs font-semibold text-yellow-800 dark:text-yellow-400 mb-1">{{ __('Promociones al total de la venta:') }}</p>
                         @foreach($resultadoSimulador['promociones_venta'] as $pv)
                             <div class="flex justify-between items-center text-xs {{ $pv['es_nueva'] ? 'bg-yellow-100 dark:bg-yellow-800/30 rounded px-1' : '' }}">
                                 <span class="{{ $pv['es_nueva'] ? 'text-yellow-800 dark:text-yellow-300' : 'text-gray-700 dark:text-gray-300' }}">
@@ -357,20 +357,20 @@
                 {{-- Totales --}}
                 <div class="border-t dark:border-gray-700 pt-2 space-y-1">
                     <div class="flex justify-between text-sm">
-                        <span class="text-gray-600 dark:text-gray-300">Subtotal:</span>
+                        <span class="text-gray-600 dark:text-gray-300">{{ __('Subtotal:') }}</span>
                         <span class="dark:text-white">$@precio($resultadoSimulador['subtotal'])</span>
                     </div>
 
                     @if($resultadoSimulador['total_descuentos'] > 0)
                         <div class="flex justify-between text-sm text-green-600">
-                            <span>Descuentos:</span>
+                            <span>{{ __('Descuentos:') }}</span>
                             <span>-$@precio($resultadoSimulador['total_descuentos'])</span>
                         </div>
                     @endif
 
                     @if($resultadoSimulador['total_recargos'] > 0)
                         <div class="flex justify-between text-sm text-red-600">
-                            <span>Recargos:</span>
+                            <span>{{ __('Recargos:') }}</span>
                             <span>+$@precio($resultadoSimulador['total_recargos'])</span>
                         </div>
                     @endif
@@ -383,7 +383,7 @@
                     @if($resultadoSimulador['total_descuentos'] > 0)
                         <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded p-2 text-center">
                             <span class="text-green-700 dark:text-green-400 text-sm font-medium">
-                                Ahorro: $@precio($resultadoSimulador['total_descuentos'])
+                                {{ __('Ahorro:') }} $@precio($resultadoSimulador['total_descuentos'])
                                 @if($resultadoSimulador['subtotal'] > 0)
                                     (@porcentaje(($resultadoSimulador['total_descuentos'] / $resultadoSimulador['subtotal']) * 100))
                                 @endif

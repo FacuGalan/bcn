@@ -97,18 +97,21 @@ class WizardPromocion extends Component
         'sucursalesSeleccionadas' => 'required|array|min:1',
     ];
 
-    protected $messages = [
-        'tipo.required' => 'Debes seleccionar un tipo de promoción',
-        'nombre.required' => 'El nombre de la promoción es obligatorio',
-        'nombre.min' => 'El nombre debe tener al menos 3 caracteres',
-        'valor.numeric' => 'El valor debe ser un número',
-        'valor.min' => 'El valor no puede ser negativo',
-        'prioridad.required' => 'La prioridad es obligatoria',
-        'prioridad.integer' => 'La prioridad debe ser un número entero',
-        'prioridad.min' => 'La prioridad debe ser al menos 1',
-        'sucursalesSeleccionadas.required' => 'Debes seleccionar al menos una sucursal',
-        'sucursalesSeleccionadas.min' => 'Debes seleccionar al menos una sucursal',
-    ];
+    protected function messages()
+    {
+        return [
+            'tipo.required' => __('Debes seleccionar un tipo de promoción'),
+            'nombre.required' => __('El nombre de la promoción es obligatorio'),
+            'nombre.min' => __('El nombre debe tener al menos 3 caracteres'),
+            'valor.numeric' => __('El valor debe ser un número'),
+            'valor.min' => __('El valor no puede ser negativo'),
+            'prioridad.required' => __('La prioridad es obligatoria'),
+            'prioridad.integer' => __('La prioridad debe ser un número entero'),
+            'prioridad.min' => __('La prioridad debe ser al menos 1'),
+            'sucursalesSeleccionadas.required' => __('Debes seleccionar al menos una sucursal'),
+            'sucursalesSeleccionadas.min' => __('Debes seleccionar al menos una sucursal'),
+        ];
+    }
 
     public function mount($id = null)
     {
@@ -915,7 +918,7 @@ class WizardPromocion extends Component
         // Agregar la promoción que se está creando
         $todasPromociones[] = [
             'id' => 'nueva',
-            'nombre' => $this->nombre ?: '(Esta promoción)',
+            'nombre' => $this->nombre ?: __('(Esta promoción)'),
             'tipo' => $this->tipo,
             'valor' => $this->valor ?? 0,
             'prioridad' => (int) ($this->prioridad ?: 1),
@@ -1255,7 +1258,7 @@ class WizardPromocion extends Component
             foreach ($promocionesVenta as $pv) {
                 if ($pv['id'] === $promo['id']) {
                     $promoResumen['aplicada_en'][] = [
-                        'articulo' => 'Total de la venta',
+                        'articulo' => __('Total de la venta'),
                         'valor' => $pv['valor_ajuste'],
                         'tipo' => $pv['tipo_ajuste'],
                         'precio_fijo' => $pv['precio_fijo'] ?? null,
@@ -1297,30 +1300,30 @@ class WizardPromocion extends Component
         // Verificar forma de pago
         if (!empty($promo['forma_pago_id'])) {
             if (empty($contextoVenta['forma_pago_id'])) {
-                return 'Requiere forma de pago específica';
+                return __('Requiere forma de pago específica');
             }
             if ($promo['forma_pago_id'] != $contextoVenta['forma_pago_id']) {
-                return 'No aplica a esta forma de pago';
+                return __('No aplica a esta forma de pago');
             }
         }
 
         // Verificar forma de venta
         if (!empty($promo['forma_venta_id'])) {
             if (empty($contextoVenta['forma_venta_id'])) {
-                return 'Requiere forma de venta específica';
+                return __('Requiere forma de venta específica');
             }
             if ($promo['forma_venta_id'] != $contextoVenta['forma_venta_id']) {
-                return 'No aplica a esta forma de venta';
+                return __('No aplica a esta forma de venta');
             }
         }
 
         // Verificar canal de venta
         if (!empty($promo['canal_venta_id'])) {
             if (empty($contextoVenta['canal_venta_id'])) {
-                return 'Requiere canal de venta específico';
+                return __('Requiere canal de venta específico');
             }
             if ($promo['canal_venta_id'] != $contextoVenta['canal_venta_id']) {
-                return 'No aplica a este canal de venta';
+                return __('No aplica a este canal de venta');
             }
         }
 
@@ -1329,7 +1332,7 @@ class WizardPromocion extends Component
             $montoMinimo = (float) $promo['monto_minimo'];
             if ($contextoVenta['subtotal'] < $montoMinimo) {
                 $faltante = $montoMinimo - $contextoVenta['subtotal'];
-                return "Monto mínimo no alcanzado (faltan $" . number_format($faltante, 0, ',', '.') . ")";
+                return __('Monto mínimo no alcanzado (faltan $:faltante)', ['faltante' => number_format($faltante, 0, ',', '.')]);
             }
         }
 
@@ -1338,7 +1341,7 @@ class WizardPromocion extends Component
             $cantidadMinima = (int) $promo['cantidad_minima'];
             if ($contextoVenta['cantidad_total'] < $cantidadMinima) {
                 $faltante = $cantidadMinima - $contextoVenta['cantidad_total'];
-                return "Cantidad mínima no alcanzada (faltan {$faltante} unidades)";
+                return __('Cantidad mínima no alcanzada (faltan :faltante unidades)', ['faltante' => $faltante]);
             }
         }
 
@@ -1352,10 +1355,10 @@ class WizardPromocion extends Component
         }
 
         if (!$aplicaAlguno) {
-            return 'No aplica a estos artículos';
+            return __('No aplica a estos artículos');
         }
 
-        return 'No incluida en combinación óptima';
+        return __('No incluida en combinación óptima');
     }
 
     /**
@@ -1582,7 +1585,7 @@ class WizardPromocion extends Component
 
             // Validar que cantidad_desde sea menor o igual a cantidad_hasta
             if ($escalaActual['cantidad_hasta'] && $desde > $hasta) {
-                $this->js("window.notify('Escala {$desde}-{$hasta}: \"Desde\" debe ser menor o igual a \"Hasta\"', 'error', 5000)");
+                $this->js("window.notify('" . addslashes(__('Escala :desde-:hasta: "Desde" debe ser menor o igual a "Hasta"', ['desde' => $desde, 'hasta' => $hasta])) . "', 'error', 5000)");
                 return false;
             }
 
@@ -1604,7 +1607,7 @@ class WizardPromocion extends Component
                     $rangoActual = $escalaActual['cantidad_hasta'] ? "{$desde}-{$hasta}" : "{$desde}+";
                     $rangoSiguiente = $escalaSiguiente['cantidad_hasta'] ? "{$desdeSiguiente}-{$hastaSiguiente}" : "{$desdeSiguiente}+";
 
-                    $this->js("window.notify('Las escalas {$rangoActual} y {$rangoSiguiente} se solapan. Ajusta los rangos para que no se crucen.', 'error', 6000)");
+                    $this->js("window.notify('" . addslashes(__('Las escalas :rango1 y :rango2 se solapan. Ajusta los rangos para que no se crucen.', ['rango1' => $rangoActual, 'rango2' => $rangoSiguiente])) . "', 'error', 6000)");
                     return false;
                 }
             }
@@ -1618,14 +1621,14 @@ class WizardPromocion extends Component
         switch ($this->pasoActual) {
             case 1:
                 if (!$this->tipo) {
-                    $this->js("window.notify('Debes seleccionar un tipo de promoción', 'error')");
+                    $this->js("window.notify('" . __('Debes seleccionar un tipo de promoción') . "', 'error')");
                     return false;
                 }
                 break;
 
             case 2:
                 if (!$this->nombre) {
-                    $this->js("window.notify('Debes ingresar un nombre para la promoción', 'error')");
+                    $this->js("window.notify('" . __('Debes ingresar un nombre para la promoción') . "', 'error')");
                     return false;
                 }
 
@@ -1633,7 +1636,7 @@ class WizardPromocion extends Component
                     // Validar que las escalas estén completas
                     foreach ($this->escalas as $escala) {
                         if (empty($escala['cantidad_desde']) || empty($escala['valor'])) {
-                            $this->js("window.notify('Todas las escalas deben tener cantidad desde y valor', 'error')");
+                            $this->js("window.notify('" . __('Todas las escalas deben tener cantidad desde y valor') . "', 'error')");
                             return false;
                         }
                     }
@@ -1644,7 +1647,7 @@ class WizardPromocion extends Component
                     }
                 } elseif (!str_contains($this->tipo, 'escalonado')) {
                     if (empty($this->valor)) {
-                        $this->js("window.notify('Debes ingresar un valor', 'error')");
+                        $this->js("window.notify('" . __('Debes ingresar un valor') . "', 'error')");
                         return false;
                     }
                 }
@@ -1654,15 +1657,15 @@ class WizardPromocion extends Component
             case 3:
                 // Validar que precio_fijo requiera artículo específico
                 if ($this->tipo === 'precio_fijo' && $this->alcanceArticulos !== 'articulo') {
-                    $this->js("window.notify('La promoción de Precio Fijo debe aplicar a un artículo específico', 'error', 5000)");
+                    $this->js("window.notify('" . __('La promoción de Precio Fijo debe aplicar a un artículo específico') . "', 'error', 5000)");
                     return false;
                 }
                 if ($this->tipo === 'precio_fijo' && !$this->articuloId) {
-                    $this->js("window.notify('Debes seleccionar un artículo para la promoción de Precio Fijo', 'error', 5000)");
+                    $this->js("window.notify('" . __('Debes seleccionar un artículo para la promoción de Precio Fijo') . "', 'error', 5000)");
                     return false;
                 }
                 if (empty($this->sucursalesSeleccionadas)) {
-                    $this->js("window.notify('Debes seleccionar al menos una sucursal', 'error')");
+                    $this->js("window.notify('" . __('Debes seleccionar al menos una sucursal') . "', 'error')");
                     return false;
                 }
                 break;
@@ -1694,7 +1697,7 @@ class WizardPromocion extends Component
         } catch (\Illuminate\Validation\ValidationException $e) {
             \Log::error('Error de validación', ['errors' => $e->errors()]);
             $errores = collect($e->errors())->flatten()->implode(', ');
-            $this->js("window.notify('Error de validación: {$errores}', 'error', 7000)");
+            $this->js("window.notify('" . addslashes(__('Error de validación: ') . $errores) . "', 'error', 7000)");
             throw $e;
         }
 
@@ -1710,7 +1713,7 @@ class WizardPromocion extends Component
         } catch (\Exception $e) {
             \Log::error('Error al guardar promocion: ' . $e->getMessage());
             $errorMsg = addslashes($e->getMessage());
-            $this->js("window.notify('Error al guardar promocion: {$errorMsg}', 'error', 7000)");
+            $this->js("window.notify('" . addslashes(__('Error al guardar promoción: ') . $e->getMessage()) . "', 'error', 7000)");
         }
     }
 
@@ -1748,10 +1751,10 @@ class WizardPromocion extends Component
         }
 
         $mensaje = $promocionesCreadas === 1
-            ? 'Promocion creada correctamente'
-            : "{$promocionesCreadas} promociones creadas correctamente";
+            ? __('Promoción creada correctamente')
+            : __(':count promociones creadas correctamente', ['count' => $promocionesCreadas]);
 
-        $this->js("window.notify('{$mensaje}', 'success')");
+        $this->js("window.notify('" . addslashes($mensaje) . "', 'success')");
     }
 
     /**
@@ -1787,7 +1790,7 @@ class WizardPromocion extends Component
         $this->guardarEscalas($promocion);
         $this->guardarCondiciones($promocion);
 
-        $this->js("window.notify('Promocion actualizada correctamente', 'success')");
+        $this->js("window.notify('" . __('Promoción actualizada correctamente') . "', 'success')");
     }
 
     /**

@@ -29,6 +29,7 @@ class HistorialTurnos extends Component
     public ?int $filtroCajaId = null;
     public ?int $filtroUsuarioId = null;
     public string $filtroTipo = ''; // individual, grupo, ''
+    public string $filtroEstado = 'activos'; // activos, revertidos, todos
 
     // Datos para filtros
     public $cajasDisponibles = [];
@@ -44,6 +45,7 @@ class HistorialTurnos extends Component
         'filtroFechaHasta' => ['except' => ''],
         'filtroCajaId' => ['except' => null],
         'filtroTipo' => ['except' => ''],
+        'filtroEstado' => ['except' => 'activos'],
     ];
 
     public function mount()
@@ -92,6 +94,14 @@ class HistorialTurnos extends Component
             $query->where('fecha_cierre', '<=', Carbon::parse($this->filtroFechaHasta)->endOfDay());
         }
 
+        // Filtro por estado (revertido)
+        if ($this->filtroEstado === 'activos') {
+            $query->where('revertido', false);
+        } elseif ($this->filtroEstado === 'revertidos') {
+            $query->where('revertido', true);
+        }
+        // 'todos' no aplica filtro
+
         // Filtro por tipo
         if ($this->filtroTipo) {
             $query->where('tipo', $this->filtroTipo);
@@ -119,6 +129,7 @@ class HistorialTurnos extends Component
         $this->filtroCajaId = null;
         $this->filtroUsuarioId = null;
         $this->filtroTipo = '';
+        $this->filtroEstado = 'activos';
         $this->resetPage();
     }
 
@@ -128,6 +139,7 @@ class HistorialTurnos extends Component
 
         $this->cierreDetalle = CierreTurno::with([
             'usuario:id,name',
+            'usuarioReversion:id,name',
             'grupoCierre:id,nombre,fondo_comun',
             'detalleCajas.caja:id,nombre,numero',
             'movimientos' => function ($q) {
@@ -171,7 +183,8 @@ class HistorialTurnos extends Component
     {
         $sucursalId = SucursalService::getSucursalActiva();
 
-        $query = CierreTurno::where('sucursal_id', $sucursalId);
+        $query = CierreTurno::where('sucursal_id', $sucursalId)
+            ->where('revertido', false);
 
         if ($this->filtroFechaDesde) {
             $query->where('fecha_cierre', '>=', Carbon::parse($this->filtroFechaDesde)->startOfDay());

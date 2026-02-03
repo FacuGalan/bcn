@@ -174,7 +174,7 @@ class ArticulosSucursal extends Component
         }
 
         $this->loadArticulos();
-        $this->dispatch('notify', message: 'Todos los artículos activados', type: 'success');
+        $this->dispatch('notify', message: __('Todos los artículos activados'), type: 'success');
     }
 
     /**
@@ -199,7 +199,7 @@ class ArticulosSucursal extends Component
         }
 
         $this->loadArticulos();
-        $this->dispatch('notify', message: 'Todos los artículos desactivados', type: 'success');
+        $this->dispatch('notify', message: __('Todos los artículos desactivados'), type: 'success');
     }
 
     /**

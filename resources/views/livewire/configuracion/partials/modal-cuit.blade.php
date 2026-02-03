@@ -12,7 +12,7 @@
             <div class="bg-gray-50 dark:bg-gray-700 px-6 py-4 border-b border-gray-200 dark:border-gray-600">
                 <div class="flex items-center justify-between">
                     <h3 class="text-lg font-medium text-gray-900 dark:text-white">
-                        {{ $modoEdicionCuit ? 'Editar CUIT' : 'Nuevo CUIT' }}
+                        {{ $modoEdicionCuit ? __('Editar CUIT') : __('Nuevo CUIT') }}
                     </h3>
                     <button wire:click="cerrarModalCuit" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -28,13 +28,13 @@
                     {{-- Sección: Datos Básicos --}}
                     <div class="mb-6">
                         <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-4">
-                            Datos del Contribuyente
+                            {{ __('Datos del Contribuyente') }}
                         </h4>
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             {{-- CUIT --}}
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    CUIT <span class="text-red-500">*</span>
+                                    {{ __('CUIT') }} <span class="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="text"
@@ -51,13 +51,13 @@
                             {{-- Razón Social --}}
                             <div class="sm:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Razón Social <span class="text-red-500">*</span>
+                                    {{ __('Razón Social') }} <span class="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="text"
                                     wire:model="cuitRazonSocial"
                                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                    placeholder="Razón social según AFIP"
+                                    :placeholder="__('Razón social según AFIP')"
                                 >
                                 @error('cuitRazonSocial')
                                     <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
@@ -67,26 +67,26 @@
                             {{-- Nombre Fantasía --}}
                             <div class="sm:col-span-2 lg:col-span-1">
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Nombre Fantasía
+                                    {{ __('Nombre Fantasía') }}
                                 </label>
                                 <input
                                     type="text"
                                     wire:model="cuitNombreFantasia"
                                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                    placeholder="Nombre comercial"
+                                    :placeholder="__('Nombre comercial')"
                                 >
                             </div>
 
                             {{-- Condición IVA --}}
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Condición IVA <span class="text-red-500">*</span>
+                                    {{ __('Condición IVA') }} <span class="text-red-500">*</span>
                                 </label>
                                 <select
                                     wire:model="cuitCondicionIvaId"
                                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 >
-                                    <option value="">Seleccionar...</option>
+                                    <option value="">{{ __('Seleccionar...') }}</option>
                                     @foreach($this->condicionesIva as $condicion)
                                         <option value="{{ $condicion->id }}">{{ $condicion->nombre }}</option>
                                     @endforeach
@@ -99,13 +99,13 @@
                             {{-- Nro IIBB --}}
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Nro. Ingresos Brutos
+                                    {{ __('Nro. Ingresos Brutos') }}
                                 </label>
                                 <input
                                     type="text"
                                     wire:model="cuitNumeroIibb"
                                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                    placeholder="Número de IIBB"
+                                    :placeholder="__('Número de IIBB')"
                                 >
                             </div>
                         </div>
@@ -114,32 +114,32 @@
                     {{-- Sección: Domicilio --}}
                     <div class="mb-6 pt-6 border-t border-gray-200 dark:border-gray-600">
                         <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-4">
-                            Domicilio Fiscal
+                            {{ __('Domicilio Fiscal') }}
                         </h4>
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             {{-- Dirección --}}
                             <div class="sm:col-span-2 lg:col-span-3">
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Dirección
+                                    {{ __('Dirección') }}
                                 </label>
                                 <input
                                     type="text"
                                     wire:model="cuitDireccion"
                                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                    placeholder="Calle y número"
+                                    :placeholder="__('Calle y número')"
                                 >
                             </div>
 
                             {{-- Provincia --}}
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Provincia
+                                    {{ __('Provincia') }}
                                 </label>
                                 <select
                                     wire:model.live="cuitProvinciaId"
                                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 >
-                                    <option value="">Seleccionar...</option>
+                                    <option value="">{{ __('Seleccionar...') }}</option>
                                     @foreach($this->provincias as $provincia)
                                         <option value="{{ $provincia->id }}">{{ $provincia->nombre }}</option>
                                     @endforeach
@@ -149,14 +149,14 @@
                             {{-- Localidad --}}
                             <div class="sm:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Localidad
+                                    {{ __('Localidad') }}
                                 </label>
                                 <select
                                     wire:model="cuitLocalidadId"
                                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                     {{ empty($localidades) ? 'disabled' : '' }}
                                 >
-                                    <option value="">{{ empty($localidades) ? 'Seleccione provincia primero' : 'Seleccionar...' }}</option>
+                                    <option value="">{{ empty($localidades) ? __('Seleccione provincia primero') : __('Seleccionar...') }}</option>
                                     @foreach($localidades as $localidad)
                                         <option value="{{ $localidad->id }}">
                                             {{ $localidad->nombre }}
@@ -173,13 +173,13 @@
                     {{-- Sección: AFIP --}}
                     <div class="mb-6 pt-6 border-t border-gray-200 dark:border-gray-600">
                         <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-4">
-                            Configuración AFIP
+                            {{ __('Configuración AFIP') }}
                         </h4>
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             {{-- Fecha Inicio Actividades --}}
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Inicio de Actividades
+                                    {{ __('Inicio de Actividades') }}
                                 </label>
                                 <input
                                     type="date"
@@ -191,14 +191,14 @@
                             {{-- Entorno AFIP --}}
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Entorno AFIP <span class="text-red-500">*</span>
+                                    {{ __('Entorno AFIP') }} <span class="text-red-500">*</span>
                                 </label>
                                 <select
                                     wire:model="cuitEntornoAfip"
                                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 >
-                                    <option value="testing">Testing (Homologación)</option>
-                                    <option value="produccion">Producción</option>
+                                    <option value="testing">{{ __('Testing (Homologación)') }}</option>
+                                    <option value="produccion">{{ __('Producción') }}</option>
                                 </select>
                             </div>
 
@@ -211,7 +211,7 @@
                                         class="sr-only peer"
                                     >
                                     <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-bcn-primary/20 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-500 peer-checked:bg-bcn-primary"></div>
-                                    <span class="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">CUIT Activo</span>
+                                    <span class="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('CUIT Activo') }}</span>
                                 </label>
                             </div>
                         </div>
@@ -219,7 +219,7 @@
                         {{-- Certificados Digitales --}}
                         <div class="mt-6 pt-4 border-t border-gray-100 dark:border-gray-600">
                             <h5 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                Certificados Digitales AFIP
+                                {{ __('Certificados Digitales AFIP') }}
                             </h5>
 
                             @if($cuitTieneCertificado && $cuitTieneClave)
@@ -232,17 +232,17 @@
                                             </svg>
                                         </div>
                                         <div>
-                                            <p class="text-sm font-medium text-green-800 dark:text-green-200">Certificados configurados</p>
-                                            <p class="text-xs text-green-600 dark:text-green-400">El CUIT tiene certificado y clave privada cargados</p>
+                                            <p class="text-sm font-medium text-green-800 dark:text-green-200">{{ __('Certificados configurados') }}</p>
+                                            <p class="text-xs text-green-600 dark:text-green-400">{{ __('El CUIT tiene certificado y clave privada cargados') }}</p>
                                         </div>
                                     </div>
                                     <button
                                         type="button"
                                         wire:click="eliminarCertificadosCuit"
-                                        wire:confirm="¿Está seguro de eliminar los certificados? Deberá cargarlos nuevamente."
+                                        wire:confirm="{{ __('¿Está seguro de eliminar los certificados? Deberá cargarlos nuevamente.') }}"
                                         class="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-medium"
                                     >
-                                        Eliminar
+                                        {{ __('Eliminar') }}
                                     </button>
                                 </div>
                             @else
@@ -251,9 +251,9 @@
                                     {{-- Certificado --}}
                                     <div>
                                         <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                                            Certificado (.crt, .pem)
+                                            {{ __('Certificado (.crt, .pem)') }}
                                             @if($cuitTieneCertificado)
-                                                <span class="text-green-500 ml-1">- Cargado</span>
+                                                <span class="text-green-500 ml-1">- {{ __('Cargado') }}</span>
                                             @endif
                                         </label>
                                         <div class="relative">
@@ -276,7 +276,7 @@
                                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
                                                         </svg>
-                                                        <span class="text-sm">{{ $cuitTieneCertificado ? 'Reemplazar certificado' : 'Subir certificado' }}</span>
+                                                        <span class="text-sm">{{ $cuitTieneCertificado ? __('Reemplazar certificado') : __('Subir certificado') }}</span>
                                                     </div>
                                                 @endif
                                             </div>
@@ -292,9 +292,9 @@
                                     {{-- Clave Privada --}}
                                     <div>
                                         <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                                            Clave Privada (.key, .pem)
+                                            {{ __('Clave Privada (.key, .pem)') }}
                                             @if($cuitTieneClave)
-                                                <span class="text-green-500 ml-1">- Cargada</span>
+                                                <span class="text-green-500 ml-1">- {{ __('Cargada') }}</span>
                                             @endif
                                         </label>
                                         <div class="relative">
@@ -317,7 +317,7 @@
                                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
                                                         </svg>
-                                                        <span class="text-sm">{{ $cuitTieneClave ? 'Reemplazar clave' : 'Subir clave privada' }}</span>
+                                                        <span class="text-sm">{{ $cuitTieneClave ? __('Reemplazar clave') : __('Subir clave privada') }}</span>
                                                     </div>
                                                 @endif
                                             </div>
@@ -331,7 +331,7 @@
                                     </div>
                                 </div>
                                 <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                    Los certificados se guardarán encriptados de forma segura al guardar el CUIT.
+                                    {{ __('Los certificados se guardarán encriptados de forma segura al guardar el CUIT.') }}
                                 </p>
                             @endif
                         </div>
@@ -342,7 +342,7 @@
                         <div class="pt-6 border-t border-gray-200 dark:border-gray-600">
                             <div class="flex items-center justify-between mb-4">
                                 <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-                                    Puntos de Venta
+                                    {{ __('Puntos de Venta') }}
                                 </h4>
                             </div>
 
@@ -352,7 +352,7 @@
                                     {{-- Número --}}
                                     <div class="w-full sm:w-24">
                                         <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                                            Número <span class="text-red-500">*</span>
+                                            {{ __('Número') }} <span class="text-red-500">*</span>
                                         </label>
                                         <input
                                             type="number"
@@ -370,13 +370,13 @@
                                     {{-- Nombre --}}
                                     <div class="flex-1">
                                         <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                                            Nombre/Descripción
+                                            {{ __('Nombre/Descripción') }}
                                         </label>
                                         <input
                                             type="text"
                                             wire:model="nuevoPuntoVentaNombre"
                                             class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                            placeholder="Ej: Caja Principal"
+                                            :placeholder="__('Ej: Caja Principal')"
                                         >
                                     </div>
 
@@ -390,7 +390,7 @@
                                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                                             </svg>
-                                            Agregar
+                                            {{ __('Agregar') }}
                                         </button>
                                     </div>
                                 </div>
@@ -414,7 +414,7 @@
                                                     type="button"
                                                     wire:click="togglePuntoVentaActivo({{ $pv['id'] }})"
                                                     class="p-1.5 rounded transition-colors {{ $pv['activo'] ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600' }}"
-                                                    title="{{ $pv['activo'] ? 'Desactivar' : 'Activar' }}"
+                                                    title="{{ $pv['activo'] ? __('Desactivar') : __('Activar') }}"
                                                 >
                                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         @if($pv['activo'])
@@ -428,7 +428,7 @@
                                                     type="button"
                                                     wire:click="confirmarEliminarPuntoVenta({{ $pv['id'] }})"
                                                     class="p-1.5 text-red-600 hover:bg-red-50 rounded dark:hover:bg-red-900/20 transition-colors"
-                                                    title="Eliminar"
+                                                    title="{{ __('Eliminar') }}"
                                                 >
                                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -444,7 +444,7 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
                                     </svg>
                                     <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                        Sin puntos de venta. Complete el formulario de arriba para agregar uno.
+                                        {{ __('Sin puntos de venta. Complete el formulario de arriba para agregar uno.') }}
                                     </p>
                                 </div>
                             @endif
@@ -460,7 +460,7 @@
                     wire:click="cerrarModalCuit"
                     class="w-full sm:w-auto inline-flex justify-center items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
-                    Cancelar
+                    {{ __('Cancelar') }}
                 </button>
                 <button
                     type="button"
@@ -470,7 +470,7 @@
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                     </svg>
-                    {{ $modoEdicionCuit ? 'Guardar Cambios' : 'Crear CUIT' }}
+                    {{ $modoEdicionCuit ? __('Guardar Cambios') : __('Crear CUIT') }}
                 </button>
             </div>
         </div>

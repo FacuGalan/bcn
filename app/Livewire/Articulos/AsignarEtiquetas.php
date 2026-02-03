@@ -141,7 +141,7 @@ class AsignarEtiquetas extends Component
     public function guardarEtiquetaArticulos(): void
     {
         if (!$this->etiquetaSeleccionada) {
-            $this->js("window.notify('Selecciona una etiqueta primero', 'error')");
+            $this->js("window.notify('" . __('Selecciona una etiqueta primero') . "', 'error')");
             return;
         }
 
@@ -154,7 +154,7 @@ class AsignarEtiquetas extends Component
         $etiqueta->articulos()->sync($this->articulosSeleccionados);
 
         $count = count($this->articulosSeleccionados);
-        $this->js("window.notify('Etiqueta asignada a {$count} artículo(s)', 'success')");
+        $this->js("window.notify('" . __('Etiqueta asignada a :count artículo(s)', ['count' => $count]) . "', 'success')");
     }
 
     // ==================== Modo: Artículo a Etiquetas ====================
@@ -202,7 +202,7 @@ class AsignarEtiquetas extends Component
     public function guardarArticuloEtiquetas(): void
     {
         if (!$this->articuloSeleccionado) {
-            $this->js("window.notify('Selecciona un artículo primero', 'error')");
+            $this->js("window.notify('" . __('Selecciona un artículo primero') . "', 'error')");
             return;
         }
 
@@ -215,7 +215,7 @@ class AsignarEtiquetas extends Component
         $articulo->etiquetas()->sync($this->etiquetasSeleccionadas);
 
         $count = count($this->etiquetasSeleccionadas);
-        $this->js("window.notify('{$count} etiqueta(s) asignada(s) al artículo', 'success')");
+        $this->js("window.notify('" . __(':count etiqueta(s) asignada(s) al artículo', ['count' => $count]) . "', 'success')");
     }
 
     // ==================== Queries ====================

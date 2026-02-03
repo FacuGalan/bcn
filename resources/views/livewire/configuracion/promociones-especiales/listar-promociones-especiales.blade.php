@@ -10,19 +10,19 @@
                 <div class="flex-1">
                     <div class="flex items-center justify-between gap-3 sm:block">
                         <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary flex items-center h-10 sm:h-auto">
-                            Promociones Especiales
+                            {{ __('Promociones Especiales') }}
                         </h2>
                         {{-- Boton Nueva Promocion - Solo icono en moviles --}}
                         <a href="{{ route('configuracion.promociones-especiales.nueva') }}"
                            wire:navigate
                            class="sm:hidden inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-bcn-primary border border-transparent rounded-md text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
-                           title="Crear nueva promocion especial">
+                           :title="__('Crear nueva promocion especial')">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                             </svg>
                         </a>
                     </div>
-                    <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">NxM, Combos/Packs y Menus del dia</p>
+                    <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">{{ __('NxM, Combos/Packs y Menus del dia') }}</p>
                 </div>
                 {{-- Boton Nueva Promocion - Desktop --}}
                 <a href="{{ route('configuracion.promociones-especiales.nueva') }}"
@@ -31,7 +31,7 @@
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                     </svg>
-                    Nueva Promocion
+                    {{ __('Nueva Promocion') }}
                 </a>
             </div>
         </div>
@@ -47,10 +47,10 @@
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                         </svg>
-                        Filtros
+                        {{ __('Filtros') }}
                         @if($busqueda || $sucursalFiltro || $tipoFiltro || $activoFiltro !== 'todos')
                             <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-bcn-primary text-white">
-                                Activos
+                                {{ __('Activos') }}
                             </span>
                         @endif
                     </span>
@@ -68,19 +68,19 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                     {{-- Busqueda --}}
                     <div class="sm:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Buscar promocion</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar promocion') }}</label>
                         <input type="text"
                                wire:model.live.debounce.300ms="busqueda"
-                               placeholder="Nombre o descripcion..."
+                               :placeholder="__('Nombre o descripcion...')"
                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
                     </div>
 
                     {{-- Sucursal --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sucursal</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Sucursal') }}</label>
                         <select wire:model.live="sucursalFiltro"
                                 class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                            <option value="">Todas</option>
+                            <option value="">{{ __('Todas') }}</option>
                             @foreach($sucursales as $sucursal)
                                 <option value="{{ $sucursal->id }}">{{ $sucursal->nombre }}</option>
                             @endforeach
@@ -89,42 +89,42 @@
 
                     {{-- Tipo --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipo') }}</label>
                         <select wire:model.live="tipoFiltro"
                                 class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                            <option value="">Todos</option>
-                            <option value="nxm">NxM Basico</option>
-                            <option value="nxm_avanzado">NxM Avanzado</option>
-                            <option value="combo">Combo/Pack</option>
-                            <option value="menu">Menu</option>
+                            <option value="">{{ __('Todos') }}</option>
+                            <option value="nxm">{{ __('NxM Basico') }}</option>
+                            <option value="nxm_avanzado">{{ __('NxM Avanzado') }}</option>
+                            <option value="combo">{{ __('Combo/Pack') }}</option>
+                            <option value="menu">{{ __('Menu') }}</option>
                         </select>
                     </div>
                 </div>
 
                 <details class="mt-2">
                     <summary class="cursor-pointer text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-bcn-primary transition">
-                        Filtros Avanzados
+                        {{ __('Filtros Avanzados') }}
                     </summary>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t">
                         {{-- Estado --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Estado</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Estado') }}</label>
                             <select wire:model.live="activoFiltro"
                                     class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                <option value="todos">Todos</option>
-                                <option value="activos">Activos</option>
-                                <option value="inactivos">Inactivos</option>
+                                <option value="todos">{{ __('Todos') }}</option>
+                                <option value="activos">{{ __('Activos') }}</option>
+                                <option value="inactivos">{{ __('Inactivos') }}</option>
                             </select>
                         </div>
 
                         {{-- Vigencia --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vigencia</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Vigencia') }}</label>
                             <select wire:model.live="vigenteFiltro"
                                     class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                <option value="todos">Todas</option>
-                                <option value="vigentes">Vigentes</option>
-                                <option value="vencidas">Vencidas</option>
+                                <option value="todos">{{ __('Todas') }}</option>
+                                <option value="vigentes">{{ __('Vigentes') }}</option>
+                                <option value="vencidas">{{ __('Vencidas') }}</option>
                             </select>
                         </div>
                     </div>
@@ -133,7 +133,7 @@
                 <div class="mt-4 flex justify-end">
                     <button wire:click="limpiarFiltros"
                             class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary transition">
-                        Limpiar Filtros
+                        {{ __('Limpiar Filtros') }}
                     </button>
                 </div>
             </div>
@@ -141,10 +141,10 @@
 
         @php
             $tipoConfig = [
-                'nxm' => ['label' => 'NxM', 'bg' => 'bg-purple-100', 'text' => 'text-purple-800'],
-                'nxm_avanzado' => ['label' => 'NxM Avanzado', 'bg' => 'bg-indigo-100', 'text' => 'text-indigo-800'],
-                'combo' => ['label' => 'Combo/Pack', 'bg' => 'bg-orange-100', 'text' => 'text-orange-800'],
-                'menu' => ['label' => 'Menu', 'bg' => 'bg-green-100', 'text' => 'text-green-800'],
+                'nxm' => ['label' => __('NxM'), 'bg' => 'bg-purple-100', 'text' => 'text-purple-800'],
+                'nxm_avanzado' => ['label' => __('NxM Avanzado'), 'bg' => 'bg-indigo-100', 'text' => 'text-indigo-800'],
+                'combo' => ['label' => __('Combo/Pack'), 'bg' => 'bg-orange-100', 'text' => 'text-orange-800'],
+                'menu' => ['label' => __('Menu'), 'bg' => 'bg-green-100', 'text' => 'text-green-800'],
             ];
         @endphp
 
@@ -165,9 +165,9 @@
                                     P{{ $promo->prioridad }}
                                 </span>
                                 @if($promo->vigencia_hasta && $promo->vigencia_hasta->isPast())
-                                    <span class="text-xs text-red-500 font-medium">Vencida</span>
+                                    <span class="text-xs text-red-500 font-medium">{{ __('Vencida') }}</span>
                                 @elseif($promo->vigencia_desde && $promo->vigencia_desde->isFuture())
-                                    <span class="text-xs text-yellow-600 font-medium">Proxima</span>
+                                    <span class="text-xs text-yellow-600 font-medium">{{ __('Proxima') }}</span>
                                 @endif
                             </div>
                             <div class="text-sm font-medium text-gray-900 dark:text-white mt-1">{{ $promo->nombre }}</div>
@@ -183,7 +183,7 @@
                         <div class="ml-2">
                             <button wire:click="toggleActivo({{ $promo->id }})"
                                     class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $promo->activo ? 'bg-green-600' : 'bg-gray-300' }}">
-                                <span class="sr-only">{{ $promo->activo ? 'Desactivar' : 'Activar' }}</span>
+                                <span class="sr-only">{{ $promo->activo ? __('Desactivar') : __('Activar') }}</span>
                                 <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $promo->activo ? 'translate-x-5' : 'translate-x-0' }}"></span>
                             </button>
                         </div>
@@ -192,21 +192,21 @@
                     <div class="space-y-2 text-xs">
                         {{-- Detalle segun tipo --}}
                         <div class="flex justify-between items-center">
-                            <span class="text-gray-500">Detalle:</span>
+                            <span class="text-gray-500">{{ __('Detalle:') }}</span>
                             <div class="text-right">
                                 @if($promo->tipo === 'nxm' || $promo->tipo === 'nxm_avanzado')
                                     @if($promo->usa_escalas)
-                                        <span class="text-sm text-gray-600">{{ $promo->escalas->count() }} escalas</span>
+                                        <span class="text-sm text-gray-600">{{ $promo->escalas->count() }} {{ __('escalas') }}</span>
                                     @else
                                         <span class="font-medium">
-                                            Lleva {{ $promo->nxm_lleva }} paga {{ $promo->nxm_lleva - $promo->nxm_bonifica }}
+                                            {{ __('Lleva') }} {{ $promo->nxm_lleva }} {{ __('paga') }} {{ $promo->nxm_lleva - $promo->nxm_bonifica }}
                                         </span>
                                     @endif
                                 @elseif($promo->tipo === 'combo' || $promo->tipo === 'menu')
                                     @if($promo->precio_tipo === 'fijo')
                                         <span class="text-lg font-bold text-green-600">$@precio($promo->precio_valor)</span>
                                     @else
-                                        <span class="text-lg font-bold text-green-600">{{ $promo->precio_valor }}% dto</span>
+                                        <span class="text-lg font-bold text-green-600">{{ $promo->precio_valor }}% {{ __('dto') }}</span>
                                     @endif
                                 @endif
                             </div>
@@ -215,9 +215,9 @@
                         @if($promo->tipo === 'nxm')
                             <div class="text-xs text-gray-500 pt-1 border-t">
                                 @if($promo->articuloNxM)
-                                    Art: {{ $promo->articuloNxM->nombre }}
+                                    {{ __('Art:') }} {{ $promo->articuloNxM->nombre }}
                                 @elseif($promo->categoriaNxM)
-                                    Cat: {{ $promo->categoriaNxM->nombre }}
+                                    {{ __('Cat:') }} {{ $promo->categoriaNxM->nombre }}
                                 @endif
                             </div>
                         @elseif($promo->tipo === 'nxm_avanzado')
@@ -226,21 +226,21 @@
                             </div>
                         @elseif($promo->tipo === 'combo' || $promo->tipo === 'menu')
                             <div class="text-xs text-gray-500 pt-1 border-t">
-                                {{ $promo->grupos->count() }} {{ $promo->tipo === 'menu' ? 'grupo(s)' : 'articulo(s)' }}
+                                {{ $promo->grupos->count() }} {{ $promo->tipo === 'menu' ? __('grupo(s)') : __('articulo(s)') }}
                             </div>
                         @endif
 
                         @if($promo->vigencia_desde || $promo->vigencia_hasta)
                             <div class="flex justify-between pt-2 border-t">
-                                <span class="text-gray-500">Vigencia:</span>
+                                <span class="text-gray-500">{{ __('Vigencia:') }}</span>
                                 <div class="text-right">
                                     @if($promo->vigencia_desde && $promo->vigencia_hasta)
                                         <div>{{ $promo->vigencia_desde->format('d/m/Y') }}</div>
-                                        <div class="text-gray-400">al {{ $promo->vigencia_hasta->format('d/m/Y') }}</div>
+                                        <div class="text-gray-400">{{ __('al') }} {{ $promo->vigencia_hasta->format('d/m/Y') }}</div>
                                     @elseif($promo->vigencia_desde)
-                                        <div>Desde {{ $promo->vigencia_desde->format('d/m/Y') }}</div>
+                                        <div>{{ __('Desde') }} {{ $promo->vigencia_desde->format('d/m/Y') }}</div>
                                     @elseif($promo->vigencia_hasta)
-                                        <div>Hasta {{ $promo->vigencia_hasta->format('d/m/Y') }}</div>
+                                        <div>{{ __('Hasta') }} {{ $promo->vigencia_hasta->format('d/m/Y') }}</div>
                                     @endif
                                 </div>
                             </div>
@@ -254,21 +254,21 @@
                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                             </svg>
-                            Editar
+                            {{ __('Editar') }}
                         </a>
                         <button wire:click="duplicar({{ $promo->id }})"
                                 class="flex-1 inline-flex items-center justify-center px-3 py-2 border border-green-600 text-sm font-medium rounded-md text-green-600 hover:bg-green-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 transition-colors duration-150">
                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
                             </svg>
-                            Duplicar
+                            {{ __('Duplicar') }}
                         </button>
                         <button @click="promocionAEliminar = {{ $promo->id }}; nombrePromocion = '{{ addslashes($promo->nombre) }}'; mostrarModalEliminar = true"
                                 class="flex-1 inline-flex items-center justify-center px-3 py-2 border border-red-600 text-sm font-medium rounded-md text-red-600 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 transition-colors duration-150">
                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                             </svg>
-                            Eliminar
+                            {{ __('Eliminar') }}
                         </button>
                     </div>
                 </div>
@@ -277,8 +277,8 @@
                     <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                     </svg>
-                    <p class="text-sm font-medium text-gray-900 dark:text-white">No se encontraron promociones</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Intenta ajustar los filtros o crea una nueva promocion</p>
+                    <p class="text-sm font-medium text-gray-900 dark:text-white">{{ __('No se encontraron promociones') }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Intenta ajustar los filtros o crea una nueva promocion') }}</p>
                 </div>
             @endforelse
         </div>
@@ -292,7 +292,7 @@
                             <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                                 wire:click="ordenar('prioridad')">
                                 <div class="flex items-center gap-1">
-                                    Prioridad
+                                    {{ __('Prioridad') }}
                                     @if(($ordenarPor ?? '') === 'prioridad')
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ ($ordenDireccion ?? 'asc') === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7' }}"/>
@@ -302,13 +302,13 @@
                             </th>
                             @if(!$sucursalFiltro)
                                 <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Sucursal
+                                    {{ __('Sucursal') }}
                                 </th>
                             @endif
                             <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                                 wire:click="ordenar('nombre')">
                                 <div class="flex items-center gap-1">
-                                    Promocion
+                                    {{ __('Promocion') }}
                                     @if(($ordenarPor ?? '') === 'nombre')
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ ($ordenDireccion ?? 'asc') === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7' }}"/>
@@ -319,7 +319,7 @@
                             <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                                 wire:click="ordenar('tipo')">
                                 <div class="flex items-center gap-1">
-                                    Tipo
+                                    {{ __('Tipo') }}
                                     @if(($ordenarPor ?? '') === 'tipo')
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ ($ordenDireccion ?? 'asc') === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7' }}"/>
@@ -328,12 +328,12 @@
                                 </div>
                             </th>
                             <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                Detalle
+                                {{ __('Detalle') }}
                             </th>
                             <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                                 wire:click="ordenar('vigencia')">
                                 <div class="flex items-center gap-1">
-                                    Vigencia
+                                    {{ __('Vigencia') }}
                                     @if(($ordenarPor ?? '') === 'vigencia')
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ ($ordenDireccion ?? 'asc') === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7' }}"/>
@@ -342,10 +342,10 @@
                                 </div>
                             </th>
                             <th scope="col" class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                Estado
+                                {{ __('Estado') }}
                             </th>
                             <th scope="col" class="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                Acciones
+                                {{ __('Acciones') }}
                             </th>
                         </tr>
                     </thead>
@@ -388,14 +388,14 @@
                                 <td class="px-3 py-4">
                                     @if($promo->tipo === 'nxm')
                                         @if($promo->usa_escalas)
-                                            <span class="text-sm text-gray-600">Escalas ({{ $promo->escalas->count() }})</span>
+                                            <span class="text-sm text-gray-600">{{ __('Escalas') }} ({{ $promo->escalas->count() }})</span>
                                         @else
                                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-purple-50 text-purple-700 border border-purple-200 whitespace-nowrap">
-                                                Lleva {{ $promo->nxm_lleva }} &rarr; {{ $promo->nxm_bonifica }}
+                                                {{ __('Lleva') }} {{ $promo->nxm_lleva }} &rarr; {{ $promo->nxm_bonifica }}
                                                 @if($promo->beneficio_tipo === 'gratis')
-                                                    gratis
+                                                    {{ __('gratis') }}
                                                 @else
-                                                    {{ $promo->beneficio_porcentaje }}% dto
+                                                    {{ $promo->beneficio_porcentaje }}% {{ __('dto') }}
                                                 @endif
                                             </span>
                                         @endif
@@ -403,20 +403,20 @@
                                             @if($promo->articuloNxM)
                                                 {{ Str::limit($promo->articuloNxM->nombre, 25) }}
                                             @elseif($promo->categoriaNxM)
-                                                Cat: {{ $promo->categoriaNxM->nombre }}
+                                                {{ __('Cat:') }} {{ $promo->categoriaNxM->nombre }}
                                             @endif
                                         </div>
 
                                     @elseif($promo->tipo === 'nxm_avanzado')
                                         @if($promo->usa_escalas)
-                                            <span class="text-sm text-gray-600">Escalas ({{ $promo->escalas->count() }})</span>
+                                            <span class="text-sm text-gray-600">{{ __('Escalas') }} ({{ $promo->escalas->count() }})</span>
                                         @else
                                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap">
-                                                Lleva {{ $promo->nxm_lleva }} &rarr; {{ $promo->nxm_bonifica }}
+                                                {{ __('Lleva') }} {{ $promo->nxm_lleva }} &rarr; {{ $promo->nxm_bonifica }}
                                                 @if($promo->beneficio_tipo === 'gratis')
-                                                    gratis
+                                                    {{ __('gratis') }}
                                                 @else
-                                                    {{ $promo->beneficio_porcentaje }}% dto
+                                                    {{ $promo->beneficio_porcentaje }}% {{ __('dto') }}
                                                 @endif
                                             </span>
                                         @endif
@@ -428,17 +428,17 @@
                                         @if($promo->precio_tipo === 'fijo')
                                             <span class="text-sm font-bold text-green-600">$@precio($promo->precio_valor)</span>
                                         @else
-                                            <span class="text-sm font-bold text-green-600">{{ $promo->precio_valor }}% dto</span>
+                                            <span class="text-sm font-bold text-green-600">{{ $promo->precio_valor }}% {{ __('dto') }}</span>
                                         @endif
-                                        <div class="text-xs text-gray-500 mt-1">{{ $promo->grupos->count() }} articulo(s)</div>
+                                        <div class="text-xs text-gray-500 mt-1">{{ $promo->grupos->count() }} {{ __('articulo(s)') }}</div>
 
                                     @elseif($promo->tipo === 'menu')
                                         @if($promo->precio_tipo === 'fijo')
                                             <span class="text-sm font-bold text-green-600">$@precio($promo->precio_valor)</span>
                                         @else
-                                            <span class="text-sm font-bold text-green-600">{{ $promo->precio_valor }}% dto</span>
+                                            <span class="text-sm font-bold text-green-600">{{ $promo->precio_valor }}% {{ __('dto') }}</span>
                                         @endif
-                                        <div class="text-xs text-gray-500 mt-1">{{ $promo->grupos->count() }} grupo(s)</div>
+                                        <div class="text-xs text-gray-500 mt-1">{{ $promo->grupos->count() }} {{ __('grupo(s)') }}</div>
                                     @endif
                                 </td>
 
@@ -447,19 +447,19 @@
                                     @if($promo->vigencia_desde || $promo->vigencia_hasta)
                                         @if($promo->vigencia_desde && $promo->vigencia_hasta)
                                             <div>{{ $promo->vigencia_desde->format('d/m/Y') }}</div>
-                                            <div class="text-gray-500">al {{ $promo->vigencia_hasta->format('d/m/Y') }}</div>
+                                            <div class="text-gray-500">{{ __('al') }} {{ $promo->vigencia_hasta->format('d/m/Y') }}</div>
                                         @elseif($promo->vigencia_desde)
-                                            <div>Desde {{ $promo->vigencia_desde->format('d/m/Y') }}</div>
+                                            <div>{{ __('Desde') }} {{ $promo->vigencia_desde->format('d/m/Y') }}</div>
                                         @else
-                                            <div>Hasta {{ $promo->vigencia_hasta->format('d/m/Y') }}</div>
+                                            <div>{{ __('Hasta') }} {{ $promo->vigencia_hasta->format('d/m/Y') }}</div>
                                         @endif
                                         @if($promo->vigencia_hasta && $promo->vigencia_hasta->isPast())
-                                            <span class="text-red-500 font-medium">Vencida</span>
+                                            <span class="text-red-500 font-medium">{{ __('Vencida') }}</span>
                                         @elseif($promo->vigencia_desde && $promo->vigencia_desde->isFuture())
-                                            <span class="text-yellow-600 font-medium">Proxima</span>
+                                            <span class="text-yellow-600 font-medium">{{ __('Proxima') }}</span>
                                         @endif
                                     @else
-                                        <span class="text-gray-500">Permanente</span>
+                                        <span class="text-gray-500">{{ __('Permanente') }}</span>
                                     @endif
                                 </td>
 
@@ -467,7 +467,7 @@
                                 <td class="px-3 py-4 whitespace-nowrap text-center">
                                     <button wire:click="toggleActivo({{ $promo->id }})"
                                             class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $promo->activo ? 'bg-green-600' : 'bg-gray-300' }}">
-                                        <span class="sr-only">{{ $promo->activo ? 'Desactivar' : 'Activar' }}</span>
+                                        <span class="sr-only">{{ $promo->activo ? __('Desactivar') : __('Activar') }}</span>
                                         <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $promo->activo ? 'translate-x-5' : 'translate-x-0' }}"></span>
                                     </button>
                                 </td>
@@ -477,21 +477,21 @@
                                     <div class="flex justify-end gap-2">
                                         <a href="{{ route('configuracion.promociones-especiales.editar', $promo->id) }}"
                                            wire:navigate
-                                           title="Editar"
+                                           :title="__('Editar')"
                                            class="inline-flex items-center justify-center p-2 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600 transition-colors duration-150">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                                             </svg>
                                         </a>
                                         <button wire:click="duplicar({{ $promo->id }})"
-                                                title="Duplicar"
+                                                :title="__('Duplicar')"
                                                 class="inline-flex items-center justify-center p-2 border border-green-600 text-green-600 rounded-md hover:bg-green-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 transition-colors duration-150">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
                                             </svg>
                                         </button>
                                         <button @click="promocionAEliminar = {{ $promo->id }}; nombrePromocion = '{{ addslashes($promo->nombre) }}'; mostrarModalEliminar = true"
-                                                title="Eliminar"
+                                                :title="__('Eliminar')"
                                                 class="inline-flex items-center justify-center p-2 border border-red-600 text-red-600 rounded-md hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 transition-colors duration-150">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -507,8 +507,8 @@
                                         <svg class="mx-auto h-12 w-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                                         </svg>
-                                        <p class="text-sm font-medium dark:text-white">No se encontraron promociones especiales</p>
-                                        <p class="text-xs mt-1 dark:text-gray-400">Intenta ajustar los filtros o crea una nueva promocion</p>
+                                        <p class="text-sm font-medium dark:text-white">{{ __('No se encontraron promociones especiales') }}</p>
+                                        <p class="text-xs mt-1 dark:text-gray-400">{{ __('Intenta ajustar los filtros o crea una nueva promocion') }}</p>
                                     </div>
                                 </td>
                             </tr>
@@ -567,15 +567,15 @@
                     </div>
                     <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left flex-1">
                         <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white" id="modal-title">
-                            Eliminar Promocion Especial
+                            {{ __('Eliminar Promocion Especial') }}
                         </h3>
                         <div class="mt-2">
                             <p class="text-sm text-gray-500 dark:text-gray-400">
-                                Estas a punto de eliminar la promocion:
+                                {{ __('Estas a punto de eliminar la promocion:') }}
                             </p>
                             <p class="mt-2 text-sm font-semibold text-gray-900 dark:text-white" x-text="nombrePromocion"></p>
                             <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                                Esta accion se puede revertir. La promocion quedara marcada como eliminada pero se mantendra en el sistema para propositos de estadisticas.
+                                {{ __('Esta accion se puede revertir. La promocion quedara marcada como eliminada pero se mantendra en el sistema para propositos de estadisticas.') }}
                             </p>
                         </div>
                     </div>
@@ -584,12 +584,12 @@
                     <button type="button"
                             @click="$wire.eliminar(promocionAEliminar); mostrarModalEliminar = false"
                             class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm transition-colors">
-                        Eliminar
+                        {{ __('Eliminar') }}
                     </button>
                     <button type="button"
                             @click="mostrarModalEliminar = false"
                             class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:mt-0 sm:w-auto sm:text-sm transition-colors">
-                        Cancelar
+                        {{ __('Cancelar') }}
                     </button>
                 </div>
             </div>

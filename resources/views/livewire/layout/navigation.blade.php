@@ -2,6 +2,7 @@
 
 use App\Livewire\Actions\Logout;
 use App\Models\MenuItem;
+use Illuminate\Support\Facades\App;
 use Livewire\Volt\Component;
 
 new class extends Component
@@ -123,6 +124,21 @@ new class extends Component
         $this->mobileMenuOpen = false;
     }
 
+    public function changeLocale(string $locale): void
+    {
+        if (!in_array($locale, ['es', 'en', 'pt'])) {
+            return;
+        }
+
+        $user = auth()->user();
+        $user->locale = $locale;
+        $user->save();
+
+        App::setLocale($locale);
+
+        $this->redirect(request()->header('Referer', route('dashboard')), navigate: true);
+    }
+
     public function logout(Logout $logout): void
     {
         $logout();
@@ -213,7 +229,7 @@ new class extends Component
                                         ? 'max-w-xs ml-2 opacity-100'
                                         : 'max-w-0 ml-0 opacity-0 group-hover:max-w-xs group-hover:ml-2 group-hover:opacity-100'"
                                 >
-                                    {{ $parent->nombre }}
+                                    {{ __($parent->nombre) }}
                                 </span>
                             </button>
                         @else
@@ -236,7 +252,7 @@ new class extends Component
                                         ? 'max-w-xs ml-2 opacity-100'
                                         : 'max-w-0 ml-0 opacity-0 group-hover:max-w-xs group-hover:ml-2 group-hover:opacity-100'"
                                 >
-                                    {{ $parent->nombre }}
+                                    {{ __($parent->nombre) }}
                                 </span>
                             </a>
                         @endif
@@ -272,8 +288,26 @@ new class extends Component
 
                     <x-slot name="content">
                         <x-dropdown-link :href="route('profile')" wire:navigate>
-                            {{ __('Profile') }}
+                            {{ __('Perfil') }}
                         </x-dropdown-link>
+
+                        <!-- Language Selector -->
+                        <div class="px-4 py-2 border-t border-gray-100 dark:border-gray-600">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('Idioma') }}</p>
+                            <div class="flex gap-1">
+                                @foreach(['es' => 'ES', 'en' => 'EN', 'pt' => 'PT'] as $code => $label)
+                                    <button
+                                        wire:click="changeLocale('{{ $code }}')"
+                                        class="px-2 py-1 text-xs font-medium rounded transition-colors duration-150
+                                            {{ app()->getLocale() === $code
+                                                ? 'bg-bcn-primary text-white'
+                                                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600' }}"
+                                    >
+                                        {{ $label }}
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
 
                         <!-- PWA Install Button (Desktop) -->
                         <div
@@ -314,7 +348,7 @@ new class extends Component
                         <!-- Authentication -->
                         <button wire:click="logout" class="w-full text-start">
                             <x-dropdown-link>
-                                {{ __('Log Out') }}
+                                {{ __('Cerrar Sesión') }}
                             </x-dropdown-link>
                         </button>
                     </x-slot>
@@ -346,7 +380,7 @@ new class extends Component
                                 @if($child->icono)
                                     <x-dynamic-component :component="$child->icono" class="h-4 w-4 mr-1.5" />
                                 @endif
-                                {{ $child->nombre }}
+                                {{ __($child->nombre) }}
                             </a>
 
                             @if(!$loop->last)
@@ -422,7 +456,7 @@ new class extends Component
                             @if($parent->icono)
                                 <x-dynamic-component :component="$parent->icono" class="h-5 w-5 mr-3 text-gray-500 dark:text-gray-400" />
                             @endif
-                            {{ $parent->nombre }}
+                            {{ __($parent->nombre) }}
                         </div>
                         <svg
                             class="h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform duration-200"
@@ -456,7 +490,7 @@ new class extends Component
                                     @if($child->icono)
                                         <x-dynamic-component :component="$child->icono" class="h-4 w-4 mr-2" />
                                     @endif
-                                    {{ $child->nombre }}
+                                    {{ __($child->nombre) }}
                                 </div>
                             </a>
                         @endforeach
@@ -477,7 +511,7 @@ new class extends Component
                     @if($parent->icono)
                         <x-dynamic-component :component="$parent->icono" class="h-5 w-5 mr-3 text-gray-500 dark:text-gray-400" />
                     @endif
-                    {{ $parent->nombre }}
+                    {{ __($parent->nombre) }}
                 </a>
             @endif
         @endforeach
@@ -505,7 +539,7 @@ new class extends Component
                 <svg class="h-5 w-5 mr-3 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
-                Profile
+                Perfil
             </a>
 
             <!-- PWA Install Button (Mobile) -->
@@ -538,8 +572,26 @@ new class extends Component
                     <svg class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
-                    Instalar App
+                    {{ __('Instalar App') }}
                 </button>
+            </div>
+
+            <!-- Language Selector (Mobile) -->
+            <div class="px-3 py-2 border-t border-gray-200 dark:border-gray-600 mt-1">
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('Idioma') }}</p>
+                <div class="flex gap-1">
+                    @foreach(['es' => 'ES', 'en' => 'EN', 'pt' => 'PT'] as $code => $label)
+                        <button
+                            wire:click="changeLocale('{{ $code }}')"
+                            class="px-2 py-1 text-xs font-medium rounded transition-colors duration-150
+                                {{ app()->getLocale() === $code
+                                    ? 'bg-bcn-primary text-white'
+                                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600' }}"
+                        >
+                            {{ $label }}
+                        </button>
+                    @endforeach
+                </div>
             </div>
 
             <button
@@ -549,7 +601,7 @@ new class extends Component
                 <svg class="h-5 w-5 mr-3 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
-                Log Out
+                {{ __('Cerrar Sesión') }}
             </button>
         </div>
     </div>

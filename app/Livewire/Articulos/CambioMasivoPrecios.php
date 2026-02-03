@@ -76,7 +76,7 @@ class CambioMasivoPrecios extends Component
         if ($this->paso === 1) {
             // Validar que haya un ajuste válido
             if ($this->valorAjuste === null || $this->valorAjuste <= 0) {
-                $this->js("window.notify('Ingresa un valor de ajuste válido', 'error')");
+                $this->js("window.notify('" . __('Ingresa un valor de ajuste válido') . "', 'error')");
                 return;
             }
 
@@ -168,7 +168,7 @@ class CambioMasivoPrecios extends Component
                 'id' => $articulo->id,
                 'codigo' => $articulo->codigo,
                 'nombre' => $articulo->nombre,
-                'categoria' => $articulo->categoriaModel?->nombre ?? 'Sin categoría',
+                'categoria' => $articulo->categoriaModel?->nombre ?? __('Sin categoría'),
                 'categoria_color' => $articulo->categoriaModel?->color ?? '#6B7280',
                 'precio_viejo' => $precioViejo,
                 'precio_nuevo' => $precioNuevo,
@@ -255,7 +255,7 @@ class CambioMasivoPrecios extends Component
     {
         $this->preciosEditados = [];
         $this->procesarPreview();
-        $this->js("window.notify('Precios recalculados', 'success')");
+        $this->js("window.notify('" . __('Precios recalculados') . "', 'success')");
     }
 
     /**
@@ -264,7 +264,7 @@ class CambioMasivoPrecios extends Component
     public function confirmarCambios()
     {
         if (empty($this->articulosPreview)) {
-            $this->js("window.notify('No hay artículos para actualizar', 'error')");
+            $this->js("window.notify('" . __('No hay artículos para actualizar') . "', 'error')");
             return;
         }
 
@@ -285,7 +285,7 @@ class CambioMasivoPrecios extends Component
     public function aplicarCambios()
     {
         if (empty($this->articulosPreview)) {
-            $this->js("window.notify('No hay artículos para actualizar', 'error')");
+            $this->js("window.notify('" . __('No hay artículos para actualizar') . "', 'error')");
             return;
         }
 
@@ -334,19 +334,19 @@ class CambioMasivoPrecios extends Component
 
             DB::connection('pymes_tenant')->commit();
 
-            $mensaje = "Se actualizaron {$articulosActualizados} artículos";
+            $mensaje = __('Se actualizaron :count artículos', ['count' => $articulosActualizados]);
             if ($listasActualizadas > 0) {
-                $mensaje .= " y {$listasActualizadas} precios en listas";
+                $mensaje .= ' ' . __('y :count precios en listas', ['count' => $listasActualizadas]);
             }
 
-            $this->js("window.notify('{$mensaje}', 'success')");
+            $this->js("window.notify('" . addslashes($mensaje) . "', 'success')");
             $this->showConfirmModal = false;
 
             return redirect()->route('articulos.gestionar');
 
         } catch (\Exception $e) {
             DB::connection('pymes_tenant')->rollBack();
-            $this->js("window.notify('Error al aplicar cambios: " . addslashes($e->getMessage()) . "', 'error')");
+            $this->js("window.notify('" . __('Error al aplicar cambios') . ": " . addslashes($e->getMessage()) . "', 'error')");
         }
     }
 
@@ -420,14 +420,14 @@ class CambioMasivoPrecios extends Component
     {
         // Verificar que no esté ya en la lista
         if (isset($this->articulosPreview[$articuloId])) {
-            $this->js("window.notify('Este artículo ya está en la lista', 'warning')");
+            $this->js("window.notify('" . __('Este artículo ya está en la lista') . "', 'warning')");
             return;
         }
 
         $articulo = Articulo::with('categoriaModel')->find($articuloId);
 
         if (!$articulo) {
-            $this->js("window.notify('Artículo no encontrado', 'error')");
+            $this->js("window.notify('" . __('Artículo no encontrado') . "', 'error')");
             return;
         }
 
@@ -438,7 +438,7 @@ class CambioMasivoPrecios extends Component
             'id' => $articulo->id,
             'codigo' => $articulo->codigo,
             'nombre' => $articulo->nombre,
-            'categoria' => $articulo->categoriaModel?->nombre ?? 'Sin categoría',
+            'categoria' => $articulo->categoriaModel?->nombre ?? __('Sin categoría'),
             'categoria_color' => $articulo->categoriaModel?->color ?? '#6B7280',
             'precio_viejo' => $precioViejo,
             'precio_nuevo' => $precioNuevo,
@@ -451,7 +451,7 @@ class CambioMasivoPrecios extends Component
         $this->totalPrecioNuevo += $precioNuevo;
 
         $this->busquedaArticuloAgregar = '';
-        $this->js("window.notify('Artículo agregado a la lista', 'success')");
+        $this->js("window.notify('" . __('Artículo agregado a la lista') . "', 'success')");
     }
 
     public function render()

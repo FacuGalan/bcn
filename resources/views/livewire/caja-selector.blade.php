@@ -13,7 +13,7 @@
 
             <!-- Nombre de la caja actual -->
             <span>
-                {{ $cajaActual ? $cajaActual->nombre : 'Seleccionar Caja' }}
+                {{ $cajaActual ? $cajaActual->nombre : __('Seleccionar Caja') }}
             </span>
 
             <!-- Badge de estado operativo -->
@@ -53,7 +53,7 @@
             <div class="py-1">
                 <!-- Header del dropdown -->
                 <div class="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase border-b dark:border-gray-700">
-                    Cambiar Caja
+                    {{ __('Cambiar Caja') }}
                 </div>
 
                 <!-- Lista de cajas -->
@@ -84,15 +84,15 @@
                                 @endphp
                                 @if($estadoOpCaja === 'operativa')
                                     <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium text-green-800 bg-green-100 dark:text-green-200 dark:bg-green-900/50 rounded">
-                                        Operativa
+                                        {{ __('Operativa') }}
                                     </span>
                                 @elseif($estadoOpCaja === 'pausada')
                                     <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium text-amber-800 bg-amber-100 dark:text-amber-200 dark:bg-amber-900/50 rounded">
-                                        Pausada
+                                        {{ __('Pausada') }}
                                     </span>
                                 @else
                                     <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700 rounded">
-                                        Sin turno
+                                        {{ __('Sin turno') }}
                                     </span>
                                 @endif
                             </div>

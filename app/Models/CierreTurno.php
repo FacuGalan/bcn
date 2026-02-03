@@ -56,11 +56,17 @@ class CierreTurno extends Model
         'total_egresos',
         'total_diferencia',
         'observaciones',
+        'revertido',
+        'fecha_reversion',
+        'usuario_reversion_id',
+        'motivo_reversion',
     ];
 
     protected $casts = [
         'fecha_apertura' => 'datetime',
         'fecha_cierre' => 'datetime',
+        'revertido' => 'boolean',
+        'fecha_reversion' => 'datetime',
         'total_saldo_inicial' => 'decimal:2',
         'total_saldo_final' => 'decimal:2',
         'total_ingresos' => 'decimal:2',
@@ -83,6 +89,11 @@ class CierreTurno extends Model
     public function usuario(): BelongsTo
     {
         return $this->belongsTo(User::class, 'usuario_id');
+    }
+
+    public function usuarioReversion(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'usuario_reversion_id');
     }
 
     /**
@@ -133,6 +144,14 @@ class CierreTurno extends Model
         return $this->hasMany(CobroPago::class, 'cierre_turno_id');
     }
 
+    /**
+     * Rendiciones de fondo asociadas a este cierre
+     */
+    public function rendiciones(): HasMany
+    {
+        return $this->hasMany(RendicionFondo::class, 'cierre_turno_id');
+    }
+
     // ==================== SCOPES ====================
 
     public function scopeIndividuales($query)
@@ -171,6 +190,11 @@ class CierreTurno extends Model
         return $query->orderBy('fecha_cierre', 'desc')->limit($limite);
     }
 
+    public function scopeNoRevertidos($query)
+    {
+        return $query->where('revertido', false);
+    }
+
     // ==================== MÉTODOS ====================
 
     /**
@@ -187,6 +211,27 @@ class CierreTurno extends Model
     public function esGrupal(): bool
     {
         return $this->tipo === 'grupo';
+    }
+
+    /**
+     * Verifica si el cierre fue revertido
+     */
+    public function estaRevertido(): bool
+    {
+        return $this->revertido === true;
+    }
+
+    /**
+     * Marca el cierre como revertido
+     */
+    public function marcarComoRevertido(int $usuarioId, ?string $motivo = null): bool
+    {
+        $this->revertido = true;
+        $this->fecha_reversion = now();
+        $this->usuario_reversion_id = $usuarioId;
+        $this->motivo_reversion = $motivo;
+
+        return $this->save();
     }
 
     /**

@@ -55,8 +55,8 @@ new #[Layout('layouts.guest')] class extends Component
     {
         // Validar que se hayan seleccionado suficientes sesiones
         if (count($this->selectedSessions) < $this->sessionsToClose) {
-            $this->selectionError = "Debes seleccionar al menos {$this->sessionsToClose} " .
-                ($this->sessionsToClose === 1 ? 'sesión' : 'sesiones') . ' para cerrar.';
+            $this->selectionError = __('Debes seleccionar al menos') . " {$this->sessionsToClose} " .
+                ($this->sessionsToClose === 1 ? __('sesión') : __('sesiones')) . ' ' . __('para cerrar') . '.';
             return;
         }
 
@@ -106,7 +106,7 @@ new #[Layout('layouts.guest')] class extends Component
     <form wire:submit="login" class="space-y-5" x-data="{ savedEmail: localStorage.getItem('bcn_comercio_email') }" x-init="if (savedEmail) $wire.set('form.comercio_email', savedEmail)">
         <!-- Comercio Email (opcional para System Admin) -->
         <div>
-            <x-input-label for="comercio_email" value="Email del Comercio" class="text-sm font-medium text-gray-700" />
+            <x-input-label for="comercio_email" :value="__('Email del Comercio')" class="text-sm font-medium text-gray-700" />
             <x-text-input
                 wire:model="form.comercio_email"
                 id="comercio_email"
@@ -122,7 +122,7 @@ new #[Layout('layouts.guest')] class extends Component
 
         <!-- Username -->
         <div>
-            <x-input-label for="username" value="Usuario" class="text-sm font-medium text-gray-700" />
+            <x-input-label for="username" :value="__('Usuario')" class="text-sm font-medium text-gray-700" />
             <x-text-input
                 wire:model="form.username"
                 id="username"
@@ -137,7 +137,7 @@ new #[Layout('layouts.guest')] class extends Component
 
         <!-- Password -->
         <div>
-            <x-input-label for="password" :value="__('Password')" class="text-sm font-medium text-gray-700" />
+            <x-input-label for="password" :value="__('Contraseña')" class="text-sm font-medium text-gray-700" />
             <x-text-input
                 wire:model="form.password"
                 id="password"
@@ -154,12 +154,12 @@ new #[Layout('layouts.guest')] class extends Component
         <div class="flex items-center justify-between">
             <label for="remember" class="inline-flex items-center">
                 <input wire:model="form.remember" id="remember" type="checkbox" class="w-4 h-4 rounded border-gray-300 text-bcn-primary shadow-sm focus:ring-bcn-primary" name="remember">
-                <span class="ms-2 text-sm text-gray-600">{{ __('Remember me') }}</span>
+                <span class="ms-2 text-sm text-gray-600">{{ __('Recordarme') }}</span>
             </label>
 
             @if (Route::has('password.request'))
                 <a class="text-sm text-bcn-secondary hover:text-bcn-primary font-medium transition-colors" href="{{ route('password.request') }}" wire:navigate>
-                    ¿Olvidaste tu contraseña?
+                    {{ __('¿Olvidaste tu contraseña?') }}
                 </a>
             @endif
         </div>
@@ -171,8 +171,8 @@ new #[Layout('layouts.guest')] class extends Component
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span wire:loading.remove>Iniciar Sesión</span> 
-                <span wire:loading>Ingresando...</span>
+                <span wire:loading.remove>{{ __('Iniciar Sesión') }}</span>
+                <span wire:loading>{{ __('Ingresando...') }}</span>
             </button>
         </div>
     </form>
@@ -198,16 +198,16 @@ new #[Layout('layouts.guest')] class extends Component
                             <!-- Content -->
                             <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left flex-1">
                                 <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
-                                    Límite de sesiones alcanzado
+                                    {{ __('Límite de sesiones alcanzado') }}
                                 </h3>
                                 <div class="mt-2">
                                     <p class="text-sm text-gray-500">
-                                        Has alcanzado el límite máximo de <strong>{{ $maxSessions }}</strong>
-                                        {{ $maxSessions === 1 ? 'sesión simultánea' : 'sesiones simultáneas' }}.
+                                        {{ __('Has alcanzado el límite máximo de') }} <strong>{{ $maxSessions }}</strong>
+                                        {{ $maxSessions === 1 ? __('sesión simultánea') : __('sesiones simultáneas') }}.
                                     </p>
                                     <p class="text-sm text-gray-500 mt-2">
-                                        Debes seleccionar al menos <strong class="text-red-600">{{ $sessionsToClose }}</strong>
-                                        {{ $sessionsToClose === 1 ? 'sesión' : 'sesiones' }} para cerrar:
+                                        {{ __('Debes seleccionar al menos') }} <strong class="text-red-600">{{ $sessionsToClose }}</strong>
+                                        {{ $sessionsToClose === 1 ? __('sesión') : __('sesiones') }} {{ __('para cerrar') }}:
                                     </p>
 
                                     <!-- Mensaje de error de validación -->
@@ -220,7 +220,7 @@ new #[Layout('layouts.guest')] class extends Component
                                     <!-- Lista de sesiones activas con checkboxes -->
                                     <div class="mt-3 bg-gray-50 rounded-md p-3 max-h-64 overflow-y-auto">
                                         <p class="text-xs text-gray-600 mb-2 font-medium">
-                                            Tus sesiones activas ({{ count($sessionsInfo) }}):
+                                            {{ __('Tus sesiones activas') }} ({{ count($sessionsInfo) }}):
                                         </p>
                                         @foreach ($sessionsInfo as $session)
                                             <label class="flex items-start mb-3 pb-3 border-b border-gray-200 last:border-0 cursor-pointer hover:bg-gray-100 p-2 rounded transition">
@@ -235,10 +235,10 @@ new #[Layout('layouts.guest')] class extends Component
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                                         </svg>
                                                         <span class="font-medium text-gray-700">
-                                                            {{ $session['user_agent']['browser'] ?? 'Desconocido' }} - {{ $session['user_agent']['platform'] ?? 'Desconocido' }}
+                                                            {{ $session['user_agent']['browser'] ?? __('Desconocido') }} - {{ $session['user_agent']['platform'] ?? __('Desconocido') }}
                                                         </span>
                                                         @if ($session['is_current'])
-                                                            <span class="ml-2 px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">Esta sesión</span>
+                                                            <span class="ml-2 px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">{{ __('Esta sesión') }}</span>
                                                         @endif
                                                     </div>
                                                     <div class="flex items-center text-xs text-gray-500 mt-1">
@@ -258,7 +258,7 @@ new #[Layout('layouts.guest')] class extends Component
                                     </div>
 
                                     <p class="text-xs text-gray-500 mt-2">
-                                        <strong>Nota:</strong> Seleccionadas: <span class="font-semibold text-indigo-600">{{ count($selectedSessions) }}</span> / Mínimo requerido: <span class="font-semibold text-red-600">{{ $sessionsToClose }}</span>
+                                        <strong>{{ __('Nota') }}:</strong> {{ __('Seleccionadas') }}: <span class="font-semibold text-indigo-600">{{ count($selectedSessions) }}</span> / {{ __('Mínimo requerido') }}: <span class="font-semibold text-red-600">{{ $sessionsToClose }}</span>
                                     </p>
                                 </div>
                             </div>
@@ -271,13 +271,13 @@ new #[Layout('layouts.guest')] class extends Component
                             wire:click="confirmLogin"
                             type="button"
                             class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm">
-                            Continuar e Ingresar
+                            {{ __('Continuar e Ingresar') }}
                         </button>
                         <button
                             wire:click="cancelLogin"
                             type="button"
                             class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                            Cancelar
+                            {{ __('Cancelar') }}
                         </button>
                     </div>
                 </div>

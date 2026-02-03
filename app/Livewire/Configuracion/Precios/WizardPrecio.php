@@ -45,14 +45,17 @@ class WizardPrecio extends Component
         'precio' => 'required|numeric|min:0',
     ];
 
-    protected $messages = [
-        'articuloId.required' => 'Debes seleccionar un artículo',
-        'sucursalesSeleccionadas.required' => 'Debes seleccionar al menos una sucursal',
-        'sucursalesSeleccionadas.min' => 'Debes seleccionar al menos una sucursal',
-        'precio.required' => 'Debes ingresar un precio',
-        'precio.numeric' => 'El precio debe ser un número',
-        'precio.min' => 'El precio debe ser mayor o igual a 0',
-    ];
+    protected function messages()
+    {
+        return [
+            'articuloId.required' => __('Debes seleccionar un artículo'),
+            'sucursalesSeleccionadas.required' => __('Debes seleccionar al menos una sucursal'),
+            'sucursalesSeleccionadas.min' => __('Debes seleccionar al menos una sucursal'),
+            'precio.required' => __('Debes ingresar un precio'),
+            'precio.numeric' => __('El precio debe ser un número'),
+            'precio.min' => __('El precio debe ser mayor o igual a 0'),
+        ];
+    }
 
     public function mount()
     {
@@ -115,14 +118,14 @@ class WizardPrecio extends Component
         switch ($this->pasoActual) {
             case 1:
                 if (!$this->articuloId) {
-                    session()->flash('error', 'Debes seleccionar un artículo');
+                    session()->flash('error', __('Debes seleccionar un artículo'));
                     return false;
                 }
                 break;
 
             case 2:
                 if (empty($this->sucursalesSeleccionadas)) {
-                    session()->flash('error', 'Debes seleccionar al menos una sucursal');
+                    session()->flash('error', __('Debes seleccionar al menos una sucursal'));
                     return false;
                 }
                 break;
@@ -230,7 +233,7 @@ class WizardPrecio extends Component
         $this->verificarConflictos();
 
         if (count($this->preciosConflictivos) > 0) {
-            $this->js("window.notify('No se puede crear el precio porque hay conflictos con precios existentes. Por favor, revisa la sección de advertencias.', 'error', 7000)");
+            $this->js("window.notify('" . addslashes(__('No se puede crear el precio porque hay conflictos con precios existentes. Por favor, revisa la sección de advertencias.')) . "', 'error', 7000)");
             return;
         }
 
@@ -254,8 +257,8 @@ class WizardPrecio extends Component
             }
 
             $mensaje = $preciosCreados === 1
-                ? 'Precio creado correctamente'
-                : "Se crearon {$preciosCreados} precios correctamente";
+                ? __('Precio creado correctamente')
+                : __('Se crearon :count precios correctamente', ['count' => $preciosCreados]);
 
             session()->flash('notify', [
                 'message' => $mensaje,
@@ -268,7 +271,7 @@ class WizardPrecio extends Component
             \Log::error('Error al crear precio: ' . $e->getMessage());
 
             $errorMsg = addslashes($e->getMessage());
-            $this->js("window.notify('Error al crear precio: {$errorMsg}', 'error', 7000)");
+            $this->js("window.notify('" . addslashes(__('Error al crear precio: ') . $e->getMessage()) . "', 'error', 7000)");
         }
     }
 

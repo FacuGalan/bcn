@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Modelo Cliente
@@ -19,24 +20,36 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * - Esta lista se usa como predeterminada al venderle al cliente
  * - El vendedor puede seleccionar manualmente otra lista que pisa la del cliente
  *
+ * VINCULACIÓN CLIENTE-PROVEEDOR:
+ * - Un cliente puede estar vinculado a un proveedor (relación inversa)
+ * - Esto permite tener cuentas corrientes unificadas en el futuro
+ * - Un proveedor tiene cliente_id que apunta a este cliente
+ *
  * @property int $id
- * @property string $codigo
  * @property string $nombre
- * @property string|null $nombre_fiscal
- * @property string|null $cuit_cuil
- * @property string $tipo_doc
- * @property string|null $numero_doc
- * @property string|null $direccion
- * @property string|null $telefono
+ * @property string|null $razon_social
+ * @property string|null $cuit
  * @property string|null $email
+ * @property string|null $telefono
+ * @property string|null $direccion
  * @property int|null $condicion_iva_id FK a condiciones_iva
  * @property int|null $lista_precio_id Lista de precios asignada al cliente
  * @property bool $activo
+ * @property bool $tiene_cuenta_corriente Si puede comprar a crédito
+ * @property float $limite_credito Límite máximo de crédito (0 = sin límite)
+ * @property int $dias_credito Días de crédito por defecto
+ * @property float $tasa_interes_mensual Tasa de interés mensual por mora (%)
+ * @property float $saldo_deudor_cache Cache de deuda del cliente
+ * @property float $saldo_a_favor_cache Cache de saldo a favor
+ * @property \Carbon\Carbon|null $ultimo_movimiento_cc_at Último movimiento en cuenta corriente
+ * @property bool $bloqueado_por_mora Si está bloqueado por mora
+ * @property int $dias_mora_max Máximos días de mora actual
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  *
  * @property-read CondicionIva|null $condicionIva
  * @property-read ListaPrecio|null $listaPrecio
+ * @property-read Proveedor|null $proveedor Proveedor vinculado
  * @property-read \Illuminate\Database\Eloquent\Collection|Sucursal[] $sucursales
  * @property-read \Illuminate\Database\Eloquent\Collection|Venta[] $ventas
  */
@@ -47,18 +60,31 @@ class Cliente extends Model
 
     protected $fillable = [
         'nombre',
+        'razon_social',
+        'cuit',
         'email',
         'telefono',
         'direccion',
-        'cuit',
-        'tipo_cliente',
         'condicion_iva_id',
         'lista_precio_id',
         'activo',
+        'tiene_cuenta_corriente',
+        'limite_credito',
+        'dias_credito',
+        'tasa_interes_mensual',
+        'bloqueado_por_mora',
+        'dias_mora_max',
     ];
 
     protected $casts = [
         'activo' => 'boolean',
+        'tiene_cuenta_corriente' => 'boolean',
+        'limite_credito' => 'decimal:2',
+        'tasa_interes_mensual' => 'decimal:2',
+        'saldo_deudor_cache' => 'decimal:2',
+        'saldo_a_favor_cache' => 'decimal:2',
+        'bloqueado_por_mora' => 'boolean',
+        'ultimo_movimiento_cc_at' => 'datetime',
     ];
 
     // Relaciones
@@ -90,6 +116,15 @@ class Cliente extends Model
     public function ventas(): HasMany
     {
         return $this->hasMany(Venta::class, 'cliente_id');
+    }
+
+    /**
+     * Proveedor vinculado a este cliente
+     * Permite tener un proveedor y cliente unificados (misma entidad)
+     */
+    public function proveedor(): HasOne
+    {
+        return $this->hasOne(Proveedor::class, 'cliente_id');
     }
 
     // Scopes
@@ -262,11 +297,74 @@ class Cliente extends Model
     }
 
     /**
-     * Obtiene el nombre fiscal o nombre regular
+     * Obtiene el nombre fiscal (razón social) o nombre regular
      */
     public function obtenerNombreFiscal(): string
     {
-        return $this->nombre_fiscal ?? $this->nombre;
+        return $this->razon_social ?? $this->nombre;
+    }
+
+    /**
+     * Verifica si tiene un proveedor vinculado
+     */
+    public function tieneProveedorVinculado(): bool
+    {
+        return $this->proveedor()->exists();
+    }
+
+    /**
+     * Obtiene el proveedor vinculado
+     */
+    public function obtenerProveedorVinculado(): ?Proveedor
+    {
+        return $this->proveedor;
+    }
+
+    /**
+     * Verifica si puede operar a crédito (tiene cuenta corriente y no está bloqueado)
+     */
+    public function puedeOperarACredito(): bool
+    {
+        return $this->tiene_cuenta_corriente && !$this->bloqueado_por_mora;
+    }
+
+    /**
+     * Obtiene el crédito disponible global
+     */
+    public function obtenerCreditoDisponible(): ?float
+    {
+        if (!$this->tiene_cuenta_corriente) {
+            return null;
+        }
+
+        if ($this->limite_credito <= 0) {
+            return null; // Sin límite
+        }
+
+        return max(0, $this->limite_credito - $this->saldo_deudor_cache);
+    }
+
+    /**
+     * Verifica si tiene disponibilidad de crédito para un monto
+     */
+    public function tieneDisponibilidadCreditoGlobal(float $monto): bool
+    {
+        if (!$this->tiene_cuenta_corriente) {
+            return false;
+        }
+
+        if ($this->bloqueado_por_mora) {
+            return false;
+        }
+
+        $creditoDisponible = $this->obtenerCreditoDisponible();
+
+        // Si no tiene límite configurado, siempre tiene disponibilidad
+        if (is_null($creditoDisponible)) {
+            return true;
+        }
+
+        return $creditoDisponible >= $monto;
     }
 
     /**

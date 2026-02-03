@@ -44,6 +44,16 @@ class RolesPermisos extends Component
     // Colección de permisos funcionales agrupados
     public $permisosFuncionales;
 
+    // Permisos protegidos que no se pueden quitar al Super Administrador
+    public array $protectedPermissions = [
+        'menu.configuracion',
+        'menu.usuarios',
+        'menu.roles-permisos',
+    ];
+
+    // IDs de permisos protegidos (se resuelven en mount)
+    public array $protectedPermissionIds = [];
+
     /**
      * Inicialización del componente
      * Carga los permisos disponibles agrupados por módulo
@@ -52,6 +62,10 @@ class RolesPermisos extends Component
     {
         $this->loadGroupedPermissions();
         $this->loadPermisosFuncionales();
+        $this->protectedPermissionIds = Permission::whereIn('name', $this->protectedPermissions)
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->toArray();
     }
 
     /**
@@ -198,13 +212,6 @@ class RolesPermisos extends Component
      */
     public function save(): void
     {
-        // Super Administrador no puede ser modificado
-        if ($this->isSuperAdmin) {
-            $this->dispatch('notify', message: 'El rol Super Administrador no puede ser modificado', type: 'warning');
-            $this->showModal = false;
-            return;
-        }
-
         $this->validate([
             'name' => 'required|string|max:125|unique:pymes_tenant.roles,name,' . $this->roleId,
             'selectedPermissions' => 'nullable|array',
@@ -214,14 +221,16 @@ class RolesPermisos extends Component
 
         DB::transaction(function () {
             if ($this->editMode) {
-                // Actualizar rol existente
                 $role = Role::findOrFail($this->roleId);
-                $role->name = $this->name;
-                $role->save();
+
+                // Super Administrador: no se puede cambiar el nombre
+                if (!$this->isSuperAdmin) {
+                    $role->name = $this->name;
+                    $role->save();
+                }
 
                 $message = 'Rol actualizado correctamente';
             } else {
-                // Crear nuevo rol
                 $role = Role::create([
                     'name' => $this->name,
                     'guard_name' => 'web',
@@ -231,7 +240,6 @@ class RolesPermisos extends Component
             }
 
             // Sincronizar permisos
-            // Primero eliminar todos los permisos actuales
             DB::connection('pymes_tenant')
                 ->table('role_has_permissions')
                 ->where('role_id', $role->id)
@@ -239,6 +247,11 @@ class RolesPermisos extends Component
 
             // Combinar permisos de menú + permisos funcionales
             $allPermissionIds = $this->selectedPermissions;
+
+            // Super Admin: forzar permisos protegidos
+            if ($this->isSuperAdmin && !empty($this->protectedPermissionIds)) {
+                $allPermissionIds = array_merge($allPermissionIds, $this->protectedPermissionIds);
+            }
 
             // Obtener IDs de permisos funcionales seleccionados
             if (!empty($this->selectedFuncPermissions)) {
@@ -250,7 +263,7 @@ class RolesPermisos extends Component
             if (!empty($allPermissionIds)) {
                 $insertData = array_map(function ($permissionId) use ($role) {
                     return [
-                        'permission_id' => $permissionId,
+                        'permission_id' => (int) $permissionId,
                         'role_id' => $role->id,
                     ];
                 }, array_unique($allPermissionIds));

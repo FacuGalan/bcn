@@ -325,7 +325,7 @@ class Usuarios extends Component
         // Validar que no se exceda el límite de usuarios
         if (!$this->comercio->canAddMoreUsers()) {
             $this->dispatch('notify',
-                message: "No se pueden agregar más usuarios. Límite alcanzado: {$this->comercio->max_usuarios} usuarios.",
+                message: __('No se pueden agregar más usuarios. Límite alcanzado: :max usuarios.', ['max' => $this->comercio->max_usuarios]),
                 type: 'error'
             );
             return;
@@ -399,7 +399,7 @@ class Usuarios extends Component
         // Validar límite de usuarios al crear
         if (!$this->editMode && !$this->comercio->canAddMoreUsers()) {
             $this->dispatch('notify',
-                message: "No se pueden agregar más usuarios. Límite alcanzado: {$this->comercio->max_usuarios} usuarios.",
+                message: __('No se pueden agregar más usuarios. Límite alcanzado: :max usuarios.', ['max' => $this->comercio->max_usuarios]),
                 type: 'error'
             );
             return;
@@ -416,7 +416,7 @@ class Usuarios extends Component
             if ($currentIsSuperAdmin && !$newIsSuperAdmin) {
                 if ($this->countSuperAdmins() <= 1) {
                     $this->dispatch('notify',
-                        message: 'No se puede cambiar el rol. Debe existir al menos un Super Administrador en el comercio.',
+                        message: __('No se puede cambiar el rol. Debe existir al menos un Super Administrador en el comercio.'),
                         type: 'error'
                     );
                     return;
@@ -458,7 +458,7 @@ class Usuarios extends Component
 
                 $user->save();
 
-                $message = 'Usuario actualizado correctamente';
+                $message = __('Usuario actualizado correctamente');
             } else {
                 // Crear nuevo usuario
                 $user = User::create([
@@ -477,7 +477,7 @@ class Usuarios extends Component
                 $comercioId = session('comercio_activo_id');
                 $user->attachToComercio($comercioId);
 
-                $message = 'Usuario creado correctamente';
+                $message = __('Usuario creado correctamente');
             }
 
             // Asignar/actualizar rol y sucursales
@@ -576,15 +576,15 @@ class Usuarios extends Component
 
         // Validar que no se desactive a sí mismo
         if ($user->id === auth()->id()) {
-            $this->dispatch('notify', message: 'No puedes desactivarte a ti mismo', type: 'error');
+            $this->dispatch('notify', message: __('No puedes desactivarte a ti mismo'), type: 'error');
             return;
         }
 
         $user->activo = !$user->activo;
         $user->save();
 
-        $status = $user->activo ? 'activado' : 'desactivado';
-        $this->dispatch('notify', message: "Usuario {$status} correctamente", type: 'success');
+        $status = $user->activo ? __('activado') : __('desactivado');
+        $this->dispatch('notify', message: __('Usuario :status correctamente', ['status' => $status]), type: 'success');
     }
 
     /**

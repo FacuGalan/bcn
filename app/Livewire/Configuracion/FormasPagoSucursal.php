@@ -105,8 +105,8 @@ class FormasPagoSucursal extends Component
         $config->activo = $config->exists ? !$config->activo : false;
         $config->save();
 
-        $estado = $config->activo ? 'activada' : 'desactivada';
-        $this->dispatch('notify', message: "Forma de pago {$estado} en esta sucursal", type: 'success');
+        $estado = $config->activo ? __('activada') : __('desactivada');
+        $this->dispatch('notify', message: __('Forma de pago :estado en esta sucursal', ['estado' => $estado]), type: 'success');
     }
 
     /**
@@ -118,7 +118,7 @@ class FormasPagoSucursal extends Component
 
         // No permitir configurar ajuste en formas de pago mixtas
         if ($formaPago && $formaPago->es_mixta) {
-            $this->dispatch('notify', message: 'Las formas de pago mixtas no tienen ajuste propio. El ajuste se aplica por cada forma de pago usada en el desglose.', type: 'warning');
+            $this->dispatch('notify', message: __('Las formas de pago mixtas no tienen ajuste propio. El ajuste se aplica por cada forma de pago usada en el desglose.'), type: 'warning');
             return;
         }
 
@@ -181,7 +181,7 @@ class FormasPagoSucursal extends Component
         $config->save();
 
         $this->cerrarModalConfig();
-        $this->dispatch('notify', message: 'Configuración guardada correctamente', type: 'success');
+        $this->dispatch('notify', message: __('Configuración guardada correctamente'), type: 'success');
     }
 
     /**
@@ -206,12 +206,12 @@ class FormasPagoSucursal extends Component
 
         // No permitir configurar cuotas en formas de pago mixtas
         if ($formaPago && $formaPago->es_mixta) {
-            $this->dispatch('notify', message: 'Las formas de pago mixtas no tienen cuotas propias. Las cuotas se configuran en las formas de pago individuales.', type: 'warning');
+            $this->dispatch('notify', message: __('Las formas de pago mixtas no tienen cuotas propias. Las cuotas se configuran en las formas de pago individuales.'), type: 'warning');
             return;
         }
 
         if (!$formaPago || !$formaPago->permite_cuotas) {
-            $this->dispatch('notify', message: 'Esta forma de pago no permite cuotas', type: 'error');
+            $this->dispatch('notify', message: __('Esta forma de pago no permite cuotas'), type: 'error');
             return;
         }
 
@@ -259,7 +259,7 @@ class FormasPagoSucursal extends Component
         }
 
         $this->cerrarModalCuotas();
-        $this->dispatch('notify', message: 'Configuración de cuotas guardada', type: 'success');
+        $this->dispatch('notify', message: __('Configuración de cuotas guardada'), type: 'success');
     }
 
     /**
@@ -292,7 +292,7 @@ class FormasPagoSucursal extends Component
             $config->save();
         }
 
-        $this->dispatch('notify', message: 'Todas las formas de pago activadas', type: 'success');
+        $this->dispatch('notify', message: __('Todas las formas de pago activadas'), type: 'success');
     }
 
     /**
@@ -315,7 +315,7 @@ class FormasPagoSucursal extends Component
             $config->save();
         }
 
-        $this->dispatch('notify', message: 'Todas las formas de pago desactivadas', type: 'success');
+        $this->dispatch('notify', message: __('Todas las formas de pago desactivadas'), type: 'success');
     }
 
     /**

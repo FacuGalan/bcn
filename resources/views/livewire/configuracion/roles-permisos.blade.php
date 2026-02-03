@@ -3,8 +3,8 @@
         <!-- Header -->
         <div class="mb-6 flex justify-between items-center">
             <div>
-                <h2 class="text-2xl font-bold text-bcn-secondary">Gestión de Roles y Permisos</h2>
-                <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">Administra los roles y sus permisos de acceso al menú</p>
+                <h2 class="text-2xl font-bold text-bcn-secondary dark:text-white">{{ __('Gestión de Roles y Permisos') }}</h2>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('Administra los roles y sus permisos de acceso al menú') }}</p>
             </div>
             <button
                 wire:click="create"
@@ -13,19 +13,19 @@
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
-                Nuevo Rol
+                {{ __('Nuevo Rol') }}
             </button>
         </div>
 
         <!-- Búsqueda -->
         <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-6">
             <div class="p-6">
-                <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Buscar rol</label>
+                <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar rol') }}</label>
                 <input
                     type="text"
                     id="search"
                     wire:model.live.debounce.300ms="search"
-                    placeholder="Nombre del rol..."
+                    placeholder="{{ __('Nombre del rol...') }}"
                     class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                 />
             </div>
@@ -38,7 +38,7 @@
                     <div class="p-6">
                         <div class="flex items-start justify-between">
                             <div class="flex-1">
-                                <h3 class="text-lg font-semibold text-bcn-secondary flex items-center">
+                                <h3 class="text-lg font-semibold text-bcn-secondary dark:text-white flex items-center">
                                     @if($role->name === 'Super Administrador')
                                         <svg class="w-5 h-5 mr-2 text-bcn-primary" fill="currentColor" viewBox="0 0 20 20">
                                             <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
@@ -51,13 +51,13 @@
                                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                                         </svg>
-                                        <span>{{ $role->users_count ?? 0 }} usuario(s)</span>
+                                        <span>{{ $role->users_count ?? 0 }} {{ __('usuario(s)') }}</span>
                                     </div>
                                     <div class="flex items-center text-sm text-gray-600 dark:text-gray-300">
                                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                         </svg>
-                                        <span>{{ $role->permissions_count ?? 0 }} permiso(s)</span>
+                                        <span>{{ $role->permissions_count ?? 0 }} {{ __('permiso(s)') }}</span>
                                     </div>
                                 </div>
                             </div>
@@ -71,12 +71,12 @@
                                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
-                                Editar
+                                {{ __('Editar') }}
                             </button>
                             @if($role->name !== 'Super Administrador')
                                 <button
                                     wire:click="delete({{ $role->id }})"
-                                    wire:confirm="¿Estás seguro de eliminar este rol?"
+                                    wire:confirm="{{ __('¿Estás seguro de eliminar este rol?') }}"
                                     class="inline-flex justify-center items-center px-3 py-2 border border-red-300 dark:border-red-600 text-sm font-medium rounded-md text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-red-500 transition-colors duration-150"
                                 >
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -93,7 +93,7 @@
                         <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                         </svg>
-                        <p class="mt-2">No se encontraron roles</p>
+                        <p class="mt-2">{{ __('No se encontraron roles') }}</p>
                     </div>
                 </div>
             @endforelse
@@ -132,48 +132,34 @@
                     <form wire:submit="save">
                         <div class="bg-white dark:bg-gray-800 px-6 py-4 sm:px-8 sm:py-5">
                             <div class="w-full">
-                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4" id="modal-title">
+                                <div class="flex items-center gap-3 mb-4">
+                                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white" id="modal-title">
+                                        {{ $editMode ? __('Editar Rol') : __('Nuevo Rol') }}
+                                    </h3>
                                     @if($isSuperAdmin)
-                                        Ver Rol
-                                    @elseif($editMode)
-                                        Editar Rol
-                                    @else
-                                        Nuevo Rol
+                                        <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 whitespace-nowrap">
+                                            <svg class="w-3.5 h-3.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
+                                            </svg>
+                                            {{ __('Usuarios y Roles y Permisos son obligatorios') }}
+                                        </span>
                                     @endif
-                                </h3>
+                                </div>
 
                                 <div class="space-y-4">
                                     <!-- Nombre del rol -->
                                     <div class="max-w-md">
-                                        <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del rol *</label>
+                                        <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Nombre del rol *') }}</label>
                                         <input
                                             type="text"
                                             id="name"
                                             wire:model="name"
                                             class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 {{ $isSuperAdmin ? 'bg-gray-100 dark:bg-gray-600 cursor-not-allowed' : '' }}"
-                                            placeholder="Ej: Vendedor, Cajero, Supervisor..."
+                                            placeholder="{{ __('Ej: Vendedor, Cajero, Supervisor...') }}"
                                             {{ $isSuperAdmin ? 'readonly' : 'required' }}
                                         />
                                         @error('name') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                     </div>
-
-                                    @if($isSuperAdmin)
-                                        <!-- Mensaje informativo para Super Administrador -->
-                                        <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                                            <div class="flex items-start">
-                                                <svg class="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                                                </svg>
-                                                <div class="ml-3">
-                                                    <h4 class="text-sm font-semibold text-blue-800 dark:text-blue-200">Rol Protegido</h4>
-                                                    <p class="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                                                        El rol <strong>Super Administrador</strong> tiene acceso completo a todas las funciones del sistema.
-                                                        Este rol no puede ser modificado ni eliminado.
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    @endif
 
                                     <!-- Grid de 2 columnas para permisos -->
                                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -183,18 +169,22 @@
                                                 <svg class="w-5 h-5 inline mr-2 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                                                 </svg>
-                                                Acceso al Menú
+                                                {{ __('Acceso al Menú') }}
                                             </label>
-                                                <div class="max-h-[450px] overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-4 space-y-3 bg-gray-50 dark:bg-gray-700/50">
+                                                <div class="max-h-[400px] overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3 space-y-2 bg-gray-50 dark:bg-gray-700/50">
                                                     @foreach($groupedPermissions as $moduleName => $permissions)
-                                                        <div class="border-b border-gray-200 dark:border-gray-600 pb-2 last:border-b-0">
-                                                            <!-- Permiso padre (módulo) -->
-                                                            <div class="flex items-center mb-1">
+                                                        @php
+                                                            $parentIsProtected = $isSuperAdmin && in_array($permissions['parent']->name, $protectedPermissions ?? []);
+                                                        @endphp
+                                                        <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-600">
+                                                            <!-- Permiso padre (módulo) - cabecera plegable -->
+                                                            <div class="flex items-center p-3 cursor-pointer" @click="open = !open">
                                                                 <input
                                                                     type="checkbox"
                                                                     id="perm_{{ $permissions['parent']->id }}"
                                                                     value="{{ $permissions['parent']->id }}"
-                                                                    @if($isSuperAdmin)
+                                                                    @click.stop
+                                                                    @if($parentIsProtected)
                                                                         checked
                                                                         disabled
                                                                         class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary cursor-not-allowed opacity-60"
@@ -203,21 +193,35 @@
                                                                         class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
                                                                     @endif
                                                                 />
-                                                                <label for="perm_{{ $permissions['parent']->id }}" class="ml-2 text-sm font-semibold text-gray-900 dark:text-white">
+                                                                <label class="ml-2 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex-1 cursor-pointer flex items-center">
+                                                                    <span class="w-2 h-2 rounded-full bg-bcn-primary mr-2"></span>
                                                                     {{ $moduleName }}
+                                                                    @if($parentIsProtected)
+                                                                        <svg class="w-3.5 h-3.5 text-amber-500 ml-1" fill="currentColor" viewBox="0 0 20 20">
+                                                                            <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
+                                                                        </svg>
+                                                                    @endif
                                                                 </label>
+                                                                @if(count($permissions['children']) > 0)
+                                                                    <svg class="w-4 h-4 text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                                                    </svg>
+                                                                @endif
                                                             </div>
 
-                                                            <!-- Permisos hijos -->
+                                                            <!-- Permisos hijos (plegables) -->
                                                             @if(count($permissions['children']) > 0)
-                                                                <div class="ml-6 space-y-1">
+                                                                <div x-show="open" x-collapse class="border-t border-gray-200 dark:border-gray-600 px-3 pb-3 pt-2 space-y-1">
                                                                     @foreach($permissions['children'] as $childPermission)
-                                                                        <div class="flex items-center">
+                                                                        @php
+                                                                            $childIsProtected = $isSuperAdmin && in_array($childPermission->name, $protectedPermissions ?? []);
+                                                                        @endphp
+                                                                        <label for="perm_{{ $childPermission->id }}" class="flex items-center p-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
                                                                             <input
                                                                                 type="checkbox"
                                                                                 id="perm_{{ $childPermission->id }}"
                                                                                 value="{{ $childPermission->id }}"
-                                                                                @if($isSuperAdmin)
+                                                                                @if($childIsProtected)
                                                                                     checked
                                                                                     disabled
                                                                                     class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary cursor-not-allowed opacity-60"
@@ -226,10 +230,15 @@
                                                                                     class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
                                                                                 @endif
                                                                             />
-                                                                            <label for="perm_{{ $childPermission->id }}" class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                                                                            <span class="ml-2 text-sm font-medium text-gray-900 dark:text-white">
                                                                                 {{ str_replace('menu.', '', $childPermission->name) }}
-                                                                            </label>
-                                                                        </div>
+                                                                            </span>
+                                                                            @if($childIsProtected)
+                                                                                <svg class="w-3.5 h-3.5 text-amber-500 ml-1" fill="currentColor" viewBox="0 0 20 20">
+                                                                                    <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
+                                                                                </svg>
+                                                                            @endif
+                                                                        </label>
                                                                     @endforeach
                                                                 </div>
                                                             @endif
@@ -245,31 +254,30 @@
                                                 <svg class="w-5 h-5 inline mr-2 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                                 </svg>
-                                                Permisos Especiales
+                                                {{ __('Permisos Especiales') }}
                                             </label>
-                                            <div class="max-h-[450px] overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-4 space-y-3 bg-gray-50 dark:bg-gray-700/50">
+                                            <div class="max-h-[400px] overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3 space-y-2 bg-gray-50 dark:bg-gray-700/50">
                                                 @foreach($permisosFuncionales as $grupo => $permisos)
-                                                    <div class="bg-white dark:bg-gray-800 rounded-md p-3 border border-gray-200 dark:border-gray-600">
-                                                        <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 flex items-center">
-                                                            <span class="w-2 h-2 rounded-full bg-bcn-primary mr-2"></span>
-                                                            {{ $grupo }}
-                                                        </h4>
-                                                        <div class="space-y-2">
+                                                    <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-600">
+                                                        <div class="flex items-center p-3 cursor-pointer" @click="open = !open">
+                                                            <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex-1 flex items-center">
+                                                                <span class="w-2 h-2 rounded-full bg-bcn-primary mr-2"></span>
+                                                                {{ $grupo }}
+                                                            </h4>
+                                                            <svg class="w-4 h-4 text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                                            </svg>
+                                                        </div>
+                                                        <div x-show="open" x-collapse class="border-t border-gray-200 dark:border-gray-600 px-3 pb-3 pt-2 space-y-1">
                                                             @foreach($permisos as $permiso)
-                                                                <label class="flex items-start p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded {{ $isSuperAdmin ? 'cursor-not-allowed' : 'cursor-pointer' }} transition-colors">
+                                                                <label class="flex items-start p-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
                                                                     <input
                                                                         type="checkbox"
                                                                         value="{{ $permiso['codigo'] }}"
-                                                                        @if($isSuperAdmin)
-                                                                            checked
-                                                                            disabled
-                                                                            class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary cursor-not-allowed opacity-60"
-                                                                        @else
-                                                                            wire:model="selectedFuncPermissions"
-                                                                            class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
-                                                                        @endif
+                                                                        wire:model="selectedFuncPermissions"
+                                                                        class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
                                                                     />
-                                                                    <div class="ml-3 flex-1">
+                                                                    <div class="ml-2 flex-1">
                                                                         <span class="text-sm font-medium text-gray-900 dark:text-white block">{{ $permiso['etiqueta'] }}</span>
                                                                         @if(!empty($permiso['descripcion']))
                                                                             <span class="text-xs text-gray-500 dark:text-gray-400 block leading-tight mt-0.5">{{ $permiso['descripcion'] }}</span>
@@ -289,29 +297,19 @@
                         </div>
 
                         <div class="bg-gray-50 dark:bg-gray-700 px-6 py-3 sm:px-8 sm:flex sm:flex-row-reverse border-t border-gray-200 dark:border-gray-600">
-                            @if($isSuperAdmin)
-                                <button
-                                    type="button"
-                                    @click="show = false; $wire.cancel()"
-                                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:w-auto"
-                                >
-                                    Cerrar
-                                </button>
-                            @else
-                                <button
-                                    type="submit"
-                                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-sm font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:ml-3 sm:w-auto"
-                                >
-                                    {{ $editMode ? 'Actualizar' : 'Crear' }}
-                                </button>
-                                <button
-                                    type="button"
-                                    @click="show = false; $wire.cancel()"
-                                    class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:mt-0 sm:ml-3 sm:w-auto"
-                                >
-                                    Cancelar
-                                </button>
-                            @endif
+                            <button
+                                type="submit"
+                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-sm font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:ml-3 sm:w-auto"
+                            >
+                                {{ $editMode ? __('Actualizar') : __('Crear') }}
+                            </button>
+                            <button
+                                type="button"
+                                @click="show = false; $wire.cancel()"
+                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:mt-0 sm:ml-3 sm:w-auto"
+                            >
+                                {{ __('Cancelar') }}
+                            </button>
                         </div>
                     </form>
                 </div>

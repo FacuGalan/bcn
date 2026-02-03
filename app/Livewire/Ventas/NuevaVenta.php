@@ -396,7 +396,7 @@ class NuevaVenta extends Component
         if (!empty($this->items)) {
             $this->items = [];
             $this->resultado = null;
-            $this->dispatch('toast-info', message: 'Caja cambiada. El carrito ha sido limpiado.');
+            $this->dispatch('toast-info', message: __('Caja cambiada. El carrito ha sido limpiado.'));
         }
     }
 
@@ -451,13 +451,13 @@ class NuevaVenta extends Component
             $caja = Caja::find($cajaId);
 
             if (!$caja) {
-                $this->dispatch('toast-error', message: 'Caja no encontrada');
+                $this->dispatch('toast-error', message: __('Caja no encontrada'));
                 return;
             }
 
             // Verificar que la caja esté cerrada pero tenga movimientos pendientes (pausada)
             if ($caja->estado === 'abierta') {
-                $this->dispatch('toast-info', message: 'La caja ya está activa');
+                $this->dispatch('toast-info', message: __('La caja ya está activa'));
                 $this->actualizarEstadoCaja();
                 return;
             }
@@ -473,11 +473,11 @@ class NuevaVenta extends Component
             // Notificar a otros componentes (CajaSelector, TurnoActual)
             $this->dispatch('caja-actualizada', cajaId: $caja->id, accion: 'activada');
 
-            $this->dispatch('toast-success', message: 'Caja activada correctamente');
+            $this->dispatch('toast-success', message: __('Caja activada correctamente'));
 
         } catch (\Exception $e) {
             Log::error('Error al activar caja', ['error' => $e->getMessage(), 'caja_id' => $cajaId]);
-            $this->dispatch('toast-error', message: 'Error al activar la caja: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error al activar la caja: ') . $e->getMessage());
         }
     }
 
@@ -669,26 +669,45 @@ class NuevaVenta extends Component
             'nombre' => $tipoIva?->nombre ?? 'IVA 21%',
         ];
 
-        $this->items[] = [
-            'articulo_id' => $articulo->id,
-            'nombre' => $articulo->nombre,
-            'codigo' => $articulo->codigo,
-            'categoria_id' => $articulo->categoria_id,
-            'categoria_nombre' => $articulo->categoriaModel?->nombre,
-            'precio_base' => $precioInfo['precio_base'],
-            'precio' => $precioInfo['precio'],
-            'tiene_ajuste' => $precioInfo['tiene_ajuste'],
-            'cantidad' => 1,
-            // Información de IVA
-            'iva_codigo' => $ivaInfo['codigo'],
-            'iva_porcentaje' => $ivaInfo['porcentaje'],
-            'iva_nombre' => $ivaInfo['nombre'],
-            'precio_iva_incluido' => $articulo->precio_iva_incluido ?? true,
-            // Campos para ajuste manual de precio
-            'ajuste_manual_tipo' => null, // 'monto' o 'porcentaje'
-            'ajuste_manual_valor' => null, // Valor del ajuste
-            'precio_sin_ajuste_manual' => null, // Precio antes del ajuste manual (para mostrar tachado)
-        ];
+        // Buscar renglón existente con mismo artículo y mismo precio (sin ajuste manual)
+        $indiceExistente = null;
+        $precioNuevo = $precioInfo['precio'];
+        foreach ($this->items as $idx => $item) {
+            if (
+                ($item['articulo_id'] ?? null) == $articulo->id
+                && !($item['es_concepto'] ?? false)
+                && (float) ($item['precio'] ?? 0) === (float) $precioNuevo
+                && empty($item['ajuste_manual_tipo'])
+            ) {
+                $indiceExistente = $idx;
+                break;
+            }
+        }
+
+        if ($indiceExistente !== null) {
+            $this->items[$indiceExistente]['cantidad']++;
+        } else {
+            $this->items[] = [
+                'articulo_id' => $articulo->id,
+                'nombre' => $articulo->nombre,
+                'codigo' => $articulo->codigo,
+                'categoria_id' => $articulo->categoria_id,
+                'categoria_nombre' => $articulo->categoriaModel?->nombre,
+                'precio_base' => $precioInfo['precio_base'],
+                'precio' => $precioInfo['precio'],
+                'tiene_ajuste' => $precioInfo['tiene_ajuste'],
+                'cantidad' => 1,
+                // Información de IVA
+                'iva_codigo' => $ivaInfo['codigo'],
+                'iva_porcentaje' => $ivaInfo['porcentaje'],
+                'iva_nombre' => $ivaInfo['nombre'],
+                'precio_iva_incluido' => $articulo->precio_iva_incluido ?? true,
+                // Campos para ajuste manual de precio
+                'ajuste_manual_tipo' => null, // 'monto' o 'porcentaje'
+                'ajuste_manual_valor' => null, // Valor del ajuste
+                'precio_sin_ajuste_manual' => null, // Precio antes del ajuste manual (para mostrar tachado)
+            ];
+        }
 
         $this->busquedaArticulo = '';
         $this->articulosResultados = [];
@@ -768,7 +787,7 @@ class NuevaVenta extends Component
             $this->agregarArticulo($articulo->id);
             $this->codigoBarrasInput = '';
         } else {
-            $this->dispatch('toast-error', message: "No se encontró artículo con código: {$codigo}");
+            $this->dispatch('toast-error', message: __('No se encontró artículo con código: :codigo', ['codigo' => $codigo]));
             $this->codigoBarrasInput = '';
         }
     }
@@ -830,7 +849,7 @@ class NuevaVenta extends Component
         $articulo = Articulo::with('categoriaModel')->find($articuloId);
 
         if (!$articulo) {
-            $this->dispatch('toast-error', message: 'Artículo no encontrado');
+            $this->dispatch('toast-error', message: __('Artículo no encontrado'));
             return;
         }
 
@@ -927,7 +946,7 @@ class NuevaVenta extends Component
         if ($indiceEncontrado !== null) {
             $this->itemResaltado = $indiceEncontrado;
             $this->dispatch('scroll-to-item', index: $indiceEncontrado);
-            $this->dispatch('toast-success', message: 'Artículo encontrado en el detalle');
+            $this->dispatch('toast-success', message: __('Artículo encontrado en el detalle'));
         } else {
             $this->dispatch('toast-warning', message: 'El artículo no está en el detalle de la venta');
         }
@@ -2456,29 +2475,28 @@ class NuevaVenta extends Component
             return ['aplicada' => false, 'razon' => "Necesita $lleva, hay $cantidadDisponible"];
         }
 
-        // Ordenar por precio descendente
+        // Ordenar por precio descendente para bonificar los más caros
         usort($unidadesAplicables, fn($a, $b) => $b['precio'] <=> $a['precio']);
 
         $vecesAplicable = floor($cantidadDisponible / $lleva);
+        $totalUnidadesEnPromo = $lleva * $vecesAplicable;
+        $totalBonificadas = $bonifica * $vecesAplicable;
         $unidadesConsumidas = [];
         $descuentoTotal = 0;
 
-        for ($vez = 0; $vez < $vecesAplicable; $vez++) {
-            $offset = $vez * $lleva;
-            $unidadesParaEstaVez = array_slice($unidadesAplicables, $offset, $lleva);
-
-            for ($i = 0; $i < $bonifica && $i < count($unidadesParaEstaVez); $i++) {
-                $unidad = $unidadesParaEstaVez[$i];
-                if ($beneficioTipo === 'gratis') {
-                    $descuentoTotal += $unidad['precio'];
-                } else {
-                    $descuentoTotal += $unidad['precio'] * ($beneficioPorcentaje / 100);
-                }
+        // Bonificar los N items más caros del pool completo
+        for ($i = 0; $i < $totalBonificadas && $i < $totalUnidadesEnPromo; $i++) {
+            $unidad = $unidadesAplicables[$i];
+            if ($beneficioTipo === 'gratis') {
+                $descuentoTotal += $unidad['precio'];
+            } else {
+                $descuentoTotal += $unidad['precio'] * ($beneficioPorcentaje / 100);
             }
+        }
 
-            foreach ($unidadesParaEstaVez as $unidad) {
-                $unidadesConsumidas[] = $unidad['id'];
-            }
+        // Marcar todas las unidades participantes como consumidas
+        for ($i = 0; $i < $totalUnidadesEnPromo; $i++) {
+            $unidadesConsumidas[] = $unidadesAplicables[$i]['id'];
         }
 
         if (empty($unidadesConsumidas)) {

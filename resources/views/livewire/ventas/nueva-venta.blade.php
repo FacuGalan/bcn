@@ -33,7 +33,7 @@
                              x-data="{ inputFocused: false, init() { this.$nextTick(() => this.$refs.inputBusqueda.focus()) } }"
                              @click.outside="inputFocused = false"
                              x-on:focus-busqueda.window="$refs.inputBusqueda.focus()">
-                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Buscar Artículo</label>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar Artículo') }}</label>
                             <div class="flex gap-2">
                                 {{-- Input de búsqueda --}}
                                 <div class="relative flex-1">
@@ -47,7 +47,7 @@
                                         autocomplete="off"
                                         class="block w-full pl-10 pr-3 py-2 border rounded-md leading-5 bg-white dark:bg-gray-700 dark:text-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:border-indigo-500 text-sm
                                             {{ $modoConsulta ? 'border-amber-500 ring-2 ring-amber-200 focus:ring-amber-500' : ($modoBusqueda ? 'border-blue-500 ring-2 ring-blue-200 focus:ring-blue-500' : 'border-gray-300 dark:border-gray-600 focus:ring-indigo-500') }}"
-                                        placeholder="{{ $modoConsulta ? 'Buscar artículo para CONSULTAR PRECIOS...' : ($modoBusqueda ? 'Buscar artículo en el DETALLE...' : 'Buscar por nombre, código o código de barras (mín. 3 caracteres)...') }}">
+                                        placeholder="{{ $modoConsulta ? __('Buscar artículo para CONSULTAR PRECIOS...') : ($modoBusqueda ? __('Buscar artículo en el DETALLE...') : __('Buscar por nombre, código o código de barras (mín. 3 caracteres)...')) }}">
                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         @if($modoConsulta)
                                             <svg class="h-5 w-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -75,7 +75,7 @@
                                                 wire:click="desactivarModos"
                                                 type="button"
                                                 class="text-gray-400 hover:text-gray-600"
-                                                title="Cancelar modo (Esc)">
+                                                :title="__('Cancelar modo (Esc)')">
                                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                                 </svg>
@@ -106,7 +106,7 @@
                                         type="text"
                                         autocomplete="off"
                                         class="block w-full pl-8 pr-2 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                                        placeholder="Cód. barras">
+                                        :placeholder="__('Cód. barras')">
                                     <div class="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
                                         <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
@@ -120,7 +120,7 @@
                                     type="button"
                                     class="p-2 rounded-md transition-colors border
                                         {{ $modoConsulta ? 'bg-amber-500 text-white border-amber-600' : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100' }}"
-                                    title="Consultar precios (Ctrl+P)">
+                                    :title="__('Consultar precios (Ctrl+P)')">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                     </svg>
@@ -132,7 +132,7 @@
                                     type="button"
                                     class="p-2 rounded-md transition-colors border
                                         {{ $modoBusqueda ? 'bg-blue-500 text-white border-blue-600' : 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100' }}"
-                                    title="Buscar en detalle (Ctrl+B)">
+                                    :title="__('Buscar en detalle (Ctrl+B)')">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
                                     </svg>
@@ -143,7 +143,7 @@
                                     wire:click="abrirModalConcepto"
                                     type="button"
                                     class="p-2 rounded-md transition-colors border bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100"
-                                    title="Agregar concepto (Ctrl+C)">
+                                    :title="__('Agregar concepto (Ctrl+C)')">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
                                     </svg>
@@ -152,7 +152,7 @@
 
                             {{-- Indicador de búsqueda --}}
                             @if(strlen($busquedaArticulo) > 0 && strlen($busquedaArticulo) < 3)
-                                <p class="mt-1 text-xs text-gray-500">Escribe al menos 3 caracteres para buscar...</p>
+                                <p class="mt-1 text-xs text-gray-500">{{ __('Escribe al menos 3 caracteres para buscar...') }}</p>
                             @endif
 
                             {{-- Dropdown de resultados --}}
@@ -178,9 +178,9 @@
                                                             {{ $articulo['nombre'] }}
                                                         </p>
                                                         <p class="text-xs text-gray-500 dark:text-gray-400">
-                                                            Código: {{ $articulo['codigo'] }}
+                                                            {{ __('Código') }}: {{ $articulo['codigo'] }}
                                                             @if($articulo['codigo_barras'])
-                                                                | Barras: {{ $articulo['codigo_barras'] }}
+                                                                | {{ __('Barras') }}: {{ $articulo['codigo_barras'] }}
                                                             @endif
                                                             @if($articulo['categoria_nombre'])
                                                                 <span class="ml-2 text-indigo-600">{{ $articulo['categoria_nombre'] }}</span>
@@ -205,7 +205,7 @@
                                         <svg class="mx-auto h-8 w-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                         </svg>
-                                        No se encontraron artículos
+                                        {{ __('No se encontraron artículos') }}
                                     </div>
                                 </div>
                             @endif
@@ -214,9 +214,9 @@
                         {{-- Lista de artículos en el carrito --}}
                         <div class="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden flex flex-col min-h-0">
                             <div class="bg-gray-50 dark:bg-gray-700 px-3 py-1 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                                <h4 class="text-xs font-medium text-gray-900 dark:text-white">Items ({{ count($items) }})</h4>
+                                <h4 class="text-xs font-medium text-gray-900 dark:text-white">{{ __('Items') }} ({{ count($items) }})</h4>
                                 @if($resultado && $resultado['subtotal'] > 0)
-                                    <span class="text-xs text-gray-600">Subt: $@precio($resultado['subtotal'])</span>
+                                    <span class="text-xs text-gray-600">{{ __('Subt') }}: $@precio($resultado['subtotal'])</span>
                                 @endif
                             </div>
 
@@ -225,7 +225,7 @@
                                     <svg class="mx-auto h-8 w-8 text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
                                     </svg>
-                                    <p class="text-xs">Agrega artículos para comenzar</p>
+                                    <p class="text-xs">{{ __('Agrega artículos para comenzar') }}</p>
                                 </div>
                             @else
                                 <div class="flex-1 overflow-y-auto min-h-0">
@@ -233,13 +233,13 @@
                                         <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0">
                                             <tr>
                                                 <th class="px-2 py-1 w-8"></th>
-                                                <th class="px-2 py-1 text-left text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase">Artículo</th>
-                                                <th class="px-2 py-1 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase w-20">Cant.</th>
-                                                <th class="px-2 py-1 text-right text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase">P.Unit</th>
+                                                <th class="px-2 py-1 text-left text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Artículo') }}</th>
+                                                <th class="px-2 py-1 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase w-20">{{ __('Cant.') }}</th>
+                                                <th class="px-2 py-1 text-right text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('P.Unit') }}</th>
                                                 <th class="px-1 py-1 w-12"></th>{{-- Columna para ajuste manual --}}
-                                                <th class="px-2 py-1 text-right text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase">Subt.</th>
-                                                <th class="px-2 py-1 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase w-16">Promo</th>
-                                                <th class="px-2 py-1 text-right text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                                                <th class="px-2 py-1 text-right text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Subt.') }}</th>
+                                                <th class="px-2 py-1 text-center text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase w-16">{{ __('Promo') }}</th>
+                                                <th class="px-2 py-1 text-right text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Total') }}</th>
                                             </tr>
                                         </thead>
                                         <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -275,7 +275,7 @@
                                                             <div class="text-[10px] text-blue-600">{{ implode(', ', array_map(fn($p) => is_array($p) ? ($p['nombre'] ?? '') : $p, $itemResultado['promociones_comunes'])) }}</div>
                                                         @endif
                                                         @if($excluido)
-                                                            <div class="text-[10px] text-yellow-600">Sin promos</div>
+                                                            <div class="text-[10px] text-yellow-600">{{ __('Sin promos') }}</div>
                                                         @endif
                                                     </td>
                                                     {{-- Cantidad --}}
@@ -307,13 +307,13 @@
                                                                 <button
                                                                     wire:click="abrirAjusteManual({{ $index }}, 'monto')"
                                                                     class="w-5 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-blue-100 hover:bg-blue-200 text-blue-700 border border-blue-300"
-                                                                    title="Establecer precio fijo">
+                                                                    :title="__('Establecer precio fijo')">
                                                                     $
                                                                 </button>
                                                                 <button
                                                                     wire:click="abrirAjusteManual({{ $index }}, 'porcentaje')"
                                                                     class="w-5 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-green-100 hover:bg-green-200 text-green-700 border border-green-300"
-                                                                    title="Aplicar descuento %">
+                                                                    :title="__('Aplicar descuento %')">
                                                                     %
                                                                 </button>
                                                             </div>
@@ -322,11 +322,11 @@
                                                             <button
                                                                 wire:click="quitarAjusteManual({{ $index }})"
                                                                 class="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300 cursor-pointer"
-                                                                title="Clic para quitar ajuste manual">
+                                                                :title="__('Clic para quitar ajuste manual')">
                                                                 <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                                                 </svg>
-                                                                manual
+                                                                {{ __('manual') }}
                                                             </button>
                                                         @endif
                                                         {{-- Popover de ajuste manual --}}
@@ -346,9 +346,9 @@
                                                                  @click.outside="$wire.cerrarAjusteManual()">
                                                                 <div class="text-[10px] font-medium text-gray-700 dark:text-gray-300 mb-1">
                                                                     @if($ajusteManualTipo === 'monto')
-                                                                        Nuevo precio ($)
+                                                                        {{ __('Nuevo precio ($)') }}
                                                                     @else
-                                                                        Descuento % (+ desc / - rec)
+                                                                        {{ __('Descuento % (+ desc / - rec)') }}
                                                                     @endif
                                                                 </div>
                                                                 <div class="flex gap-1">
@@ -369,9 +369,9 @@
                                                                 </div>
                                                                 <div class="text-[9px] text-gray-500 dark:text-gray-400 mt-1">
                                                                     @if($ajusteManualTipo === 'monto')
-                                                                        Base: $@precio($item['precio_base'])
+                                                                        {{ __('Base') }}: $@precio($item['precio_base'])
                                                                     @else
-                                                                        Ej: 10 = -10% desc
+                                                                        {{ __('Ej: 10 = -10% desc') }}
                                                                     @endif
                                                                 </div>
                                                             </div>
@@ -424,7 +424,7 @@
                             @endphp
                             <div class="border border-green-200 rounded-lg overflow-hidden bg-green-50">
                                 <div class="bg-green-100 px-2 py-1 border-b border-green-200 flex justify-between items-center">
-                                    <h4 class="text-xs font-medium text-green-800">Promociones ({{ $totalPromos }})</h4>
+                                    <h4 class="text-xs font-medium text-green-800">{{ __('Promociones') }} ({{ $totalPromos }})</h4>
                                     @if($totalPromos > 4)
                                         <span class="text-[10px] text-green-600">scroll ↓</span>
                                     @endif
@@ -454,7 +454,7 @@
                         {{-- Cliente --}}
                         <div class="relative" x-data="{ clienteFocused: false }" @click.outside="clienteFocused = false">
                             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5">
-                                Cliente
+                                {{ __('Cliente') }}
                             </label>
                             @if($clienteSeleccionado)
                                 {{-- Cliente seleccionado --}}
@@ -465,7 +465,7 @@
                                             <span class="text-indigo-600 dark:text-indigo-400">{{ $clienteCondicionIva }}</span>
                                             <span class="px-1.5 py-0.5 rounded text-white font-medium
                                                 {{ $tipoFacturaCliente === 'A' ? 'bg-green-600' : ($tipoFacturaCliente === 'B' ? 'bg-blue-600' : 'bg-gray-500') }}">
-                                                Fact. {{ $tipoFacturaCliente }}
+                                                {{ __('Fact.') }} {{ $tipoFacturaCliente }}
                                             </span>
                                         </div>
                                     </div>
@@ -473,7 +473,7 @@
                                         wire:click="limpiarCliente"
                                         type="button"
                                         class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400"
-                                        title="Cambiar cliente">
+                                        :title="__('Cambiar cliente')">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                         </svg>
@@ -487,13 +487,13 @@
                                         wire:keydown.enter="seleccionarPrimerCliente"
                                         type="text"
                                         class="block w-full px-2 py-1.5 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-indigo-500 focus:border-indigo-500 rounded-l-md"
-                                        placeholder="Buscar cliente... (Consumidor Final)"
+                                        :placeholder="__('Buscar cliente... (Consumidor Final)')"
                                         @focus="clienteFocused = true">
                                     <button
                                         wire:click="abrirModalClienteRapido"
                                         type="button"
                                         class="flex-shrink-0 px-2 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md transition-colors"
-                                        title="Alta rápida de cliente">
+                                        :title="__('Alta rápida de cliente')">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                                         </svg>
@@ -515,9 +515,9 @@
                                                     <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $cliente['nombre'] }}</div>
                                                     <div class="text-xs text-gray-500 dark:text-gray-400">
                                                         @if($cliente['cuit'])
-                                                            CUIT: {{ $cliente['cuit'] }}
+                                                            {{ __('CUIT') }}: {{ $cliente['cuit'] }}
                                                         @elseif($cliente['telefono'])
-                                                            Tel: {{ $cliente['telefono'] }}
+                                                            {{ __('Tel') }}: {{ $cliente['telefono'] }}
                                                         @endif
                                                     </div>
                                                 </button>
@@ -528,7 +528,7 @@
                                     <div
                                         x-show="clienteFocused"
                                         class="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-200 dark:border-gray-700 p-3">
-                                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center">No se encontraron clientes</p>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center">{{ __('No se encontraron clientes') }}</p>
                                     </div>
                                 @endif
                             @endif
@@ -537,7 +537,7 @@
                         {{-- Lista de Precios --}}
                         <div wire:key="lista-precio-select-{{ $sucursalId }}">
                             <label for="listaPrecioId" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5">
-                                Lista de Precios
+                                {{ __('Lista de Precios') }}
                             </label>
                             <select
                                 wire:model.live="listaPrecioId"
@@ -547,7 +547,7 @@
                                     <option value="{{ $lista['id'] }}" @selected($lista['id'] == $listaPrecioId)>
                                         {{ $lista['nombre'] }}
                                         @if($lista['es_lista_base'])
-                                            (Base)
+                                            ({{ __('Base') }})
                                         @elseif($lista['ajuste_porcentaje'] != 0)
                                             ({{ $lista['descripcion_ajuste'] }})
                                         @endif
@@ -559,18 +559,18 @@
                         {{-- Forma de Venta y Forma de Pago en fila --}}
                         <div class="grid grid-cols-2 gap-2">
                             <div>
-                                <label for="formaVentaId" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5">Forma de Venta</label>
+                                <label for="formaVentaId" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5">{{ __('Forma de Venta') }}</label>
                                 <select wire:model.live="formaVentaId" id="formaVentaId" class="block w-full pl-2 pr-6 py-1.5 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md">
-                                    <option value="">Seleccionar...</option>
+                                    <option value="">{{ __('Seleccionar...') }}</option>
                                     @foreach($formasVenta as $fv)
                                         <option value="{{ $fv['id'] }}">{{ $fv['nombre'] }}</option>
                                     @endforeach
                                 </select>
                             </div>
                             <div>
-                                <label for="formaPagoId" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5">Forma de Pago</label>
+                                <label for="formaPagoId" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5">{{ __('Forma de Pago') }}</label>
                                 <select wire:model.live="formaPagoId" id="formaPagoId" class="block w-full pl-2 pr-6 py-1.5 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md">
-                                    <option value="">Seleccionar...</option>
+                                    <option value="">{{ __('Seleccionar...') }}</option>
                                     @foreach($formasPago as $fp)
                                         <option value="{{ $fp['id'] }}">{{ $fp['nombre'] }}</option>
                                     @endforeach
@@ -581,7 +581,7 @@
                         {{-- Selector de Cuotas (solo si la forma de pago permite cuotas) --}}
                         @if($formaPagoPermiteCuotas && count($cuotasFormaPagoDisponibles) > 0)
                             <div class="relative">
-                                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5">Cuotas</label>
+                                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5">{{ __('Cuotas') }}</label>
 
                                 {{-- Opción seleccionada (siempre visible) --}}
                                 <div
@@ -592,8 +592,8 @@
                                         {{-- 1 pago seleccionado --}}
                                         <div class="flex items-center px-2 py-1.5">
                                             <div class="flex-1 min-w-0">
-                                                <div class="text-xs font-medium text-gray-900 dark:text-white">1 pago</div>
-                                                <div class="text-[10px] text-gray-500 dark:text-gray-400">sin financiación</div>
+                                                <div class="text-xs font-medium text-gray-900 dark:text-white">{{ __('1 pago') }}</div>
+                                                <div class="text-[10px] text-gray-500 dark:text-gray-400">{{ __('sin financiación') }}</div>
                                             </div>
                                             <div class="text-center px-2">
                                                 <span class="text-[10px] text-gray-400">—</span>
@@ -641,8 +641,8 @@
                                         <label class="flex items-center px-2 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors {{ !$cuotaSeleccionadaId ? 'bg-blue-50 dark:bg-blue-900/30' : '' }}">
                                             <input type="radio" wire:model.live="cuotaSeleccionadaId" value="" class="sr-only">
                                             <div class="flex-1 min-w-0">
-                                                <div class="text-xs font-medium text-gray-900 dark:text-white">1 pago</div>
-                                                <div class="text-[10px] text-gray-500 dark:text-gray-400">sin financiación</div>
+                                                <div class="text-xs font-medium text-gray-900 dark:text-white">{{ __('1 pago') }}</div>
+                                                <div class="text-[10px] text-gray-500 dark:text-gray-400">{{ __('sin financiación') }}</div>
                                             </div>
                                             <div class="text-center px-2">
                                                 <span class="text-[10px] text-gray-400">—</span>
@@ -694,30 +694,30 @@
                         {{-- Resumen de Totales --}}
                         <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                             <div class="bg-gray-50 dark:bg-gray-700 px-3 py-1.5 border-b border-gray-200 dark:border-gray-700">
-                                <h4 class="text-xs font-medium text-gray-900 dark:text-white">Resumen</h4>
+                                <h4 class="text-xs font-medium text-gray-900 dark:text-white">{{ __('Resumen') }}</h4>
                             </div>
                             <div class="px-3 py-2 space-y-1">
                                 <div class="flex justify-between items-center">
-                                    <span class="text-xs text-gray-600 dark:text-gray-400">Subtotal:</span>
+                                    <span class="text-xs text-gray-600 dark:text-gray-400">{{ __('Subtotal') }}:</span>
                                     <span class="text-sm font-medium text-gray-900 dark:text-white">$@precio($resultado['subtotal'] ?? 0)</span>
                                 </div>
 
                                 @if($resultado && $resultado['total_descuentos'] > 0)
                                     <div class="flex justify-between items-center text-green-600">
-                                        <span class="text-xs">Desc. promos:</span>
+                                        <span class="text-xs">{{ __('Desc. promos') }}:</span>
                                         <span class="text-sm font-medium">-$@precio($resultado['total_descuentos'])</span>
                                     </div>
                                 @endif
 
                                 <div class="flex justify-between items-center font-semibold border-t border-gray-200 dark:border-gray-700 pt-1 mt-1">
-                                    <span class="text-xs text-gray-700 dark:text-gray-300">Total productos:</span>
+                                    <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Total productos') }}:</span>
                                     <span class="text-sm text-gray-900 dark:text-white">$@precio($resultado['total_final'] ?? 0)</span>
                                 </div>
 
                                 {{-- Ajuste por forma de pago --}}
                                 @if($ajusteFormaPagoInfo['porcentaje'] != 0 && !$ajusteFormaPagoInfo['es_mixta'])
                                     <div class="flex justify-between items-center {{ $ajusteFormaPagoInfo['porcentaje'] > 0 ? 'text-red-600' : 'text-green-600' }}">
-                                        <span class="text-xs">{{ $ajusteFormaPagoInfo['porcentaje'] > 0 ? 'Recargo' : 'Descuento' }} {{ $ajusteFormaPagoInfo['nombre'] }} ({{ $ajusteFormaPagoInfo['porcentaje'] > 0 ? '+' : '' }}{{ $ajusteFormaPagoInfo['porcentaje'] }}%):</span>
+                                        <span class="text-xs">{{ $ajusteFormaPagoInfo['porcentaje'] > 0 ? __('Recargo') : __('Descuento') }} {{ $ajusteFormaPagoInfo['nombre'] }} ({{ $ajusteFormaPagoInfo['porcentaje'] > 0 ? '+' : '' }}{{ $ajusteFormaPagoInfo['porcentaje'] }}%):</span>
                                         <span class="text-sm font-medium">{{ $ajusteFormaPagoInfo['monto'] > 0 ? '+' : '' }}$@precio($ajusteFormaPagoInfo['monto'])</span>
                                     </div>
                                 @endif
@@ -725,7 +725,7 @@
                                 {{-- Recargo por cuotas --}}
                                 @if(!$ajusteFormaPagoInfo['es_mixta'] && ($ajusteFormaPagoInfo['recargo_cuotas_porcentaje'] ?? 0) > 0)
                                     <div class="flex justify-between items-center text-red-600">
-                                        <span class="text-xs">Recargo {{ $ajusteFormaPagoInfo['cuotas'] }} cuotas (+{{ $ajusteFormaPagoInfo['recargo_cuotas_porcentaje'] }}%):</span>
+                                        <span class="text-xs">{{ __('Recargo') }} {{ $ajusteFormaPagoInfo['cuotas'] }} {{ __('cuotas') }} (+{{ $ajusteFormaPagoInfo['recargo_cuotas_porcentaje'] }}%):</span>
                                         <span class="text-sm font-medium">+$@precio($ajusteFormaPagoInfo['recargo_cuotas_monto'])</span>
                                     </div>
                                 @endif
@@ -737,10 +737,10 @@
                                     @endphp
                                     <div class="flex justify-between items-center">
                                         <div class="flex items-center gap-1">
-                                            <span class="text-xs {{ $ajusteMixto > 0 ? 'text-red-600' : ($ajusteMixto < 0 ? 'text-green-600' : 'text-gray-600') }}">Ajustes F.P.:</span>
-                                            <button wire:click="editarDesglose" type="button" class="inline-flex items-center px-1 py-0.5 text-[10px] font-medium text-purple-700 bg-purple-100 rounded hover:bg-purple-200" title="Editar desglose">
+                                            <span class="text-xs {{ $ajusteMixto > 0 ? 'text-red-600' : ($ajusteMixto < 0 ? 'text-green-600' : 'text-gray-600') }}">{{ __('Ajustes F.P.') }}:</span>
+                                            <button wire:click="editarDesglose" type="button" class="inline-flex items-center px-1 py-0.5 text-[10px] font-medium text-purple-700 bg-purple-100 rounded hover:bg-purple-200" :title="__('Editar desglose')">
                                                 <svg class="w-2.5 h-2.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                                                Editar
+                                                {{ __('Editar') }}
                                             </button>
                                         </div>
                                         <span class="text-sm font-medium {{ $ajusteMixto > 0 ? 'text-red-600' : ($ajusteMixto < 0 ? 'text-green-600' : 'text-gray-600') }}">{{ $ajusteMixto != 0 ? (($ajusteMixto > 0 ? '+' : '') . '$') : '$' }}@precio(abs($ajusteMixto))</span>
@@ -756,8 +756,8 @@
                                     </div>
                                 @elseif($ajusteFormaPagoInfo['es_mixta'])
                                     <div class="flex justify-between items-center text-purple-600">
-                                        <span class="text-xs">Pago mixto:</span>
-                                        <span class="text-sm font-medium">Desglosar al cobrar</span>
+                                        <span class="text-xs">{{ __('Pago mixto') }}:</span>
+                                        <span class="text-sm font-medium">{{ __('Desglosar al cobrar') }}</span>
                                     </div>
                                 @endif
 
@@ -784,7 +784,7 @@
                                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2v16z"/>
                                                 </svg>
-                                                Desglose IVA
+                                                {{ __('Desglose IVA') }}
                                             </span>
                                             <svg :class="{ 'rotate-180': abierto }" class="w-3 h-3 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -804,7 +804,7 @@
                                                 <div class="bg-gray-50 dark:bg-gray-700/50 rounded p-1.5">
                                                     <div class="font-medium text-gray-700 dark:text-gray-300 mb-0.5">{{ $alicuota['nombre'] }}</div>
                                                     <div class="flex justify-between text-gray-600 dark:text-gray-400">
-                                                        <span>Neto:</span>
+                                                        <span>{{ __('Neto') }}:</span>
                                                         @if($tienePagoMixto && isset($alicuota['neto_mixto']))
                                                             <span>${{ number_format($alicuota['neto_mixto'], 3, ',', '.') }}</span>
                                                         @elseif($tieneAjusteFP && isset($alicuota['neto_con_ajuste_fp']))
@@ -814,7 +814,7 @@
                                                         @endif
                                                     </div>
                                                     <div class="flex justify-between text-gray-600 dark:text-gray-400">
-                                                        <span>IVA ({{ $alicuota['porcentaje'] }}%):</span>
+                                                        <span>{{ __('IVA') }} ({{ $alicuota['porcentaje'] }}%):</span>
                                                         @if($tienePagoMixto && isset($alicuota['iva_mixto']))
                                                             <span>${{ number_format($alicuota['iva_mixto'], 3, ',', '.') }}</span>
                                                         @elseif($tieneAjusteFP && isset($alicuota['iva_con_ajuste_fp']))
@@ -829,7 +829,7 @@
                                             {{-- Totales --}}
                                             <div class="border-t border-gray-200 dark:border-gray-600 pt-1 mt-1 space-y-0.5">
                                                 <div class="flex justify-between font-medium text-gray-700 dark:text-gray-300">
-                                                    <span>Total Neto:</span>
+                                                    <span>{{ __('Total Neto') }}:</span>
                                                     @if($tienePagoMixto)
                                                         <span>${{ number_format($desglose['total_neto_mixto'], 3, ',', '.') }}</span>
                                                     @elseif($tieneAjusteFP)
@@ -839,7 +839,7 @@
                                                     @endif
                                                 </div>
                                                 <div class="flex justify-between font-medium text-gray-700 dark:text-gray-300">
-                                                    <span>Total IVA:</span>
+                                                    <span>{{ __('Total IVA') }}:</span>
                                                     @if($tienePagoMixto)
                                                         <span>${{ number_format($desglose['total_iva_mixto'], 3, ',', '.') }}</span>
                                                     @elseif($tieneAjusteFP)
@@ -849,7 +849,7 @@
                                                     @endif
                                                 </div>
                                                 <div class="flex justify-between font-semibold text-gray-900 dark:text-white">
-                                                    <span>Total:</span>
+                                                    <span>{{ __('Total') }}:</span>
                                                     @if($tienePagoMixto)
                                                         <span>${{ number_format($desglose['total_mixto'], 3, ',', '.') }}</span>
                                                     @elseif($tieneAjusteFP)
@@ -869,7 +869,7 @@
                                             @if($descuentoAplicado > 0 || $ajusteFP != 0 || $recargoCuotas > 0)
                                                 <div class="text-[10px] text-gray-400 dark:text-gray-500 mt-1 italic">
                                                     @if($descuentoAplicado > 0)
-                                                        Desc. promos: -${{ number_format($descuentoAplicado, 3, ',', '.') }}
+                                                        {{ __('Desc. promos') }}: -${{ number_format($descuentoAplicado, 3, ',', '.') }}
                                                     @endif
                                                     @if($ajusteFP != 0)
                                                         | Ajuste F.P.: {{ $ajusteFP > 0 ? '+' : '' }}${{ number_format($ajusteFP, 3, ',', '.') }}
@@ -924,7 +924,7 @@
                                             class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600"
                                         >
                                         <span class="ml-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">
-                                            Emitir factura fiscal
+                                            {{ __('Emitir factura fiscal') }}
                                         </span>
                                     </label>
                                     @if($emitirFacturaFiscal)
@@ -950,7 +950,7 @@
                                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
                                 <span wire:loading.remove wire:target="iniciarCobro">
-                                    Cobrar
+                                    {{ __('Cobrar') }}
                                     @if($totalACobrar > 0)
                                         <span class="ml-1">${{ number_format($totalACobrar, 2, ',', '.') }}</span>
                                     @endif
@@ -961,7 +961,7 @@
                                 wire:click="limpiarCarrito"
                                 @if(empty($items)) disabled @endif
                                 class="w-full inline-flex justify-center items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed">
-                                Limpiar
+                                {{ __('Limpiar') }}
                             </button>
                         </div>
                     </div>
@@ -997,7 +997,7 @@
                             </svg>
                         </div>
                         <h3 class="text-lg font-medium text-white" id="modal-title">
-                            Consulta de Precios
+                            {{ __('Consulta de Precios') }}
                         </h3>
                     </div>
 
@@ -1007,13 +1007,13 @@
                         <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 mb-4">
                             <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $articuloConsulta['nombre'] }}</div>
                             <div class="text-xs text-gray-500 dark:text-gray-400">
-                                Código: {{ $articuloConsulta['codigo'] }}
+                                {{ __('Código') }}: {{ $articuloConsulta['codigo'] }}
                                 @if($articuloConsulta['categoria'])
                                     | {{ $articuloConsulta['categoria'] }}
                                 @endif
                             </div>
                             <div class="text-xs text-gray-500 mt-1">
-                                Precio base: <span class="font-medium">$@precio($articuloConsulta['precio_base'])</span>
+                                {{ __('Precio base') }}: <span class="font-medium">$@precio($articuloConsulta['precio_base'])</span>
                             </div>
                         </div>
 
@@ -1022,8 +1022,8 @@
                             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                 <thead class="bg-gray-50 dark:bg-gray-700">
                                     <tr>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Lista</th>
-                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Precio</th>
+                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Lista') }}</th>
+                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Precio') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -1033,19 +1033,19 @@
                                                 <div class="font-medium text-gray-900 dark:text-white">
                                                     {{ $precio['lista_nombre'] }}
                                                     @if($precio['es_lista_base'])
-                                                        <span class="ml-1 text-xs text-green-600">(Base)</span>
+                                                        <span class="ml-1 text-xs text-green-600">({{ __('Base') }})</span>
                                                     @endif
                                                     @if($precio['lista_id'] == $listaPrecioId)
-                                                        <span class="ml-1 text-xs text-indigo-600 dark:text-indigo-400">(Actual)</span>
+                                                        <span class="ml-1 text-xs text-indigo-600 dark:text-indigo-400">({{ __('Actual') }})</span>
                                                     @endif
                                                 </div>
                                                 <div class="text-xs text-gray-500 dark:text-gray-400">
                                                     @if($precio['tiene_precio_especifico'])
-                                                        Precio específico
+                                                        {{ __('Precio específico') }}
                                                     @elseif($precio['ajuste_porcentaje'] != 0)
-                                                        {{ $precio['ajuste_porcentaje'] > 0 ? '+' : '' }}{{ $precio['ajuste_porcentaje'] }}% sobre base
+                                                        {{ $precio['ajuste_porcentaje'] > 0 ? '+' : '' }}{{ $precio['ajuste_porcentaje'] }}% {{ __('sobre base') }}
                                                     @else
-                                                        Sin ajuste
+                                                        {{ __('Sin ajuste') }}
                                                     @endif
                                                 </div>
                                             </td>
@@ -1067,13 +1067,13 @@
                             wire:click="cerrarModalConsulta"
                             type="button"
                             class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">
-                            Cerrar
+                            {{ __('Cerrar') }}
                         </button>
                         <button
                             wire:click="agregarArticuloYCerrarConsulta({{ $articuloConsulta['id'] }})"
                             type="button"
                             class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">
-                            Agregar al carrito
+                            {{ __('Agregar al carrito') }}
                         </button>
                     </div>
                 </div>
@@ -1108,19 +1108,19 @@
                             </svg>
                         </div>
                         <h3 class="text-lg font-medium text-white">
-                            Agregar Concepto
+                            {{ __('Agregar Concepto') }}
                         </h3>
                     </div>
 
                     {{-- Contenido --}}
                     <div class="px-4 py-4 space-y-4">
                         <p class="text-sm text-gray-600 dark:text-gray-400">
-                            Agregue un concepto por importe sin especificar artículo (ej: venta de fiambrería por $5.000)
+                            {{ __('Agregue un concepto por importe sin especificar artículo (ej: venta de fiambrería por $5.000)') }}
                         </p>
 
                         {{-- Importe (primero) --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Importe</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Importe') }}</label>
                             <div class="relative">
                                 <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 dark:text-gray-400">$</span>
                                 <input
@@ -1136,11 +1136,11 @@
 
                         {{-- Categoría (opcional) --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Categoría (opcional)</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Categoría (opcional)') }}</label>
                             <select
                                 wire:model="conceptoCategoriaId"
                                 class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
-                                <option value="">-- Sin categoría (Varios) --</option>
+                                <option value="">{{ __('-- Sin categoría (Varios) --') }}</option>
                                 @foreach($categoriasDisponibles as $cat)
                                     <option value="{{ $cat['id'] }}">{{ $cat['nombre'] }}</option>
                                 @endforeach
@@ -1149,13 +1149,13 @@
 
                         {{-- Descripción (opcional) --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción (opcional)</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Descripción (opcional)') }}</label>
                             <input
                                 wire:model="conceptoDescripcion"
                                 type="text"
                                 class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
-                                placeholder="Ej: Fiambrería variada">
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Si está vacío, se usará el nombre de la categoría o "Varios"</p>
+                                :placeholder="__('Ej: Fiambrería variada')">
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Si está vacío, se usará el nombre de la categoría o "Varios"') }}</p>
                         </div>
                     </div>
 
@@ -1165,13 +1165,13 @@
                             wire:click="agregarConcepto"
                             type="button"
                             class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-emerald-600 text-base font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:text-sm">
-                            Agregar
+                            {{ __('Agregar') }}
                         </button>
                         <button
                             wire:click="cerrarModalConcepto"
                             type="button"
                             class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">
-                            Cancelar
+                            {{ __('Cancelar') }}
                         </button>
                     </div>
                 </div>
@@ -1235,7 +1235,7 @@
                                 </svg>
                             </div>
                             <h3 class="text-base font-medium text-white">
-                                {{ count($desglosePagos) > 1 || $montoPendienteDesglose > 0 ? 'Desglose de Pagos' : 'Confirmar Pago' }}
+                                {{ count($desglosePagos) > 1 || $montoPendienteDesglose > 0 ? __('Desglose de Pagos') : __('Confirmar Pago') }}
                             </h3>
                         </div>
                         <button wire:click="cerrarModalPago" class="text-white hover:text-green-200">
@@ -1250,21 +1250,21 @@
                         {{-- Resumen del total --}}
                         <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 flex justify-between items-center">
                             <div>
-                                <span class="text-sm text-gray-600 dark:text-gray-400">Total a cobrar:</span>
+                                <span class="text-sm text-gray-600 dark:text-gray-400">{{ __('Total a cobrar') }}:</span>
                                 <div class="text-2xl font-bold text-gray-900 dark:text-white">
                                     $@precio($resultado['total_final'] ?? 0)
                                 </div>
                             </div>
                             @if($montoPendienteDesglose > 0.01)
                                 <div class="text-right">
-                                    <span class="text-sm text-orange-600">Pendiente:</span>
+                                    <span class="text-sm text-orange-600">{{ __('Pendiente') }}:</span>
                                     <div class="text-xl font-bold text-orange-600">
                                         $@precio($montoPendienteDesglose)
                                     </div>
                                 </div>
                             @else
                                 <div class="text-right">
-                                    <span class="text-sm text-green-600">Total con ajustes:</span>
+                                    <span class="text-sm text-green-600">{{ __('Total con ajustes') }}:</span>
                                     <div class="text-xl font-bold text-green-600">
                                         $@precio($totalConAjustes)
                                     </div>
@@ -1276,7 +1276,7 @@
                         @if(count($desglosePagos) > 0)
                             <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                                 <div class="bg-gray-50 dark:bg-gray-700 px-3 py-1.5 border-b border-gray-200 dark:border-gray-600">
-                                    <h4 class="text-sm font-medium text-gray-900 dark:text-white">Formas de Pago</h4>
+                                    <h4 class="text-sm font-medium text-gray-900 dark:text-white">{{ __('Formas de Pago') }}</h4>
                                 </div>
                                 <div class="divide-y divide-gray-200 dark:divide-gray-700">
                                     @foreach($desglosePagos as $index => $pago)
@@ -1294,12 +1294,12 @@
                                                         <button
                                                             wire:click="toggleFacturaFiscalDesglose({{ $index }})"
                                                             class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium transition-colors {{ ($pago['factura_fiscal'] ?? false) ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600' }}"
-                                                            title="{{ ($pago['factura_fiscal'] ?? false) ? 'Factura fiscal activada' : 'Clic para activar factura fiscal' }}"
+                                                            :title="($pago['factura_fiscal'] ?? false) ? __('Factura fiscal activada') : __('Clic para activar factura fiscal')"
                                                         >
                                                             <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                                                 <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/>
                                                             </svg>
-                                                            Fiscal
+                                                            {{ __('Fiscal') }}
                                                             @if($pago['factura_fiscal'] ?? false)
                                                                 <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20">
                                                                     <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
@@ -1310,7 +1310,7 @@
 
                                                     {{-- Detalles del monto --}}
                                                     <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                                        <span>Base: $@precio($pago['monto_base'])</span>
+                                                        <span>{{ __('Base') }}: $@precio($pago['monto_base'])</span>
                                                         @if($pago['monto_ajuste'] != 0)
                                                             <span class="mx-1">→</span>
                                                             <span class="{{ $pago['monto_ajuste'] > 0 ? 'text-red-600' : 'text-green-600' }}">
@@ -1322,7 +1322,7 @@
                                                     {{-- Selector de cuotas --}}
                                                     @if($pago['permite_cuotas'] && count($pago['cuotas_disponibles']) > 0)
                                                         <div class="mt-2 flex items-center gap-2">
-                                                            <label class="text-xs text-gray-600 dark:text-gray-400">Cuotas:</label>
+                                                            <label class="text-xs text-gray-600 dark:text-gray-400">{{ __('Cuotas') }}:</label>
                                                             <select
                                                                 wire:change="actualizarCuotasDesglose({{ $index }}, $event.target.value)"
                                                                 class="text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:border-green-500 focus:ring-green-500">
@@ -1332,7 +1332,7 @@
                                                                         @if($cuota['recargo'] > 0)
                                                                             (+{{ $cuota['recargo'] }}%)
                                                                         @else
-                                                                            (sin interés)
+                                                                            ({{ __('sin interés') }})
                                                                         @endif
                                                                     </option>
                                                                 @endforeach
@@ -1348,7 +1348,7 @@
                                                     {{-- Input monto recibido para efectivo --}}
                                                     @if($pago['permite_vuelto'])
                                                         <div class="mt-2 flex items-center gap-2">
-                                                            <label class="text-xs text-gray-600 dark:text-gray-400">Recibido:</label>
+                                                            <label class="text-xs text-gray-600 dark:text-gray-400">{{ __('Recibido') }}:</label>
                                                             <div class="relative">
                                                                 <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 dark:text-gray-400 text-sm">$</span>
                                                                 <input
@@ -1360,7 +1360,7 @@
                                                             </div>
                                                             @if($pago['vuelto'] > 0)
                                                                 <span class="text-sm font-medium text-blue-600">
-                                                                    Vuelto: $@precio($pago['vuelto'])
+                                                                    {{ __('Vuelto') }}: $@precio($pago['vuelto'])
                                                                 </span>
                                                             @endif
                                                         </div>
@@ -1381,7 +1381,7 @@
                                                     <button
                                                         wire:click="eliminarDelDesglose({{ $index }})"
                                                         class="text-red-500 hover:text-red-700 p-1"
-                                                        title="Eliminar forma de pago">
+                                                        :title="__('Eliminar forma de pago')">
                                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                                         </svg>
@@ -1403,7 +1403,7 @@
                                     <select
                                         wire:model.live="nuevoPago.forma_pago_id"
                                         class="flex-1 min-w-0 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md shadow-sm focus:border-green-500 focus:ring-green-500 py-1.5">
-                                        <option value="">Forma de pago...</option>
+                                        <option value="">{{ __('Forma de pago...') }}</option>
                                         @foreach($formasPagoSucursal as $fp)
                                             @if(!$fp['es_mixta'])
                                                 <option value="{{ $fp['id'] }}">
@@ -1425,7 +1425,7 @@
                                             wire:model="nuevoPago.monto"
                                             class="w-full pl-6 pr-2 py-1.5 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md shadow-sm focus:border-green-500 focus:ring-green-500"
                                             placeholder="{{ number_format($montoPendienteDesglose, 2, ',', '.') }}"
-                                            title="Vacío = monto pendiente completo">
+                                            :title="__('Vacío = monto pendiente completo')">
                                     </div>
 
                                     {{-- Botón Agregar --}}
@@ -1438,7 +1438,7 @@
                                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                                         </svg>
-                                        Agregar
+                                        {{ __('Agregar') }}
                                     </button>
                                 </div>
 
@@ -1462,8 +1462,8 @@
                                                     class="flex items-center px-2 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors {{ $nuevoPago['cuotas'] == 1 ? 'bg-blue-50 dark:bg-blue-900/30' : '' }}"
                                                 >
                                                     <div class="flex-1">
-                                                        <span class="text-sm font-medium text-gray-900 dark:text-white">1 pago</span>
-                                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">sin financiación</span>
+                                                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ __('1 pago') }}</span>
+                                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">{{ __('sin financiación') }}</span>
                                                     </div>
                                                     <span class="text-sm font-semibold text-gray-900 dark:text-white">$@precio($montoConAjusteDesglose)</span>
                                                     @if($nuevoPago['cuotas'] == 1)
@@ -1505,8 +1505,8 @@
                                             @if($nuevoPago['cuotas'] == 1 || !$cuotaSelDesglose)
                                                 <div class="flex items-center px-2 py-1">
                                                     <div class="flex-1 min-w-0">
-                                                        <span class="text-sm font-medium text-gray-900 dark:text-white">1 pago</span>
-                                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">sin financiación</span>
+                                                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ __('1 pago') }}</span>
+                                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">{{ __('sin financiación') }}</span>
                                                     </div>
                                                     <span class="text-sm font-semibold text-gray-900 dark:text-white ml-2">$@precio($montoConAjusteDesglose)</span>
                                                     <svg class="w-4 h-4 text-gray-400 ml-1 transition-transform {{ $cuotasDesgloseSelectorAbierto ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1543,7 +1543,7 @@
                         @if($vueltoTotal > 0)
                             <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-2">
                                 <div class="flex justify-between items-center">
-                                    <span class="text-sm text-blue-800 dark:text-blue-300 font-medium">Vuelto total a entregar:</span>
+                                    <span class="text-sm text-blue-800 dark:text-blue-300 font-medium">{{ __('Vuelto total a entregar') }}:</span>
                                     <span class="text-xl font-bold text-blue-600">$@precio($vueltoTotal)</span>
                                 </div>
                             </div>
@@ -1558,11 +1558,11 @@
                                             <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/>
                                         </svg>
                                         <div>
-                                            <span class="text-sm font-medium text-indigo-700 dark:text-indigo-300">Facturación Fiscal</span>
+                                            <span class="text-sm font-medium text-indigo-700 dark:text-indigo-300">{{ __('Facturación Fiscal') }}</span>
                                             @if($cantidadFiscales > 0)
                                                 <span class="text-xs text-indigo-500 dark:text-indigo-400 ml-1">({{ $cantidadFiscales }} FP)</span>
                                             @else
-                                                <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">(sin factura)</span>
+                                                <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">({{ __('sin factura') }})</span>
                                             @endif
                                         </div>
                                     </div>
@@ -1594,14 +1594,14 @@
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
-                            <span wire:loading.remove>Confirmar</span>
-                            <span wire:loading>Procesando...</span>
+                            <span wire:loading.remove>{{ __('Confirmar') }}</span>
+                            <span wire:loading>{{ __('Procesando...') }}</span>
                         </button>
                         <button
                             wire:click="cerrarModalPago"
                             type="button"
                             class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-3 py-2 bg-white dark:bg-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                            Volver
+                            {{ __('Volver') }}
                         </button>
                     </div>
                 </div>
@@ -1635,25 +1635,25 @@
                             </svg>
                         </div>
                         <h3 class="text-lg font-medium text-white">
-                            Alta Rápida de Cliente
+                            {{ __('Alta Rápida de Cliente') }}
                         </h3>
                     </div>
 
                     {{-- Contenido --}}
                     <div class="px-4 py-4 space-y-4">
                         <p class="text-sm text-gray-600 dark:text-gray-400">
-                            Complete los datos básicos para crear un nuevo cliente rápidamente.
+                            {{ __('Complete los datos básicos para crear un nuevo cliente rápidamente.') }}
                         </p>
 
                         {{-- Nombre --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre <span class="text-red-500">*</span></label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Nombre') }} <span class="text-red-500">*</span></label>
                             <input
                                 x-ref="inputNombre"
                                 wire:model="clienteRapidoNombre"
                                 type="text"
                                 class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Nombre del cliente">
+                                :placeholder="__('Nombre del cliente')">
                             @error('clienteRapidoNombre')
                                 <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
                             @enderror
@@ -1661,16 +1661,16 @@
 
                         {{-- Teléfono --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Teléfono</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Teléfono') }}</label>
                             <input
                                 wire:model="clienteRapidoTelefono"
                                 type="text"
                                 class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Teléfono (opcional)">
+                                :placeholder="__('Teléfono (opcional)')">
                         </div>
 
                         <p class="text-xs text-gray-500 dark:text-gray-400">
-                            El cliente se creará como Consumidor Final. Puede completar los demás datos después desde la gestión de clientes.
+                            {{ __('El cliente se creará como Consumidor Final. Puede completar los demás datos después desde la gestión de clientes.') }}
                         </p>
                     </div>
 
@@ -1680,13 +1680,13 @@
                             wire:click="guardarClienteRapido"
                             type="button"
                             class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">
-                            Crear Cliente
+                            {{ __('Crear Cliente') }}
                         </button>
                         <button
                             wire:click="cerrarModalClienteRapido"
                             type="button"
                             class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">
-                            Cancelar
+                            {{ __('Cancelar') }}
                         </button>
                     </div>
                 </div>
@@ -1719,14 +1719,14 @@
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            Seleccionar Punto de Venta Fiscal
+                            {{ __('Seleccionar Punto de Venta Fiscal') }}
                         </h3>
                     </div>
 
                     {{-- Content --}}
                     <div class="px-4 py-5 sm:p-6">
                         <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
-                            La caja tiene múltiples puntos de venta configurados. Seleccione con cuál desea emitir el comprobante fiscal:
+                            {{ __('La caja tiene múltiples puntos de venta configurados. Seleccione con cuál desea emitir el comprobante fiscal:') }}
                         </p>
 
                         <div class="space-y-2 max-h-64 overflow-y-auto">
@@ -1753,7 +1753,7 @@
                                             </span>
                                             @if($pv['es_defecto'])
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                                    Por defecto
+                                                    {{ __('Por defecto') }}
                                                 </span>
                                             @endif
                                         </div>
@@ -1779,14 +1779,14 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                             </svg>
-                            Confirmar y Facturar
+                            {{ __('Confirmar y Facturar') }}
                         </button>
                         <button
                             wire:click="cancelarSeleccionPuntoVenta"
                             type="button"
                             class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary"
                         >
-                            Cancelar
+                            {{ __('Cancelar') }}
                         </button>
                     </div>
                 </div>

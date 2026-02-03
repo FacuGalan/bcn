@@ -35,14 +35,14 @@
             <div class="flex justify-between items-start gap-3 sm:gap-4">
                 <div class="flex-1">
                     <div class="flex items-center justify-between gap-3 sm:block">
-                        <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white flex items-center h-10 sm:h-auto">Listado de Ventas</h2>
+                        <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white flex items-center h-10 sm:h-auto">{{ __('Listado de Ventas') }}</h2>
                         <!-- Botón Nueva Venta - Solo icono en móviles -->
                         <div class="sm:hidden">
                             <a
                                 href="{{ route('ventas.create') }}"
                                 wire:navigate
                                 class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-bcn-primary border border-transparent rounded-md text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
-                                title="Nueva Venta"
+                                :title="__('Nueva Venta')"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -50,7 +50,7 @@
                             </a>
                         </div>
                     </div>
-                    <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">Gestión y consulta de ventas realizadas</p>
+                    <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">{{ __('Gestión y consulta de ventas realizadas') }}</p>
                 </div>
                 <!-- Botón Nueva Venta - Desktop -->
                 <div class="hidden sm:flex gap-3">
@@ -58,12 +58,12 @@
                         href="{{ route('ventas.create') }}"
                         wire:navigate
                         class="inline-flex items-center justify-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
-                        title="Crear nueva venta"
+                        :title="__('Crear nueva venta')"
                     >
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                         </svg>
-                        Nueva Venta
+                        {{ __('Nueva Venta') }}
                     </a>
                 </div>
             </div>
@@ -81,10 +81,10 @@
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                         </svg>
-                        Filtros
+                        {{ __('Filtros') }}
                         @if($search || $filterEstado !== 'all' || $filterFormaPago !== 'all' || $filterCaja !== 'actual' || $filterComprobanteFiscal !== 'all' || $filterFechaDesde || $filterFechaHasta)
                             <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-bcn-primary text-white">
-                                Activos
+                                {{ __('Activos') }}
                             </span>
                         @endif
                     </span>
@@ -105,40 +105,40 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
                     <!-- Búsqueda -->
                     <div class="sm:col-span-2 lg:col-span-2">
-                        <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Buscar</label>
+                        <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar') }}</label>
                         <input
                             type="text"
                             id="search"
                             wire:model.live.debounce.300ms="search"
-                            placeholder="ID venta, ticket, cliente, factura..."
+                            :placeholder="__('ID venta, ticket, cliente, factura...')"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         />
                     </div>
 
                     <!-- Filtro Estado -->
                     <div>
-                        <label for="filterEstado" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Estado</label>
+                        <label for="filterEstado" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Estado') }}</label>
                         <select
                             wire:model.live="filterEstado"
                             id="filterEstado"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         >
-                            <option value="all">Todos</option>
-                            <option value="completada">Completada</option>
-                            <option value="pendiente">Pendiente</option>
-                            <option value="cancelada">Cancelada</option>
+                            <option value="all">{{ __('Todos') }}</option>
+                            <option value="completada">{{ __('Completada') }}</option>
+                            <option value="pendiente">{{ __('Pendiente') }}</option>
+                            <option value="cancelada">{{ __('Cancelada') }}</option>
                         </select>
                     </div>
 
                     <!-- Filtro Forma de Pago -->
                     <div>
-                        <label for="filterFormaPago" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Forma de Pago</label>
+                        <label for="filterFormaPago" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Forma de Pago') }}</label>
                         <select
                             wire:model.live="filterFormaPago"
                             id="filterFormaPago"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         >
-                            <option value="all">Todas</option>
+                            <option value="all">{{ __('Todas') }}</option>
                             @foreach($formasPago as $fp)
                                 <option value="{{ $fp->id }}">{{ $fp->nombre }}</option>
                             @endforeach
@@ -147,28 +147,28 @@
 
                     <!-- Filtro Comprobante Fiscal -->
                     <div>
-                        <label for="filterComprobanteFiscal" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Comprobante Fiscal</label>
+                        <label for="filterComprobanteFiscal" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Comprobante Fiscal') }}</label>
                         <select
                             wire:model.live="filterComprobanteFiscal"
                             id="filterComprobanteFiscal"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         >
-                            <option value="all">Todas</option>
-                            <option value="con">Con factura</option>
-                            <option value="sin">Sin factura</option>
+                            <option value="all">{{ __('Todas') }}</option>
+                            <option value="con">{{ __('Con factura') }}</option>
+                            <option value="sin">{{ __('Sin factura') }}</option>
                         </select>
                     </div>
 
                     <!-- Filtro Caja -->
                     <div>
-                        <label for="filterCaja" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Caja</label>
+                        <label for="filterCaja" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Caja') }}</label>
                         <select
                             wire:model.live="filterCaja"
                             id="filterCaja"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         >
-                            <option value="actual">Caja actual</option>
-                            <option value="all">Todas mis cajas</option>
+                            <option value="actual">{{ __('Caja actual') }}</option>
+                            <option value="all">{{ __('Todas mis cajas') }}</option>
                         </select>
                     </div>
                 </div>
@@ -177,7 +177,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mt-4">
                     <!-- Filtro Fecha Desde -->
                     <div>
-                        <label for="filterFechaDesde" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha Desde</label>
+                        <label for="filterFechaDesde" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Fecha Desde') }}</label>
                         <input
                             wire:model.live="filterFechaDesde"
                             type="date"
@@ -188,7 +188,7 @@
 
                     <!-- Filtro Fecha Hasta -->
                     <div>
-                        <label for="filterFechaHasta" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha Hasta</label>
+                        <label for="filterFechaHasta" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Fecha Hasta') }}</label>
                         <input
                             wire:model.live="filterFechaHasta"
                             type="date"
@@ -207,7 +207,7 @@
                                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                 </svg>
-                                Limpiar filtros
+                                {{ __('Limpiar filtros') }}
                             </button>
                         @endif
                     </div>
@@ -222,7 +222,7 @@
                     <div class="flex items-start justify-between mb-3">
                         <div class="flex-1">
                             <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $venta->numero }}</div>
-                            <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $venta->cliente->nombre ?? 'Consumidor Final' }}</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $venta->cliente->nombre ?? __('Consumidor Final') }}</div>
                             @if($venta->comprobantesFiscales->count() > 0)
                                 <div class="flex flex-wrap gap-1 mt-1">
                                     @foreach($venta->comprobantesFiscales as $cf)
@@ -240,7 +240,7 @@
                             <button
                                 wire:click="verDetalle({{ $venta->id }})"
                                 class="inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary transition-colors duration-150"
-                                title="Ver detalle"
+                                :title="__('Ver detalle')"
                             >
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -251,7 +251,7 @@
                                 <button
                                     wire:click="cancelarVenta({{ $venta->id }})"
                                     class="inline-flex items-center justify-center px-3 py-2 border border-red-600 text-sm font-medium rounded-md text-red-600 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 transition-colors duration-150"
-                                    title="Cancelar venta"
+                                    :title="__('Cancelar venta')"
                                 >
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -294,8 +294,8 @@
                     <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                     </svg>
-                    <p class="mt-2 text-sm font-medium">No hay ventas registradas</p>
-                    <p class="text-xs text-gray-400 mt-1">Comienza creando tu primera venta</p>
+                    <p class="mt-2 text-sm font-medium">{{ __('No hay ventas registradas') }}</p>
+                    <p class="text-xs text-gray-400 mt-1">{{ __('Comienza creando tu primera venta') }}</p>
                 </div>
             @endforelse
 
@@ -314,31 +314,31 @@
                     <thead class="bg-bcn-light dark:bg-gray-900">
                         <tr>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                ID Venta
+                                {{ __('ID Venta') }}
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Comprobante
+                                {{ __('Comprobante') }}
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Cliente
+                                {{ __('Cliente') }}
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Fecha
+                                {{ __('Fecha') }}
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Forma de Pago
+                                {{ __('Forma de Pago') }}
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Caja
+                                {{ __('Caja') }}
                             </th>
                             <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Total
+                                {{ __('Total') }}
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Estado
+                                {{ __('Estado') }}
                             </th>
                             <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                Acciones
+                                {{ __('Acciones') }}
                             </th>
                         </tr>
                     </thead>
@@ -358,7 +358,7 @@
                                         <button
                                             wire:click="confirmarReimprimirTicket({{ $venta->id }}, '{{ $venta->numero }}')"
                                             class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors cursor-pointer"
-                                            title="Click para reimprimir ticket"
+                                            :title="__('Click para reimprimir ticket')"
                                         >
                                             <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
@@ -373,7 +373,7 @@
                                                 <button
                                                     wire:click="confirmarReimprimirFiscal({{ $cf->id }}, '{{ $cf->tipo_legible }}', '{{ $cf->numero_formateado }}')"
                                                     class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors cursor-pointer"
-                                                    title="Click para reimprimir comprobante fiscal"
+                                                    :title="__('Click para reimprimir comprobante fiscal')"
                                                 >
                                                     <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
@@ -385,7 +385,7 @@
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900 dark:text-white">{{ $venta->cliente->nombre ?? 'Consumidor Final' }}</div>
+                                    <div class="text-sm text-gray-900 dark:text-white">{{ $venta->cliente->nombre ?? __('Consumidor Final') }}</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-gray-500 dark:text-gray-400">{{ $venta->fecha->format('d/m/Y H:i') }}</div>
@@ -428,19 +428,19 @@
                                         <button
                                             wire:click="verDetalle({{ $venta->id }})"
                                             class="inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary transition-colors duration-150"
-                                            title="Ver detalle"
+                                            :title="__('Ver detalle')"
                                         >
                                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                             </svg>
-                                            Ver
+                                            {{ __('Ver') }}
                                         </button>
                                         @if($venta->estado !== 'cancelada')
                                             <button
                                                 wire:click="cancelarVenta({{ $venta->id }})"
                                                 class="inline-flex items-center justify-center px-3 py-2 border border-red-600 text-sm font-medium rounded-md text-red-600 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 transition-colors duration-150"
-                                                title="Cancelar venta"
+                                                :title="__('Cancelar venta')"
                                             >
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -456,8 +456,8 @@
                                     <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                                     </svg>
-                                    <p class="mt-2 font-medium">No hay ventas registradas</p>
-                                    <p class="text-sm text-gray-400 mt-1">Comienza creando tu primera venta</p>
+                                    <p class="mt-2 font-medium">{{ __('No hay ventas registradas') }}</p>
+                                    <p class="text-sm text-gray-400 mt-1">{{ __('Comienza creando tu primera venta') }}</p>
                                 </td>
                             </tr>
                         @endforelse
@@ -486,7 +486,7 @@
                     {{-- Header --}}
                     <div class="bg-bcn-primary px-6 py-4">
                         <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-medium text-white">Punto de Venta (POS)</h3>
+                            <h3 class="text-lg font-medium text-white">{{ __('Punto de Venta (POS)') }}</h3>
                             <button
                                 wire:click="cancelarPOS"
                                 class="text-white hover:text-gray-200">
@@ -504,13 +504,13 @@
                             <div class="lg:col-span-2 space-y-4">
                                 {{-- Búsqueda de artículos --}}
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Buscar Artículo</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Buscar Artículo') }}</label>
                                     <div class="relative">
                                         <input
                                             wire:model.live.debounce.300ms="buscarArticulo"
                                             type="text"
                                             class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-bcn-primary focus:border-bcn-primary sm:text-sm"
-                                            placeholder="Buscar por código o nombre...">
+                                            :placeholder="__('Buscar por código o nombre...')">
                                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -522,7 +522,7 @@
                                 {{-- Carrito --}}
                                 <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                                     <div class="bg-gray-50 dark:bg-gray-700 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-                                        <h4 class="text-sm font-medium text-gray-900 dark:text-white">Carrito ({{ count($carrito) }} items)</h4>
+                                        <h4 class="text-sm font-medium text-gray-900 dark:text-white">{{ __('Carrito') }} ({{ count($carrito) }} {{ __('items') }})</h4>
                                     </div>
 
                                     @if(empty($carrito))
@@ -530,19 +530,19 @@
                                             <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
                                             </svg>
-                                            <p class="text-sm">El carrito está vacío</p>
-                                            <p class="text-xs text-gray-400 mt-1">Busca y agrega artículos para comenzar</p>
+                                            <p class="text-sm">{{ __('El carrito está vacío') }}</p>
+                                            <p class="text-xs text-gray-400 mt-1">{{ __('Busca y agrega artículos para comenzar') }}</p>
                                         </div>
                                     @else
                                         <div class="max-h-96 overflow-y-auto">
                                             <table class="min-w-full divide-y divide-gray-200">
                                                 <thead class="bg-gray-50 sticky top-0">
                                                     <tr>
-                                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Artículo</th>
-                                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Cant.</th>
-                                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Precio</th>
-                                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Desc.</th>
-                                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Subtotal</th>
+                                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ __('Artículo') }}</th>
+                                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">{{ __('Cant.') }}</th>
+                                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">{{ __('Precio') }}</th>
+                                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">{{ __('Desc.') }}</th>
+                                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">{{ __('Subtotal') }}</th>
                                                         <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase"></th>
                                                     </tr>
                                                 </thead>
@@ -600,7 +600,7 @@
                                 {{-- Cliente --}}
                                 <div>
                                     <label for="clienteSeleccionado" class="block text-sm font-medium text-gray-700 mb-1">
-                                        Cliente
+                                        {{ __('Cliente') }}
                                         @if($formaPago === 'cta_cte')
                                             <span class="text-red-500">*</span>
                                         @endif
@@ -609,7 +609,7 @@
                                         wire:model="clienteSeleccionado"
                                         id="clienteSeleccionado"
                                         class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary sm:text-sm rounded-md">
-                                        <option value="">Consumidor Final</option>
+                                        <option value="">{{ __('Consumidor Final') }}</option>
                                         @foreach($clientes as $cliente)
                                             <option value="{{ $cliente->id }}">{{ $cliente->nombre }}</option>
                                         @endforeach
@@ -618,15 +618,15 @@
 
                                 {{-- Forma de Pago --}}
                                 <div>
-                                    <label for="formaPago" class="block text-sm font-medium text-gray-700 mb-1">Forma de Pago</label>
+                                    <label for="formaPago" class="block text-sm font-medium text-gray-700 mb-1">{{ __('Forma de Pago') }}</label>
                                     <select
                                         wire:model.live="formaPago"
                                         id="formaPago"
                                         class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary sm:text-sm rounded-md">
-                                        <option value="efectivo">Efectivo</option>
-                                        <option value="debito">Débito</option>
-                                        <option value="credito">Crédito</option>
-                                        <option value="cta_cte">Cuenta Corriente</option>
+                                        <option value="efectivo">{{ __('Efectivo') }}</option>
+                                        <option value="debito">{{ __('Débito') }}</option>
+                                        <option value="credito">{{ __('Crédito') }}</option>
+                                        <option value="cta_cte">{{ __('Cuenta Corriente') }}</option>
                                     </select>
                                 </div>
 
@@ -634,13 +634,13 @@
                                 @if($formaPago !== 'cta_cte')
                                     <div>
                                         <label for="cajaSeleccionada" class="block text-sm font-medium text-gray-700 mb-1">
-                                            Caja <span class="text-red-500">*</span>
+                                            {{ __('Caja') }} <span class="text-red-500">*</span>
                                         </label>
                                         <select
                                             wire:model="cajaSeleccionada"
                                             id="cajaSeleccionada"
                                             class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary sm:text-sm rounded-md">
-                                            <option value="">Seleccione una caja</option>
+                                            <option value="">{{ __('Seleccione una caja') }}</option>
                                             @foreach($cajas as $caja)
                                                 @if($caja->estaAbierta())
                                                     <option value="{{ $caja->id }}">{{ $caja->nombre }}</option>
@@ -652,7 +652,7 @@
 
                                 {{-- Descuento General --}}
                                 <div>
-                                    <label for="descuentoGeneral" class="block text-sm font-medium text-gray-700 mb-1">Descuento General (%)</label>
+                                    <label for="descuentoGeneral" class="block text-sm font-medium text-gray-700 mb-1">{{ __('Descuento General (%)') }}</label>
                                     <input
                                         wire:model.live.debounce.300ms="descuentoGeneral"
                                         type="number"
@@ -665,7 +665,7 @@
 
                                 {{-- Observaciones --}}
                                 <div>
-                                    <label for="observaciones" class="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+                                    <label for="observaciones" class="block text-sm font-medium text-gray-700 mb-1">{{ __('Observaciones') }}</label>
                                     <textarea
                                         wire:model="observaciones"
                                         id="observaciones"
@@ -676,21 +676,21 @@
                                 {{-- Resumen de Totales --}}
                                 <div class="border-t border-gray-200 pt-4 space-y-2">
                                     <div class="flex justify-between text-sm">
-                                        <span class="text-gray-600">Subtotal:</span>
+                                        <span class="text-gray-600">{{ __('Subtotal') }}:</span>
                                         <span class="font-medium text-gray-900">$@precio($subtotal)</span>
                                     </div>
                                     <div class="flex justify-between text-sm">
-                                        <span class="text-gray-600">IVA:</span>
+                                        <span class="text-gray-600">{{ __('IVA') }}:</span>
                                         <span class="font-medium text-gray-900">$@precio($totalIva)</span>
                                     </div>
                                     @if($descuentoGeneral > 0)
                                         <div class="flex justify-between text-sm">
-                                            <span class="text-gray-600">Descuento ({{ $descuentoGeneral }}%):</span>
+                                            <span class="text-gray-600">{{ __('Descuento') }} ({{ $descuentoGeneral }}%):</span>
                                             <span class="font-medium text-red-600">-$@precio(($subtotal + $totalIva) * ($descuentoGeneral / 100))</span>
                                         </div>
                                     @endif
                                     <div class="flex justify-between text-lg font-bold border-t border-gray-200 pt-2">
-                                        <span class="text-gray-900">TOTAL:</span>
+                                        <span class="text-gray-900">{{ __('TOTAL') }}:</span>
                                         <span class="text-bcn-primary">$@precio($total)</span>
                                     </div>
                                 </div>
@@ -703,12 +703,12 @@
                                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                                         </svg>
-                                        Procesar Venta
+                                        {{ __('Procesar Venta') }}
                                     </button>
                                     <button
                                         wire:click="cancelarPOS"
                                         class="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary">
-                                        Cancelar
+                                        {{ __('Cancelar') }}
                                     </button>
                                 </div>
                             </div>
@@ -732,7 +732,7 @@
                     <div class="bg-bcn-primary px-6 py-4">
                         <div class="flex items-center justify-between">
                             <div>
-                                <h3 class="text-lg font-medium text-white">Detalle de Venta #{{ $ventaDetalle->numero }}</h3>
+                                <h3 class="text-lg font-medium text-white">{{ __('Detalle de Venta') }} #{{ $ventaDetalle->numero }}</h3>
                                 <p class="text-sm text-white/70">{{ $ventaDetalle->fecha->format('d/m/Y H:i') }} | {{ $ventaDetalle->usuario->name ?? 'N/A' }}</p>
                             </div>
                             <button
@@ -750,19 +750,19 @@
                         {{-- Información general --}}
                         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                             <div>
-                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Cliente</label>
-                                <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">{{ $ventaDetalle->cliente->nombre ?? 'Consumidor Final' }}</p>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Cliente') }}</label>
+                                <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">{{ $ventaDetalle->cliente->nombre ?? __('Consumidor Final') }}</p>
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Caja</label>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Caja') }}</label>
                                 <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">{{ $ventaDetalle->caja->nombre ?? 'N/A' }}</p>
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Forma de Pago</label>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Forma de Pago') }}</label>
                                 <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">{{ $ventaDetalle->formaPago->nombre ?? 'N/A' }}</p>
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Estado</label>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Estado') }}</label>
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                                     {{ $ventaDetalle->estado === 'completada' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : '' }}
                                     {{ $ventaDetalle->estado === 'pendiente' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : '' }}
@@ -774,15 +774,15 @@
 
                         {{-- Detalles de items --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Artículos</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Artículos') }}</label>
                             <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                     <thead class="bg-gray-50 dark:bg-gray-700">
                                         <tr>
-                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Artículo</th>
-                                            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Cant.</th>
-                                            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Precio</th>
-                                            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Subtotal</th>
+                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Artículo') }}</th>
+                                            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Cant.') }}</th>
+                                            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Precio') }}</th>
+                                            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Subtotal') }}</th>
                                         </tr>
                                     </thead>
                                     <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -791,7 +791,7 @@
                                                 <td class="px-4 py-2.5 text-sm text-gray-900 dark:text-white">
                                                     {{ $detalle->articulo->nombre ?? $detalle->descripcion ?? 'Artículo' }}
                                                     @if($detalle->es_concepto)
-                                                        <span class="text-xs text-gray-500">(Concepto)</span>
+                                                        <span class="text-xs text-gray-500">({{ __('Concepto') }})</span>
                                                     @endif
                                                 </td>
                                                 <td class="px-4 py-2.5 text-sm text-gray-900 dark:text-white text-right">{{ $detalle->cantidad }}</td>
@@ -807,7 +807,7 @@
                         {{-- Promociones Aplicadas --}}
                         @if($ventaDetalle->promociones->count() > 0)
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Promociones Aplicadas</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Promociones Aplicadas') }}</label>
                                 <div class="space-y-2">
                                     @foreach($ventaDetalle->promociones as $promo)
                                         <div class="flex items-center justify-between bg-amber-50 dark:bg-amber-900/20 rounded-lg px-4 py-2 border border-amber-200 dark:border-amber-800">
@@ -818,7 +818,7 @@
                                                 <div>
                                                     <span class="text-sm font-medium text-amber-800 dark:text-amber-200">{{ $promo->descripcion_promocion }}</span>
                                                     <span class="text-xs text-amber-600 dark:text-amber-400 ml-2">
-                                                        ({{ $promo->esPromocionEspecial() ? 'Especial' : 'Común' }})
+                                                        ({{ $promo->esPromocionEspecial() ? __('Especial') : __('Común') }})
                                                     </span>
                                                 </div>
                                             </div>
@@ -832,16 +832,16 @@
                         {{-- Formas de Pago (Desglose) --}}
                         @if($ventaDetalle->pagos->count() > 0)
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Desglose de Pagos</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Desglose de Pagos') }}</label>
                                 <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                                     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                         <thead class="bg-gray-50 dark:bg-gray-700">
                                             <tr>
-                                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Forma de Pago</th>
-                                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Monto</th>
-                                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ajuste</th>
-                                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
-                                                <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Facturado</th>
+                                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Forma de Pago') }}</th>
+                                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Monto') }}</th>
+                                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Ajuste') }}</th>
+                                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Total') }}</th>
+                                                <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Facturado') }}</th>
                                             </tr>
                                         </thead>
                                         <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -885,7 +885,7 @@
                         {{-- Comprobantes Fiscales --}}
                         @if($ventaDetalle->comprobantesFiscales->count() > 0)
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Comprobantes Fiscales</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Comprobantes Fiscales') }}</label>
                                 <div class="space-y-2">
                                     @foreach($ventaDetalle->comprobantesFiscales as $cf)
                                         <div class="flex items-center justify-between bg-emerald-50 dark:bg-emerald-900/20 rounded-lg px-4 py-3 border border-emerald-200 dark:border-emerald-800">
@@ -911,12 +911,12 @@
                                                 <button
                                                     wire:click="reimprimirComprobanteFiscal({{ $cf->id }})"
                                                     class="inline-flex items-center px-2.5 py-1.5 border border-emerald-300 dark:border-emerald-700 text-xs font-medium rounded text-emerald-700 dark:text-emerald-300 bg-white dark:bg-gray-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
-                                                    title="Reimprimir comprobante fiscal"
+                                                    :title="__('Reimprimir comprobante fiscal')"
                                                 >
                                                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
                                                     </svg>
-                                                    Imprimir
+                                                    {{ __('Imprimir') }}
                                                 </button>
                                             </div>
                                         </div>
@@ -928,42 +928,42 @@
                         {{-- Totales --}}
                         <div class="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-2">
                             <div class="flex justify-between text-sm">
-                                <span class="text-gray-600 dark:text-gray-400">Subtotal:</span>
+                                <span class="text-gray-600 dark:text-gray-400">{{ __('Subtotal') }}:</span>
                                 <span class="font-medium text-gray-900 dark:text-white">$@precio($ventaDetalle->subtotal)</span>
                             </div>
                             @if($ventaDetalle->descuento > 0)
                                 <div class="flex justify-between text-sm">
-                                    <span class="text-gray-600 dark:text-gray-400">Descuento promociones:</span>
+                                    <span class="text-gray-600 dark:text-gray-400">{{ __('Descuento promociones') }}:</span>
                                     <span class="font-medium text-red-600">-$@precio($ventaDetalle->descuento)</span>
                                 </div>
                             @endif
                             @if($ventaDetalle->iva > 0)
                                 <div class="flex justify-between text-sm">
-                                    <span class="text-gray-600 dark:text-gray-400">IVA:</span>
+                                    <span class="text-gray-600 dark:text-gray-400">{{ __('IVA') }}:</span>
                                     <span class="font-medium text-gray-900 dark:text-white">$@precio($ventaDetalle->iva)</span>
                                 </div>
                             @endif
                             <div class="flex justify-between text-sm">
-                                <span class="text-gray-600 dark:text-gray-400">Total:</span>
+                                <span class="text-gray-600 dark:text-gray-400">{{ __('Total') }}:</span>
                                 <span class="font-medium text-gray-900 dark:text-white">$@precio($ventaDetalle->total)</span>
                             </div>
                             @if($ventaDetalle->ajuste_forma_pago != 0)
                                 <div class="flex justify-between text-sm">
-                                    <span class="text-gray-600 dark:text-gray-400">Ajuste forma de pago:</span>
+                                    <span class="text-gray-600 dark:text-gray-400">{{ __('Ajuste forma de pago') }}:</span>
                                     <span class="font-medium {{ $ventaDetalle->ajuste_forma_pago > 0 ? 'text-red-600' : 'text-green-600' }}">
                                         {{ $ventaDetalle->ajuste_forma_pago > 0 ? '+' : '' }}$@precio($ventaDetalle->ajuste_forma_pago)
                                     </span>
                                 </div>
                             @endif
                             <div class="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-gray-700 pt-2">
-                                <span class="text-gray-900 dark:text-white">TOTAL FINAL:</span>
+                                <span class="text-gray-900 dark:text-white">{{ __('TOTAL FINAL') }}:</span>
                                 <span class="text-bcn-primary">$@precio($ventaDetalle->total_final ?? $ventaDetalle->total)</span>
                             </div>
                         </div>
 
                         @if($ventaDetalle->observaciones)
                             <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Observaciones</label>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">{{ __('Observaciones') }}</label>
                                 <p class="text-sm text-gray-900 dark:text-white">{{ $ventaDetalle->observaciones }}</p>
                             </div>
                         @endif
@@ -982,7 +982,7 @@
                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
                                 </svg>
-                                Reimprimir Ticket
+                                {{ __('Reimprimir Ticket') }}
                             </button>
                         @else
                             <div></div>
@@ -990,7 +990,7 @@
                         <button
                             wire:click="cerrarDetalle"
                             class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary dark:focus:ring-offset-gray-800">
-                            Cerrar
+                            {{ __('Cerrar') }}
                         </button>
                     </div>
                 </div>
@@ -1016,14 +1016,14 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
                                 </svg>
                             </div>
-                            <h3 class="ml-4 text-lg font-medium text-white">Confirmar Reimpresión</h3>
+                            <h3 class="ml-4 text-lg font-medium text-white">{{ __('Confirmar Reimpresión') }}</h3>
                         </div>
                     </div>
 
                     {{-- Body --}}
                     <div class="px-6 py-5">
                         <p class="text-sm text-gray-600 dark:text-gray-300">
-                            ¿Está seguro que desea reimprimir el siguiente documento?
+                            {{ __('¿Está seguro que desea reimprimir el siguiente documento?') }}
                         </p>
                         <div class="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                             <p class="text-base font-semibold text-gray-900 dark:text-white">
@@ -1038,7 +1038,7 @@
                             wire:click="cerrarReimprimirModal"
                             class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
                         >
-                            Cancelar
+                            {{ __('Cancelar') }}
                         </button>
                         <button
                             wire:click="ejecutarReimpresion"
@@ -1047,7 +1047,7 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
                             </svg>
-                            Reimprimir
+                            {{ __('Reimprimir') }}
                         </button>
                     </div>
                 </div>
@@ -1072,7 +1072,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                                 </svg>
                             </div>
-                            <h3 class="text-lg font-semibold text-white">Cancelar Venta {{ $cancelarVentaInfo['numero'] ?? '' }}</h3>
+                            <h3 class="text-lg font-semibold text-white">{{ __('Cancelar Venta') }} {{ $cancelarVentaInfo['numero'] ?? '' }}</h3>
                         </div>
                         <button wire:click="cerrarCancelarModal" class="p-1 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1087,25 +1087,25 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             {{-- Info de la venta --}}
                             <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                                <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Datos de la Venta</h4>
+                                <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">{{ __('Datos de la Venta') }}</h4>
                                 <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                                    <span class="text-gray-500 dark:text-gray-400">Fecha:</span>
+                                    <span class="text-gray-500 dark:text-gray-400">{{ __('Fecha') }}:</span>
                                     <span class="text-gray-900 dark:text-white">{{ $cancelarVentaInfo['fecha'] ?? '' }}</span>
-                                    <span class="text-gray-500 dark:text-gray-400">Cliente:</span>
-                                    <span class="text-gray-900 dark:text-white truncate">{{ $cancelarVentaInfo['cliente'] ?? 'Sin cliente' }}</span>
-                                    <span class="text-gray-500 dark:text-gray-400">Total:</span>
+                                    <span class="text-gray-500 dark:text-gray-400">{{ __('Cliente') }}:</span>
+                                    <span class="text-gray-900 dark:text-white truncate">{{ $cancelarVentaInfo['cliente'] ?? __('Sin cliente') }}</span>
+                                    <span class="text-gray-500 dark:text-gray-400">{{ __('Total') }}:</span>
                                     <span class="text-lg font-bold text-gray-900 dark:text-white">${{ number_format($cancelarVentaInfo['total'] ?? 0, 2, ',', '.') }}</span>
                                 </div>
                                 @if($cancelarVentaInfo['es_cuenta_corriente'] ?? false)
                                     <span class="inline-flex items-center mt-2 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                                        Cuenta Corriente
+                                        {{ __('Cuenta Corriente') }}
                                     </span>
                                 @endif
                             </div>
 
                             {{-- Pagos --}}
                             <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                                <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Formas de Pago</h4>
+                                <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">{{ __('Formas de Pago') }}</h4>
                                 @if(!empty($cancelarVentaInfo['pagos']))
                                     <div class="space-y-1.5 max-h-24 overflow-y-auto">
                                         @foreach($cancelarVentaInfo['pagos'] as $pago)
@@ -1115,11 +1115,11 @@
                                                     @if($pago['facturado'])
                                                         <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
                                                             <svg class="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-                                                            Facturado
+                                                            {{ __('Facturado') }}
                                                         </span>
                                                     @else
                                                         <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-300">
-                                                            Sin facturar
+                                                            {{ __('Sin facturar') }}
                                                         </span>
                                                     @endif
                                                 </div>
@@ -1128,7 +1128,7 @@
                                         @endforeach
                                     </div>
                                 @else
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">Sin pagos registrados</p>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('Sin pagos registrados') }}</p>
                                 @endif
                             </div>
                         </div>
@@ -1140,7 +1140,7 @@
                                     <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                                     </svg>
-                                    <span class="text-sm font-semibold text-green-800 dark:text-green-200">Comprobantes Fiscales Vigentes</span>
+                                    <span class="text-sm font-semibold text-green-800 dark:text-green-200">{{ __('Comprobantes Fiscales Vigentes') }}</span>
                                 </div>
                                 <div class="flex flex-wrap gap-2">
                                     @foreach($cancelarComprobantesFiscales as $cf)
@@ -1155,7 +1155,7 @@
 
                         {{-- Motivo --}}
                         <div class="mb-4">
-                            <label for="cancelarMotivo" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Motivo (opcional)</label>
+                            <label for="cancelarMotivo" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo (opcional)') }}</label>
                             <input
                                 type="text"
                                 wire:model="cancelarMotivo"

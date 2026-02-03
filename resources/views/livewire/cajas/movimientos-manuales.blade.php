@@ -2,21 +2,21 @@
     {{-- Header --}}
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Movimientos Manuales</h1>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ __('Movimientos Manuales') }}</h1>
             <p class="text-sm text-gray-500 dark:text-gray-400">
-                Transferencias, ingresos y egresos manuales de caja
+                {{ __('Transferencias, ingresos y egresos manuales de caja') }}
             </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             @if($cajaActual)
             <div class="flex items-center gap-3 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
                 <div class="text-right">
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Caja Activa</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Caja Activa') }}</p>
                     <p class="font-semibold text-gray-900 dark:text-white">{{ $cajaActual->nombre }}</p>
                 </div>
                 <div class="h-10 w-px bg-gray-200 dark:bg-gray-700"></div>
                 <div class="text-right">
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Saldo</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Saldo') }}</p>
                     <p class="font-semibold text-green-600 dark:text-green-400">${{ number_format($cajaActual->saldo_actual, 2, ',', '.') }}</p>
                 </div>
             </div>
@@ -26,14 +26,14 @@
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
-                Historial
+                {{ __('Historial') }}
             </a>
             <a href="{{ route('cajas.turno-actual') }}"
                class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"/>
                 </svg>
-                Turno Actual
+                {{ __('Turno Actual') }}
             </a>
         </div>
     </div>
@@ -44,9 +44,9 @@
             <svg class="w-12 h-12 mx-auto text-amber-500 dark:text-amber-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
             </svg>
-            <h3 class="text-lg font-medium text-amber-800 dark:text-amber-200">Sin Caja Operativa</h3>
+            <h3 class="text-lg font-medium text-amber-800 dark:text-amber-200">{{ __('Sin Caja Operativa') }}</h3>
             <p class="mt-1 text-sm text-amber-600 dark:text-amber-300">
-                Seleccione una caja con turno abierto para realizar movimientos manuales.
+                {{ __('Seleccione una caja con turno abierto para realizar movimientos manuales.') }}
             </p>
         </div>
     @else
@@ -60,21 +60,21 @@
                         <svg class="w-5 h-5 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
                         </svg>
-                        Transferencia
+                        {{ __('Transferencia') }}
                     </button>
                     <button wire:click="cambiarTab('ingreso')"
                             class="flex-1 py-3 px-4 text-center border-b-2 font-medium text-sm transition-colors {{ $tabActivo === 'ingreso' ? 'border-green-500 text-green-600 dark:text-green-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}">
                         <svg class="w-5 h-5 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
                         </svg>
-                        Ingreso
+                        {{ __('Ingreso') }}
                     </button>
                     <button wire:click="cambiarTab('egreso')"
                             class="flex-1 py-3 px-4 text-center border-b-2 font-medium text-sm transition-colors {{ $tabActivo === 'egreso' ? 'border-red-500 text-red-600 dark:text-red-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}">
                         <svg class="w-5 h-5 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
                         </svg>
-                        Egreso
+                        {{ __('Egreso') }}
                     </button>
                 </nav>
             </div>
@@ -89,20 +89,20 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                             </svg>
-                            Transfiere efectivo desde <strong class="mx-1">{{ $cajaActual->nombre }}</strong> hacia otra caja
+                            {{ __('Transfiere efectivo desde') }} <strong class="mx-1">{{ $cajaActual->nombre }}</strong> {{ __('hacia otra caja') }}
                         </p>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {{-- Caja Destino --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Caja Destino</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Caja Destino') }}</label>
                             <select wire:model="transferencia.caja_destino_id"
                                     class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-indigo-500 focus:border-indigo-500">
-                                <option value="">Seleccionar caja...</option>
+                                <option value="">{{ __('Seleccionar caja...') }}</option>
                                 @foreach($cajasDisponibles as $caja)
                                     @if($caja->id !== $cajaActualId)
-                                    <option value="{{ $caja->id }}">{{ $caja->nombre }} (Saldo: ${{ number_format($caja->saldo_actual, 2, ',', '.') }})</option>
+                                    <option value="{{ $caja->id }}">{{ $caja->nombre }} ({{ __('Saldo') }}: ${{ number_format($caja->saldo_actual, 2, ',', '.') }})</option>
                                     @endif
                                 @endforeach
                             </select>
@@ -111,7 +111,7 @@
 
                         {{-- Monto --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Monto</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto') }}</label>
                             <div class="relative">
                                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                                 <input type="number" wire:model="transferencia.monto" step="0.01" min="0"
@@ -123,10 +123,10 @@
 
                         {{-- Motivo --}}
                         <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Motivo</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo') }}</label>
                             <input type="text" wire:model="transferencia.motivo"
                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
-                                   placeholder="Ej: Cambio de efectivo, refuerzo de caja...">
+                                   :placeholder="__('Ej: Cambio de efectivo, refuerzo de caja...')">
                             @error('transferencia.motivo') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
                     </div>
@@ -137,7 +137,7 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
                             </svg>
-                            Transferir
+                            {{ __('Transferir') }}
                         </button>
                     </div>
                 </div>
@@ -151,27 +151,27 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
                             </svg>
-                            Registra un ingreso de efectivo a <strong class="mx-1">{{ $cajaActual->nombre }}</strong>
+                            {{ __('Registra un ingreso de efectivo a') }} <strong class="mx-1">{{ $cajaActual->nombre }}</strong>
                         </p>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {{-- Origen --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Origen</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Origen') }}</label>
                             <select wire:model="ingreso.origen"
                                     class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-green-500 focus:border-green-500">
                                 <option value="tesoreria" {{ !$tesoreriaActiva ? 'disabled' : '' }}>
-                                    Tesoreria {{ $tesoreriaActiva ? '(Saldo: $' . number_format($tesoreria->saldo_actual, 2, ',', '.') . ')' : '(No activa)' }}
+                                    {{ __('Tesoreria') }} {{ $tesoreriaActiva ? '(' . __('Saldo') . ': $' . number_format($tesoreria->saldo_actual, 2, ',', '.') . ')' : '(' . __('No activa') . ')' }}
                                 </option>
-                                <option value="otro">Otro origen (sin afectar tesoreria)</option>
+                                <option value="otro">{{ __('Otro origen (sin afectar tesoreria)') }}</option>
                             </select>
                             @error('ingreso.origen') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
 
                         {{-- Monto --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Monto</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto') }}</label>
                             <div class="relative">
                                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                                 <input type="number" wire:model="ingreso.monto" step="0.01" min="0"
@@ -183,10 +183,10 @@
 
                         {{-- Motivo --}}
                         <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Motivo</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo') }}</label>
                             <input type="text" wire:model="ingreso.motivo"
                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-green-500 focus:border-green-500"
-                                   placeholder="Ej: Fondo adicional, ajuste de caja...">
+                                   :placeholder="__('Ej: Fondo adicional, ajuste de caja...')">
                             @error('ingreso.motivo') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
                     </div>
@@ -197,7 +197,7 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
                             </svg>
-                            Registrar Ingreso
+                            {{ __('Registrar Ingreso') }}
                         </button>
                     </div>
                 </div>
@@ -211,27 +211,27 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                             </svg>
-                            Registra un egreso/retiro de efectivo de <strong class="mx-1">{{ $cajaActual->nombre }}</strong>
+                            {{ __('Registra un egreso/retiro de efectivo de') }} <strong class="mx-1">{{ $cajaActual->nombre }}</strong>
                         </p>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {{-- Destino --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Destino</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Destino') }}</label>
                             <select wire:model="egreso.destino"
                                     class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-red-500 focus:border-red-500">
                                 <option value="tesoreria" {{ !$tesoreriaActiva ? 'disabled' : '' }}>
-                                    Tesoreria {{ !$tesoreriaActiva ? '(No activa)' : '' }}
+                                    {{ __('Tesoreria') }} {{ !$tesoreriaActiva ? '(' . __('No activa') . ')' : '' }}
                                 </option>
-                                <option value="otro">Otro destino (sin afectar tesoreria)</option>
+                                <option value="otro">{{ __('Otro destino (sin afectar tesoreria)') }}</option>
                             </select>
                             @error('egreso.destino') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
 
                         {{-- Monto --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Monto</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto') }}</label>
                             <div class="relative">
                                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                                 <input type="number" wire:model="egreso.monto" step="0.01" min="0"
@@ -240,16 +240,16 @@
                             </div>
                             @error('egreso.monto') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             @if($cajaActual)
-                            <p class="mt-1 text-xs text-gray-500">Disponible: ${{ number_format($cajaActual->saldo_actual, 2, ',', '.') }}</p>
+                            <p class="mt-1 text-xs text-gray-500">{{ __('Disponible') }}: ${{ number_format($cajaActual->saldo_actual, 2, ',', '.') }}</p>
                             @endif
                         </div>
 
                         {{-- Motivo --}}
                         <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Motivo</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo') }}</label>
                             <input type="text" wire:model="egreso.motivo"
                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-red-500 focus:border-red-500"
-                                   placeholder="Ej: Retiro parcial, pago a proveedor...">
+                                   :placeholder="__('Ej: Retiro parcial, pago a proveedor...')">
                             @error('egreso.motivo') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
                     </div>
@@ -260,7 +260,7 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
                             </svg>
-                            Registrar Egreso
+                            {{ __('Registrar Egreso') }}
                         </button>
                     </div>
                 </div>
@@ -273,7 +273,7 @@
             {{-- Movimientos Recientes --}}
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
                 <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                    <h3 class="font-medium text-gray-900 dark:text-white">Movimientos Manuales Recientes</h3>
+                    <h3 class="font-medium text-gray-900 dark:text-white">{{ __('Movimientos Manuales Recientes') }}</h3>
                 </div>
                 <div class="p-4">
                     @if(count($movimientosRecientes) > 0)
@@ -304,7 +304,7 @@
                         @endforeach
                     </div>
                     @else
-                    <p class="text-center text-gray-500 dark:text-gray-400 py-4">No hay movimientos manuales recientes</p>
+                    <p class="text-center text-gray-500 dark:text-gray-400 py-4">{{ __('No hay movimientos manuales recientes') }}</p>
                     @endif
                 </div>
             </div>
@@ -312,7 +312,7 @@
             {{-- Transferencias Recientes --}}
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
                 <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                    <h3 class="font-medium text-gray-900 dark:text-white">Transferencias Recientes</h3>
+                    <h3 class="font-medium text-gray-900 dark:text-white">{{ __('Transferencias Recientes') }}</h3>
                 </div>
                 <div class="p-4">
                     @if(count($transferenciasRecientes) > 0)
@@ -333,7 +333,7 @@
                                 </div>
                                 <div>
                                     <p class="text-sm font-medium text-gray-900 dark:text-white">
-                                        {{ $trans['tipo'] === 'entrada' ? 'Desde' : 'Hacia' }} {{ $trans['caja_relacionada'] }}
+                                        {{ $trans['tipo'] === 'entrada' ? __('Desde') : __('Hacia') }} {{ $trans['caja_relacionada'] }}
                                     </p>
                                     <p class="text-xs text-gray-500 dark:text-gray-400">{{ $trans['fecha'] }} - {{ $trans['motivo'] ?? '-' }}</p>
                                 </div>
@@ -350,7 +350,7 @@
                         @endforeach
                     </div>
                     @else
-                    <p class="text-center text-gray-500 dark:text-gray-400 py-4">No hay transferencias recientes</p>
+                    <p class="text-center text-gray-500 dark:text-gray-400 py-4">{{ __('No hay transferencias recientes') }}</p>
                     @endif
                 </div>
             </div>
@@ -385,32 +385,32 @@
                         </div>
                         <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
                             <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white" id="modal-title">
-                                Confirmar {{ $accionPendiente === 'transferencia' ? 'Transferencia' : ($accionPendiente === 'ingreso' ? 'Ingreso' : 'Egreso') }}
+                                {{ __('Confirmar') }} {{ $accionPendiente === 'transferencia' ? __('Transferencia') : ($accionPendiente === 'ingreso' ? __('Ingreso') : __('Egreso')) }}
                             </h3>
                             <div class="mt-4 space-y-2">
                                 @if($accionPendiente === 'transferencia')
                                 <p class="text-sm text-gray-600 dark:text-gray-400">
-                                    <span class="font-medium">Desde:</span> {{ $datosPendientes['caja_origen'] ?? '' }}
+                                    <span class="font-medium">{{ __('Desde') }}:</span> {{ $datosPendientes['caja_origen'] ?? '' }}
                                 </p>
                                 <p class="text-sm text-gray-600 dark:text-gray-400">
-                                    <span class="font-medium">Hacia:</span> {{ $datosPendientes['caja_destino'] ?? '' }}
+                                    <span class="font-medium">{{ __('Hacia') }}:</span> {{ $datosPendientes['caja_destino'] ?? '' }}
                                 </p>
                                 @else
                                 <p class="text-sm text-gray-600 dark:text-gray-400">
-                                    <span class="font-medium">Caja:</span> {{ $datosPendientes['caja'] ?? '' }}
+                                    <span class="font-medium">{{ __('Caja') }}:</span> {{ $datosPendientes['caja'] ?? '' }}
                                 </p>
                                 <p class="text-sm text-gray-600 dark:text-gray-400">
-                                    <span class="font-medium">{{ $accionPendiente === 'ingreso' ? 'Origen' : 'Destino' }}:</span> {{ $datosPendientes[$accionPendiente === 'ingreso' ? 'origen' : 'destino'] ?? '' }}
+                                    <span class="font-medium">{{ $accionPendiente === 'ingreso' ? __('Origen') : __('Destino') }}:</span> {{ $datosPendientes[$accionPendiente === 'ingreso' ? 'origen' : 'destino'] ?? '' }}
                                 </p>
                                 @endif
                                 <p class="text-sm text-gray-600 dark:text-gray-400">
-                                    <span class="font-medium">Monto:</span>
+                                    <span class="font-medium">{{ __('Monto') }}:</span>
                                     <span class="text-lg font-bold {{ $accionPendiente === 'ingreso' ? 'text-green-600' : ($accionPendiente === 'egreso' ? 'text-red-600' : 'text-indigo-600') }}">
                                         ${{ number_format($datosPendientes['monto'] ?? 0, 2, ',', '.') }}
                                     </span>
                                 </p>
                                 <p class="text-sm text-gray-600 dark:text-gray-400">
-                                    <span class="font-medium">Motivo:</span> {{ $datosPendientes['motivo'] ?? '' }}
+                                    <span class="font-medium">{{ __('Motivo') }}:</span> {{ $datosPendientes['motivo'] ?? '' }}
                                 </p>
                             </div>
                         </div>
@@ -419,11 +419,11 @@
                 <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
                     <button type="button" wire:click="ejecutarAccion"
                             class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 {{ $accionPendiente === 'transferencia' ? 'bg-indigo-600 hover:bg-indigo-700' : ($accionPendiente === 'ingreso' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700') }} text-base font-medium text-white focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
-                        Confirmar
+                        {{ __('Confirmar') }}
                     </button>
                     <button type="button" wire:click="cancelarAccion"
                             class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm">
-                        Cancelar
+                        {{ __('Cancelar') }}
                     </button>
                 </div>
             </div>

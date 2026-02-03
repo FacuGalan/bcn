@@ -120,18 +120,18 @@ class GestionCajas extends Component
     {
         try {
             if ($this->saldoInicial < 0) {
-                $this->dispatch('toast-error', message: 'El saldo inicial no puede ser negativo');
+                $this->dispatch('toast-error', message: __('El saldo inicial no puede ser negativo'));
                 return;
             }
 
             $this->cajaService->abrirCaja($this->cajaAbrirId, $this->saldoInicial, Auth::id());
-            $this->dispatch('toast-success', message: 'Caja abierta exitosamente');
+            $this->dispatch('toast-success', message: __('Caja abierta exitosamente'));
             $this->showAbrirModal = false;
             $this->resetAperturaForm();
 
         } catch (Exception $e) {
             Log::error('Error al abrir caja', ['error' => $e->getMessage()]);
-            $this->dispatch('toast-error', message: 'Error: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error') . ': ' . $e->getMessage());
         }
     }
 
@@ -148,7 +148,7 @@ class GestionCajas extends Component
             $this->arqueo = $this->cajaService->realizarArqueo($cajaId);
             $this->showCerrarModal = true;
         } catch (Exception $e) {
-            $this->dispatch('toast-error', message: 'Error al realizar arqueo: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error al realizar arqueo') . ': ' . $e->getMessage());
         }
     }
 
@@ -156,14 +156,14 @@ class GestionCajas extends Component
     {
         try {
             $resultado = $this->cajaService->cerrarCaja($this->cajaCerrarId, Auth::id());
-            $this->dispatch('toast-success', message: 'Caja cerrada exitosamente');
+            $this->dispatch('toast-success', message: __('Caja cerrada exitosamente'));
             $this->showCerrarModal = false;
             $this->cajaCerrarId = null;
             $this->arqueo = null;
 
         } catch (Exception $e) {
             Log::error('Error al cerrar caja', ['error' => $e->getMessage()]);
-            $this->dispatch('toast-error', message: 'Error: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error') . ': ' . $e->getMessage());
         }
     }
 
@@ -183,12 +183,12 @@ class GestionCajas extends Component
     {
         try {
             if ($this->montoMovimiento <= 0) {
-                $this->dispatch('toast-error', message: 'El monto debe ser mayor a cero');
+                $this->dispatch('toast-error', message: __('El monto debe ser mayor a cero'));
                 return;
             }
 
             if (empty($this->conceptoMovimiento)) {
-                $this->dispatch('toast-error', message: 'Debe ingresar un concepto');
+                $this->dispatch('toast-error', message: __('Debe ingresar un concepto'));
                 return;
             }
 

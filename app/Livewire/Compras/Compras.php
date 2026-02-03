@@ -503,14 +503,14 @@ class Compras extends Component
 
             $this->calcularTotales();
             $this->buscarArticulo = ''; // Limpiar búsqueda
-            $this->dispatch('toast-success', message: 'Artículo agregado al carrito');
+            $this->dispatch('toast-success', message: __('Artículo agregado al carrito'));
 
         } catch (Exception $e) {
             Log::error('Error al agregar artículo al carrito', [
                 'articulo_id' => $articuloId,
                 'error' => $e->getMessage()
             ]);
-            $this->dispatch('toast-error', message: 'Error al agregar artículo: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error al agregar artículo: :message', ['message' => $e->getMessage()]));
         }
     }
 
@@ -541,7 +541,7 @@ class Compras extends Component
             unset($this->carrito[$index]);
             $this->carrito = array_values($this->carrito); // Reindexar array
             $this->calcularTotales();
-            $this->dispatch('toast-success', message: 'Artículo eliminado del carrito');
+            $this->dispatch('toast-success', message: __('Artículo eliminado del carrito'));
         }
     }
 
@@ -623,13 +623,13 @@ class Compras extends Component
         try {
             // Validar carrito no vacío
             if (empty($this->carrito)) {
-                $this->dispatch('toast-error', message: 'El carrito está vacío');
+                $this->dispatch('toast-error', message: __('El carrito está vacío'));
                 return;
             }
 
             // Validar proveedor
             if (!$this->proveedorSeleccionado) {
-                $this->dispatch('toast-error', message: 'Debe seleccionar un proveedor');
+                $this->dispatch('toast-error', message: __('Debe seleccionar un proveedor'));
                 return;
             }
 

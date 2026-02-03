@@ -12,13 +12,13 @@
                 </a>
                 <div>
                     <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white">
-                        {{ $modoEdicion ? 'Editar Promocion Especial' : 'Nueva Promocion Especial' }}
+                        {{ $modoEdicion ? __('Editar Promocion Especial') : __('Nueva Promocion Especial') }}
                     </h2>
                     <p class="text-sm text-gray-600 dark:text-gray-300">
                         @if($modoEdicion)
-                            Paso {{ $pasoActual - 1 }} de {{ $totalPasos - 1 }}
+                            {{ __('Paso') }} {{ $pasoActual - 1 }} {{ __('de') }} {{ $totalPasos - 1 }}
                         @else
-                            Paso {{ $pasoActual }} de {{ $totalPasos }}
+                            {{ __('Paso') }} {{ $pasoActual }} {{ __('de') }} {{ $totalPasos }}
                         @endif
                     </p>
                 </div>
@@ -96,7 +96,7 @@
 
             {{-- PASO 1: Selección de Tipo --}}
             @if($pasoActual == 1)
-                <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Paso 1: Tipo de Promocion Especial</h2>
+                <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">{{ __('Paso 1: Tipo de Promocion Especial') }}</h2>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {{-- NxM Básico --}}
@@ -108,12 +108,12 @@
                                 🔢
                             </div>
                             <div class="flex-1">
-                                <h3 class="font-bold text-lg text-gray-900 dark:text-white">NxM (2x1, 3x2...)</h3>
+                                <h3 class="font-bold text-lg text-gray-900 dark:text-white">{{ __('NxM (2x1, 3x2...)') }}</h3>
                                 <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                                    Lleva N unidades y paga M. Aplica a un artículo específico o categoría.
+                                    {{ __('Lleva N unidades y paga M. Aplica a un artículo específico o categoría.') }}
                                 </p>
                                 <div class="mt-2 text-xs text-purple-600 font-medium">
-                                    Ejemplo: 2x1 en Coca Cola
+                                    {{ __('Ejemplo: 2x1 en Coca Cola') }}
                                 </div>
                             </div>
                         </div>
@@ -128,12 +128,12 @@
                                 🎯
                             </div>
                             <div class="flex-1">
-                                <h3 class="font-bold text-lg text-gray-900 dark:text-white">NxM Avanzado</h3>
+                                <h3 class="font-bold text-lg text-gray-900 dark:text-white">{{ __('NxM Avanzado') }}</h3>
                                 <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                                    Artículos que activan la promo diferentes a los bonificados.
+                                    {{ __('Artículos que activan la promo diferentes a los bonificados.') }}
                                 </p>
                                 <div class="mt-2 text-xs text-indigo-600 font-medium">
-                                    Ejemplo: 3 Oreos → 1 Bebida gratis
+                                    {{ __('Ejemplo: 3 Oreos → 1 Bebida gratis') }}
                                 </div>
                             </div>
                         </div>
@@ -148,12 +148,12 @@
                                 📦
                             </div>
                             <div class="flex-1">
-                                <h3 class="font-bold text-lg text-gray-900 dark:text-white">Combo / Pack</h3>
+                                <h3 class="font-bold text-lg text-gray-900 dark:text-white">{{ __('Combo / Pack') }}</h3>
                                 <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                                    Artículos específicos con precio fijo o descuento porcentual.
+                                    {{ __('Artículos específicos con precio fijo o descuento porcentual.') }}
                                 </p>
                                 <div class="mt-2 text-xs text-orange-600 font-medium">
-                                    Ejemplo: 3 Alfajores a $500
+                                    {{ __('Ejemplo: 3 Alfajores a $500') }}
                                 </div>
                             </div>
                         </div>
@@ -168,12 +168,12 @@
                                 🍽️
                             </div>
                             <div class="flex-1">
-                                <h3 class="font-bold text-lg text-gray-900 dark:text-white">Menú del Día</h3>
+                                <h3 class="font-bold text-lg text-gray-900 dark:text-white">{{ __('Menú del Día') }}</h3>
                                 <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                                    Grupos con opciones intercambiables a precio fijo o con descuento.
+                                    {{ __('Grupos con opciones intercambiables a precio fijo o con descuento.') }}
                                 </p>
                                 <div class="mt-2 text-xs text-green-600 font-medium">
-                                    Ejemplo: Plato + Bebida + Postre = $1500
+                                    {{ __('Ejemplo: Plato + Bebida + Postre = $1500') }}
                                 </div>
                             </div>
                         </div>
@@ -184,7 +184,7 @@
             {{-- PASO 2: Configuración --}}
             @if($pasoActual == 2)
                 <div class="flex items-center justify-between mb-6">
-                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white">{{ $modoEdicion ? 'Configuración' : 'Paso 2: Configuración' }}</h2>
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white">{{ $modoEdicion ? __('Configuración') : __('Paso 2: Configuración') }}</h2>
                     @php
                         $tipoConfig = [
                             'nxm' => ['icon' => '🔢', 'label' => 'NxM', 'bg' => 'bg-purple-100', 'text' => 'text-purple-800'],
@@ -202,21 +202,21 @@
                     {{-- COLUMNA IZQUIERDA: Datos básicos (30%) --}}
                     <div class="lg:col-span-3 space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre *</label>
-                            <input type="text" wire:model="nombre" placeholder="Ej: 2x1 en Bebidas"
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Nombre') }} *</label>
+                            <input type="text" wire:model="nombre" :placeholder="__('Ej: 2x1 en Bebidas')"
                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción</label>
-                            <textarea wire:model="descripcion" rows="2" placeholder="Descripción opcional..."
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Descripción') }}</label>
+                            <textarea wire:model="descripcion" rows="2" :placeholder="__('Descripción opcional...')"
                                       class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"></textarea>
                         </div>
 
                         {{-- Sucursales --}}
                         <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                             @if($modoEdicion)
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sucursal *</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Sucursal') }} *</label>
                                 <select wire:model.live="sucursalesSeleccionadas.0"
                                         class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                     @foreach($sucursales as $sucursal)
@@ -225,13 +225,13 @@
                                 </select>
                             @else
                                 <div class="flex items-center justify-between mb-2">
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Sucursales *</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Sucursales') }} *</label>
                                     <div class="flex gap-2">
                                         <button type="button" wire:click="$set('sucursalesSeleccionadas', {{ $sucursales->pluck('id')->toJson() }})"
-                                                class="text-xs text-blue-600 hover:text-blue-800">Todas</button>
+                                                class="text-xs text-blue-600 hover:text-blue-800">{{ __('Todas') }}</button>
                                         <span class="text-gray-300 dark:text-gray-600">|</span>
                                         <button type="button" wire:click="$set('sucursalesSeleccionadas', [])"
-                                                class="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">Ninguna</button>
+                                                class="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">{{ __('Ninguna') }}</button>
                                     </div>
                                 </div>
                                 <div class="space-y-1 max-h-32 overflow-y-auto">
@@ -250,7 +250,7 @@
                             <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                                 <label class="flex items-center gap-2 cursor-pointer">
                                     <input type="checkbox" wire:model="activo" class="rounded text-bcn-primary focus:ring-bcn-primary w-5 h-5">
-                                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Promoción activa</span>
+                                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Promoción activa') }}</span>
                                 </label>
                             </div>
                         @endif
@@ -261,12 +261,12 @@
                         {{-- NxM BÁSICO --}}
                         @if($tipo === 'nxm')
                             <div class="bg-purple-50 dark:bg-purple-900/20 dark:bg-purple-900/20 rounded-lg p-4 space-y-4">
-                                <h3 class="font-semibold text-purple-900 dark:text-purple-300 dark:text-purple-300">Configuración NxM</h3>
+                                <h3 class="font-semibold text-purple-900 dark:text-purple-300 dark:text-purple-300">{{ __('Configuración NxM') }}</h3>
 
                                 <div>
                                     <label class="flex items-center gap-2 cursor-pointer mb-3">
                                         <input type="checkbox" wire:model.live="usarEscalas" class="rounded text-purple-600 focus:ring-purple-500">
-                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Usar escalas progresivas</span>
+                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Usar escalas progresivas') }}</span>
                                     </label>
                                 </div>
 
@@ -274,14 +274,14 @@
                                     <div class="bg-white dark:bg-gray-800 rounded-lg p-3 space-y-3">
                                         {{-- Lleva / Bonifica --}}
                                         <div class="flex items-center gap-3 flex-wrap">
-                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Lleva</span>
+                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Lleva') }}</span>
                                             <input type="number" wire:model="nxmLleva" min="2" max="99"
                                                    class="w-16 text-center rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white font-bold">
-                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">bonifica</span>
+                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('bonifica') }}</span>
                                             @if($beneficioTipo === 'descuento')
                                                 <input type="number" value="1" disabled
                                                        class="w-16 text-center rounded-lg border-gray-300 dark:border-gray-600 font-bold bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
-                                                       title="Cuando es descuento %, siempre se bonifica 1 unidad">
+                                                       :title="__('Cuando es descuento %, siempre se bonifica 1 unidad')">
                                             @else
                                                 <input type="number" wire:model="nxmBonifica" min="1" max="98"
                                                        class="w-16 text-center rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white font-bold">
@@ -290,16 +290,16 @@
 
                                         {{-- Tipo de beneficio --}}
                                         <div class="flex items-center gap-4 pt-2 border-t dark:border-gray-600">
-                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Beneficio:</span>
+                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Beneficio:') }}</span>
                                             <label class="flex items-center gap-1.5 cursor-pointer">
                                                 <input type="radio" wire:model.live="beneficioTipo" value="gratis"
                                                        class="text-purple-600 focus:ring-purple-500">
-                                                <span class="text-sm text-gray-700 dark:text-gray-300">Gratis</span>
+                                                <span class="text-sm text-gray-700 dark:text-gray-300">{{ __('Gratis') }}</span>
                                             </label>
                                             <label class="flex items-center gap-1.5 cursor-pointer">
                                                 <input type="radio" wire:model.live="beneficioTipo" value="descuento"
                                                        class="text-purple-600 focus:ring-purple-500">
-                                                <span class="text-sm text-gray-700 dark:text-gray-300">Descuento %</span>
+                                                <span class="text-sm text-gray-700 dark:text-gray-300">{{ __('Descuento %') }}</span>
                                             </label>
                                             @if($beneficioTipo === 'descuento')
                                                 <div class="flex items-center gap-1">
@@ -318,9 +318,9 @@
                                             <div class="pt-2 border-t">
                                                 <span class="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
                                                     @if($beneficioTipo === 'gratis')
-                                                        {{ $bonificaReal }} {{ $bonificaReal == 1 ? 'gratis' : 'gratis' }}
+                                                        {{ $bonificaReal }} {{ __('gratis') }}
                                                     @else
-                                                        1 con {{ $beneficioPorcentaje }}% dto
+                                                        1 {{ __('con') }} {{ $beneficioPorcentaje }}% {{ __('dto') }}
                                                     @endif
                                                 </span>
                                             </div>
@@ -331,15 +331,15 @@
                                 @endif
 
                                 <div>
-                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Aplica a:</label>
+                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Aplica a:') }}</label>
                                     <div class="flex gap-3 mb-2">
                                         <label class="flex items-center gap-1 cursor-pointer text-sm">
                                             <input type="radio" wire:model.live="nxmAplicaA" value="articulo" class="text-purple-600 focus:ring-purple-500">
-                                            <span class="text-gray-700 dark:text-gray-300">Artículo</span>
+                                            <span class="text-gray-700 dark:text-gray-300">{{ __('Artículo') }}</span>
                                         </label>
                                         <label class="flex items-center gap-1 cursor-pointer text-sm">
                                             <input type="radio" wire:model.live="nxmAplicaA" value="categoria" class="text-purple-600 focus:ring-purple-500">
-                                            <span class="text-gray-700 dark:text-gray-300">Categoría</span>
+                                            <span class="text-gray-700 dark:text-gray-300">{{ __('Categoría') }}</span>
                                         </label>
                                     </div>
 
@@ -359,7 +359,7 @@
                                     @else
                                         <select wire:model="nxmCategoriaId"
                                                 class="w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm">
-                                            <option value="">Seleccionar categoría...</option>
+                                            <option value="">{{ __('Seleccionar categoría...') }}</option>
                                             @foreach($categorias as $categoria)
                                                 <option value="{{ $categoria->id }}">{{ $categoria->nombre }}</option>
                                             @endforeach
@@ -372,12 +372,12 @@
                         {{-- NxM AVANZADO --}}
                         @if($tipo === 'nxm_avanzado')
                             <div class="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4 space-y-4">
-                                <h3 class="font-semibold text-indigo-900 dark:text-indigo-300">Configuración NxM Avanzado</h3>
+                                <h3 class="font-semibold text-indigo-900 dark:text-indigo-300">{{ __('Configuración NxM Avanzado') }}</h3>
 
                                 <div>
                                     <label class="flex items-center gap-2 cursor-pointer mb-3">
                                         <input type="checkbox" wire:model.live="usarEscalas" class="rounded text-indigo-600 focus:ring-indigo-500">
-                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Usar escalas progresivas</span>
+                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Usar escalas progresivas') }}</span>
                                     </label>
                                 </div>
 
@@ -385,14 +385,14 @@
                                     <div class="bg-white dark:bg-gray-800 rounded-lg p-3 space-y-3">
                                         {{-- Lleva / Bonifica --}}
                                         <div class="flex items-center gap-3 flex-wrap">
-                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Lleva</span>
+                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Lleva') }}</span>
                                             <input type="number" wire:model="nxmLleva" min="2" max="99"
                                                    class="w-16 text-center rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white font-bold">
-                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">bonifica</span>
+                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('bonifica') }}</span>
                                             @if($beneficioTipo === 'descuento')
                                                 <input type="number" value="1" disabled
                                                        class="w-16 text-center rounded-lg border-gray-300 dark:border-gray-600 font-bold bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
-                                                       title="Cuando es descuento %, siempre se bonifica 1 unidad">
+                                                       :title="__('Cuando es descuento %, siempre se bonifica 1 unidad')">
                                             @else
                                                 <input type="number" wire:model="nxmBonifica" min="1" max="98"
                                                        class="w-16 text-center rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white font-bold">
@@ -401,16 +401,16 @@
 
                                         {{-- Tipo de beneficio --}}
                                         <div class="flex items-center gap-4 pt-2 border-t dark:border-gray-600">
-                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Beneficio:</span>
+                                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Beneficio:') }}</span>
                                             <label class="flex items-center gap-1.5 cursor-pointer">
                                                 <input type="radio" wire:model.live="beneficioTipo" value="gratis"
                                                        class="text-indigo-600 focus:ring-indigo-500">
-                                                <span class="text-sm text-gray-700 dark:text-gray-300">Gratis</span>
+                                                <span class="text-sm text-gray-700 dark:text-gray-300">{{ __('Gratis') }}</span>
                                             </label>
                                             <label class="flex items-center gap-1.5 cursor-pointer">
                                                 <input type="radio" wire:model.live="beneficioTipo" value="descuento"
                                                        class="text-indigo-600 focus:ring-indigo-500">
-                                                <span class="text-sm text-gray-700 dark:text-gray-300">Descuento %</span>
+                                                <span class="text-sm text-gray-700 dark:text-gray-300">{{ __('Descuento %') }}</span>
                                             </label>
                                             @if($beneficioTipo === 'descuento')
                                                 <div class="flex items-center gap-1">
@@ -429,9 +429,9 @@
                                             <div class="pt-2 border-t">
                                                 <span class="px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
                                                     @if($beneficioTipo === 'gratis')
-                                                        {{ $bonificaRealAvz }} {{ $bonificaRealAvz == 1 ? 'gratis' : 'gratis' }}
+                                                        {{ $bonificaRealAvz }} {{ __('gratis') }}
                                                     @else
-                                                        1 con {{ $beneficioPorcentaje }}% dto
+                                                        1 {{ __('con') }} {{ $beneficioPorcentaje }}% {{ __('dto') }}
                                                     @endif
                                                 </span>
                                             </div>
@@ -444,7 +444,7 @@
                                 {{-- Artículos Trigger --}}
                                 <div class="bg-white dark:bg-gray-800 rounded-lg p-3">
                                     <div class="flex justify-between items-center mb-2">
-                                        <span class="text-sm font-medium text-indigo-900 dark:text-indigo-300">Artículos que ACTIVAN (Triggers)</span>
+                                        <span class="text-sm font-medium text-indigo-900 dark:text-indigo-300">{{ __('Artículos que ACTIVAN (Triggers)') }}</span>
                                     </div>
                                     @foreach($gruposTrigger as $gIndex => $grupo)
                                         <div class="mb-2 p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded">
@@ -460,9 +460,9 @@
                                             </div>
                                             <div class="flex gap-3">
                                                 <button type="button" wire:click="abrirBuscadorTrigger({{ $gIndex }})"
-                                                        class="text-xs text-indigo-600 hover:text-indigo-800">+ Agregar artículo</button>
+                                                        class="text-xs text-indigo-600 hover:text-indigo-800">{{ __('+ Agregar artículo') }}</button>
                                                 <button type="button" wire:click="abrirCategoriasTrigger({{ $gIndex }})"
-                                                        class="text-xs text-indigo-600 hover:text-indigo-800">+ Agregar por categoría</button>
+                                                        class="text-xs text-indigo-600 hover:text-indigo-800">{{ __('+ Agregar por categoría') }}</button>
                                             </div>
                                         </div>
                                     @endforeach
@@ -471,7 +471,7 @@
                                         <div class="mt-2 p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
                                              x-data="{ }"
                                              @click.outside="$wire.cerrarCategoriasTrigger()">
-                                            <div class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Seleccionar categoría:</div>
+                                            <div class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Seleccionar categoría:') }}</div>
                                             <div class="max-h-40 overflow-y-auto">
                                                 @foreach($categorias as $cat)
                                                     <button type="button" wire:click="agregarArticulosPorCategoriaTrigger({{ $cat->id }})"
@@ -481,7 +481,7 @@
                                                     </button>
                                                 @endforeach
                                             </div>
-                                            <button type="button" wire:click="cerrarCategoriasTrigger" class="mt-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">Cerrar</button>
+                                            <button type="button" wire:click="cerrarCategoriasTrigger" class="mt-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">{{ __('Cerrar') }}</button>
                                         </div>
                                     @endif
 
@@ -491,7 +491,7 @@
                                              @click.outside="$wire.cerrarBuscadorTrigger()">
                                             <input type="text"
                                                    wire:model.live.debounce.200ms="busquedaArticuloTrigger"
-                                                   placeholder="Buscar..."
+                                                   :placeholder="__('Buscar...')"
                                                    class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white mb-2"
                                                    x-init="$el.focus()"
                                                    @keydown.enter.prevent="if ({{ count($articulosTriggerResultados) }} > 0) { $wire.seleccionarPrimerArticuloTrigger() }">
@@ -501,7 +501,7 @@
                                                             class="w-full px-2 py-1 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30">{{ $art['nombre'] }}</button>
                                                 @endforeach
                                             </div>
-                                            <button type="button" wire:click="cerrarBuscadorTrigger" class="mt-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">Cerrar</button>
+                                            <button type="button" wire:click="cerrarBuscadorTrigger" class="mt-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">{{ __('Cerrar') }}</button>
                                         </div>
                                     @endif
                                 </div>
@@ -509,7 +509,7 @@
                                 {{-- Artículos Reward --}}
                                 <div class="bg-white dark:bg-gray-800 rounded-lg p-3">
                                     <div class="flex justify-between items-center mb-2">
-                                        <span class="text-sm font-medium text-green-900 dark:text-green-300">Artículos BONIFICABLES (Rewards)</span>
+                                        <span class="text-sm font-medium text-green-900 dark:text-green-300">{{ __('Artículos BONIFICABLES (Rewards)') }}</span>
                                     </div>
                                     @foreach($gruposReward as $gIndex => $grupo)
                                         <div class="mb-2 p-2 bg-green-50 dark:bg-green-900/20 rounded">
@@ -525,9 +525,9 @@
                                             </div>
                                             <div class="flex gap-3">
                                                 <button type="button" wire:click="abrirBuscadorReward({{ $gIndex }})"
-                                                        class="text-xs text-green-600 hover:text-green-800">+ Agregar artículo</button>
+                                                        class="text-xs text-green-600 hover:text-green-800">{{ __('+ Agregar artículo') }}</button>
                                                 <button type="button" wire:click="abrirCategoriasReward({{ $gIndex }})"
-                                                        class="text-xs text-green-600 hover:text-green-800">+ Agregar por categoría</button>
+                                                        class="text-xs text-green-600 hover:text-green-800">{{ __('+ Agregar por categoría') }}</button>
                                             </div>
                                         </div>
                                     @endforeach
@@ -536,7 +536,7 @@
                                         <div class="mt-2 p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
                                              x-data="{ }"
                                              @click.outside="$wire.cerrarCategoriasReward()">
-                                            <div class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Seleccionar categoría:</div>
+                                            <div class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Seleccionar categoría:') }}</div>
                                             <div class="max-h-40 overflow-y-auto">
                                                 @foreach($categorias as $cat)
                                                     <button type="button" wire:click="agregarArticulosPorCategoriaReward({{ $cat->id }})"
@@ -546,7 +546,7 @@
                                                     </button>
                                                 @endforeach
                                             </div>
-                                            <button type="button" wire:click="cerrarCategoriasReward" class="mt-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">Cerrar</button>
+                                            <button type="button" wire:click="cerrarCategoriasReward" class="mt-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">{{ __('Cerrar') }}</button>
                                         </div>
                                     @endif
 
@@ -556,7 +556,7 @@
                                              @click.outside="$wire.cerrarBuscadorReward()">
                                             <input type="text"
                                                    wire:model.live.debounce.200ms="busquedaArticuloReward"
-                                                   placeholder="Buscar..."
+                                                   :placeholder="__('Buscar...')"
                                                    class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white mb-2"
                                                    x-init="$el.focus()"
                                                    @keydown.enter.prevent="if ({{ count($articulosRewardResultados) }} > 0) { $wire.seleccionarPrimerArticuloReward() }">
@@ -566,7 +566,7 @@
                                                             class="w-full px-2 py-1 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30">{{ $art['nombre'] }}</button>
                                                 @endforeach
                                             </div>
-                                            <button type="button" wire:click="cerrarBuscadorReward" class="mt-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">Cerrar</button>
+                                            <button type="button" wire:click="cerrarBuscadorReward" class="mt-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">{{ __('Cerrar') }}</button>
                                         </div>
                                     @endif
                                 </div>
@@ -576,7 +576,7 @@
                         {{-- COMBO --}}
                         @if($tipo === 'combo')
                             <div class="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4 space-y-4">
-                                <h3 class="font-semibold text-orange-900 dark:text-orange-300">Artículos del Combo</h3>
+                                <h3 class="font-semibold text-orange-900 dark:text-orange-300">{{ __('Artículos del Combo') }}</h3>
 
                                 <div class="space-y-2 max-h-48 overflow-y-auto">
                                     @forelse($comboItems as $index => $item)
@@ -596,7 +596,7 @@
                                         </div>
                                     @empty
                                         <div class="text-center py-4 text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700">
-                                            <p class="text-xs">Agrega artículos (mín. 2 unidades)</p>
+                                            <p class="text-xs">{{ __('Agrega artículos (mín. 2 unidades)') }}</p>
                                         </div>
                                     @endforelse
                                 </div>
@@ -608,7 +608,7 @@
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                                         </svg>
-                                        <span>Agregar artículo...</span>
+                                        <span>{{ __('Agregar artículo...') }}</span>
                                     </button>
 
                                     @if($mostrarBuscadorCombo)
@@ -618,7 +618,7 @@
                                             <div class="p-2 border-b dark:border-gray-600">
                                                 <input type="text"
                                                        wire:model.live.debounce.200ms="busquedaArticuloCombo"
-                                                       placeholder="Buscar..."
+                                                       :placeholder="__('Buscar...')"
                                                        class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                                                        x-init="$el.focus()"
                                                        @keydown.enter.prevent="if ({{ count($articulosComboResultados) }} > 0) { $wire.seleccionarPrimerArticuloCombo() }"
@@ -632,11 +632,11 @@
                                                         <span class="text-gray-500 dark:text-gray-400">$@precio($articulo['precio_base'] ?? 0)</span>
                                                     </button>
                                                 @empty
-                                                    <div class="px-3 py-3 text-center text-gray-500 dark:text-gray-400 text-sm">No se encontraron</div>
+                                                    <div class="px-3 py-3 text-center text-gray-500 dark:text-gray-400 text-sm">{{ __('No se encontraron') }}</div>
                                                 @endforelse
                                             </div>
                                             <div class="p-2 border-t dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
-                                                <button type="button" wire:click="cerrarBuscadorCombo" class="text-xs text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white">Cerrar</button>
+                                                <button type="button" wire:click="cerrarBuscadorCombo" class="text-xs text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white">{{ __('Cerrar') }}</button>
                                             </div>
                                         </div>
                                     @endif
@@ -648,19 +648,19 @@
                                         <div class="flex gap-2 mb-2">
                                             <label class="flex items-center gap-1 cursor-pointer text-sm">
                                                 <input type="radio" wire:model.live="precioTipo" value="fijo" class="text-orange-600">
-                                                <span class="text-gray-700 dark:text-gray-300">Precio fijo</span>
+                                                <span class="text-gray-700 dark:text-gray-300">{{ __('Precio fijo') }}</span>
                                             </label>
                                             <label class="flex items-center gap-1 cursor-pointer text-sm">
                                                 <input type="radio" wire:model.live="precioTipo" value="porcentaje" class="text-orange-600">
-                                                <span class="text-gray-700 dark:text-gray-300">% Descuento</span>
+                                                <span class="text-gray-700 dark:text-gray-300">{{ __('% Descuento') }}</span>
                                             </label>
                                         </div>
                                         <div class="flex justify-between items-center">
-                                            <span class="text-sm text-gray-600 dark:text-gray-300">Precio normal:</span>
+                                            <span class="text-sm text-gray-600 dark:text-gray-300">{{ __('Precio normal:') }}</span>
                                             <span class="font-bold text-gray-400 dark:text-gray-500 line-through">$@precio($this->precioNormalCombo)</span>
                                         </div>
                                         <div class="flex justify-between items-center">
-                                            <span class="text-sm text-gray-600 dark:text-gray-300">{{ $precioTipo === 'fijo' ? 'Precio combo' : 'Descuento' }} *:</span>
+                                            <span class="text-sm text-gray-600 dark:text-gray-300">{{ $precioTipo === 'fijo' ? __('Precio combo') : __('Descuento') }} *:</span>
                                             <div class="relative w-28">
                                                 <span class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{{ $precioTipo === 'fijo' ? '$' : '' }}</span>
                                                 <input type="number" wire:model.live="precioValor" min="1" max="{{ $precioTipo === 'porcentaje' ? '100' : '' }}"
@@ -671,20 +671,20 @@
                                             </div>
                                         </div>
                                         @if($precioTipo === 'porcentaje' && $precioValor > 100)
-                                            <div class="text-xs text-red-600">El descuento no puede superar el 100%</div>
+                                            <div class="text-xs text-red-600">{{ __('El descuento no puede superar el 100%') }}</div>
                                         @endif
                                         @if($precioTipo === 'porcentaje' && $precioValor > 0 && $precioValor <= 100)
                                             @php
                                                 $precioFinalCombo = $this->precioNormalCombo * (1 - ($precioValor / 100));
                                             @endphp
                                             <div class="flex justify-between items-center pt-2 border-t">
-                                                <span class="text-sm text-orange-600 font-medium">Precio final:</span>
+                                                <span class="text-sm text-orange-600 font-medium">{{ __('Precio final:') }}</span>
                                                 <span class="font-bold text-orange-600 text-lg">$@precio($precioFinalCombo)</span>
                                             </div>
                                         @endif
                                         @if($this->ahorroCombo > 0 && !($precioTipo === 'porcentaje' && $precioValor > 100))
                                             <div class="flex justify-between items-center {{ $precioTipo === 'fijo' ? 'pt-2 border-t' : '' }}">
-                                                <span class="text-sm text-green-600 font-medium">Ahorro:</span>
+                                                <span class="text-sm text-green-600 font-medium">{{ __('Ahorro:') }}</span>
                                                 <span class="font-bold text-green-600">$@precio($this->ahorroCombo)</span>
                                             </div>
                                         @endif
@@ -697,16 +697,16 @@
                         @if($tipo === 'menu')
                             <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 space-y-4">
                                 <div class="flex justify-between items-center">
-                                    <h3 class="font-semibold text-green-900 dark:text-green-300">Grupos del Menú</h3>
+                                    <h3 class="font-semibold text-green-900 dark:text-green-300">{{ __('Grupos del Menú') }}</h3>
                                     <button type="button" wire:click="agregarGrupoMenu"
-                                            class="text-xs text-green-600 hover:text-green-800 font-medium">+ Agregar grupo</button>
+                                            class="text-xs text-green-600 hover:text-green-800 font-medium">{{ __('+ Agregar grupo') }}</button>
                                 </div>
 
                                 <div class="space-y-3 max-h-80 overflow-y-auto">
                                     @foreach($gruposMenu as $gIndex => $grupo)
                                         <div class="bg-white dark:bg-gray-800 rounded-lg p-3 border border-green-200 dark:border-green-700">
                                             <div class="flex items-center gap-2 mb-2">
-                                                <input type="text" wire:model="gruposMenu.{{ $gIndex }}.nombre" placeholder="Nombre del grupo"
+                                                <input type="text" wire:model="gruposMenu.{{ $gIndex }}.nombre" :placeholder="__('Nombre del grupo')"
                                                        class="flex-1 text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                                                 <span class="text-xs text-gray-500 dark:text-gray-400">x</span>
                                                 <input type="number" wire:model="gruposMenu.{{ $gIndex }}.cantidad" min="1" max="10"
@@ -795,7 +795,7 @@
                                         </div>
                                     </div>
                                     @if($precioTipo === 'porcentaje' && $precioValor > 100)
-                                        <div class="text-xs text-red-600">El descuento no puede superar el 100%</div>
+                                        <div class="text-xs text-red-600">{{ __('El descuento no puede superar el 100%') }}</div>
                                     @endif
                                     @if($precioTipo === 'porcentaje' && $precioValor > 0 && $precioValor <= 100 && $this->precioNormalMenu > 0)
                                         @php

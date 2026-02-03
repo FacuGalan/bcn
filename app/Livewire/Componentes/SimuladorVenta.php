@@ -617,7 +617,7 @@ class SimuladorVenta extends Component
         if ($this->promocionPreview) {
             $todasPromociones[] = [
                 'id' => 'nueva',
-                'nombre' => $this->promocionPreview['nombre'] ?: '(Esta promoción)',
+                'nombre' => $this->promocionPreview['nombre'] ?: __('(Esta promoción)'),
                 'tipo' => $this->promocionPreview['tipo'],
                 'valor' => $this->promocionPreview['valor'] ?? 0,
                 'prioridad' => (int) ($this->promocionPreview['prioridad'] ?? 1),
@@ -946,28 +946,28 @@ class SimuladorVenta extends Component
     {
         if (!empty($promo['forma_pago_id'])) {
             if (empty($contextoVenta['forma_pago_id'])) {
-                return 'Requiere forma de pago específica';
+                return __('Requiere forma de pago específica');
             }
             if ($promo['forma_pago_id'] != $contextoVenta['forma_pago_id']) {
-                return 'No aplica a esta forma de pago';
+                return __('No aplica a esta forma de pago');
             }
         }
 
         if (!empty($promo['forma_venta_id'])) {
             if (empty($contextoVenta['forma_venta_id'])) {
-                return 'Requiere forma de venta específica';
+                return __('Requiere forma de venta específica');
             }
             if ($promo['forma_venta_id'] != $contextoVenta['forma_venta_id']) {
-                return 'No aplica a esta forma de venta';
+                return __('No aplica a esta forma de venta');
             }
         }
 
         if (!empty($promo['canal_venta_id'])) {
             if (empty($contextoVenta['canal_venta_id'])) {
-                return 'Requiere canal de venta específico';
+                return __('Requiere canal de venta específico');
             }
             if ($promo['canal_venta_id'] != $contextoVenta['canal_venta_id']) {
-                return 'No aplica a este canal de venta';
+                return __('No aplica a este canal de venta');
             }
         }
 
@@ -975,7 +975,7 @@ class SimuladorVenta extends Component
             $montoMinimo = (float) $promo['monto_minimo'];
             if ($contextoVenta['subtotal'] < $montoMinimo) {
                 $faltante = $montoMinimo - $contextoVenta['subtotal'];
-                return "Monto mínimo no alcanzado (faltan $" . number_format($faltante, 0, ',', '.') . ")";
+                return __('Monto mínimo no alcanzado (faltan $:monto)', ['monto' => number_format($faltante, 0, ',', '.')]);
             }
         }
 
@@ -983,7 +983,7 @@ class SimuladorVenta extends Component
             $cantidadMinima = (int) $promo['cantidad_minima'];
             if ($contextoVenta['cantidad_total'] < $cantidadMinima) {
                 $faltante = $cantidadMinima - $contextoVenta['cantidad_total'];
-                return "Cantidad mínima no alcanzada (faltan {$faltante} unidades)";
+                return __('Cantidad mínima no alcanzada (faltan :faltante unidades)', ['faltante' => $faltante]);
             }
         }
 
@@ -996,10 +996,10 @@ class SimuladorVenta extends Component
         }
 
         if (!$aplicaAlguno) {
-            return 'No aplica a estos artículos';
+            return __('No aplica a estos artículos');
         }
 
-        return 'No incluida en combinación óptima';
+        return __('No incluida en combinación óptima');
     }
 
     private function esDescuento(string $tipo): bool

@@ -13,7 +13,7 @@
 
             <!-- Nombre de la sucursal actual -->
             <span>
-                {{ $sucursalActual ? $sucursalActual->nombre : 'Seleccionar Sucursal' }}
+                {{ $sucursalActual ? $sucursalActual->nombre : __('Seleccionar Sucursal') }}
             </span>
 
             <!-- Badge si es principal (estrella a la derecha) -->
@@ -42,7 +42,7 @@
             <div class="py-1">
                 <!-- Header del dropdown -->
                 <div class="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase border-b dark:border-gray-700">
-                    Cambiar Sucursal
+                    {{ __('Cambiar Sucursal') }}
                 </div>
 
                 <!-- Lista de sucursales -->

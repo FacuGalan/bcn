@@ -14,7 +14,7 @@
                             Configurar Sucursal: {{ $configSucursalNombre }}
                         </h3>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                            Define los parámetros de operación para esta sucursal
+                            {{ __('Define los parámetros de operación para esta sucursal') }}
                         </p>
                     </div>
 
@@ -44,7 +44,7 @@
                                         <label for="usaClaveAutorizacion" class="font-medium text-gray-700 dark:text-gray-300">
                                             Usar clave de autorización
                                         </label>
-                                        <p class="text-gray-500 dark:text-gray-400 text-xs">Para anulaciones, descuentos, etc.</p>
+                                        <p class="text-gray-500 dark:text-gray-400 text-xs">{{ __('Para anulaciones, descuentos, etc.') }}</p>
                                     </div>
                                 </div>
 
@@ -54,7 +54,7 @@
                                             type="password"
                                             wire:model="configClaveAutorizacion"
                                             class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                            placeholder="Clave (mín. 4 caracteres)"
+                                            :placeholder="__('Clave (mín. 4 caracteres)')"
                                         >
                                         @error('configClaveAutorizacion')
                                             <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
@@ -126,7 +126,7 @@
                                             <label for="agrupaArticulosVenta" class="font-medium text-gray-700 dark:text-gray-300">
                                                 Agrupar en detalle de venta
                                             </label>
-                                            <p class="text-gray-500 dark:text-gray-400 text-xs">Suma cantidad en vez de nueva línea</p>
+                                            <p class="text-gray-500 dark:text-gray-400 text-xs">{{ __('Suma cantidad en vez de nueva línea') }}</p>
                                         </div>
                                     </div>
 
@@ -145,7 +145,7 @@
                                                 Agrupar en impresiones
                                             </label>
                                             @if($configAgrupaArticulosVenta)
-                                                <p class="text-gray-500 dark:text-gray-400 text-xs opacity-50">Auto-activado</p>
+                                                <p class="text-gray-500 dark:text-gray-400 text-xs opacity-50">{{ __('Auto-activado') }}</p>
                                             @endif
                                         </div>
                                     </div>
@@ -178,7 +178,7 @@
                                             Facturación fiscal automática
                                         </label>
                                         <p class="text-gray-500 dark:text-gray-400 text-xs mt-1">
-                                            Si está activo, emite factura fiscal automáticamente según la configuración de las formas de pago seleccionadas, sin preguntar al usuario.
+                                            {{ __('Si está activo, emite factura fiscal automáticamente según la configuración de las formas de pago seleccionadas, sin preguntar al usuario.') }}
                                         </p>
                                     </div>
                                 </div>
@@ -208,7 +208,7 @@
                                             <label for="usaWhatsappEscritorio" class="font-medium text-gray-700 dark:text-gray-300">
                                                 Usar WhatsApp de escritorio
                                             </label>
-                                            <p class="text-gray-500 dark:text-gray-400 text-xs">Abre con app desktop en lugar de web</p>
+                                            <p class="text-gray-500 dark:text-gray-400 text-xs">{{ __('Abre con app desktop en lugar de web') }}</p>
                                         </div>
                                     </div>
 
@@ -229,7 +229,7 @@
                                                 <label for="enviaWhatsappComanda" class="font-medium text-gray-700 dark:text-gray-300">
                                                     Enviar al comandar pedido
                                                 </label>
-                                                <p class="text-gray-500 dark:text-gray-400 text-xs">Notifica cuando se toma el pedido</p>
+                                                <p class="text-gray-500 dark:text-gray-400 text-xs">{{ __('Notifica cuando se toma el pedido') }}</p>
                                             </div>
                                         </div>
 
@@ -239,7 +239,7 @@
                                                     wire:model="configMensajeWhatsappComanda"
                                                     rows="2"
                                                     class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                                    placeholder="Mensaje adicional (opcional)"
+                                                    :placeholder="__('Mensaje adicional (opcional)')"
                                                 ></textarea>
                                                 @error('configMensajeWhatsappComanda')
                                                     <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
@@ -263,7 +263,7 @@
                                                 <label for="enviaWhatsappListo" class="font-medium text-gray-700 dark:text-gray-300">
                                                     Enviar cuando pedido listo/en camino
                                                 </label>
-                                                <p class="text-gray-500 dark:text-gray-400 text-xs">Notifica que está listo o en camino</p>
+                                                <p class="text-gray-500 dark:text-gray-400 text-xs">{{ __('Notifica que está listo o en camino') }}</p>
                                             </div>
                                         </div>
 
@@ -273,7 +273,7 @@
                                                     wire:model="configMensajeWhatsappListo"
                                                     rows="2"
                                                     class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                                    placeholder="Mensaje adicional (opcional)"
+                                                    :placeholder="__('Mensaje adicional (opcional)')"
                                                 ></textarea>
                                                 @error('configMensajeWhatsappListo')
                                                     <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
@@ -299,7 +299,7 @@
                         wire:click="cerrarModalConfigSucursal"
                         class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                     >
-                        Cancelar
+                        {{ __('Cancelar') }}
                     </button>
                 </div>
             </form>

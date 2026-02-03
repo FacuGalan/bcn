@@ -215,10 +215,10 @@ class WizardPromocionEspecial extends Component
                 ])->toArray();
 
             if (empty($this->gruposTrigger)) {
-                $this->gruposTrigger = [['nombre' => 'Artículos que activan', 'articulos' => []]];
+                $this->gruposTrigger = [['nombre' => __('Artículos que activan'), 'articulos' => []]];
             }
             if (empty($this->gruposReward)) {
-                $this->gruposReward = [['nombre' => 'Artículos bonificables', 'articulos' => []]];
+                $this->gruposReward = [['nombre' => __('Artículos bonificables'), 'articulos' => []]];
             }
         }
 
@@ -260,7 +260,7 @@ class WizardPromocionEspecial extends Component
                 ])->toArray();
 
             if (empty($this->gruposMenu)) {
-                $this->gruposMenu = [['nombre' => 'Plato principal', 'cantidad' => 1, 'articulos' => []]];
+                $this->gruposMenu = [['nombre' => __('Plato principal'), 'cantidad' => 1, 'articulos' => []]];
             }
         }
 
@@ -285,19 +285,19 @@ class WizardPromocionEspecial extends Component
         // Inicializar estructuras según el tipo
         if ($tipo === 'nxm_avanzado') {
             if (empty($this->gruposTrigger)) {
-                $this->gruposTrigger = [['nombre' => 'Artículos que activan', 'articulos' => []]];
+                $this->gruposTrigger = [['nombre' => __('Artículos que activan'), 'articulos' => []]];
             }
             if (empty($this->gruposReward)) {
-                $this->gruposReward = [['nombre' => 'Artículos bonificables', 'articulos' => []]];
+                $this->gruposReward = [['nombre' => __('Artículos bonificables'), 'articulos' => []]];
             }
         }
 
         if ($tipo === 'menu') {
             if (empty($this->gruposMenu)) {
                 $this->gruposMenu = [
-                    ['nombre' => 'Plato principal', 'cantidad' => 1, 'articulos' => []],
-                    ['nombre' => 'Bebida', 'cantidad' => 1, 'articulos' => []],
-                    ['nombre' => 'Postre', 'cantidad' => 1, 'articulos' => []],
+                    ['nombre' => __('Plato principal'), 'cantidad' => 1, 'articulos' => []],
+                    ['nombre' => __('Bebida'), 'cantidad' => 1, 'articulos' => []],
+                    ['nombre' => __('Postre'), 'cantidad' => 1, 'articulos' => []],
                 ];
             }
         }
@@ -355,18 +355,18 @@ class WizardPromocionEspecial extends Component
     {
         if ($this->pasoActual == 1) {
             if (!$this->tipo) {
-                $this->js("window.notify('Selecciona un tipo de promoción', 'error')");
+                $this->js("window.notify('" . __('Selecciona un tipo de promoción') . "', 'error')");
                 return false;
             }
         }
 
         if ($this->pasoActual == 2) {
             if (empty($this->nombre)) {
-                $this->js("window.notify('El nombre es obligatorio', 'error')");
+                $this->js("window.notify('" . __('El nombre es obligatorio') . "', 'error')");
                 return false;
             }
             if (empty($this->sucursalesSeleccionadas)) {
-                $this->js("window.notify('Selecciona al menos una sucursal', 'error')");
+                $this->js("window.notify('" . __('Selecciona al menos una sucursal') . "', 'error')");
                 return false;
             }
 
@@ -387,44 +387,44 @@ class WizardPromocionEspecial extends Component
     {
         if ($this->usarEscalas) {
             if (empty($this->escalas)) {
-                $this->js("window.notify('Agrega al menos una escala', 'error')");
+                $this->js("window.notify('" . __('Agrega al menos una escala') . "', 'error')");
                 return false;
             }
             foreach ($this->escalas as $index => $escala) {
                 if (empty($escala['cantidad_desde']) || empty($escala['lleva']) || empty($escala['bonifica'])) {
-                    $this->js("window.notify('Completa todos los campos de la escala " . ($index + 1) . "', 'error')");
+                    $this->js("window.notify('" . addslashes(__('Completa todos los campos de la escala :num', ['num' => $index + 1])) . "', 'error')");
                     return false;
                 }
                 if ($escala['bonifica'] >= $escala['lleva']) {
-                    $this->js("window.notify('En la escala " . ($index + 1) . ", bonifica debe ser menor que lleva', 'error')");
+                    $this->js("window.notify('" . addslashes(__('En la escala :num, bonifica debe ser menor que lleva', ['num' => $index + 1])) . "', 'error')");
                     return false;
                 }
                 if (($escala['beneficio_tipo'] ?? 'gratis') === 'descuento' && empty($escala['beneficio_porcentaje'])) {
-                    $this->js("window.notify('En la escala " . ($index + 1) . ", define el porcentaje de descuento', 'error')");
+                    $this->js("window.notify('" . addslashes(__('En la escala :num, define el porcentaje de descuento', ['num' => $index + 1])) . "', 'error')");
                     return false;
                 }
             }
         } else {
             if ($this->nxmLleva < 2 || $this->nxmBonifica < 1) {
-                $this->js("window.notify('Configura correctamente el NxM', 'error')");
+                $this->js("window.notify('" . __('Configura correctamente el NxM') . "', 'error')");
                 return false;
             }
             if ($this->nxmBonifica >= $this->nxmLleva) {
-                $this->js("window.notify('La cantidad a bonificar debe ser menor que la cantidad a llevar', 'error')");
+                $this->js("window.notify('" . __('La cantidad a bonificar debe ser menor que la cantidad a llevar') . "', 'error')");
                 return false;
             }
             if ($this->beneficioTipo === 'descuento' && (!$this->beneficioPorcentaje || $this->beneficioPorcentaje <= 0 || $this->beneficioPorcentaje > 100)) {
-                $this->js("window.notify('El porcentaje de descuento debe estar entre 1 y 100', 'error')");
+                $this->js("window.notify('" . __('El porcentaje de descuento debe estar entre 1 y 100') . "', 'error')");
                 return false;
             }
         }
 
         if ($this->nxmAplicaA === 'articulo' && !$this->nxmArticuloId) {
-            $this->js("window.notify('Selecciona un artículo', 'error')");
+            $this->js("window.notify('" . __('Selecciona un artículo') . "', 'error')");
             return false;
         }
         if ($this->nxmAplicaA === 'categoria' && !$this->nxmCategoriaId) {
-            $this->js("window.notify('Selecciona una categoría', 'error')");
+            $this->js("window.notify('" . __('Selecciona una categoría') . "', 'error')");
             return false;
         }
 
@@ -436,26 +436,26 @@ class WizardPromocionEspecial extends Component
         // Validar escalas o lleva/bonifica
         if ($this->usarEscalas) {
             if (empty($this->escalas)) {
-                $this->js("window.notify('Agrega al menos una escala', 'error')");
+                $this->js("window.notify('" . __('Agrega al menos una escala') . "', 'error')");
                 return false;
             }
             foreach ($this->escalas as $index => $escala) {
                 if (empty($escala['cantidad_desde']) || empty($escala['lleva']) || empty($escala['bonifica'])) {
-                    $this->js("window.notify('Completa todos los campos de la escala " . ($index + 1) . "', 'error')");
+                    $this->js("window.notify('" . addslashes(__('Completa todos los campos de la escala :num', ['num' => $index + 1])) . "', 'error')");
                     return false;
                 }
                 if (($escala['beneficio_tipo'] ?? 'gratis') === 'descuento' && empty($escala['beneficio_porcentaje'])) {
-                    $this->js("window.notify('En la escala " . ($index + 1) . ", define el porcentaje de descuento', 'error')");
+                    $this->js("window.notify('" . addslashes(__('En la escala :num, define el porcentaje de descuento', ['num' => $index + 1])) . "', 'error')");
                     return false;
                 }
             }
         } else {
             if ($this->nxmLleva < 2 || $this->nxmBonifica < 1 || $this->nxmBonifica >= $this->nxmLleva) {
-                $this->js("window.notify('Configura correctamente el NxM (lleva > bonifica)', 'error')");
+                $this->js("window.notify('" . __('Configura correctamente el NxM (lleva > bonifica)') . "', 'error')");
                 return false;
             }
             if ($this->beneficioTipo === 'descuento' && (!$this->beneficioPorcentaje || $this->beneficioPorcentaje <= 0 || $this->beneficioPorcentaje > 100)) {
-                $this->js("window.notify('El porcentaje de descuento debe estar entre 1 y 100', 'error')");
+                $this->js("window.notify('" . __('El porcentaje de descuento debe estar entre 1 y 100') . "', 'error')");
                 return false;
             }
         }
@@ -463,14 +463,14 @@ class WizardPromocionEspecial extends Component
         // Validar que hay artículos trigger
         $totalTriggers = collect($this->gruposTrigger)->sum(fn($g) => count($g['articulos'] ?? []));
         if ($totalTriggers < 1) {
-            $this->js("window.notify('Agrega al menos un artículo que active la promoción', 'error')");
+            $this->js("window.notify('" . __('Agrega al menos un artículo que active la promoción') . "', 'error')");
             return false;
         }
 
         // Validar que hay artículos reward
         $totalRewards = collect($this->gruposReward)->sum(fn($g) => count($g['articulos'] ?? []));
         if ($totalRewards < 1) {
-            $this->js("window.notify('Agrega al menos un artículo bonificable', 'error')");
+            $this->js("window.notify('" . __('Agrega al menos un artículo bonificable') . "', 'error')");
             return false;
         }
 
@@ -480,23 +480,23 @@ class WizardPromocionEspecial extends Component
     protected function validarCombo(): bool
     {
         if (count($this->comboItems) < 1) {
-            $this->js("window.notify('Agrega al menos un artículo al combo', 'error')");
+            $this->js("window.notify('" . __('Agrega al menos un artículo al combo') . "', 'error')");
             return false;
         }
 
         $totalUnidades = array_sum(array_column($this->comboItems, 'cantidad'));
         if ($totalUnidades < 2) {
-            $this->js("window.notify('El combo debe tener al menos 2 unidades en total', 'error')");
+            $this->js("window.notify('" . __('El combo debe tener al menos 2 unidades en total') . "', 'error')");
             return false;
         }
 
         if (!$this->precioValor || $this->precioValor <= 0) {
-            $this->js("window.notify('Define el precio/descuento del combo', 'error')");
+            $this->js("window.notify('" . __('Define el precio/descuento del combo') . "', 'error')");
             return false;
         }
 
         if ($this->precioTipo === 'porcentaje' && $this->precioValor > 100) {
-            $this->js("window.notify('El porcentaje no puede ser mayor a 100%', 'error')");
+            $this->js("window.notify('" . __('El porcentaje no puede ser mayor a 100%') . "', 'error')");
             return false;
         }
 
@@ -506,24 +506,25 @@ class WizardPromocionEspecial extends Component
     protected function validarMenu(): bool
     {
         if (empty($this->gruposMenu)) {
-            $this->js("window.notify('Agrega al menos un grupo al menú', 'error')");
+            $this->js("window.notify('" . __('Agrega al menos un grupo al menú') . "', 'error')");
             return false;
         }
 
         foreach ($this->gruposMenu as $index => $grupo) {
             if (empty($grupo['articulos'])) {
-                $this->js("window.notify('El grupo \"" . ($grupo['nombre'] ?: 'Grupo ' . ($index + 1)) . "\" necesita al menos un artículo', 'error')");
+                $nombreGrupo = $grupo['nombre'] ?: __('Grupo') . ' ' . ($index + 1);
+                $this->js("window.notify('" . addslashes(__('El grupo ":nombre" necesita al menos un artículo', ['nombre' => $nombreGrupo])) . "', 'error')");
                 return false;
             }
         }
 
         if (!$this->precioValor || $this->precioValor <= 0) {
-            $this->js("window.notify('Define el precio/descuento del menú', 'error')");
+            $this->js("window.notify('" . __('Define el precio/descuento del menú') . "', 'error')");
             return false;
         }
 
         if ($this->precioTipo === 'porcentaje' && $this->precioValor > 100) {
-            $this->js("window.notify('El porcentaje no puede ser mayor a 100%', 'error')");
+            $this->js("window.notify('" . __('El porcentaje no puede ser mayor a 100%') . "', 'error')");
             return false;
         }
 
@@ -626,7 +627,7 @@ class WizardPromocionEspecial extends Component
         // Verificar que no esté ya en el grupo
         foreach ($this->gruposTrigger[$this->grupoTriggerActivo]['articulos'] ?? [] as $art) {
             if ($art['id'] == $articuloId) {
-                $this->js("window.notify('Este artículo ya está en el grupo', 'warning')");
+                $this->js("window.notify('" . __('Este artículo ya está en el grupo') . "', 'warning')");
                 return;
             }
         }
@@ -702,9 +703,9 @@ class WizardPromocionEspecial extends Component
         $this->mostrarCategoriasTrigger = false;
 
         if ($agregados > 0) {
-            $this->js("window.notify('{$agregados} artículo(s) agregado(s)', 'success')");
+            $this->js("window.notify('" . addslashes(__(':count artículo(s) agregado(s)', ['count' => $agregados])) . "', 'success')");
         } else {
-            $this->js("window.notify('No se agregaron artículos (ya estaban todos)', 'info')");
+            $this->js("window.notify('" . __('No se agregaron artículos (ya estaban todos)') . "', 'info')");
         }
     }
 
@@ -754,7 +755,7 @@ class WizardPromocionEspecial extends Component
 
         foreach ($this->gruposReward[$this->grupoRewardActivo]['articulos'] ?? [] as $art) {
             if ($art['id'] == $articuloId) {
-                $this->js("window.notify('Este artículo ya está en el grupo', 'warning')");
+                $this->js("window.notify('" . __('Este artículo ya está en el grupo') . "', 'warning')");
                 return;
             }
         }
@@ -830,9 +831,9 @@ class WizardPromocionEspecial extends Component
         $this->mostrarCategoriasReward = false;
 
         if ($agregados > 0) {
-            $this->js("window.notify('{$agregados} artículo(s) agregado(s)', 'success')");
+            $this->js("window.notify('" . addslashes(__(':count artículo(s) agregado(s)', ['count' => $agregados])) . "', 'success')");
         } else {
-            $this->js("window.notify('No se agregaron artículos (ya estaban todos)', 'info')");
+            $this->js("window.notify('" . __('No se agregaron artículos (ya estaban todos)') . "', 'info')");
         }
     }
 
@@ -863,7 +864,7 @@ class WizardPromocionEspecial extends Component
     {
         foreach ($this->comboItems as $item) {
             if ($item['articulo_id'] == $articuloId) {
-                $this->js("window.notify('Este artículo ya está en el combo', 'warning')");
+                $this->js("window.notify('" . __('Este artículo ya está en el combo') . "', 'warning')");
                 return;
             }
         }
@@ -970,7 +971,7 @@ class WizardPromocionEspecial extends Component
 
         foreach ($this->gruposMenu[$this->grupoMenuActivo]['articulos'] ?? [] as $art) {
             if ($art['id'] == $articuloId) {
-                $this->js("window.notify('Este artículo ya está en el grupo', 'warning')");
+                $this->js("window.notify('" . __('Este artículo ya está en el grupo') . "', 'warning')");
                 return;
             }
         }
@@ -1094,7 +1095,7 @@ class WizardPromocionEspecial extends Component
 
         } catch (\Exception $e) {
             \Log::error('Error al guardar promoción especial: ' . $e->getMessage());
-            $this->js("window.notify('Error al guardar: " . addslashes($e->getMessage()) . "', 'error')");
+            $this->js("window.notify('" . addslashes(__('Error al guardar: ') . $e->getMessage()) . "', 'error')");
         }
     }
 
@@ -1151,8 +1152,8 @@ class WizardPromocionEspecial extends Component
         }
 
         $cant = count($this->sucursalesSeleccionadas);
-        $msg = $cant > 1 ? "Promoción creada en {$cant} sucursales" : 'Promoción creada correctamente';
-        $this->js("window.notify('{$msg}', 'success')");
+        $msg = $cant > 1 ? __('Promoción creada en :count sucursales', ['count' => $cant]) : __('Promoción creada correctamente');
+        $this->js("window.notify('" . addslashes($msg) . "', 'success')");
     }
 
     protected function actualizarPromocion()
@@ -1191,7 +1192,7 @@ class WizardPromocionEspecial extends Component
 
         $this->guardarDatosEspecificos($promo);
 
-        $this->js("window.notify('Promoción actualizada correctamente', 'success')");
+        $this->js("window.notify('" . __('Promoción actualizada correctamente') . "', 'success')");
     }
 
     protected function guardarDatosEspecificos(PromocionEspecial $promo)
@@ -1824,7 +1825,7 @@ class WizardPromocionEspecial extends Component
                     'id' => $promo['id'],
                     'nombre' => $promo['nombre'],
                     'es_nueva' => $promo['es_nueva'],
-                    'razon' => 'No cumple condiciones',
+                    'razon' => __('No cumple condiciones'),
                 ];
                 continue;
             }
@@ -1859,7 +1860,7 @@ class WizardPromocionEspecial extends Component
                     'id' => $promo['id'],
                     'nombre' => $promo['nombre'],
                     'es_nueva' => $promo['es_nueva'],
-                    'razon' => $aplicacion['razon'] ?? 'No hay suficientes artículos',
+                    'razon' => $aplicacion['razon'] ?? __('No hay suficientes artículos'),
                 ];
             }
         }
@@ -2010,7 +2011,7 @@ class WizardPromocionEspecial extends Component
 
         return [
             'id' => 'nueva',
-            'nombre' => $this->nombre ?: '(Esta promoción)',
+            'nombre' => $this->nombre ?: __('(Esta promoción)'),
             'tipo' => $this->tipo,
             'prioridad' => (int) ($this->prioridad ?? 1),
             'es_nueva' => true,
@@ -2100,7 +2101,7 @@ class WizardPromocionEspecial extends Component
             'nxm_avanzado' => $this->aplicarNxMAvanzado($promo, $unidadesDisponibles),
             'combo' => $this->aplicarCombo($promo, $unidadesDisponibles),
             'menu' => $this->aplicarMenu($promo, $unidadesDisponibles),
-            default => ['aplicada' => false, 'razon' => 'Tipo de promoción no soportado'],
+            default => ['aplicada' => false, 'razon' => __('Tipo de promoción no soportado')],
         };
     }
 
@@ -2141,7 +2142,7 @@ class WizardPromocionEspecial extends Component
             }
 
             if (!$escalaAplicable) {
-                return ['aplicada' => false, 'razon' => 'No hay escala aplicable para la cantidad'];
+                return ['aplicada' => false, 'razon' => __('No hay escala aplicable para la cantidad')];
             }
 
             $lleva = (int) $escalaAplicable['lleva'];
@@ -2151,7 +2152,7 @@ class WizardPromocionEspecial extends Component
         }
 
         if ($cantidadDisponible < $lleva) {
-            return ['aplicada' => false, 'razon' => "Necesita $lleva, hay $cantidadDisponible"];
+            return ['aplicada' => false, 'razon' => __('Necesita :lleva, hay :disponible', ['lleva' => $lleva, 'disponible' => $cantidadDisponible])];
         }
 
         // Ordenar por precio descendente (bonificar los más caros primero da el mayor descuento)
@@ -2183,15 +2184,15 @@ class WizardPromocionEspecial extends Component
         }
 
         if (empty($unidadesConsumidas)) {
-            return ['aplicada' => false, 'razon' => 'No se pudo aplicar'];
+            return ['aplicada' => false, 'razon' => __('No se pudo aplicar')];
         }
 
-        $descripcionBeneficio = $beneficioTipo === 'gratis' ? 'gratis' : "{$beneficioPorcentaje}% dto";
+        $descripcionBeneficio = $beneficioTipo === 'gratis' ? __('gratis') : "{$beneficioPorcentaje}% " . __('dto');
 
         return [
             'aplicada' => true,
             'descuento' => $descuentoTotal,
-            'descripcion' => "Lleva {$lleva} → {$bonifica} {$descripcionBeneficio} (x{$vecesAplicable})",
+            'descripcion' => __('Lleva :lleva, :bonifica :beneficio (x:veces)', ['lleva' => $lleva, 'bonifica' => $bonifica, 'beneficio' => $descripcionBeneficio, 'veces' => $vecesAplicable]),
             'unidades_consumidas' => $unidadesConsumidas,
         ];
     }
@@ -2242,11 +2243,11 @@ class WizardPromocionEspecial extends Component
         }
 
         if (count($unidadesTrigger) < $lleva) {
-            return ['aplicada' => false, 'razon' => "Necesita {$lleva} triggers, hay " . count($unidadesTrigger)];
+            return ['aplicada' => false, 'razon' => __('Necesita :lleva triggers, hay :hay', ['lleva' => $lleva, 'hay' => count($unidadesTrigger)])];
         }
 
         if (count($unidadesReward) < $bonifica) {
-            return ['aplicada' => false, 'razon' => "Necesita {$bonifica} rewards, hay " . count($unidadesReward)];
+            return ['aplicada' => false, 'razon' => __('Necesita :bonifica rewards, hay :hay', ['bonifica' => $bonifica, 'hay' => count($unidadesReward)])];
         }
 
         // Ordenar rewards por precio descendente
@@ -2286,15 +2287,15 @@ class WizardPromocionEspecial extends Component
         }
 
         if (empty($unidadesConsumidas)) {
-            return ['aplicada' => false, 'razon' => 'No se pudo aplicar'];
+            return ['aplicada' => false, 'razon' => __('No se pudo aplicar')];
         }
 
-        $descripcionBeneficio = $beneficioTipo === 'gratis' ? 'gratis' : "{$beneficioPorcentaje}% dto";
+        $descripcionBeneficio = $beneficioTipo === 'gratis' ? __('gratis') : "{$beneficioPorcentaje}% " . __('dto');
 
         return [
             'aplicada' => true,
             'descuento' => $descuentoTotal,
-            'descripcion' => "Lleva {$lleva} → {$bonifica} {$descripcionBeneficio} (x{$vecesAplicable})",
+            'descripcion' => __('Lleva :lleva, :bonifica :beneficio (x:veces)', ['lleva' => $lleva, 'bonifica' => $bonifica, 'beneficio' => $descripcionBeneficio, 'veces' => $vecesAplicable]),
             'unidades_consumidas' => $unidadesConsumidas,
         ];
     }
@@ -2305,7 +2306,7 @@ class WizardPromocionEspecial extends Component
     protected function aplicarCombo(array $promo, array $unidadesDisponibles): array
     {
         if (empty($promo['grupos'])) {
-            return ['aplicada' => false, 'razon' => 'Combo sin artículos definidos'];
+            return ['aplicada' => false, 'razon' => __('Combo sin artículos definidos')];
         }
 
         // Verificar que tengamos todos los artículos necesarios
@@ -2328,7 +2329,7 @@ class WizardPromocionEspecial extends Component
             ));
 
             if (count($unidadesDeEsteArticulo) < $cantidadRequerida) {
-                return ['aplicada' => false, 'razon' => 'Faltan artículos para el combo'];
+                return ['aplicada' => false, 'razon' => __('Faltan artículos para el combo')];
             }
 
             // Consumir las unidades necesarias
@@ -2340,7 +2341,7 @@ class WizardPromocionEspecial extends Component
         }
 
         if (empty($unidadesConsumidas)) {
-            return ['aplicada' => false, 'razon' => 'No hay artículos para el combo'];
+            return ['aplicada' => false, 'razon' => __('No hay artículos para el combo')];
         }
 
         // Calcular descuento
@@ -2357,8 +2358,8 @@ class WizardPromocionEspecial extends Component
             'aplicada' => true,
             'descuento' => $descuento,
             'descripcion' => $promo['precio_tipo'] === 'fijo'
-                ? "Combo a $" . number_format($promo['precio_valor'], 0, ',', '.')
-                : "Combo con {$promo['precio_valor']}% dto",
+                ? __('Combo a $:precio', ['precio' => number_format($promo['precio_valor'], 0, ',', '.')])
+                : __('Combo con :porcentaje% dto', ['porcentaje' => $promo['precio_valor']]),
             'unidades_consumidas' => $unidadesConsumidas,
         ];
     }
@@ -2369,7 +2370,7 @@ class WizardPromocionEspecial extends Component
     protected function aplicarMenu(array $promo, array $unidadesDisponibles): array
     {
         if (empty($promo['grupos'])) {
-            return ['aplicada' => false, 'razon' => 'Menú sin grupos definidos'];
+            return ['aplicada' => false, 'razon' => __('Menú sin grupos definidos')];
         }
 
         $unidadesConsumidas = [];
@@ -2380,7 +2381,7 @@ class WizardPromocionEspecial extends Component
             $articulosDelGrupo = array_column($grupo['articulos'] ?? [], 'id');
 
             if (empty($articulosDelGrupo)) {
-                return ['aplicada' => false, 'razon' => "Grupo '{$grupo['nombre']}' sin artículos"];
+                return ['aplicada' => false, 'razon' => __('Grupo \':nombre\' sin artículos', ['nombre' => $grupo['nombre']])];
             }
 
             // Buscar unidades disponibles de cualquier artículo del grupo
@@ -2390,7 +2391,7 @@ class WizardPromocionEspecial extends Component
             ));
 
             if (count($unidadesDeEsteGrupo) < $cantidadRequerida) {
-                return ['aplicada' => false, 'razon' => "Faltan artículos para '{$grupo['nombre']}'"];
+                return ['aplicada' => false, 'razon' => __('Faltan artículos para \':nombre\'', ['nombre' => $grupo['nombre']])];
             }
 
             // Consumir las unidades (preferir las más baratas para el menú)
@@ -2404,7 +2405,7 @@ class WizardPromocionEspecial extends Component
         }
 
         if (empty($unidadesConsumidas)) {
-            return ['aplicada' => false, 'razon' => 'No hay artículos para el menú'];
+            return ['aplicada' => false, 'razon' => __('No hay artículos para el menú')];
         }
 
         // Calcular descuento
@@ -2421,8 +2422,8 @@ class WizardPromocionEspecial extends Component
             'aplicada' => true,
             'descuento' => $descuento,
             'descripcion' => $promo['precio_tipo'] === 'fijo'
-                ? "Menú a $" . number_format($promo['precio_valor'], 0, ',', '.')
-                : "Menú con {$promo['precio_valor']}% dto",
+                ? __('Menú a $:precio', ['precio' => number_format($promo['precio_valor'], 0, ',', '.')])
+                : __('Menú con :porcentaje% dto', ['porcentaje' => $promo['precio_valor']]),
             'unidades_consumidas' => $unidadesConsumidas,
         ];
     }

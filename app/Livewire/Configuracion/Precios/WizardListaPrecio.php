@@ -72,34 +72,42 @@ class WizardListaPrecio extends Component
     public $categoriasSeleccionadas = [];
 
     // Opciones
-    public $opcionesRedondeo = [
-        'ninguno' => 'Sin redondeo',
-        'entero' => 'Entero más cercano',
-        'decena' => 'Decena más cercana',
-        'centena' => 'Centena más cercana',
-    ];
+    public $opcionesRedondeo = [];
+    public $opcionesPromocionesAlcance = [];
+    public $opcionesDiasSemana = [];
+    public $opcionesTipoCondicion = [];
 
-    public $opcionesPromocionesAlcance = [
-        'todos' => 'A toda la venta',
-        'excluir_lista' => 'Excluir artículos con precio en esta lista',
-    ];
+    public function boot()
+    {
+        $this->opcionesRedondeo = [
+            'ninguno' => __('Sin redondeo'),
+            'entero' => __('Entero más cercano'),
+            'decena' => __('Decena más cercana'),
+            'centena' => __('Centena más cercana'),
+        ];
 
-    public $opcionesDiasSemana = [
-        0 => 'Domingo',
-        1 => 'Lunes',
-        2 => 'Martes',
-        3 => 'Miércoles',
-        4 => 'Jueves',
-        5 => 'Viernes',
-        6 => 'Sábado',
-    ];
+        $this->opcionesPromocionesAlcance = [
+            'todos' => __('A toda la venta'),
+            'excluir_lista' => __('Excluir artículos con precio en esta lista'),
+        ];
 
-    public $opcionesTipoCondicion = [
-        'por_forma_pago' => 'Por forma de pago',
-        'por_forma_venta' => 'Por forma de venta',
-        'por_canal' => 'Por canal de venta',
-        'por_total_compra' => 'Por total de compra',
-    ];
+        $this->opcionesDiasSemana = [
+            0 => __('Domingo'),
+            1 => __('Lunes'),
+            2 => __('Martes'),
+            3 => __('Miércoles'),
+            4 => __('Jueves'),
+            5 => __('Viernes'),
+            6 => __('Sábado'),
+        ];
+
+        $this->opcionesTipoCondicion = [
+            'por_forma_pago' => __('Por forma de pago'),
+            'por_forma_venta' => __('Por forma de venta'),
+            'por_canal' => __('Por canal de venta'),
+            'por_total_compra' => __('Por total de compra'),
+        ];
+    }
 
     protected $rules = [
         'sucursalId' => 'required',
@@ -111,15 +119,18 @@ class WizardListaPrecio extends Component
         'redondeo' => 'required|in:ninguno,entero,decena,centena',
     ];
 
-    protected $messages = [
-        'sucursalId.required' => 'Debes seleccionar una sucursal',
-        'nombre.required' => 'El nombre es obligatorio',
-        'nombre.min' => 'El nombre debe tener al menos 3 caracteres',
-        'prioridad.required' => 'La prioridad es obligatoria',
-        'prioridad.min' => 'La prioridad debe ser al menos 1',
-        'ajustePorcentaje.required' => 'El ajuste porcentual es obligatorio',
-        'ajustePorcentaje.min' => 'El descuento máximo es 100%',
-    ];
+    protected function messages()
+    {
+        return [
+            'sucursalId.required' => __('Debes seleccionar una sucursal'),
+            'nombre.required' => __('El nombre es obligatorio'),
+            'nombre.min' => __('El nombre debe tener al menos 3 caracteres'),
+            'prioridad.required' => __('La prioridad es obligatoria'),
+            'prioridad.min' => __('La prioridad debe ser al menos 1'),
+            'ajustePorcentaje.required' => __('El ajuste porcentual es obligatorio'),
+            'ajustePorcentaje.min' => __('El descuento máximo es 100%'),
+        ];
+    }
 
     public function mount($id = null)
     {
@@ -168,7 +179,7 @@ class WizardListaPrecio extends Component
         $lista = ListaPrecio::with(['condiciones', 'articulos.articulo', 'articulos.categoria'])->find($id);
 
         if (!$lista) {
-            session()->flash('error', 'Lista de precios no encontrada');
+            session()->flash('error', __('Lista de precios no encontrada'));
             return redirect()->route('configuracion.precios');
         }
 
@@ -346,7 +357,7 @@ class WizardListaPrecio extends Component
     public function agregarCondicion()
     {
         if (!$this->nuevaCondicionTipo) {
-            $this->js("window.notify('Selecciona un tipo de condición', 'error')");
+            $this->js("window.notify('" . __('Selecciona un tipo de condición') . "', 'error')");
             return;
         }
 
@@ -364,55 +375,55 @@ class WizardListaPrecio extends Component
         switch ($this->nuevaCondicionTipo) {
             case 'por_forma_pago':
                 if (!$this->nuevaCondicionFormaPagoId) {
-                    $this->js("window.notify('Selecciona una forma de pago', 'error')");
+                    $this->js("window.notify('" . __('Selecciona una forma de pago') . "', 'error')");
                     return;
                 }
                 $condicion['forma_pago_id'] = $this->nuevaCondicionFormaPagoId;
                 $formaPago = $this->formasPago->firstWhere('id', $this->nuevaCondicionFormaPagoId);
-                $condicion['descripcion'] = 'Forma de pago: ' . ($formaPago->nombre ?? 'N/A');
+                $condicion['descripcion'] = __('Forma de pago') . ': ' . ($formaPago->nombre ?? 'N/A');
                 break;
 
             case 'por_forma_venta':
                 if (!$this->nuevaCondicionFormaVentaId) {
-                    $this->js("window.notify('Selecciona una forma de venta', 'error')");
+                    $this->js("window.notify('" . __('Selecciona una forma de venta') . "', 'error')");
                     return;
                 }
                 $condicion['forma_venta_id'] = $this->nuevaCondicionFormaVentaId;
                 $formaVenta = $this->formasVenta->firstWhere('id', $this->nuevaCondicionFormaVentaId);
-                $condicion['descripcion'] = 'Forma de venta: ' . ($formaVenta->nombre ?? 'N/A');
+                $condicion['descripcion'] = __('Forma de venta') . ': ' . ($formaVenta->nombre ?? 'N/A');
                 break;
 
             case 'por_canal':
                 if (!$this->nuevaCondicionCanalVentaId) {
-                    $this->js("window.notify('Selecciona un canal de venta', 'error')");
+                    $this->js("window.notify('" . __('Selecciona un canal de venta') . "', 'error')");
                     return;
                 }
                 $condicion['canal_venta_id'] = $this->nuevaCondicionCanalVentaId;
                 $canal = $this->canalesVenta->firstWhere('id', $this->nuevaCondicionCanalVentaId);
-                $condicion['descripcion'] = 'Canal: ' . ($canal->nombre ?? 'N/A');
+                $condicion['descripcion'] = __('Canal') . ': ' . ($canal->nombre ?? 'N/A');
                 break;
 
             case 'por_total_compra':
                 if (!$this->nuevaCondicionMontoMinimo && !$this->nuevaCondicionMontoMaximo) {
-                    $this->js("window.notify('Ingresa al menos un monto (mínimo o máximo)', 'error')");
+                    $this->js("window.notify('" . __('Ingresa al menos un monto (mínimo o máximo)') . "', 'error')");
                     return;
                 }
                 $condicion['monto_minimo'] = $this->nuevaCondicionMontoMinimo;
                 $condicion['monto_maximo'] = $this->nuevaCondicionMontoMaximo;
 
                 if ($this->nuevaCondicionMontoMinimo && $this->nuevaCondicionMontoMaximo) {
-                    $condicion['descripcion'] = "Total entre \${$this->nuevaCondicionMontoMinimo} y \${$this->nuevaCondicionMontoMaximo}";
+                    $condicion['descripcion'] = __('Total entre') . " \${$this->nuevaCondicionMontoMinimo} " . __('y') . " \${$this->nuevaCondicionMontoMaximo}";
                 } elseif ($this->nuevaCondicionMontoMinimo) {
-                    $condicion['descripcion'] = "Total mínimo \${$this->nuevaCondicionMontoMinimo}";
+                    $condicion['descripcion'] = __('Total mínimo') . " \${$this->nuevaCondicionMontoMinimo}";
                 } else {
-                    $condicion['descripcion'] = "Total máximo \${$this->nuevaCondicionMontoMaximo}";
+                    $condicion['descripcion'] = __('Total máximo') . " \${$this->nuevaCondicionMontoMaximo}";
                 }
                 break;
         }
 
         $this->condiciones[] = $condicion;
         $this->limpiarNuevaCondicion();
-        $this->js("window.notify('Condición agregada', 'success')");
+        $this->js("window.notify('" . __('Condición agregada') . "', 'success')");
     }
 
     public function eliminarCondicion($index)
@@ -438,7 +449,7 @@ class WizardListaPrecio extends Component
         // Verificar que no esté ya agregado
         foreach ($this->articulosEspecificos as $art) {
             if ($art['articulo_id'] == $articuloId) {
-                $this->js("window.notify('Este artículo ya está agregado', 'warning')");
+                $this->js("window.notify('" . __('Este artículo ya está agregado') . "', 'warning')");
                 return;
             }
         }
@@ -461,7 +472,7 @@ class WizardListaPrecio extends Component
 
         $this->busquedaArticulo = '';
         $this->articulosEncontrados = [];
-        $this->js("window.notify('Artículo agregado', 'success')");
+        $this->js("window.notify('" . __('Artículo agregado') . "', 'success')");
     }
 
     public function agregarCategoria($categoriaId)
@@ -469,7 +480,7 @@ class WizardListaPrecio extends Component
         // Verificar que no esté ya agregada
         foreach ($this->articulosEspecificos as $art) {
             if ($art['categoria_id'] == $categoriaId) {
-                $this->js("window.notify('Esta categoría ya está agregada', 'warning')");
+                $this->js("window.notify('" . __('Esta categoría ya está agregada') . "', 'warning')");
                 return;
             }
         }
@@ -490,7 +501,7 @@ class WizardListaPrecio extends Component
             'precio_base_original' => null,
         ];
 
-        $this->js("window.notify('Categoría agregada', 'success')");
+        $this->js("window.notify('" . __('Categoría agregada') . "', 'success')");
     }
 
     public function eliminarArticuloEspecifico($index)
@@ -598,8 +609,8 @@ class WizardListaPrecio extends Component
             \DB::commit();
 
             $mensaje = $this->modoEdicion
-                ? 'Lista de precios actualizada correctamente'
-                : 'Lista de precios creada correctamente';
+                ? __('Lista de precios actualizada correctamente')
+                : __('Lista de precios creada correctamente');
 
             session()->flash('notify', [
                 'message' => $mensaje,
@@ -611,7 +622,7 @@ class WizardListaPrecio extends Component
         } catch (\Exception $e) {
             \DB::rollBack();
             \Log::error('Error al guardar lista de precios: ' . $e->getMessage());
-            $this->js("window.notify('Error al guardar: " . addslashes($e->getMessage()) . "', 'error', 7000)");
+            $this->js("window.notify('" . addslashes(__('Error al guardar: ') . $e->getMessage()) . "', 'error', 7000)");
         }
     }
 

@@ -189,17 +189,17 @@ class GestionarEtiquetas extends Component
         if ($this->editModeGrupo) {
             $grupo = GrupoEtiqueta::findOrFail($this->grupoId);
             $grupo->update($datos);
-            $message = 'Grupo actualizado correctamente';
+            $message = __('Grupo actualizado correctamente');
         } else {
             $maxOrden = GrupoEtiqueta::max('orden') ?? 0;
             $datos['orden'] = $maxOrden + 1;
             $grupo = GrupoEtiqueta::create($datos);
             // Expandir el nuevo grupo
             $this->gruposExpandidos[] = $grupo->id;
-            $message = 'Grupo creado correctamente';
+            $message = __('Grupo creado correctamente');
         }
 
-        $this->js("window.notify('$message', 'success')");
+        $this->js("window.notify('" . addslashes($message) . "', 'success')");
         $this->showGrupoModal = false;
         $this->resetGrupoForm();
     }
@@ -235,8 +235,8 @@ class GestionarEtiquetas extends Component
         $grupo->activo = !$grupo->activo;
         $grupo->save();
 
-        $status = $grupo->activo ? 'activado' : 'desactivado';
-        $this->js("window.notify('Grupo {$status} correctamente', 'success')");
+        $status = $grupo->activo ? __('activado') : __('desactivado');
+        $this->js("window.notify('" . __('Grupo :status correctamente', ['status' => $status]) . "', 'success')");
     }
 
     // ==================== Métodos de Etiqueta ====================
@@ -294,7 +294,7 @@ class GestionarEtiquetas extends Component
         }
 
         if ($this->etiquetaCodigo && $existeQuery->exists()) {
-            $this->addError('etiquetaCodigo', 'Ya existe una etiqueta con este código en el grupo.');
+            $this->addError('etiquetaCodigo', __('Ya existe una etiqueta con este código en el grupo.'));
             return;
         }
 
@@ -309,15 +309,15 @@ class GestionarEtiquetas extends Component
         if ($this->editModeEtiqueta) {
             $etiqueta = Etiqueta::findOrFail($this->etiquetaId);
             $etiqueta->update($datos);
-            $message = 'Etiqueta actualizada correctamente';
+            $message = __('Etiqueta actualizada correctamente');
         } else {
             $maxOrden = Etiqueta::where('grupo_etiqueta_id', $this->etiquetaGrupoId)->max('orden') ?? 0;
             $datos['orden'] = $maxOrden + 1;
             Etiqueta::create($datos);
-            $message = 'Etiqueta creada correctamente';
+            $message = __('Etiqueta creada correctamente');
         }
 
-        $this->js("window.notify('$message', 'success')");
+        $this->js("window.notify('" . addslashes($message) . "', 'success')");
         $this->showEtiquetaModal = false;
         $this->resetEtiquetaForm();
     }
@@ -353,8 +353,8 @@ class GestionarEtiquetas extends Component
         $etiqueta->activo = !$etiqueta->activo;
         $etiqueta->save();
 
-        $status = $etiqueta->activo ? 'activada' : 'desactivada';
-        $this->js("window.notify('Etiqueta {$status} correctamente', 'success')");
+        $status = $etiqueta->activo ? __('activada') : __('desactivada');
+        $this->js("window.notify('" . __('Etiqueta :status correctamente', ['status' => $status]) . "', 'success')");
     }
 
     // ==================== Métodos de Eliminación ====================
@@ -413,13 +413,13 @@ class GestionarEtiquetas extends Component
                 // Eliminar etiquetas del grupo primero
                 $grupo->etiquetas()->delete();
                 $grupo->delete();
-                $this->js("window.notify('Grupo eliminado correctamente', 'success')");
+                $this->js("window.notify('" . __('Grupo eliminado correctamente') . "', 'success')");
             }
         } elseif ($this->deleteType === 'etiqueta') {
             $etiqueta = Etiqueta::find($this->itemAEliminar);
             if ($etiqueta) {
                 $etiqueta->delete();
-                $this->js("window.notify('Etiqueta eliminada correctamente', 'success')");
+                $this->js("window.notify('" . __('Etiqueta eliminada correctamente') . "', 'success')");
             }
         }
 

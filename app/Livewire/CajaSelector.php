@@ -187,12 +187,12 @@ class CajaSelector extends Component
             // Mostrar notificación con estado
             $estadoTexto = match($caja->estado_operativo) {
                 'operativa' => '',
-                'pausada' => ' (Pausada)',
-                'sin_turno' => ' (Sin turno)',
+                'pausada' => ' (' . __('Pausada') . ')',
+                'sin_turno' => ' (' . __('Sin turno') . ')',
                 default => '',
             };
             $this->dispatch('notify',
-                message: "Cambiado a caja: {$caja->nombre}{$estadoTexto}",
+                message: __('Cambiado a caja: :nombre', ['nombre' => $caja->nombre]) . $estadoTexto,
                 type: 'success'
             );
 

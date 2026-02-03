@@ -241,12 +241,12 @@ class GestionarArticulos extends Component
             $articulo = Articulo::findOrFail($this->articuloId);
             $articulo->update($datos);
 
-            $message = 'Artículo actualizado correctamente';
+            $message = __('Artículo actualizado correctamente');
         } else {
             // Crear nuevo artículo
             $articulo = Articulo::create($datos);
 
-            $message = 'Artículo creado correctamente';
+            $message = __('Artículo creado correctamente');
         }
 
         // Sincronizar sucursales
@@ -269,7 +269,7 @@ class GestionarArticulos extends Component
         // Sincronizar etiquetas
         $articulo->etiquetas()->sync($this->etiquetas_seleccionadas);
 
-        $this->js("window.notify('$message', 'success')");
+        $this->js("window.notify('" . addslashes($message) . "', 'success')");
         $this->showModal = false;
         $this->reset([
             'codigo', 'nombre', 'descripcion', 'categoria_id',
@@ -314,8 +314,8 @@ class GestionarArticulos extends Component
         $articulo->activo = !$articulo->activo;
         $articulo->save();
 
-        $status = $articulo->activo ? 'activado' : 'desactivado';
-        $this->js("window.notify('Artículo {$status} correctamente', 'success')");
+        $status = $articulo->activo ? __('activado') : __('desactivado');
+        $this->js("window.notify('" . __('Artículo :status correctamente', ['status' => $status]) . "', 'success')");
     }
 
     /**
@@ -353,7 +353,7 @@ class GestionarArticulos extends Component
         $articulo = Articulo::find($this->articuloAEliminar);
         if ($articulo) {
             $articulo->delete(); // Soft delete
-            $this->js("window.notify('Artículo eliminado correctamente', 'success')");
+            $this->js("window.notify('" . __('Artículo eliminado correctamente') . "', 'success')");
         }
 
         $this->cancelarEliminar();

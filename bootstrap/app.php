@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // IMPORTANTE: Configurar el tenant en TODOS los requests web
         // Se ejecuta después del middleware de sesión para que la sesión esté disponible
         $middleware->web(append: [
+            \App\Http\Middleware\SetLocale::class,
             \App\Http\Middleware\ConfigureTenantMiddleware::class,
             // Asegurar que el usuario siempre tenga una sucursal seleccionada
             \App\Http\Middleware\EnsureSucursalSelected::class,

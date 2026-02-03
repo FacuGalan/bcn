@@ -2,9 +2,9 @@
     <div class="mb-4">
         <h2 class="text-xl font-bold text-gray-900 dark:text-white text-center">
             @if ($isSystemAdmin)
-                Administrador de Sistema
+                {{ __('Administrador de Sistema') }}
             @else
-                Selecciona un Comercio
+                {{ __('Selecciona un Comercio') }}
             @endif
         </h2>
     </div>
@@ -28,7 +28,7 @@
                 <input
                     wire:model.live.debounce.300ms="search"
                     type="text"
-                    placeholder="Buscar por nombre, email o ID..."
+                    :placeholder="__('Buscar por nombre, email o ID...')"
                     class="w-full pl-10 pr-4 py-3 text-base rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring-bcn-primary"
                     autofocus
                 />
@@ -66,7 +66,7 @@
             </div>
         @elseif (strlen($search) >= 1)
             <div class="text-center py-6 text-gray-500 dark:text-gray-400">
-                <p class="text-sm">No se encontraron comercios</p>
+                <p class="text-sm">{{ __('No se encontraron comercios') }}</p>
             </div>
         @endif
     @else
@@ -85,7 +85,7 @@
                                 </span>
                                 @if ($comercioActual && $comercioActual->id === $comercio->id)
                                     <span class="text-xs px-2 py-0.5 rounded-full bg-bcn-primary text-bcn-secondary">
-                                        Activo
+                                        {{ __('Activo') }}
                                     </span>
                                 @endif
                             </div>
@@ -100,7 +100,7 @@
                 </button>
             @empty
                 <div class="text-center py-6 text-gray-500 dark:text-gray-400">
-                    <p class="text-sm">No tienes comercios asignados</p>
+                    <p class="text-sm">{{ __('No tienes comercios asignados') }}</p>
                 </div>
             @endforelse
         </div>
@@ -111,7 +111,7 @@
         <form method="POST" action="{{ route('logout') }}">
             @csrf
             <button type="submit" class="w-full text-center text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                Cerrar Sesión
+                {{ __('Cerrar Sesión') }}
             </button>
         </form>
     </div>

@@ -26,14 +26,19 @@ class ListarPromociones extends Component
     public $sucursales = [];
 
     // Tipos de promoci�n disponibles
-    public $tiposPromocion = [
-        'descuento_porcentaje' => 'Descuento %',
-        'descuento_monto' => 'Descuento $',
-        'precio_fijo' => 'Precio Fijo',
-        'recargo_porcentaje' => 'Recargo %',
-        'recargo_monto' => 'Recargo $',
-        'descuento_escalonado' => 'Descuento Escalonado',
-    ];
+    public $tiposPromocion = [];
+
+    public function boot()
+    {
+        $this->tiposPromocion = [
+            'descuento_porcentaje' => __('Descuento %'),
+            'descuento_monto' => __('Descuento $'),
+            'precio_fijo' => __('Precio Fijo'),
+            'recargo_porcentaje' => __('Recargo %'),
+            'recargo_monto' => __('Recargo $'),
+            'descuento_escalonado' => __('Descuento Escalonado'),
+        ];
+    }
 
     // Ordenamiento
     public $ordenarPor = 'prioridad';
@@ -92,8 +97,8 @@ class ListarPromociones extends Component
             $promocion->activo = !$promocion->activo;
             $promocion->save();
 
-            $mensaje = $promocion->activo ? 'Promocion activada correctamente' : 'Promocion desactivada correctamente';
-            $this->js("window.notify('$mensaje', 'success')");
+            $mensaje = $promocion->activo ? __('Promoción activada correctamente') : __('Promoción desactivada correctamente');
+            $this->js("window.notify('" . addslashes($mensaje) . "', 'success')");
         }
     }
 
@@ -104,7 +109,7 @@ class ListarPromociones extends Component
             // Soft delete - mantiene el registro con deleted_at para estadisticas
             $promocion->delete();
 
-            $this->js("window.notify('Promocion eliminada correctamente', 'success')");
+            $this->js("window.notify('" . __('Promoción eliminada correctamente') . "', 'success')");
         }
     }
 
@@ -135,7 +140,7 @@ class ListarPromociones extends Component
                 $nuevaEscala->save();
             }
 
-            $this->js("window.notify('Promocion duplicada correctamente', 'success')");
+            $this->js("window.notify('" . __('Promoción duplicada correctamente') . "', 'success')");
         }
     }
 

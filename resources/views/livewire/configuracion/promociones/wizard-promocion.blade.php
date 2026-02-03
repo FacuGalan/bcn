@@ -12,13 +12,13 @@
                 </a>
                 <div>
                     <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white">
-                        {{ $modoEdicion ? 'Editar Promoción' : 'Crear Nueva Promoción' }}
+                        {{ $modoEdicion ? __('Editar Promoción') : __('Crear Nueva Promoción') }}
                     </h2>
                     <p class="text-sm text-gray-600 dark:text-gray-400">
                         @if($modoEdicion)
-                            Paso {{ $pasoActual - 1 }} de {{ $totalPasos - 1 }}
+                            {{ __('Paso') }} {{ $pasoActual - 1 }} {{ __('de') }} {{ $totalPasos - 1 }}
                         @else
-                            Paso {{ $pasoActual }} de {{ $totalPasos }}
+                            {{ __('Paso') }} {{ $pasoActual }} {{ __('de') }} {{ $totalPasos }}
                         @endif
                     </p>
                 </div>
@@ -96,49 +96,49 @@
 
         {{-- PASO 1: Tipo de Promoción --}}
         @if($pasoActual == 1)
-            <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Paso 1: Tipo de Promoción</h2>
+            <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">{{ __('Paso 1: Tipo de Promoción') }}</h2>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <button wire:click="seleccionarTipo('descuento_porcentaje')"
                         class="p-6 border-2 rounded-lg text-left transition {{ $tipo == 'descuento_porcentaje' ? 'border-bcn-primary bg-blue-50 dark:bg-blue-900/30' : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500' }}">
                     <div class="text-2xl mb-2">💯</div>
-                    <h3 class="font-bold text-gray-900 dark:text-white">Porcentaje</h3>
-                    <p class="text-xs text-gray-600 dark:text-gray-400">Ej: 15% de descuento</p>
+                    <h3 class="font-bold text-gray-900 dark:text-white">{{ __('Porcentaje') }}</h3>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">{{ __('Ej: 15% de descuento') }}</p>
                 </button>
 
                 <button wire:click="seleccionarTipo('descuento_monto')"
                         class="p-6 border-2 rounded-lg text-left transition {{ $tipo == 'descuento_monto' ? 'border-bcn-primary bg-blue-50 dark:bg-blue-900/30' : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500' }}">
                     <div class="text-2xl mb-2">💵</div>
-                    <h3 class="font-bold text-gray-900 dark:text-white">Monto Fijo</h3>
-                    <p class="text-xs text-gray-600 dark:text-gray-400">Ej: $100 de descuento</p>
+                    <h3 class="font-bold text-gray-900 dark:text-white">{{ __('Monto Fijo') }}</h3>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">{{ __('Ej: $100 de descuento') }}</p>
                 </button>
 
                 <button wire:click="seleccionarTipo('precio_fijo')"
                         class="p-6 border-2 rounded-lg text-left transition {{ $tipo == 'precio_fijo' ? 'border-bcn-primary bg-blue-50 dark:bg-blue-900/30' : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500' }}">
                     <div class="text-2xl mb-2">🏷️</div>
-                    <h3 class="font-bold text-gray-900 dark:text-white">Precio Fijo</h3>
-                    <p class="text-xs text-gray-600 dark:text-gray-400">Ej: $500 precio final</p>
+                    <h3 class="font-bold text-gray-900 dark:text-white">{{ __('Precio Fijo') }}</h3>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">{{ __('Ej: $500 precio final') }}</p>
                 </button>
 
                 <button wire:click="seleccionarTipo('recargo_porcentaje')"
                         class="p-6 border-2 rounded-lg text-left transition {{ $tipo == 'recargo_porcentaje' ? 'border-bcn-primary bg-blue-50 dark:bg-blue-900/30' : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500' }}">
                     <div class="text-2xl mb-2">📈</div>
-                    <h3 class="font-bold text-gray-900 dark:text-white">Recargo %</h3>
-                    <p class="text-xs text-gray-600 dark:text-gray-400">Ej: +10% recargo</p>
+                    <h3 class="font-bold text-gray-900 dark:text-white">{{ __('Recargo %') }}</h3>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">{{ __('Ej: +10% recargo') }}</p>
                 </button>
 
                 <button wire:click="seleccionarTipo('recargo_monto')"
                         class="p-6 border-2 rounded-lg text-left transition {{ $tipo == 'recargo_monto' ? 'border-bcn-primary bg-blue-50 dark:bg-blue-900/30' : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500' }}">
                     <div class="text-2xl mb-2">💰</div>
-                    <h3 class="font-bold text-gray-900 dark:text-white">Recargo $</h3>
-                    <p class="text-xs text-gray-600 dark:text-gray-400">Ej: +$100 recargo</p>
+                    <h3 class="font-bold text-gray-900 dark:text-white">{{ __('Recargo $') }}</h3>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">{{ __('Ej: +$100 recargo') }}</p>
                 </button>
 
                 <button wire:click="seleccionarTipo('descuento_escalonado')"
                         class="p-6 border-2 rounded-lg text-left transition {{ $tipo == 'descuento_escalonado' ? 'border-bcn-primary bg-blue-50 dark:bg-blue-900/30' : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500' }}">
                     <div class="text-2xl mb-2">📊</div>
-                    <h3 class="font-bold text-gray-900 dark:text-white">Escalonado</h3>
-                    <p class="text-xs text-gray-600 dark:text-gray-400">Por cantidad</p>
+                    <h3 class="font-bold text-gray-900 dark:text-white">{{ __('Escalonado') }}</h3>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">{{ __('Por cantidad') }}</p>
                 </button>
             </div>
         @endif
@@ -146,7 +146,7 @@
         {{-- PASO 2: Configuración --}}
         @if($pasoActual == 2)
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-xl font-semibold text-gray-900 dark:text-white">{{ $modoEdicion ? 'Configuración Básica' : 'Paso 2: Configuración Básica' }}</h2>
+                <h2 class="text-xl font-semibold text-gray-900 dark:text-white">{{ $modoEdicion ? __('Configuración Básica') : __('Paso 2: Configuración Básica') }}</h2>
                 @if($modoEdicion)
                     @php
                         $tiposPromocion = [
@@ -170,7 +170,7 @@
                 {{-- Nombre y Valor en el mismo renglón --}}
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nombre *</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Nombre') }} *</label>
                         <input type="text" wire:model="nombre"
                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                     </div>
@@ -179,13 +179,13 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 @if(str_contains($tipo, 'porcentaje'))
-                                    Porcentaje *
+                                    {{ __('Porcentaje') }} *
                                 @elseif($tipo === 'precio_fijo')
-                                    Precio Final *
+                                    {{ __('Precio Final') }} *
                                 @elseif(str_contains($tipo, 'monto'))
-                                    Monto *
+                                    {{ __('Monto') }} *
                                 @else
-                                    Valor *
+                                    {{ __('Valor') }} *
                                 @endif
                             </label>
                             <div class="relative">
@@ -205,30 +205,30 @@
 
                 {{-- Descripción --}}
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Descripción <span class="text-gray-400 dark:text-gray-500 font-normal">(opcional)</span></label>
-                    <textarea wire:model="descripcion" rows="2" placeholder="Breve descripción de la promoción..."
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Descripción') }} <span class="text-gray-400 dark:text-gray-500 font-normal">({{ __('opcional') }})</span></label>
+                    <textarea wire:model="descripcion" rows="2" :placeholder="__('Breve descripción de la promoción...')"
                               class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"></textarea>
                 </div>
 
                 @if($tipo === 'descuento_escalonado')
                     <div class="border rounded-lg p-4 bg-purple-50 dark:bg-purple-900 dark:border-purple-700">
                         <div class="flex justify-between items-center mb-4">
-                            <h3 class="font-semibold text-purple-900 dark:text-purple-100">Escalas de Descuento</h3>
+                            <h3 class="font-semibold text-purple-900 dark:text-purple-100">{{ __('Escalas de Descuento') }}</h3>
                             <button type="button" wire:click="agregarEscala"
                                     class="inline-flex items-center px-4 py-2 bg-bcn-primary text-white rounded-md hover:bg-opacity-90 transition text-sm font-semibold shadow-sm">
                                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                                 </svg>
-                                Agregar Escala
+                                {{ __('Agregar Escala') }}
                             </button>
                         </div>
 
                         {{-- Encabezados --}}
                         <div class="grid grid-cols-5 gap-2 mb-2 text-xs font-semibold text-gray-700 dark:text-gray-300">
-                            <div>Cantidad Desde *</div>
-                            <div>Cantidad Hasta</div>
-                            <div>Tipo *</div>
-                            <div>Valor *</div>
+                            <div>{{ __('Cantidad Desde') }} *</div>
+                            <div>{{ __('Cantidad Hasta') }}</div>
+                            <div>{{ __('Tipo') }} *</div>
+                            <div>{{ __('Valor') }} *</div>
                             <div></div>
                         </div>
 
@@ -241,16 +241,16 @@
                                        placeholder="Ej: 5 (vacío = sin límite)" class="rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm bg-white">
                                 <select wire:model="escalas.{{ $index }}.tipo_descuento"
                                         class="rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm bg-white">
-                                    <option value="porcentaje">Porcentaje %</option>
-                                    <option value="monto">Monto $</option>
-                                    <option value="precio_fijo">Precio Fijo</option>
+                                    <option value="porcentaje">{{ __('Porcentaje %') }}</option>
+                                    <option value="monto">{{ __('Monto $') }}</option>
+                                    <option value="precio_fijo">{{ __('Precio Fijo') }}</option>
                                 </select>
                                 <input type="number" wire:model="escalas.{{ $index }}.valor"
                                        placeholder="Ej: 10" step="0.01" class="rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm bg-white">
                                 @if(count($escalas) > 1)
                                     <button type="button" wire:click="eliminarEscala({{ $index }})"
                                             class="inline-flex items-center justify-center w-8 h-8 text-red-600 hover:bg-red-50 rounded transition"
-                                            title="Eliminar escala">
+                                            :title="__('Eliminar escala')"
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                         </svg>
@@ -262,10 +262,10 @@
                         @endforeach
 
                         <div class="mt-3 text-xs text-gray-600 dark:text-gray-300 bg-blue-50 dark:bg-blue-900 p-3 rounded">
-                            <strong>💡 Ejemplo:</strong>
-                            <br>• 1-5 unidades: 5% descuento
-                            <br>• 6-10 unidades: 10% descuento
-                            <br>• 11+ unidades (sin límite): 15% descuento
+                            <strong>{{ __('Ejemplo') }}:</strong>
+                            <br>{{ __('1-5 unidades: 5% descuento') }}
+                            <br>{{ __('6-10 unidades: 10% descuento') }}
+                            <br>{{ __('11+ unidades (sin límite): 15% descuento') }}
                         </div>
                     </div>
                 @endif
@@ -274,11 +274,11 @@
 
         {{-- PASO 3: Alcance --}}
         @if($pasoActual == 3)
-            <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Paso 3: Alcance de la Promoción</h2>
+            <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">{{ __('Paso 3: Alcance de la Promoción') }}</h2>
 
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Alcance</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Alcance') }}</label>
                     @if($tipo === 'precio_fijo')
                         {{-- Para precio fijo solo se permite artículo específico --}}
                         <div class="p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg mb-3">
@@ -287,37 +287,37 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                 </svg>
                                 <p class="text-sm text-amber-800 dark:text-amber-200">
-                                    <strong>Precio Fijo Final</strong> solo puede aplicarse a un artículo específico.
+                                    <strong>{{ __('Precio Fijo Final') }}</strong> {{ __('solo puede aplicarse a un artículo específico.') }}
                                 </p>
                             </div>
                         </div>
                         <div class="flex gap-4">
                             <label class="flex items-center text-gray-400 dark:text-gray-500 cursor-not-allowed">
                                 <input type="radio" disabled class="mr-2 cursor-not-allowed">
-                                Todos los artículos
+                                {{ __('Todos los artículos') }}
                             </label>
                             <label class="flex items-center text-gray-400 dark:text-gray-500 cursor-not-allowed">
                                 <input type="radio" disabled class="mr-2 cursor-not-allowed">
-                                Por categoría
+                                {{ __('Por categoría') }}
                             </label>
                             <label class="flex items-center text-gray-700 dark:text-gray-300">
                                 <input type="radio" checked class="mr-2 text-bcn-primary">
-                                Artículo específico
+                                {{ __('Artículo específico') }}
                             </label>
                         </div>
                     @else
                         <div class="flex gap-4">
                             <label class="flex items-center text-gray-700 dark:text-gray-300">
                                 <input type="radio" wire:model.live="alcanceArticulos" value="todos" class="mr-2 text-bcn-primary">
-                                Todos los artículos
+                                {{ __('Todos los artículos') }}
                             </label>
                             <label class="flex items-center text-gray-700 dark:text-gray-300">
                                 <input type="radio" wire:model.live="alcanceArticulos" value="categoria" class="mr-2 text-bcn-primary">
-                                Por categoría
+                                {{ __('Por categoría') }}
                             </label>
                             <label class="flex items-center text-gray-700 dark:text-gray-300">
                                 <input type="radio" wire:model.live="alcanceArticulos" value="articulo" class="mr-2 text-bcn-primary">
-                                Artículo específico
+                                {{ __('Artículo específico') }}
                             </label>
                         </div>
                     @endif
@@ -352,12 +352,12 @@
                             {{-- Artículo seleccionado --}}
                             <div class="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900 border border-green-200 dark:border-green-700 rounded-lg">
                                 <div class="flex-1">
-                                    <span class="text-xs text-green-600 dark:text-green-400 font-medium">Artículo seleccionado</span>
+                                    <span class="text-xs text-green-600 dark:text-green-400 font-medium">{{ __('Artículo seleccionado') }}</span>
                                     <p class="font-semibold text-gray-900 dark:text-white">{{ $busquedaArticulo }}</p>
                                 </div>
                                 <button type="button" wire:click="limpiarArticulo"
                                         class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                                        title="Quitar selección">
+                                        :title="__('Quitar selección')"
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                     </svg>
@@ -373,7 +373,7 @@
                                         <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                                         </svg>
-                                        <span>Buscar artículo...</span>
+                                        <span>{{ __('Buscar artículo...') }}</span>
                                     </button>
                                 </div>
 
@@ -385,7 +385,7 @@
                                                    wire:model.live.debounce.200ms="busquedaArticulo"
                                                    wire:keydown.enter="seleccionarPrimerArticulo"
                                                    wire:keydown.escape="cerrarBuscadorArticuloAlcance"
-                                                   placeholder="Nombre, código o escanear código de barras..."
+                                                   :placeholder="__('Nombre, código o escanear código de barras...')"
                                                    x-init="$nextTick(() => $el.focus())"
                                                    class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                         </div>
@@ -407,19 +407,19 @@
                                             @empty
                                                 <div class="px-3 py-4 text-center text-gray-500 dark:text-gray-400 text-sm">
                                                     @if(strlen($busquedaArticulo) >= 2)
-                                                        No se encontraron artículos
+                                                        {{ __('No se encontraron artículos') }}
                                                     @else
-                                                        Escribe para buscar...
+                                                        {{ __('Escribe para buscar...') }}
                                                     @endif
                                                 </div>
                                             @endforelse
                                         </div>
                                         <div class="p-2 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-between">
-                                            <span class="text-xs text-gray-400 dark:text-gray-500">Enter para seleccionar primero</span>
+                                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ __('Enter para seleccionar primero') }}</span>
                                             <button type="button"
                                                     wire:click="cerrarBuscadorArticuloAlcance"
                                                     class="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition">
-                                                Cerrar
+                                                {{ __('Cerrar') }}
                                             </button>
                                         </div>
                                     </div>
@@ -432,20 +432,20 @@
                 <div>
                     <div class="flex items-center justify-between mb-2">
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Sucursales *
-                            <span class="text-xs text-gray-500 dark:text-gray-400 font-normal">(Selecciona una o mas)</span>
+                            {{ __('Sucursales') }} *
+                            <span class="text-xs text-gray-500 dark:text-gray-400 font-normal">({{ __('Selecciona una o mas') }})</span>
                         </label>
                         <div class="flex gap-2">
                             <button type="button"
                                     wire:click="$set('sucursalesSeleccionadas', {{ $sucursales->pluck('id')->toJson() }})"
                                     class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition">
-                                Todas
+                                {{ __('Todas') }}
                             </button>
                             <span class="text-gray-300 dark:text-gray-600">|</span>
                             <button type="button"
                                     wire:click="$set('sucursalesSeleccionadas', [])"
                                     class="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition">
-                                Ninguna
+                                {{ __('Ninguna') }}
                             </button>
                         </div>
                     </div>
@@ -464,7 +464,7 @@
                         @if(!empty($sucursalesSeleccionadas))
                             <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                                 <span class="text-xs text-gray-600 dark:text-gray-400">
-                                    {{ count($sucursalesSeleccionadas) }} sucursal(es) seleccionada(s)
+                                    {{ count($sucursalesSeleccionadas) }} {{ __('sucursal(es) seleccionada(s)') }}
                                 </span>
                             </div>
                         @endif
@@ -478,12 +478,12 @@
 
         {{-- PASO 4: Restricciones --}}
         @if($pasoActual == 4)
-            <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Paso 4: Restricciones y Condiciones</h2>
+            <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">{{ __('Paso 4: Restricciones y Condiciones') }}</h2>
 
             <div class="space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Forma de Venta</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Forma de Venta') }}</label>
                         <select wire:model="formaVentaId" class="w-full rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                             <option value="">Todas</option>
                             @foreach($formasVenta as $forma)
@@ -493,7 +493,7 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Canal de Venta</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Canal de Venta') }}</label>
                         <select wire:model="canalVentaId" class="w-full rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                             <option value="">Todos</option>
                             @foreach($canalesVenta as $canal)
@@ -503,7 +503,7 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Forma de Pago</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Forma de Pago') }}</label>
                         <select wire:model="formaPagoId" class="w-full rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                             <option value="">Todas</option>
                             @foreach($formasPago as $fp)
@@ -515,24 +515,24 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Monto Mínimo</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Monto Mínimo') }}</label>
                         <input type="number" wire:model="montoMinimo" step="0.01" class="w-full rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Cantidad Mínima</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Cantidad Mínima') }}</label>
                         <input type="number" wire:model="cantidadMinima" class="w-full rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Vigencia Desde</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Vigencia Desde') }}</label>
                         <input type="date" wire:model="vigenciaDesde" class="w-full rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Vigencia Hasta</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Vigencia Hasta') }}</label>
                         <input type="date" wire:model="vigenciaHasta" class="w-full rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                     </div>
                 </div>
@@ -542,7 +542,7 @@
                     {{-- Días de la Semana --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Días de la Semana <span class="text-gray-400 dark:text-gray-500 font-normal">(opcional)</span>
+                            {{ __('Días de la Semana') }} <span class="text-gray-400 dark:text-gray-500 font-normal">({{ __('opcional') }})</span>
                         </label>
                         <div class="flex flex-wrap gap-1.5">
                             @php
@@ -573,37 +573,37 @@
                             @endforeach
                         </div>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
-                            Sin selección = todos los días
+                            {{ __('Sin selección = todos los días') }}
                         </p>
                     </div>
 
                     {{-- Código Cupón --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Código Cupón <span class="text-gray-400 dark:text-gray-500 font-normal">(opcional)</span>
+                            {{ __('Código Cupón') }} <span class="text-gray-400 dark:text-gray-500 font-normal">({{ __('opcional') }})</span>
                         </label>
                         <input type="text" wire:model="codigoCupon" placeholder="Ej: VERANO2025"
                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 uppercase"
                                style="text-transform: uppercase;">
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
-                            Si defines un código, la promoción solo aplica cuando el cliente lo ingresa
+                            {{ __('Si defines un código, la promoción solo aplica cuando el cliente lo ingresa') }}
                         </p>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Hora Desde</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Hora Desde') }}</label>
                         <input type="time" wire:model="horaDesde" class="w-full rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Hora Hasta</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Hora Hasta') }}</label>
                         <input type="time" wire:model="horaHasta" class="w-full rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Usos Máximos</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Usos Máximos') }}</label>
                         <input type="number" wire:model="usosMaximos" class="w-full rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                     </div>
                 </div>
@@ -613,11 +613,11 @@
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" wire:model="combinable" class="sr-only peer">
                         <div class="w-14 h-7 bg-gray-200 dark:bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-bcn-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 dark:after:border-gray-500 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-bcn-primary"></div>
-                        <span class="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">Combinable con otras promociones</span>
+                        <span class="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Combinable con otras promociones') }}</span>
                     </label>
                 </div>
                 <p class="text-xs text-gray-500 dark:text-gray-400 text-center -mt-2">
-                    Si está activado, esta promoción puede aplicarse junto con otras promociones combinables
+                    {{ __('Si está activado, esta promoción puede aplicarse junto con otras promociones combinables') }}
                 </p>
             </div>
         @endif
@@ -630,7 +630,7 @@
                 $mostrarPrioridad = $combinable && $promocionesCombinables->count() > 0;
             @endphp
 
-            <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Paso 5: {{ $mostrarPrioridad ? 'Prioridad y ' : '' }}Simulación</h2>
+            <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">{{ __('Paso 5:') }} {{ $mostrarPrioridad ? __('Prioridad y ') : '' }}{{ __('Simulación') }}</h2>
 
             <div class="grid grid-cols-1 lg:grid-cols-10 gap-6">
                 {{-- Columna Izquierda: Prioridad y Promociones (30%) --}}
@@ -641,12 +641,12 @@
                         <div class="flex items-center justify-between gap-4">
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-2 mb-1">
-                                    <span class="text-xs font-medium text-bcn-primary dark:text-bcn-primary uppercase tracking-wide">Esta promoción</span>
+                                    <span class="text-xs font-medium text-bcn-primary dark:text-bcn-primary uppercase tracking-wide">{{ __('Esta promoción') }}</span>
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $combinable ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300' }}">
-                                        {{ $combinable ? 'Combinable' : 'No combinable' }}
+                                        {{ $combinable ? __('Combinable') : __('No combinable') }}
                                     </span>
                                 </div>
-                                <h3 class="text-lg font-bold text-gray-900 dark:text-white truncate">{{ $nombre ?: '(Sin nombre)' }}</h3>
+                                <h3 class="text-lg font-bold text-gray-900 dark:text-white truncate">{{ $nombre ?: __('(Sin nombre)') }}</h3>
                                 <p class="text-sm text-gray-600 dark:text-gray-400">
                                     @switch($tipo)
                                         @case('descuento_porcentaje')
@@ -679,7 +679,7 @@
                             <div class="flex items-center gap-2">
                                 @if($mostrarPrioridad)
                                     <div class="text-center">
-                                        <span class="text-xs text-gray-500 block">Prioridad</span>
+                                        <span class="text-xs text-gray-500 block">{{ __('Prioridad') }}</span>
                                         <input type="number" wire:model.live="prioridad" min="1"
                                                class="w-16 rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-lg font-bold text-center">
                                     </div>
@@ -687,7 +687,7 @@
                                 <button type="button"
                                         wire:click="$set('mostrarModalEdicion', true)"
                                         class="p-2 text-bcn-primary hover:bg-bcn-primary/10 rounded-lg transition-colors"
-                                        title="Editar promoción">
+                                        :title="__('Editar promoción')"
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                                     </svg>
@@ -704,7 +704,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                 </svg>
                                 <p class="text-xs text-gray-600 dark:text-gray-300">
-                                    La <strong>prioridad</strong> define el orden de aplicación entre promociones combinables. Cada una se calcula sobre el resultado de la anterior.
+                                    {{ __('La') }} <strong>{{ __('prioridad') }}</strong> {{ __('define el orden de aplicación entre promociones combinables. Cada una se calcula sobre el resultado de la anterior.') }}
                                 </p>
                             </div>
                         </div>
@@ -717,9 +717,9 @@
                                 </svg>
                                 <p class="text-xs text-gray-600 dark:text-gray-300">
                                     @if(!$combinable)
-                                        Promoción no combinable. El sistema aplicará automáticamente la mejor opción para el cliente.
+                                        {{ __('Promoción no combinable. El sistema aplicará automáticamente la mejor opción para el cliente.') }}
                                     @else
-                                        No hay otras promociones combinables activas.
+                                        {{ __('No hay otras promociones combinables activas.') }}
                                     @endif
                                 </p>
                             </div>
@@ -733,9 +733,9 @@
                                 <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                                 </svg>
-                                Otras promociones activas ({{ count($promocionesCompetidoras) }})
+                                {{ __('Otras promociones activas') }} ({{ count($promocionesCompetidoras) }})
                             </h3>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Promociones que podrían aplicarse en el mismo contexto</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Promociones que podrían aplicarse en el mismo contexto') }}</p>
                         </div>
                         <div class="max-h-64 overflow-y-auto">
                             @forelse($promocionesCompetidoras as $promo)
@@ -752,10 +752,10 @@
                                         </div>
                                         <div class="text-right">
                                             <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium {{ $promo->combinable ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300' }}">
-                                                {{ $promo->combinable ? 'Combinable' : 'No combinable' }}
+                                                {{ $promo->combinable ? __('Combinable') : __('No combinable') }}
                                             </span>
                                             @if($promo->combinable)
-                                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Prioridad: {{ $promo->prioridad }}</p>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Prioridad') }}: {{ $promo->prioridad }}</p>
                                             @endif
                                         </div>
                                     </div>
@@ -765,8 +765,8 @@
                                     <svg class="w-8 h-8 mx-auto mb-2 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                     </svg>
-                                    <p class="text-sm">No hay otras promociones activas</p>
-                                    <p class="text-xs">Esta será la única promoción aplicable</p>
+                                    <p class="text-sm">{{ __('No hay otras promociones activas') }}</p>
+                                    <p class="text-xs">{{ __('Esta será la única promoción aplicable') }}</p>
                                 </div>
                             @endforelse
                         </div>
@@ -781,9 +781,9 @@
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
                                 </svg>
-                                Simulador de Venta
+                                {{ __('Simulador de Venta') }}
                             </h3>
-                            <p class="text-xs text-purple-700 dark:text-purple-400 mt-1">Prueba cómo se aplicarían las promociones</p>
+                            <p class="text-xs text-purple-700 dark:text-purple-400 mt-1">{{ __('Prueba cómo se aplicarían las promociones') }}</p>
                         </div>
 
                         <div class="p-3 sm:p-4 space-y-3">
@@ -797,7 +797,7 @@
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
                                         </svg>
-                                        Contexto de la venta
+                                        {{ __('Contexto de la venta') }}
                                     </span>
                                     <svg class="w-4 h-4 transition-transform {{ $mostrarFiltrosSimulador ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -811,7 +811,7 @@
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                         {{-- Sucursal --}}
                                         <div>
-                                            <label class="text-xs text-gray-500 block mb-1">Sucursal</label>
+                                            <label class="text-xs text-gray-500 block mb-1">{{ __('Sucursal') }}</label>
                                             <select wire:model.live="simuladorSucursalId"
                                                     class="w-full text-sm rounded border-gray-300 focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                                 @foreach($sucursales as $suc)
@@ -824,7 +824,7 @@
 
                                         {{-- Lista de Precios --}}
                                         <div wire:key="lista-precios-{{ $simuladorSucursalId }}">
-                                            <label class="text-xs text-gray-500 block mb-1">Lista de Precios</label>
+                                            <label class="text-xs text-gray-500 block mb-1">{{ __('Lista de Precios') }}</label>
                                             <select wire:model.live="simuladorListaPrecioId"
                                                     class="w-full text-sm rounded border-gray-300 focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                                 @forelse($listasPreciosSimulador as $lista)
@@ -837,7 +837,7 @@
                                                         @endif
                                                     </option>
                                                 @empty
-                                                    <option value="">Sin listas</option>
+                                                    <option value="">{{ __('Sin listas') }}</option>
                                                 @endforelse
                                             </select>
                                             @php
@@ -849,14 +849,14 @@
                                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                                                         </svg>
-                                                        No aplica promociones
+                                                        {{ __('No aplica promociones') }}
                                                     </p>
                                                 @elseif($listaSeleccionada['promociones_alcance'] === 'excluir_lista')
                                                     <p class="text-[10px] text-blue-600 mt-0.5 flex items-center gap-1">
                                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                                         </svg>
-                                                        Excluye arts. con precio especial
+                                                        {{ __('Excluye arts. con precio especial') }}
                                                     </p>
                                                 @endif
                                             @endif
@@ -864,7 +864,7 @@
 
                                         {{-- Forma de Venta --}}
                                         <div>
-                                            <label class="text-xs text-gray-500 block mb-1">Forma Venta</label>
+                                            <label class="text-xs text-gray-500 block mb-1">{{ __('Forma Venta') }}</label>
                                             <select wire:model.live="simuladorFormaVentaId"
                                                     class="w-full text-sm rounded border-gray-300 focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                                 <option value="">Todas</option>
@@ -876,7 +876,7 @@
 
                                         {{-- Canal de Venta --}}
                                         <div>
-                                            <label class="text-xs text-gray-500 block mb-1">Canal Venta</label>
+                                            <label class="text-xs text-gray-500 block mb-1">{{ __('Canal Venta') }}</label>
                                             <select wire:model.live="simuladorCanalVentaId"
                                                     class="w-full text-sm rounded border-gray-300 focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                                 <option value="">Todos</option>
@@ -888,7 +888,7 @@
 
                                         {{-- Forma de Pago --}}
                                         <div class="sm:col-span-2">
-                                            <label class="text-xs text-gray-500 block mb-1">Forma Pago</label>
+                                            <label class="text-xs text-gray-500 block mb-1">{{ __('Forma Pago') }}</label>
                                             <select wire:model.live="simuladorFormaPagoId"
                                                     class="w-full text-sm rounded border-gray-300 focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                                 <option value="">Todas</option>
@@ -910,7 +910,7 @@
                                         <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                                         </svg>
-                                        <span>Agregar artículo...</span>
+                                        <span>{{ __('Agregar artículo...') }}</span>
                                     </button>
                                 </div>
 
@@ -922,7 +922,7 @@
                                                    wire:model.live.debounce.200ms="busquedaArticuloSimulador"
                                                    wire:keydown.enter="agregarPrimerArticulo"
                                                    wire:keydown.escape="cerrarBuscadorArticulos"
-                                                   placeholder="Nombre, código o escanear código de barras..."
+                                                   :placeholder="__('Nombre, código o escanear código de barras...')"
                                                    x-init="$nextTick(() => $el.focus())"
                                                    class="w-full text-sm rounded border-gray-300 focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                         </div>
@@ -955,16 +955,16 @@
                                                 </button>
                                             @empty
                                                 <div class="px-3 py-4 text-center text-gray-500 text-sm">
-                                                    No se encontraron artículos
+                                                    {{ __('No se encontraron artículos') }}
                                                 </div>
                                             @endforelse
                                         </div>
                                         <div class="p-2 border-t bg-gray-50 flex items-center justify-between">
-                                            <span class="text-xs text-gray-400">Enter para agregar primero</span>
+                                            <span class="text-xs text-gray-400">{{ __('Enter para agregar primero') }}</span>
                                             <button type="button"
                                                     wire:click="cerrarBuscadorArticulos"
                                                     class="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded transition">
-                                                Cerrar
+                                                {{ __('Cerrar') }}
                                             </button>
                                         </div>
                                     </div>
@@ -1089,7 +1089,7 @@
                                     <svg class="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
                                     </svg>
-                                    <p>Agrega artículos para simular</p>
+                                    <p>{{ __('Agrega artículos para simular') }}</p>
                                 </div>
                             @endif
 
@@ -1105,7 +1105,7 @@
 
                                         @if($promoAplicadas->count() > 0)
                                             <div class="bg-green-50 border border-green-200 rounded-lg p-2">
-                                                <p class="text-xs font-semibold text-green-800 mb-1">Promociones aplicadas:</p>
+                                                <p class="text-xs font-semibold text-green-800 mb-1">{{ __('Promociones aplicadas:') }}</p>
                                                 @foreach($promoAplicadas as $pr)
                                                     <div class="flex justify-between items-center text-xs {{ $pr['es_nueva'] ? 'bg-yellow-50 rounded px-1' : '' }}">
                                                         <span class="{{ $pr['es_nueva'] ? 'text-yellow-800' : 'text-gray-700' }}">
@@ -1125,7 +1125,7 @@
 
                                         @if($promoNoAplicadas->count() > 0)
                                             <div class="bg-gray-50 rounded-lg p-2">
-                                                <p class="text-xs font-semibold text-gray-500 mb-1">No aplicadas:</p>
+                                                <p class="text-xs font-semibold text-gray-500 mb-1">{{ __('No aplicadas:') }}</p>
                                                 @foreach($promoNoAplicadas as $pr)
                                                     <div class="text-xs text-gray-400 {{ $pr['es_nueva'] ? 'bg-yellow-50 rounded px-1' : '' }}">
                                                         {{ $pr['nombre'] }}
@@ -1142,7 +1142,7 @@
                                     {{-- Promociones a nivel de venta (precio fijo) --}}
                                     @if(!empty($resultadoSimulador['promociones_venta']))
                                         <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-2 mt-2">
-                                            <p class="text-xs font-semibold text-yellow-800 mb-1">Promociones al total de la venta:</p>
+                                            <p class="text-xs font-semibold text-yellow-800 mb-1">{{ __('Promociones al total de la venta:') }}</p>
                                             @foreach($resultadoSimulador['promociones_venta'] as $pv)
                                                 <div class="flex justify-between items-center text-xs {{ $pv['es_nueva'] ? 'bg-yellow-100 rounded px-1' : '' }}">
                                                     <span class="{{ $pv['es_nueva'] ? 'text-yellow-800' : 'text-gray-700' }}">
@@ -1165,33 +1165,33 @@
                                     {{-- Totales --}}
                                     <div class="border-t pt-2 space-y-1">
                                         <div class="flex justify-between text-sm">
-                                            <span class="text-gray-600">Subtotal:</span>
+                                            <span class="text-gray-600">{{ __('Subtotal') }}:</span>
                                             <span>$@precio($resultadoSimulador['subtotal'])</span>
                                         </div>
 
                                         @if($resultadoSimulador['total_descuentos'] > 0)
                                             <div class="flex justify-between text-sm text-green-600">
-                                                <span>Descuentos:</span>
+                                                <span>{{ __('Descuentos') }}:</span>
                                                 <span>-$@precio($resultadoSimulador['total_descuentos'])</span>
                                             </div>
                                         @endif
 
                                         @if($resultadoSimulador['total_recargos'] > 0)
                                             <div class="flex justify-between text-sm text-red-600">
-                                                <span>Recargos:</span>
+                                                <span>{{ __('Recargos') }}:</span>
                                                 <span>+$@precio($resultadoSimulador['total_recargos'])</span>
                                             </div>
                                         @endif
 
                                         <div class="flex justify-between text-lg font-bold border-t pt-2">
-                                            <span>TOTAL:</span>
+                                            <span>{{ __('TOTAL') }}:</span>
                                             <span class="text-bcn-primary">$@precio($resultadoSimulador['total_final'])</span>
                                         </div>
 
                                         @if($resultadoSimulador['total_descuentos'] > 0)
                                             <div class="bg-green-50 border border-green-200 rounded p-2 text-center">
                                                 <span class="text-green-700 text-sm font-medium">
-                                                    Ahorro: $@precio($resultadoSimulador['total_descuentos'])
+                                                    {{ __('Ahorro') }}: $@precio($resultadoSimulador['total_descuentos'])
                                                     @if($resultadoSimulador['subtotal'] > 0)
                                                         (@porcentaje(($resultadoSimulador['total_descuentos'] / $resultadoSimulador['subtotal']) * 100))
                                                     @endif
@@ -1214,7 +1214,7 @@
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
-                    Por favor corrige los siguientes errores:
+                    {{ __('Por favor corrige los siguientes errores:') }}
                 </div>
                 <ul class="list-disc list-inside text-sm text-red-700 space-y-1">
                     @foreach($errors->all() as $error)
@@ -1229,7 +1229,7 @@
             <div>
                 @if($pasoActual > 1)
                     <button wire:click="anterior" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
-                        ← Anterior
+                        {{ __('← Anterior') }}
                     </button>
                 @endif
             </div>
@@ -1237,20 +1237,20 @@
             <div class="flex gap-2">
                 <a href="{{ route('configuracion.promociones') }}" wire:navigate
                    class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
-                    Cancelar
+                    {{ __('Cancelar') }}
                 </a>
 
                 @if($pasoActual < $totalPasos)
                     <button wire:click="siguiente" class="px-4 py-2 bg-bcn-primary text-white rounded hover:bg-bcn-primary-dark">
-                        Siguiente →
+                        {{ __('Siguiente →') }}
                     </button>
                 @else
                     <button wire:click="guardar"
                             wire:loading.attr="disabled"
                             wire:loading.class="opacity-50 cursor-not-allowed"
                             class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
-                        <span wire:loading.remove wire:target="guardar">Guardar Promoción</span>
-                        <span wire:loading wire:target="guardar">Guardando...</span>
+                        <span wire:loading.remove wire:target="guardar">{{ __('Guardar Promoción') }}</span>
+                        <span wire:loading wire:target="guardar">{{ __('Guardando...') }}</span>
                     </button>
                 @endif
             </div>
@@ -1271,7 +1271,7 @@
                     <div class="bg-bcn-primary px-6 py-4">
                         <div class="flex items-center justify-between">
                             <div>
-                                <h3 class="text-lg font-semibold text-white" id="modal-title">Editar Promoción</h3>
+                                <h3 class="text-lg font-semibold text-white" id="modal-title">{{ __('Editar Promoción') }}</h3>
                                 {{-- Tipo como badge (solo lectura) --}}
                                 <div class="mt-1">
                                     @php
@@ -1303,25 +1303,25 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {{-- Columna 1: Datos básicos y Valor --}}
                             <div class="space-y-4">
-                                <h4 class="font-semibold text-gray-900 border-b pb-2">Datos Básicos</h4>
+                                <h4 class="font-semibold text-gray-900 border-b pb-2">{{ __('Datos Básicos') }}</h4>
 
                                 {{-- Nombre --}}
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-                                    <input type="text" wire:model.live="nombre" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" placeholder="Ej: 10% Off Efectivo">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('Nombre') }} *</label>
+                                    <input type="text" wire:model.live="nombre" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" :placeholder="__('Ej: 10% Off Efectivo')">
                                 </div>
 
                                 {{-- Valor (si no es escalonado) --}}
                                 @if($tipo !== 'descuento_escalonado')
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-1">
-                                            Valor *
+                                            {{ __('Valor') }} *
                                             @if(str_contains($tipo ?? '', 'porcentaje'))
-                                                <span class="text-gray-400">(porcentaje)</span>
+                                                <span class="text-gray-400">({{ __('porcentaje') }})</span>
                                             @elseif($tipo === 'precio_fijo')
-                                                <span class="text-gray-400">(precio en $)</span>
+                                                <span class="text-gray-400">({{ __('precio en $') }})</span>
                                             @else
-                                                <span class="text-gray-400">(monto en $)</span>
+                                                <span class="text-gray-400">({{ __('monto en $') }})</span>
                                             @endif
                                         </label>
                                         <input type="number" wire:model.live="valor" step="0.01" min="0"
@@ -1332,17 +1332,17 @@
                                 {{-- Escalas (solo para escalonado) --}}
                                 @if($tipo === 'descuento_escalonado')
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Escalas de descuento</label>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">{{ __('Escalas de descuento') }}</label>
                                         <div class="space-y-2 max-h-40 overflow-y-auto">
                                             @foreach($escalas as $index => $escala)
                                                 <div class="flex items-center gap-2 p-2 bg-gray-50 rounded">
                                                     <div class="flex-1">
-                                                        <label class="text-xs text-gray-500">Desde cantidad</label>
+                                                        <label class="text-xs text-gray-500">{{ __('Desde cantidad') }}</label>
                                                         <input type="number" wire:model.live="escalas.{{ $index }}.cantidad_minima" min="1"
                                                                class="w-full text-sm rounded border-gray-300">
                                                     </div>
                                                     <div class="flex-1">
-                                                        <label class="text-xs text-gray-500">Descuento %</label>
+                                                        <label class="text-xs text-gray-500">{{ __('Descuento %') }}</label>
                                                         <input type="number" wire:model.live="escalas.{{ $index }}.valor" step="0.01" min="0"
                                                                class="w-full text-sm rounded border-gray-300">
                                                     </div>
@@ -1357,35 +1357,35 @@
                                         </div>
                                         <button type="button" wire:click="agregarEscala"
                                                 class="mt-2 text-sm text-bcn-primary hover:underline">
-                                            + Agregar escala
+                                            {{ __('+ Agregar escala') }}
                                         </button>
                                     </div>
                                 @endif
 
                                 {{-- Prioridad --}}
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Prioridad</label>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('Prioridad') }}</label>
                                     <input type="number" wire:model.live="prioridad" min="1" max="100"
                                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                    <p class="text-xs text-gray-400 mt-1">Menor número = mayor prioridad</p>
+                                    <p class="text-xs text-gray-400 mt-1">{{ __('Menor número = mayor prioridad') }}</p>
                                 </div>
 
                                 {{-- Combinable --}}
                                 <div class="flex items-center gap-3">
                                     <input type="checkbox" wire:model.live="combinable" id="modal_combinable"
                                            class="rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary">
-                                    <label for="modal_combinable" class="text-sm text-gray-700">Combinable con otras promociones</label>
+                                    <label for="modal_combinable" class="text-sm text-gray-700">{{ __('Combinable con otras promociones') }}</label>
                                 </div>
 
                                 {{-- Descripción --}}
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Descripción <span class="text-gray-400">(opcional)</span></label>
-                                    <textarea wire:model="descripcion" rows="2" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" placeholder="Descripción interna..."></textarea>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('Descripción') }} <span class="text-gray-400">({{ __('opcional') }})</span></label>
+                                    <textarea wire:model="descripcion" rows="2" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" :placeholder="__('Descripción interna...')"></textarea>
                                 </div>
 
                                 {{-- Vigencia --}}
                                 <div class="border-t pt-4">
-                                    <h5 class="text-sm font-medium text-gray-700 mb-3">Vigencia <span class="text-gray-400">(opcional)</span></h5>
+                                    <h5 class="text-sm font-medium text-gray-700 mb-3">{{ __('Vigencia') }} <span class="text-gray-400">({{ __('opcional') }})</span></h5>
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
                                             <label class="block text-xs text-gray-500 mb-1">Desde</label>
@@ -1403,11 +1403,11 @@
 
                             {{-- Columna 2: Alcance y Condiciones --}}
                             <div class="space-y-4">
-                                <h4 class="font-semibold text-gray-900 border-b pb-2">Alcance</h4>
+                                <h4 class="font-semibold text-gray-900 border-b pb-2">{{ __('Alcance') }}</h4>
 
                                 {{-- Sucursales --}}
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Sucursales *</label>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('Sucursales') }} *</label>
                                     <div class="border rounded-md p-2 max-h-28 overflow-y-auto space-y-1">
                                         @foreach($sucursales as $sucursal)
                                             <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 p-1 rounded">
@@ -1421,19 +1421,19 @@
 
                                 {{-- Alcance de artículos --}}
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Aplica a</label>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('Aplica a') }}</label>
                                     <select wire:model.live="alcanceArticulos" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                        <option value="todos">Todos los artículos</option>
-                                        <option value="categoria">Una categoría específica</option>
-                                        <option value="articulo">Un artículo específico</option>
+                                        <option value="todos">{{ __('Todos los artículos') }}</option>
+                                        <option value="categoria">{{ __('Una categoría específica') }}</option>
+                                        <option value="articulo">{{ __('Un artículo específico') }}</option>
                                     </select>
                                 </div>
 
                                 @if($alcanceArticulos === 'categoria')
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('Categoría') }}</label>
                                         <select wire:model.live="categoriaId" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                            <option value="">Seleccionar...</option>
+                                            <option value="">{{ __('Seleccionar...') }}</option>
                                             @foreach($categorias as $cat)
                                                 <option value="{{ $cat->id }}">{{ $cat->nombre }}</option>
                                             @endforeach
@@ -1443,9 +1443,9 @@
 
                                 @if($alcanceArticulos === 'articulo')
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Artículo</label>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('Artículo') }}</label>
                                         <select wire:model.live="articuloId" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                            <option value="">Seleccionar...</option>
+                                            <option value="">{{ __('Seleccionar...') }}</option>
                                             @foreach($articulos as $art)
                                                 <option value="{{ $art->id }}">{{ $art->nombre }} ({{ $art->codigo }})</option>
                                             @endforeach
@@ -1455,12 +1455,12 @@
 
                                 {{-- Condiciones --}}
                                 <div class="border-t pt-4">
-                                    <h5 class="text-sm font-medium text-gray-700 mb-3">Condiciones <span class="text-gray-400">(opcional)</span></h5>
+                                    <h5 class="text-sm font-medium text-gray-700 mb-3">{{ __('Condiciones') }} <span class="text-gray-400">({{ __('opcional') }})</span></h5>
 
                                     <div class="grid grid-cols-2 gap-3">
                                         {{-- Forma de Pago --}}
                                         <div>
-                                            <label class="block text-xs text-gray-500 mb-1">Forma de Pago</label>
+                                            <label class="block text-xs text-gray-500 mb-1">{{ __('Forma de Pago') }}</label>
                                             <select wire:model.live="formaPagoId" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
                                                 <option value="">Todas</option>
                                                 @foreach($formasPago as $fp)
@@ -1471,7 +1471,7 @@
 
                                         {{-- Forma de Venta --}}
                                         <div>
-                                            <label class="block text-xs text-gray-500 mb-1">Forma de Venta</label>
+                                            <label class="block text-xs text-gray-500 mb-1">{{ __('Forma de Venta') }}</label>
                                             <select wire:model.live="formaVentaId" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
                                                 <option value="">Todas</option>
                                                 @foreach($formasVenta as $fv)
@@ -1482,7 +1482,7 @@
 
                                         {{-- Canal de Venta --}}
                                         <div>
-                                            <label class="block text-xs text-gray-500 mb-1">Canal de Venta</label>
+                                            <label class="block text-xs text-gray-500 mb-1">{{ __('Canal de Venta') }}</label>
                                             <select wire:model.live="canalVentaId" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
                                                 <option value="">Todos</option>
                                                 @foreach($canalesVenta as $cv)
@@ -1493,21 +1493,21 @@
 
                                         {{-- Monto Mínimo --}}
                                         <div>
-                                            <label class="block text-xs text-gray-500 mb-1">Monto Mínimo ($)</label>
+                                            <label class="block text-xs text-gray-500 mb-1">{{ __('Monto Mínimo ($)') }}</label>
                                             <input type="number" wire:model.live="montoMinimo" min="0" step="0.01" placeholder="Sin mínimo"
                                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
                                         </div>
 
                                         {{-- Cantidad Mínima --}}
                                         <div>
-                                            <label class="block text-xs text-gray-500 mb-1">Cantidad Mínima</label>
+                                            <label class="block text-xs text-gray-500 mb-1">{{ __('Cantidad Mínima') }}</label>
                                             <input type="number" wire:model.live="cantidadMinima" min="0" placeholder="Sin mínimo"
                                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
                                         </div>
 
                                         {{-- Cantidad Máxima --}}
                                         <div>
-                                            <label class="block text-xs text-gray-500 mb-1">Cantidad Máxima</label>
+                                            <label class="block text-xs text-gray-500 mb-1">{{ __('Cantidad Máxima') }}</label>
                                             <input type="number" wire:model.live="cantidadMaxima" min="0" placeholder="Sin máximo"
                                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
                                         </div>
@@ -1522,7 +1522,7 @@
                         <button type="button"
                                 wire:click="$set('mostrarModalEdicion', false)"
                                 class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary">
-                            Cerrar
+                            {{ __('Cerrar') }}
                         </button>
                     </div>
                 </div>

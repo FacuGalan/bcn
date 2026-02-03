@@ -3,8 +3,8 @@
         <!-- Header -->
         <div class="mb-6 flex justify-between items-center">
             <div>
-                <h2 class="text-2xl font-bold text-bcn-secondary">Configuracion de Impresoras</h2>
-                <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">Administra las impresoras y sus asignaciones por sucursal/caja</p>
+                <h2 class="text-2xl font-bold text-bcn-secondary">{{ __('Configuracion de Impresoras') }}</h2>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ __('Administra las impresoras y sus asignaciones por sucursal/caja') }}</p>
             </div>
             <button
                 wire:click="create"
@@ -13,7 +13,7 @@
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
-                Nueva Impresora
+                {{ __('Nueva Impresora') }}
             </button>
         </div>
 
@@ -25,8 +25,8 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <div>
-                        <h4 class="text-sm font-semibold text-blue-800 dark:text-blue-200">Requisitos para impresion</h4>
-                        <p class="text-xs text-blue-600 dark:text-blue-300 mt-1">Para imprimir desde el navegador necesitas QZ Tray instalado y el certificado de BCN Pymes.</p>
+                        <h4 class="text-sm font-semibold text-blue-800 dark:text-blue-200">{{ __('Requisitos para impresion') }}</h4>
+                        <p class="text-xs text-blue-600 dark:text-blue-300 mt-1">{{ __('Para imprimir desde el navegador necesitas QZ Tray instalado y el certificado de BCN Pymes.') }}</p>
                     </div>
                 </div>
                 <div class="flex flex-col sm:flex-row gap-2 sm:flex-shrink-0">
@@ -38,7 +38,7 @@
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                         </svg>
-                        Descargar QZ Tray
+                        {{ __('Descargar QZ Tray') }}
                     </a>
                     <a
                         href="/qz/instalar-certificado-bcn.bat"
@@ -48,7 +48,7 @@
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                         </svg>
-                        Instalar Certificado
+                        {{ __('Instalar Certificado') }}
                     </a>
                 </div>
             </div>
@@ -59,25 +59,25 @@
             <div class="p-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Buscar</label>
+                        <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar') }}</label>
                         <input
                             type="text"
                             id="search"
                             wire:model.live.debounce.300ms="search"
-                            placeholder="Nombre de la impresora..."
+                            :placeholder="__('Nombre de la impresora...')"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                         />
                     </div>
                     <div>
-                        <label for="filterTipo" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo</label>
+                        <label for="filterTipo" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipo') }}</label>
                         <select
                             id="filterTipo"
                             wire:model.live="filterTipo"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                         >
-                            <option value="all">Todos</option>
-                            <option value="termica">Termica (ESC/POS)</option>
-                            <option value="laser_inkjet">Laser/Inkjet</option>
+                            <option value="all">{{ __('Todos') }}</option>
+                            <option value="termica">{{ __('Termica (ESC/POS)') }}</option>
+                            <option value="laser_inkjet">{{ __('Laser/Inkjet') }}</option>
                         </select>
                     </div>
                 </div>
@@ -109,7 +109,7 @@
                                     </div>
                                     <div class="flex items-center text-sm text-gray-600 dark:text-gray-300">
                                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $impresora->activa ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' }}">
-                                            {{ $impresora->activa ? 'Activa' : 'Inactiva' }}
+                                            {{ $impresora->activa ? __('Activa') : __('Inactiva') }}
                                         </span>
                                     </div>
                                 </div>
@@ -124,7 +124,7 @@
                                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
-                                Editar
+                                {{ __('Editar') }}
                             </button>
                             <button
                                 wire:click="abrirAsignaciones({{ $impresora->id }})"
@@ -133,7 +133,7 @@
                                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                                 </svg>
-                                Asignar
+                                {{ __('Asignar') }}
                             </button>
                             <button
                                 wire:click="probarImpresion({{ $impresora->id }})"
@@ -142,11 +142,11 @@
                                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
-                                Probar
+                                {{ __('Probar') }}
                             </button>
                             <button
                                 wire:click="delete({{ $impresora->id }})"
-                                wire:confirm="Esta seguro de eliminar esta impresora?"
+                                wire:confirm="{{ __('Esta seguro de eliminar esta impresora?') }}"
                                 class="inline-flex justify-center items-center px-3 py-2 border border-red-300 dark:border-red-600 text-sm font-medium rounded-md text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-red-500 transition-colors duration-150"
                             >
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -162,8 +162,8 @@
                         <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                         </svg>
-                        <p class="mt-2">No hay impresoras configuradas</p>
-                        <p class="text-sm mt-1">Haz clic en "Nueva Impresora" para agregar una</p>
+                        <p class="mt-2">{{ __('No hay impresoras configuradas') }}</p>
+                        <p class="text-sm mt-1">{{ __('Haz clic en "Nueva Impresora" para agregar una') }}</p>
                     </div>
                 </div>
             @endforelse
@@ -178,14 +178,14 @@
 
         <!-- Seccion de Configuracion por Sucursal -->
         <div class="mt-8">
-            <h3 class="text-lg font-semibold text-bcn-secondary mb-4">Configuracion por Sucursal</h3>
+            <h3 class="text-lg font-semibold text-bcn-secondary mb-4">{{ __('Configuracion por Sucursal') }}</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 @foreach($sucursales as $sucursal)
                     <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-4">
                         <div class="flex justify-between items-center">
                             <div>
                                 <h4 class="font-medium text-gray-900 dark:text-white">{{ $sucursal->nombre }}</h4>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $sucursal->cajas->count() }} caja(s)</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $sucursal->cajas->count() }} {{ __('caja(s)') }}</p>
                             </div>
                             <button
                                 wire:click="abrirConfigSucursal({{ $sucursal->id }})"
@@ -195,7 +195,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
-                                Configurar
+                                {{ __('Configurar') }}
                             </button>
                         </div>
                     </div>
@@ -214,13 +214,13 @@
                     <form wire:submit="save">
                         <div class="bg-white dark:bg-gray-800 px-6 py-4">
                             <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                                {{ $editMode ? 'Editar Impresora' : 'Nueva Impresora' }}
+                                {{ $editMode ? __('Editar Impresora') : __('Nueva Impresora') }}
                             </h3>
 
                             <div class="space-y-4">
                                 <!-- Impresoras detectadas -->
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Impresoras del Sistema</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Impresoras del Sistema') }}</label>
                                     @if(count($impresorasDetectadas) > 0)
                                         <div class="max-h-40 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-md">
                                             @foreach($impresorasDetectadas as $imp)
@@ -235,10 +235,10 @@
                                         </div>
                                     @else
                                         <div class="text-sm text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
-                                            <p>Detectando impresoras...</p>
-                                            <p class="text-xs mt-1">Asegurate de tener QZ Tray instalado y ejecutandose.</p>
+                                            <p>{{ __('Detectando impresoras...') }}</p>
+                                            <p class="text-xs mt-1">{{ __('Asegurate de tener QZ Tray instalado y ejecutandose.') }}</p>
                                             <button type="button" wire:click="$dispatch('detectar-impresoras')" class="mt-2 text-bcn-primary hover:underline text-xs">
-                                                Reintentar deteccion
+                                                {{ __('Reintentar deteccion') }}
                                             </button>
                                         </div>
                                     @endif
@@ -246,12 +246,12 @@
 
                                 <!-- Nombre -->
                                 <div>
-                                    <label for="nombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre *</label>
+                                    <label for="nombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Nombre') }} *</label>
                                     <input
                                         type="text"
                                         id="nombre"
                                         wire:model="nombre"
-                                        placeholder="Ej: Impresora Caja 1"
+                                        :placeholder="__('Ej: Impresora Caja 1')"
                                         class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                                     />
                                     @error('nombre') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
@@ -259,7 +259,7 @@
 
                                 <!-- Nombre del sistema (readonly) -->
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Impresora Seleccionada *</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Impresora Seleccionada') }} *</label>
                                     <input
                                         type="text"
                                         wire:model="nombreSistema"
@@ -272,7 +272,7 @@
                                 <!-- Tipo y Formato -->
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label for="tipo" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo</label>
+                                        <label for="tipo" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipo') }}</label>
                                         <select
                                             id="tipo"
                                             wire:model.live="tipo"
@@ -284,7 +284,7 @@
                                         </select>
                                     </div>
                                     <div>
-                                        <label for="formatoPapel" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Formato Papel</label>
+                                        <label for="formatoPapel" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Formato Papel') }}</label>
                                         <select
                                             id="formatoPapel"
                                             wire:model.live="formatoPapel"
@@ -305,7 +305,7 @@
                                         wire:model="activa"
                                         class="rounded border-gray-300 text-bcn-primary shadow-sm focus:ring-bcn-primary"
                                     />
-                                    <label for="activa" class="ml-2 text-sm text-gray-700 dark:text-gray-300">Impresora activa</label>
+                                    <label for="activa" class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ __('Impresora activa') }}</label>
                                 </div>
                             </div>
                         </div>
@@ -316,13 +316,13 @@
                                 wire:click="cancel"
                                 class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
                             >
-                                Cancelar
+                                {{ __('Cancelar') }}
                             </button>
                             <button
                                 type="submit"
                                 class="px-4 py-2 bg-bcn-primary border border-transparent rounded-md text-sm font-medium text-white hover:bg-opacity-90"
                             >
-                                {{ $editMode ? 'Actualizar' : 'Crear' }}
+                                {{ $editMode ? __('Actualizar') : __('Crear') }}
                             </button>
                         </div>
                     </form>
@@ -349,10 +349,10 @@
                                 </div>
                                 <div>
                                     <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                                        Asignar Impresora
+                                        {{ __('Asignar Impresora') }}
                                     </h3>
                                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                                        Configura donde y que documentos imprimira
+                                        {{ __('Configura donde y que documentos imprimira') }}
                                     </p>
                                 </div>
                             </div>
@@ -368,7 +368,7 @@
                     <div class="flex-1 overflow-y-auto px-6 py-4">
                         <!-- Leyenda de tipos de documento -->
                         <div class="mb-5 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700/50 dark:to-gray-700/30 rounded-lg border border-blue-100 dark:border-gray-600">
-                            <h4 class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-3">Tipos de Documento</h4>
+                            <h4 class="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-3">{{ __('Tipos de Documento') }}</h4>
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 @foreach($tiposDocumento as $tipo => $label)
                                     <div class="flex items-center space-x-2 text-sm">
@@ -405,7 +405,7 @@
                                                 <h4 class="font-semibold text-gray-900 dark:text-white">{{ $sucursal->nombre }}</h4>
                                             </div>
                                             <span class="text-xs text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded-full">
-                                                {{ $sucursal->cajas->count() }} {{ $sucursal->cajas->count() === 1 ? 'caja' : 'cajas' }}
+                                                {{ $sucursal->cajas->count() }} {{ $sucursal->cajas->count() === 1 ? __('caja') : __('cajas') }}
                                             </span>
                                         </div>
                                     </div>
@@ -418,7 +418,7 @@
                                                     <svg class="w-4 h-4 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                     </svg>
-                                                    <span class="text-sm font-medium text-bcn-primary">Toda la sucursal</span>
+                                                    <span class="text-sm font-medium text-bcn-primary">{{ __('Toda la sucursal') }}</span>
                                                 </div>
                                                 <label class="inline-flex items-center cursor-pointer group">
                                                     <input
@@ -428,7 +428,7 @@
                                                         class="sr-only peer"
                                                     />
                                                     <div class="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-bcn-primary/50 dark:peer-focus:ring-bcn-primary rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-bcn-primary"></div>
-                                                    <span class="ms-2 text-xs font-medium text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300">Por defecto</span>
+                                                    <span class="ms-2 text-xs font-medium text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300">{{ __('Por defecto') }}</span>
                                                 </label>
                                             </div>
                                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -453,7 +453,7 @@
                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                                                     </svg>
-                                                    <span>Configuracion por caja (sobrescribe la sucursal)</span>
+                                                    <span>{{ __('Configuracion por caja (sobrescribe la sucursal)') }}</span>
                                                 </div>
 
                                                 @foreach($sucursal->cajas as $caja)
@@ -468,7 +468,7 @@
                                                                     class="sr-only peer"
                                                                 />
                                                                 <div class="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-bcn-primary/50 dark:peer-focus:ring-bcn-primary rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-500 peer-checked:bg-bcn-primary"></div>
-                                                                <span class="ms-2 text-xs font-medium text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300">Por defecto</span>
+                                                                <span class="ms-2 text-xs font-medium text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300">{{ __('Por defecto') }}</span>
                                                             </label>
                                                         </div>
                                                         <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -498,7 +498,7 @@
                     <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
                         <div class="flex items-center justify-between">
                             <p class="text-xs text-gray-500 dark:text-gray-400">
-                                Los cambios se guardan al presionar el boton
+                                {{ __('Los cambios se guardan al presionar el boton') }}
                             </p>
                             <div class="flex space-x-3">
                                 <button
@@ -506,7 +506,7 @@
                                     wire:click="cancel"
                                     class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                                 >
-                                    Cancelar
+                                    {{ __('Cancelar') }}
                                 </button>
                                 <button
                                     type="button"
@@ -516,7 +516,7 @@
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span>Guardar</span>
+                                    <span>{{ __('Guardar') }}</span>
                                 </button>
                             </div>
                         </div>
@@ -535,7 +535,7 @@
                 <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
                     <div class="bg-white dark:bg-gray-800 px-6 py-4">
                         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                            Configuracion de Impresion
+                            {{ __('Configuracion de Impresion') }}
                         </h3>
 
                         <div class="space-y-4">
@@ -546,7 +546,7 @@
                                         wire:model="configImpresionAutomaticaVenta"
                                         class="rounded border-gray-300 text-bcn-primary shadow-sm focus:ring-bcn-primary"
                                     />
-                                    <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Imprimir ticket automaticamente al completar venta</span>
+                                    <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ __('Imprimir ticket automaticamente al completar venta') }}</span>
                                 </label>
 
                                 <label class="flex items-center">
@@ -555,7 +555,7 @@
                                         wire:model="configImpresionAutomaticaFactura"
                                         class="rounded border-gray-300 text-bcn-primary shadow-sm focus:ring-bcn-primary"
                                     />
-                                    <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Imprimir factura automaticamente al emitir</span>
+                                    <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ __('Imprimir factura automaticamente al emitir') }}</span>
                                 </label>
 
                                 <label class="flex items-center">
@@ -564,7 +564,7 @@
                                         wire:model="configAbrirCajonEfectivo"
                                         class="rounded border-gray-300 text-bcn-primary shadow-sm focus:ring-bcn-primary"
                                     />
-                                    <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Abrir cajon de dinero con pagos en efectivo</span>
+                                    <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ __('Abrir cajon de dinero con pagos en efectivo') }}</span>
                                 </label>
 
                                 <label class="flex items-center">
@@ -573,26 +573,26 @@
                                         wire:model="configCortarPapelAutomatico"
                                         class="rounded border-gray-300 text-bcn-primary shadow-sm focus:ring-bcn-primary"
                                     />
-                                    <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Cortar papel automaticamente (impresoras termicas)</span>
+                                    <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ __('Cortar papel automaticamente (impresoras termicas)') }}</span>
                                 </label>
                             </div>
 
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Texto pie de ticket</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Texto pie de ticket') }}</label>
                                 <textarea
                                     wire:model="configTextoPieTicket"
                                     rows="2"
-                                    placeholder="Ej: Gracias por su compra!"
+                                    :placeholder="__('Ej: Gracias por su compra!')"
                                     class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                                 ></textarea>
                             </div>
 
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Texto legal factura</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Texto legal factura') }}</label>
                                 <textarea
                                     wire:model="configTextoLegalFactura"
                                     rows="2"
-                                    placeholder="Ej: Documento no valido como factura"
+                                    :placeholder="__('Ej: Documento no valido como factura')"
                                     class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                                 ></textarea>
                             </div>
@@ -605,14 +605,14 @@
                             wire:click="cancel"
                             class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
                         >
-                            Cancelar
+                            {{ __('Cancelar') }}
                         </button>
                         <button
                             type="button"
                             wire:click="guardarConfigSucursal"
                             class="px-4 py-2 bg-bcn-primary border border-transparent rounded-md text-sm font-medium text-white hover:bg-opacity-90"
                         >
-                            Guardar
+                            {{ __('Guardar') }}
                         </button>
                     </div>
                 </div>

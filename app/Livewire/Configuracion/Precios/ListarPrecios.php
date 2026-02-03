@@ -81,15 +81,15 @@ class ListarPrecios extends Component
         if ($lista) {
             // No permitir desactivar la lista base
             if ($lista->es_lista_base && $lista->activo) {
-                $this->js("window.notify('No se puede desactivar la lista base', 'error')");
+                $this->js("window.notify('" . __('No se puede desactivar la lista base') . "', 'error')");
                 return;
             }
 
             $lista->activo = !$lista->activo;
             $lista->save();
 
-            $mensaje = $lista->activo ? 'Lista activada correctamente' : 'Lista desactivada correctamente';
-            $this->js("window.notify('$mensaje', 'success')");
+            $mensaje = $lista->activo ? __('Lista activada correctamente') : __('Lista desactivada correctamente');
+            $this->js("window.notify('" . addslashes($mensaje) . "', 'success')");
         }
     }
 
@@ -102,7 +102,7 @@ class ListarPrecios extends Component
         if ($lista) {
             // No permitir eliminar la lista base
             if ($lista->es_lista_base) {
-                $this->js("window.notify('No se puede eliminar la lista base', 'error')");
+                $this->js("window.notify('" . __('No se puede eliminar la lista base') . "', 'error')");
                 return;
             }
 
@@ -135,14 +135,14 @@ class ListarPrecios extends Component
         if ($lista) {
             // Doble verificación: no permitir eliminar la lista base
             if ($lista->es_lista_base) {
-                $this->js("window.notify('No se puede eliminar la lista base', 'error')");
+                $this->js("window.notify('" . __('No se puede eliminar la lista base') . "', 'error')");
                 $this->cancelarEliminar();
                 return;
             }
 
             $lista->delete(); // Soft delete
 
-            $this->js("window.notify('Lista eliminada correctamente', 'success')");
+            $this->js("window.notify('" . __('Lista eliminada correctamente') . "', 'success')");
         }
 
         $this->cancelarEliminar();
@@ -152,7 +152,7 @@ class ListarPrecios extends Component
     {
         $original = ListaPrecio::with(['condiciones', 'articulos'])->find($listaId);
         if (!$original) {
-            $this->js("window.notify('Lista no encontrada', 'error')");
+            $this->js("window.notify('" . __('Lista no encontrada') . "', 'error')");
             return;
         }
 
@@ -178,7 +178,7 @@ class ListarPrecios extends Component
             $nuevoArticulo->save();
         }
 
-        $this->js("window.notify('Lista duplicada correctamente', 'success')");
+        $this->js("window.notify('" . __('Lista duplicada correctamente') . "', 'success')");
     }
 
     public function render()

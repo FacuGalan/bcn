@@ -80,16 +80,19 @@ class GestionarFormasPago extends Component
         return $rules;
     }
 
-    protected $messages = [
-        'nombre.required' => 'El nombre es obligatorio',
-        'nombre.max' => 'El nombre no puede exceder 100 caracteres',
-        'concepto_pago_id.required' => 'Debe seleccionar un concepto de pago',
-        'concepto_pago_id.exists' => 'El concepto seleccionado no es válido',
-        'ajuste_porcentaje.min' => 'El ajuste no puede ser menor a -100%',
-        'ajuste_porcentaje.max' => 'El ajuste no puede exceder 100%',
-        'conceptos_permitidos.required' => 'Debe seleccionar los conceptos permitidos',
-        'conceptos_permitidos.min' => 'Una forma de pago mixta debe permitir al menos 2 conceptos',
-    ];
+    protected function messages()
+    {
+        return [
+            'nombre.required' => __('El nombre es obligatorio'),
+            'nombre.max' => __('El nombre no puede exceder 100 caracteres'),
+            'concepto_pago_id.required' => __('Debe seleccionar un concepto de pago'),
+            'concepto_pago_id.exists' => __('El concepto seleccionado no es válido'),
+            'ajuste_porcentaje.min' => __('El ajuste no puede ser menor a -100%'),
+            'ajuste_porcentaje.max' => __('El ajuste no puede exceder 100%'),
+            'conceptos_permitidos.required' => __('Debe seleccionar los conceptos permitidos'),
+            'conceptos_permitidos.min' => __('Una forma de pago mixta debe permitir al menos 2 conceptos'),
+        ];
+    }
 
     /**
      * Cuando cambia es_mixta, resetear campos relacionados
@@ -187,10 +190,10 @@ class GestionarFormasPago extends Component
             if ($this->modoEdicion) {
                 $formaPago = FormaPago::findOrFail($this->formaPagoId);
                 $formaPago->update($datos);
-                $message = 'Forma de pago actualizada exitosamente';
+                $message = __('Forma de pago actualizada exitosamente');
             } else {
                 $formaPago = FormaPago::create($datos);
-                $message = 'Forma de pago creada exitosamente';
+                $message = __('Forma de pago creada exitosamente');
             }
 
             // Sincronizar conceptos permitidos (solo para mixtas)
@@ -215,7 +218,7 @@ class GestionarFormasPago extends Component
             $this->cerrarModal();
             $this->resetPage();
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: 'Error al guardar: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error al guardar: ') . $e->getMessage(), type: 'error');
         }
     }
 
@@ -224,10 +227,10 @@ class GestionarFormasPago extends Component
         try {
             $formaPago = FormaPago::findOrFail($id);
             $formaPago->delete();
-            $this->dispatch('notify', message: 'Forma de pago eliminada exitosamente', type: 'success');
+            $this->dispatch('notify', message: __('Forma de pago eliminada exitosamente'), type: 'success');
             $this->resetPage();
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: 'No se puede eliminar: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('No se puede eliminar: ') . $e->getMessage(), type: 'error');
         }
     }
 
@@ -238,9 +241,9 @@ class GestionarFormasPago extends Component
             $formaPago->activo = !$formaPago->activo;
             $formaPago->save();
 
-            $this->dispatch('notify', message: $formaPago->activo ? 'Forma de pago activada' : 'Forma de pago desactivada', type: 'success');
+            $this->dispatch('notify', message: $formaPago->activo ? __('Forma de pago activada') : __('Forma de pago desactivada'), type: 'success');
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: 'Error al cambiar estado: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error al cambiar estado: ') . $e->getMessage(), type: 'error');
         }
     }
 
@@ -251,7 +254,7 @@ class GestionarFormasPago extends Component
         $formaPago = FormaPago::with('cuotas')->findOrFail($id);
 
         if (!$formaPago->permite_cuotas) {
-            session()->flash('error', 'Esta forma de pago no permite cuotas');
+            session()->flash('error', __('Esta forma de pago no permite cuotas'));
             return;
         }
 
@@ -276,12 +279,12 @@ class GestionarFormasPago extends Component
             'nuevaCuota.recargo_porcentaje' => 'required|numeric|min:0|max:100',
             'nuevaCuota.descripcion' => 'nullable|string|max:200',
         ], [
-            'nuevaCuota.cantidad_cuotas.required' => 'La cantidad de cuotas es obligatoria',
-            'nuevaCuota.cantidad_cuotas.min' => 'Debe ser al menos 1 cuota',
-            'nuevaCuota.cantidad_cuotas.max' => 'No puede exceder 99 cuotas',
-            'nuevaCuota.recargo_porcentaje.required' => 'El recargo es obligatorio',
-            'nuevaCuota.recargo_porcentaje.min' => 'El recargo no puede ser negativo',
-            'nuevaCuota.recargo_porcentaje.max' => 'El recargo no puede exceder 100%',
+            'nuevaCuota.cantidad_cuotas.required' => __('La cantidad de cuotas es obligatoria'),
+            'nuevaCuota.cantidad_cuotas.min' => __('Debe ser al menos 1 cuota'),
+            'nuevaCuota.cantidad_cuotas.max' => __('No puede exceder 99 cuotas'),
+            'nuevaCuota.recargo_porcentaje.required' => __('El recargo es obligatorio'),
+            'nuevaCuota.recargo_porcentaje.min' => __('El recargo no puede ser negativo'),
+            'nuevaCuota.recargo_porcentaje.max' => __('El recargo no puede exceder 100%'),
         ]);
 
         try {
@@ -294,9 +297,9 @@ class GestionarFormasPago extends Component
 
             // Recargar cuotas
             $this->gestionarCuotas($this->formaPagoCuotasId);
-            $this->dispatch('notify', message: 'Plan de cuotas agregado exitosamente', type: 'success');
+            $this->dispatch('notify', message: __('Plan de cuotas agregado exitosamente'), type: 'success');
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: 'Error al agregar cuota: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error al agregar cuota: ') . $e->getMessage(), type: 'error');
         }
     }
 
@@ -308,9 +311,9 @@ class GestionarFormasPago extends Component
 
             // Recargar cuotas
             $this->gestionarCuotas($this->formaPagoCuotasId);
-            $this->dispatch('notify', message: 'Plan de cuotas eliminado exitosamente', type: 'success');
+            $this->dispatch('notify', message: __('Plan de cuotas eliminado exitosamente'), type: 'success');
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: 'Error al eliminar cuota: ' . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error al eliminar cuota: ') . $e->getMessage(), type: 'error');
         }
     }
 

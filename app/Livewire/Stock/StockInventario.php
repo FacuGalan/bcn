@@ -155,7 +155,7 @@ class StockInventario extends Component
     {
         try {
             if ($this->cantidadAjuste == 0) {
-                $this->dispatch('toast-error', message: 'La cantidad de ajuste debe ser diferente de cero');
+                $this->dispatch('toast-error', message: __('La cantidad de ajuste debe ser diferente de cero'));
                 return;
             }
 
@@ -166,13 +166,13 @@ class StockInventario extends Component
                 $this->motivoAjuste
             );
 
-            $this->dispatch('toast-success', message: 'Ajuste de stock realizado exitosamente');
+            $this->dispatch('toast-success', message: __('Ajuste de stock realizado exitosamente'));
             $this->showAjusteModal = false;
             $this->resetAjusteForm();
 
         } catch (Exception $e) {
             Log::error('Error al ajustar stock', ['error' => $e->getMessage()]);
-            $this->dispatch('toast-error', message: 'Error: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error: :message', ['message' => $e->getMessage()]));
         }
     }
 
@@ -202,13 +202,13 @@ class StockInventario extends Component
                 $this->observacionesInventario
             );
 
-            $this->dispatch('toast-success', message: 'Inventario físico registrado exitosamente');
+            $this->dispatch('toast-success', message: __('Inventario físico registrado exitosamente'));
             $this->showInventarioModal = false;
             $this->resetInventarioForm();
 
         } catch (Exception $e) {
             Log::error('Error al registrar inventario', ['error' => $e->getMessage()]);
-            $this->dispatch('toast-error', message: 'Error: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error: :message', ['message' => $e->getMessage()]));
         }
     }
 
@@ -237,13 +237,13 @@ class StockInventario extends Component
                 $this->cantidadMaxima
             );
 
-            $this->dispatch('toast-success', message: 'Umbrales actualizados exitosamente');
+            $this->dispatch('toast-success', message: __('Umbrales actualizados exitosamente'));
             $this->showUmbralesModal = false;
             $this->resetUmbralesForm();
 
         } catch (Exception $e) {
             Log::error('Error al actualizar umbrales', ['error' => $e->getMessage()]);
-            $this->dispatch('toast-error', message: 'Error: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error: :message', ['message' => $e->getMessage()]));
         }
     }
 

@@ -59,19 +59,19 @@ class DashboardSucursal extends Component
                 return [
                     'desde' => $hoy->copy()->startOfWeek(),
                     'hasta' => $hoy->copy()->endOfDay(),
-                    'label' => 'Esta semana',
+                    'label' => __('Esta semana'),
                 ];
             case 'mes':
                 return [
                     'desde' => $hoy->copy()->startOfMonth(),
                     'hasta' => $hoy->copy()->endOfDay(),
-                    'label' => 'Este mes',
+                    'label' => __('Este mes'),
                 ];
             default: // hoy
                 return [
                     'desde' => $hoy->copy()->startOfDay(),
                     'hasta' => $hoy->copy()->endOfDay(),
-                    'label' => 'Hoy',
+                    'label' => __('Hoy'),
                 ];
         }
     }
@@ -133,7 +133,7 @@ class DashboardSucursal extends Component
         $porFormaPago = $pagos->groupBy('forma_pago_id')->map(function($grupo) {
             $formaPago = $grupo->first()->formaPago;
             return [
-                'nombre' => $formaPago->nombre ?? 'Sin especificar',
+                'nombre' => $formaPago->nombre ?? __('Sin especificar'),
                 'total' => $grupo->sum('monto_final'),
                 'cantidad' => $grupo->count(),
                 'facturado' => $grupo->where('comprobante_fiscal_id', '!=', null)->sum('monto_final'),
@@ -195,7 +195,7 @@ class DashboardSucursal extends Component
 
         $porTipo = $promociones->groupBy('tipo_promocion')->map(function($grupo, $tipo) {
             return [
-                'tipo' => $tipo === 'promocion_especial' ? 'Promociones Especiales' : 'Promociones',
+                'tipo' => $tipo === 'promocion_especial' ? __('Promociones Especiales') : __('Promociones'),
                 'cantidad' => $grupo->count(),
                 'descuento_total' => $grupo->sum('descuento_aplicado'),
             ];
@@ -205,7 +205,7 @@ class DashboardSucursal extends Component
         $topPromociones = $promociones->groupBy('descripcion_promocion')
             ->map(function($grupo, $nombre) {
                 return [
-                    'nombre' => $nombre ?: 'Sin nombre',
+                    'nombre' => $nombre ?: __('Sin nombre'),
                     'veces_usada' => $grupo->count(),
                     'descuento_total' => $grupo->sum('descuento_aplicado'),
                 ];
@@ -316,7 +316,7 @@ class DashboardSucursal extends Component
                 return [
                     'id' => $venta->id,
                     'numero' => $venta->numero,
-                    'cliente' => $venta->cliente->nombre ?? 'Consumidor Final',
+                    'cliente' => $venta->cliente->nombre ?? __('Consumidor Final'),
                     'total' => $venta->total_final ?? $venta->total,
                     'estado' => $venta->estado,
                     'hora' => $venta->created_at->format('H:i'),

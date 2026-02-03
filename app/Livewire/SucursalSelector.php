@@ -88,7 +88,7 @@ class SucursalSelector extends Component
 
             // Mostrar notificación
             $this->dispatch('notify',
-                message: "Cambiado a sucursal: {$sucursal->nombre}",
+                message: __('Cambiado a sucursal: :nombre', ['nombre' => $sucursal->nombre]),
                 type: 'success'
             );
         }

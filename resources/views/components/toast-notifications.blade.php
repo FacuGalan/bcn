@@ -124,7 +124,7 @@
                         class="inline-flex rounded-md hover:opacity-75 focus:outline-none focus:ring-2 focus:ring-offset-2"
                         :class="'focus:ring-' + notification.type + '-500'"
                     >
-                        <span class="sr-only">Cerrar</span>
+                        <span class="sr-only">{{ __('Cerrar') }}</span>
                         <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path
                                 fill-rule="evenodd"
@@ -157,7 +157,7 @@
                 $notifyData = session('notify');
             @endphp
             notify(
-                @json($notifyData['message'] ?? 'Operación exitosa'),
+                @json($notifyData['message'] ?? __('Operación exitosa')),
                 @json($notifyData['type'] ?? 'success'),
                 @json($notifyData['duration'] ?? 5000)
             );

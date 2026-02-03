@@ -12,9 +12,9 @@
                 </a>
                 <div>
                     <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white">
-                        {{ $modoEdicion ? 'Editar Lista de Precios' : 'Nueva Lista de Precios' }}
+                        {{ $modoEdicion ? __('Editar Lista de Precios') : __('Nueva Lista de Precios') }}
                     </h2>
-                    <p class="text-sm text-gray-600 dark:text-gray-300">Paso {{ $pasoActual }} de {{ $totalPasos }}</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-300">{{ __('Paso') }} {{ $pasoActual }} {{ __('de') }} {{ $totalPasos }}</p>
                 </div>
             </div>
         </div>
@@ -25,8 +25,8 @@
                 @php
                     // Si es lista base, solo mostrar 2 pasos
                     $pasos = $esListaBase
-                        ? [1 => 'Datos', 2 => 'Precios']
-                        : [1 => 'Datos', 2 => 'Precios', 3 => 'Vigencia', 4 => 'Condiciones', 5 => 'Articulos'];
+                        ? [1 => __('Datos'), 2 => __('Precios')]
+                        : [1 => __('Datos'), 2 => __('Precios'), 3 => __('Vigencia'), 4 => __('Condiciones'), 5 => __('Articulos')];
                 @endphp
                 @foreach($pasos as $numPaso => $labelPaso)
                     <div class="flex flex-col items-center flex-1">
@@ -78,10 +78,10 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                     </svg>
                     <div>
-                        <h4 class="text-sm font-medium text-amber-800 dark:text-amber-300">Lista Base</h4>
+                        <h4 class="text-sm font-medium text-amber-800 dark:text-amber-300">{{ __('Lista Base') }}</h4>
                         <p class="text-sm text-amber-700 dark:text-amber-400 mt-1">
-                            Esta es una <strong>lista base</strong>. Solo puedes modificar los datos basicos y el porcentaje de ajuste.
-                            Las listas base aplican siempre a todos los articulos sin restricciones de vigencia, condiciones o articulos especificos.
+                            {{ __('Esta es una') }} <strong>{{ __('lista base') }}</strong>. {{ __('Solo puedes modificar los datos basicos y el porcentaje de ajuste.') }}
+                            {{ __('Las listas base aplican siempre a todos los articulos sin restricciones de vigencia, condiciones o articulos especificos.') }}
                         </p>
                     </div>
                 </div>
@@ -94,15 +94,15 @@
             {{-- PASO 1: Datos basicos --}}
             @if($pasoActual == 1)
                 <div class="space-y-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">Datos Basicos</h3>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">{{ __('Datos Basicos') }}</h3>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {{-- Sucursal --}}
                         <div class="sm:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sucursal *</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Sucursal') }} *</label>
                             <select wire:model="sucursalId"
                                     class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                <option value="">Seleccionar sucursal...</option>
+                                <option value="">{{ __('Seleccionar sucursal...') }}</option>
                                 @foreach($this->sucursales as $sucursal)
                                     <option value="{{ $sucursal->id }}">{{ $sucursal->nombre }}</option>
                                 @endforeach
@@ -112,41 +112,41 @@
 
                         {{-- Nombre --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre *</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Nombre') }} *</label>
                             <input type="text"
                                    wire:model="nombre"
-                                   placeholder="Ej: Lista Mayoristas"
+                                   :placeholder="__('Ej: Lista Mayoristas')"
                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                             @error('nombre') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         {{-- Codigo --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Codigo (opcional)</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Codigo (opcional)') }}</label>
                             <input type="text"
                                    wire:model="codigo"
-                                   placeholder="Ej: MAYOR-001"
+                                   :placeholder="__('Ej: MAYOR-001')"
                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                         </div>
 
                         {{-- Prioridad --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Prioridad *</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Prioridad') }} *</label>
                             <input type="number"
                                    wire:model="prioridad"
                                    min="1"
                                    max="999"
                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Menor numero = mayor prioridad (1 es maxima)</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Menor numero = mayor prioridad (1 es maxima)') }}</p>
                             @error('prioridad') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         {{-- Descripcion --}}
                         <div class="sm:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripcion (opcional)</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Descripcion (opcional)') }}</label>
                             <textarea wire:model="descripcion"
                                       rows="2"
-                                      placeholder="Describe el proposito de esta lista..."
+                                      :placeholder="__('Describe el proposito de esta lista...')"
                                       class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"></textarea>
                         </div>
                     </div>
@@ -156,17 +156,17 @@
             {{-- PASO 2: Configuracion de precios --}}
             @if($pasoActual == 2)
                 <div class="space-y-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">Configuracion de Precios</h3>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">{{ __('Configuracion de Precios') }}</h3>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {{-- Tipo de Ajuste + Porcentaje --}}
                         <div class="sm:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ajuste de Precios *</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Ajuste de Precios') }} *</label>
                             <div class="flex items-center gap-3">
                                 <select wire:model.live="tipoAjuste"
                                         class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                    <option value="recargo">Recargo</option>
-                                    <option value="descuento">Descuento</option>
+                                    <option value="recargo">{{ __('Recargo') }}</option>
+                                    <option value="descuento">{{ __('Descuento') }}</option>
                                 </select>
                                 <div class="relative flex-1 max-w-[150px]">
                                     <input type="number"
@@ -182,7 +182,7 @@
                                     @if($ajustePorcentaje != 0)
                                         ({{ $ajustePorcentaje > 0 ? '+' : '' }}@porcentaje($ajustePorcentaje))
                                     @else
-                                        (sin ajuste)
+                                        ({{ __('sin ajuste') }})
                                     @endif
                                 </span>
                             </div>
@@ -191,7 +191,7 @@
 
                         {{-- Redondeo --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Redondeo</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Redondeo') }}</label>
                             <select wire:model="redondeo"
                                     class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                 @foreach($opcionesRedondeo as $valor => $label)
@@ -205,8 +205,8 @@
                             <div class="sm:col-span-2 pt-2 border-t">
                                 <div class="flex items-center justify-between">
                                     <div>
-                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Permite aplicar promociones</span>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">Las promociones se calculan usando los precios de esta lista como base</p>
+                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Permite aplicar promociones') }}</span>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Las promociones se calculan usando los precios de esta lista como base') }}</p>
                                     </div>
                                     <label class="relative inline-flex items-center cursor-pointer">
                                         <input type="checkbox" wire:model.live="aplicaPromociones" class="sr-only peer">
@@ -218,22 +218,22 @@
                             {{-- Alcance Promociones --}}
                             @if($aplicaPromociones)
                                 <div class="sm:col-span-2">
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Alcance de Promociones</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Alcance de Promociones') }}</label>
                                     <div class="space-y-2">
                                         <label class="flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-all {{ $promocionesAlcance === 'todos' ? 'border-bcn-primary bg-blue-50 dark:bg-blue-900/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600' }}">
                                             <input type="radio" wire:model.live="promocionesAlcance" value="todos"
                                                    class="mt-0.5 text-bcn-primary focus:ring-bcn-primary">
                                             <div>
-                                                <span class="text-sm font-medium text-gray-900 dark:text-white">A toda la venta</span>
-                                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Todos los artículos participan en el cálculo de promociones</p>
+                                                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ __('A toda la venta') }}</span>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('Todos los artículos participan en el cálculo de promociones') }}</p>
                                             </div>
                                         </label>
                                         <label class="flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-all {{ $promocionesAlcance === 'excluir_lista' ? 'border-bcn-primary bg-blue-50 dark:bg-blue-900/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600' }}">
                                             <input type="radio" wire:model.live="promocionesAlcance" value="excluir_lista"
                                                    class="mt-0.5 text-bcn-primary focus:ring-bcn-primary">
                                             <div>
-                                                <span class="text-sm font-medium text-gray-900 dark:text-white">Excluir artículos con precio en esta lista</span>
-                                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Los artículos que tengan un precio especial en esta lista no participan en promociones</p>
+                                                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ __('Excluir artículos con precio en esta lista') }}</span>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('Los artículos que tengan un precio especial en esta lista no participan en promociones') }}</p>
                                             </div>
                                         </label>
                                     </div>
@@ -247,10 +247,10 @@
                         $precioPreview = 1000 * (1 + ($ajustePorcentaje / 100));
                     @endphp
                     <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mt-4">
-                        <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Vista previa</h4>
+                        <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Vista previa') }}</h4>
                         <p class="text-sm text-gray-600 dark:text-gray-300">
-                            Si un articulo tiene precio base de <span class="font-mono font-bold">$1.000,00</span>,
-                            con esta lista el precio sera:
+                            {{ __('Si un articulo tiene precio base de') }} <span class="font-mono font-bold">$1.000,00</span>,
+                            {{ __('con esta lista el precio sera') }}:
                             <span class="font-mono font-bold {{ $ajustePorcentaje > 0 ? 'text-red-600' : ($ajustePorcentaje < 0 ? 'text-green-600' : 'text-bcn-primary') }}">
                                 $@precio($precioPreview)
                             </span>
@@ -262,21 +262,21 @@
             {{-- PASO 3: Vigencia --}}
             @if($pasoActual == 3)
                 <div class="space-y-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">Vigencia y Restricciones Horarias</h3>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">{{ __('Vigencia y Restricciones Horarias') }}</h3>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {{-- Fecha desde --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vigente desde</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Vigente desde') }}</label>
                             <input type="date"
                                    wire:model="vigenciaDesde"
                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Dejar vacio para sin restriccion</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Dejar vacio para sin restriccion') }}</p>
                         </div>
 
                         {{-- Fecha hasta --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vigente hasta</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Vigente hasta') }}</label>
                             <input type="date"
                                    wire:model="vigenciaHasta"
                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
@@ -284,7 +284,7 @@
 
                         {{-- Dias de la semana --}}
                         <div class="sm:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Dias de la semana</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Dias de la semana') }}</label>
                             <div class="flex flex-wrap gap-2">
                                 @foreach($opcionesDiasSemana as $valor => $label)
                                     <label @class([
@@ -300,12 +300,12 @@
                                     </label>
                                 @endforeach
                             </div>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">No seleccionar ninguno = todos los dias</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('No seleccionar ninguno = todos los dias') }}</p>
                         </div>
 
                         {{-- Hora desde --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hora desde</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Hora desde') }}</label>
                             <input type="time"
                                    wire:model="horaDesde"
                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
@@ -313,7 +313,7 @@
 
                         {{-- Hora hasta --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hora hasta</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Hora hasta') }}</label>
                             <input type="time"
                                    wire:model="horaHasta"
                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
@@ -321,24 +321,24 @@
 
                         {{-- Cantidad minima --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad minima</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad minima') }}</label>
                             <input type="number"
                                    wire:model="cantidadMinima"
                                    step="0.001"
                                    min="0"
-                                   placeholder="Ej: 10"
+                                   :placeholder="__('Ej: 10')"
                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Cantidad minima por linea de venta</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Cantidad minima por linea de venta') }}</p>
                         </div>
 
                         {{-- Cantidad maxima --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad maxima</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad maxima') }}</label>
                             <input type="number"
                                    wire:model="cantidadMaxima"
                                    step="0.001"
                                    min="0"
-                                   placeholder="Ej: 100"
+                                   :placeholder="__('Ej: 100')"
                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                         </div>
                     </div>
@@ -348,8 +348,8 @@
             {{-- PASO 4: Condiciones --}}
             @if($pasoActual == 4)
                 <div class="space-y-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">Condiciones de Aplicacion</h3>
-                    <p class="text-sm text-gray-600 dark:text-gray-300">Define cuando debe aplicarse esta lista. Todas las condiciones deben cumplirse (AND).</p>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">{{ __('Condiciones de Aplicacion') }}</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-300">{{ __('Define cuando debe aplicarse esta lista. Todas las condiciones deben cumplirse (AND).') }}</p>
 
                     {{-- Lista de condiciones existentes --}}
                     @if(count($condiciones) > 0)
@@ -376,20 +376,20 @@
                             <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                             </svg>
-                            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Sin condiciones - la lista aplicara siempre</p>
+                            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ __('Sin condiciones - la lista aplicara siempre') }}</p>
                         </div>
                     @endif
 
                     {{-- Agregar nueva condicion --}}
                     <div class="border-t pt-4">
-                        <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Agregar condicion</h4>
+                        <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{{ __('Agregar condicion') }}</h4>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo de condicion</label>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipo de condicion') }}</label>
                                 <select wire:model.live="nuevaCondicionTipo"
                                         class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                    <option value="">Seleccionar...</option>
+                                    <option value="">{{ __('Seleccionar...') }}</option>
                                     @foreach($opcionesTipoCondicion as $valor => $label)
                                         <option value="{{ $valor }}">{{ $label }}</option>
                                     @endforeach
@@ -399,10 +399,10 @@
                             {{-- Campos segun tipo --}}
                             @if($nuevaCondicionTipo == 'por_forma_pago')
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Forma de pago</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Forma de pago') }}</label>
                                     <select wire:model="nuevaCondicionFormaPagoId"
                                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                        <option value="">Seleccionar...</option>
+                                        <option value="">{{ __('Seleccionar...') }}</option>
                                         @foreach($this->formasPago as $fp)
                                             <option value="{{ $fp->id }}">{{ $fp->nombre }}</option>
                                         @endforeach
@@ -412,10 +412,10 @@
 
                             @if($nuevaCondicionTipo == 'por_forma_venta')
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Forma de venta</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Forma de venta') }}</label>
                                     <select wire:model="nuevaCondicionFormaVentaId"
                                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                        <option value="">Seleccionar...</option>
+                                        <option value="">{{ __('Seleccionar...') }}</option>
                                         @foreach($this->formasVenta as $fv)
                                             <option value="{{ $fv->id }}">{{ $fv->nombre }}</option>
                                         @endforeach
@@ -425,10 +425,10 @@
 
                             @if($nuevaCondicionTipo == 'por_canal')
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Canal de venta</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Canal de venta') }}</label>
                                     <select wire:model="nuevaCondicionCanalVentaId"
                                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                        <option value="">Seleccionar...</option>
+                                        <option value="">{{ __('Seleccionar...') }}</option>
                                         @foreach($this->canalesVenta as $cv)
                                             <option value="{{ $cv->id }}">{{ $cv->nombre }}</option>
                                         @endforeach
@@ -438,7 +438,7 @@
 
                             @if($nuevaCondicionTipo == 'por_total_compra')
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Monto minimo</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto minimo') }}</label>
                                     <input type="number"
                                            wire:model="nuevaCondicionMontoMinimo"
                                            step="0.01"
@@ -447,12 +447,12 @@
                                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Monto maximo</label>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto maximo') }}</label>
                                     <input type="number"
                                            wire:model="nuevaCondicionMontoMaximo"
                                            step="0.01"
                                            min="0"
-                                           placeholder="Sin limite"
+                                           :placeholder="__('Sin limite')"
                                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                 </div>
                             @endif
@@ -464,7 +464,7 @@
                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                                 </svg>
-                                Agregar Condicion
+                                {{ __('Agregar Condicion') }}
                             </button>
                         @endif
                     </div>
@@ -474,7 +474,7 @@
             {{-- PASO 5: Articulos especificos --}}
             @if($pasoActual == 5)
                 <div class="space-y-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">Articulos y Categorias Especificos</h3>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">{{ __('Articulos y Categorias Especificos') }}</h3>
 
                     {{-- Mensaje informativo --}}
                     <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
@@ -483,21 +483,21 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                             </svg>
                             <p class="text-sm text-blue-700 dark:text-blue-300">
-                                <strong>Opcional:</strong> Si no agregas ningun articulo o categoria, esta lista aplicara el ajuste de
+                                <strong>{{ __('Opcional') }}:</strong> {{ __('Si no agregas ningun articulo o categoria, esta lista aplicara el ajuste de') }}
                                 <span class="font-bold {{ $ajustePorcentaje > 0 ? 'text-red-600' : ($ajustePorcentaje < 0 ? 'text-green-600' : '') }}">
                                     {{ $ajustePorcentaje > 0 ? '+' : '' }}@porcentaje($ajustePorcentaje)
                                 </span>
-                                a <strong>todos los articulos</strong>.
+                                {{ __('a') }} <strong>{{ __('todos los articulos') }}</strong>.
                             </p>
                         </div>
                     </div>
 
                     {{-- Buscar articulo --}}
                     <div class="relative">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Buscar articulo</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar articulo') }}</label>
                         <input type="text"
                                wire:model.live.debounce.300ms="busquedaArticulo"
-                               placeholder="Escribe para buscar por nombre o codigo..."
+                               :placeholder="__('Escribe para buscar por nombre o codigo...')"
                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
 
                         {{-- Resultados de busqueda --}}
@@ -521,18 +521,18 @@
 
                     {{-- Agregar por categoria --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">O agregar por categoria</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('O agregar por categoria') }}</label>
                         <div class="flex gap-2">
                             <select id="selectCategoria"
                                     class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                <option value="">Seleccionar categoria...</option>
+                                <option value="">{{ __('Seleccionar categoria...') }}</option>
                                 @foreach($this->categorias as $cat)
                                     <option value="{{ $cat->id }}">{{ $cat->nombre }}</option>
                                 @endforeach
                             </select>
                             <button onclick="agregarCategoriaSeleccionada()"
                                     class="px-4 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
-                                Agregar
+                                {{ __('Agregar') }}
                             </button>
                         </div>
                     </div>
@@ -543,10 +543,10 @@
                             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                 <thead class="bg-gray-50 dark:bg-gray-700">
                                     <tr>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Articulo/Categoria</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Precio Base</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Precio Fijo</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ajuste %</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Articulo/Categoria') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Precio Base') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Precio Fijo') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Ajuste %') }}</th>
                                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase"></th>
                                     </tr>
                                 </thead>
@@ -560,7 +560,7 @@
                                                         'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' => $art['tipo'] == 'articulo',
                                                         'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200' => $art['tipo'] == 'categoria',
                                                     ])>
-                                                        {{ $art['tipo'] == 'articulo' ? 'Art' : 'Cat' }}
+                                                        {{ $art['tipo'] == 'articulo' ? __('Art') : __('Cat') }}
                                                     </span>
                                                     <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $art['nombre'] }}</span>
                                                 </div>
@@ -579,10 +579,10 @@
                                                            wire:change="recalcularPorcentajeDesdeMontoFijo({{ $index }})"
                                                            step="0.01"
                                                            min="0"
-                                                           placeholder="Auto"
+                                                           :placeholder="__('Auto')"
                                                            class="w-24 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                                 @else
-                                                    <span class="text-gray-400 dark:text-gray-500 text-sm">N/A</span>
+                                                    <span class="text-gray-400 dark:text-gray-500 text-sm">{{ __('N/A') }}</span>
                                                 @endif
                                             </td>
                                             <td class="px-4 py-3">
@@ -614,11 +614,11 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                             </svg>
                             <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                Sin articulos especificos - se aplicara
+                                {{ __('Sin articulos especificos - se aplicara') }}
                                 <span class="font-bold {{ $ajustePorcentaje > 0 ? 'text-red-600' : ($ajustePorcentaje < 0 ? 'text-green-600' : '') }}">
                                     {{ $ajustePorcentaje > 0 ? '+' : '' }}@porcentaje($ajustePorcentaje)
                                 </span>
-                                a todos los articulos
+                                {{ __('a todos los articulos') }}
                             </p>
                         </div>
                     @endif
@@ -634,7 +634,7 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                             </svg>
-                            Anterior
+                            {{ __('Anterior') }}
                         </button>
                     @endif
                 </div>
@@ -643,13 +643,13 @@
                     <a href="{{ route('configuracion.precios') }}"
                        wire:navigate
                        class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150">
-                        Cancelar
+                        {{ __('Cancelar') }}
                     </a>
 
                     @if($pasoActual < $totalPasos)
                         <button wire:click="siguiente"
                                 class="inline-flex items-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150">
-                            Siguiente
+                            {{ __('Siguiente') }}
                             <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                             </svg>
@@ -660,7 +660,7 @@
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                             </svg>
-                            {{ $modoEdicion ? 'Guardar Cambios' : 'Crear Lista' }}
+                            {{ $modoEdicion ? __('Guardar Cambios') : __('Crear Lista') }}
                         </button>
                     @endif
                 </div>

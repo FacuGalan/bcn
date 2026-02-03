@@ -9,8 +9,8 @@
                     </svg>
                 </button>
                 <div>
-                    <h1 class="text-2xl font-bold text-bcn-primary">Asignar Etiquetas</h1>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Gestiona las etiquetas de los artículos de forma masiva</p>
+                    <h1 class="text-2xl font-bold text-bcn-primary">{{ __('Asignar Etiquetas') }}</h1>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('Gestiona las etiquetas de los artículos de forma masiva') }}</p>
                 </div>
             </div>
         </div>
@@ -21,7 +21,7 @@
                 <svg class="w-5 h-5 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
                 </svg>
-                <span class="font-semibold text-gray-700 dark:text-gray-300">Modo de Operación</span>
+                <span class="font-semibold text-gray-700 dark:text-gray-300">{{ __('Modo de Operación') }}</span>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {{-- Modo: Etiqueta a Artículos --}}
@@ -36,8 +36,8 @@
                             </svg>
                         </div>
                         <div>
-                            <h3 class="font-semibold {{ $modo === 'etiqueta_a_articulos' ? 'text-bcn-primary' : 'text-gray-700 dark:text-gray-300' }}">Una Etiqueta → Muchos Artículos</h3>
-                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecciona una etiqueta y asígnala a múltiples artículos</p>
+                            <h3 class="font-semibold {{ $modo === 'etiqueta_a_articulos' ? 'text-bcn-primary' : 'text-gray-700 dark:text-gray-300' }}">{{ __('Una Etiqueta → Muchos Artículos') }}</h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('Selecciona una etiqueta y asígnala a múltiples artículos') }}</p>
                         </div>
                     </div>
                 </button>
@@ -54,8 +54,8 @@
                             </svg>
                         </div>
                         <div>
-                            <h3 class="font-semibold {{ $modo === 'articulo_a_etiquetas' ? 'text-bcn-primary' : 'text-gray-700 dark:text-gray-300' }}">Un Artículo → Muchas Etiquetas</h3>
-                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecciona un artículo y asígnale múltiples etiquetas</p>
+                            <h3 class="font-semibold {{ $modo === 'articulo_a_etiquetas' ? 'text-bcn-primary' : 'text-gray-700 dark:text-gray-300' }}">{{ __('Un Artículo → Muchas Etiquetas') }}</h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('Selecciona un artículo y asígnale múltiples etiquetas') }}</p>
                         </div>
                     </div>
                 </button>
@@ -71,7 +71,7 @@
                     <div class="p-4 border-b border-gray-100 dark:border-gray-700">
                         <h2 class="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                             <span class="w-6 h-6 rounded-full bg-bcn-primary text-white text-sm flex items-center justify-center">1</span>
-                            Seleccionar Etiqueta
+                            {{ __('Seleccionar Etiqueta') }}
                         </h2>
                     </div>
 
@@ -100,7 +100,7 @@
                                 <input
                                     type="text"
                                     wire:model.live.debounce.300ms="busquedaEtiqueta"
-                                    placeholder="Buscar etiqueta..."
+                                    :placeholder="__('Buscar etiqueta...')"
                                     class="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
                                 >
                                 <svg class="w-5 h-5 text-gray-400 dark:text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -137,7 +137,7 @@
                                     <svg class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
                                     </svg>
-                                    <p>No se encontraron etiquetas</p>
+                                    <p>{{ __('No se encontraron etiquetas') }}</p>
                                 </div>
                             @endforelse
                         </div>
@@ -150,18 +150,18 @@
                         <div class="flex items-center justify-between">
                             <h2 class="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                                 <span class="w-6 h-6 rounded-full bg-bcn-primary text-white text-sm flex items-center justify-center">2</span>
-                                Seleccionar Artículos
+                                {{ __('Seleccionar Artículos') }}
                                 @if(count($articulosSeleccionados) > 0)
                                     <span class="ml-2 px-2 py-0.5 bg-bcn-primary/10 text-bcn-primary text-sm rounded-full">
-                                        {{ count($articulosSeleccionados) }} seleccionados
+                                        {{ count($articulosSeleccionados) }} {{ __('seleccionados') }}
                                     </span>
                                 @endif
                             </h2>
                             @if($etiquetaSeleccionada)
                                 <div class="flex items-center gap-2">
-                                    <button wire:click="seleccionarTodosArticulos" class="text-xs text-bcn-primary hover:underline">Seleccionar todos</button>
+                                    <button wire:click="seleccionarTodosArticulos" class="text-xs text-bcn-primary hover:underline">{{ __('Seleccionar todos') }}</button>
                                     <span class="text-gray-300 dark:text-gray-600">|</span>
-                                    <button wire:click="deseleccionarTodosArticulos" class="text-xs text-gray-500 dark:text-gray-400 hover:underline">Limpiar</button>
+                                    <button wire:click="deseleccionarTodosArticulos" class="text-xs text-gray-500 dark:text-gray-400 hover:underline">{{ __('Limpiar') }}</button>
                                 </div>
                             @endif
                         </div>
@@ -173,7 +173,7 @@
                             <input
                                 type="text"
                                 wire:model.live.debounce.300ms="busquedaArticulo"
-                                placeholder="Buscar por código o nombre..."
+                                :placeholder="__('Buscar por código o nombre...')"
                                 class="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
                                 @if(!$etiquetaSeleccionada) disabled @endif
                             >
@@ -190,7 +190,7 @@
                                 <svg class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                                 </svg>
-                                <p>Selecciona una etiqueta primero</p>
+                                <p>{{ __('Selecciona una etiqueta primero') }}</p>
                             </div>
                         @else
                             @forelse($articulos as $articulo)
@@ -208,7 +208,7 @@
                                 </label>
                             @empty
                                 <div class="p-8 text-center text-gray-500 dark:text-gray-400">
-                                    <p>No se encontraron artículos</p>
+                                    <p>{{ __('No se encontraron artículos') }}</p>
                                 </div>
                             @endforelse
                         @endif
@@ -233,7 +233,7 @@
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                         </svg>
-                        Guardar Asignación
+                        {{ __('Guardar Asignación') }}
                     </button>
                 </div>
             @endif
@@ -246,7 +246,7 @@
                     <div class="p-4 border-b border-gray-100 dark:border-gray-700">
                         <h2 class="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                             <span class="w-6 h-6 rounded-full bg-bcn-primary text-white text-sm flex items-center justify-center">1</span>
-                            Seleccionar Artículo
+                            {{ __('Seleccionar Artículo') }}
                         </h2>
                     </div>
 
@@ -271,7 +271,7 @@
                                 <input
                                     type="text"
                                     wire:model.live.debounce.300ms="busquedaArticulo"
-                                    placeholder="Buscar por código o nombre..."
+                                    :placeholder="__('Buscar por código o nombre...')"
                                     class="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
                                 >
                                 <svg class="w-5 h-5 text-gray-400 dark:text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -295,7 +295,7 @@
                                     <svg class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                                     </svg>
-                                    <p>No se encontraron artículos</p>
+                                    <p>{{ __('No se encontraron artículos') }}</p>
                                 </div>
                             @endforelse
                         </div>
@@ -314,10 +314,10 @@
                     <div class="p-4 border-b border-gray-100 dark:border-gray-700">
                         <h2 class="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                             <span class="w-6 h-6 rounded-full bg-bcn-primary text-white text-sm flex items-center justify-center">2</span>
-                            Seleccionar Etiquetas
+                            {{ __('Seleccionar Etiquetas') }}
                             @if(count($etiquetasSeleccionadas) > 0)
                                 <span class="ml-2 px-2 py-0.5 bg-bcn-primary/10 text-bcn-primary text-sm rounded-full">
-                                    {{ count($etiquetasSeleccionadas) }} seleccionadas
+                                    {{ count($etiquetasSeleccionadas) }} {{ __('seleccionadas') }}
                                 </span>
                             @endif
                         </h2>
@@ -329,7 +329,7 @@
                             <input
                                 type="text"
                                 wire:model.live.debounce.300ms="busquedaEtiqueta"
-                                placeholder="Buscar etiqueta..."
+                                :placeholder="__('Buscar etiqueta...')"
                                 class="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
                                 @if(!$articuloSeleccionado) disabled @endif
                             >
@@ -346,7 +346,7 @@
                                 <svg class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                                 </svg>
-                                <p>Selecciona un artículo primero</p>
+                                <p>{{ __('Selecciona un artículo primero') }}</p>
                             </div>
                         @else
                             @forelse($gruposEtiquetas as $grupo)
@@ -378,7 +378,7 @@
                                     <svg class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
                                     </svg>
-                                    <p>No se encontraron etiquetas</p>
+                                    <p>{{ __('No se encontraron etiquetas') }}</p>
                                 </div>
                             @endforelse
                         @endif
@@ -396,7 +396,7 @@
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                         </svg>
-                        Guardar Asignación
+                        {{ __('Guardar Asignación') }}
                     </button>
                 </div>
             @endif

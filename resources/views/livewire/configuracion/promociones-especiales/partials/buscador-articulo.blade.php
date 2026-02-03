@@ -28,7 +28,7 @@
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
             </svg>
-            <span>Buscar artículo...</span>
+            <span>{{ __('Buscar artículo...') }}</span>
         </button>
 
         @if($mostrar)
@@ -36,7 +36,7 @@
                 <div class="p-2 border-b dark:border-gray-700">
                     <input type="text" wire:model.live.debounce.200ms="{{ $busquedaModel }}"
                            wire:keydown.escape="{{ $cerrarMethod }}"
-                           placeholder="Escriba para buscar..."
+                           :placeholder="__('Escriba para buscar...')"
                            autofocus
                            class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white {{ $colorClasses['ring'] }} {{ $colorClasses['border'] }}">
                 </div>
@@ -59,14 +59,14 @@
                             <svg class="w-8 h-8 mx-auto text-gray-300 dark:text-gray-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                             </svg>
-                            No se encontraron artículos
+                            {{ __('No se encontraron artículos') }}
                         </div>
                     @endforelse
                 </div>
                 <div class="p-2 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
                     <button type="button" wire:click="{{ $cerrarMethod }}"
                             class="text-xs text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white">
-                        Cerrar
+                        {{ __('Cerrar') }}
                     </button>
                 </div>
             </div>

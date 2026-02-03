@@ -78,6 +78,7 @@ class User extends Authenticatable
         'max_concurrent_sessions',
         'activo',
         'dark_mode',
+        'locale',
         'ultimo_comercio_id',
         'is_system_admin',
     ];
