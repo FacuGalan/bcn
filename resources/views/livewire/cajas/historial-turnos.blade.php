@@ -1,4 +1,16 @@
-<div class="py-4 px-4 sm:px-6">
+<div class="py-4 px-4 sm:px-6"
+     x-data
+     @imprimir-cierre-turno.window="
+        if (typeof QZIntegration !== 'undefined' && QZIntegration.estaDisponible()) {
+            QZIntegration.imprimirCierreTurno($event.detail.cierreId);
+        } else if (typeof QZIntegration !== 'undefined') {
+            QZIntegration.inicializar().then(() => {
+                QZIntegration.imprimirCierreTurno($event.detail.cierreId);
+            });
+        } else {
+            Livewire.dispatch('toast-error', { message: 'QZ Tray no disponible. Instale QZ Tray para imprimir.' });
+        }
+     ">
     {{-- Header --}}
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>

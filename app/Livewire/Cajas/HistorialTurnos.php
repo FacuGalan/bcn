@@ -172,8 +172,15 @@ class HistorialTurnos extends Component
 
     public function reimprimir(int $cierreId)
     {
-        // TODO: Implementar lógica de reimpresión
-        $this->dispatch('toast-info', message: 'Función de reimpresión pendiente de implementar');
+        // Verificar que el cierre existe
+        $cierre = CierreTurno::find($cierreId);
+        if (!$cierre) {
+            $this->dispatch('toast-error', message: 'Cierre de turno no encontrado');
+            return;
+        }
+
+        // Disparar evento para que JS imprima el cierre
+        $this->dispatch('imprimir-cierre-turno', cierreId: $cierreId);
     }
 
     /**

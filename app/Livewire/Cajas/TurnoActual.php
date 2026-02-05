@@ -1027,6 +1027,9 @@ class TurnoActual extends Component
 
             $this->dispatch('toast-success', message: $mensaje);
 
+            // Disparar evento para imprimir el cierre de turno
+            $this->dispatch('imprimir-cierre-turno', cierreId: $cierreTurno->id);
+
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error al cerrar turno', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);

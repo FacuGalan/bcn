@@ -300,6 +300,78 @@ window.QZIntegration = (function() {
     }
 
     /**
+     * Imprime un cierre de turno
+     */
+    async function imprimirCierreTurno(cierreId) {
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]');
+            const response = await fetch(`/api/impresion/cierre-turno/${cierreId}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken ? csrfToken.content : ''
+                }
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Error obteniendo datos de impresion');
+            }
+
+            const data = await response.json();
+
+            if (data.tipo === 'escpos') {
+                await imprimirESCPOS(data.impresora, data.datos, data.opciones);
+            } else {
+                await imprimirHTML(data.impresora, data.datos, data.opciones);
+            }
+
+            mostrarNotificacion('Cierre de turno impreso correctamente', 'success');
+            return true;
+
+        } catch (error) {
+            console.error('Error imprimiendo cierre de turno:', error);
+            mostrarNotificacion('Error al imprimir cierre de turno: ' + error.message, 'error');
+            return false;
+        }
+    }
+
+    /**
+     * Imprime un recibo de cobro
+     */
+    async function imprimirReciboCobro(cobroId) {
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]');
+            const response = await fetch(`/api/impresion/recibo-cobro/${cobroId}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken ? csrfToken.content : ''
+                }
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Error obteniendo datos de impresion');
+            }
+
+            const data = await response.json();
+
+            if (data.tipo === 'escpos') {
+                await imprimirESCPOS(data.impresora, data.datos, data.opciones);
+            } else {
+                await imprimirHTML(data.impresora, data.datos, data.opciones);
+            }
+
+            mostrarNotificacion('Recibo de cobro impreso correctamente', 'success');
+            return true;
+
+        } catch (error) {
+            console.error('Error imprimiendo recibo de cobro:', error);
+            mostrarNotificacion('Error al imprimir recibo de cobro: ' + error.message, 'error');
+            return false;
+        }
+    }
+
+    /**
      * Prueba una impresora con un documento de prueba
      */
     async function probarImpresion(impresoraId, nombreSistema, tipo) {
@@ -456,6 +528,8 @@ window.QZIntegration = (function() {
         imprimirHTML,
         imprimirTicketVenta,
         imprimirFactura,
+        imprimirCierreTurno,
+        imprimirReciboCobro,
         probarImpresion,
         estaDisponible,
         estaCargado,

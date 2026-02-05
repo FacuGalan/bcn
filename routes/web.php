@@ -32,6 +32,7 @@ use App\Livewire\Articulos\GestionarEtiquetas;
 use App\Livewire\Articulos\AsignarEtiquetas;
 use App\Livewire\Articulos\CambioMasivoPrecios;
 use App\Livewire\Clientes\GestionarClientes;
+use App\Livewire\Clientes\GestionarCobranzas;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome');
@@ -161,6 +162,12 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
          * Gestión completa de clientes
          */
         Route::get('/', GestionarClientes::class)->name('index');
+
+        /**
+         * Cobranzas
+         * Gestión de cobros de clientes con cuenta corriente
+         */
+        Route::get('cobranzas', GestionarCobranzas::class)->name('cobranzas');
     });
 
     // =========================================

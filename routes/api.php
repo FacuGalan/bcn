@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\ImpresionController;
 Route::middleware(['web', 'auth'])->prefix('impresion')->group(function () {
     Route::get('/venta/{id}/ticket', [ImpresionController::class, 'ticketVenta']);
     Route::get('/factura/{id}', [ImpresionController::class, 'factura']);
+    Route::get('/cierre-turno/{id}', [ImpresionController::class, 'cierreTurno']);
+    Route::get('/recibo-cobro/{id}', [ImpresionController::class, 'reciboCobro']);
     Route::get('/prueba/{id}', [ImpresionController::class, 'prueba']);
     Route::get('/impresoras', [ImpresionController::class, 'listar']);
 });

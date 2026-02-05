@@ -212,6 +212,8 @@ class Cliente extends Model
 
     /**
      * Obtiene el límite de crédito en una sucursal
+     * Si el pivot no tiene límite configurado, usa el límite global del cliente
+     * Retorna null si ambos son 0 (sin límite = crédito ilimitado)
      */
     public function obtenerLimiteCreditoEnSucursal(int $sucursalId): ?float
     {
@@ -219,7 +221,19 @@ class Cliente extends Model
                       ->where('sucursal_id', $sucursalId)
                       ->first();
 
-        return $pivot && $pivot->pivot->limite_credito ? (float) $pivot->pivot->limite_credito : null;
+        // Primero intentar obtener límite específico de la sucursal
+        $limiteSucursal = $pivot ? (float) $pivot->pivot->limite_credito : 0;
+
+        // Si la sucursal tiene límite > 0, usarlo
+        if ($limiteSucursal > 0) {
+            return $limiteSucursal;
+        }
+
+        // Si no, usar el límite global del cliente
+        $limiteGlobal = (float) $this->limite_credito;
+
+        // Si el límite global es 0, retornar null (sin límite = ilimitado)
+        return $limiteGlobal > 0 ? $limiteGlobal : null;
     }
 
     /**

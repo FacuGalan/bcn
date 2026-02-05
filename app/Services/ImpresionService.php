@@ -8,6 +8,8 @@ use App\Models\ImpresoraTipoDocumento;
 use App\Models\ConfiguracionImpresion;
 use App\Models\Venta;
 use App\Models\ComprobanteFiscal;
+use App\Models\CierreTurno;
+use App\Models\Cobro;
 use App\Services\Impresion\GeneradorESCPOS;
 use App\Services\Impresion\GeneradorHTML;
 use Illuminate\Support\Facades\Log;
@@ -250,5 +252,281 @@ class ImpresionService
     public function obtenerConfiguracion(int $sucursalId): ConfiguracionImpresion
     {
         return ConfiguracionImpresion::obtenerParaSucursal($sucursalId);
+    }
+
+    /**
+     * Genera el contenido de impresión para un cierre de turno
+     */
+    public function generarCierreTurno(CierreTurno $cierre): array
+    {
+        // Cargar relaciones necesarias
+        $cierre->load([
+            'sucursal',
+            'usuario:id,name',
+            'grupoCierre:id,nombre,fondo_comun',
+            'detalleCajas.caja:id,nombre,numero',
+            'movimientos' => function ($q) {
+                $q->orderBy('created_at', 'asc');
+            },
+            'ventas',
+            'ventaPagos.formaPago:id,nombre',
+            'ventaPagos.conceptoPago:id,nombre',
+            'cobros',
+            'cobroPagos.formaPago:id,nombre',
+            'cobroPagos.conceptoPago:id,nombre',
+        ]);
+
+        // Obtener la primera caja para determinar la impresora
+        $primeraCaja = $cierre->detalleCajas->first();
+        $cajaId = $primeraCaja?->caja_id;
+
+        $impresora = $this->obtenerImpresora($cierre->sucursal_id, $cajaId, 'cierre_turno');
+
+        if (!$impresora) {
+            // Fallback a impresora de tickets
+            $impresora = $this->obtenerImpresora($cierre->sucursal_id, $cajaId, 'ticket_venta');
+        }
+
+        if (!$impresora) {
+            throw new Exception('No hay impresora configurada para cierres de turno en esta sucursal/caja');
+        }
+
+        $config = ConfiguracionImpresion::where('sucursal_id', $cierre->sucursal_id)->first();
+
+        // Preparar datos para la vista
+        $datos = $this->prepararDatosCierreTurno($cierre);
+
+        return [
+            'tipo' => 'html',
+            'impresora' => $impresora->nombre_sistema,
+            'datos' => $this->html->generarCierreTurno($datos, $impresora, $config),
+            'opciones' => [
+                'formato' => $impresora->formato_papel,
+                'cortar' => $config?->cortar_papel_automatico ?? true,
+            ]
+        ];
+    }
+
+    /**
+     * Prepara los datos del cierre de turno para la vista de impresión
+     */
+    protected function prepararDatosCierreTurno(CierreTurno $cierre): array
+    {
+        // Datos de la sucursal
+        $sucursal = [
+            'nombre' => $cierre->sucursal->nombre,
+            'nombre_publico' => $cierre->sucursal->nombre_publico ?? $cierre->sucursal->nombre,
+            'direccion' => $cierre->sucursal->direccion,
+            'telefono' => $cierre->sucursal->telefono,
+        ];
+
+        // Calcular saldo sistema y declarado totales
+        // Para cierres con fondo común, los saldos individuales son 0, usamos los totales del cierre
+        $saldoSistema = $cierre->detalleCajas->sum('saldo_sistema');
+        $saldoDeclarado = $cierre->detalleCajas->sum('saldo_declarado');
+
+        // Si los saldos por caja son 0 (fondo común), calcular desde totales del cierre
+        if ($saldoSistema == 0 && $cierre->total_saldo_inicial > 0) {
+            $saldoSistema = $cierre->total_saldo_inicial + $cierre->total_ingresos - $cierre->total_egresos;
+            $saldoDeclarado = (float) $cierre->total_saldo_final;
+        }
+
+        // Datos del cierre
+        $datosBasicos = [
+            'id' => $cierre->id,
+            'fecha_cierre' => $cierre->fecha_cierre->format('d/m/Y H:i'),
+            'fecha_apertura' => $cierre->fecha_apertura?->format('d/m/Y H:i'),
+            'usuario' => $cierre->usuario?->name ?? '-',
+            'es_grupal' => $cierre->esGrupal(),
+            'grupo_nombre' => $cierre->grupoCierre?->nombre,
+            'saldo_inicial' => (float) $cierre->total_saldo_inicial,
+            'total_ingresos' => (float) $cierre->total_ingresos,
+            'total_egresos' => (float) $cierre->total_egresos,
+            'saldo_sistema' => (float) $saldoSistema,
+            'saldo_declarado' => (float) $saldoDeclarado,
+            'diferencia' => (float) $cierre->total_diferencia,
+            'observaciones' => $cierre->observaciones,
+        ];
+
+        // Detalle por caja
+        $cajas = [];
+        foreach ($cierre->detalleCajas as $detalle) {
+            $cajas[] = [
+                'nombre' => $detalle->caja_nombre,
+                'saldo_inicial' => (float) $detalle->saldo_inicial,
+                'ingresos' => (float) $detalle->total_ingresos,
+                'egresos' => (float) $detalle->total_egresos,
+                'saldo_sistema' => (float) $detalle->saldo_sistema,
+                'saldo_declarado' => (float) $detalle->saldo_declarado,
+                'diferencia' => (float) $detalle->diferencia,
+            ];
+        }
+
+        // Movimientos de caja MANUALES (ordenados por hora)
+        // Excluir: apertura, venta, cobro (solo mostrar ajustes, retiros, transferencias, ingresos/egresos manuales)
+        $tiposExcluidos = ['apertura', 'venta', 'cobro'];
+        $movimientos = [];
+        foreach ($cierre->movimientos as $mov) {
+            // Excluir movimientos automáticos (apertura, ventas, cobros)
+            if (in_array($mov->referencia_tipo, $tiposExcluidos)) {
+                continue;
+            }
+            $movimientos[] = [
+                'hora' => $mov->created_at->format('H:i'),
+                'concepto' => $mov->concepto, // Texto completo sin abreviar
+                'tipo' => $mov->tipo,
+                'monto' => (float) $mov->monto,
+                'referencia_tipo' => $mov->referencia_tipo,
+            ];
+        }
+
+        // Consolidar formas de pago
+        $formasPago = [];
+        $conceptos = [];
+
+        // Pagos de ventas
+        foreach ($cierre->ventaPagos as $pago) {
+            $forma = $pago->formaPago?->nombre ?? 'Otro';
+            if (!isset($formasPago[$forma])) {
+                $formasPago[$forma] = ['cantidad' => 0, 'total' => 0];
+            }
+            $formasPago[$forma]['cantidad']++;
+            $formasPago[$forma]['total'] += $pago->monto_final;
+
+            $concepto = $pago->conceptoPago?->nombre ?? 'Ventas';
+            if (!isset($conceptos[$concepto])) {
+                $conceptos[$concepto] = ['cantidad' => 0, 'total' => 0];
+            }
+            $conceptos[$concepto]['cantidad']++;
+            $conceptos[$concepto]['total'] += $pago->monto_final;
+        }
+
+        // Pagos de cobros
+        foreach ($cierre->cobroPagos as $pago) {
+            $forma = $pago->formaPago?->nombre ?? 'Otro';
+            if (!isset($formasPago[$forma])) {
+                $formasPago[$forma] = ['cantidad' => 0, 'total' => 0];
+            }
+            $formasPago[$forma]['cantidad']++;
+            $formasPago[$forma]['total'] += $pago->monto_final;
+
+            $concepto = $pago->conceptoPago?->nombre ?? 'Cobros Cta. Cte.';
+            if (!isset($conceptos[$concepto])) {
+                $conceptos[$concepto] = ['cantidad' => 0, 'total' => 0];
+            }
+            $conceptos[$concepto]['cantidad']++;
+            $conceptos[$concepto]['total'] += $pago->monto_final;
+        }
+
+        // Ordenar por total descendente
+        uasort($formasPago, fn($a, $b) => $b['total'] <=> $a['total']);
+        uasort($conceptos, fn($a, $b) => $b['total'] <=> $a['total']);
+
+        // Comprobantes emitidos
+        $comprobantes = [];
+        $ventasConComprobante = $cierre->ventas->filter(fn($v) => $v->comprobante_fiscal_id);
+        foreach ($ventasConComprobante as $venta) {
+            $tipo = 'Ticket';
+            if ($venta->comprobanteFiscal) {
+                $tipo = 'Factura ' . ($venta->comprobanteFiscal->letra ?? '');
+            }
+            if (!isset($comprobantes[$tipo])) {
+                $comprobantes[$tipo] = ['cantidad' => 0, 'total' => 0];
+            }
+            $comprobantes[$tipo]['cantidad']++;
+            $comprobantes[$tipo]['total'] += $venta->total_final;
+        }
+
+        // Tickets (ventas sin comprobante fiscal)
+        $ticketsSinFactura = $cierre->ventas->filter(fn($v) => !$v->comprobante_fiscal_id);
+        if ($ticketsSinFactura->count() > 0) {
+            $comprobantes['Tickets'] = [
+                'cantidad' => $ticketsSinFactura->count(),
+                'total' => $ticketsSinFactura->sum('total_final'),
+            ];
+        }
+
+        // Operaciones resumen
+        $operaciones = [];
+        if ($cierre->ventas->count() > 0) {
+            $operaciones['ventas'] = [
+                'cantidad' => $cierre->ventas->count(),
+                'total' => $cierre->ventas->sum('total_final'),
+            ];
+        }
+        if ($cierre->cobros->count() > 0) {
+            $operaciones['cobros'] = [
+                'cantidad' => $cierre->cobros->count(),
+                'total' => $cierre->cobros->sum('monto_total'),
+            ];
+        }
+
+        return [
+            'sucursal' => $sucursal,
+            'cierre' => $datosBasicos,
+            'cajas' => $cajas,
+            'movimientos' => $movimientos,
+            'formas_pago' => $formasPago,
+            'conceptos' => $conceptos,
+            'comprobantes' => $comprobantes,
+            'operaciones' => $operaciones,
+        ];
+    }
+
+    /**
+     * Abrevia el concepto para que quepa en el ticket
+     */
+    protected function abreviarConcepto(string $concepto): string
+    {
+        $maxLen = 25;
+        if (strlen($concepto) <= $maxLen) {
+            return $concepto;
+        }
+        return substr($concepto, 0, $maxLen - 3) . '...';
+    }
+
+    /**
+     * Genera el contenido de impresión para un recibo de cobro
+     */
+    public function generarReciboCobro(Cobro $cobro): array
+    {
+        // Cargar relaciones necesarias
+        $cobro->load([
+            'sucursal',
+            'cliente',
+            'caja',
+            'cobroVentas.venta',
+            'pagos.formaPago',
+        ]);
+
+        $impresora = $this->obtenerImpresora($cobro->sucursal_id, $cobro->caja_id, 'recibo_cobro');
+
+        if (!$impresora) {
+            // Fallback a impresora de tickets
+            $impresora = $this->obtenerImpresora($cobro->sucursal_id, $cobro->caja_id, 'ticket_venta');
+        }
+
+        if (!$impresora) {
+            throw new Exception('No hay impresora configurada para recibos de cobro en esta sucursal/caja');
+        }
+
+        $config = ConfiguracionImpresion::where('sucursal_id', $cobro->sucursal_id)->first();
+
+        // Generar HTML usando la vista blade
+        $html = view('impresion.recibo-cobro', [
+            'cobro' => $cobro,
+            'impresora' => $impresora,
+            'config' => $config,
+        ])->render();
+
+        return [
+            'tipo' => 'html',
+            'impresora' => $impresora->nombre_sistema,
+            'datos' => $html,
+            'opciones' => [
+                'formato' => $impresora->formato_papel,
+                'cortar' => $config?->cortar_papel_automatico ?? true,
+            ]
+        ];
     }
 }

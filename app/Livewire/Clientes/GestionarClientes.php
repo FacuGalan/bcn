@@ -98,7 +98,7 @@ class GestionarClientes extends Component
             'email' => 'nullable|email|max:191',
             'telefono' => 'nullable|string|max:50',
             'direccion' => 'nullable|string|max:255',
-            'condicion_iva_id' => 'nullable|exists:condiciones_iva,id',
+            'condicion_iva_id' => 'nullable|exists:config.condiciones_iva,id',
             'tiene_cuenta_corriente' => 'boolean',
             'limite_credito' => 'numeric|min:0',
             'dias_credito' => 'integer|min:0|max:365',

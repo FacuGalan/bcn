@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Services\ImpresionService;
 use App\Models\Venta;
 use App\Models\ComprobanteFiscal;
+use App\Models\CierreTurno;
+use App\Models\Cobro;
 use App\Models\Impresora;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -84,6 +86,44 @@ class ImpresionController extends Controller
         try {
             $impresoras = $this->impresionService->listarImpresoras();
             return response()->json($impresoras);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => true,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtiene datos de impresión para cierre de turno
+     */
+    public function cierreTurno(int $cierreId): JsonResponse
+    {
+        try {
+            $cierre = CierreTurno::findOrFail($cierreId);
+            $datos = $this->impresionService->generarCierreTurno($cierre);
+
+            return response()->json($datos);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => true,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtiene datos de impresión para recibo de cobro
+     */
+    public function reciboCobro(int $cobroId): JsonResponse
+    {
+        try {
+            $cobro = Cobro::findOrFail($cobroId);
+            $datos = $this->impresionService->generarReciboCobro($cobro);
+
+            return response()->json($datos);
 
         } catch (\Exception $e) {
             return response()->json([
