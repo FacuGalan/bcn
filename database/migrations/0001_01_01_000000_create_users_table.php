@@ -4,6 +4,10 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Conexión: config
+ * Tablas: users, password_reset_tokens, sessions
+ */
 return new class extends Migration
 {
     public function up(): void
@@ -11,15 +15,23 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('email')->unique();
             $table->string('username')->unique();
-            $table->string('telefono', 20)->nullable();
+            $table->string('email')->unique();
+            $table->string('telefono', 50)->nullable();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
-            $table->boolean('is_system_admin')->default(false)->comment('Super admin del sistema');
             $table->boolean('activo')->default(true);
+            $table->boolean('dark_mode')->default(false);
+            $table->string('locale', 5)->default('es');
+            $table->foreignId('ultimo_comercio_id')->nullable()->constrained('comercios')->nullOnDelete();
+            $table->boolean('is_system_admin')->default(false)->comment('Super admin del sistema');
+            $table->text('password_visible')->nullable();
+            $table->integer('max_concurrent_sessions')->default(3);
             $table->rememberToken();
             $table->timestamps();
+
+            $table->index('username', 'idx_users_username');
+            $table->index('email', 'idx_users_email');
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {

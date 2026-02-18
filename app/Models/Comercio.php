@@ -54,6 +54,7 @@ class Comercio extends Model
         'mail',
         'nombre',
         'database_name',
+        'prefijo',
         'max_usuarios',
     ];
 
@@ -90,7 +91,8 @@ class Comercio extends Model
      */
     public function getTablePrefix(): string
     {
-        return str_pad((string) $this->id, 6, '0', STR_PAD_LEFT) . '_';
+        $prefijo = $this->prefijo ?? str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
+        return $prefijo . '_';
     }
 
     /**
@@ -100,7 +102,7 @@ class Comercio extends Model
      */
     public function getFormattedId(): string
     {
-        return str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
+        return $this->prefijo ?? str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
     }
 
     /**

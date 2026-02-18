@@ -55,7 +55,7 @@ class Sucursal extends Model
         // Campos de configuración
         'usa_clave_autorizacion', 'clave_autorizacion', 'tipo_impresion_factura',
         'imprime_encabezado_comanda', 'agrupa_articulos_venta', 'agrupa_articulos_impresion',
-        'facturacion_fiscal_automatica',
+        'control_stock_venta', 'facturacion_fiscal_automatica',
         'usa_whatsapp_escritorio', 'envia_whatsapp_comanda', 'mensaje_whatsapp_comanda',
         'envia_whatsapp_listo', 'mensaje_whatsapp_listo',
     ];

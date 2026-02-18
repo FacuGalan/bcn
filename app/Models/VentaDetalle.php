@@ -42,6 +42,7 @@ class VentaDetalle extends Model
         'cantidad',
         'precio_unitario',
         'precio_lista',           // Precio original de lista (antes de promociones)
+        'precio_opcionales',      // Suma de precio extra de opcionales seleccionados
         'iva_porcentaje',
         'precio_sin_iva',
         'descuento',
@@ -60,6 +61,7 @@ class VentaDetalle extends Model
         'cantidad' => 'decimal:2',
         'precio_unitario' => 'decimal:2',
         'precio_lista' => 'decimal:2',
+        'precio_opcionales' => 'decimal:2',
         'iva_porcentaje' => 'decimal:2',
         'precio_sin_iva' => 'decimal:2',
         'descuento' => 'decimal:2',
@@ -97,6 +99,11 @@ class VentaDetalle extends Model
     public function promocionesAplicadas(): HasMany
     {
         return $this->hasMany(VentaDetallePromocion::class, 'venta_detalle_id');
+    }
+
+    public function opcionalesSeleccionados(): HasMany
+    {
+        return $this->hasMany(VentaDetalleOpcional::class, 'venta_detalle_id');
     }
 
     /**

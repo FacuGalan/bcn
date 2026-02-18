@@ -93,6 +93,7 @@ class ConfiguracionEmpresa extends Component
     public $configImprimeEncabezadoComanda = true;
     public $configAgrupaArticulosVenta = true;
     public $configAgrupaArticulosImpresion = true;
+    public $configControlStockVenta = 'bloquea';
     public $configFacturacionFiscalAutomatica = false;
     public $configUsaWhatsappEscritorio = false;
     public $configEnviaWhatsappComanda = false;
@@ -651,6 +652,7 @@ class ConfiguracionEmpresa extends Component
         $this->configImprimeEncabezadoComanda = $sucursal->imprime_encabezado_comanda ?? true;
         $this->configAgrupaArticulosVenta = $sucursal->agrupa_articulos_venta ?? true;
         $this->configAgrupaArticulosImpresion = $sucursal->agrupa_articulos_impresion ?? true;
+        $this->configControlStockVenta = $sucursal->control_stock_venta ?? 'bloquea';
         $this->configFacturacionFiscalAutomatica = $sucursal->facturacion_fiscal_automatica ?? false;
         $this->configUsaWhatsappEscritorio = $sucursal->usa_whatsapp_escritorio ?? false;
         $this->configEnviaWhatsappComanda = $sucursal->envia_whatsapp_comanda ?? false;
@@ -696,6 +698,7 @@ class ConfiguracionEmpresa extends Component
                 'imprime_encabezado_comanda' => $this->configImprimeEncabezadoComanda,
                 'agrupa_articulos_venta' => $this->configAgrupaArticulosVenta,
                 'agrupa_articulos_impresion' => $agrupaImpresion,
+                'control_stock_venta' => $this->configControlStockVenta,
                 'facturacion_fiscal_automatica' => $this->configFacturacionFiscalAutomatica,
                 'usa_whatsapp_escritorio' => $this->configUsaWhatsappEscritorio,
                 'envia_whatsapp_comanda' => $this->configEnviaWhatsappComanda,
@@ -723,6 +726,7 @@ class ConfiguracionEmpresa extends Component
         $this->configImprimeEncabezadoComanda = true;
         $this->configAgrupaArticulosVenta = true;
         $this->configAgrupaArticulosImpresion = true;
+        $this->configControlStockVenta = 'bloquea';
         $this->configFacturacionFiscalAutomatica = false;
         $this->configUsaWhatsappEscritorio = false;
         $this->configEnviaWhatsappComanda = false;

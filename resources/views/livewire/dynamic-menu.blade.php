@@ -58,7 +58,7 @@
                             <span
                                 class="menu-item-text whitespace-nowrap overflow-hidden"
                                 :class="activeParentId === {{ $parent->id }} ? 'show' : ''"
-                            >{{ $parent->nombre }}</span>
+                            >{{ __($parent->nombre) }}</span>
                         </button>
                     @else
                         <a
@@ -72,7 +72,7 @@
                             @if($parent->icono)
                                 <x-dynamic-component :component="$parent->icono" class="h-5 w-5 flex-shrink-0" />
                             @endif
-                            <span class="menu-item-text whitespace-nowrap overflow-hidden {{ $parent->isCurrentRoute() ? 'show' : '' }}">{{ $parent->nombre }}</span>
+                            <span class="menu-item-text whitespace-nowrap overflow-hidden {{ $parent->isCurrentRoute() ? 'show' : '' }}">{{ __($parent->nombre) }}</span>
                         </a>
                     @endif
                 @endforeach
@@ -100,7 +100,7 @@
                                     @if($child->icono)
                                         <x-dynamic-component :component="$child->icono" class="h-4 w-4 mr-1.5" />
                                     @endif
-                                    {{ $child->nombre }}
+                                    {{ __($child->nombre) }}
                                 </a>
                             @endforeach
                         </div>
@@ -113,7 +113,7 @@
     {{-- MOBILE MENU --}}
     <div class="md:hidden">
         <div class="flex items-center justify-between h-16 px-4">
-            <span class="text-xl font-semibold text-gray-900 dark:text-white">Menú</span>
+            <span class="text-xl font-semibold text-gray-900 dark:text-white">{{ __('Menú') }}</span>
             <button
                 @click="mobileMenuOpen = !mobileMenuOpen"
                 type="button"
@@ -147,7 +147,7 @@
                                     @if($parent->icono)
                                         <x-dynamic-component :component="$parent->icono" class="h-5 w-5 mr-3 text-gray-400" />
                                     @endif
-                                    {{ $parent->nombre }}
+                                    {{ __($parent->nombre) }}
                                 </div>
                                 <svg
                                     class="h-5 w-5 text-gray-400"
@@ -171,7 +171,7 @@
                                             {{ $child->isCurrentRoute()
                                                 ? 'text-indigo-700 bg-indigo-50'
                                                 : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' }}"
-                                    >{{ $child->nombre }}</a>
+                                    >{{ __($child->nombre) }}</a>
                                 @endforeach
                             </div>
                         </div>
@@ -187,7 +187,7 @@
                             @if($parent->icono)
                                 <x-dynamic-component :component="$parent->icono" class="h-5 w-5 mr-3 text-gray-400" />
                             @endif
-                            {{ $parent->nombre }}
+                            {{ __($parent->nombre) }}
                         </a>
                     @endif
                 @endforeach

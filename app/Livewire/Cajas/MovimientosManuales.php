@@ -11,6 +11,7 @@ use App\Models\TransferenciaEfectivo;
 use App\Services\CajaService;
 use App\Services\SucursalService;
 use App\Services\TesoreriaService;
+use App\Traits\SucursalAware;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -24,6 +25,7 @@ use Illuminate\Support\Facades\Log;
  */
 class MovimientosManuales extends Component
 {
+    use SucursalAware;
     // Tab activo
     public string $tabActivo = 'transferencia';
 
@@ -73,6 +75,15 @@ class MovimientosManuales extends Component
 
     public function mount()
     {
+        $this->cargarDatos();
+    }
+
+    /**
+     * Hook llamado cuando cambia la sucursal (desde SucursalAware trait)
+     */
+    protected function onSucursalChanged($sucursalId = null, $sucursalNombre = null): void
+    {
+        $this->showConfirmModal = false;
         $this->cargarDatos();
     }
 

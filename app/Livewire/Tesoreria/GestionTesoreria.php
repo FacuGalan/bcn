@@ -15,6 +15,7 @@ use App\Models\Caja;
 use App\Models\CierreTurno;
 use App\Services\TesoreriaService;
 use App\Services\SucursalService;
+use App\Traits\SucursalAware;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
@@ -33,6 +34,7 @@ use Carbon\Carbon;
 class GestionTesoreria extends Component
 {
     use WithPagination;
+    use SucursalAware;
 
     // Tesorería activa
     public ?Tesoreria $tesoreria = null;
@@ -90,6 +92,21 @@ class GestionTesoreria extends Component
         $this->filtroFechaHasta = now()->format('Y-m-d');
         $this->fechaDeposito = now()->format('Y-m-d');
 
+        $this->cargarDatos();
+    }
+
+    /**
+     * Hook llamado cuando cambia la sucursal (desde SucursalAware trait)
+     */
+    protected function onSucursalChanged($sucursalId = null, $sucursalNombre = null): void
+    {
+        // Cerrar todos los modales
+        $this->showProvisionModal = false;
+        $this->showRendicionModal = false;
+        $this->showDepositoModal = false;
+        $this->showArqueoModal = false;
+
+        // Recargar datos de la nueva sucursal
         $this->cargarDatos();
     }
 

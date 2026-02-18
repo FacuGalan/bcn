@@ -220,10 +220,10 @@ class ARCAService
     /**
      * Autentica con WSAA y obtiene token/sign
      */
-    protected function autenticar(): void
+    protected function autenticar(string $servicio = self::SERVICIO_WSFE): void
     {
         $entorno = $this->modoTesting ? 'testing' : 'produccion';
-        $cacheKey = "arca_auth_{$this->cuit->id}_{$entorno}";
+        $cacheKey = "arca_auth_{$this->cuit->id}_{$entorno}_{$servicio}";
 
         // Intentar obtener del cache
         $cached = Cache::get($cacheKey);
@@ -234,7 +234,7 @@ class ARCAService
         }
 
         // Generar TRA (Ticket de Requerimiento de Acceso)
-        $tra = $this->generarTRA();
+        $tra = $this->generarTRA($servicio);
 
         // Firmar TRA con certificado
         $cms = $this->firmarTRA($tra);
@@ -259,6 +259,7 @@ class ARCAService
 
         Log::info('Autenticación AFIP exitosa', [
             'cuit' => $this->cuit->numero_cuit,
+            'servicio' => $servicio,
             'expiracion' => $expiration->toDateTimeString(),
         ]);
     }
@@ -266,7 +267,7 @@ class ARCAService
     /**
      * Genera el TRA (Ticket de Requerimiento de Acceso)
      */
-    protected function generarTRA(): string
+    protected function generarTRA(string $servicio = self::SERVICIO_WSFE): string
     {
         $uniqueId = time();
         $generationTime = Carbon::now()->subMinutes(10)->format('c');
@@ -280,7 +281,7 @@ class ARCAService
         <generationTime>{$generationTime}</generationTime>
         <expirationTime>{$expirationTime}</expirationTime>
     </header>
-    <service>wsfe</service>
+    <service>{$servicio}</service>
 </loginTicketRequest>
 XML;
     }
@@ -397,10 +398,10 @@ XML;
     /**
      * Limpia el caché de autenticación para forzar re-autenticación
      */
-    public function limpiarCache(): void
+    public function limpiarCache(string $servicio = self::SERVICIO_WSFE): void
     {
         $entorno = $this->modoTesting ? 'testing' : 'produccion';
-        $cacheKey = "arca_auth_{$this->cuit->id}_{$entorno}";
+        $cacheKey = "arca_auth_{$this->cuit->id}_{$entorno}_{$servicio}";
         Cache::forget($cacheKey);
         $this->token = null;
         $this->sign = null;

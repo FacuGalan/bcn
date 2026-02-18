@@ -667,8 +667,8 @@ class Ventas extends Component
                 return;
             }
 
-            // Validar stock si controla stock
-            if ($articulo->controla_stock) {
+            // Validar stock si controla stock en esta sucursal
+            if ($articulo->controlaStock($this->obtenerSucursalActual())) {
                 if (!$articulo->tieneStockSuficiente($this->obtenerSucursalActual(), 1)) {
                     $this->dispatch('toast-error', message: __('Stock insuficiente para este artículo'));
                     return;

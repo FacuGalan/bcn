@@ -110,6 +110,7 @@
                                 <option value="all">{{ __('Todos') }}</option>
                                 <option value="active">{{ __('Activos') }}</option>
                                 <option value="inactive">{{ __('Inactivos') }}</option>
+                                <option value="deleted">{{ __('Eliminados') }}</option>
                             </select>
                         </div>
 
@@ -180,9 +181,15 @@
                         <div class="flex-1">
                             <div class="flex items-center flex-wrap gap-2">
                                 <h3 class="text-sm font-medium text-gray-900 dark:text-white">{{ $cliente->nombre }}</h3>
-                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $cliente->activo ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }}">
-                                    {{ $cliente->activo ? __('Activo') : __('Inactivo') }}
-                                </span>
+                                @if($filterStatus === 'deleted')
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                        {{ __('Eliminado') }}
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $cliente->activo ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }}">
+                                        {{ $cliente->activo ? __('Activo') : __('Inactivo') }}
+                                    </span>
+                                @endif
                                 @if($cliente->proveedor)
                                     <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
                                         <svg class="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -203,9 +210,9 @@
                                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                                             {{ __('Cta. Cte.') }}
                                         </span>
-                                        @if($cliente->saldo_deudor_cache > 0)
+                                        @if(($cliente->saldo_deudor_sucursal ?? 0) > 0)
                                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
-                                                {{ __('Deuda') }}: ${{ number_format($cliente->saldo_deudor_cache, 2, ',', '.') }}
+                                                {{ __('Deuda') }}: ${{ number_format($cliente->saldo_deudor_sucursal, 2, ',', '.') }}
                                             </span>
                                         @endif
                                     @endif
@@ -215,33 +222,45 @@
                     </div>
 
                     <div class="mt-3 flex items-center gap-2">
-                        <button
-                            wire:click="edit({{ $cliente->id }})"
-                            class="flex-1 inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white transition-colors duration-150"
-                        >
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                            {{ __('Editar') }}
-                        </button>
-                        <button
-                            wire:click="openSucursalesConfig({{ $cliente->id }})"
-                            class="inline-flex items-center justify-center px-3 py-2 border border-green-300 dark:border-green-600 text-sm font-medium rounded-md text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-gray-700 transition-colors duration-150"
-                            title="{{ __('Configurar sucursales') }}"
-                        >
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                            </svg>
-                        </button>
-                        <button
-                            wire:click="showHistorial({{ $cliente->id }})"
-                            class="inline-flex items-center justify-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150"
-                            title="{{ __('Ver historial') }}"
-                        >
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                            </svg>
-                        </button>
+                        @if($filterStatus === 'deleted')
+                            <button
+                                wire:click="restore({{ $cliente->id }})"
+                                class="flex-1 inline-flex items-center justify-center px-3 py-2 border border-green-500 text-sm font-medium rounded-md text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-gray-700 transition-colors duration-150"
+                            >
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                {{ __('Restaurar') }}
+                            </button>
+                        @else
+                            <button
+                                wire:click="edit({{ $cliente->id }})"
+                                class="flex-1 inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white transition-colors duration-150"
+                            >
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                {{ __('Editar') }}
+                            </button>
+                            <button
+                                wire:click="openSucursalesConfig({{ $cliente->id }})"
+                                class="inline-flex items-center justify-center px-3 py-2 border border-green-300 dark:border-green-600 text-sm font-medium rounded-md text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-gray-700 transition-colors duration-150"
+                                title="{{ __('Configurar sucursales') }}"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                            </button>
+                            <button
+                                wire:click="showHistorial({{ $cliente->id }})"
+                                class="inline-flex items-center justify-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150"
+                                title="{{ __('Ver historial') }}"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                            </button>
+                        @endif
                     </div>
                 </div>
             @empty
@@ -326,9 +345,9 @@
                                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 w-fit">
                                                 {{ __('Cta. Cte.') }}
                                             </span>
-                                            @if($cliente->saldo_deudor_cache > 0)
+                                            @if(($cliente->saldo_deudor_sucursal ?? 0) > 0)
                                                 <span class="text-xs text-red-600 font-medium">
-                                                    {{ __('Deuda') }}: ${{ number_format($cliente->saldo_deudor_cache, 2, ',', '.') }}
+                                                    {{ __('Deuda') }}: ${{ number_format($cliente->saldo_deudor_sucursal, 2, ',', '.') }}
                                                 </span>
                                             @elseif($cliente->saldo_a_favor_cache > 0)
                                                 <span class="text-xs text-green-600 font-medium">
@@ -343,52 +362,71 @@
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-center">
-                                    <button
-                                        wire:click="toggleStatus({{ $cliente->id }})"
-                                        class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary {{ $cliente->activo ? 'bg-green-600' : 'bg-gray-300' }}"
-                                    >
-                                        <span class="sr-only">{{ $cliente->activo ? __('Desactivar') : __('Activar') }}</span>
-                                        <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $cliente->activo ? 'translate-x-5' : 'translate-x-0' }}"></span>
-                                    </button>
+                                    @if($filterStatus === 'deleted')
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">
+                                            {{ __('Eliminado') }}
+                                        </span>
+                                    @else
+                                        <button
+                                            wire:click="toggleStatus({{ $cliente->id }})"
+                                            class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary {{ $cliente->activo ? 'bg-green-600' : 'bg-gray-300' }}"
+                                        >
+                                            <span class="sr-only">{{ $cliente->activo ? __('Desactivar') : __('Activar') }}</span>
+                                            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $cliente->activo ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                                        </button>
+                                    @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <div class="flex items-center justify-end gap-2">
-                                        <button
-                                            wire:click="openSucursalesConfig({{ $cliente->id }})"
-                                            class="inline-flex items-center px-3 py-2 border border-green-300 dark:border-green-600 rounded-md text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-gray-700 transition-colors duration-150"
-                                            title="{{ __('Configurar sucursales y precios') }}"
-                                        >
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                            </svg>
-                                        </button>
-                                        <button
-                                            wire:click="showHistorial({{ $cliente->id }})"
-                                            class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150"
-                                            title="{{ __('Ver historial de ventas') }}"
-                                        >
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                            </svg>
-                                        </button>
-                                        <button
-                                            wire:click="edit({{ $cliente->id }})"
-                                            class="inline-flex items-center px-3 py-2 border border-bcn-primary rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white transition-colors duration-150"
-                                            title="{{ __('Editar cliente') }}"
-                                        >
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                            </svg>
-                                        </button>
-                                        <button
-                                            wire:click="confirmDelete({{ $cliente->id }})"
-                                            class="inline-flex items-center px-3 py-2 border border-red-300 dark:border-red-600 rounded-md text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700 transition-colors duration-150"
-                                            title="{{ __('Eliminar cliente') }}"
-                                        >
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                        </button>
+                                        @if($filterStatus === 'deleted')
+                                            <button
+                                                wire:click="restore({{ $cliente->id }})"
+                                                class="inline-flex items-center px-3 py-2 border border-green-500 rounded-md text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-gray-700 transition-colors duration-150"
+                                                title="{{ __('Restaurar') }}"
+                                            >
+                                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                </svg>
+                                                {{ __('Restaurar') }}
+                                            </button>
+                                        @else
+                                            <button
+                                                wire:click="openSucursalesConfig({{ $cliente->id }})"
+                                                class="inline-flex items-center px-3 py-2 border border-green-300 dark:border-green-600 rounded-md text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-gray-700 transition-colors duration-150"
+                                                title="{{ __('Configurar sucursales y precios') }}"
+                                            >
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                wire:click="showHistorial({{ $cliente->id }})"
+                                                class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150"
+                                                title="{{ __('Ver historial de ventas') }}"
+                                            >
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                wire:click="edit({{ $cliente->id }})"
+                                                class="inline-flex items-center px-3 py-2 border border-bcn-primary rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white transition-colors duration-150"
+                                                title="{{ __('Editar cliente') }}"
+                                            >
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                wire:click="confirmDelete({{ $cliente->id }})"
+                                                class="inline-flex items-center px-3 py-2 border border-red-300 dark:border-red-600 rounded-md text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700 transition-colors duration-150"
+                                                title="{{ __('Eliminar cliente') }}"
+                                            >
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -434,6 +472,87 @@
                                 </div>
 
                                 <div class="mt-6 space-y-6">
+                                    {{-- Toggle modo alta: Manual / Por CUIT (solo en alta, no edición) --}}
+                                    @if(!$editMode)
+                                        <div class="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-700 rounded-lg w-fit">
+                                            <button
+                                                type="button"
+                                                wire:click="$set('modoAlta', 'manual')"
+                                                class="px-4 py-2 text-sm font-medium rounded-md transition-colors duration-150 {{ $modoAlta === 'manual' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300' }}"
+                                            >
+                                                {{ __('Manual') }}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                wire:click="$set('modoAlta', 'cuit')"
+                                                @if(!$consultaArcaDisponible) disabled @endif
+                                                class="px-4 py-2 text-sm font-medium rounded-md transition-colors duration-150 {{ $modoAlta === 'cuit' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300' }} {{ !$consultaArcaDisponible ? 'opacity-50 cursor-not-allowed' : '' }}"
+                                                @if(!$consultaArcaDisponible) title="{{ __('No hay certificados ARCA configurados') }}" @endif
+                                            >
+                                                {{ __('Por CUIT') }}
+                                            </button>
+                                        </div>
+
+                                        {{-- Sección de consulta CUIT --}}
+                                        @if($modoAlta === 'cuit')
+                                            <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                                                <p class="text-sm text-blue-700 dark:text-blue-300 mb-3">
+                                                    <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                    {{ __('Ingrese el CUIT del cliente para obtener sus datos fiscales de ARCA.') }}
+                                                </p>
+                                                <div class="flex gap-2">
+                                                    <input
+                                                        type="text"
+                                                        wire:model="cuit"
+                                                        class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
+                                                        placeholder="20-12345678-9"
+                                                        wire:keydown.enter.prevent="consultarCuit"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        wire:click="consultarCuit"
+                                                        wire:loading.attr="disabled"
+                                                        wire:target="consultarCuit"
+                                                        class="inline-flex items-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150 disabled:opacity-50"
+                                                    >
+                                                        <svg wire:loading wire:target="consultarCuit" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                        </svg>
+                                                        <span wire:loading.remove wire:target="consultarCuit">{{ __('Consultar') }}</span>
+                                                        <span wire:loading wire:target="consultarCuit">{{ __('Consultando...') }}</span>
+                                                    </button>
+                                                </div>
+
+                                                {{-- Error de consulta --}}
+                                                @if($errorConsultaCuit)
+                                                    <div class="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                                                        <p class="text-sm text-red-700 dark:text-red-300">
+                                                            <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                            {{ $errorConsultaCuit }}
+                                                        </p>
+                                                    </div>
+                                                @endif
+
+                                                {{-- Éxito de consulta --}}
+                                                @if($exitoConsultaCuit)
+                                                    <div class="mt-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+                                                        <p class="text-sm text-green-700 dark:text-green-300">
+                                                            <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                            {{ $exitoConsultaCuit }}
+                                                        </p>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @endif
+                                    @endif
+
                                     <!-- Datos básicos -->
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div class="sm:col-span-2">
@@ -458,14 +577,33 @@
                                         </div>
 
                                         <div>
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('CUIT') }}</label>
+                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                {{ __('CUIT') }}
+                                                @if(!$editMode && $datosDesdeArca && $modoAlta === 'cuit')
+                                                    <svg class="inline w-4 h-4 text-green-500 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                    </svg>
+                                                @endif
+                                            </label>
                                             <input
                                                 type="text"
-                                                wire:model="cuit"
-                                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
+                                                wire:model{{ !$editMode && $modoAlta === 'manual' ? '.live.debounce.500ms' : '' }}="cuit"
+                                                class="w-full rounded-md shadow-sm focus:border-bcn-primary focus:ring-bcn-primary {{ !$editMode && $datosDesdeArca && $modoAlta === 'cuit' ? 'bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-700 dark:text-gray-300' : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white' }}"
                                                 placeholder="20-12345678-9"
+                                                {{ !$editMode && $datosDesdeArca && $modoAlta === 'cuit' ? 'readonly' : '' }}
                                             />
                                             @error('cuit') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                            {{-- Validación en tiempo real (modo manual) --}}
+                                            @if(!$editMode && $modoAlta === 'manual' && $validacionCuitMsg)
+                                                <p class="mt-1 text-xs {{ $validacionCuitTipo === 'success' ? 'text-green-600 dark:text-green-400' : '' }}{{ $validacionCuitTipo === 'error' ? 'text-red-600 dark:text-red-400' : '' }}{{ $validacionCuitTipo === 'info' ? 'text-blue-600 dark:text-blue-400' : '' }}">
+                                                    @if($validacionCuitTipo === 'success')
+                                                        <svg class="inline w-3.5 h-3.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                    @elseif($validacionCuitTipo === 'error')
+                                                        <svg class="inline w-3.5 h-3.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                    @endif
+                                                    {{ $validacionCuitMsg }}
+                                                </p>
+                                            @endif
                                         </div>
 
                                         <div>
@@ -504,10 +642,19 @@
                                     <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
                                         <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">{{ __('Configuración Fiscal') }}</h4>
                                         <div>
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Condición IVA') }}</label>
+                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                {{ __('Condición IVA') }}
+                                                @if(!$editMode && $datosDesdeArca)
+                                                    <svg class="inline w-4 h-4 text-green-500 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                    </svg>
+                                                    <span class="text-xs font-normal text-green-600 dark:text-green-400">{{ __('Dato de ARCA') }}</span>
+                                                @endif
+                                            </label>
                                             <select
                                                 wire:model="condicion_iva_id"
-                                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
+                                                class="w-full rounded-md shadow-sm focus:border-bcn-primary focus:ring-bcn-primary {{ !$editMode && $datosDesdeArca ? 'bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-700 dark:text-gray-300' : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white' }}"
+                                                {{ !$editMode && $datosDesdeArca ? 'disabled' : '' }}
                                             >
                                                 @foreach($condicionesIva as $condicion)
                                                     <option value="{{ $condicion->id }}">{{ $condicion->nombre }}</option>
@@ -700,7 +847,10 @@
                                     <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">{{ __('Eliminar Cliente') }}</h3>
                                     <div class="mt-2">
                                         <p class="text-sm text-gray-500 dark:text-gray-400">
-                                            {{ __('¿Estás seguro de eliminar el cliente') }} <strong>{{ $nombreClienteAEliminar }}</strong>? {{ __('Esta acción no se puede deshacer.') }}
+                                            {{ __('¿Estás seguro de eliminar el cliente') }} <strong>{{ $nombreClienteAEliminar }}</strong>?
+                                        </p>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                            {{ __('El cliente será movido a la papelera y podrá ser restaurado posteriormente.') }}
                                         </p>
                                     </div>
                                 </div>

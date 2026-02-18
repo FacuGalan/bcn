@@ -9,73 +9,43 @@ use App\Models\Stock;
 use App\Models\Articulo;
 use App\Models\Sucursal;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
-/**
- * Componente Livewire: Stock / Inventario
- *
- * RESPONSABILIDADES:
- * =================
- * 1. Listar stock por sucursal con filtros
- * 2. Mostrar alertas de stock bajo mínimo
- * 3. Realizar ajustes manuales de stock
- * 4. Registrar inventario físico
- * 5. Ver stock consolidado de todas las sucursales
- * 6. Actualizar umbrales (stock mínimo y máximo)
- *
- * PROPIEDADES:
- * ===========
- * @property Collection $stocks - Lista de stock filtrada
- * @property string $search - Búsqueda por artículo
- * @property string $filterAlerta - Filtro por alertas (all, bajo_minimo, sin_stock)
- * @property bool $showAjusteModal - Modal de ajuste de stock
- * @property bool $showInventarioModal - Modal de inventario físico
- *
- * DEPENDENCIAS:
- * ============
- * - StockService: Para ajustes y reportes
- * - Models: Stock, Articulo, Sucursal
- *
- * FASE 4 - Sistema Multi-Sucursal (Componentes Livewire)
- *
- * @package App\Livewire\Stock
- * @version 1.0.0
- */
 class StockInventario extends Component
 {
     use WithPagination;
 
-    // Propiedades de filtros
-    public $search = '';
-    public $filterAlerta = 'all';
-    public $sucursalSeleccionada = null;
+    // Filtros
+    public string $search = '';
+    public string $filterAlerta = 'all';
+    public string $filterModoStock = 'all';
+    public string $filterTipo = 'all';
+    public bool $showFilters = false;
 
-    // Propiedades de modales
-    public $showAjusteModal = false;
-    public $showInventarioModal = false;
-    public $showUmbralesModal = false;
+    // Modales
+    public bool $showAjusteModal = false;
+    public bool $showInventarioModal = false;
+    public bool $showUmbralesModal = false;
 
-    // Propiedades de ajuste
+    // Ajuste
     public $stockAjusteId = null;
     public $cantidadAjuste = 0;
-    public $motivoAjuste = '';
+    public string $motivoAjuste = '';
 
-    // Propiedades de inventario físico
+    // Inventario físico
     public $stockInventarioId = null;
     public $cantidadFisica = 0;
-    public $observacionesInventario = '';
+    public string $observacionesInventario = '';
 
-    // Propiedades de umbrales
+    // Umbrales
     public $stockUmbralesId = null;
     public $cantidadMinima = null;
     public $cantidadMaxima = null;
 
     protected $stockService;
 
-    /**
-     * Escuchar evento de cambio de sucursal
-     */
     protected $listeners = ['sucursal-changed' => 'handleSucursalChanged'];
 
     public function boot(StockService $stockService)
@@ -83,49 +53,62 @@ class StockInventario extends Component
         $this->stockService = $stockService;
     }
 
-    public function mount()
-    {
-        $this->sucursalSeleccionada = sucursal_activa() ?? Sucursal::activas()->first()->id ?? 1;
-    }
-
-    /**
-     * Maneja el cambio de sucursal
-     */
     public function handleSucursalChanged($sucursalId = null, $sucursalNombre = null)
     {
-        // Actualizar sucursal seleccionada
-        $this->sucursalSeleccionada = $sucursalId ?? sucursal_activa();
-
-        // Cerrar modales si están abiertos
         $this->showAjusteModal = false;
         $this->showInventarioModal = false;
         $this->showUmbralesModal = false;
+        $this->resetPage();
+    }
 
-        // El componente se re-renderizará automáticamente con los datos de la nueva sucursal
+    public function updatingSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterAlerta(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterModoStock(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterTipo(): void
+    {
+        $this->resetPage();
+    }
+
+    public function toggleFilters(): void
+    {
+        $this->showFilters = !$this->showFilters;
     }
 
     public function render()
     {
-        $stocks = $this->obtenerStocks();
-        $sucursales = Sucursal::activas()->get();
-        $alertasBajoMinimo = Stock::porSucursal($this->sucursalSeleccionada)->bajoMinimo()->count();
-        $articulosSinStock = Stock::porSucursal($this->sucursalSeleccionada)->where('cantidad', '<=', 0)->count();
+        $sucursalId = sucursal_activa();
+        $stocks = $this->obtenerStocks($sucursalId);
+        $alertasBajoMinimo = Stock::porSucursal($sucursalId)->bajoMinimo()->count();
+        $articulosSinStock = Stock::porSucursal($sucursalId)->where('cantidad', '<=', 0)->count();
+        $totalArticulos = Stock::porSucursal($sucursalId)->count();
 
         return view('livewire.stock.stock-inventario', [
             'stocks' => $stocks,
-            'sucursales' => $sucursales,
             'alertasBajoMinimo' => $alertasBajoMinimo,
             'articulosSinStock' => $articulosSinStock,
+            'totalArticulos' => $totalArticulos,
             'stockAjuste' => $this->stockAjusteId ? Stock::with('articulo')->find($this->stockAjusteId) : null,
             'stockInventario' => $this->stockInventarioId ? Stock::with('articulo')->find($this->stockInventarioId) : null,
             'stockUmbrales' => $this->stockUmbralesId ? Stock::with('articulo')->find($this->stockUmbralesId) : null,
         ]);
     }
 
-    protected function obtenerStocks()
+    protected function obtenerStocks($sucursalId)
     {
-        $query = Stock::with(['articulo', 'sucursal'])
-                     ->porSucursal($this->sucursalSeleccionada);
+        $query = Stock::with(['articulo'])
+                     ->porSucursal($sucursalId);
 
         if ($this->search) {
             $query->whereHas('articulo', function ($q) {
@@ -138,6 +121,24 @@ class StockInventario extends Component
             $query->bajoMinimo();
         } elseif ($this->filterAlerta === 'sin_stock') {
             $query->where('cantidad', '<=', 0);
+        }
+
+        if ($this->filterModoStock !== 'all') {
+            $modo = $this->filterModoStock;
+            $query->whereExists(function ($sub) use ($sucursalId, $modo) {
+                $sub->select(DB::raw(1))
+                    ->from('articulos_sucursales')
+                    ->whereColumn('articulos_sucursales.articulo_id', 'stock.articulo_id')
+                    ->where('articulos_sucursales.sucursal_id', $sucursalId)
+                    ->where('articulos_sucursales.modo_stock', $modo);
+            });
+        }
+
+        if ($this->filterTipo !== 'all') {
+            $esMp = $this->filterTipo === 'materia_prima';
+            $query->whereHas('articulo', function ($q) use ($esMp) {
+                $q->where('es_materia_prima', $esMp);
+            });
         }
 
         return $query->orderBy('cantidad', 'asc')->paginate(20);
@@ -254,18 +255,8 @@ class StockInventario extends Component
         $this->cantidadMaxima = null;
     }
 
-    public function updatedSearch()
+    public function cerrarModal($modal)
     {
-        $this->resetPage();
-    }
-
-    public function updatedFilterAlerta()
-    {
-        $this->resetPage();
-    }
-
-    public function updatedSucursalSeleccionada()
-    {
-        $this->resetPage();
+        $this->{$modal} = false;
     }
 }

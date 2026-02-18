@@ -14,6 +14,11 @@ use App\Models\ConceptoPago;
 use App\Models\FormaPago;
 use App\Models\ComprobanteFiscal;
 use App\Services\ARCA\ComprobanteFiscalService;
+use App\Models\MovimientoStock;
+use App\Models\Receta;
+use App\Models\Sucursal;
+use App\Services\CobroService;
+use App\Services\CuentaCorrienteService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
@@ -34,6 +39,16 @@ use Exception;
 class VentaService
 {
     /**
+     * Advertencias de stock recopiladas durante la validación (modo 'advierte')
+     */
+    public array $advertenciasStock = [];
+
+    /**
+     * Si true, permite que el stock quede negativo al descontar (modos 'advierte' y 'no_controla')
+     */
+    protected bool $permitirStockNegativo = false;
+
+    /**
      * Crea una nueva venta con sus detalles
      *
      * @param array $data Datos de la venta
@@ -52,6 +67,7 @@ class VentaService
             }
 
             // Validar stock si los artículos controlan stock
+            $this->advertenciasStock = [];
             $this->validarStockDisponible($data['sucursal_id'], $detalles);
 
             // Validar crédito del cliente si es venta a cuenta corriente
@@ -133,11 +149,17 @@ class VentaService
             // Esto permite manejar ventas con múltiples formas de pago.
 
             // Actualizar saldo del cliente si es cuenta corriente
-            if ($venta->cliente_id && $venta->forma_pago === 'cta_cte') {
+            if ($venta->cliente_id && ($venta->es_cuenta_corriente || $venta->forma_pago === 'cta_cte')) {
                 $this->actualizarSaldoCliente($venta);
             }
 
             DB::connection('pymes_tenant')->commit();
+
+            // Actualizar cache de saldo del cliente si es cuenta corriente (después del commit)
+            if ($venta->cliente_id && $venta->es_cuenta_corriente) {
+                $ccService = new CuentaCorrienteService();
+                $ccService->actualizarCacheCliente($venta->cliente_id, $venta->sucursal_id);
+            }
 
             Log::info('Venta creada exitosamente', [
                 'venta_id' => $venta->id,
@@ -209,6 +231,7 @@ class VentaService
                 'cantidad' => $cantidad,
                 'precio_unitario' => $precioUnitario,
                 'precio_lista' => $detalle['precio_lista'] ?? $precioUnitario,
+                'precio_opcionales' => $detalle['precio_opcionales'] ?? 0,
                 'iva_porcentaje' => $ivaPorcentaje,
                 'precio_sin_iva' => round($precioSinIva, 2),
                 'descuento' => $detalle['descuento'] ?? 0,
@@ -226,6 +249,11 @@ class VentaService
             // Guardar promociones aplicadas al detalle
             if (!empty($detalle['_promociones_item'])) {
                 $this->guardarPromocionesDetalle($ventaDetalle, $detalle['_promociones_item']);
+            }
+
+            // Guardar opcionales seleccionados
+            if (!empty($detalle['opcionales'])) {
+                $this->guardarOpcionalesDetalle($ventaDetalle, $detalle['opcionales']);
             }
 
             return $ventaDetalle;
@@ -395,6 +423,28 @@ class VentaService
     }
 
     /**
+     * Guarda los opcionales seleccionados de un detalle de venta
+     */
+    protected function guardarOpcionalesDetalle(VentaDetalle $detalle, array $opcionales): void
+    {
+        foreach ($opcionales as $grupo) {
+            foreach ($grupo['selecciones'] as $sel) {
+                DB::connection('pymes_tenant')->table('venta_detalle_opcionales')->insert([
+                    'venta_detalle_id' => $detalle->id,
+                    'grupo_opcional_id' => $grupo['grupo_id'],
+                    'opcional_id' => $sel['opcional_id'],
+                    'nombre_grupo' => $grupo['grupo_nombre'],
+                    'nombre_opcional' => $sel['nombre'],
+                    'cantidad' => $sel['cantidad'] ?? 1,
+                    'precio_extra' => $sel['precio_extra'] ?? 0,
+                    'subtotal_extra' => ($sel['precio_extra'] ?? 0) * ($sel['cantidad'] ?? 1),
+                    'created_at' => now(),
+                ]);
+            }
+        }
+    }
+
+    /**
      * Valida que hay stock disponible para todos los artículos
      *
      * @param int $sucursalId
@@ -403,28 +453,133 @@ class VentaService
      */
     protected function validarStockDisponible(int $sucursalId, array $detalles): void
     {
+        // Determinar modo de control de stock de la sucursal
+        $sucursal = Sucursal::find($sucursalId);
+        $controlStock = $sucursal->control_stock_venta ?? 'bloquea';
+
+        // Permitir stock negativo si no bloquea
+        $this->permitirStockNegativo = ($controlStock !== 'bloquea');
+
+        // Si no controla validación, salir (el stock se descuenta igualmente en actualizarStockPorVenta)
+        if ($controlStock === 'no_controla') {
+            return;
+        }
+
+        // Acumular ingredientes necesarios para recetas (un ingrediente puede repetirse)
+        $ingredientesNecesarios = []; // [articulo_id => ['cantidad' => X, 'nombre' => Y]]
+        $faltantes = []; // Mensajes de faltantes para modo 'advierte'
+
         foreach ($detalles as $detalle) {
             $articulo = Articulo::findOrFail($detalle['articulo_id']);
 
-            // Solo validar si el artículo controla stock
-            if (!$articulo->controla_stock) {
+            // Solo validar si el artículo controla stock en esta sucursal
+            $modoStock = $articulo->getModoStock($sucursalId);
+            if ($modoStock === 'ninguno') {
                 continue;
             }
 
+            if ($modoStock === 'receta') {
+                // Acumular ingredientes de la receta del artículo
+                $receta = $articulo->resolverReceta($sucursalId);
+                if ($receta) {
+                    foreach ($receta->ingredientes as $ingrediente) {
+                        $cantNecesaria = $ingrediente->cantidad * $detalle['cantidad'] / $receta->cantidad_producida;
+                        $artId = $ingrediente->articulo_id;
+                        if (!isset($ingredientesNecesarios[$artId])) {
+                            $ingredientesNecesarios[$artId] = [
+                                'cantidad' => 0,
+                                'nombre' => $ingrediente->articulo->nombre ?? "Artículo #$artId",
+                            ];
+                        }
+                        $ingredientesNecesarios[$artId]['cantidad'] += $cantNecesaria;
+                    }
+                }
+
+                // Acumular ingredientes de opcionales con receta
+                $this->acumularIngredientesOpcionales(
+                    $detalle['opcionales'] ?? [], $detalle['cantidad'],
+                    $sucursalId, $ingredientesNecesarios
+                );
+
+                continue;
+            }
+
+            // modo 'unitario': validar stock del artículo directamente
             $stock = Stock::where('sucursal_id', $sucursalId)
                          ->where('articulo_id', $detalle['articulo_id'])
                          ->first();
 
             if (!$stock) {
-                throw new Exception(
-                    "El artículo '{$articulo->nombre}' no tiene stock en esta sucursal"
-                );
+                $msg = "El artículo '{$articulo->nombre}' no tiene stock en esta sucursal";
+                if ($controlStock === 'bloquea') {
+                    throw new Exception($msg);
+                }
+                $faltantes[] = $msg;
+                continue;
             }
 
             if ($stock->cantidad < $detalle['cantidad']) {
-                throw new Exception(
-                    "Stock insuficiente para '{$articulo->nombre}'. Disponible: {$stock->cantidad}, Solicitado: {$detalle['cantidad']}"
-                );
+                $msg = "Stock insuficiente para '{$articulo->nombre}'. Disponible: {$stock->cantidad}, Solicitado: {$detalle['cantidad']}";
+                if ($controlStock === 'bloquea') {
+                    throw new Exception($msg);
+                }
+                $faltantes[] = $msg;
+            }
+
+            // Acumular ingredientes de opcionales con receta (para modo unitario también)
+            $this->acumularIngredientesOpcionales(
+                $detalle['opcionales'] ?? [], $detalle['cantidad'],
+                $sucursalId, $ingredientesNecesarios
+            );
+        }
+
+        // Validar stock de todos los ingredientes acumulados
+        foreach ($ingredientesNecesarios as $articuloId => $info) {
+            $stock = Stock::where('sucursal_id', $sucursalId)
+                         ->where('articulo_id', $articuloId)
+                         ->first();
+
+            $disponible = $stock ? (float) $stock->cantidad : 0;
+            if ($disponible < $info['cantidad']) {
+                $msg = "Stock insuficiente del ingrediente '{$info['nombre']}'. " .
+                    "Disponible: " . round($disponible, 2) . ", Necesario: " . round($info['cantidad'], 2);
+                if ($controlStock === 'bloquea') {
+                    throw new Exception($msg);
+                }
+                $faltantes[] = $msg;
+            }
+        }
+
+        // En modo 'advierte', guardar faltantes como advertencias
+        if ($controlStock === 'advierte' && !empty($faltantes)) {
+            $this->advertenciasStock = $faltantes;
+        }
+    }
+
+    /**
+     * Acumula ingredientes necesarios de opcionales con receta
+     */
+    protected function acumularIngredientesOpcionales(
+        array $opcionales, float $cantidadDetalle,
+        int $sucursalId, array &$ingredientesNecesarios
+    ): void {
+        foreach ($opcionales as $grupo) {
+            foreach ($grupo['selecciones'] as $sel) {
+                $recetaOpc = Receta::resolver('Opcional', $sel['opcional_id'], $sucursalId);
+                if ($recetaOpc) {
+                    $cantOpcional = ($sel['cantidad'] ?? 1) * $cantidadDetalle;
+                    foreach ($recetaOpc->ingredientes as $ingrediente) {
+                        $cantNecesaria = $ingrediente->cantidad * $cantOpcional / $recetaOpc->cantidad_producida;
+                        $artId = $ingrediente->articulo_id;
+                        if (!isset($ingredientesNecesarios[$artId])) {
+                            $ingredientesNecesarios[$artId] = [
+                                'cantidad' => 0,
+                                'nombre' => $ingrediente->articulo->nombre ?? "Artículo #$artId",
+                            ];
+                        }
+                        $ingredientesNecesarios[$artId]['cantidad'] += $cantNecesaria;
+                    }
+                }
             }
         }
     }
@@ -475,16 +630,96 @@ class VentaService
         foreach ($venta->detalles as $detalle) {
             $articulo = $detalle->articulo;
 
-            // Solo actualizar stock si el artículo lo controla
-            if (!$articulo->controla_stock) {
+            // Solo actualizar stock si el artículo lo controla en esta sucursal
+            $modoStock = $articulo->getModoStock($venta->sucursal_id);
+            if ($modoStock === 'ninguno') {
                 continue;
             }
 
+            if ($modoStock === 'receta') {
+                $receta = $articulo->resolverReceta($venta->sucursal_id);
+                if ($receta) {
+                    $this->descontarStockPorReceta(
+                        $receta, $detalle->cantidad, $venta->sucursal_id,
+                        $venta->id, $detalle->id,
+                        "Venta #{$venta->id} - Receta {$articulo->nombre}",
+                        $venta->usuario_id
+                    );
+                }
+                // Descontar stock de opcionales con receta de este detalle
+                $this->descontarStockOpcionalesDetalle($detalle, $venta);
+                continue;
+            }
+
+            // modo 'unitario': descontar stock del artículo directamente
             $stock = Stock::where('sucursal_id', $venta->sucursal_id)
                          ->where('articulo_id', $detalle->articulo_id)
                          ->firstOrFail();
 
-            $stock->disminuir($detalle->cantidad);
+            $stock->disminuir($detalle->cantidad, $this->permitirStockNegativo);
+
+            // Registrar movimiento de stock
+            MovimientoStock::crearMovimientoVenta(
+                $detalle->articulo_id,
+                $venta->sucursal_id,
+                $detalle->cantidad,
+                $venta->id,
+                $detalle->id,
+                "Venta #{$venta->id}",
+                $venta->usuario_id
+            );
+
+            // Descontar stock de opcionales con receta de este detalle
+            $this->descontarStockOpcionalesDetalle($detalle, $venta);
+        }
+    }
+
+    /**
+     * Descuenta stock de ingredientes según una receta
+     */
+    protected function descontarStockPorReceta(
+        Receta $receta, float $cantidadVendida, int $sucursalId,
+        int $ventaId, int $ventaDetalleId, string $conceptoBase, int $usuarioId
+    ): void {
+        foreach ($receta->ingredientes as $ingrediente) {
+            $cantidadDescontar = $ingrediente->cantidad * $cantidadVendida / $receta->cantidad_producida;
+
+            $stock = Stock::where('sucursal_id', $sucursalId)
+                         ->where('articulo_id', $ingrediente->articulo_id)
+                         ->first();
+
+            if ($stock) {
+                $stock->disminuir($cantidadDescontar, $this->permitirStockNegativo);
+
+                MovimientoStock::crearMovimientoVenta(
+                    $ingrediente->articulo_id, $sucursalId, $cantidadDescontar,
+                    $ventaId, $ventaDetalleId,
+                    $conceptoBase, $usuarioId
+                );
+            }
+        }
+    }
+
+    /**
+     * Descuenta stock de opcionales con receta para un detalle de venta
+     */
+    protected function descontarStockOpcionalesDetalle(VentaDetalle $detalle, Venta $venta): void
+    {
+        $opcionalesDetalle = DB::connection('pymes_tenant')
+            ->table('venta_detalle_opcionales')
+            ->where('venta_detalle_id', $detalle->id)
+            ->get();
+
+        foreach ($opcionalesDetalle as $opcDet) {
+            $recetaOpc = Receta::resolver('Opcional', $opcDet->opcional_id, $venta->sucursal_id);
+            if ($recetaOpc) {
+                $this->descontarStockPorReceta(
+                    $recetaOpc, $opcDet->cantidad * $detalle->cantidad,
+                    $venta->sucursal_id, $venta->id, $detalle->id,
+                    "Venta #{$venta->id} - Opcional {$opcDet->nombre_opcional}",
+                    $venta->usuario_id
+                );
+            }
         }
     }
 
@@ -664,9 +899,16 @@ class VentaService
                 'motivo_anulacion' => $motivo ?? 'Cancelación completa',
                 'monto_fiscal_cache' => 0,
                 'monto_no_fiscal_cache' => 0,
+                'saldo_pendiente_cache' => 0, // Ya no hay saldo pendiente
             ]);
 
             DB::connection('pymes_tenant')->commit();
+
+            // 5. Anular movimientos de cuenta corriente con contraasientos
+            if ($venta->es_cuenta_corriente && $venta->cliente_id) {
+                $ccService = new CuentaCorrienteService();
+                $ccService->anularMovimientosVenta($venta, $motivo ?? 'Cancelación de venta', $usuarioId);
+            }
 
             Log::info('Venta cancelada completamente', [
                 'venta_id' => $venta->id,
@@ -855,9 +1097,10 @@ class VentaService
                 'ajuste_porcentaje' => 0,
                 'monto_ajuste' => 0,
                 'monto_final' => $venta->total_final,
+                'saldo_pendiente' => $venta->total_final,
                 'es_cuenta_corriente' => true,
                 'afecta_caja' => false,
-                'estado' => 'pendiente',
+                'estado' => 'activo',
                 'observaciones' => $motivo ?? 'Pago convertido a cuenta corriente',
             ]);
 
@@ -873,6 +1116,16 @@ class VentaService
             ]);
 
             DB::connection('pymes_tenant')->commit();
+
+            // Registrar el movimiento de CC para el nuevo pago
+            $ventaPagoCC = VentaPago::where('venta_id', $venta->id)
+                ->where('es_cuenta_corriente', true)
+                ->orderByDesc('id')
+                ->first();
+
+            if ($ventaPagoCC) {
+                $this->registrarMovimientoCCPago($ventaPagoCC, $usuarioId);
+            }
 
             Log::info('Venta convertida a cuenta corriente', [
                 'venta_id' => $venta->id,
@@ -909,25 +1162,264 @@ class VentaService
     }
 
     /**
+     * Registra el movimiento de cuenta corriente para un VentaPago de CC
+     *
+     * Debe llamarse después de crear un VentaPago con es_cuenta_corriente = true
+     * y si la venta tiene cliente asignado.
+     *
+     * @param VentaPago $ventaPago
+     * @param int $usuarioId
+     * @return \App\Models\MovimientoCuentaCorriente|null
+     */
+    public function registrarMovimientoCCPago(VentaPago $ventaPago, int $usuarioId): ?\App\Models\MovimientoCuentaCorriente
+    {
+        if (!$ventaPago->es_cuenta_corriente) {
+            return null;
+        }
+
+        $venta = $ventaPago->venta;
+        if (!$venta || !$venta->cliente_id) {
+            return null;
+        }
+
+        // Actualizar saldo_pendiente del VentaPago (estado se mantiene 'activo')
+        $ventaPago->update([
+            'saldo_pendiente' => $ventaPago->monto_final,
+        ]);
+
+        // Registrar el movimiento de cuenta corriente
+        $ccService = new CuentaCorrienteService();
+        $movimiento = $ccService->registrarMovimientoVenta($ventaPago, $usuarioId);
+
+        return $movimiento;
+    }
+
+    /**
+     * Procesa los pagos de una venta y registra movimientos en cuenta corriente
+     * Registra la venta completa y todos los pagos para tener trazabilidad total
+     *
+     * Flujo:
+     * 1. Registra el total de la venta como DEBE (deuda inicial)
+     * 2. Registra cada pago NO-CC como HABER (pago inmediato que reduce deuda)
+     * 3. Los pagos CC quedan como deuda pendiente (saldo_pendiente > 0)
+     *
+     * @param Venta $venta
+     * @param int $usuarioId
+     * @return array Movimientos creados
+     */
+    public function procesarPagosCuentaCorriente(Venta $venta, int $usuarioId): array
+    {
+        $movimientos = [];
+
+        // Solo procesar si la venta tiene cliente
+        if (!$venta->cliente_id) {
+            return $movimientos;
+        }
+
+        $ccService = new CuentaCorrienteService();
+
+        // Construir descripcion_comprobantes
+        $comprobantes = [];
+
+        // Cargar comprobantes fiscales
+        $venta->load('comprobantesFiscales');
+
+        // Verificar si hay un comprobante fiscal por el total de la venta
+        $tieneFacturaTotal = $venta->comprobantesFiscales->contains('es_total_venta', true);
+
+        // Calcular monto total de comprobantes fiscales y del ticket
+        $totalFiscal = $venta->comprobantesFiscales->sum('total');
+        $montoTicket = max(0, $venta->total_final - $totalFiscal);
+
+        // Solo mostrar ticket si NO hay factura por el total (es decir, hay parte en negro)
+        if (!$tieneFacturaTotal) {
+            $montoFormateado = '$' . number_format($montoTicket, 2, ',', '.');
+            $comprobantes[] = "Ticket {$venta->numero} ({$montoFormateado})";
+        }
+
+        // Agregar comprobantes fiscales si existen
+        if ($venta->comprobantesFiscales->isNotEmpty()) {
+            foreach ($venta->comprobantesFiscales as $cf) {
+                // Determinar abreviatura según tipo y letra
+                $tipoAbrev = match($cf->tipo) {
+                    'factura_a', 'factura_b', 'factura_c' => 'FA',
+                    'nota_credito_a', 'nota_credito_b', 'nota_credito_c' => 'NC',
+                    'nota_debito_a', 'nota_debito_b', 'nota_debito_c' => 'ND',
+                    default => 'CF'
+                };
+                $letra = $cf->letra ?? '';
+                $pv = str_pad($cf->punto_venta_numero ?? 0, 4, '0', STR_PAD_LEFT);
+                $num = str_pad($cf->numero_comprobante ?? 0, 8, '0', STR_PAD_LEFT);
+                $montoFormateado = '$' . number_format($cf->total, 2, ',', '.');
+                $comprobantes[] = "{$tipoAbrev} {$letra} {$pv}-{$num} ({$montoFormateado})";
+            }
+        }
+
+        $descripcionComprobantes = implode(' | ', $comprobantes);
+
+        // 1. Registrar el total de la venta como DEBE
+        $movimientos[] = \App\Models\MovimientoCuentaCorriente::create([
+            'cliente_id' => $venta->cliente_id,
+            'sucursal_id' => $venta->sucursal_id,
+            'fecha' => $venta->fecha,
+            'tipo' => \App\Models\MovimientoCuentaCorriente::TIPO_VENTA,
+            'debe' => $venta->total_final,
+            'haber' => 0,
+            'saldo_favor_debe' => 0,
+            'saldo_favor_haber' => 0,
+            'documento_tipo' => \App\Models\MovimientoCuentaCorriente::DOC_VENTA,
+            'documento_id' => $venta->id,
+            'venta_id' => $venta->id,
+            'venta_pago_id' => null,
+            'cobro_id' => null,
+            'concepto' => "Venta #{$venta->id}",
+            'descripcion_comprobantes' => $descripcionComprobantes,
+            'usuario_id' => $usuarioId,
+        ]);
+
+        // 2. Registrar cada pago como HABER
+        $pagos = $venta->pagos()->with('formaPago')->get();
+
+        foreach ($pagos as $ventaPago) {
+            $nombreFormaPago = $ventaPago->formaPago?->nombre ?? 'Pago';
+
+            if ($ventaPago->es_cuenta_corriente) {
+                // Pago en cuenta corriente: actualizar saldo_pendiente pero NO crear haber
+                // (queda como deuda pendiente)
+                $ventaPago->update([
+                    'saldo_pendiente' => $ventaPago->monto_final,
+                ]);
+            } else {
+                // Pago inmediato (efectivo, tarjeta, etc.): crear HABER que cancela parte de la deuda
+                $movimientos[] = \App\Models\MovimientoCuentaCorriente::create([
+                    'cliente_id' => $venta->cliente_id,
+                    'sucursal_id' => $venta->sucursal_id,
+                    'fecha' => $venta->fecha,
+                    'tipo' => \App\Models\MovimientoCuentaCorriente::TIPO_COBRO,
+                    'debe' => 0,
+                    'haber' => $ventaPago->monto_final,
+                    'saldo_favor_debe' => 0,
+                    'saldo_favor_haber' => 0,
+                    'documento_tipo' => \App\Models\MovimientoCuentaCorriente::DOC_VENTA_PAGO,
+                    'documento_id' => $ventaPago->id,
+                    'venta_id' => $venta->id,
+                    'venta_pago_id' => $ventaPago->id,
+                    'cobro_id' => null,
+                    'concepto' => "Pago {$nombreFormaPago} (Venta #{$venta->id})",
+                    'descripcion_comprobantes' => $descripcionComprobantes,
+                    'usuario_id' => $usuarioId,
+                ]);
+            }
+        }
+
+        // 3. Actualizar cache del cliente
+        $ccService->actualizarCacheCliente($venta->cliente_id, $venta->sucursal_id);
+
+        return $movimientos;
+    }
+
+    /**
      * Revierte el stock por cancelación de venta
      *
      * @param Venta $venta
      */
     protected function revertirStockPorVenta(Venta $venta): void
     {
+        $usuarioId = Auth::id() ?? $venta->usuario_id;
+
         foreach ($venta->detalles as $detalle) {
             $articulo = $detalle->articulo;
 
-            if (!$articulo->controla_stock) {
+            $modoStock = $articulo->getModoStock($venta->sucursal_id);
+            if ($modoStock === 'ninguno') {
                 continue;
             }
 
+            if ($modoStock === 'receta') {
+                $receta = $articulo->resolverReceta($venta->sucursal_id);
+                if ($receta) {
+                    $this->revertirStockPorReceta(
+                        $receta, $detalle->cantidad, $venta->sucursal_id,
+                        $venta->id, $detalle->id,
+                        "Anulación Venta #{$venta->id} - Receta {$articulo->nombre}",
+                        $usuarioId
+                    );
+                }
+                // Revertir stock de opcionales con receta
+                $this->revertirStockOpcionalesDetalle($detalle, $venta, $usuarioId);
+                continue;
+            }
+
+            // modo 'unitario': revertir stock del artículo directamente
             $stock = Stock::where('sucursal_id', $venta->sucursal_id)
                          ->where('articulo_id', $detalle->articulo_id)
                          ->first();
 
             if ($stock) {
                 $stock->aumentar($detalle->cantidad);
+
+                // Registrar movimiento de anulación
+                MovimientoStock::crearMovimientoAnulacionVenta(
+                    $detalle->articulo_id,
+                    $venta->sucursal_id,
+                    $detalle->cantidad,
+                    $venta->id,
+                    $detalle->id,
+                    "Anulación Venta #{$venta->id}",
+                    $usuarioId
+                );
+            }
+
+            // Revertir stock de opcionales con receta
+            $this->revertirStockOpcionalesDetalle($detalle, $venta, $usuarioId);
+        }
+    }
+
+    /**
+     * Revierte stock de ingredientes según una receta (anulación)
+     */
+    protected function revertirStockPorReceta(
+        Receta $receta, float $cantidadVendida, int $sucursalId,
+        int $ventaId, int $ventaDetalleId, string $conceptoBase, int $usuarioId
+    ): void {
+        foreach ($receta->ingredientes as $ingrediente) {
+            $cantidadRevertir = $ingrediente->cantidad * $cantidadVendida / $receta->cantidad_producida;
+
+            $stock = Stock::where('sucursal_id', $sucursalId)
+                         ->where('articulo_id', $ingrediente->articulo_id)
+                         ->first();
+
+            if ($stock) {
+                $stock->aumentar($cantidadRevertir);
+
+                MovimientoStock::crearMovimientoAnulacionVenta(
+                    $ingrediente->articulo_id, $sucursalId, $cantidadRevertir,
+                    $ventaId, $ventaDetalleId,
+                    $conceptoBase, $usuarioId
+                );
+            }
+        }
+    }
+
+    /**
+     * Revierte stock de opcionales con receta para un detalle de venta (anulación)
+     */
+    protected function revertirStockOpcionalesDetalle(VentaDetalle $detalle, Venta $venta, int $usuarioId): void
+    {
+        $opcionalesDetalle = DB::connection('pymes_tenant')
+            ->table('venta_detalle_opcionales')
+            ->where('venta_detalle_id', $detalle->id)
+            ->get();
+
+        foreach ($opcionalesDetalle as $opcDet) {
+            $recetaOpc = Receta::resolver('Opcional', $opcDet->opcional_id, $venta->sucursal_id);
+            if ($recetaOpc) {
+                $this->revertirStockPorReceta(
+                    $recetaOpc, $opcDet->cantidad * $detalle->cantidad,
+                    $venta->sucursal_id, $venta->id, $detalle->id,
+                    "Anulación Venta #{$venta->id} - Opcional {$opcDet->nombre_opcional}",
+                    $usuarioId
+                );
             }
         }
     }

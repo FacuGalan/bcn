@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Modelo Stock
@@ -48,12 +49,18 @@ class Stock extends Model
     // Relaciones
     public function articulo(): BelongsTo
     {
-        return $this->belongsTo(Articulo::class, 'articulo_id');
+        return $this->belongsTo(Articulo::class, 'articulo_id')->withTrashed();
     }
 
     public function sucursal(): BelongsTo
     {
         return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
+
+    public function movimientos(): HasMany
+    {
+        return $this->hasMany(MovimientoStock::class, 'articulo_id', 'articulo_id')
+                     ->where('sucursal_id', $this->sucursal_id);
     }
 
     // Scopes
@@ -149,9 +156,18 @@ class Stock extends Model
 
     /**
      * Disminuye el stock
+     *
+     * @param float $cantidad Cantidad a disminuir
+     * @param bool $permitirNegativo Si true, permite que el stock quede negativo
      */
-    public function disminuir(float $cantidad): bool
+    public function disminuir(float $cantidad, bool $permitirNegativo = false): bool
     {
+        if ($permitirNegativo) {
+            $this->cantidad = $this->cantidad - abs($cantidad);
+            $this->ultima_actualizacion = now();
+            return $this->save();
+        }
+
         return $this->ajustarStock(-abs($cantidad));
     }
 
@@ -169,5 +185,20 @@ class Stock extends Model
     public function getCantidadDisponible(): float
     {
         return max(0, $this->cantidad);
+    }
+
+    /**
+     * Recalcula el stock desde los movimientos activos
+     * Útil para reconciliar el cache (tabla stock) vs historial (movimientos_stock)
+     */
+    public function recalcularDesdeMovimientos(): float
+    {
+        $stockCalculado = MovimientoStock::calcularStock($this->articulo_id, $this->sucursal_id);
+
+        $this->cantidad = $stockCalculado;
+        $this->ultima_actualizacion = now();
+        $this->save();
+
+        return $stockCalculado;
     }
 }

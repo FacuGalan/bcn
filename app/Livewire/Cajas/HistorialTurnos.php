@@ -9,6 +9,7 @@ use App\Models\CierreTurnoCaja;
 use App\Models\Caja;
 use App\Models\GrupoCierre;
 use App\Services\SucursalService;
+use App\Traits\SucursalAware;
 use Carbon\Carbon;
 
 /**
@@ -22,6 +23,7 @@ use Carbon\Carbon;
 class HistorialTurnos extends Component
 {
     use WithPagination;
+    use SucursalAware;
 
     // Filtros
     public string $filtroFechaDesde = '';
@@ -54,6 +56,17 @@ class HistorialTurnos extends Component
         $this->filtroFechaDesde = now()->subMonth()->format('Y-m-d');
         $this->filtroFechaHasta = now()->format('Y-m-d');
 
+        $this->cargarDatosFiltros();
+    }
+
+    /**
+     * Hook llamado cuando cambia la sucursal (desde SucursalAware trait)
+     */
+    protected function onSucursalChanged($sucursalId = null, $sucursalNombre = null): void
+    {
+        $this->showDetalleModal = false;
+        $this->cierreSeleccionadoId = null;
+        $this->cierreDetalle = null;
         $this->cargarDatosFiltros();
     }
 

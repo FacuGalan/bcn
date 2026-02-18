@@ -4,6 +4,10 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Conexión: config
+ * Tablas: cache, cache_locks, jobs, job_batches, failed_jobs
+ */
 return new class extends Migration
 {
     public function up(): void

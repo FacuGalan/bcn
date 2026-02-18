@@ -19,6 +19,8 @@ use App\Livewire\Ventas\Ventas;
 use App\Livewire\Ventas\NuevaVenta;
 use App\Livewire\Compras\Compras;
 use App\Livewire\Stock\StockInventario;
+use App\Livewire\Stock\MovimientosStock;
+use App\Livewire\Stock\InventarioGeneral;
 use App\Livewire\Cajas\GestionCajas;
 use App\Livewire\Cajas\TurnoActual;
 use App\Livewire\Cajas\MovimientosManuales;
@@ -31,6 +33,9 @@ use App\Livewire\Articulos\GestionarCategorias;
 use App\Livewire\Articulos\GestionarEtiquetas;
 use App\Livewire\Articulos\AsignarEtiquetas;
 use App\Livewire\Articulos\CambioMasivoPrecios;
+use App\Livewire\Articulos\AsignarOpcionales;
+use App\Livewire\Articulos\GestionarGruposOpcionales;
+use App\Livewire\Articulos\GestionarRecetas;
 use App\Livewire\Clientes\GestionarClientes;
 use App\Livewire\Clientes\GestionarCobranzas;
 use Illuminate\Support\Facades\Route;
@@ -79,6 +84,8 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
      * Control de stock, ajustes, inventario físico
      */
     Route::get('stock', StockInventario::class)->name('stock.index');
+    Route::get('stock/movimientos', MovimientosStock::class)->name('stock.movimientos');
+    Route::get('stock/inventario-general', InventarioGeneral::class)->name('stock.inventario-general');
 
     /**
      * Cajas
@@ -150,6 +157,24 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
          * Actualización de precios en lote con filtros y vista previa
          */
         Route::get('cambio-masivo-precios', CambioMasivoPrecios::class)->name('cambio-masivo-precios');
+
+        /**
+         * Recetas
+         * Gestión de recetas default de artículos (ingredientes y cantidades)
+         */
+        Route::get('recetas', GestionarRecetas::class)->name('recetas');
+
+        /**
+         * Grupos Opcionales
+         * Gestión del catálogo global de grupos de opciones y sus opciones
+         */
+        Route::get('grupos-opcionales', GestionarGruposOpcionales::class)->name('grupos-opcionales');
+
+        /**
+         * Asignar Opcionales
+         * Asignación de grupos opcionales a artículos (para todas las sucursales)
+         */
+        Route::get('asignar-opcionales', AsignarOpcionales::class)->name('asignar-opcionales');
     });
 
     // =========================================

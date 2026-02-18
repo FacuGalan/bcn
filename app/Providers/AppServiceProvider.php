@@ -6,6 +6,7 @@ use App\Models\MenuItem;
 use App\Observers\MenuItemObserver;
 use App\Services\SessionManagerService;
 use App\Services\TenantService;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Blade;
@@ -52,6 +53,12 @@ class AppServiceProvider extends ServiceProvider
     {
         // Establecer longitud por defecto para strings en migraciones
         Schema::defaultStringLength(191);
+
+        // Mapear nombres cortos de morph types usados en recetas
+        Relation::morphMap([
+            'Articulo' => \App\Models\Articulo::class,
+            'Opcional' => \App\Models\Opcional::class,
+        ]);
 
         // Registrar observers
         MenuItem::observe(MenuItemObserver::class);

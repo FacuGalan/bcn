@@ -48,6 +48,7 @@ class VentaPago extends Model
         'ajuste_porcentaje',
         'monto_ajuste',
         'monto_final',
+        'saldo_pendiente',
         'monto_recibido',
         'vuelto',
         'cuotas',
@@ -73,6 +74,7 @@ class VentaPago extends Model
         'ajuste_porcentaje' => 'decimal:2',
         'monto_ajuste' => 'decimal:2',
         'monto_final' => 'decimal:2',
+        'saldo_pendiente' => 'decimal:2',
         'monto_recibido' => 'decimal:2',
         'vuelto' => 'decimal:2',
         'cuotas' => 'integer',
@@ -119,6 +121,22 @@ class VentaPago extends Model
         return $this->belongsTo(CierreTurno::class, 'cierre_turno_id');
     }
 
+    /**
+     * Cobros que se han aplicado a este pago de cuenta corriente
+     */
+    public function cobrosAplicados(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(CobroVenta::class, 'venta_pago_id');
+    }
+
+    /**
+     * Movimientos de cuenta corriente asociados a este pago
+     */
+    public function movimientosCuentaCorriente(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(MovimientoCuentaCorriente::class, 'venta_pago_id');
+    }
+
     // =========================================
     // SCOPES
     // =========================================
@@ -158,6 +176,23 @@ class VentaPago extends Model
     public function scopeNoFacturados($query)
     {
         return $query->whereNull('comprobante_fiscal_id');
+    }
+
+    public function scopeCuentaCorriente($query)
+    {
+        return $query->where('es_cuenta_corriente', true);
+    }
+
+    public function scopeConSaldoPendiente($query)
+    {
+        return $query->where('saldo_pendiente', '>', 0);
+    }
+
+    public function scopePendientesDeCobro($query)
+    {
+        return $query->cuentaCorriente()
+            ->conSaldoPendiente()
+            ->whereIn('estado', ['activo', 'pendiente']);
     }
 
     // =========================================
@@ -291,5 +326,54 @@ class VentaPago extends Model
             'monto_cuota' => $montoCuota,
             'monto_total' => $montoTotal,
         ];
+    }
+
+    // =========================================
+    // MÉTODOS DE CUENTA CORRIENTE
+    // =========================================
+
+    /**
+     * Verifica si es un pago de cuenta corriente
+     */
+    public function esCuentaCorriente(): bool
+    {
+        return $this->es_cuenta_corriente === true;
+    }
+
+    /**
+     * Verifica si tiene saldo pendiente de cobro
+     */
+    public function tieneSaldoPendiente(): bool
+    {
+        return $this->saldo_pendiente > 0;
+    }
+
+    /**
+     * Aplica un cobro a este pago, disminuyendo el saldo pendiente
+     *
+     * @param float $monto
+     * @return float Saldo restante después del cobro
+     */
+    public function aplicarCobro(float $monto): float
+    {
+        $montoAAplicar = min($monto, $this->saldo_pendiente);
+        $this->saldo_pendiente = max(0, $this->saldo_pendiente - $montoAAplicar);
+        $this->save();
+
+        return $this->saldo_pendiente;
+    }
+
+    /**
+     * Revierte un cobro, aumentando el saldo pendiente
+     *
+     * @param float $monto
+     * @return float Saldo después de revertir
+     */
+    public function revertirCobro(float $monto): float
+    {
+        $this->saldo_pendiente = min($this->monto_final, $this->saldo_pendiente + $monto);
+        $this->save();
+
+        return $this->saldo_pendiente;
     }
 }

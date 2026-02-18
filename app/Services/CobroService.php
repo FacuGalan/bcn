@@ -7,8 +7,12 @@ use App\Models\CobroPago;
 use App\Models\CobroVenta;
 use App\Models\Cliente;
 use App\Models\Venta;
+use App\Models\VentaPago;
 use App\Models\MovimientoCaja;
+use App\Models\MovimientoCuentaCorriente;
 use App\Models\Caja;
+use App\Models\FormaPago;
+use App\Services\CuentaCorrienteService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -30,7 +34,7 @@ class CobroService
      * Registra un cobro completo con aplicación a ventas y formas de pago
      *
      * @param array $data Datos del cobro (sucursal_id, cliente_id, caja_id, observaciones, descuento_aplicado)
-     * @param array $ventasAAplicar Array de ['venta_id' => X, 'monto_aplicado' => Y, 'interes_aplicado' => Z]
+     * @param array $ventasAAplicar Array de ['venta_pago_id' => X, 'venta_id' => Y, 'monto_aplicado' => Z, 'interes_aplicado' => W]
      * @param array $pagos Array de pagos con estructura del desglose
      * @return Cobro
      * @throws Exception
@@ -40,12 +44,36 @@ class CobroService
         return DB::transaction(function () use ($data, $ventasAAplicar, $pagos) {
             $usuarioId = auth()->id();
 
-            // Calcular totales
+            // Determinar tipo de cobro (anticipo si no hay ventas aplicadas)
+            $tipo = empty($ventasAAplicar) ? 'anticipo' : 'cobro';
+
+            // Calcular totales de deuda
             $totalAplicadoDeuda = collect($ventasAAplicar)->sum('monto_aplicado');
             $totalInteres = collect($ventasAAplicar)->sum('interes_aplicado');
             $descuentoAplicado = $data['descuento_aplicado'] ?? 0;
-            $totalCobrado = collect($pagos)->sum('monto_base');
-            $montoAFavor = max(0, $totalCobrado - $totalAplicadoDeuda - $totalInteres + $descuentoAplicado);
+
+            // Calcular total cobrado y excedente
+            $totalCobradoBase = collect($pagos)->sum('monto_base');
+            $totalExcedente = collect($pagos)->sum('monto_excedente') ?: 0;
+
+            // El monto total cobrado incluye todo lo que el cliente pagó
+            $totalCobrado = $totalCobradoBase;
+
+            // El monto a favor es el excedente que no se aplicó a deuda
+            $montoAFavor = $tipo === 'anticipo'
+                ? $totalCobrado
+                : max(0, $totalExcedente);
+
+            // Saldo a favor usado (del saldo disponible del cliente)
+            $saldoFavorUsado = (float) ($data['saldo_favor_usado'] ?? 0);
+
+            // Validar que el cliente tiene suficiente saldo a favor
+            if ($saldoFavorUsado > 0) {
+                $saldoFavorDisponible = MovimientoCuentaCorriente::calcularSaldoFavor($data['cliente_id']);
+                if ($saldoFavorUsado > $saldoFavorDisponible) {
+                    throw new Exception('El monto de saldo a favor a usar ($' . number_format($saldoFavorUsado, 2) . ') excede el saldo disponible ($' . number_format($saldoFavorDisponible, 2) . ')');
+                }
+            }
 
             // Generar número de recibo
             $numeroRecibo = $this->generarNumeroRecibo($data['sucursal_id']);
@@ -56,6 +84,7 @@ class CobroService
                 'cliente_id' => $data['cliente_id'],
                 'caja_id' => $data['caja_id'] ?? null,
                 'numero_recibo' => $numeroRecibo,
+                'tipo' => $tipo,
                 'fecha' => now()->toDateString(),
                 'hora' => now()->toTimeString(),
                 'monto_cobrado' => $totalCobrado,
@@ -63,31 +92,74 @@ class CobroService
                 'descuento_aplicado' => $descuentoAplicado,
                 'monto_aplicado_a_deuda' => $totalAplicadoDeuda,
                 'monto_a_favor' => $montoAFavor,
+                'saldo_favor_usado' => $saldoFavorUsado,
                 'estado' => 'activo',
                 'observaciones' => $data['observaciones'] ?? null,
                 'usuario_id' => $usuarioId,
             ]);
 
-            // Aplicar a ventas
+            $cobroVentasCreados = [];
+
+            // Aplicar a ventas (ahora trabajamos con VentaPago)
             foreach ($ventasAAplicar as $ventaData) {
-                $venta = Venta::findOrFail($ventaData['venta_id']);
-                $saldoAnterior = $venta->saldo_pendiente_cache;
+                // Obtener el VentaPago específico
+                $ventaPagoId = $ventaData['venta_pago_id'] ?? null;
+                $ventaId = $ventaData['venta_id'];
                 $montoAplicado = $ventaData['monto_aplicado'];
                 $interesAplicado = $ventaData['interes_aplicado'] ?? 0;
+
+                // Si no viene venta_pago_id, buscar el pago CC de esa venta (compatibilidad)
+                if (!$ventaPagoId) {
+                    $ventaPago = VentaPago::where('venta_id', $ventaId)
+                        ->where('es_cuenta_corriente', true)
+                        ->where('saldo_pendiente', '>', 0)
+                        ->first();
+
+                    if ($ventaPago) {
+                        $ventaPagoId = $ventaPago->id;
+                    }
+                } else {
+                    $ventaPago = VentaPago::find($ventaPagoId);
+                }
+
+                // Obtener saldos
+                $saldoAnterior = $ventaPago ? $ventaPago->saldo_pendiente : 0;
                 $saldoPosterior = max(0, $saldoAnterior - $montoAplicado);
 
-                // Crear registro en cobro_ventas
-                CobroVenta::create([
+                // Crear registro en cobro_ventas con venta_pago_id
+                $cobroVenta = CobroVenta::create([
                     'cobro_id' => $cobro->id,
-                    'venta_id' => $venta->id,
+                    'venta_id' => $ventaId,
+                    'venta_pago_id' => $ventaPagoId,
                     'monto_aplicado' => $montoAplicado,
                     'interes_aplicado' => $interesAplicado,
                     'saldo_anterior' => $saldoAnterior,
                     'saldo_posterior' => $saldoPosterior,
                 ]);
 
-                // Actualizar saldo de la venta
-                $venta->update(['saldo_pendiente_cache' => $saldoPosterior]);
+                $cobroVentasCreados[] = $cobroVenta;
+
+                // Actualizar saldo del VentaPago
+                if ($ventaPago) {
+                    $ventaPago->aplicarCobro($montoAplicado);
+                }
+
+                // Actualizar saldo_pendiente_cache de la Venta (para compatibilidad)
+                $venta = Venta::find($ventaId);
+                if ($venta) {
+                    // Recalcular saldo pendiente sumando todos los VentaPago CC pendientes
+                    $saldoVenta = VentaPago::where('venta_id', $ventaId)
+                        ->where('es_cuenta_corriente', true)
+                        ->sum('saldo_pendiente');
+                    $updateData = ['saldo_pendiente_cache' => $saldoVenta];
+
+                    // Si el saldo quedó en 0 y la venta estaba pendiente, marcarla como completada
+                    if ($saldoVenta <= 0 && $venta->estado === 'pendiente') {
+                        $updateData['estado'] = 'completada';
+                    }
+
+                    $venta->update($updateData);
+                }
             }
 
             // Registrar pagos
@@ -108,8 +180,8 @@ class CobroService
                     'vuelto' => $pago['vuelto'] ?? 0,
                     'cuotas' => $pago['cuotas'] ?? 1,
                     'recargo_cuotas_porcentaje' => $pago['recargo_cuotas'] ?? 0,
-                    'recargo_cuotas_monto' => $pago['recargo_cuotas_monto'] ?? 0,
-                    'monto_cuota' => $pago['monto_cuota'] ?? null,
+                    'recargo_cuotas_monto' => $pago['monto_recargo_cuotas'] ?? $pago['recargo_cuotas_monto'] ?? 0,
+                    'monto_cuota' => $pago['monto_cuota'] ?? (($pago['cuotas'] ?? 1) > 1 ? round(($pago['monto_final'] ?? $pago['monto_base']) / ($pago['cuotas'] ?? 1), 2) : null),
                     'referencia' => $pago['referencia'] ?? null,
                     'observaciones' => $pago['observaciones'] ?? null,
                     'afecta_caja' => $afectaCaja,
@@ -128,11 +200,24 @@ class CobroService
                 }
             }
 
-            // Actualizar cache de saldo del cliente
-            $this->actualizarCacheSaldoCliente(Cliente::find($data['cliente_id']));
+            // Registrar movimientos en cuenta corriente unificada
+            $ccService = new CuentaCorrienteService();
+            $ccService->registrarMovimientosCobro($cobro, $cobroVentasCreados, $usuarioId);
 
             return $cobro;
         });
+    }
+
+    /**
+     * Registra un anticipo (cobro sin aplicación a ventas)
+     *
+     * @param array $data Datos del cobro
+     * @param array $pagos Array de pagos
+     * @return Cobro
+     */
+    public function registrarAnticipo(array $data, array $pagos): Cobro
+    {
+        return $this->registrarCobro($data, [], $pagos);
     }
 
     /**
@@ -184,6 +269,7 @@ class CobroService
 
     /**
      * Obtiene las ventas pendientes de un cliente ordenadas por antigüedad (FIFO)
+     * Ahora trabaja con VentaPago para mayor precisión
      *
      * @param int $clienteId
      * @param int|null $sucursalId
@@ -191,26 +277,77 @@ class CobroService
      */
     public function obtenerVentasPendientesFIFO(int $clienteId, ?int $sucursalId = null): Collection
     {
-        $query = Venta::where('cliente_id', $clienteId)
+        $query = VentaPago::whereHas('venta', function ($q) use ($clienteId, $sucursalId) {
+            $q->where('cliente_id', $clienteId)
+                ->whereIn('estado', ['completada', 'pendiente']);
+
+            if ($sucursalId) {
+                $q->where('sucursal_id', $sucursalId);
+            }
+        })
             ->where('es_cuenta_corriente', true)
-            ->where('saldo_pendiente_cache', '>', 0)
-            ->whereIn('estado', ['completada', 'pendiente']); // Incluir pendiente para CC
+            ->where('saldo_pendiente', '>', 0)
+            ->where('estado', 'activo')
+            ->with(['venta.cliente', 'venta.comprobantesFiscales']);
 
-        if ($sucursalId) {
-            $query->where('sucursal_id', $sucursalId);
-        }
+        return $query->orderBy('created_at', 'asc')
+            ->get()
+            ->map(function ($ventaPago) {
+                $venta = $ventaPago->venta;
 
-        return $query->orderBy('fecha', 'asc')
-            ->orderBy('id', 'asc')
-            ->get();
+                // Construir descripcion_comprobantes con la misma lógica que VentaService
+                $comprobantes = [];
+                $tieneFacturaTotal = $venta->comprobantesFiscales->contains('es_total_venta', true);
+
+                // Calcular monto total de comprobantes fiscales
+                $totalFiscal = $venta->comprobantesFiscales->sum('total');
+                $montoTicket = max(0, $venta->total_final - $totalFiscal);
+
+                // Solo mostrar ticket si NO hay factura por el total
+                if (!$tieneFacturaTotal) {
+                    $pv = str_pad($venta->punto_venta ?? 1, 4, '0', STR_PAD_LEFT);
+                    $num = str_pad($venta->numero ?? 0, 8, '0', STR_PAD_LEFT);
+                    $montoFormateado = '$' . number_format($montoTicket, 2, ',', '.');
+                    $comprobantes[] = "Ticket {$pv}-{$num} ({$montoFormateado})";
+                }
+
+                // Agregar comprobantes fiscales
+                foreach ($venta->comprobantesFiscales as $cf) {
+                    $tipoAbrev = match($cf->tipo) {
+                        'factura_a', 'factura_b', 'factura_c' => 'FA',
+                        'nota_credito_a', 'nota_credito_b', 'nota_credito_c' => 'NC',
+                        'nota_debito_a', 'nota_debito_b', 'nota_debito_c' => 'ND',
+                        default => 'CF'
+                    };
+                    $letra = $cf->letra ?? '';
+                    $pv = str_pad($cf->punto_venta_numero ?? 0, 4, '0', STR_PAD_LEFT);
+                    $num = str_pad($cf->numero_comprobante ?? 0, 8, '0', STR_PAD_LEFT);
+                    $montoFormateado = '$' . number_format($cf->total, 2, ',', '.');
+                    $comprobantes[] = "{$tipoAbrev} {$letra} {$pv}-{$num} ({$montoFormateado})";
+                }
+
+                // Crear objeto compatible con el formato anterior
+                return (object) [
+                    'id' => $venta->id,
+                    'venta_pago_id' => $ventaPago->id,
+                    'numero' => $venta->numero,
+                    'fecha' => $venta->fecha,
+                    'fecha_vencimiento' => $venta->fecha_vencimiento,
+                    'total_final' => $venta->total_final,
+                    'saldo_pendiente_cache' => $ventaPago->saldo_pendiente,
+                    'monto_original' => $ventaPago->monto_final,
+                    'cliente' => $venta->cliente,
+                    'descripcion_comprobantes' => implode(' | ', $comprobantes),
+                ];
+            });
     }
 
     /**
      * Distribuye un monto entre las ventas usando FIFO (más antigua primero)
      *
      * @param float $monto Monto total a distribuir
-     * @param Collection $ventas Ventas ordenadas por antigüedad
-     * @return array Array de ['venta_id' => X, 'monto_aplicado' => Y, 'interes_aplicado' => Z]
+     * @param Collection $ventas Ventas ordenadas por antigüedad (con venta_pago_id)
+     * @return array Array de ['venta_id' => X, 'venta_pago_id' => Y, 'monto_aplicado' => Z, 'interes_aplicado' => W]
      */
     public function distribuirMontoFIFO(float $monto, Collection $ventas): array
     {
@@ -236,6 +373,7 @@ class CobroService
 
             $distribucion[] = [
                 'venta_id' => $venta->id,
+                'venta_pago_id' => $venta->venta_pago_id ?? null,
                 'venta_numero' => $venta->numero,
                 'fecha' => $venta->fecha,
                 'saldo_pendiente' => $saldoPendiente,
@@ -252,95 +390,33 @@ class CobroService
 
     /**
      * Genera el reporte de antigüedad de deuda
+     * Usa el nuevo sistema basado en VentaPago
      *
      * @param int|null $sucursalId
      * @return array
      */
     public function generarReporteAntiguedad(?int $sucursalId = null): array
     {
-        $hoy = Carbon::now()->startOfDay();
-
-        // Obtener ventas pendientes con cliente
-        $query = Venta::with('cliente')
-            ->where('es_cuenta_corriente', true)
-            ->where('saldo_pendiente_cache', '>', 0)
-            ->where('estado', 'completada');
-
-        if ($sucursalId) {
-            $query->where('sucursal_id', $sucursalId);
-        }
-
-        $ventas = $query->get();
-
-        // Agrupar por cliente y por rango de antigüedad
-        $reporte = [
-            'clientes' => [],
-            'totales' => [
-                '0_30' => 0,
-                '31_60' => 0,
-                '61_90' => 0,
-                '90_mas' => 0,
-                'total' => 0,
-            ],
-        ];
-
-        foreach ($ventas as $venta) {
-            $clienteId = $venta->cliente_id;
-
-            if (!isset($reporte['clientes'][$clienteId])) {
-                $reporte['clientes'][$clienteId] = [
-                    'cliente' => $venta->cliente,
-                    '0_30' => 0,
-                    '31_60' => 0,
-                    '61_90' => 0,
-                    '90_mas' => 0,
-                    'total' => 0,
-                ];
-            }
-
-            // Calcular antigüedad
-            $fechaVenta = Carbon::parse($venta->fecha)->startOfDay();
-            $diasAntiguedad = $hoy->diffInDays($fechaVenta);
-            $saldo = (float) $venta->saldo_pendiente_cache;
-
-            // Clasificar por rango
-            if ($diasAntiguedad <= 30) {
-                $rango = '0_30';
-            } elseif ($diasAntiguedad <= 60) {
-                $rango = '31_60';
-            } elseif ($diasAntiguedad <= 90) {
-                $rango = '61_90';
-            } else {
-                $rango = '90_mas';
-            }
-
-            $reporte['clientes'][$clienteId][$rango] += $saldo;
-            $reporte['clientes'][$clienteId]['total'] += $saldo;
-            $reporte['totales'][$rango] += $saldo;
-            $reporte['totales']['total'] += $saldo;
-        }
-
-        // Convertir a array indexado y ordenar por total descendente
-        $reporte['clientes'] = collect($reporte['clientes'])
-            ->sortByDesc('total')
-            ->values()
-            ->toArray();
-
-        return $reporte;
+        $ccService = new CuentaCorrienteService();
+        return $ccService->generarReporteAntiguedad($sucursalId);
     }
 
     /**
-     * Anula un cobro y revierte los saldos
+     * Anula un cobro y revierte los saldos usando contraasientos
+     *
+     * Si el cobro generó saldo a favor que ya fue usado, ese saldo se convierte
+     * en deuda del cliente (contraasiento de ajuste).
      *
      * @param int $cobroId
      * @param string $motivo
-     * @return Cobro
+     * @return array ['cobro' => Cobro, 'deuda_generada' => float]
      * @throws Exception
      */
-    public function anularCobro(int $cobroId, string $motivo): Cobro
+    public function anularCobro(int $cobroId, string $motivo): array
     {
         return DB::transaction(function () use ($cobroId, $motivo) {
-            $cobro = Cobro::with(['cobroVentas.venta', 'pagos'])->findOrFail($cobroId);
+            $cobro = Cobro::with(['cobroVentas.venta', 'cobroVentas.ventaPago', 'pagos'])->findOrFail($cobroId);
+            $usuarioId = auth()->id();
 
             if ($cobro->estaAnulado()) {
                 throw new Exception('El cobro ya está anulado');
@@ -351,13 +427,49 @@ class CobroService
                 throw new Exception('No se puede anular un cobro que ya fue cerrado en un turno');
             }
 
-            // Usar el método del modelo que ya tiene la lógica
-            $cobro->anular(auth()->id(), $motivo);
+            // Anular movimientos en cuenta corriente unificada (con contraasientos)
+            $ccService = new CuentaCorrienteService();
+            $resultadoCC = $ccService->anularMovimientosCobro($cobro, $motivo, $usuarioId);
 
-            // Actualizar cache del cliente
-            $this->actualizarCacheSaldoCliente($cobro->cliente);
+            // Revertir saldos en VentaPago
+            foreach ($cobro->cobroVentas as $cobroVenta) {
+                if ($cobroVenta->ventaPago) {
+                    $cobroVenta->ventaPago->revertirCobro($cobroVenta->monto_aplicado);
+                }
 
-            return $cobro->fresh();
+                // Actualizar saldo_pendiente_cache de la Venta (compatibilidad)
+                $venta = $cobroVenta->venta;
+                if ($venta) {
+                    $saldoVenta = VentaPago::where('venta_id', $venta->id)
+                        ->where('es_cuenta_corriente', true)
+                        ->sum('saldo_pendiente');
+                    $venta->update(['saldo_pendiente_cache' => $saldoVenta]);
+                }
+            }
+
+            // Anular pagos asociados y revertir movimientos de caja
+            foreach ($cobro->pagos as $pago) {
+                if ($pago->afecta_caja && $pago->movimiento_caja_id) {
+                    $caja = $cobro->caja;
+                    if ($caja) {
+                        $caja->disminuirSaldo($pago->monto_final);
+                    }
+                }
+                $pago->update(['estado' => 'anulado']);
+            }
+
+            // Marcar el cobro como anulado
+            $cobro->update([
+                'estado' => 'anulado',
+                'anulado_por_usuario_id' => $usuarioId,
+                'anulado_at' => now(),
+                'motivo_anulacion' => $motivo,
+            ]);
+
+            return [
+                'cobro' => $cobro->fresh(),
+                'deuda_generada' => $resultadoCC['deuda_generada'],
+            ];
         });
     }
 
@@ -388,47 +500,31 @@ class CobroService
 
     /**
      * Actualiza el cache de saldo deudor del cliente
+     * Usa el nuevo sistema de cuenta corriente unificada
      *
      * @param Cliente $cliente
+     * @param int|null $sucursalId
      * @return void
      */
-    public function actualizarCacheSaldoCliente(Cliente $cliente): void
+    public function actualizarCacheSaldoCliente(Cliente $cliente, ?int $sucursalId = null): void
     {
-        $saldoDeudor = Venta::where('cliente_id', $cliente->id)
-            ->where('es_cuenta_corriente', true)
-            ->where('estado', 'completada')
-            ->sum('saldo_pendiente_cache');
+        $ccService = new CuentaCorrienteService();
+        $ccService->actualizarCacheCliente($cliente->id, $sucursalId);
+    }
 
-        // Calcular saldo a favor (montos pagados de más)
-        $saldoAFavor = Cobro::where('cliente_id', $cliente->id)
-            ->where('estado', 'activo')
-            ->sum('monto_a_favor');
-
-        // Calcular días máximos de mora
-        $ventaVencida = Venta::where('cliente_id', $cliente->id)
-            ->where('es_cuenta_corriente', true)
-            ->where('estado', 'completada')
-            ->where('saldo_pendiente_cache', '>', 0)
-            ->whereNotNull('fecha_vencimiento')
-            ->where('fecha_vencimiento', '<', now())
-            ->orderBy('fecha_vencimiento', 'asc')
-            ->first();
-
-        $diasMoraMax = 0;
-        if ($ventaVencida && $ventaVencida->fecha_vencimiento) {
-            $diasMoraMax = Carbon::now()->diffInDays(Carbon::parse($ventaVencida->fecha_vencimiento));
-        }
-
-        $cliente->update([
-            'saldo_deudor_cache' => $saldoDeudor,
-            'saldo_a_favor_cache' => $saldoAFavor,
-            'dias_mora_max' => $diasMoraMax,
-            'ultimo_movimiento_cc_at' => now(),
-        ]);
+    /**
+     * Actualiza el cache de saldo del cliente para una sucursal específica
+     * Usa el nuevo sistema de cuenta corriente unificada
+     */
+    public function actualizarCacheSaldoClienteSucursal(Cliente $cliente, int $sucursalId): void
+    {
+        $ccService = new CuentaCorrienteService();
+        $ccService->actualizarCacheCliente($cliente->id, $sucursalId);
     }
 
     /**
      * Obtiene el historial de cuenta corriente de un cliente
+     * Usa la nueva tabla unificada de movimientos_cuenta_corriente
      *
      * @param int $clienteId
      * @param int|null $sucursalId
@@ -437,51 +533,29 @@ class CobroService
      */
     public function obtenerMovimientosCuentaCorriente(int $clienteId, ?int $sucursalId = null, int $limit = 50): Collection
     {
-        // Obtener ventas a cuenta corriente
-        $queryVentas = Venta::where('cliente_id', $clienteId)
-            ->where('es_cuenta_corriente', true)
-            ->where('estado', 'completada');
+        $ccService = new CuentaCorrienteService();
 
         if ($sucursalId) {
-            $queryVentas->where('sucursal_id', $sucursalId);
+            return $ccService->obtenerExtractoResumido($clienteId, $sucursalId, $limit);
         }
 
-        $ventas = $queryVentas->get()->map(function ($venta) {
-            return [
-                'tipo' => 'venta',
-                'fecha' => $venta->fecha,
-                'descripcion' => "Venta #{$venta->numero}",
-                'debe' => $venta->total_final,
-                'haber' => 0,
-                'referencia_id' => $venta->id,
-                'referencia_tipo' => 'venta',
-            ];
-        });
+        // Si no hay sucursal, obtener de todas las sucursales
+        // Primero obtener todas las sucursales del cliente
+        $sucursales = MovimientoCuentaCorriente::where('cliente_id', $clienteId)
+            ->where('estado', 'activo')
+            ->distinct()
+            ->pluck('sucursal_id');
 
-        // Obtener cobros
-        $queryCobros = Cobro::with('cobroVentas')
-            ->where('cliente_id', $clienteId)
-            ->where('estado', 'activo');
+        $todosMovimientos = collect();
 
-        if ($sucursalId) {
-            $queryCobros->where('sucursal_id', $sucursalId);
+        foreach ($sucursales as $sucId) {
+            $movimientos = $ccService->obtenerExtractoResumido($clienteId, $sucId, $limit);
+            $todosMovimientos = $todosMovimientos->concat($movimientos);
         }
 
-        $cobros = $queryCobros->get()->map(function ($cobro) {
-            return [
-                'tipo' => 'cobro',
-                'fecha' => Carbon::parse($cobro->fecha),
-                'descripcion' => "Recibo #{$cobro->numero_recibo}",
-                'debe' => 0,
-                'haber' => $cobro->monto_aplicado_a_deuda + $cobro->interes_aplicado,
-                'referencia_id' => $cobro->id,
-                'referencia_tipo' => 'cobro',
-            ];
-        });
-
-        // Unir y ordenar por fecha descendente
-        return $ventas->concat($cobros)
-            ->sortByDesc('fecha')
+        // Ordenar por fecha y tomar los últimos N
+        return $todosMovimientos
+            ->sortByDesc('created_at')
             ->take($limit)
             ->values();
     }

@@ -155,6 +155,37 @@
 
                         {{-- COLUMNA DERECHA --}}
                         <div class="space-y-6">
+                            {{-- SECCIÓN: Control de Stock --}}
+                            <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                                <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-4 flex items-center">
+                                    <svg class="w-5 h-5 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                                    </svg>
+                                    {{ __('Control de stock en ventas') }}
+                                </h4>
+
+                                <div class="mb-2">
+                                    <select
+                                        wire:model.live="configControlStockVenta"
+                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    >
+                                        <option value="bloquea">{{ __('Bloquear venta') }}</option>
+                                        <option value="advierte">{{ __('Advertir faltante') }}</option>
+                                        <option value="no_controla">{{ __('No controlar') }}</option>
+                                    </select>
+                                </div>
+
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    @if($configControlStockVenta === 'no_controla')
+                                        {{ __('Permite vender sin verificar disponibilidad. El stock se descuenta igualmente.') }}
+                                    @elseif($configControlStockVenta === 'advierte')
+                                        {{ __('Avisa si falta stock pero permite vender. El stock se descuenta igualmente.') }}
+                                    @else
+                                        {{ __('No permite vender si no hay stock suficiente.') }}
+                                    @endif
+                                </p>
+                            </div>
+
                             {{-- SECCIÓN: Facturación --}}
                             <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
                                 <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-4 flex items-center">

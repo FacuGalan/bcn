@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Modelo Cliente
@@ -55,6 +56,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  */
 class Cliente extends Model
 {
+    use SoftDeletes;
+
     protected $connection = 'pymes_tenant';
     protected $table = 'clientes';
 
@@ -74,6 +77,10 @@ class Cliente extends Model
         'tasa_interes_mensual',
         'bloqueado_por_mora',
         'dias_mora_max',
+        // Campos de cache de cuenta corriente
+        'saldo_deudor_cache',
+        'saldo_a_favor_cache',
+        'ultimo_movimiento_cc_at',
     ];
 
     protected $casts = [
@@ -116,6 +123,22 @@ class Cliente extends Model
     public function ventas(): HasMany
     {
         return $this->hasMany(Venta::class, 'cliente_id');
+    }
+
+    /**
+     * Movimientos de cuenta corriente del cliente (unificados)
+     */
+    public function movimientosCuentaCorriente(): HasMany
+    {
+        return $this->hasMany(MovimientoCuentaCorriente::class, 'cliente_id');
+    }
+
+    /**
+     * Cobros realizados al cliente
+     */
+    public function cobros(): HasMany
+    {
+        return $this->hasMany(Cobro::class, 'cliente_id');
     }
 
     /**

@@ -8,6 +8,7 @@ use App\Traits\CajaAware;
 use App\Traits\AperturaTurnoTrait;
 use App\Services\CajaService;
 use App\Services\VentaService;
+use App\Services\OpcionalService;
 use App\Models\Cliente;
 use App\Models\Articulo;
 use App\Models\Caja;
@@ -29,6 +30,8 @@ use App\Models\PuntoVenta;
 use App\Models\TipoIva;
 use App\Models\CondicionIva;
 use App\Models\MovimientoCaja;
+use App\Models\Stock;
+use App\Models\Receta;
 use App\Services\ARCA\ComprobanteFiscalService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -67,6 +70,9 @@ class NuevaVenta extends Component
 
     /** @var string Input para lector de código de barras */
     public $codigoBarrasInput = '';
+
+    /** @var int Cantidad a agregar al seleccionar un artículo */
+    public int $cantidadAgregar = 1;
 
     /** @var array Artículos encontrados en la búsqueda */
     public $articulosResultados = [];
@@ -122,6 +128,9 @@ class NuevaVenta extends Component
 
     /** @var bool Modal de alta rápida de cliente visible */
     public $mostrarModalClienteRapido = false;
+
+    /** @var bool Modal de confirmación para limpiar carrito */
+    public bool $mostrarConfirmLimpiar = false;
 
     /** @var string Nombre para alta rápida de cliente */
     public $clienteRapidoNombre = '';
@@ -305,14 +314,41 @@ class NuevaVenta extends Component
     public $puedeSeleccionarPuntoVenta = false;
 
     // =========================================
+    // PROPIEDADES DEL WIZARD DE OPCIONALES
+    // =========================================
+
+    /** @var bool Modal del wizard de opcionales visible */
+    public bool $mostrarWizardOpcionales = false;
+
+    /** @var int|null ID del artículo en el wizard */
+    public ?int $wizardArticuloId = null;
+
+    /** @var array|null Datos del artículo en el wizard {nombre, precio, precioInfo, ivaInfo} */
+    public ?array $wizardArticuloData = null;
+
+    /** @var array Grupos opcionales del artículo (resultado de obtenerOpcionalesParaVenta) */
+    public array $wizardGrupos = [];
+
+    /** @var int Índice del grupo actual en el wizard (0-based) */
+    public int $wizardPasoActual = 0;
+
+    /** @var array Selecciones del usuario [grupo_id => [opcional_id => cantidad, ...], ...] */
+    public array $wizardSelecciones = [];
+
+    /** @var int|null Índice del item en el carrito si se está editando (null = nuevo) */
+    public ?int $wizardEditandoIndex = null;
+
+    // =========================================
     // INYECCIÓN DE DEPENDENCIAS
     // =========================================
 
     protected $ventaService;
+    protected $opcionalService;
 
-    public function boot(VentaService $ventaService)
+    public function boot(VentaService $ventaService, OpcionalService $opcionalService)
     {
         $this->ventaService = $ventaService;
+        $this->opcionalService = $opcionalService;
     }
 
     // =========================================
@@ -654,6 +690,114 @@ class NuevaVenta extends Component
     // MÉTODOS DE AGREGAR ARTÍCULOS
     // =========================================
 
+    /**
+     * Dispatcher: según el modo activo, consulta precios, busca en detalle o agrega al carrito.
+     */
+    public function seleccionarArticulo($articuloId)
+    {
+        if ($this->modoConsulta) {
+            $this->consultarPrecios($articuloId);
+            return;
+        }
+
+        if ($this->modoBusqueda) {
+            $this->buscarEnDetalle($articuloId);
+            return;
+        }
+
+        $this->agregarArticulo($articuloId);
+    }
+
+    /**
+     * Verifica stock al agregar un artículo al detalle.
+     * Solo muestra notificaciones (rojo=bloquea, amarillo=advierte).
+     * Nunca bloquea el agregado; el bloqueo real ocurre al confirmar la venta.
+     */
+    protected function verificarStockAlAgregar(Articulo $articulo, float $cantidad, array $opcionales = []): void
+    {
+        $sucursal = Sucursal::find($this->sucursalId);
+        $controlStock = $sucursal->control_stock_venta ?? 'bloquea';
+
+        if ($controlStock === 'no_controla') {
+            return;
+        }
+
+        $modoStock = $articulo->getModoStock($this->sucursalId);
+        if ($modoStock === 'ninguno') {
+            return;
+        }
+
+        $faltantes = [];
+
+        if ($modoStock === 'unitario') {
+            $stock = Stock::where('sucursal_id', $this->sucursalId)
+                         ->where('articulo_id', $articulo->id)
+                         ->first();
+            $disponible = $stock ? (float) $stock->cantidad : 0;
+
+            // Sumar cantidad ya en el carrito para el mismo artículo
+            $enCarrito = 0;
+            foreach ($this->items as $item) {
+                if (($item['articulo_id'] ?? null) == $articulo->id && empty($item['opcionales'])) {
+                    $enCarrito += (float) ($item['cantidad'] ?? 0);
+                }
+            }
+
+            $totalNecesario = $enCarrito + $cantidad;
+            if ($disponible < $totalNecesario) {
+                $faltantes[] = "'{$articulo->nombre}': disponible " . round($disponible, 2) . ", necesario " . round($totalNecesario, 2);
+            }
+        } elseif ($modoStock === 'receta') {
+            $receta = $articulo->resolverReceta($this->sucursalId);
+            if ($receta) {
+                foreach ($receta->ingredientes as $ingrediente) {
+                    $cantNecesaria = $ingrediente->cantidad * $cantidad / $receta->cantidad_producida;
+                    $stock = Stock::where('sucursal_id', $this->sucursalId)
+                                 ->where('articulo_id', $ingrediente->articulo_id)
+                                 ->first();
+                    $disponible = $stock ? (float) $stock->cantidad : 0;
+                    if ($disponible < $cantNecesaria) {
+                        $nombre = $ingrediente->articulo->nombre ?? "Artículo #{$ingrediente->articulo_id}";
+                        $faltantes[] = "'{$nombre}': disponible " . round($disponible, 2) . ", necesario " . round($cantNecesaria, 2);
+                    }
+                }
+            }
+
+            // Verificar ingredientes de opcionales con receta
+            foreach ($opcionales as $grupo) {
+                foreach ($grupo['selecciones'] ?? [] as $sel) {
+                    $recetaOpc = Receta::resolver('Opcional', $sel['opcional_id'], $this->sucursalId);
+                    if ($recetaOpc) {
+                        $cantOpcional = ($sel['cantidad'] ?? 1) * $cantidad;
+                        foreach ($recetaOpc->ingredientes as $ingrediente) {
+                            $cantNecesaria = $ingrediente->cantidad * $cantOpcional / $recetaOpc->cantidad_producida;
+                            $stock = Stock::where('sucursal_id', $this->sucursalId)
+                                         ->where('articulo_id', $ingrediente->articulo_id)
+                                         ->first();
+                            $disponible = $stock ? (float) $stock->cantidad : 0;
+                            if ($disponible < $cantNecesaria) {
+                                $nombre = $ingrediente->articulo->nombre ?? "Artículo #{$ingrediente->articulo_id}";
+                                $faltantes[] = "'{$nombre}': disponible " . round($disponible, 2) . ", necesario " . round($cantNecesaria, 2);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (empty($faltantes)) {
+            return;
+        }
+
+        $mensajes = array_unique($faltantes);
+        $tipo = ($controlStock === 'bloquea') ? 'toast-error' : 'toast-warning';
+        $prefijo = ($controlStock === 'bloquea') ? __('Stock insuficiente') : __('Advertencia de stock');
+
+        foreach ($mensajes as $msg) {
+            $this->dispatch($tipo, message: $prefijo . ': ' . $msg);
+        }
+    }
+
     public function agregarArticulo($articuloId)
     {
         $articulo = Articulo::with(['categoriaModel', 'tipoIva'])->find($articuloId);
@@ -669,6 +813,38 @@ class NuevaVenta extends Component
             'nombre' => $tipoIva?->nombre ?? 'IVA 21%',
         ];
 
+        // Verificar si el artículo tiene opcionales en esta sucursal
+        $grupos = $this->opcionalService->obtenerOpcionalesParaVenta($articuloId, $this->sucursalId);
+        if (!empty($grupos)) {
+            // Tiene opcionales: abrir wizard en vez de agregar directo
+            $this->wizardArticuloId = $articulo->id;
+            $this->wizardArticuloData = [
+                'nombre' => $articulo->nombre,
+                'codigo' => $articulo->codigo,
+                'categoria_id' => $articulo->categoria_id,
+                'categoria_nombre' => $articulo->categoriaModel?->nombre,
+                'precio_base' => $precioInfo['precio_base'],
+                'precio' => $precioInfo['precio'],
+                'tiene_ajuste' => $precioInfo['tiene_ajuste'],
+                'iva_codigo' => $ivaInfo['codigo'],
+                'iva_porcentaje' => $ivaInfo['porcentaje'],
+                'iva_nombre' => $ivaInfo['nombre'],
+                'precio_iva_incluido' => $articulo->precio_iva_incluido ?? true,
+            ];
+            $this->wizardGrupos = $grupos;
+            $this->wizardPasoActual = 0;
+            $this->wizardSelecciones = [];
+            $this->wizardEditandoIndex = null;
+            $this->mostrarWizardOpcionales = true;
+            $this->busquedaArticulo = '';
+            $this->articulosResultados = [];
+            return;
+        }
+
+        // Sin opcionales: notificar stock si corresponde
+        $this->verificarStockAlAgregar($articulo, $this->cantidadAgregar);
+
+        // Flujo normal
         // Buscar renglón existente con mismo artículo y mismo precio (sin ajuste manual)
         $indiceExistente = null;
         $precioNuevo = $precioInfo['precio'];
@@ -678,6 +854,7 @@ class NuevaVenta extends Component
                 && !($item['es_concepto'] ?? false)
                 && (float) ($item['precio'] ?? 0) === (float) $precioNuevo
                 && empty($item['ajuste_manual_tipo'])
+                && empty($item['opcionales'])
             ) {
                 $indiceExistente = $idx;
                 break;
@@ -685,7 +862,7 @@ class NuevaVenta extends Component
         }
 
         if ($indiceExistente !== null) {
-            $this->items[$indiceExistente]['cantidad']++;
+            $this->items[$indiceExistente]['cantidad'] += $this->cantidadAgregar;
         } else {
             $this->items[] = [
                 'articulo_id' => $articulo->id,
@@ -696,21 +873,25 @@ class NuevaVenta extends Component
                 'precio_base' => $precioInfo['precio_base'],
                 'precio' => $precioInfo['precio'],
                 'tiene_ajuste' => $precioInfo['tiene_ajuste'],
-                'cantidad' => 1,
+                'cantidad' => $this->cantidadAgregar,
                 // Información de IVA
                 'iva_codigo' => $ivaInfo['codigo'],
                 'iva_porcentaje' => $ivaInfo['porcentaje'],
                 'iva_nombre' => $ivaInfo['nombre'],
                 'precio_iva_incluido' => $articulo->precio_iva_incluido ?? true,
                 // Campos para ajuste manual de precio
-                'ajuste_manual_tipo' => null, // 'monto' o 'porcentaje'
-                'ajuste_manual_valor' => null, // Valor del ajuste
-                'precio_sin_ajuste_manual' => null, // Precio antes del ajuste manual (para mostrar tachado)
+                'ajuste_manual_tipo' => null,
+                'ajuste_manual_valor' => null,
+                'precio_sin_ajuste_manual' => null,
+                // Opcionales (vacío para items sin opcionales)
+                'opcionales' => [],
+                'precio_opcionales' => 0,
             ];
         }
 
         $this->busquedaArticulo = '';
         $this->articulosResultados = [];
+        $this->cantidadAgregar = 1;
         $this->calcularVenta();
     }
 
@@ -962,6 +1143,267 @@ class NuevaVenta extends Component
     public function limpiarResaltado()
     {
         $this->itemResaltado = null;
+    }
+
+    // =========================================
+    // MÉTODOS DEL WIZARD DE OPCIONALES
+    // =========================================
+
+    /**
+     * Toggle de una opción en el grupo actual (tipo seleccionable)
+     */
+    public function toggleOpcion($opcionalId)
+    {
+        $grupo = $this->wizardGrupos[$this->wizardPasoActual] ?? null;
+        if (!$grupo) return;
+
+        // Verificar que la opción esté disponible
+        $opcion = collect($grupo['opciones'])->firstWhere('opcional_id', $opcionalId);
+        if (!$opcion || !($opcion['disponible'] ?? true)) return;
+
+        $grupoId = $grupo['grupo_id'];
+        $selecciones = $this->wizardSelecciones[$grupoId] ?? [];
+
+        if (isset($selecciones[$opcionalId])) {
+            unset($selecciones[$opcionalId]);
+        } else {
+            $selecciones[$opcionalId] = 1;
+        }
+
+        $this->wizardSelecciones[$grupoId] = $selecciones;
+
+        // Auto-avance si alcanzamos max_seleccion
+        $max = $grupo['max_seleccion'];
+        if ($max !== null && count($selecciones) >= $max) {
+            $this->confirmarPasoWizard();
+        }
+    }
+
+    /**
+     * Cambia la cantidad de una opción (tipo cuantitativo)
+     */
+    public function cambiarCantidadOpcion($opcionalId, $delta)
+    {
+        $grupo = $this->wizardGrupos[$this->wizardPasoActual] ?? null;
+        if (!$grupo) return;
+
+        // Verificar que la opción esté disponible
+        $opcion = collect($grupo['opciones'])->firstWhere('opcional_id', $opcionalId);
+        if (!$opcion || !($opcion['disponible'] ?? true)) return;
+
+        $grupoId = $grupo['grupo_id'];
+        $selecciones = $this->wizardSelecciones[$grupoId] ?? [];
+
+        $cantidadActual = $selecciones[$opcionalId] ?? 0;
+        $nuevaCantidad = max(0, $cantidadActual + (int) $delta);
+
+        if ($nuevaCantidad > 0) {
+            $selecciones[$opcionalId] = $nuevaCantidad;
+        } else {
+            unset($selecciones[$opcionalId]);
+        }
+
+        $this->wizardSelecciones[$grupoId] = $selecciones;
+
+        // Auto-avance si la suma de cantidades alcanza max_seleccion
+        $max = $grupo['max_seleccion'];
+        if ($max !== null) {
+            $sumaTotal = array_sum($selecciones);
+            if ($sumaTotal >= $max) {
+                $this->confirmarPasoWizard();
+            }
+        }
+    }
+
+    /**
+     * Confirma el paso actual y avanza al siguiente o finaliza
+     */
+    public function confirmarPasoWizard($forzar = false)
+    {
+        // Validar obligatorio (Ctrl+Enter fuerza el avance)
+        if (!$forzar) {
+            $grupo = $this->wizardGrupos[$this->wizardPasoActual] ?? null;
+            if ($grupo && $grupo['obligatorio']) {
+                $grupoId = $grupo['grupo_id'];
+                $selecciones = $this->wizardSelecciones[$grupoId] ?? [];
+                $cantidadSeleccionada = ($grupo['tipo'] === 'cuantitativo')
+                    ? array_sum($selecciones)
+                    : count($selecciones);
+                if ($cantidadSeleccionada < 1) {
+                    return;
+                }
+            }
+        }
+
+        if ($this->wizardPasoActual < count($this->wizardGrupos) - 1) {
+            $this->wizardPasoActual++;
+        } else {
+            $this->confirmarWizardOpcionales();
+        }
+    }
+
+    /**
+     * Retrocede al grupo anterior
+     */
+    public function anteriorPasoWizard()
+    {
+        if ($this->wizardPasoActual > 0) {
+            $this->wizardPasoActual--;
+        }
+    }
+
+    /**
+     * Cierra el wizard y agrega el artículo con las selecciones hechas hasta ahora
+     * (Esc salta todos los grupos restantes)
+     */
+    public function saltearWizardOpcionales()
+    {
+        $this->confirmarWizardOpcionales();
+    }
+
+    /**
+     * Confirma el wizard y agrega el item al carrito con opcionales seleccionados
+     */
+    public function confirmarWizardOpcionales()
+    {
+        $data = $this->wizardArticuloData;
+        if (!$data) {
+            $this->cerrarWizardOpcionales();
+            return;
+        }
+
+        // Construir array de opcionales seleccionados y calcular precio extra total
+        $opcionalesItem = [];
+        $precioOpcionalesTotal = 0;
+
+        foreach ($this->wizardGrupos as $grupo) {
+            $grupoId = $grupo['grupo_id'];
+            $selecciones = $this->wizardSelecciones[$grupoId] ?? [];
+
+            if (empty($selecciones)) continue;
+
+            $seleccionesDetalle = [];
+            foreach ($grupo['opciones'] as $opcion) {
+                $cantidad = $selecciones[$opcion['opcional_id']] ?? 0;
+                if ($cantidad > 0) {
+                    $precioExtra = (float) $opcion['precio_extra'];
+                    $seleccionesDetalle[] = [
+                        'opcional_id' => $opcion['opcional_id'],
+                        'nombre' => $opcion['nombre'],
+                        'cantidad' => $cantidad,
+                        'precio_extra' => $precioExtra,
+                    ];
+                    $precioOpcionalesTotal += $precioExtra * $cantidad;
+                }
+            }
+
+            if (!empty($seleccionesDetalle)) {
+                $opcionalesItem[] = [
+                    'grupo_id' => $grupoId,
+                    'grupo_nombre' => $grupo['nombre'],
+                    'tipo' => $grupo['tipo'],
+                    'selecciones' => $seleccionesDetalle,
+                ];
+            }
+        }
+
+        $precioConOpcionales = (float) $data['precio'] + $precioOpcionalesTotal;
+
+        // Notificar stock del artículo + opcionales
+        $articulo = Articulo::find($this->wizardArticuloId);
+        if ($articulo) {
+            $this->verificarStockAlAgregar($articulo, $this->cantidadAgregar, $opcionalesItem);
+        }
+
+        if ($this->wizardEditandoIndex !== null && isset($this->items[$this->wizardEditandoIndex])) {
+            // Editando un item existente: actualizar opcionales y precio
+            $this->items[$this->wizardEditandoIndex]['opcionales'] = $opcionalesItem;
+            $this->items[$this->wizardEditandoIndex]['precio_opcionales'] = $precioOpcionalesTotal;
+            $this->items[$this->wizardEditandoIndex]['precio'] = $precioConOpcionales;
+        } else {
+            // Nuevo item: siempre crea línea nueva (nunca agrupa con opcionales)
+            $this->items[] = [
+                'articulo_id' => $this->wizardArticuloId,
+                'nombre' => $data['nombre'],
+                'codigo' => $data['codigo'],
+                'categoria_id' => $data['categoria_id'],
+                'categoria_nombre' => $data['categoria_nombre'],
+                'precio_base' => $data['precio_base'],
+                'precio' => $precioConOpcionales,
+                'tiene_ajuste' => $data['tiene_ajuste'],
+                'cantidad' => $this->cantidadAgregar,
+                'iva_codigo' => $data['iva_codigo'],
+                'iva_porcentaje' => $data['iva_porcentaje'],
+                'iva_nombre' => $data['iva_nombre'],
+                'precio_iva_incluido' => $data['precio_iva_incluido'],
+                'ajuste_manual_tipo' => null,
+                'ajuste_manual_valor' => null,
+                'precio_sin_ajuste_manual' => null,
+                'opcionales' => $opcionalesItem,
+                'precio_opcionales' => $precioOpcionalesTotal,
+            ];
+        }
+
+        $this->cerrarWizardOpcionales();
+        $this->calcularVenta();
+    }
+
+    /**
+     * Abre el wizard para editar opcionales de un item existente en el carrito
+     */
+    public function editarOpcionalesItem($index)
+    {
+        $item = $this->items[$index] ?? null;
+        if (!$item || empty($item['articulo_id'])) return;
+
+        $grupos = $this->opcionalService->obtenerOpcionalesParaVenta($item['articulo_id'], $this->sucursalId);
+        if (empty($grupos)) return;
+
+        $this->wizardArticuloId = $item['articulo_id'];
+        $this->wizardArticuloData = [
+            'nombre' => $item['nombre'],
+            'codigo' => $item['codigo'],
+            'categoria_id' => $item['categoria_id'],
+            'categoria_nombre' => $item['categoria_nombre'],
+            'precio_base' => $item['precio_base'],
+            'precio' => (float) $item['precio'] - (float) ($item['precio_opcionales'] ?? 0),
+            'tiene_ajuste' => $item['tiene_ajuste'],
+            'iva_codigo' => $item['iva_codigo'],
+            'iva_porcentaje' => $item['iva_porcentaje'],
+            'iva_nombre' => $item['iva_nombre'],
+            'precio_iva_incluido' => $item['precio_iva_incluido'],
+        ];
+        $this->wizardGrupos = $grupos;
+        $this->wizardPasoActual = 0;
+        $this->wizardEditandoIndex = $index;
+
+        // Pre-cargar selecciones existentes del item
+        $this->wizardSelecciones = [];
+        foreach ($item['opcionales'] ?? [] as $grupoSel) {
+            $selMap = [];
+            foreach ($grupoSel['selecciones'] as $sel) {
+                $selMap[$sel['opcional_id']] = $sel['cantidad'];
+            }
+            $this->wizardSelecciones[$grupoSel['grupo_id']] = $selMap;
+        }
+
+        $this->mostrarWizardOpcionales = true;
+    }
+
+    /**
+     * Cierra el wizard sin agregar/modificar nada
+     */
+    public function cerrarWizardOpcionales()
+    {
+        $this->mostrarWizardOpcionales = false;
+        $this->wizardArticuloId = null;
+        $this->wizardArticuloData = null;
+        $this->wizardGrupos = [];
+        $this->wizardPasoActual = 0;
+        $this->wizardSelecciones = [];
+        $this->wizardEditandoIndex = null;
+        $this->cantidadAgregar = 1;
+        $this->dispatch('focus-busqueda');
     }
 
     // =========================================
@@ -3657,9 +4099,12 @@ class NuevaVenta extends Component
         $recargoCuotas = $this->ajusteFormaPagoInfo['recargo_cuotas_porcentaje'] ?? 0;
 
         // Crear desglose con un solo pago (incluyendo info de cuotas)
+        $esCuentaCorriente = isset($fp['codigo']) && strtoupper($fp['codigo']) === 'CTA_CTE';
+
         $this->desglosePagos = [[
             'forma_pago_id' => $fp['id'],
             'nombre' => $fp['nombre'],
+            'codigo' => $fp['codigo'] ?? null,
             'concepto_pago_id' => $fp['concepto_pago_id'] ?? null,
             'monto_base' => $totalBase,
             'ajuste_porcentaje' => $ajuste,
@@ -3672,6 +4117,7 @@ class NuevaVenta extends Component
             'factura_fiscal' => $this->sucursalFacturaAutomatica
                 ? ($fp['factura_fiscal'] ?? false)  // Si es automática, usar config de FP
                 : $this->emitirFacturaFiscal,       // Si no, usar el checkbox del usuario
+            'es_cuenta_corriente' => $esCuentaCorriente,
         ]];
 
         $this->totalConAjustes = $montoFinal;
@@ -3847,6 +4293,21 @@ class NuevaVenta extends Component
             return;
         }
 
+        // Validar que solo haya un pago en Cuenta Corriente
+        $esCuentaCorriente = isset($fp['codigo']) && strtoupper($fp['codigo']) === 'CTA_CTE';
+        if ($esCuentaCorriente) {
+            // Verificar si ya existe un pago en CC
+            $yaExisteCC = collect($this->desglosePagos)->contains(function ($pago) {
+                $fpExistente = collect($this->formasPagoSucursal)->firstWhere('id', $pago['forma_pago_id']);
+                return $fpExistente && isset($fpExistente['codigo']) && strtoupper($fpExistente['codigo']) === 'CTA_CTE';
+            });
+
+            if ($yaExisteCC) {
+                $this->dispatch('toast-error', message: __('Solo se permite un pago en Cuenta Corriente por venta'));
+                return;
+            }
+        }
+
         // Calcular ajuste
         $ajuste = $fp['ajuste_porcentaje'];
         $montoAjuste = round($monto * ($ajuste / 100), 2);
@@ -3869,6 +4330,7 @@ class NuevaVenta extends Component
         $this->desglosePagos[] = [
             'forma_pago_id' => $fp['id'],
             'nombre' => $fp['nombre'],
+            'codigo' => $fp['codigo'] ?? null,
             'concepto_pago_id' => $fp['concepto_pago_id'],
             'monto_base' => $monto,
             'ajuste_porcentaje' => $ajuste,
@@ -3882,6 +4344,7 @@ class NuevaVenta extends Component
             'permite_cuotas' => $fp['permite_cuotas'],
             'cuotas_disponibles' => $fp['cuotas'],
             'factura_fiscal' => $fp['factura_fiscal'] ?? false, // Por defecto según config de FP
+            'es_cuenta_corriente' => $esCuentaCorriente,
         ];
 
         $this->montoPendienteDesglose = round($this->montoPendienteDesglose - $monto, 2);
@@ -4205,13 +4668,18 @@ class NuevaVenta extends Component
 
             $cajaId = $this->cajaSeleccionada ?? caja_activa();
 
-            // Verificar si hay pagos a cuenta corriente
+            // Verificar si hay pagos a cuenta corriente (usar el flag o verificar código)
             $tieneCuentaCorriente = false;
             $montoCuentaCorriente = 0;
 
             foreach ($this->desglosePagos as $pago) {
-                $fp = FormaPago::find($pago['forma_pago_id']);
-                if ($fp && strtoupper($fp->codigo) === 'CTA_CTE') {
+                // Usar el flag si existe, sino verificar por código
+                $esCC = $pago['es_cuenta_corriente'] ?? false;
+                if (!$esCC && isset($pago['codigo'])) {
+                    $esCC = strtoupper($pago['codigo']) === 'CTA_CTE';
+                }
+
+                if ($esCC) {
                     $tieneCuentaCorriente = true;
                     $montoCuentaCorriente += $pago['monto_final'];
 
@@ -4237,11 +4705,14 @@ class NuevaVenta extends Component
                 }
             }
 
-            // Verificar caja para pagos que la requieren
+            // Verificar caja para pagos que la requieren (CC no requiere caja)
             $requiereCaja = false;
             foreach ($this->desglosePagos as $pago) {
-                $fp = FormaPago::find($pago['forma_pago_id']);
-                if ($fp && strtoupper($fp->codigo) !== 'CTA_CTE') {
+                $esCC = $pago['es_cuenta_corriente'] ?? false;
+                if (!$esCC && isset($pago['codigo'])) {
+                    $esCC = strtoupper($pago['codigo']) === 'CTA_CTE';
+                }
+                if (!$esCC) {
                     $requiereCaja = true;
                     break;
                 }
@@ -4356,6 +4827,9 @@ class NuevaVenta extends Component
                         'ajuste_manual_tipo' => $item['ajuste_manual_tipo'] ?? null,
                         'ajuste_manual_valor' => $item['ajuste_manual_valor'] ?? null,
                         'precio_sin_ajuste_manual' => $item['precio_sin_ajuste_manual'] ?? null,
+                        // Opcionales seleccionados
+                        'opcionales' => $item['opcionales'] ?? [],
+                        'precio_opcionales' => $item['precio_opcionales'] ?? 0,
                         // Info de promociones para guardar en venta_detalle_promociones
                         '_promociones_item' => [
                             'promociones_comunes' => $promocionesComunes,
@@ -4429,13 +4903,6 @@ class NuevaVenta extends Component
                     ];
                 }
 
-                // Actualizar saldo del cliente si hay cuenta corriente
-                if ($tieneCuentaCorriente && $this->clienteSeleccionado) {
-                    $cliente = Cliente::find($this->clienteSeleccionado);
-                    $cliente->increment('saldo_deudor_cache', $montoCuentaCorriente);
-                    $cliente->update(['ultimo_movimiento_cc_at' => now()]);
-                }
-
                 // Generar comprobante fiscal si corresponde
                 $comprobanteFiscal = null;
                 if ($debeFacturar) {
@@ -4493,6 +4960,16 @@ class NuevaVenta extends Component
                     }
                 }
 
+                // Registrar movimientos de cuenta corriente si el cliente tiene CC habilitada
+                // Se hace DESPUÉS de la facturación para que los comprobantes fiscales ya existan
+                if ($this->clienteSeleccionado) {
+                    $clienteCC = Cliente::find($this->clienteSeleccionado);
+                    if ($clienteCC && $clienteCC->tiene_cuenta_corriente) {
+                        $ventaService = new \App\Services\VentaService();
+                        $ventaService->procesarPagosCuentaCorriente($venta, auth()->id());
+                    }
+                }
+
                 DB::connection('pymes_tenant')->commit();
 
                 // Mensaje de éxito
@@ -4502,6 +4979,13 @@ class NuevaVenta extends Component
                 }
 
                 $this->dispatch('toast-success', message: $mensaje);
+
+                // Mostrar advertencias de stock si las hay (modo 'advierte')
+                if (!empty($this->ventaService->advertenciasStock)) {
+                    foreach ($this->ventaService->advertenciasStock as $adv) {
+                        $this->dispatch('toast-warning', message: __('Advertencia de stock') . ': ' . $adv);
+                    }
+                }
 
                 // Disparar evento para impresion automatica
                 $this->dispararEventoImpresion($venta, $comprobanteFiscal);
@@ -4625,6 +5109,8 @@ class NuevaVenta extends Component
                         'cantidad' => $item['cantidad'],
                         'precio_unitario' => $item['precio'],
                         'descuento' => 0,
+                        'opcionales' => $item['opcionales'] ?? [],
+                        'precio_opcionales' => $item['precio_opcionales'] ?? 0,
                     ];
                 }
 
@@ -4663,13 +5149,6 @@ class NuevaVenta extends Component
                     'movimiento_caja_id' => $movimientoCajaId,
                 ]);
 
-                // Actualizar saldo del cliente si es cuenta corriente
-                if ($esCuentaCorriente && $this->clienteSeleccionado) {
-                    $cliente = Cliente::find($this->clienteSeleccionado);
-                    $cliente->increment('saldo_deudor_cache', $totalVenta);
-                    $cliente->update(['ultimo_movimiento_cc_at' => now()]);
-                }
-
                 // Generar comprobante fiscal si corresponde
                 $comprobanteFiscal = null;
                 if ($debeFacturar) {
@@ -4696,6 +5175,16 @@ class NuevaVenta extends Component
                     }
                 }
 
+                // Registrar movimientos de cuenta corriente si el cliente tiene CC habilitada
+                // Se hace DESPUÉS de la facturación para que los comprobantes fiscales ya existan
+                if ($this->clienteSeleccionado) {
+                    $clienteCC = Cliente::find($this->clienteSeleccionado);
+                    if ($clienteCC && $clienteCC->tiene_cuenta_corriente) {
+                        $ventaService = new \App\Services\VentaService();
+                        $ventaService->procesarPagosCuentaCorriente($venta, auth()->id());
+                    }
+                }
+
                 DB::connection('pymes_tenant')->commit();
 
                 // Mensaje de éxito
@@ -4705,6 +5194,13 @@ class NuevaVenta extends Component
                 }
 
                 $this->dispatch('toast-success', message: $mensaje);
+
+                // Mostrar advertencias de stock si las hay (modo 'advierte')
+                if (!empty($this->ventaService->advertenciasStock)) {
+                    foreach ($this->ventaService->advertenciasStock as $adv) {
+                        $this->dispatch('toast-warning', message: __('Advertencia de stock') . ': ' . $adv);
+                    }
+                }
 
                 // Disparar evento para impresion automatica
                 $this->dispararEventoImpresion($venta, $comprobanteFiscal);
@@ -4725,6 +5221,23 @@ class NuevaVenta extends Component
         }
     }
 
+    public function confirmarLimpiarCarrito()
+    {
+        if (empty($this->items)) return;
+        $this->mostrarConfirmLimpiar = true;
+    }
+
+    public function cancelarLimpiarCarrito()
+    {
+        $this->mostrarConfirmLimpiar = false;
+    }
+
+    public function ejecutarLimpiarCarrito()
+    {
+        $this->mostrarConfirmLimpiar = false;
+        $this->limpiarCarrito();
+    }
+
     public function limpiarCarrito($mostrarMensaje = true)
     {
         // Resetear carrito y resultado
@@ -4741,6 +5254,7 @@ class NuevaVenta extends Component
         $this->busquedaArticulo = '';
         $this->codigoBarrasInput = '';
         $this->articulosResultados = [];
+        $this->cantidadAgregar = 1;
 
         // Resetear observaciones
         $this->observaciones = null;
@@ -4797,10 +5311,20 @@ class NuevaVenta extends Component
         $this->puntoVentaSeleccionadoId = null;
         $this->puntosVentaDisponibles = [];
 
+        // Resetear wizard de opcionales
+        $this->mostrarWizardOpcionales = false;
+        $this->wizardArticuloId = null;
+        $this->wizardArticuloData = null;
+        $this->wizardGrupos = [];
+        $this->wizardPasoActual = 0;
+        $this->wizardSelecciones = [];
+        $this->wizardEditandoIndex = null;
+
         // Resetear modales
         $this->mostrarModalConsulta = false;
         $this->mostrarModalConcepto = false;
         $this->mostrarModalClienteRapido = false;
+        $this->mostrarConfirmLimpiar = false;
         $this->articuloConsulta = null;
         $this->modoConsulta = false;
         $this->modoBusqueda = false;

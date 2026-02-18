@@ -3,13 +3,19 @@
 namespace App\Livewire\Articulos;
 
 use App\Models\Articulo;
+use App\Models\ArticuloGrupoOpcional;
 use App\Models\Categoria;
 use App\Models\GrupoEtiqueta;
+use App\Models\GrupoOpcional;
+use App\Models\Receta;
+use App\Models\RecetaIngrediente;
 use App\Models\Sucursal;
 use App\Models\TipoIva;
+use App\Services\OpcionalService;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Componente Livewire para gestión de artículos
@@ -26,8 +32,11 @@ class GestionarArticulos extends Component
     // Propiedades de filtros
     public string $search = '';
     public string $filterStatus = 'all'; // all, active, inactive
-    public string $filterSucursal = 'all';
-    public string $filterCategory = 'all';
+    public string $filterTipo = 'all'; // all, articulo, materia_prima
+    public array $categoriasSeleccionadas = [];
+    public array $etiquetasSeleccionadasFiltro = [];
+    public string $busquedaCategoriaFiltro = '';
+    public string $busquedaEtiquetaFiltro = '';
     public bool $showFilters = false;
 
     // Propiedades del modal
@@ -40,14 +49,42 @@ class GestionarArticulos extends Component
     public ?int $articuloAEliminar = null;
     public ?string $nombreArticuloAEliminar = null;
 
+    // Modal de opcionales
+    public bool $showOpcionalesModal = false;
+    public ?int $opcionalesArticuloId = null;
+    public string $opcionalesArticuloNombre = '';
+    public array $gruposAsignados = [];
+    public bool $mostrandoAgregarGrupo = false;
+    public string $busquedaGrupo = '';
+
+    // Submodal confirmar desasignación
+    public bool $showDesasignarModal = false;
+    public ?int $grupoADesasignar = null;
+    public ?string $nombreGrupoADesasignar = null;
+
+    // Modal de receta
+    public bool $showRecetaModal = false;
+    public ?int $recetaArticuloId = null;
+    public string $recetaArticuloNombre = '';
+    public ?int $recetaId = null;
+    public array $recetaIngredientes = [];
+    public string $busquedaIngrediente = '';
+    public array $resultadosBusqueda = [];
+    public string $recetaCantidadProducida = '1.000';
+    public string $recetaNotas = '';
+    public bool $recetaEsOverride = false;
+    public ?string $recetaSucursalNombre = null;
+
+    // Submodal confirmar eliminar receta
+    public bool $showDeleteRecetaModal = false;
+
     // Propiedades del formulario
     public string $codigo = '';
     public string $nombre = '';
     public string $descripcion = '';
     public ?int $categoria_id = null;
     public string $unidad_medida = 'unidad';
-    public bool $es_servicio = false;
-    public bool $controla_stock = true;
+    public bool $es_materia_prima = false;
     public ?int $tipo_iva_id = null;
     public bool $precio_iva_incluido = true;
     public ?float $precio_base = null;
@@ -76,18 +113,23 @@ class GestionarArticulos extends Component
         $this->resetPage();
     }
 
-    /**
-     * Actualiza el filtro de sucursal y resetea la paginación
-     */
-    public function updatingFilterSucursal(): void
+    public function updatingFilterTipo(): void
     {
         $this->resetPage();
     }
 
     /**
-     * Actualiza el filtro de categoría y resetea la paginación
+     * Actualiza el filtro de categorías y resetea la paginación
      */
-    public function updatingFilterCategory(): void
+    public function updatingCategoriasSeleccionadas(): void
+    {
+        $this->resetPage();
+    }
+
+    /**
+     * Actualiza el filtro de etiquetas y resetea la paginación
+     */
+    public function updatingEtiquetasSeleccionadasFiltro(): void
     {
         $this->resetPage();
     }
@@ -105,9 +147,17 @@ class GestionarArticulos extends Component
      */
     protected function getArticulos()
     {
+        $sucursalId = sucursal_activa();
+
         $query = Articulo::with(['categoriaModel', 'tipoIva', 'sucursales' => function($query) {
             $query->wherePivot('activo', true);
-        }]);
+        }])
+        ->withCount(['gruposOpcionales as grupos_opcionales_count' => function ($q) use ($sucursalId) {
+            if ($sucursalId) {
+                $q->where('sucursal_id', $sucursalId);
+            }
+        }])
+        ->withCount(['recetas as tiene_receta' => fn($q) => $q->whereNull('sucursal_id')->where('activo', true)]);
 
         // Filtro de búsqueda
         if ($this->search) {
@@ -123,21 +173,21 @@ class GestionarArticulos extends Component
             $query->where('activo', $this->filterStatus === 'active');
         }
 
-        // Filtro de sucursal
-        if ($this->filterSucursal !== 'all') {
-            $query->whereHas('sucursales', function($q) {
-                $q->where('sucursal_id', $this->filterSucursal)
-                  ->where('articulo_sucursal.activo', true);
-            });
+        // Filtro de tipo
+        if ($this->filterTipo !== 'all') {
+            $query->where('es_materia_prima', $this->filterTipo === 'materia_prima');
         }
 
-        // Filtro de categoría
-        if ($this->filterCategory !== 'all') {
-            if ($this->filterCategory === 'none') {
-                $query->whereNull('categoria_id');
-            } else {
-                $query->where('categoria_id', $this->filterCategory);
-            }
+        // Filtro de categorías (checkboxes múltiples)
+        if (!empty($this->categoriasSeleccionadas)) {
+            $query->whereIn('categoria_id', $this->categoriasSeleccionadas);
+        }
+
+        // Filtro de etiquetas (checkboxes múltiples)
+        if (!empty($this->etiquetasSeleccionadasFiltro)) {
+            $query->whereHas('etiquetas', function ($q) {
+                $q->whereIn('etiquetas.id', $this->etiquetasSeleccionadasFiltro);
+            });
         }
 
         return $query->orderBy('nombre')->paginate(10);
@@ -150,13 +200,12 @@ class GestionarArticulos extends Component
     {
         $this->reset([
             'codigo', 'nombre', 'descripcion', 'categoria_id',
-            'unidad_medida', 'es_servicio', 'controla_stock', 'tipo_iva_id',
+            'unidad_medida', 'es_materia_prima', 'tipo_iva_id',
             'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
             'etiquetas_seleccionadas', 'busquedaEtiqueta'
         ]);
         $this->editMode = false;
         $this->activo = true;
-        $this->controla_stock = true;
         $this->precio_iva_incluido = true;
         $this->unidad_medida = 'unidad';
         $this->precio_base = null;
@@ -180,8 +229,7 @@ class GestionarArticulos extends Component
         $this->descripcion = $articulo->descripcion ?? '';
         $this->categoria_id = $articulo->categoria_id;
         $this->unidad_medida = $articulo->unidad_medida ?? 'unidad';
-        $this->es_servicio = $articulo->es_servicio ?? false;
-        $this->controla_stock = $articulo->controla_stock ?? true;
+        $this->es_materia_prima = $articulo->es_materia_prima ?? false;
         $this->tipo_iva_id = $articulo->tipo_iva_id;
         $this->precio_iva_incluido = $articulo->precio_iva_incluido ?? true;
         $this->precio_base = $articulo->precio_base;
@@ -212,8 +260,7 @@ class GestionarArticulos extends Component
             'descripcion' => 'nullable|string|max:1000',
             'categoria_id' => 'nullable|exists:pymes_tenant.categorias,id',
             'unidad_medida' => 'required|string|max:50',
-            'es_servicio' => 'boolean',
-            'controla_stock' => 'boolean',
+            'es_materia_prima' => 'boolean',
             'tipo_iva_id' => 'required|exists:pymes_tenant.tipos_iva,id',
             'precio_iva_incluido' => 'boolean',
             'precio_base' => 'required|numeric|min:0',
@@ -228,8 +275,7 @@ class GestionarArticulos extends Component
             'descripcion' => $this->descripcion ?: null,
             'categoria_id' => $this->categoria_id,
             'unidad_medida' => $this->unidad_medida,
-            'es_servicio' => $this->es_servicio,
-            'controla_stock' => $this->controla_stock,
+            'es_materia_prima' => $this->es_materia_prima,
             'tipo_iva_id' => $this->tipo_iva_id,
             'precio_iva_incluido' => $this->precio_iva_incluido,
             'precio_base' => $this->precio_base,
@@ -273,7 +319,7 @@ class GestionarArticulos extends Component
         $this->showModal = false;
         $this->reset([
             'codigo', 'nombre', 'descripcion', 'categoria_id',
-            'unidad_medida', 'es_servicio', 'controla_stock', 'tipo_iva_id',
+            'unidad_medida', 'es_materia_prima', 'tipo_iva_id',
             'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
             'sucursales_seleccionadas', 'etiquetas_seleccionadas', 'busquedaEtiqueta'
         ]);
@@ -287,7 +333,7 @@ class GestionarArticulos extends Component
         $this->showModal = false;
         $this->reset([
             'codigo', 'nombre', 'descripcion', 'categoria_id',
-            'unidad_medida', 'es_servicio', 'controla_stock', 'tipo_iva_id',
+            'unidad_medida', 'es_materia_prima', 'tipo_iva_id',
             'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
             'sucursales_seleccionadas', 'etiquetas_seleccionadas', 'busquedaEtiqueta'
         ]);
@@ -359,51 +405,462 @@ class GestionarArticulos extends Component
         $this->cancelarEliminar();
     }
 
+    // ===== Opcionales Modal =====
+
+    public function gestionarOpcionales(int $articuloId): void
+    {
+        $articulo = Articulo::findOrFail($articuloId);
+        $this->opcionalesArticuloId = $articulo->id;
+        $this->opcionalesArticuloNombre = $articulo->nombre;
+
+        $this->cargarGruposAsignados();
+        $this->showOpcionalesModal = true;
+    }
+
+    protected function cargarGruposAsignados(): void
+    {
+        if (!$this->opcionalesArticuloId) return;
+
+        $sucursalId = sucursal_activa();
+
+        $asignaciones = ArticuloGrupoOpcional::with([
+                'grupoOpcional.opcionales' => fn($q) => $q->where('activo', true)->orderBy('orden'),
+            ])
+            ->where('articulo_id', $this->opcionalesArticuloId)
+            ->where('sucursal_id', $sucursalId)
+            ->orderBy('orden')
+            ->get();
+
+        $this->gruposAsignados = $asignaciones->map(function ($asig) {
+            return [
+                'id' => $asig->id,
+                'grupo_id' => $asig->grupo_opcional_id,
+                'nombre' => $asig->grupoOpcional->nombre,
+                'tipo' => $asig->grupoOpcional->tipo,
+                'obligatorio' => $asig->grupoOpcional->obligatorio,
+                'activo' => $asig->activo,
+                'orden' => $asig->orden,
+                'opciones' => $asig->grupoOpcional->opcionales->map(fn($op) => [
+                    'id' => $op->id,
+                    'nombre' => $op->nombre,
+                    'precio_extra' => $op->precio_extra,
+                ])->toArray(),
+            ];
+        })->toArray();
+    }
+
+    public function abrirAgregarGrupo(): void
+    {
+        $this->busquedaGrupo = '';
+        $this->mostrandoAgregarGrupo = true;
+    }
+
+    public function cancelarAgregarGrupo(): void
+    {
+        $this->mostrandoAgregarGrupo = false;
+        $this->busquedaGrupo = '';
+    }
+
+    public function getGruposDisponiblesProperty(): array
+    {
+        $gruposYaAsignados = collect($this->gruposAsignados)->pluck('grupo_id')->toArray();
+
+        $query = GrupoOpcional::where('activo', true)
+            ->whereNotIn('id', $gruposYaAsignados)
+            ->withCount(['opcionales' => fn($q) => $q->where('activo', true)]);
+
+        if ($this->busquedaGrupo) {
+            $query->where(function ($q) {
+                $q->where('nombre', 'like', '%' . $this->busquedaGrupo . '%')
+                  ->orWhere('descripcion', 'like', '%' . $this->busquedaGrupo . '%');
+            });
+        }
+
+        return $query->orderBy('nombre')->limit(20)->get()->map(fn($g) => [
+            'id' => $g->id,
+            'nombre' => $g->nombre,
+            'tipo' => $g->tipo,
+            'obligatorio' => $g->obligatorio,
+            'opcionales_count' => $g->opcionales_count,
+        ])->toArray();
+    }
+
+    public function asignarGrupo(int $grupoId): void
+    {
+        if (!$this->opcionalesArticuloId) return;
+
+        $service = app(OpcionalService::class);
+        $count = $service->asignarGrupoAArticulo($this->opcionalesArticuloId, $grupoId);
+
+        $grupo = GrupoOpcional::find($grupoId);
+        $nombre = $grupo ? $grupo->nombre : '';
+
+        $this->js("window.notify('" . addslashes(__('Grupo ":nombre" asignado en :count sucursales', ['nombre' => $nombre, 'count' => $count])) . "', 'success')");
+
+        $this->mostrandoAgregarGrupo = false;
+        $this->cargarGruposAsignados();
+    }
+
+    public function moverGrupoArriba(int $index): void
+    {
+        if ($index <= 0 || !$this->opcionalesArticuloId) return;
+
+        $grupoActual = $this->gruposAsignados[$index];
+        $grupoAnterior = $this->gruposAsignados[$index - 1];
+
+        $this->intercambiarOrden($grupoActual['grupo_id'], $grupoAnterior['grupo_id']);
+        $this->cargarGruposAsignados();
+    }
+
+    public function moverGrupoAbajo(int $index): void
+    {
+        if ($index >= count($this->gruposAsignados) - 1 || !$this->opcionalesArticuloId) return;
+
+        $grupoActual = $this->gruposAsignados[$index];
+        $grupoSiguiente = $this->gruposAsignados[$index + 1];
+
+        $this->intercambiarOrden($grupoActual['grupo_id'], $grupoSiguiente['grupo_id']);
+        $this->cargarGruposAsignados();
+    }
+
+    protected function intercambiarOrden(int $grupoIdA, int $grupoIdB): void
+    {
+        $sucursalId = sucursal_activa();
+        $asignaciones = ArticuloGrupoOpcional::where('articulo_id', $this->opcionalesArticuloId)
+            ->where('sucursal_id', $sucursalId)
+            ->orderBy('orden')
+            ->get();
+
+        foreach ($asignaciones as $i => $asig) {
+            if ($asig->orden !== $i) {
+                ArticuloGrupoOpcional::where('articulo_id', $this->opcionalesArticuloId)
+                    ->where('grupo_opcional_id', $asig->grupo_opcional_id)
+                    ->update(['orden' => $i]);
+            }
+        }
+
+        $ordenA = ArticuloGrupoOpcional::where('articulo_id', $this->opcionalesArticuloId)
+            ->where('grupo_opcional_id', $grupoIdA)
+            ->where('sucursal_id', $sucursalId)
+            ->value('orden');
+
+        $ordenB = ArticuloGrupoOpcional::where('articulo_id', $this->opcionalesArticuloId)
+            ->where('grupo_opcional_id', $grupoIdB)
+            ->where('sucursal_id', $sucursalId)
+            ->value('orden');
+
+        ArticuloGrupoOpcional::where('articulo_id', $this->opcionalesArticuloId)
+            ->where('grupo_opcional_id', $grupoIdA)
+            ->update(['orden' => $ordenB]);
+
+        ArticuloGrupoOpcional::where('articulo_id', $this->opcionalesArticuloId)
+            ->where('grupo_opcional_id', $grupoIdB)
+            ->update(['orden' => $ordenA]);
+    }
+
+    public function confirmarDesasignar(int $grupoId, string $nombre): void
+    {
+        $this->grupoADesasignar = $grupoId;
+        $this->nombreGrupoADesasignar = $nombre;
+        $this->showDesasignarModal = true;
+    }
+
+    public function desasignarGrupo(): void
+    {
+        if (!$this->opcionalesArticuloId || !$this->grupoADesasignar) return;
+
+        $service = app(OpcionalService::class);
+        $service->desasignarGrupoDeArticulo($this->opcionalesArticuloId, $this->grupoADesasignar);
+
+        $this->js("window.notify('" . addslashes(__('Grupo desasignado correctamente')) . "', 'success')");
+        $this->showDesasignarModal = false;
+        $this->grupoADesasignar = null;
+        $this->nombreGrupoADesasignar = null;
+        $this->cargarGruposAsignados();
+    }
+
+    public function cancelarDesasignar(): void
+    {
+        $this->showDesasignarModal = false;
+        $this->grupoADesasignar = null;
+        $this->nombreGrupoADesasignar = null;
+    }
+
+    public function cancelarOpcionales(): void
+    {
+        $this->showOpcionalesModal = false;
+        $this->mostrandoAgregarGrupo = false;
+        $this->opcionalesArticuloId = null;
+        $this->opcionalesArticuloNombre = '';
+        $this->gruposAsignados = [];
+    }
+
+    // ===== Receta Modal =====
+
+    public function editarReceta(int $articuloId): void
+    {
+        $articulo = Articulo::findOrFail($articuloId);
+
+        $this->recetaArticuloId = $articulo->id;
+        $this->recetaArticuloNombre = $articulo->nombre;
+        $this->recetaEsOverride = false;
+        $this->recetaSucursalNombre = null;
+
+        $receta = Receta::where('recetable_type', 'Articulo')
+            ->where('recetable_id', $articuloId)
+            ->whereNull('sucursal_id')
+            ->with('ingredientes.articulo')
+            ->first();
+
+        if ($receta) {
+            $this->recetaId = $receta->id;
+            $this->recetaCantidadProducida = (string) $receta->cantidad_producida;
+            $this->recetaNotas = $receta->notas ?? '';
+            $this->recetaIngredientes = $receta->ingredientes->map(fn($ing) => [
+                'articulo_id' => $ing->articulo_id,
+                'codigo' => $ing->articulo->codigo ?? '',
+                'nombre' => $ing->articulo->nombre ?? __('Artículo eliminado'),
+                'unidad_medida' => $ing->articulo->unidad_medida ?? '',
+                'cantidad' => (string) $ing->cantidad,
+            ])->toArray();
+        } else {
+            $this->recetaId = null;
+            $this->recetaCantidadProducida = '1.000';
+            $this->recetaNotas = '';
+            $this->recetaIngredientes = [];
+        }
+
+        $this->busquedaIngrediente = '';
+        $this->resultadosBusqueda = [];
+        $this->showRecetaModal = true;
+    }
+
+    public function updatedBusquedaIngrediente(): void
+    {
+        if (strlen($this->busquedaIngrediente) < 2) {
+            $this->resultadosBusqueda = [];
+            return;
+        }
+
+        $excluirIds = collect($this->recetaIngredientes)->pluck('articulo_id')->toArray();
+        if ($this->recetaArticuloId) {
+            $excluirIds[] = $this->recetaArticuloId;
+        }
+
+        $this->resultadosBusqueda = Articulo::where('activo', true)
+            ->whereNotIn('id', $excluirIds)
+            ->where(function ($q) {
+                $q->where('codigo', 'like', '%' . $this->busquedaIngrediente . '%')
+                  ->orWhere('nombre', 'like', '%' . $this->busquedaIngrediente . '%');
+            })
+            ->orderBy('nombre')
+            ->limit(10)
+            ->get(['id', 'codigo', 'nombre', 'unidad_medida'])
+            ->map(fn($a) => [
+                'id' => $a->id,
+                'codigo' => $a->codigo,
+                'nombre' => $a->nombre,
+                'unidad_medida' => $a->unidad_medida,
+            ])
+            ->toArray();
+    }
+
+    public function agregarPrimerIngrediente(): void
+    {
+        if (count($this->resultadosBusqueda) > 0) {
+            $this->agregarIngrediente($this->resultadosBusqueda[0]['id']);
+        }
+    }
+
+    public function agregarIngrediente(int $articuloId): void
+    {
+        $articulo = Articulo::find($articuloId);
+        if (!$articulo) return;
+
+        foreach ($this->recetaIngredientes as $ing) {
+            if ($ing['articulo_id'] == $articuloId) return;
+        }
+
+        $this->recetaIngredientes[] = [
+            'articulo_id' => $articulo->id,
+            'codigo' => $articulo->codigo,
+            'nombre' => $articulo->nombre,
+            'unidad_medida' => $articulo->unidad_medida,
+            'cantidad' => '1.000',
+        ];
+
+        $this->busquedaIngrediente = '';
+        $this->resultadosBusqueda = [];
+    }
+
+    public function eliminarIngrediente(int $index): void
+    {
+        unset($this->recetaIngredientes[$index]);
+        $this->recetaIngredientes = array_values($this->recetaIngredientes);
+    }
+
+    public function guardarReceta(): void
+    {
+        if (!$this->recetaArticuloId) return;
+
+        if (empty($this->recetaIngredientes)) {
+            $this->js("window.notify('" . addslashes(__('La receta debe tener al menos un ingrediente')) . "', 'error')");
+            return;
+        }
+
+        foreach ($this->recetaIngredientes as $ing) {
+            if (!isset($ing['cantidad']) || (float) $ing['cantidad'] <= 0) {
+                $this->js("window.notify('" . addslashes(__('Todas las cantidades deben ser mayores a 0')) . "', 'error')");
+                return;
+            }
+        }
+
+        DB::connection('pymes_tenant')->transaction(function () {
+            if ($this->recetaId) {
+                $receta = Receta::findOrFail($this->recetaId);
+                $receta->update([
+                    'cantidad_producida' => $this->recetaCantidadProducida,
+                    'notas' => $this->recetaNotas ?: null,
+                ]);
+            } else {
+                $receta = Receta::create([
+                    'recetable_type' => 'Articulo',
+                    'recetable_id' => $this->recetaArticuloId,
+                    'sucursal_id' => null,
+                    'cantidad_producida' => $this->recetaCantidadProducida,
+                    'notas' => $this->recetaNotas ?: null,
+                    'activo' => true,
+                ]);
+            }
+
+            $receta->ingredientes()->delete();
+            foreach ($this->recetaIngredientes as $ing) {
+                $receta->ingredientes()->create([
+                    'articulo_id' => $ing['articulo_id'],
+                    'cantidad' => $ing['cantidad'],
+                ]);
+            }
+        });
+
+        $this->js("window.notify('" . addslashes(__('Receta guardada correctamente')) . "', 'success')");
+        $this->showRecetaModal = false;
+        $this->resetReceta();
+    }
+
+    public function confirmarEliminarReceta(): void
+    {
+        if ($this->recetaId) {
+            $this->showDeleteRecetaModal = true;
+        }
+    }
+
+    public function eliminarReceta(): void
+    {
+        if (!$this->recetaId) return;
+
+        $receta = Receta::find($this->recetaId);
+        if ($receta) {
+            $receta->ingredientes()->delete();
+            $receta->delete();
+        }
+
+        $this->js("window.notify('" . addslashes(__('Receta eliminada correctamente')) . "', 'success')");
+        $this->showDeleteRecetaModal = false;
+        $this->showRecetaModal = false;
+        $this->resetReceta();
+    }
+
+    public function cancelarReceta(): void
+    {
+        $this->showRecetaModal = false;
+        $this->resetReceta();
+    }
+
+    public function cancelarEliminarReceta(): void
+    {
+        $this->showDeleteRecetaModal = false;
+    }
+
+    protected function resetReceta(): void
+    {
+        $this->recetaArticuloId = null;
+        $this->recetaArticuloNombre = '';
+        $this->recetaId = null;
+        $this->recetaIngredientes = [];
+        $this->busquedaIngrediente = '';
+        $this->resultadosBusqueda = [];
+        $this->recetaCantidadProducida = '1.000';
+        $this->recetaNotas = '';
+        $this->recetaEsOverride = false;
+        $this->recetaSucursalNombre = null;
+    }
+
     /**
      * Renderiza el componente
      */
     public function render()
     {
+        // Categorías para el modal de edición (sin filtrar)
         $categorias = Categoria::where('activo', true)->orderBy('nombre')->get();
         $tiposIva = TipoIva::orderBy('porcentaje')->get();
-
-        // Obtener sucursales del usuario actual
-        $user = auth()->user();
-        if ($user && method_exists($user, 'sucursales')) {
-            $sucursalesUsuario = $user->sucursales()->orderBy('nombre')->get();
-        } else {
-            $sucursalesUsuario = Sucursal::orderBy('nombre')->get();
-        }
 
         // Todas las sucursales para el modal de edición
         $sucursales = Sucursal::orderBy('nombre')->get();
 
-        // Grupos de etiquetas con sus etiquetas activas (filtradas por búsqueda)
-        $busqueda = $this->busquedaEtiqueta;
+        // Categorías para el panel de filtros (con búsqueda)
+        $categoriasFiltroQuery = Categoria::where('activo', true);
+        if ($this->busquedaCategoriaFiltro) {
+            $categoriasFiltroQuery->where('nombre', 'like', '%' . $this->busquedaCategoriaFiltro . '%');
+        }
+        $categoriasFiltro = $categoriasFiltroQuery->orderBy('nombre')->get();
 
+        // Grupos de etiquetas para el panel de filtros (con búsqueda)
+        $busquedaFiltro = $this->busquedaEtiquetaFiltro;
+        $gruposEtiquetasFiltroQuery = GrupoEtiqueta::where('activo', true);
+
+        if ($busquedaFiltro) {
+            $gruposEtiquetasFiltroQuery->where(function ($query) use ($busquedaFiltro) {
+                $query->where('nombre', 'like', '%' . $busquedaFiltro . '%')
+                      ->orWhereHas('etiquetas', function ($q) use ($busquedaFiltro) {
+                          $q->where('activo', true)
+                            ->where('nombre', 'like', '%' . $busquedaFiltro . '%');
+                      });
+            });
+        }
+
+        $gruposEtiquetasFiltro = $gruposEtiquetasFiltroQuery->orderBy('orden')->orderBy('nombre')->get();
+
+        foreach ($gruposEtiquetasFiltro as $grupo) {
+            $etiquetasQuery = $grupo->etiquetas()->where('activo', true);
+
+            if ($busquedaFiltro && !str_contains(strtolower($grupo->nombre), strtolower($busquedaFiltro))) {
+                $etiquetasQuery->where('nombre', 'like', '%' . $busquedaFiltro . '%');
+            }
+
+            $grupo->setRelation('etiquetas', $etiquetasQuery->orderBy('orden')->orderBy('nombre')->get());
+        }
+
+        // Grupos de etiquetas para el modal de edición (con búsqueda del modal)
+        $busquedaModal = $this->busquedaEtiqueta;
         $gruposEtiquetasQuery = GrupoEtiqueta::where('activo', true);
 
-        // Si hay búsqueda, filtrar grupos que coincidan o que tengan etiquetas que coincidan
-        if ($busqueda) {
-            $gruposEtiquetasQuery->where(function ($query) use ($busqueda) {
-                $query->where('nombre', 'like', '%' . $busqueda . '%')
-                      ->orWhereHas('etiquetas', function ($q) use ($busqueda) {
+        if ($busquedaModal) {
+            $gruposEtiquetasQuery->where(function ($query) use ($busquedaModal) {
+                $query->where('nombre', 'like', '%' . $busquedaModal . '%')
+                      ->orWhereHas('etiquetas', function ($q) use ($busquedaModal) {
                           $q->where('activo', true)
-                            ->where('nombre', 'like', '%' . $busqueda . '%');
+                            ->where('nombre', 'like', '%' . $busquedaModal . '%');
                       });
             });
         }
 
         $gruposEtiquetas = $gruposEtiquetasQuery->orderBy('orden')->orderBy('nombre')->get();
 
-        // Cargar etiquetas filtradas para cada grupo
         foreach ($gruposEtiquetas as $grupo) {
             $etiquetasQuery = $grupo->etiquetas()->where('activo', true);
 
-            // Si hay búsqueda y el grupo NO coincide con la búsqueda, filtrar etiquetas
-            // Si el grupo SÍ coincide, mostrar todas sus etiquetas
-            if ($busqueda && !str_contains(strtolower($grupo->nombre), strtolower($busqueda))) {
-                $etiquetasQuery->where('nombre', 'like', '%' . $busqueda . '%');
+            if ($busquedaModal && !str_contains(strtolower($grupo->nombre), strtolower($busquedaModal))) {
+                $etiquetasQuery->where('nombre', 'like', '%' . $busquedaModal . '%');
             }
 
             $grupo->setRelation('etiquetas', $etiquetasQuery->orderBy('orden')->orderBy('nombre')->get());
@@ -412,10 +869,11 @@ class GestionarArticulos extends Component
         return view('livewire.articulos.gestionar-articulos', [
             'articulos' => $this->getArticulos(),
             'categorias' => $categorias,
+            'categoriasFiltro' => $categoriasFiltro,
             'tiposIva' => $tiposIva,
             'sucursales' => $sucursales,
-            'sucursalesUsuario' => $sucursalesUsuario,
             'gruposEtiquetas' => $gruposEtiquetas,
+            'gruposEtiquetasFiltro' => $gruposEtiquetasFiltro,
         ]);
     }
 }

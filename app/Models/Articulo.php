@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
 
@@ -31,8 +32,7 @@ use Illuminate\Support\Collection;
  * @property string|null $marca
  * @property string $unidad_medida
  * @property float $precio_base Precio base del artículo
- * @property bool $es_servicio
- * @property bool $controla_stock
+ * @property bool $es_materia_prima
  * @property bool $activo
  * @property int $tipo_iva_id
  * @property bool $precio_iva_incluido
@@ -48,6 +48,8 @@ use Illuminate\Support\Collection;
  * @property-read \Illuminate\Database\Eloquent\Collection|PromocionCondicion[] $promocionesCondiciones
  * @property-read \Illuminate\Database\Eloquent\Collection|ListaPrecioArticulo[] $listaPrecioArticulos
  * @property-read \Illuminate\Database\Eloquent\Collection|Etiqueta[] $etiquetas
+ * @property-read \Illuminate\Database\Eloquent\Collection|Receta[] $recetas
+ * @property-read \Illuminate\Database\Eloquent\Collection|ArticuloGrupoOpcional[] $gruposOpcionales
  */
 class Articulo extends Model
 {
@@ -65,8 +67,7 @@ class Articulo extends Model
         'categoria', // Legacy - deprecado
         'unidad_medida',
         'precio_base',
-        'es_servicio',
-        'controla_stock',
+        'es_materia_prima',
         'activo',
         'tipo_iva_id',
         'precio_iva_incluido',
@@ -74,8 +75,7 @@ class Articulo extends Model
 
     protected $casts = [
         'precio_base' => 'decimal:2',
-        'es_servicio' => 'boolean',
-        'controla_stock' => 'boolean',
+        'es_materia_prima' => 'boolean',
         'activo' => 'boolean',
         'precio_iva_incluido' => 'boolean',
     ];
@@ -142,6 +142,11 @@ class Articulo extends Model
         return $this->hasMany(CompraDetalle::class, 'articulo_id');
     }
 
+    public function movimientosStock(): HasMany
+    {
+        return $this->hasMany(MovimientoStock::class, 'articulo_id');
+    }
+
     // Scopes
     public function scopeActivos($query)
     {
@@ -176,14 +181,20 @@ class Articulo extends Model
         return $query->where('categoria_id', $categoriaId);
     }
 
-    public function scopeConStock($query)
+    /**
+     * Scope: Artículos que controlan stock en una sucursal (modo_stock != 'ninguno')
+     */
+    public function scopeConStockEnSucursal($query, int $sucursalId)
     {
-        return $query->where('controla_stock', true);
+        return $query->whereHas('sucursales', function ($q) use ($sucursalId) {
+            $q->where('sucursal_id', $sucursalId)
+              ->where('modo_stock', '!=', 'ninguno');
+        });
     }
 
-    public function scopeServicios($query)
+    public function scopeMateriaPrima($query)
     {
-        return $query->where('es_servicio', true);
+        return $query->where('es_materia_prima', true);
     }
 
     // Métodos auxiliares
@@ -269,12 +280,35 @@ class Articulo extends Model
      */
     public function tieneStockSuficiente(int $sucursalId, float $cantidad): bool
     {
-        if (!$this->controla_stock) {
-            return true; // Si no controla stock, siempre hay suficiente
+        $modoStock = $this->getModoStock($sucursalId);
+
+        if ($modoStock === 'ninguno') {
+            return true;
         }
 
-        $stock = $this->getStockEnSucursal($sucursalId);
-        return $stock && $stock->cantidad >= $cantidad;
+        if ($modoStock === 'unitario') {
+            $stock = $this->getStockEnSucursal($sucursalId);
+            return $stock && $stock->cantidad >= $cantidad;
+        }
+
+        // modo 'receta': verificar stock de cada ingrediente
+        $receta = Receta::resolver('Articulo', $this->id, $sucursalId);
+        if (!$receta) {
+            return true; // Sin receta definida, no se puede verificar
+        }
+
+        $cantidadMultiplier = $cantidad / (float) $receta->cantidad_producida;
+        foreach ($receta->ingredientes as $ingrediente) {
+            $stockIngrediente = Stock::where('articulo_id', $ingrediente->articulo_id)
+                ->where('sucursal_id', $sucursalId)
+                ->first();
+            $necesario = (float) $ingrediente->cantidad * $cantidadMultiplier;
+            if (!$stockIngrediente || $stockIngrediente->cantidad < $necesario) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // ==================== Métodos del Sistema de Listas de Precios ====================
@@ -440,5 +474,73 @@ class Articulo extends Model
         return $query->whereHas('etiquetas', function ($q) use ($grupoIds) {
             $q->whereIn('grupo_etiqueta_id', $grupoIds);
         });
+    }
+
+    // ==================== Relaciones Recetas y Opcionales ====================
+
+    /**
+     * Recetas de este artículo (polimórfica).
+     * Puede tener una default (sucursal_id=null) y overrides por sucursal.
+     */
+    public function recetas(): MorphMany
+    {
+        return $this->morphMany(Receta::class, 'recetable');
+    }
+
+    /**
+     * Asignaciones de grupos opcionales a este artículo (todas las sucursales)
+     */
+    public function gruposOpcionales(): HasMany
+    {
+        return $this->hasMany(ArticuloGrupoOpcional::class, 'articulo_id');
+    }
+
+    /**
+     * Resuelve la receta para una sucursal (override > default)
+     */
+    public function resolverReceta(int $sucursalId): ?Receta
+    {
+        return Receta::resolver('Articulo', $this->id, $sucursalId);
+    }
+
+    /**
+     * Verifica si el artículo controla stock en una sucursal (modo_stock != 'ninguno')
+     */
+    public function controlaStock(int $sucursalId): bool
+    {
+        return $this->getModoStock($sucursalId) !== 'ninguno';
+    }
+
+    /**
+     * Obtiene el modo_stock del artículo en una sucursal.
+     * Usa query directa con try/catch para compatibilidad pre-migración.
+     */
+    public function getModoStock(int $sucursalId): string
+    {
+        try {
+            $row = \Illuminate\Support\Facades\DB::connection('pymes_tenant')
+                ->table('articulos_sucursales')
+                ->where('articulo_id', $this->id)
+                ->where('sucursal_id', $sucursalId)
+                ->select('modo_stock')
+                ->first();
+
+            return $row ? ($row->modo_stock ?? 'ninguno') : 'ninguno';
+        } catch (\Exception $e) {
+            return 'ninguno';
+        }
+    }
+
+    /**
+     * Obtiene los grupos opcionales asignados para una sucursal (solo activos)
+     */
+    public function gruposOpcionalesEnSucursal(int $sucursalId)
+    {
+        return $this->gruposOpcionales()
+                    ->where('sucursal_id', $sucursalId)
+                    ->where('activo', true)
+                    ->with(['grupoOpcional', 'opciones.opcional'])
+                    ->orderBy('orden')
+                    ->get();
     }
 }

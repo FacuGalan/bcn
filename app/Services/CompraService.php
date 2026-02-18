@@ -9,6 +9,7 @@ use App\Models\Caja;
 use App\Models\MovimientoCaja;
 use App\Models\Proveedor;
 use App\Models\Articulo;
+use App\Models\MovimientoStock;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -197,8 +198,8 @@ class CompraService
         foreach ($compra->detalles as $detalle) {
             $articulo = $detalle->articulo;
 
-            // Solo actualizar stock si el artículo lo controla
-            if (!$articulo->controla_stock) {
+            // Solo actualizar stock si el artículo lo controla en esta sucursal
+            if (!$articulo->controlaStock($compra->sucursal_id)) {
                 continue;
             }
 
@@ -217,6 +218,18 @@ class CompraService
             );
 
             $stock->aumentar($detalle->cantidad);
+
+            // Registrar movimiento de stock
+            MovimientoStock::crearMovimientoCompra(
+                $detalle->articulo_id,
+                $compra->sucursal_id,
+                $detalle->cantidad,
+                $compra->id,
+                $detalle->id,
+                "Compra #{$compra->id}",
+                $compra->usuario_id,
+                $detalle->precio_sin_iva
+            );
         }
     }
 
@@ -347,7 +360,7 @@ class CompraService
         foreach ($compra->detalles as $detalle) {
             $articulo = $detalle->articulo;
 
-            if (!$articulo->controla_stock) {
+            if (!$articulo->controlaStock($compra->sucursal_id)) {
                 continue;
             }
 
@@ -368,6 +381,17 @@ class CompraService
             }
 
             $stock->disminuir($detalle->cantidad);
+
+            // Registrar movimiento de anulación
+            MovimientoStock::crearMovimientoAnulacionCompra(
+                $detalle->articulo_id,
+                $compra->sucursal_id,
+                $detalle->cantidad,
+                $compra->id,
+                $detalle->id,
+                "Anulación Compra #{$compra->id}",
+                $compra->usuario_id
+            );
         }
     }
 

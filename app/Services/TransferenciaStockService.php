@@ -6,6 +6,7 @@ use App\Models\TransferenciaStock;
 use App\Models\Stock;
 use App\Models\Articulo;
 use App\Models\Sucursal;
+use App\Models\MovimientoStock;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -53,8 +54,8 @@ class TransferenciaStockService
             // Validar que el artículo existe
             $articulo = Articulo::findOrFail($data['articulo_id']);
 
-            if (!$articulo->controla_stock) {
-                throw new Exception('Este artículo no controla stock y no puede ser transferido');
+            if (!$articulo->controlaStock($data['sucursal_origen_id'])) {
+                throw new Exception('Este artículo no controla stock en la sucursal origen y no puede ser transferido');
             }
 
             // Validar stock disponible en sucursal origen
@@ -128,7 +129,7 @@ class TransferenciaStockService
 
             // Validar stock nuevamente
             $stock = Stock::where('sucursal_id', $transferencia->sucursal_origen_id)
-                         ->where('articulo_id', $transferencia->articulo_id')
+                         ->where('articulo_id', $transferencia->articulo_id)
                          ->first();
 
             if (!$stock || $stock->cantidad < $transferencia->cantidad) {
@@ -142,6 +143,18 @@ class TransferenciaStockService
 
             // Descontar stock de origen
             $stock->disminuir($transferencia->cantidad);
+
+            // Registrar movimiento de stock (salida por transferencia)
+            $sucursalDestino = Sucursal::find($transferencia->sucursal_destino_id);
+            $articulo = Articulo::find($transferencia->articulo_id);
+            MovimientoStock::crearMovimientoTransferenciaSalida(
+                $transferencia->articulo_id,
+                $transferencia->sucursal_origen_id,
+                $transferencia->cantidad,
+                $transferencia->id,
+                "Transferencia #{$transferencia->id} → {$sucursalDestino->nombre}",
+                $usuarioId
+            );
 
             // Aprobar la transferencia
             $transferencia->aprobar($usuarioId);
@@ -200,6 +213,18 @@ class TransferenciaStockService
             // Aumentar stock en destino
             $stockDestino->aumentar($transferencia->cantidad);
 
+            // Registrar movimiento de stock (entrada por transferencia)
+            $sucursalOrigen = Sucursal::find($transferencia->sucursal_origen_id);
+            $articulo = Articulo::find($transferencia->articulo_id);
+            MovimientoStock::crearMovimientoTransferenciaEntrada(
+                $transferencia->articulo_id,
+                $transferencia->sucursal_destino_id,
+                $transferencia->cantidad,
+                $transferencia->id,
+                "Transferencia #{$transferencia->id} ← {$sucursalOrigen->nombre}",
+                $usuarioId
+            );
+
             // Marcar como recibida
             $transferencia->recibir($usuarioId);
 
@@ -247,6 +272,20 @@ class TransferenciaStockService
 
                 if ($stock) {
                     $stock->aumentar($transferencia->cantidad);
+                }
+
+                // Crear contraasientos para los movimientos de esta transferencia
+                $movimientosSalida = MovimientoStock::where('transferencia_stock_id', $transferencia->id)
+                    ->where('tipo', MovimientoStock::TIPO_TRANSFERENCIA_SALIDA)
+                    ->activos()
+                    ->get();
+
+                foreach ($movimientosSalida as $movimiento) {
+                    MovimientoStock::crearContraasiento(
+                        $movimiento,
+                        'Cancelación de transferencia',
+                        $transferencia->usuario_solicita_id
+                    );
                 }
             }
 

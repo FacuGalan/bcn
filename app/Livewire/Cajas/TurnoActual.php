@@ -17,6 +17,7 @@ use App\Services\CajaService;
 use App\Services\SucursalService;
 use App\Services\TesoreriaService;
 use App\Models\Tesoreria;
+use App\Traits\SucursalAware;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -40,6 +41,8 @@ use Illuminate\Support\Collection;
  */
 class TurnoActual extends Component
 {
+    use SucursalAware;
+
     // Filtros y opciones de visualización
     public string $vistaMovimientos = 'agrupado';
     public ?int $cajaExpandida = null;
@@ -86,6 +89,20 @@ class TurnoActual extends Component
     public function mount(): void
     {
         $this->cajas = collect();
+        $this->cargarCajas();
+    }
+
+    /**
+     * Hook llamado cuando cambia la sucursal (desde SucursalAware trait)
+     */
+    protected function onSucursalChanged($sucursalId = null, $sucursalNombre = null): void
+    {
+        // Cerrar modales abiertos
+        $this->showCierreModal = false;
+        $this->showAperturaModal = false;
+        $this->showDetalleModal = false;
+
+        // Recargar cajas de la nueva sucursal
         $this->cargarCajas();
     }
 

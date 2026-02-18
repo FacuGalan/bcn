@@ -4,14 +4,19 @@ namespace App\Livewire\Clientes;
 
 use App\Models\Cliente;
 use App\Models\CondicionIva;
+use App\Models\Cuit;
 use App\Models\ListaPrecio;
 use App\Models\Proveedor;
+use App\Models\MovimientoCuentaCorriente;
 use App\Models\Sucursal;
+use App\Services\ARCA\PadronARCAService;
+use App\Traits\SucursalAware;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\WithFileUploads;
 use Livewire\Attributes\Layout;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Componente Livewire para gestión de clientes
@@ -24,11 +29,11 @@ use Illuminate\Support\Facades\DB;
 #[Layout('layouts.app')]
 class GestionarClientes extends Component
 {
-    use WithPagination, WithFileUploads;
+    use WithPagination, WithFileUploads, SucursalAware;
 
     // Propiedades de filtros
     public string $search = '';
-    public string $filterStatus = 'all'; // all, active, inactive
+    public string $filterStatus = 'all'; // all, active, inactive, deleted
     public string $filterSucursal = 'all';
     public string $filterCondicionIva = 'all';
     public string $filterCuentaCorriente = 'all'; // all, con_cc, sin_cc, con_deuda
@@ -85,6 +90,16 @@ class GestionarClientes extends Component
     public array $sucursales_importacion = [];
     public array $importacionResultado = [];
     public bool $importacionProcesada = false;
+
+    // Alta por CUIT (consulta ARCA)
+    public string $modoAlta = 'manual'; // 'manual' o 'cuit'
+    public bool $consultaArcaDisponible = false;
+    public bool $consultandoCuit = false;
+    public string $errorConsultaCuit = '';
+    public string $exitoConsultaCuit = '';
+    public bool $datosDesdeArca = false; // true = CUIT y condición IVA bloqueados
+    public string $validacionCuitMsg = ''; // mensaje de validación en modo manual
+    public string $validacionCuitTipo = ''; // 'success', 'error', 'info', ''
 
     /**
      * Reglas de validación
@@ -179,9 +194,16 @@ class GestionarClientes extends Component
      */
     protected function getClientes()
     {
-        $query = Cliente::with(['condicionIva', 'listaPrecio', 'proveedor', 'sucursales' => function($query) {
-            $query->wherePivot('activo', true);
-        }]);
+        // Si el filtro es "deleted", buscar solo los eliminados
+        if ($this->filterStatus === 'deleted') {
+            $query = Cliente::onlyTrashed()->with(['condicionIva', 'listaPrecio', 'proveedor', 'sucursales' => function($query) {
+                $query->wherePivot('activo', true);
+            }]);
+        } else {
+            $query = Cliente::with(['condicionIva', 'listaPrecio', 'proveedor', 'sucursales' => function($query) {
+                $query->wherePivot('activo', true);
+            }]);
+        }
 
         // Filtro de búsqueda
         if ($this->search) {
@@ -194,8 +216,8 @@ class GestionarClientes extends Component
             });
         }
 
-        // Filtro de estado
-        if ($this->filterStatus !== 'all') {
+        // Filtro de estado (activo/inactivo, no aplica si es "deleted")
+        if ($this->filterStatus !== 'all' && $this->filterStatus !== 'deleted') {
             $query->where('activo', $this->filterStatus === 'active');
         }
 
@@ -222,8 +244,17 @@ class GestionarClientes extends Component
                     $query->where('tiene_cuenta_corriente', false);
                     break;
                 case 'con_deuda':
+                    $sucId = session('sucursal_id');
                     $query->where('tiene_cuenta_corriente', true)
-                          ->where('saldo_deudor_cache', '>', 0);
+                          ->whereExists(function ($q) use ($sucId) {
+                              $q->select(DB::raw(1))
+                                ->from('movimientos_cuenta_corriente')
+                                ->whereColumn('movimientos_cuenta_corriente.cliente_id', 'clientes.id')
+                                ->where('movimientos_cuenta_corriente.sucursal_id', $sucId)
+                                ->where('movimientos_cuenta_corriente.estado', 'activo')
+                                ->groupBy('movimientos_cuenta_corriente.cliente_id')
+                                ->havingRaw('COALESCE(SUM(debe), 0) - COALESCE(SUM(haber), 0) > 0');
+                          });
                     break;
             }
         }
@@ -237,7 +268,28 @@ class GestionarClientes extends Component
             }
         }
 
-        return $query->orderBy('nombre')->paginate(15);
+        $clientes = $query->orderBy('nombre')->paginate(15);
+
+        // Calcular saldo deudor por sucursal activa
+        $sucursalId = session('sucursal_id');
+        if ($sucursalId) {
+            $clienteIds = $clientes->pluck('id')->toArray();
+            if (!empty($clienteIds)) {
+                $saldos = MovimientoCuentaCorriente::select('cliente_id')
+                    ->selectRaw('COALESCE(SUM(debe), 0) - COALESCE(SUM(haber), 0) as saldo_deudor')
+                    ->where('sucursal_id', $sucursalId)
+                    ->where('estado', 'activo')
+                    ->whereIn('cliente_id', $clienteIds)
+                    ->groupBy('cliente_id')
+                    ->pluck('saldo_deudor', 'cliente_id');
+
+                foreach ($clientes as $cliente) {
+                    $cliente->saldo_deudor_sucursal = (float) ($saldos[$cliente->id] ?? 0);
+                }
+            }
+        }
+
+        return $clientes;
     }
 
     /**
@@ -251,6 +303,10 @@ class GestionarClientes extends Component
         // Establecer Consumidor Final como default
         $consumidorFinal = CondicionIva::where('codigo', CondicionIva::CONSUMIDOR_FINAL)->first();
         $this->condicion_iva_id = $consumidorFinal?->id;
+
+        // Verificar disponibilidad de consulta ARCA
+        $this->consultaArcaDisponible = PadronARCAService::estaDisponible();
+        $this->modoAlta = 'manual';
 
         $this->showModal = true;
     }
@@ -286,6 +342,176 @@ class GestionarClientes extends Component
 
         $this->editMode = true;
         $this->showModal = true;
+    }
+
+    /**
+     * Validación en tiempo real del CUIT (modo manual)
+     */
+    public function updatedCuit(): void
+    {
+        // Solo en modo manual y solo en alta (no edición)
+        if ($this->editMode || $this->modoAlta !== 'manual') {
+            return;
+        }
+
+        // Resetear estado previo
+        $this->datosDesdeArca = false;
+        $this->validacionCuitMsg = '';
+        $this->validacionCuitTipo = '';
+
+        if (empty($this->cuit)) {
+            return;
+        }
+
+        $cuitLimpio = preg_replace('/\D/', '', $this->cuit);
+
+        // Si no tiene 11 dígitos, no validar aún
+        if (strlen($cuitLimpio) < 11) {
+            return;
+        }
+
+        if (strlen($cuitLimpio) > 11) {
+            $this->validacionCuitMsg = __('El CUIT debe tener 11 dígitos');
+            $this->validacionCuitTipo = 'error';
+            return;
+        }
+
+        // Validar dígito verificador
+        if (!Cuit::validarCuit($cuitLimpio)) {
+            $this->validacionCuitMsg = __('CUIT inválido (dígito verificador incorrecto)');
+            $this->validacionCuitTipo = 'error';
+            return;
+        }
+
+        // CUIT válido - verificar si ya existe (incluyendo eliminados)
+        $existente = Cliente::withTrashed()->where(function ($q) use ($cuitLimpio) {
+            $q->where('cuit', $this->cuit)->orWhere('cuit', $cuitLimpio);
+        })->first();
+        if ($existente) {
+            if ($existente->trashed()) {
+                $this->validacionCuitMsg = __('Existe un cliente eliminado con este CUIT: :nombre. Puede restaurarlo desde el filtro "Eliminados".', ['nombre' => $existente->nombre]);
+                $this->validacionCuitTipo = 'error';
+            } else {
+                $this->validacionCuitMsg = __('Ya existe un cliente con este CUIT: :nombre', ['nombre' => $existente->nombre]);
+                $this->validacionCuitTipo = 'error';
+            }
+            return;
+        }
+
+        // Si ARCA está disponible, consultar condición fiscal
+        if ($this->consultaArcaDisponible) {
+            try {
+                $cuitComercio = PadronARCAService::obtenerCuitDisponible();
+                if ($cuitComercio) {
+                    $servicio = new PadronARCAService($cuitComercio);
+                    $datos = $servicio->consultarCuit($cuitLimpio);
+
+                    if ($datos['condicion_iva_id']) {
+                        $this->condicion_iva_id = $datos['condicion_iva_id'];
+                        $this->datosDesdeArca = true;
+                        $condicion = CondicionIva::find($datos['condicion_iva_id']);
+                        $this->validacionCuitMsg = __('CUIT válido — :condicion (según ARCA)', ['condicion' => $condicion->nombre ?? '']);
+                        $this->validacionCuitTipo = 'success';
+                    }
+                    return;
+                }
+            } catch (\Exception $e) {
+                // Si ARCA falla, solo validar formato
+                Log::info('Validación ARCA en modo manual falló (no bloquea)', [
+                    'cuit' => $cuitLimpio,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Sin ARCA o ARCA falló: solo confirmar formato válido
+        $this->validacionCuitMsg = __('CUIT válido');
+        $this->validacionCuitTipo = 'success';
+    }
+
+    /**
+     * Consulta datos del contribuyente en ARCA por CUIT
+     */
+    public function consultarCuit(): void
+    {
+        $this->errorConsultaCuit = '';
+        $this->exitoConsultaCuit = '';
+
+        // Validar que haya un CUIT ingresado
+        if (empty($this->cuit)) {
+            $this->errorConsultaCuit = __('Ingrese un CUIT para consultar');
+            return;
+        }
+
+        // Validar formato
+        $cuitLimpio = preg_replace('/\D/', '', $this->cuit);
+        if (!Cuit::validarCuit($cuitLimpio)) {
+            $this->errorConsultaCuit = __('El CUIT ingresado no es válido. Verifique el número.');
+            return;
+        }
+
+        // Verificar si ya existe un cliente con ese CUIT (incluyendo eliminados)
+        $existente = Cliente::withTrashed()->where(function ($q) use ($cuitLimpio) {
+            $q->where('cuit', $this->cuit)->orWhere('cuit', $cuitLimpio);
+        })->first();
+        if ($existente) {
+            if ($existente->trashed()) {
+                $this->errorConsultaCuit = __('Existe un cliente eliminado con este CUIT: :nombre. Puede restaurarlo desde el filtro "Eliminados".', ['nombre' => $existente->nombre]);
+            } else {
+                $this->errorConsultaCuit = __('Ya existe un cliente con el CUIT :cuit: :nombre', [
+                    'cuit' => $this->cuit,
+                    'nombre' => $existente->nombre,
+                ]);
+            }
+            return;
+        }
+
+        $this->consultandoCuit = true;
+
+        try {
+            $cuitComercio = PadronARCAService::obtenerCuitDisponible();
+            if (!$cuitComercio) {
+                $this->errorConsultaCuit = __('No hay certificados ARCA configurados para realizar la consulta');
+                $this->consultandoCuit = false;
+                return;
+            }
+
+            $servicio = new PadronARCAService($cuitComercio);
+            $datos = $servicio->consultarCuit($cuitLimpio);
+
+            // Rellenar campos del formulario
+            $this->razon_social = $datos['denominacion'] ?? '';
+            $this->nombre = $datos['denominacion'] ?? '';
+            $this->direccion = $datos['direccion'] ?? '';
+            $this->cuit = $cuitLimpio;
+
+            if ($datos['condicion_iva_id']) {
+                $this->condicion_iva_id = $datos['condicion_iva_id'];
+            }
+
+            $this->datosDesdeArca = true;
+
+            $estadoTexto = $datos['estado_activo'] ? __('Activo') : __('Inactivo');
+            $this->exitoConsultaCuit = __('Datos obtenidos correctamente. Estado del contribuyente: :estado', ['estado' => $estadoTexto]);
+
+            if (!$datos['estado_activo']) {
+                $this->exitoConsultaCuit .= '. ' . __('Atención: el contribuyente figura como INACTIVO en ARCA.');
+            }
+
+            Log::info('Consulta padrón ARCA exitosa', [
+                'cuit_consultado' => $cuitLimpio,
+                'denominacion' => $datos['denominacion'],
+            ]);
+
+        } catch (\Exception $e) {
+            $this->errorConsultaCuit = $e->getMessage();
+            Log::error('Error al consultar padrón ARCA', [
+                'cuit' => $cuitLimpio,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $this->consultandoCuit = false;
     }
 
     /**
@@ -421,7 +647,7 @@ class GestionarClientes extends Component
     }
 
     /**
-     * Elimina un cliente
+     * Elimina un cliente (soft delete)
      */
     public function delete(): void
     {
@@ -429,27 +655,23 @@ class GestionarClientes extends Component
             $cliente = Cliente::find($this->clienteAEliminar);
 
             if ($cliente) {
-                // Verificar si tiene ventas asociadas
-                if ($cliente->ventas()->exists()) {
-                    $this->dispatch('notify', type: 'error', message: __('No se puede eliminar el cliente porque tiene ventas asociadas'));
-                    $this->closeDeleteModal();
-                    return;
-                }
-
-                // Desvincular proveedor si existe
-                Proveedor::where('cliente_id', $cliente->id)->update(['cliente_id' => null]);
-
-                // Eliminar relaciones con sucursales
-                $cliente->sucursales()->detach();
-
-                // Eliminar cliente
                 $cliente->delete();
-
                 $this->dispatch('notify', type: 'success', message: __('Cliente eliminado correctamente'));
             }
         }
 
         $this->closeDeleteModal();
+    }
+
+    /**
+     * Restaura un cliente eliminado
+     */
+    public function restore(int $id): void
+    {
+        $cliente = Cliente::onlyTrashed()->findOrFail($id);
+        $cliente->restore();
+
+        $this->dispatch('notify', type: 'success', message: __('Cliente restaurado correctamente'));
     }
 
     /**
@@ -755,10 +977,10 @@ class GestionarClientes extends Component
                         continue;
                     }
 
-                    // Verificar si ya existe por CUIT (si tiene)
+                    // Verificar si ya existe por CUIT (si tiene), incluyendo eliminados
                     $cuit = $data['cuit'] ?? $data[__('cuit')] ?? '';
                     if (!empty($cuit)) {
-                        $existente = Cliente::where('cuit', $cuit)->first();
+                        $existente = Cliente::withTrashed()->where('cuit', $cuit)->first();
                         if ($existente) {
                             $resultado['omitidos']++;
                             continue;
@@ -872,6 +1094,13 @@ class GestionarClientes extends Component
         $this->proveedor_vinculado_id = null;
         $this->proveedor_opcion = 'crear_nuevo';
         $this->sucursales_seleccionadas = [];
+        $this->modoAlta = 'manual';
+        $this->consultandoCuit = false;
+        $this->errorConsultaCuit = '';
+        $this->exitoConsultaCuit = '';
+        $this->datosDesdeArca = false;
+        $this->validacionCuitMsg = '';
+        $this->validacionCuitTipo = '';
         $this->resetValidation();
     }
 

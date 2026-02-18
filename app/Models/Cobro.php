@@ -26,6 +26,7 @@ class Cobro extends Model
         'cliente_id',
         'caja_id',
         'numero_recibo',
+        'tipo',
         'fecha',
         'hora',
         'monto_cobrado',
@@ -33,6 +34,7 @@ class Cobro extends Model
         'descuento_aplicado',
         'monto_aplicado_a_deuda',
         'monto_a_favor',
+        'saldo_favor_usado',
         'estado',
         'observaciones',
         'usuario_id',
@@ -50,6 +52,7 @@ class Cobro extends Model
         'descuento_aplicado' => 'decimal:2',
         'monto_aplicado_a_deuda' => 'decimal:2',
         'monto_a_favor' => 'decimal:2',
+        'saldo_favor_usado' => 'decimal:2',
         'anulado_at' => 'datetime',
     ];
 
@@ -62,7 +65,7 @@ class Cobro extends Model
 
     public function cliente(): BelongsTo
     {
-        return $this->belongsTo(Cliente::class);
+        return $this->belongsTo(Cliente::class)->withTrashed();
     }
 
     public function caja(): BelongsTo
@@ -104,6 +107,16 @@ class Cobro extends Model
         return $query->where('estado', 'anulado');
     }
 
+    public function scopeCobros($query)
+    {
+        return $query->where('tipo', 'cobro');
+    }
+
+    public function scopeAnticipos($query)
+    {
+        return $query->where('tipo', 'anticipo');
+    }
+
     // ==================== Métodos ====================
 
     public function estaActivo(): bool
@@ -114,6 +127,16 @@ class Cobro extends Model
     public function estaAnulado(): bool
     {
         return $this->estado === 'anulado';
+    }
+
+    public function esAnticipo(): bool
+    {
+        return $this->tipo === 'anticipo';
+    }
+
+    public function esCobro(): bool
+    {
+        return $this->tipo === 'cobro';
     }
 
     /**

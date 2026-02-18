@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Stock;
 use App\Models\Articulo;
 use App\Models\Sucursal;
+use App\Models\MovimientoStock;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Collection;
@@ -54,6 +55,16 @@ class StockService
                 throw new Exception('No se pudo realizar el ajuste de stock');
             }
 
+            // Registrar movimiento de stock
+            MovimientoStock::crearMovimientoAjuste(
+                $stock->articulo_id,
+                $stock->sucursal_id,
+                $cantidad,
+                'Ajuste manual',
+                $usuarioId,
+                $motivo ?: null
+            );
+
             DB::connection('pymes_tenant')->commit();
 
             Log::info('Ajuste de stock realizado', [
@@ -91,14 +102,15 @@ class StockService
     {
         $articulo = Articulo::findOrFail($articuloId);
 
-        if (!$articulo->controla_stock) {
-            throw new Exception('Este artículo no controla stock');
-        }
-
         $sucursales = Sucursal::activas()->get();
         $stocks = collect();
 
         foreach ($sucursales as $sucursal) {
+            // Solo inicializar stock en sucursales donde el artículo controla stock
+            if (!$articulo->controlaStock($sucursal->id)) {
+                continue;
+            }
+
             $stock = Stock::firstOrCreate(
                 [
                     'articulo_id' => $articulo->id,
@@ -143,8 +155,8 @@ class StockService
     ): Stock {
         $articulo = Articulo::findOrFail($articuloId);
 
-        if (!$articulo->controla_stock) {
-            throw new Exception('Este artículo no controla stock');
+        if (!$articulo->controlaStock($sucursalId)) {
+            throw new Exception('Este artículo no controla stock en esta sucursal');
         }
 
         $stock = Stock::firstOrCreate(
@@ -332,31 +344,9 @@ class StockService
         DB::connection('pymes_tenant')->beginTransaction();
 
         try {
-            $stock = Stock::findOrFail($stockId);
-
-            $cantidadAnterior = $stock->cantidad;
-            $diferencia = $cantidadFisica - $cantidadAnterior;
-
-            // Actualizar el stock al valor físico
-            $stock->cantidad = $cantidadFisica;
-            $stock->ultima_actualizacion = now();
-            $stock->save();
+            $resultado = $this->registrarInventarioFisicoInterno($stockId, $cantidadFisica, $usuarioId, $observaciones);
 
             DB::connection('pymes_tenant')->commit();
-
-            $resultado = [
-                'stock_id' => $stock->id,
-                'articulo_id' => $stock->articulo_id,
-                'sucursal_id' => $stock->sucursal_id,
-                'cantidad_anterior' => $cantidadAnterior,
-                'cantidad_fisica' => $cantidadFisica,
-                'diferencia' => $diferencia,
-                'tipo_diferencia' => $diferencia > 0 ? 'sobrante' : ($diferencia < 0 ? 'faltante' : 'sin_diferencia'),
-                'porcentaje_diferencia' => $cantidadAnterior > 0 ? round(($diferencia / $cantidadAnterior) * 100, 2) : 0,
-                'observaciones' => $observaciones,
-                'usuario_id' => $usuarioId,
-                'fecha' => now(),
-            ];
 
             Log::info('Inventario físico registrado', $resultado);
 
@@ -370,6 +360,59 @@ class StockService
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * Lógica interna de inventario físico SIN manejo de transacción.
+     * Permite ser llamado desde una transacción externa (ej: inventario general bulk).
+     *
+     * @param int $stockId
+     * @param float $cantidadFisica
+     * @param int $usuarioId
+     * @param string|null $observaciones
+     * @return array
+     */
+    public function registrarInventarioFisicoInterno(
+        int $stockId,
+        float $cantidadFisica,
+        int $usuarioId,
+        ?string $observaciones = null
+    ): array {
+        $stock = Stock::findOrFail($stockId);
+
+        $cantidadAnterior = $stock->cantidad;
+        $diferencia = $cantidadFisica - $cantidadAnterior;
+
+        // Actualizar el stock al valor físico
+        $stock->cantidad = $cantidadFisica;
+        $stock->ultima_actualizacion = now();
+        $stock->save();
+
+        // Registrar movimiento de stock (solo si hay diferencia)
+        if ($diferencia != 0) {
+            MovimientoStock::crearMovimientoInventarioFisico(
+                $stock->articulo_id,
+                $stock->sucursal_id,
+                $cantidadAnterior,
+                $cantidadFisica,
+                $usuarioId,
+                $observaciones
+            );
+        }
+
+        return [
+            'stock_id' => $stock->id,
+            'articulo_id' => $stock->articulo_id,
+            'sucursal_id' => $stock->sucursal_id,
+            'cantidad_anterior' => $cantidadAnterior,
+            'cantidad_fisica' => $cantidadFisica,
+            'diferencia' => $diferencia,
+            'tipo_diferencia' => $diferencia > 0 ? 'sobrante' : ($diferencia < 0 ? 'faltante' : 'sin_diferencia'),
+            'porcentaje_diferencia' => $cantidadAnterior > 0 ? round(($diferencia / $cantidadAnterior) * 100, 2) : 0,
+            'observaciones' => $observaciones,
+            'usuario_id' => $usuarioId,
+            'fecha' => now(),
+        ];
     }
 
     /**
@@ -401,5 +444,56 @@ class StockService
                            'cantidad_sugerida_reposicion' => max(0, $cantidadSugerida),
                        ];
                    });
+    }
+
+    // ==================== Métodos de consulta de movimientos ====================
+
+    /**
+     * Obtiene movimientos de stock entre fechas para una sucursal
+     */
+    public function obtenerMovimientos(
+        int $sucursalId,
+        ?int $articuloId = null,
+        ?string $tipo = null,
+        $desde = null,
+        $hasta = null
+    ) {
+        $query = MovimientoStock::with(['articulo', 'usuario', 'venta', 'compra', 'transferencia'])
+            ->porSucursal($sucursalId)
+            ->activos();
+
+        if ($articuloId) {
+            $query->porArticulo($articuloId);
+        }
+
+        if ($tipo) {
+            $query->porTipo($tipo);
+        }
+
+        $query->entreFechas($desde, $hasta);
+
+        return $query->orderBy('id', 'desc');
+    }
+
+    /**
+     * Obtiene el stock de un artículo en una sucursal a una fecha determinada
+     */
+    public function obtenerStockAFecha(int $articuloId, int $sucursalId, $fecha): float
+    {
+        return MovimientoStock::calcularStockAFecha($articuloId, $sucursalId, $fecha);
+    }
+
+    /**
+     * Obtiene el reporte kardex completo (movimientos con stock resultante)
+     */
+    public function obtenerKardex(int $articuloId, int $sucursalId, $desde = null, $hasta = null): Collection
+    {
+        return MovimientoStock::where('articulo_id', $articuloId)
+            ->where('sucursal_id', $sucursalId)
+            ->activos()
+            ->entreFechas($desde, $hasta)
+            ->with(['usuario', 'venta', 'compra', 'transferencia'])
+            ->orderBy('id', 'asc')
+            ->get();
     }
 }
