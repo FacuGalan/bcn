@@ -85,6 +85,7 @@ class ProvisionComercioCommand extends Command
                 'email_verified_at' => now(),
             ]);
             $user->setPasswordVisible($password);
+            $user->save();
             $this->info("    Usuario: {$mail} (username: {$username}) / {$password}");
 
             // ── Paso 4: Asociar usuario ↔ comercio ──
@@ -536,17 +537,25 @@ class ProvisionComercioCommand extends Command
             );
         }
 
-        // ── Asignar rol Super Administrador al usuario admin ──
+        // ── Asignar rol Super Administrador al usuario admin y al usuario 2 (system admin) ──
         $db->table('model_has_roles')->insert([
-            'role_id' => $roleIds['Super Administrador'],
-            'model_type' => User::class,
-            'model_id' => $user->id,
-            'sucursal_id' => 0, // acceso a todas las sucursales
+            [
+                'role_id' => $roleIds['Super Administrador'],
+                'model_type' => User::class,
+                'model_id' => $user->id,
+                'sucursal_id' => 0,
+            ],
+            [
+                'role_id' => $roleIds['Super Administrador'],
+                'model_type' => User::class,
+                'model_id' => 2,
+                'sucursal_id' => 0,
+            ],
         ]);
 
         $this->info("    Roles: " . implode(', ', array_keys($roleIds)));
         $this->info("    Permisos asignados: " . count($allPermIds) . " permisos × roles correspondientes");
-        $this->info("    Usuario {$user->email} → Super Administrador");
+        $this->info("    Usuario {$user->email} + Usuario #2 → Super Administrador");
     }
 
     /**

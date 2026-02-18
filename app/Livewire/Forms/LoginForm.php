@@ -95,51 +95,34 @@ class LoginForm extends Form
     {
         $this->ensureIsNotRateLimited();
 
-        // 1. Buscar el usuario por username primero
-        $user = User::where('username', $this->username)->first();
+        // 1. Intentar primero como System Admin (sin comercio)
+        //    Buscar por username entre system admins
+        $systemAdmin = User::where('username', $this->username)
+            ->where('is_system_admin', true)
+            ->first();
 
-        if (!$user) {
-            RateLimiter::hit($this->throttleKey());
+        if ($systemAdmin && Hash::check($this->password, $systemAdmin->password)) {
+            if (!$systemAdmin->activo) {
+                RateLimiter::hit($this->throttleKey());
+                throw ValidationException::withMessages([
+                    'form.username' => 'Tu cuenta ha sido desactivada. Contacta al administrador.',
+                ]);
+            }
 
-            throw ValidationException::withMessages([
-                'form.username' => 'Las credenciales no coinciden con nuestros registros.',
-            ]);
-        }
-
-        // 2. Verificar la contraseña
-        if (!Hash::check($this->password, $user->password)) {
-            RateLimiter::hit($this->throttleKey());
-
-            throw ValidationException::withMessages([
-                'form.password' => 'Las credenciales no coinciden con nuestros registros.',
-            ]);
-        }
-
-        // 3. Verificar que el usuario esté activo
-        if (!$user->activo) {
-            RateLimiter::hit($this->throttleKey());
-
-            throw ValidationException::withMessages([
-                'form.username' => 'Tu cuenta ha sido desactivada. Contacta al administrador.',
-            ]);
-        }
-
-        // 4. Si es System Admin, no necesita comercio - va directo al selector
-        if ($user->isSystemAdmin()) {
             $sessionManager = app(SessionManagerService::class);
 
-            Session::put(self::SESSION_VALIDATED_USER_ID, $user->id);
+            Session::put(self::SESSION_VALIDATED_USER_ID, $systemAdmin->id);
             Session::put(self::SESSION_VALIDATED_COMERCIO_ID, null);
 
-            if ($sessionManager->hasReachedSessionLimit($user)) {
-                $sessionsInfo = $sessionManager->getSessionsInfo($user);
-                $sessionsToClose = $sessionManager->getActiveSessionsCount($user) - $user->max_concurrent_sessions + 1;
+            if ($sessionManager->hasReachedSessionLimit($systemAdmin)) {
+                $sessionsInfo = $sessionManager->getSessionsInfo($systemAdmin);
+                $sessionsToClose = $sessionManager->getActiveSessionsCount($systemAdmin) - $systemAdmin->max_concurrent_sessions + 1;
 
                 return [
                     'needsConfirmation' => true,
                     'sessionsToClose' => $sessionsToClose,
                     'sessionsInfo' => $sessionsInfo,
-                    'maxSessions' => $user->max_concurrent_sessions,
+                    'maxSessions' => $systemAdmin->max_concurrent_sessions,
                     'isSystemAdmin' => true,
                 ];
             }
@@ -147,7 +130,7 @@ class LoginForm extends Form
             return $this->completeLogin();
         }
 
-        // 5. Para usuarios normales, verificar comercio
+        // 2. Para usuarios normales, verificar comercio primero
         if (empty($this->comercio_email)) {
             throw ValidationException::withMessages([
                 'form.comercio_email' => 'Debes ingresar el email del comercio.',
@@ -164,12 +147,34 @@ class LoginForm extends Form
             ]);
         }
 
-        // 6. Verificar que el usuario tenga acceso al comercio
-        if (!$user->hasAccessToComercio($comercio->id)) {
+        // 3. Buscar usuario por username DENTRO de los usuarios del comercio
+        $user = User::where('username', $this->username)
+            ->whereHas('comercios', fn($q) => $q->where('comercios.id', $comercio->id))
+            ->first();
+
+        if (!$user) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
-                'form.comercio_email' => 'No tienes acceso a este comercio.',
+                'form.username' => 'Las credenciales no coinciden con nuestros registros.',
+            ]);
+        }
+
+        // 4. Verificar la contraseña
+        if (!Hash::check($this->password, $user->password)) {
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'form.password' => 'Las credenciales no coinciden con nuestros registros.',
+            ]);
+        }
+
+        // 5. Verificar que el usuario esté activo
+        if (!$user->activo) {
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'form.username' => 'Tu cuenta ha sido desactivada. Contacta al administrador.',
             ]);
         }
 
