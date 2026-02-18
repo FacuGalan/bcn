@@ -57,7 +57,11 @@
       "Bash(cat:*)",
       "Bash(chmod:*)",
       "Bash(claude --version:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(xargs:*)",
+      "Bash(git config:*)",
+      "Bash(gh auth:*)",
+      "Bash(git remote set-url:*)"
     ],
     "deny": [],
     "ask": []

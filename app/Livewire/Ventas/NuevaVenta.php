@@ -590,11 +590,20 @@ class NuevaVenta extends Component
         $query = Articulo::with('categoriaModel')
             ->where('activo', true);
 
-        $query->where(function($q) use ($busqueda) {
-            $q->where('nombre', 'like', '%' . $busqueda . '%')
-              ->orWhere('codigo', 'like', '%' . $busqueda . '%')
-              ->orWhere('codigo_barras', 'like', '%' . $busqueda . '%');
-        });
+        // Separar la búsqueda en palabras individuales para búsqueda inteligente
+        $palabras = preg_split('/\s+/', $busqueda, -1, PREG_SPLIT_NO_EMPTY);
+
+        // Cada palabra debe coincidir en nombre, código, código de barras O nombre de categoría
+        foreach ($palabras as $palabra) {
+            $query->where(function($q) use ($palabra) {
+                $q->where('nombre', 'like', '%' . $palabra . '%')
+                  ->orWhere('codigo', 'like', '%' . $palabra . '%')
+                  ->orWhere('codigo_barras', 'like', '%' . $palabra . '%')
+                  ->orWhereHas('categoriaModel', function($subQ) use ($palabra) {
+                      $subQ->where('nombre', 'like', '%' . $palabra . '%');
+                  });
+            });
+        }
 
         // Filtrar por sucursal si hay artículos habilitados por sucursal
         if ($this->sucursalId) {

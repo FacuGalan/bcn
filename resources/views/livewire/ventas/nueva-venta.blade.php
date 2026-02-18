@@ -45,7 +45,41 @@
                     <div class="lg:col-span-3 flex flex-col space-y-3 min-h-0">
                         {{-- Búsqueda de artículos --}}
                         <div class="relative"
-                             x-data="{ inputFocused: false, init() { this.$nextTick(() => this.$refs.inputBusqueda.focus()) } }"
+                             x-data="{
+                                inputFocused: false,
+                                selectedIndex: 0,
+                                init() {
+                                    this.$nextTick(() => this.$refs.inputBusqueda.focus());
+                                    this.$watch('inputFocused', (v) => { if (!v) this.selectedIndex = 0; });
+                                },
+                                get resultCount() {
+                                    return this.$refs.resultsList ? this.$refs.resultsList.querySelectorAll('[data-result-item]').length : 0;
+                                },
+                                moveUp() {
+                                    if (this.selectedIndex > 0) this.selectedIndex--;
+                                    this.scrollToSelected();
+                                },
+                                moveDown() {
+                                    if (this.selectedIndex < this.resultCount - 1) this.selectedIndex++;
+                                    this.scrollToSelected();
+                                },
+                                scrollToSelected() {
+                                    this.$nextTick(() => {
+                                        const items = this.$refs.resultsList?.querySelectorAll('[data-result-item]');
+                                        if (items && items[this.selectedIndex]) {
+                                            items[this.selectedIndex].scrollIntoView({ block: 'nearest' });
+                                        }
+                                    });
+                                },
+                                selectCurrent() {
+                                    const items = this.$refs.resultsList?.querySelectorAll('[data-result-item]');
+                                    if (items && items[this.selectedIndex]) {
+                                        items[this.selectedIndex].click();
+                                    } else {
+                                        $wire.agregarPrimerArticulo();
+                                    }
+                                }
+                             }"
                              @click.outside="inputFocused = false"
                              x-on:focus-busqueda.window="$refs.inputBusqueda.focus()">
                             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar Artículo') }}</label>
@@ -55,10 +89,13 @@
                                     <input
                                         x-ref="inputBusqueda"
                                         wire:model.live="busquedaArticulo"
-                                        wire:keydown.enter="agregarPrimerArticulo"
                                         wire:keydown.escape="desactivarModos"
+                                        @keydown.enter.prevent="selectCurrent()"
+                                        @keydown.arrow-up.prevent="moveUp()"
+                                        @keydown.arrow-down.prevent="moveDown()"
                                         @keydown="if($event.key === '*') { $event.preventDefault(); $dispatch('focus-cantidad'); }"
                                         @focus="inputFocused = true"
+                                        @input="selectedIndex = 0"
                                         type="text"
                                         autocomplete="off"
                                         class="block w-full pl-10 pr-3 py-2 border rounded-md leading-5 bg-white dark:bg-gray-700 dark:text-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:border-indigo-500 text-sm
@@ -220,13 +257,17 @@
                                     x-transition:leave="transition ease-in duration-75"
                                     x-transition:leave-start="transform opacity-100 scale-100"
                                     x-transition:leave-end="transform opacity-0 scale-95"
-                                    class="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 shadow-lg max-h-80 rounded-md border border-gray-200 dark:border-gray-700 overflow-auto">
+                                    class="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 shadow-lg max-h-80 rounded-md border border-gray-200 dark:border-gray-700 overflow-auto"
+                                    x-ref="resultsList">
                                     <div class="py-1">
-                                        @foreach($articulosResultados as $articulo)
+                                        @foreach($articulosResultados as $idx => $articulo)
                                             <button
                                                 type="button"
+                                                data-result-item
                                                 wire:click="seleccionarArticulo({{ $articulo['id'] }})"
-                                                class="w-full text-left px-4 py-3 hover:bg-indigo-50 dark:hover:bg-gray-700 focus:bg-indigo-50 dark:focus:bg-gray-700 focus:outline-none border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                                                @mouseenter="selectedIndex = {{ $idx }}"
+                                                :class="selectedIndex === {{ $idx }} ? 'bg-indigo-50 dark:bg-indigo-900/30' : ''"
+                                                class="w-full text-left px-4 py-3 hover:bg-indigo-50 dark:hover:bg-gray-700 focus:outline-none border-b border-gray-100 dark:border-gray-700 last:border-b-0">
                                                 <div class="flex items-center justify-between">
                                                     <div class="flex-1 min-w-0">
                                                         <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
