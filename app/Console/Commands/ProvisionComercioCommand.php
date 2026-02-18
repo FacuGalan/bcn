@@ -75,8 +75,7 @@ class ProvisionComercioCommand extends Command
             // ── Paso 3: Crear usuario admin ──
             $this->info('[2/10] Creando usuario administrador...');
             $password = 'admin1234';
-            // Username único: admin + ID del comercio (ej: admin2, admin3...)
-            $username = 'admin' . $comercioId;
+            $username = 'admin';
             $user = User::create([
                 'name' => 'Administrador',
                 'username' => $username,
@@ -247,6 +246,7 @@ class ProvisionComercioCommand extends Command
         DB::connection('pymes_tenant')->table('cajas')->insert([
             'nombre' => 'Caja 1',
             'codigo' => 'CAJA001',
+            'numero' => 1,
             'sucursal_id' => $sucursalId,
             'activo' => true,
             'estado' => 'cerrada',
