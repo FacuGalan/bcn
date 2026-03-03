@@ -35,7 +35,9 @@ class DepositoBancario extends Model
     protected $fillable = [
         'tesoreria_id',
         'cuenta_bancaria_id',
+        'cuenta_empresa_id',
         'monto',
+        'moneda_id',
         'fecha_deposito',
         'numero_comprobante',
         'usuario_id',
@@ -71,6 +73,16 @@ class DepositoBancario extends Model
     public function cuentaBancaria(): BelongsTo
     {
         return $this->belongsTo(CuentaBancaria::class, 'cuenta_bancaria_id');
+    }
+
+    public function cuentaEmpresa(): BelongsTo
+    {
+        return $this->belongsTo(CuentaEmpresa::class, 'cuenta_empresa_id');
+    }
+
+    public function moneda(): BelongsTo
+    {
+        return $this->belongsTo(Moneda::class, 'moneda_id');
     }
 
     public function usuario(): BelongsTo
@@ -132,8 +144,10 @@ class DepositoBancario extends Model
         $this->fecha_confirmacion = now();
         $this->save();
 
-        // Actualizar saldo de la cuenta bancaria
-        $this->cuentaBancaria->registrarDeposito($this->monto);
+        // Actualizar saldo de la cuenta bancaria (solo si no usa CuentaEmpresa)
+        if ($this->cuenta_bancaria_id && !$this->cuenta_empresa_id) {
+            $this->cuentaBancaria->registrarDeposito($this->monto);
+        }
 
         return true;
     }
@@ -151,8 +165,39 @@ class DepositoBancario extends Model
         $this->save();
 
         // Devolver el monto a la tesorería
-        $this->tesoreria->saldo_actual += $this->monto;
-        $this->tesoreria->save();
+        if ($this->moneda_id) {
+            // Moneda extranjera: devolver al saldo de moneda independiente
+            $this->tesoreria->ingresoMonedaExtranjera(
+                $this->monto,
+                "Cancelación de depósito #{$this->id}",
+                $this->usuario_id,
+                $this->moneda_id,
+                'deposito_bancario',
+                $this->id
+            );
+        } else {
+            $this->tesoreria->saldo_actual += $this->monto;
+            $this->tesoreria->save();
+        }
+
+        // Revertir movimiento en CuentaEmpresa si fue registrado
+        if ($this->cuenta_empresa_id) {
+            try {
+                $movimiento = \App\Models\MovimientoCuentaEmpresa::where('origen_tipo', 'DepositoBancario')
+                    ->where('origen_id', $this->id)
+                    ->where('estado', 'activo')
+                    ->first();
+                if ($movimiento) {
+                    \App\Services\CuentaEmpresaService::revertirMovimiento(
+                        $movimiento->id,
+                        "Cancelación de depósito #{$this->id}",
+                        $this->usuario_id
+                    );
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('Error al revertir movimiento cuenta empresa en cancelación de depósito', ['error' => $e->getMessage()]);
+            }
+        }
 
         return true;
     }

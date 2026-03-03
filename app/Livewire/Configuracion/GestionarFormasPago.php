@@ -6,6 +6,8 @@ use App\Models\FormaPago;
 use App\Models\FormaPagoCuota;
 use App\Models\FormaPagoSucursal;
 use App\Models\ConceptoPago;
+use App\Models\CuentaEmpresa;
+use App\Models\Moneda;
 use App\Models\Sucursal;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -29,6 +31,10 @@ class GestionarFormasPago extends Component
     // Forma de pago mixta
     public $es_mixta = false;
     public array $conceptos_permitidos = []; // IDs de conceptos permitidos para mixtas
+
+    // Cuenta empresa y moneda
+    public $cuenta_empresa_id = null;
+    public $moneda_id = null;
 
     // Sucursales seleccionadas
     public array $sucursales_seleccionadas = [];
@@ -132,6 +138,10 @@ class GestionarFormasPago extends Component
         $this->activo = $formaPago->activo;
         $this->es_mixta = $formaPago->es_mixta ?? false;
 
+        // Cuenta empresa y moneda
+        $this->cuenta_empresa_id = $formaPago->cuenta_empresa_id;
+        $this->moneda_id = $formaPago->moneda_id;
+
         if ($this->es_mixta) {
             // Forma de pago mixta
             $this->concepto_pago_id = null;
@@ -185,6 +195,8 @@ class GestionarFormasPago extends Component
                 'ajuste_porcentaje' => $this->es_mixta ? 0 : ($this->ajuste_porcentaje ?: 0),
                 'factura_fiscal' => $this->es_mixta ? false : $this->factura_fiscal,
                 'activo' => $this->activo,
+                'cuenta_empresa_id' => $this->cuenta_empresa_id ?: null,
+                'moneda_id' => $this->moneda_id ?: null,
             ];
 
             if ($this->modoEdicion) {
@@ -355,6 +367,8 @@ class GestionarFormasPago extends Component
         $this->es_mixta = false;
         $this->conceptos_permitidos = [];
         $this->sucursales_seleccionadas = [];
+        $this->cuenta_empresa_id = null;
+        $this->moneda_id = null;
         $this->resetValidation();
     }
 
@@ -386,10 +400,16 @@ class GestionarFormasPago extends Component
         // Obtener todos los conceptos de pago activos para el modal
         $conceptosPago = ConceptoPago::activos()->ordenados()->get();
 
+        // Obtener cuentas empresa y monedas para el modal
+        $cuentasEmpresa = CuentaEmpresa::activas()->orderBy('nombre')->get();
+        $monedas = Moneda::activas()->orderBy('orden')->get();
+
         return view('livewire.configuracion.gestionar-formas-pago', [
             'formasPago' => $formasPago,
             'sucursales' => $sucursales,
             'conceptosPago' => $conceptosPago,
+            'cuentasEmpresa' => $cuentasEmpresa,
+            'monedas' => $monedas,
         ]);
     }
 }

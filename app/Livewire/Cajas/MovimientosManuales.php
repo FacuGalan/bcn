@@ -4,9 +4,11 @@ namespace App\Livewire\Cajas;
 
 use Livewire\Component;
 use App\Models\Caja;
+use App\Models\Moneda;
 use App\Models\MovimientoCaja;
 use App\Models\MovimientoTesoreria;
 use App\Models\Tesoreria;
+use App\Models\TipoCambio;
 use App\Models\TransferenciaEfectivo;
 use App\Services\CajaService;
 use App\Services\SucursalService;
@@ -38,25 +40,32 @@ class MovimientosManuales extends Component
     public $tesoreria = null;
     public $tesoreriaActiva = false;
 
+    // Multi-moneda
+    public $monedasDisponibles = [];
+    public $saldosMonedasCaja = [];
+
     // Formulario de Transferencia
     public $transferencia = [
         'caja_destino_id' => null,
         'monto' => null,
-        'motivo' => '', // Se guarda en observaciones
+        'motivo' => '',
+        'moneda_id' => null,
     ];
 
     // Formulario de Ingreso
     public $ingreso = [
         'monto' => null,
         'motivo' => '',
-        'origen' => 'tesoreria', // tesoreria, otro
+        'origen' => 'tesoreria',
+        'moneda_id' => null,
     ];
 
     // Formulario de Egreso
     public $egreso = [
         'monto' => null,
         'motivo' => '',
-        'destino' => 'tesoreria', // tesoreria, otro
+        'destino' => 'tesoreria',
+        'moneda_id' => null,
     ];
 
     // Historial de movimientos
@@ -108,6 +117,16 @@ class MovimientosManuales extends Component
         $this->tesoreria = Tesoreria::where('sucursal_id', $sucursalId)->first();
         $this->tesoreriaActiva = $this->tesoreria && $this->tesoreria->activo;
 
+        // Monedas extranjeras activas
+        $this->monedasDisponibles = Moneda::activas()
+            ->where('es_principal', false)
+            ->orderBy('orden')
+            ->get(['id', 'codigo', 'nombre', 'simbolo'])
+            ->toArray();
+
+        // Saldos en monedas extranjeras de la caja actual
+        $this->cargarSaldosMonedasCaja();
+
         // Cargar historial
         $this->cargarHistorial();
     }
@@ -116,6 +135,93 @@ class MovimientosManuales extends Component
     {
         $this->cajaActualId = $cajaId;
         $this->cargarDatos();
+    }
+
+    /**
+     * Carga los saldos acumulados por moneda extranjera en la caja actual (turno abierto)
+     */
+    protected function cargarSaldosMonedasCaja(): void
+    {
+        $this->saldosMonedasCaja = [];
+
+        if (!$this->cajaActualId || empty($this->monedasDisponibles)) {
+            return;
+        }
+
+        $movimientos = MovimientoCaja::where('caja_id', $this->cajaActualId)
+            ->whereNull('cierre_turno_id')
+            ->whereNotNull('moneda_id')
+            ->selectRaw('moneda_id, tipo, SUM(monto_moneda_original) as total')
+            ->groupBy('moneda_id', 'tipo')
+            ->get();
+
+        $saldos = [];
+        foreach ($movimientos as $mov) {
+            if (!isset($saldos[$mov->moneda_id])) {
+                $saldos[$mov->moneda_id] = 0;
+            }
+            if ($mov->tipo === 'ingreso') {
+                $saldos[$mov->moneda_id] += (float) $mov->total;
+            } else {
+                $saldos[$mov->moneda_id] -= (float) $mov->total;
+            }
+        }
+
+        foreach ($this->monedasDisponibles as $moneda) {
+            $saldo = $saldos[$moneda['id']] ?? 0;
+            if ($saldo != 0) {
+                $this->saldosMonedasCaja[$moneda['id']] = [
+                    'codigo' => $moneda['codigo'],
+                    'simbolo' => $moneda['simbolo'],
+                    'saldo' => round($saldo, 2),
+                ];
+            }
+        }
+    }
+
+    /**
+     * Obtiene el saldo de una moneda específica en la caja (turno abierto)
+     */
+    protected function getSaldoMonedaCaja(int $cajaId, int $monedaId): float
+    {
+        $ingresos = (float) MovimientoCaja::where('caja_id', $cajaId)
+            ->whereNull('cierre_turno_id')
+            ->where('moneda_id', $monedaId)
+            ->where('tipo', 'ingreso')
+            ->sum('monto_moneda_original');
+
+        $egresos = (float) MovimientoCaja::where('caja_id', $cajaId)
+            ->whereNull('cierre_turno_id')
+            ->where('moneda_id', $monedaId)
+            ->where('tipo', 'egreso')
+            ->sum('monto_moneda_original');
+
+        return round($ingresos - $egresos, 2);
+    }
+
+    /**
+     * Obtiene la cotización y equivalente ARS para una moneda extranjera.
+     * Retorna [montoARS, tipoCambioId, tasa] o null si no hay cotización.
+     */
+    protected function obtenerEquivalenteARS(float $montoOriginal, int $monedaId): ?array
+    {
+        $monedaPrincipal = Moneda::obtenerPrincipal();
+        if (!$monedaPrincipal) {
+            return null;
+        }
+
+        $tasa = TipoCambio::obtenerTasaVenta($monedaId, $monedaPrincipal->id);
+        if (!$tasa || $tasa <= 0) {
+            return null;
+        }
+
+        $tcRecord = TipoCambio::ultimaTasa($monedaId, $monedaPrincipal->id);
+
+        return [
+            'monto_ars' => round($montoOriginal * $tasa, 2),
+            'tipo_cambio_id' => $tcRecord?->id,
+            'tasa' => $tasa,
+        ];
     }
 
     protected function cargarHistorial()
@@ -129,7 +235,7 @@ class MovimientosManuales extends Component
         // Últimos 10 movimientos manuales de la caja
         $this->movimientosRecientes = MovimientoCaja::where('caja_id', $this->cajaActualId)
             ->whereIn('referencia_tipo', ['ajuste', 'retiro', 'ingreso_manual', 'egreso_manual', 'transferencia'])
-            ->with('usuario')
+            ->with(['usuario', 'moneda'])
             ->orderBy('created_at', 'desc')
             ->limit(10)
             ->get()
@@ -142,6 +248,8 @@ class MovimientosManuales extends Component
                     'usuario' => $mov->usuario?->name ?? 'Sistema',
                     'fecha' => $mov->created_at->format('d/m H:i'),
                     'referencia_tipo' => $mov->referencia_tipo,
+                    'moneda_simbolo' => $mov->moneda?->simbolo,
+                    'monto_moneda_original' => $mov->monto_moneda_original,
                 ];
             })
             ->toArray();
@@ -183,16 +291,19 @@ class MovimientosManuales extends Component
             'caja_destino_id' => null,
             'monto' => null,
             'motivo' => '',
+            'moneda_id' => null,
         ];
         $this->ingreso = [
             'monto' => null,
             'motivo' => '',
             'origen' => 'tesoreria',
+            'moneda_id' => null,
         ];
         $this->egreso = [
             'monto' => null,
             'motivo' => '',
             'destino' => 'tesoreria',
+            'moneda_id' => null,
         ];
         $this->resetErrorBag();
     }
@@ -218,19 +329,46 @@ class MovimientosManuales extends Component
             return;
         }
 
-        if (!$this->cajaActual || $this->cajaActual->saldo_actual < $this->transferencia['monto']) {
-            $this->addError('transferencia.monto', __('Saldo insuficiente en la caja'));
-            return;
+        $monedaId = $this->transferencia['moneda_id'] ? (int) $this->transferencia['moneda_id'] : null;
+        $monto = (float) $this->transferencia['monto'];
+
+        if ($monedaId) {
+            // Validar saldo en moneda extranjera
+            $saldoMoneda = $this->getSaldoMonedaCaja($this->cajaActualId, $monedaId);
+            if ($saldoMoneda < $monto) {
+                $this->addError('transferencia.monto', __('Saldo insuficiente en la moneda seleccionada'));
+                return;
+            }
+        } else {
+            if (!$this->cajaActual || $this->cajaActual->saldo_actual < $monto) {
+                $this->addError('transferencia.monto', __('Saldo insuficiente en la caja'));
+                return;
+            }
         }
 
         $cajaDestino = $this->cajasDisponibles->firstWhere('id', $this->transferencia['caja_destino_id']);
+        $monedaInfo = $monedaId ? collect($this->monedasDisponibles)->firstWhere('id', $monedaId) : null;
+
+        // Calcular equivalente ARS si es moneda extranjera
+        $equivalenteARS = null;
+        if ($monedaId) {
+            $equivalenteARS = $this->obtenerEquivalenteARS($monto, $monedaId);
+            if (!$equivalenteARS) {
+                $this->addError('transferencia.monto', __('No hay cotización disponible para esta moneda'));
+                return;
+            }
+        }
 
         $this->accionPendiente = 'transferencia';
         $this->datosPendientes = [
             'caja_origen' => $this->cajaActual->nombre,
             'caja_destino' => $cajaDestino->nombre,
-            'monto' => $this->transferencia['monto'],
+            'monto' => $monto,
             'motivo' => $this->transferencia['motivo'],
+            'moneda_simbolo' => $monedaInfo ? $monedaInfo['simbolo'] : '$',
+            'moneda_nombre' => $monedaInfo ? $monedaInfo['nombre'] : null,
+            'equivalente_ars' => $equivalenteARS ? $equivalenteARS['monto_ars'] : null,
+            'cotizacion' => $equivalenteARS ? $equivalenteARS['tasa'] : null,
         ];
         $this->showConfirmModal = true;
     }
@@ -243,13 +381,27 @@ class MovimientosManuales extends Component
             $usuarioId = auth()->id();
             $monto = (float) $this->transferencia['monto'];
             $motivo = $this->transferencia['motivo'];
+            $monedaId = $this->transferencia['moneda_id'] ? (int) $this->transferencia['moneda_id'] : null;
             $cajaDestino = Caja::find($this->transferencia['caja_destino_id']);
+            $esMonedaExtranjera = $monedaId !== null;
+
+            // Calcular equivalente ARS para moneda extranjera
+            $montoARS = $monto;
+            $tipoCambioId = null;
+            if ($esMonedaExtranjera) {
+                $equiv = $this->obtenerEquivalenteARS($monto, $monedaId);
+                if (!$equiv) {
+                    throw new \Exception(__('No hay cotización disponible para esta moneda'));
+                }
+                $montoARS = $equiv['monto_ars'];
+                $tipoCambioId = $equiv['tipo_cambio_id'];
+            }
 
             // Crear registro de transferencia
             $transferencia = TransferenciaEfectivo::create([
                 'caja_origen_id' => $this->cajaActualId,
                 'caja_destino_id' => $this->transferencia['caja_destino_id'],
-                'monto' => $monto,
+                'monto' => $montoARS,
                 'usuario_id' => $usuarioId,
                 'fecha' => now(),
                 'estado' => 'completada',
@@ -261,29 +413,34 @@ class MovimientosManuales extends Component
                 'caja_id' => $this->cajaActualId,
                 'tipo' => 'egreso',
                 'concepto' => "Transferencia a {$cajaDestino->nombre}: {$motivo}",
-                'monto' => $monto,
+                'monto' => $montoARS,
                 'usuario_id' => $usuarioId,
                 'referencia_tipo' => 'transferencia',
                 'referencia_id' => $transferencia->id,
+                'moneda_id' => $monedaId,
+                'monto_moneda_original' => $esMonedaExtranjera ? $monto : null,
+                'tipo_cambio_id' => $tipoCambioId,
             ]);
-
-            // Actualizar saldo caja origen
-            $this->cajaActual->saldo_actual -= $monto;
-            $this->cajaActual->save();
 
             // Ingreso en caja destino
             MovimientoCaja::create([
                 'caja_id' => $cajaDestino->id,
                 'tipo' => 'ingreso',
                 'concepto' => "Transferencia desde {$this->cajaActual->nombre}: {$motivo}",
-                'monto' => $monto,
+                'monto' => $montoARS,
                 'usuario_id' => $usuarioId,
                 'referencia_tipo' => 'transferencia',
                 'referencia_id' => $transferencia->id,
+                'moneda_id' => $monedaId,
+                'monto_moneda_original' => $esMonedaExtranjera ? $monto : null,
+                'tipo_cambio_id' => $tipoCambioId,
             ]);
 
-            // Actualizar saldo caja destino
-            $cajaDestino->saldo_actual += $monto;
+            // Actualizar saldo_actual (ARS equivalente siempre)
+            $this->cajaActual->saldo_actual -= $montoARS;
+            $this->cajaActual->save();
+
+            $cajaDestino->saldo_actual += $montoARS;
             $cajaDestino->save();
 
             DB::commit();
@@ -317,14 +474,36 @@ class MovimientosManuales extends Component
             'ingreso.motivo.required' => __('Ingrese el motivo del ingreso'),
         ]);
 
+        $monedaId = $this->ingreso['moneda_id'] ? (int) $this->ingreso['moneda_id'] : null;
+        $monto = (float) $this->ingreso['monto'];
+
         // Si viene de tesorería, validar saldo
         if ($this->ingreso['origen'] === 'tesoreria') {
             if (!$this->tesoreriaActiva) {
                 $this->addError('ingreso.origen', __('No hay tesorería activa en esta sucursal'));
                 return;
             }
-            if ($this->tesoreria->saldo_actual < $this->ingreso['monto']) {
-                $this->addError('ingreso.monto', __('Saldo insuficiente en tesorería'));
+            if ($monedaId) {
+                if (!$this->tesoreria->tieneSaldoSuficienteMoneda($monto, $monedaId)) {
+                    $this->addError('ingreso.monto', __('Saldo insuficiente en la moneda seleccionada'));
+                    return;
+                }
+            } else {
+                if ($this->tesoreria->saldo_actual < $monto) {
+                    $this->addError('ingreso.monto', __('Saldo insuficiente en tesorería'));
+                    return;
+                }
+            }
+        }
+
+        $monedaInfo = $monedaId ? collect($this->monedasDisponibles)->firstWhere('id', $monedaId) : null;
+
+        // Calcular equivalente ARS si es moneda extranjera
+        $equivalenteARS = null;
+        if ($monedaId) {
+            $equivalenteARS = $this->obtenerEquivalenteARS($monto, $monedaId);
+            if (!$equivalenteARS) {
+                $this->addError('ingreso.monto', __('No hay cotización disponible para esta moneda'));
                 return;
             }
         }
@@ -332,9 +511,13 @@ class MovimientosManuales extends Component
         $this->accionPendiente = 'ingreso';
         $this->datosPendientes = [
             'caja' => $this->cajaActual->nombre,
-            'monto' => $this->ingreso['monto'],
+            'monto' => $monto,
             'motivo' => $this->ingreso['motivo'],
             'origen' => $this->ingreso['origen'] === 'tesoreria' ? __('Tesorería') : __('Otro origen'),
+            'moneda_simbolo' => $monedaInfo ? $monedaInfo['simbolo'] : '$',
+            'moneda_nombre' => $monedaInfo ? $monedaInfo['nombre'] : null,
+            'equivalente_ars' => $equivalenteARS ? $equivalenteARS['monto_ars'] : null,
+            'cotizacion' => $equivalenteARS ? $equivalenteARS['tasa'] : null,
         ];
         $this->showConfirmModal = true;
     }
@@ -348,39 +531,67 @@ class MovimientosManuales extends Component
             $monto = (float) $this->ingreso['monto'];
             $motivo = $this->ingreso['motivo'];
             $esDesdeTesoreria = $this->ingreso['origen'] === 'tesoreria';
+            $monedaId = $this->ingreso['moneda_id'] ? (int) $this->ingreso['moneda_id'] : null;
+            $esMonedaExtranjera = $monedaId !== null;
+
+            // Calcular equivalente ARS para moneda extranjera
+            $montoARS = $monto;
+            $tipoCambioId = null;
+            if ($esMonedaExtranjera) {
+                $equiv = $this->obtenerEquivalenteARS($monto, $monedaId);
+                if (!$equiv) {
+                    throw new \Exception(__('No hay cotización disponible para esta moneda'));
+                }
+                $montoARS = $equiv['monto_ars'];
+                $tipoCambioId = $equiv['tipo_cambio_id'];
+            }
 
             // Registrar movimiento en caja
             $movimientoCaja = MovimientoCaja::create([
                 'caja_id' => $this->cajaActualId,
                 'tipo' => 'ingreso',
                 'concepto' => $motivo . ($esDesdeTesoreria ? ' (desde tesorería)' : ''),
-                'monto' => $monto,
+                'monto' => $montoARS,
                 'usuario_id' => $usuarioId,
                 'referencia_tipo' => 'ingreso_manual',
                 'referencia_id' => null,
+                'moneda_id' => $monedaId,
+                'monto_moneda_original' => $esMonedaExtranjera ? $monto : null,
+                'tipo_cambio_id' => $tipoCambioId,
             ]);
 
-            // Actualizar saldo de caja
-            $this->cajaActual->saldo_actual += $monto;
+            // Actualizar saldo_actual (ARS equivalente siempre)
+            $this->cajaActual->saldo_actual += $montoARS;
             $this->cajaActual->save();
 
             // Si viene de tesorería, registrar el egreso
             if ($esDesdeTesoreria && $this->tesoreria) {
-                $saldoAnterior = $this->tesoreria->saldo_actual;
-                $this->tesoreria->saldo_actual -= $monto;
-                $this->tesoreria->save();
+                if ($esMonedaExtranjera) {
+                    $this->tesoreria->egresoMonedaExtranjera(
+                        $monto,
+                        "Ingreso manual a caja {$this->cajaActual->nombre}: {$motivo}",
+                        $usuarioId,
+                        $monedaId,
+                        'ingreso_manual_caja',
+                        $movimientoCaja->id
+                    );
+                } else {
+                    $saldoAnterior = $this->tesoreria->saldo_actual;
+                    $this->tesoreria->saldo_actual -= $monto;
+                    $this->tesoreria->save();
 
-                MovimientoTesoreria::create([
-                    'tesoreria_id' => $this->tesoreria->id,
-                    'tipo' => 'egreso',
-                    'concepto' => "Ingreso manual a caja {$this->cajaActual->nombre}: {$motivo}",
-                    'monto' => $monto,
-                    'saldo_anterior' => $saldoAnterior,
-                    'saldo_posterior' => $this->tesoreria->saldo_actual,
-                    'usuario_id' => $usuarioId,
-                    'referencia_tipo' => 'ingreso_manual_caja',
-                    'referencia_id' => $movimientoCaja->id,
-                ]);
+                    MovimientoTesoreria::create([
+                        'tesoreria_id' => $this->tesoreria->id,
+                        'tipo' => 'egreso',
+                        'concepto' => "Ingreso manual a caja {$this->cajaActual->nombre}: {$motivo}",
+                        'monto' => $monto,
+                        'saldo_anterior' => $saldoAnterior,
+                        'saldo_posterior' => $this->tesoreria->saldo_actual,
+                        'usuario_id' => $usuarioId,
+                        'referencia_tipo' => 'ingreso_manual_caja',
+                        'referencia_id' => $movimientoCaja->id,
+                    ]);
+                }
             }
 
             DB::commit();
@@ -414,10 +625,21 @@ class MovimientosManuales extends Component
             'egreso.motivo.required' => __('Ingrese el motivo del egreso'),
         ]);
 
-        // Validar saldo de caja
-        if (!$this->cajaActual || $this->cajaActual->saldo_actual < $this->egreso['monto']) {
-            $this->addError('egreso.monto', __('Saldo insuficiente en la caja'));
-            return;
+        $monedaId = $this->egreso['moneda_id'] ? (int) $this->egreso['moneda_id'] : null;
+        $monto = (float) $this->egreso['monto'];
+
+        // Validar saldo
+        if ($monedaId) {
+            $saldoMoneda = $this->getSaldoMonedaCaja($this->cajaActualId, $monedaId);
+            if ($saldoMoneda < $monto) {
+                $this->addError('egreso.monto', __('Saldo insuficiente en la moneda seleccionada'));
+                return;
+            }
+        } else {
+            if (!$this->cajaActual || $this->cajaActual->saldo_actual < $monto) {
+                $this->addError('egreso.monto', __('Saldo insuficiente en la caja'));
+                return;
+            }
         }
 
         // Si va a tesorería, validar que exista
@@ -426,12 +648,28 @@ class MovimientosManuales extends Component
             return;
         }
 
+        $monedaInfo = $monedaId ? collect($this->monedasDisponibles)->firstWhere('id', $monedaId) : null;
+
+        // Calcular equivalente ARS si es moneda extranjera
+        $equivalenteARS = null;
+        if ($monedaId) {
+            $equivalenteARS = $this->obtenerEquivalenteARS($monto, $monedaId);
+            if (!$equivalenteARS) {
+                $this->addError('egreso.monto', __('No hay cotización disponible para esta moneda'));
+                return;
+            }
+        }
+
         $this->accionPendiente = 'egreso';
         $this->datosPendientes = [
             'caja' => $this->cajaActual->nombre,
-            'monto' => $this->egreso['monto'],
+            'monto' => $monto,
             'motivo' => $this->egreso['motivo'],
             'destino' => $this->egreso['destino'] === 'tesoreria' ? __('Tesorería') : __('Otro destino'),
+            'moneda_simbolo' => $monedaInfo ? $monedaInfo['simbolo'] : '$',
+            'moneda_nombre' => $monedaInfo ? $monedaInfo['nombre'] : null,
+            'equivalente_ars' => $equivalenteARS ? $equivalenteARS['monto_ars'] : null,
+            'cotizacion' => $equivalenteARS ? $equivalenteARS['tasa'] : null,
         ];
         $this->showConfirmModal = true;
     }
@@ -445,39 +683,67 @@ class MovimientosManuales extends Component
             $monto = (float) $this->egreso['monto'];
             $motivo = $this->egreso['motivo'];
             $esHaciaTesoreria = $this->egreso['destino'] === 'tesoreria';
+            $monedaId = $this->egreso['moneda_id'] ? (int) $this->egreso['moneda_id'] : null;
+            $esMonedaExtranjera = $monedaId !== null;
+
+            // Calcular equivalente ARS para moneda extranjera
+            $montoARS = $monto;
+            $tipoCambioId = null;
+            if ($esMonedaExtranjera) {
+                $equiv = $this->obtenerEquivalenteARS($monto, $monedaId);
+                if (!$equiv) {
+                    throw new \Exception(__('No hay cotización disponible para esta moneda'));
+                }
+                $montoARS = $equiv['monto_ars'];
+                $tipoCambioId = $equiv['tipo_cambio_id'];
+            }
 
             // Registrar movimiento en caja
             $movimientoCaja = MovimientoCaja::create([
                 'caja_id' => $this->cajaActualId,
                 'tipo' => 'egreso',
                 'concepto' => $motivo . ($esHaciaTesoreria ? ' (a tesorería)' : ''),
-                'monto' => $monto,
+                'monto' => $montoARS,
                 'usuario_id' => $usuarioId,
                 'referencia_tipo' => 'egreso_manual',
                 'referencia_id' => null,
+                'moneda_id' => $monedaId,
+                'monto_moneda_original' => $esMonedaExtranjera ? $monto : null,
+                'tipo_cambio_id' => $tipoCambioId,
             ]);
 
-            // Actualizar saldo de caja
-            $this->cajaActual->saldo_actual -= $monto;
+            // Actualizar saldo_actual (ARS equivalente siempre)
+            $this->cajaActual->saldo_actual -= $montoARS;
             $this->cajaActual->save();
 
             // Si va a tesorería, registrar el ingreso
             if ($esHaciaTesoreria && $this->tesoreria) {
-                $saldoAnterior = $this->tesoreria->saldo_actual;
-                $this->tesoreria->saldo_actual += $monto;
-                $this->tesoreria->save();
+                if ($esMonedaExtranjera) {
+                    $this->tesoreria->ingresoMonedaExtranjera(
+                        $monto,
+                        "Egreso manual desde caja {$this->cajaActual->nombre}: {$motivo}",
+                        $usuarioId,
+                        $monedaId,
+                        'egreso_manual_caja',
+                        $movimientoCaja->id
+                    );
+                } else {
+                    $saldoAnterior = $this->tesoreria->saldo_actual;
+                    $this->tesoreria->saldo_actual += $monto;
+                    $this->tesoreria->save();
 
-                MovimientoTesoreria::create([
-                    'tesoreria_id' => $this->tesoreria->id,
-                    'tipo' => 'ingreso',
-                    'concepto' => "Egreso manual desde caja {$this->cajaActual->nombre}: {$motivo}",
-                    'monto' => $monto,
-                    'saldo_anterior' => $saldoAnterior,
-                    'saldo_posterior' => $this->tesoreria->saldo_actual,
-                    'usuario_id' => $usuarioId,
-                    'referencia_tipo' => 'egreso_manual_caja',
-                    'referencia_id' => $movimientoCaja->id,
-                ]);
+                    MovimientoTesoreria::create([
+                        'tesoreria_id' => $this->tesoreria->id,
+                        'tipo' => 'ingreso',
+                        'concepto' => "Egreso manual desde caja {$this->cajaActual->nombre}: {$motivo}",
+                        'monto' => $monto,
+                        'saldo_anterior' => $saldoAnterior,
+                        'saldo_posterior' => $this->tesoreria->saldo_actual,
+                        'usuario_id' => $usuarioId,
+                        'referencia_tipo' => 'egreso_manual_caja',
+                        'referencia_id' => $movimientoCaja->id,
+                    ]);
+                }
             }
 
             DB::commit();

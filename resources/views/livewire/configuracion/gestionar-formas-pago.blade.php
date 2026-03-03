@@ -1,5 +1,5 @@
-<div class="py-6 sm:py-12">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="py-4">
+    <div class="px-4 sm:px-6 lg:px-8">
         <!-- Header -->
         <div class="mb-4 sm:mb-6">
             <div class="flex justify-between items-start gap-3 sm:gap-4">
@@ -528,6 +528,37 @@
                                         @error('descripcion') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                     </div>
 
+                                    <!-- Cuenta Empresa vinculada -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            {{ __('Cuenta Empresa') }}
+                                        </label>
+                                        <select wire:model="cuenta_empresa_id"
+                                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary">
+                                            <option value="">{{ __('Sin vincular') }}</option>
+                                            @foreach($cuentasEmpresa as $cuentaEmp)
+                                            <option value="{{ $cuentaEmp->id }}">{{ $cuentaEmp->nombre_completo }}</option>
+                                            @endforeach
+                                        </select>
+                                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            {{ __('Al vincular, los cobros con esta forma de pago se registrarán automáticamente en la cuenta') }}
+                                        </p>
+                                    </div>
+
+                                    <!-- Moneda -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            {{ __('Moneda') }}
+                                        </label>
+                                        <select wire:model="moneda_id"
+                                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary">
+                                            <option value="">{{ __('Por defecto') }}</option>
+                                            @foreach($monedas as $monedaItem)
+                                            <option value="{{ $monedaItem->id }}">{{ $monedaItem->codigo }} - {{ $monedaItem->nombre }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+
                                     <!-- Estado activo -->
                                     <div class="sm:col-span-2 flex items-center">
                                         <input
@@ -727,5 +758,6 @@
                 </div>
             </div>
         @endif
+
     </div>
 </div>

@@ -7,6 +7,7 @@ use App\Models\ArticuloGrupoOpcional;
 use App\Models\ArticuloGrupoOpcionalOpcion;
 use App\Models\Categoria;
 use App\Models\GrupoEtiqueta;
+use App\Models\HistorialPrecio;
 use App\Models\Receta;
 use App\Models\Stock;
 use App\Models\Sucursal;
@@ -60,6 +61,10 @@ class ArticulosSucursal extends Component
 
     // Sub-modal confirmar eliminar receta override
     public bool $showDeleteRecetaModal = false;
+
+    // Estado de anulación de receta por sucursal
+    public bool $recetaAnulada = false;
+    public bool $tieneRecetaDefault = false;
 
     public function mount(): void
     {
@@ -116,7 +121,7 @@ class ArticulosSucursal extends Component
         $pivots = DB::connection('pymes_tenant')
             ->table('articulos_sucursales')
             ->where('sucursal_id', sucursal_activa())
-            ->get(['articulo_id', 'activo', 'modo_stock', 'vendible'])
+            ->get(['articulo_id', 'activo', 'modo_stock', 'vendible', 'precio_base'])
             ->keyBy('articulo_id');
 
         $todosArticulosIds = Articulo::pluck('id');
@@ -128,6 +133,7 @@ class ArticulosSucursal extends Component
                     'activo' => (bool) $pivot->activo,
                     'modo_stock' => $pivot->modo_stock ?? 'ninguno',
                     'vendible' => (bool) ($pivot->vendible ?? true),
+                    'precio_base' => $pivot->precio_base,
                 ];
             } else {
                 // Sin relación = defaults
@@ -135,6 +141,7 @@ class ArticulosSucursal extends Component
                     'activo' => true,
                     'modo_stock' => 'ninguno',
                     'vendible' => true,
+                    'precio_base' => null,
                 ];
             }
         }
@@ -186,6 +193,45 @@ class ArticulosSucursal extends Component
 
         $this->guardarPivot($articuloId, ['vendible' => $nuevoEstado]);
         $this->articulosConfig[$articuloId]['vendible'] = $nuevoEstado;
+    }
+
+    /**
+     * Actualiza el precio base override de un artículo para esta sucursal
+     */
+    public function actualizarPrecioBase(int $articuloId, $precio): void
+    {
+        if (!sucursal_activa()) return;
+
+        $valor = ($precio !== null && $precio !== '') ? round((float) $precio, 2) : null;
+
+        // Capturar precio anterior (override actual o genérico)
+        $precioAnterior = $this->articulosConfig[$articuloId]['precio_base']
+            ?? (float) Articulo::find($articuloId)?->precio_base;
+
+        $this->guardarPivot($articuloId, ['precio_base' => $valor]);
+        $this->articulosConfig[$articuloId]['precio_base'] = $valor;
+
+        $esRestablecer = $valor === null;
+        $precioNuevo = $valor ?? (float) Articulo::find($articuloId)?->precio_base;
+
+        HistorialPrecio::registrar([
+            'articulo_id' => $articuloId,
+            'sucursal_id' => sucursal_activa(),
+            'precio_anterior' => (float) $precioAnterior,
+            'precio_nuevo' => (float) $precioNuevo,
+            'origen' => $esRestablecer ? 'sucursal_restablecer' : 'sucursal_override',
+        ]);
+
+        $msg = $valor !== null ? __('Precio propio guardado') : __('Precio restablecido al genérico');
+        $this->dispatch('notify', message: $msg, type: 'success');
+    }
+
+    /**
+     * Restablece el precio base de un artículo al genérico
+     */
+    public function restablecerPrecioBase(int $articuloId): void
+    {
+        $this->actualizarPrecioBase($articuloId, null);
     }
 
     /**
@@ -360,7 +406,17 @@ class ArticulosSucursal extends Component
         $sucursal = Sucursal::find(sucursal_activa());
         $this->recetaSucursalNombre = $sucursal?->nombre;
 
-        // Buscar override primero, luego default
+        // Verificar si existe receta default
+        $default = Receta::where('recetable_type', 'Articulo')
+            ->where('recetable_id', $this->configArticuloId)
+            ->whereNull('sucursal_id')
+            ->where('activo', true)
+            ->with('ingredientes.articulo')
+            ->first();
+
+        $this->tieneRecetaDefault = $default !== null;
+
+        // Buscar override primero (sin filtrar por activo)
         $override = Receta::where('recetable_type', 'Articulo')
             ->where('recetable_id', $this->configArticuloId)
             ->where('sucursal_id', sucursal_activa())
@@ -368,25 +424,32 @@ class ArticulosSucursal extends Component
             ->first();
 
         if ($override) {
-            $this->recetaEsOverride = true;
-            $this->recetaId = $override->id;
-            $this->recetaCantidadProducida = (string) $override->cantidad_producida;
-            $this->recetaNotas = $override->notas ?? '';
-            $this->recetaIngredientes = $override->ingredientes->map(fn($ing) => [
-                'articulo_id' => $ing->articulo_id,
-                'codigo' => $ing->articulo->codigo ?? '',
-                'nombre' => $ing->articulo->nombre ?? __('Artículo eliminado'),
-                'unidad_medida' => $ing->articulo->unidad_medida ?? '',
-                'cantidad' => (string) $ing->cantidad,
-            ])->toArray();
+            if (!$override->activo) {
+                // Override inactivo = receta anulada
+                $this->recetaAnulada = true;
+                $this->recetaEsOverride = true;
+                $this->recetaId = $override->id;
+                $this->recetaCantidadProducida = '1.000';
+                $this->recetaNotas = '';
+                $this->recetaIngredientes = [];
+            } else {
+                // Override activo = receta personalizada
+                $this->recetaAnulada = false;
+                $this->recetaEsOverride = true;
+                $this->recetaId = $override->id;
+                $this->recetaCantidadProducida = (string) $override->cantidad_producida;
+                $this->recetaNotas = $override->notas ?? '';
+                $this->recetaIngredientes = $override->ingredientes->map(fn($ing) => [
+                    'articulo_id' => $ing->articulo_id,
+                    'codigo' => $ing->articulo->codigo ?? '',
+                    'nombre' => $ing->articulo->nombre ?? __('Artículo eliminado'),
+                    'unidad_medida' => $ing->articulo->unidad_medida ?? '',
+                    'cantidad' => (string) $ing->cantidad,
+                ])->toArray();
+            }
         } else {
-            // Buscar default
-            $default = Receta::where('recetable_type', 'Articulo')
-                ->where('recetable_id', $this->configArticuloId)
-                ->whereNull('sucursal_id')
-                ->with('ingredientes.articulo')
-                ->first();
-
+            // Sin override: mostrar default si existe
+            $this->recetaAnulada = false;
             $this->recetaEsOverride = false;
             $this->recetaId = null;
 
@@ -554,6 +617,49 @@ class ArticulosSucursal extends Component
         $this->resetReceta();
     }
 
+    /**
+     * Anula la receta en esta sucursal (crea override inactivo).
+     */
+    public function anularReceta(): void
+    {
+        if (!$this->configArticuloId || !sucursal_activa()) return;
+
+        Receta::updateOrCreate(
+            [
+                'recetable_type' => 'Articulo',
+                'recetable_id' => $this->configArticuloId,
+                'sucursal_id' => sucursal_activa(),
+            ],
+            [
+                'activo' => false,
+                'cantidad_producida' => 1,
+                'notas' => null,
+            ]
+        );
+
+        $this->dispatch('notify', message: __('Receta anulada en esta sucursal'), type: 'success');
+        $this->showRecetaModal = false;
+        $this->resetReceta();
+    }
+
+    /**
+     * Restaura la receta default eliminando el override inactivo.
+     */
+    public function restaurarRecetaDefault(): void
+    {
+        if (!$this->recetaId) return;
+
+        $receta = Receta::find($this->recetaId);
+        if ($receta && !$receta->activo) {
+            $receta->ingredientes()->delete();
+            $receta->delete();
+        }
+
+        $this->dispatch('notify', message: __('Receta default restaurada para esta sucursal'), type: 'success');
+        $this->showRecetaModal = false;
+        $this->resetReceta();
+    }
+
     public function cancelarReceta(): void
     {
         $this->showRecetaModal = false;
@@ -575,6 +681,8 @@ class ArticulosSucursal extends Component
         $this->resultadosBusqueda = [];
         $this->recetaCantidadProducida = '1.000';
         $this->recetaNotas = '';
+        $this->recetaAnulada = false;
+        $this->tieneRecetaDefault = false;
     }
 
     // ===== Render =====

@@ -96,14 +96,25 @@ class Receta extends Model
      */
     public static function resolver(string $type, int $id, int $sucursalId): ?self
     {
+        // Primero buscar override de sucursal (sin importar activo)
+        $override = static::where('recetable_type', $type)
+            ->where('recetable_id', $id)
+            ->where('sucursal_id', $sucursalId)
+            ->first();
+
+        if ($override) {
+            // Override inactivo = receta anulada para esta sucursal
+            if (!$override->activo) {
+                return null;
+            }
+            return $override->load('ingredientes.articulo');
+        }
+
+        // Sin override: buscar default activa
         return static::where('recetable_type', $type)
             ->where('recetable_id', $id)
+            ->whereNull('sucursal_id')
             ->where('activo', true)
-            ->where(function ($q) use ($sucursalId) {
-                $q->where('sucursal_id', $sucursalId)
-                  ->orWhereNull('sucursal_id');
-            })
-            ->orderByRaw('sucursal_id IS NULL ASC')
             ->with('ingredientes.articulo')
             ->first();
     }

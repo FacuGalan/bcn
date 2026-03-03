@@ -61,7 +61,15 @@
       "Bash(xargs:*)",
       "Bash(git config:*)",
       "Bash(gh auth:*)",
-      "Bash(git remote set-url:*)"
+      "Bash(git remote set-url:*)",
+      "Bash(ls:*)",
+      "Bash(chown www-data:www-data:*)",
+      "Bash(test:*)",
+      "Bash(tail:*)",
+      "Bash(do:*)",
+      "Bash(python3:*)",
+      "Bash(crontab:*)",
+      "Bash(git status:*)"
     ],
     "deny": [],
     "ask": []

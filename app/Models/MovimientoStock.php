@@ -54,6 +54,9 @@ class MovimientoStock extends Model
     public const TIPO_ANULACION_VENTA = 'anulacion_venta';
     public const TIPO_ANULACION_COMPRA = 'anulacion_compra';
     public const TIPO_CARGA_INICIAL = 'carga_inicial';
+    public const TIPO_PRODUCCION_ENTRADA = 'produccion_entrada';
+    public const TIPO_PRODUCCION_SALIDA = 'produccion_salida';
+    public const TIPO_ANULACION_PRODUCCION = 'anulacion_produccion';
 
     // Tipos de documento
     public const DOC_VENTA = 'venta';
@@ -63,6 +66,7 @@ class MovimientoStock extends Model
     public const DOC_TRANSFERENCIA = 'transferencia';
     public const DOC_AJUSTE = 'ajuste';
     public const DOC_INVENTARIO = 'inventario';
+    public const DOC_PRODUCCION = 'produccion';
 
     protected $fillable = [
         'articulo_id',
@@ -528,6 +532,7 @@ class MovimientoStock extends Model
         $tipoAnulacion = match ($movimientoOriginal->tipo) {
             self::TIPO_VENTA => self::TIPO_ANULACION_VENTA,
             self::TIPO_COMPRA => self::TIPO_ANULACION_COMPRA,
+            self::TIPO_PRODUCCION_ENTRADA, self::TIPO_PRODUCCION_SALIDA => self::TIPO_ANULACION_PRODUCCION,
             default => self::TIPO_AJUSTE_MANUAL,
         };
 
@@ -587,6 +592,9 @@ class MovimientoStock extends Model
             self::TIPO_ANULACION_COMPRA => 'yellow',
             self::TIPO_DEVOLUCION => 'indigo',
             self::TIPO_CARGA_INICIAL => 'gray',
+            self::TIPO_PRODUCCION_ENTRADA => 'emerald',
+            self::TIPO_PRODUCCION_SALIDA => 'lime',
+            self::TIPO_ANULACION_PRODUCCION => 'amber',
             default => 'gray',
         };
     }
@@ -607,7 +615,68 @@ class MovimientoStock extends Model
             self::TIPO_ANULACION_COMPRA => __('Anulación Compra'),
             self::TIPO_DEVOLUCION => __('Devolución'),
             self::TIPO_CARGA_INICIAL => __('Carga Inicial'),
+            self::TIPO_PRODUCCION_ENTRADA => __('Producción Entrada'),
+            self::TIPO_PRODUCCION_SALIDA => __('Producción Salida'),
+            self::TIPO_ANULACION_PRODUCCION => __('Anulación Producción'),
             default => $this->tipo,
         };
+    }
+
+    // ==================== Métodos estáticos de producción ====================
+
+    /**
+     * Crea un movimiento de producción entrada (producto terminado, +stock)
+     */
+    public static function crearMovimientoProduccionEntrada(
+        int $articuloId,
+        int $sucursalId,
+        float $cantidad,
+        int $produccionId,
+        string $concepto,
+        int $usuarioId
+    ): self {
+        $stockResultante = static::calcularStockResultante($articuloId, $sucursalId, $cantidad, 0);
+
+        return static::create([
+            'articulo_id' => $articuloId,
+            'sucursal_id' => $sucursalId,
+            'fecha' => now()->toDateString(),
+            'tipo' => self::TIPO_PRODUCCION_ENTRADA,
+            'entrada' => $cantidad,
+            'salida' => 0,
+            'stock_resultante' => $stockResultante,
+            'documento_tipo' => self::DOC_PRODUCCION,
+            'documento_id' => $produccionId,
+            'concepto' => $concepto,
+            'usuario_id' => $usuarioId,
+        ]);
+    }
+
+    /**
+     * Crea un movimiento de producción salida (ingrediente consumido, -stock)
+     */
+    public static function crearMovimientoProduccionSalida(
+        int $articuloId,
+        int $sucursalId,
+        float $cantidad,
+        int $produccionId,
+        string $concepto,
+        int $usuarioId
+    ): self {
+        $stockResultante = static::calcularStockResultante($articuloId, $sucursalId, 0, $cantidad);
+
+        return static::create([
+            'articulo_id' => $articuloId,
+            'sucursal_id' => $sucursalId,
+            'fecha' => now()->toDateString(),
+            'tipo' => self::TIPO_PRODUCCION_SALIDA,
+            'entrada' => 0,
+            'salida' => $cantidad,
+            'stock_resultante' => $stockResultante,
+            'documento_tipo' => self::DOC_PRODUCCION,
+            'documento_id' => $produccionId,
+            'concepto' => $concepto,
+            'usuario_id' => $usuarioId,
+        ]);
     }
 }

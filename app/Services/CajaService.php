@@ -466,6 +466,7 @@ class CajaService
      * @param CierreTurno|null $cierreTurno
      * @param Tesoreria|null $tesoreria
      * @param string|null $observaciones
+     * @param array|null $desgloseMonedas Monedas extranjeras: [monedaId => ['saldo' => float, ...]]
      * @return array ['success' => bool, 'message' => string, 'rendicion' => ?RendicionFondo, 'diferencia' => float]
      */
     public static function cerrarCajaConTesoreria(
@@ -474,7 +475,8 @@ class CajaService
         int $usuarioId,
         ?CierreTurno $cierreTurno = null,
         ?Tesoreria $tesoreria = null,
-        ?string $observaciones = null
+        ?string $observaciones = null,
+        ?array $desgloseMonedas = null
     ): array {
         try {
             // Si la caja ya está cerrada, no hacer nada
@@ -487,7 +489,7 @@ class CajaService
                 ];
             }
 
-            return DB::transaction(function () use ($caja, $saldoDeclarado, $usuarioId, $cierreTurno, $tesoreria, $observaciones) {
+            return DB::transaction(function () use ($caja, $saldoDeclarado, $usuarioId, $cierreTurno, $tesoreria, $observaciones, $desgloseMonedas) {
                 $rendicion = null;
 
                 // El saldo del sistema es el saldo_actual de la caja (ya refleja todos los movimientos)
@@ -501,9 +503,9 @@ class CajaService
                         ->first();
                 }
 
-                // Si hay tesorería ACTIVA y monto a rendir > 0, hacer rendición
+                // Si hay tesorería ACTIVA y (monto ARS > 0 o hay monedas extranjeras), hacer rendición
                 $seRindio = false;
-                if ($tesoreria && $tesoreria->activo && $saldoDeclarado > 0) {
+                if ($tesoreria && $tesoreria->activo && ($saldoDeclarado > 0 || !empty($desgloseMonedas))) {
                     $rendicion = TesoreriaService::rendirFondo(
                         $caja,
                         $tesoreria,
@@ -511,7 +513,8 @@ class CajaService
                         $saldoSistema,
                         $usuarioId,
                         $cierreTurno?->id,
-                        $observaciones
+                        $observaciones,
+                        $desgloseMonedas
                     );
                     $seRindio = true;
                 }

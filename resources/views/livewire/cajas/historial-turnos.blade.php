@@ -196,6 +196,7 @@
                 $tieneDiferencia = $cierre->total_diferencia != 0;
                 $esFaltante = $cierre->total_diferencia < 0;
                 $cantidadCajas = $cierre->detalleCajas->count();
+                $resumenMonedas = $this->getResumenMonedasCierre($cierre);
             @endphp
             <div class="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                 {{-- Vista móvil --}}
@@ -222,6 +223,13 @@
                         </div>
                         <div class="text-right flex-shrink-0">
                             <p class="font-semibold text-gray-900 dark:text-white">${{ number_format($cierre->total_saldo_final, 0, ',', '.') }}</p>
+                            @foreach($resumenMonedas as $monData)
+                            @if($monData['declarado'] > 0)
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                {{ $monData['simbolo'] }} {{ number_format($monData['declarado'], 2, ',', '.') }}
+                            </span>
+                            @endif
+                            @endforeach
                             @if($tieneDiferencia)
                             <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {{ $esFaltante ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' }}">
                                 {{ $esFaltante ? '' : '+' }}${{ number_format($cierre->total_diferencia, 0, ',', '.') }}
@@ -284,16 +292,31 @@
                     {{-- Ingresos --}}
                     <div class="col-span-1 text-right">
                         <p class="text-green-600 dark:text-green-400 font-medium">+${{ number_format($cierre->total_ingresos, 0, ',', '.') }}</p>
+                        @foreach($resumenMonedas as $monData)
+                        @if($monData['ingresos'] > 0)
+                        <p class="text-xs text-green-500 dark:text-green-500">+{{ $monData['simbolo'] }} {{ number_format($monData['ingresos'], 2, ',', '.') }}</p>
+                        @endif
+                        @endforeach
                     </div>
 
                     {{-- Egresos --}}
                     <div class="col-span-1 text-right">
                         <p class="text-red-600 dark:text-red-400 font-medium">-${{ number_format($cierre->total_egresos, 0, ',', '.') }}</p>
+                        @foreach($resumenMonedas as $monData)
+                        @if($monData['egresos'] > 0)
+                        <p class="text-xs text-red-500 dark:text-red-500">-{{ $monData['simbolo'] }} {{ number_format($monData['egresos'], 2, ',', '.') }}</p>
+                        @endif
+                        @endforeach
                     </div>
 
                     {{-- Final --}}
                     <div class="col-span-1 text-right">
                         <p class="font-semibold text-gray-900 dark:text-white">${{ number_format($cierre->total_saldo_final, 0, ',', '.') }}</p>
+                        @foreach($resumenMonedas as $monData)
+                        @if($monData['declarado'] > 0)
+                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ $monData['simbolo'] }} {{ number_format($monData['declarado'], 2, ',', '.') }}</p>
+                        @endif
+                        @endforeach
                     </div>
 
                     {{-- Diferencia --}}
@@ -472,6 +495,8 @@
                     @php
                         $totalesPorConcepto = collect();
                         $totalesPorFormaPago = collect();
+                        $totalesPorMoneda = [];
+                        $esFondoComun = $cierreDetalle->esGrupal() && $cierreDetalle->grupoCierre?->fondo_comun;
 
                         foreach($cierreDetalle->detalleCajas as $detalleCaja) {
                             // Consolidar conceptos
@@ -486,7 +511,43 @@
                                     $totalesPorFormaPago[$forma] = ($totalesPorFormaPago[$forma] ?? 0) + $monto;
                                 }
                             }
+                            // Consolidar monedas
+                            if ($detalleCaja->desglose_monedas) {
+                                foreach($detalleCaja->desglose_monedas as $codigo => $data) {
+                                    if (!isset($totalesPorMoneda[$codigo])) {
+                                        $totalesPorMoneda[$codigo] = [
+                                            'codigo' => $data['codigo'] ?? $codigo,
+                                            'simbolo' => $data['simbolo'] ?? '',
+                                            'nombre' => $data['nombre'] ?? '',
+                                            'es_principal' => $data['es_principal'] ?? false,
+                                            'ingresos' => 0, 'egresos' => 0, 'saldo' => 0,
+                                            'ingresos_convertido' => 0, 'egresos_convertido' => 0, 'saldo_convertido' => 0,
+                                            'operaciones' => 0, 'declarado' => null,
+                                        ];
+                                    }
+                                    $totalesPorMoneda[$codigo]['ingresos'] += $data['ingresos'] ?? 0;
+                                    $totalesPorMoneda[$codigo]['egresos'] += $data['egresos'] ?? 0;
+                                    $totalesPorMoneda[$codigo]['saldo'] += $data['saldo'] ?? 0;
+                                    $totalesPorMoneda[$codigo]['ingresos_convertido'] += $data['ingresos_convertido'] ?? 0;
+                                    $totalesPorMoneda[$codigo]['egresos_convertido'] += $data['egresos_convertido'] ?? 0;
+                                    $totalesPorMoneda[$codigo]['saldo_convertido'] += $data['saldo_convertido'] ?? 0;
+                                    $totalesPorMoneda[$codigo]['operaciones'] += $data['operaciones'] ?? 0;
+                                    // Declarado: fondo común tiene mismo valor en cada caja (tomar una vez), individual/grupal sumar
+                                    if (isset($data['declarado']) && $data['declarado'] !== null) {
+                                        if ($esFondoComun) {
+                                            $totalesPorMoneda[$codigo]['declarado'] = $data['declarado'];
+                                        } else {
+                                            $totalesPorMoneda[$codigo]['declarado'] = ($totalesPorMoneda[$codigo]['declarado'] ?? 0) + $data['declarado'];
+                                        }
+                                    }
+                                }
+                            }
                         }
+                        // Calcular diferencia consolidada
+                        foreach ($totalesPorMoneda as &$_tm) {
+                            $_tm['diferencia'] = $_tm['declarado'] !== null ? round($_tm['declarado'] - $_tm['saldo'], 2) : null;
+                        }
+                        unset($_tm);
                     @endphp
 
                     @if($totalesPorConcepto->count() > 0 || $totalesPorFormaPago->count() > 0)
@@ -526,6 +587,55 @@
                         </div>
                     </div>
                     @endif
+
+                    {{-- Desglose Consolidado por Moneda --}}
+                    @if(count($totalesPorMoneda) > 0)
+                    <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold mb-2">{{ __('Desglose por Moneda') }}</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            @foreach($totalesPorMoneda as $codMon => $dataMon)
+                            <div class="rounded-lg p-3 border {{ ($dataMon['es_principal'] ?? false) ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700' }}">
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <span class="text-xs font-semibold {{ ($dataMon['es_principal'] ?? false) ? 'text-blue-800 dark:text-blue-200' : 'text-amber-800 dark:text-amber-200' }}">
+                                        {{ $dataMon['simbolo'] }} {{ $dataMon['codigo'] }}
+                                    </span>
+                                    <span class="text-xs text-gray-400">({{ $dataMon['operaciones'] }} {{ __('op.') }})</span>
+                                </div>
+                                <div class="flex items-center gap-2 text-xs mb-1">
+                                    @if(($dataMon['ingresos'] ?? 0) > 0)
+                                    <span class="text-green-600 dark:text-green-400">{{ __('Ing.') }} {{ ($dataMon['es_principal'] ?? false) ? '$' : $dataMon['simbolo'] }}{{ number_format($dataMon['ingresos'], 2, ',', '.') }}</span>
+                                    @endif
+                                    @if(($dataMon['egresos'] ?? 0) > 0)
+                                    <span class="text-red-600 dark:text-red-400">{{ __('Egr.') }} {{ ($dataMon['es_principal'] ?? false) ? '$' : $dataMon['simbolo'] }}{{ number_format($dataMon['egresos'], 2, ',', '.') }}</span>
+                                    @endif
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold {{ ($dataMon['es_principal'] ?? false) ? 'text-blue-900 dark:text-blue-100' : 'text-amber-900 dark:text-amber-100' }}">
+                                        {{ __('En caja') }}: {{ ($dataMon['es_principal'] ?? false) ? '$' : $dataMon['simbolo'] }}{{ number_format($dataMon['saldo'] ?? 0, 2, ',', '.') }}
+                                        @if(!($dataMon['es_principal'] ?? false) && ($dataMon['saldo_convertido'] ?? 0) != 0)
+                                        <span class="font-normal text-amber-500 dark:text-amber-400">(≈ ${{ number_format($dataMon['saldo_convertido'] ?? 0, 0, ',', '.') }})</span>
+                                        @endif
+                                    </span>
+                                    @if(isset($dataMon['declarado']) && $dataMon['declarado'] !== null)
+                                    <span class="text-xs">
+                                        {{ __('Declarado') }}: {{ ($dataMon['es_principal'] ?? false) ? '$' : $dataMon['simbolo'] }}{{ number_format($dataMon['declarado'], 2, ',', '.') }}
+                                        @if(isset($dataMon['diferencia']) && $dataMon['diferencia'] !== null)
+                                            @if($dataMon['diferencia'] == 0)
+                                                <span class="text-green-600 dark:text-green-400 font-medium">({{ __('Cuadrado') }})</span>
+                                            @elseif($dataMon['diferencia'] > 0)
+                                                <span class="text-amber-600 dark:text-amber-400 font-medium">(+{{ number_format($dataMon['diferencia'], 2, ',', '.') }})</span>
+                                            @else
+                                                <span class="text-red-600 dark:text-red-400 font-medium">({{ number_format($dataMon['diferencia'], 2, ',', '.') }})</span>
+                                            @endif
+                                        @endif
+                                    </span>
+                                    @endif
+                                </div>
+                            </div>
+                            @endforeach
+                        </div>
+                    </div>
+                    @endif
                 </div>
 
                 {{-- Detalle por Caja --}}
@@ -536,17 +646,37 @@
                         @foreach($cierreDetalle->detalleCajas as $detalleCaja)
                         <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-600">
                             <div class="flex items-center justify-between mb-2 sm:mb-3">
-                                <h5 class="font-semibold text-gray-900 dark:text-white text-sm sm:text-base">{{ $detalleCaja->caja_nombre }}</h5>
-                                @if($detalleCaja->tieneDiferencia())
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $detalleCaja->tieneFaltante() ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' }}">
-                                    {{ $detalleCaja->tipo_diferencia === 'faltante' ? '-' : '+' }}${{ number_format(abs($detalleCaja->diferencia), 0, ',', '.') }}
-                                </span>
-                                @else
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                                    OK
-                                </span>
+                                <h5 class="font-semibold text-gray-900 dark:text-white text-sm sm:text-base">
+                                    {{ $detalleCaja->caja_nombre }}
+                                    @if($esFondoComun)
+                                    <span class="text-xs font-normal text-gray-400 dark:text-gray-500">({{ __('Fondo Comun') }})</span>
+                                    @endif
+                                </h5>
+                                @if(!$esFondoComun)
+                                    @if($detalleCaja->tieneDiferencia())
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $detalleCaja->tieneFaltante() ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' }}">
+                                        {{ $detalleCaja->tipo_diferencia === 'faltante' ? '-' : '+' }}${{ number_format(abs($detalleCaja->diferencia), 0, ',', '.') }}
+                                    </span>
+                                    @else
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                        OK
+                                    </span>
+                                    @endif
                                 @endif
                             </div>
+                            @if($esFondoComun)
+                            {{-- Fondo común: solo ingresos/egresos (saldos individuales no aplican) --}}
+                            <div class="grid grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
+                                <div>
+                                    <p class="text-gray-500 dark:text-gray-400">{{ __('Ingresos') }}</p>
+                                    <p class="font-medium text-green-600 dark:text-green-400">+${{ number_format($detalleCaja->total_ingresos, 0, ',', '.') }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500 dark:text-gray-400">{{ __('Egresos') }}</p>
+                                    <p class="font-medium text-red-600 dark:text-red-400">-${{ number_format($detalleCaja->total_egresos, 0, ',', '.') }}</p>
+                                </div>
+                            </div>
+                            @else
                             <div class="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 text-xs sm:text-sm">
                                 <div>
                                     <p class="text-gray-500 dark:text-gray-400">{{ __('Inicial') }}</p>
@@ -569,6 +699,7 @@
                                     <p class="font-medium text-gray-900 dark:text-white">${{ number_format($detalleCaja->saldo_declarado, 0, ',', '.') }}</p>
                                 </div>
                             </div>
+                            @endif
 
                             {{-- Desglose por Forma de Pago --}}
                             @if($detalleCaja->desglose_formas_pago && count($detalleCaja->desglose_formas_pago) > 0)
@@ -595,6 +726,68 @@
                                         <span class="text-blue-600 dark:text-blue-300">{{ $concepto }}:</span>
                                         <span class="ml-1 font-medium text-blue-800 dark:text-blue-200">${{ number_format($monto, 0, ',', '.') }}</span>
                                     </span>
+                                    @endforeach
+                                </div>
+                            </div>
+                            @endif
+
+                            {{-- Desglose por Moneda --}}
+                            @if($detalleCaja->desglose_monedas && count($detalleCaja->desglose_monedas) > 0)
+                            <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ __('Desglose por Moneda') }}</p>
+                                <div class="space-y-2">
+                                    @foreach($detalleCaja->desglose_monedas as $codigo => $data)
+                                    <div class="rounded-lg p-2.5 border {{ ($data['es_principal'] ?? false) ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700' }}">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <span class="text-xs font-semibold {{ ($data['es_principal'] ?? false) ? 'text-blue-800 dark:text-blue-200' : 'text-amber-800 dark:text-amber-200' }}">
+                                                {{ $data['simbolo'] ?? '' }} {{ $data['codigo'] ?? $codigo }}
+                                            </span>
+                                            <span class="text-xs text-gray-400">({{ $data['operaciones'] ?? 0 }} {{ __('op.') }})</span>
+                                        </div>
+                                        @if(isset($data['ingresos']))
+                                        {{-- Nuevo formato con ingresos/egresos/saldo --}}
+                                        <div class="flex items-center gap-2 text-xs">
+                                            @if(($data['ingresos'] ?? 0) > 0)
+                                            <span class="text-green-600 dark:text-green-400">{{ __('Ing.') }} {{ ($data['es_principal'] ?? false) ? '$' : ($data['simbolo'] ?? '') }}{{ number_format($data['ingresos'], 2, ',', '.') }}</span>
+                                            @endif
+                                            @if(($data['egresos'] ?? 0) > 0)
+                                            <span class="text-red-600 dark:text-red-400">{{ __('Egr.') }} {{ ($data['es_principal'] ?? false) ? '$' : ($data['simbolo'] ?? '') }}{{ number_format($data['egresos'], 2, ',', '.') }}</span>
+                                            @endif
+                                        </div>
+                                        <div class="flex items-center justify-between mt-1">
+                                            <span class="text-xs font-bold {{ ($data['es_principal'] ?? false) ? 'text-blue-900 dark:text-blue-100' : 'text-amber-900 dark:text-amber-100' }}">
+                                                {{ __('En caja') }}: {{ ($data['es_principal'] ?? false) ? '$' : ($data['simbolo'] ?? '') }}{{ number_format($data['saldo'] ?? 0, 2, ',', '.') }}
+                                                @if(!($data['es_principal'] ?? false) && ($data['saldo_convertido'] ?? 0) != 0)
+                                                <span class="font-normal text-amber-500 dark:text-amber-400">(≈ ${{ number_format($data['saldo_convertido'] ?? 0, 0, ',', '.') }})</span>
+                                                @endif
+                                            </span>
+                                            @if(isset($data['declarado']) && $data['declarado'] !== null)
+                                            <span class="text-xs">
+                                                {{ __('Declarado') }}: {{ ($data['es_principal'] ?? false) ? '$' : ($data['simbolo'] ?? '') }}{{ number_format($data['declarado'], 2, ',', '.') }}
+                                                @if(isset($data['diferencia']) && $data['diferencia'] !== null)
+                                                    @if($data['diferencia'] == 0)
+                                                        <span class="text-green-600 dark:text-green-400 font-medium">({{ __('Cuadrado') }})</span>
+                                                    @elseif($data['diferencia'] > 0)
+                                                        <span class="text-amber-600 dark:text-amber-400 font-medium">(+{{ number_format($data['diferencia'], 2, ',', '.') }})</span>
+                                                    @else
+                                                        <span class="text-red-600 dark:text-red-400 font-medium">({{ number_format($data['diferencia'], 2, ',', '.') }})</span>
+                                                    @endif
+                                                @endif
+                                            </span>
+                                            @endif
+                                        </div>
+                                        @else
+                                        {{-- Retrocompatibilidad: formato viejo con total/total_convertido --}}
+                                        <div class="flex items-center gap-1">
+                                            @if(!($data['es_principal'] ?? true) && ($data['total_convertido'] ?? 0) > 0 && ($data['total_convertido'] ?? 0) != ($data['total'] ?? 0))
+                                                <span class="text-xs font-medium {{ ($data['es_principal'] ?? false) ? 'text-blue-800 dark:text-blue-200' : 'text-amber-800 dark:text-amber-200' }}">{{ $data['simbolo'] ?? '' }} {{ number_format($data['total'] ?? 0, 2, ',', '.') }}</span>
+                                                <span class="text-xs text-amber-500 dark:text-amber-400">(≈ ${{ number_format($data['total_convertido'] ?? 0, 0, ',', '.') }})</span>
+                                            @else
+                                                <span class="text-xs font-medium {{ ($data['es_principal'] ?? false) ? 'text-blue-800 dark:text-blue-200' : 'text-amber-800 dark:text-amber-200' }}">${{ number_format($data['total'] ?? 0, 2, ',', '.') }}</span>
+                                            @endif
+                                        </div>
+                                        @endif
+                                    </div>
                                     @endforeach
                                 </div>
                             </div>

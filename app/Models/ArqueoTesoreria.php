@@ -43,6 +43,7 @@ class ArqueoTesoreria extends Model
         'supervisor_id',
         'estado',
         'observaciones',
+        'moneda_id',
     ];
 
     protected $casts = [
@@ -78,6 +79,16 @@ class ArqueoTesoreria extends Model
     public function supervisor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'supervisor_id');
+    }
+
+    public function moneda(): BelongsTo
+    {
+        return $this->belongsTo(Moneda::class, 'moneda_id');
+    }
+
+    public function esMonedaExtranjera(): bool
+    {
+        return $this->moneda_id !== null;
     }
 
     // ==================== SCOPES ====================
@@ -163,12 +174,22 @@ class ArqueoTesoreria extends Model
 
         // Si se solicita ajuste y hay diferencia, crear movimiento de ajuste
         if ($aplicarAjuste && $this->diferencia != 0) {
-            MovimientoTesoreria::crearAjusteArqueo(
-                $this->tesoreria,
-                $this->diferencia,
-                $supervisorId,
-                $this->id
-            );
+            if ($this->moneda_id) {
+                MovimientoTesoreria::crearAjusteArqueoMoneda(
+                    $this->tesoreria,
+                    $this->diferencia,
+                    $supervisorId,
+                    $this->id,
+                    $this->moneda_id
+                );
+            } else {
+                MovimientoTesoreria::crearAjusteArqueo(
+                    $this->tesoreria,
+                    $this->diferencia,
+                    $supervisorId,
+                    $this->id
+                );
+            }
         }
 
         return true;
@@ -204,17 +225,26 @@ class ArqueoTesoreria extends Model
     /**
      * Crea un nuevo arqueo
      */
-    public static function realizar(Tesoreria $tesoreria, float $saldoContado, int $usuarioId, ?string $observaciones = null): self
+    public static function realizar(Tesoreria $tesoreria, float $saldoContado, int $usuarioId, ?string $observaciones = null, ?int $monedaId = null): self
     {
+        if ($monedaId) {
+            // Arqueo en moneda extranjera: saldo_sistema viene de TesoreriaSaldoMoneda
+            $saldoMoneda = TesoreriaSaldoMoneda::obtenerOCrear($tesoreria->id, $monedaId);
+            $saldoSistema = (float) $saldoMoneda->saldo_actual;
+        } else {
+            $saldoSistema = (float) $tesoreria->saldo_actual;
+        }
+
         $arqueo = new self([
             'tesoreria_id' => $tesoreria->id,
             'fecha' => now(),
-            'saldo_sistema' => $tesoreria->saldo_actual,
+            'saldo_sistema' => $saldoSistema,
             'saldo_contado' => $saldoContado,
-            'diferencia' => $saldoContado - $tesoreria->saldo_actual,
+            'diferencia' => $saldoContado - $saldoSistema,
             'usuario_id' => $usuarioId,
             'estado' => self::ESTADO_PENDIENTE,
             'observaciones' => $observaciones,
+            'moneda_id' => $monedaId,
         ]);
         $arqueo->save();
 

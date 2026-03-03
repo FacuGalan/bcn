@@ -5,7 +5,7 @@
             <div class="flex justify-between items-start gap-3 sm:gap-4">
                 <div class="flex-1">
                     <div class="flex items-center justify-between gap-3 sm:block">
-                        <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary flex items-center h-10 sm:h-auto">{{ __('Formas de Pago por Sucursal') }}</h2>
+                        <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white flex items-center h-10 sm:h-auto">{{ __('Formas de Pago por Sucursal') }}</h2>
                         <!-- Botón volver - Solo icono en móviles -->
                         <a
                             href="{{ route('configuracion.formas-pago') }}"
@@ -85,13 +85,13 @@
                             <div class="flex-1">
                                 <div class="flex items-center gap-2">
                                     <h3 class="text-sm font-medium text-gray-900 dark:text-white">{{ $fp['nombre'] }}</h3>
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $fp['activo_sucursal'] ? 'bg-green-100 text-green-800' : 'bg-gray-100 dark:bg-gray-900 text-gray-800' }}">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $fp['activo_sucursal'] ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-400' }}">
                                         {{ $fp['activo_sucursal'] ? __('Activa') : __('Inactiva') }}
                                     </span>
                                 </div>
                                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                     @if($fp['es_mixta'])
-                                        <span class="text-purple-600 font-medium">{{ __('Mixta') }}</span>
+                                        <span class="text-purple-600 dark:text-purple-400 font-medium">{{ __('Mixta') }}</span>
                                     @else
                                         {{ __($fp['concepto_nombre'] ?? ucfirst(str_replace('_', ' ', $fp['concepto']))) }}
                                     @endif
@@ -100,11 +100,11 @@
                                 <!-- Ajuste -->
                                 <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
                                     @if($fp['es_mixta'])
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded bg-purple-100 text-purple-800">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
                                             {{ __('Sin ajuste propio') }}
                                         </span>
                                     @elseif($fp['ajuste_efectivo'] > 0)
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded {{ $fp['tiene_ajuste_especifico'] ? 'bg-orange-100 text-orange-800' : 'bg-red-100 text-red-800' }}">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded {{ $fp['tiene_ajuste_especifico'] ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' }}">
                                             +{{ $fp['ajuste_efectivo'] }}% {{ __('recargo') }}
                                             @if($fp['tiene_ajuste_especifico'])
                                                 <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20" title="{{ __('Ajuste específico para esta sucursal') }}">
@@ -113,7 +113,7 @@
                                             @endif
                                         </span>
                                     @elseif($fp['ajuste_efectivo'] < 0)
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded {{ $fp['tiene_ajuste_especifico'] ? 'bg-teal-100 text-teal-800' : 'bg-green-100 text-green-800' }}">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded {{ $fp['tiene_ajuste_especifico'] ? 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400' : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' }}">
                                             {{ $fp['ajuste_efectivo'] }}% {{ __('descuento') }}
                                             @if($fp['tiene_ajuste_especifico'])
                                                 <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20" title="{{ __('Ajuste específico para esta sucursal') }}">
@@ -124,12 +124,12 @@
                                     @endif
 
                                     @if($fp['permite_cuotas'])
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
                                             {{ __('Permite cuotas') }}
                                         </span>
                                     @endif
                                     @if($fp['factura_fiscal_efectivo'])
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded {{ $fp['tiene_factura_fiscal_especifica'] ? 'bg-violet-100 text-violet-800' : 'bg-indigo-100 text-indigo-800' }}">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded {{ $fp['tiene_factura_fiscal_especifica'] ? 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400' : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400' }}">
                                             <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
                                             {{ __('Factura fiscal') }}
                                             @if($fp['tiene_factura_fiscal_especifica'])
@@ -174,7 +174,7 @@
                             </div>
                         @else
                             <div class="mt-3 text-xs text-gray-500 dark:text-gray-400 text-center">
-                                <span class="inline-flex items-center px-2 py-1 rounded bg-purple-50 text-purple-600">
+                                <span class="inline-flex items-center px-2 py-1 rounded bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
                                     <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
                                     </svg>
@@ -224,7 +224,7 @@
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         @if($fp['es_mixta'])
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
                                                 {{ __('Mixta') }}
                                             </span>
                                             @if(count($fp['conceptos_permitidos']) > 0)
@@ -233,16 +233,16 @@
                                                 </div>
                                             @endif
                                         @else
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-900 text-gray-800">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-400">
                                                 {{ __($fp['concepto_nombre'] ?? ucfirst(str_replace('_', ' ', $fp['concepto']))) }}
                                             </span>
                                             @if($fp['permite_cuotas'])
-                                                <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                                <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
                                                     {{ __('Cuotas') }}
                                                 </span>
                                             @endif
                                             @if($fp['factura_fiscal_efectivo'])
-                                                <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $fp['tiene_factura_fiscal_especifica'] ? 'bg-violet-100 text-violet-800' : 'bg-indigo-100 text-indigo-800' }}">
+                                                <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $fp['tiene_factura_fiscal_especifica'] ? 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400' : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400' }}">
                                                     {{ __('Fiscal') }}
                                                     @if($fp['tiene_factura_fiscal_especifica'])
                                                         <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20" title="{{ __('Específico') }}">
@@ -255,11 +255,11 @@
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         @if($fp['es_mixta'])
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
                                                 {{ __('Sin ajuste propio') }}
                                             </span>
                                         @elseif($fp['ajuste_efectivo'] > 0)
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $fp['tiene_ajuste_especifico'] ? 'bg-orange-100 text-orange-800' : 'bg-red-100 text-red-800' }}">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $fp['tiene_ajuste_especifico'] ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' }}">
                                                 +{{ $fp['ajuste_efectivo'] }}% {{ __('recargo') }}
                                                 @if($fp['tiene_ajuste_especifico'])
                                                     <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20" title="{{ __('Específico') }}">
@@ -268,7 +268,7 @@
                                                 @endif
                                             </span>
                                         @elseif($fp['ajuste_efectivo'] < 0)
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $fp['tiene_ajuste_especifico'] ? 'bg-teal-100 text-teal-800' : 'bg-green-100 text-green-800' }}">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $fp['tiene_ajuste_especifico'] ? 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400' : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' }}">
                                                 {{ $fp['ajuste_efectivo'] }}% {{ __('descuento') }}
                                                 @if($fp['tiene_ajuste_especifico'])
                                                     <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20" title="{{ __('Específico') }}">

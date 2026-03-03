@@ -17,6 +17,7 @@ use App\Services\CajaService;
 use App\Services\SucursalService;
 use App\Services\TesoreriaService;
 use App\Models\Tesoreria;
+use App\Models\Moneda;
 use App\Traits\SucursalAware;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -59,6 +60,7 @@ class TurnoActual extends Component
     public bool $cierreUsaFondoComun = false;
     public float $saldoFondoComunCierre = 0;
     public $saldoDeclaradoFondoComun = '';
+    public array $declaradosMoneda = []; // cajaId => [código => valor], key 0 para fondo común
 
     // Modal de apertura de turno
     public bool $showAperturaModal = false;
@@ -81,6 +83,7 @@ class TurnoActual extends Component
     public Collection $cajas;
     public array $totalesGenerales = [];
     public array $cajasTotalesPorConcepto = [];
+    public array $cajasTotalesPorFormaPago = [];
     public array $cajasResumenMovimientos = [];
     public array $cajasOperaciones = [];
 
@@ -126,6 +129,7 @@ class TurnoActual extends Component
             ->where('activo', true)
             ->with(['grupoCierre', 'movimientos' => function ($q) {
                 $q->whereNull('cierre_turno_id')
+                  ->with(['moneda', 'tipoCambio'])
                   ->orderBy('created_at', 'desc');
             }]);
 
@@ -139,22 +143,27 @@ class TurnoActual extends Component
 
         // Limpiar arrays de datos calculados
         $this->cajasTotalesPorConcepto = [];
+        $this->cajasTotalesPorFormaPago = [];
         $this->cajasResumenMovimientos = [];
         $this->cajasOperaciones = [];
 
         // Calcular totales por caja
         foreach ($this->cajas as $caja) {
-            $totalesPorConcepto = $this->calcularTotalesPorConcepto($caja);
+            $ventasPagos = $this->esTurnoCerrado($caja) ? collect() : $this->getVentasPagosCaja($caja);
+            $totalesPorConcepto = $this->calcularTotalesPorConcepto($caja, $ventasPagos);
+            $totalesPorFormaPago = $this->calcularTotalesPorFormaPago($caja, $ventasPagos);
             $resumenMovimientos = $this->calcularResumenMovimientos($caja);
             $cantidadOperaciones = $this->contarOperaciones($caja);
 
             // Guardar en arrays separados para persistir entre re-renders
             $this->cajasTotalesPorConcepto[$caja->id] = $totalesPorConcepto;
+            $this->cajasTotalesPorFormaPago[$caja->id] = $totalesPorFormaPago;
             $this->cajasResumenMovimientos[$caja->id] = $resumenMovimientos;
             $this->cajasOperaciones[$caja->id] = $cantidadOperaciones;
 
             // También asignar al modelo para uso en la vista
             $caja->totalesPorConcepto = $totalesPorConcepto;
+            $caja->totalesPorFormaPago = $totalesPorFormaPago;
             $caja->resumenMovimientos = $resumenMovimientos;
             $caja->cantidadOperaciones = $cantidadOperaciones;
             $caja->tieneMovimientosPendientes = $caja->movimientos->count() > 0;
@@ -304,22 +313,14 @@ class TurnoActual extends Component
      * Calcula los totales por concepto de pago para una caja
      * Solo retorna vacío si el turno está realmente cerrado
      */
-    protected function calcularTotalesPorConcepto(Caja $caja): array
+    protected function calcularTotalesPorConcepto(Caja $caja, $ventasPagos = null): array
     {
-        // Si el turno está cerrado, no hay conceptos
         if ($this->esTurnoCerrado($caja)) {
             return [];
         }
 
         $totales = [];
-
-        $ventasPagos = VentaPago::whereHas('venta', function ($q) use ($caja) {
-                $q->where('caja_id', $caja->id)
-                  ->where('estado', 'completada')
-                  ->where('created_at', '>=', $caja->fecha_apertura ?? today());
-            })
-            ->with(['conceptoPago', 'formaPago'])
-            ->get();
+        $ventasPagos = $ventasPagos ?? $this->getVentasPagosCaja($caja);
 
         foreach ($ventasPagos as $pago) {
             $conceptoCodigo = $pago->conceptoPago?->codigo ?? 'otros';
@@ -336,6 +337,51 @@ class TurnoActual extends Component
 
             $totales[$conceptoCodigo]['monto'] += $pago->monto_final;
             $totales[$conceptoCodigo]['cantidad']++;
+        }
+
+        return $totales;
+    }
+
+    /**
+     * Obtiene los pagos de ventas de una caja en el turno actual (reutilizado por concepto y forma de pago)
+     */
+    protected function getVentasPagosCaja(Caja $caja)
+    {
+        return VentaPago::whereHas('venta', function ($q) use ($caja) {
+                $q->where('caja_id', $caja->id)
+                  ->where('estado', 'completada')
+                  ->where('created_at', '>=', $caja->fecha_apertura ?? today());
+            })
+            ->with(['conceptoPago', 'formaPago'])
+            ->get();
+    }
+
+    /**
+     * Calcula totales por forma de pago para una caja
+     */
+    protected function calcularTotalesPorFormaPago(Caja $caja, $ventasPagos = null): array
+    {
+        if ($this->esTurnoCerrado($caja)) {
+            return [];
+        }
+
+        $totales = [];
+        $ventasPagos = $ventasPagos ?? $this->getVentasPagosCaja($caja);
+
+        foreach ($ventasPagos as $pago) {
+            $fpNombre = $pago->formaPago?->nombre ?? 'Otros';
+            $fpId = $pago->forma_pago_id ?? 0;
+
+            if (!isset($totales[$fpId])) {
+                $totales[$fpId] = [
+                    'nombre' => $fpNombre,
+                    'monto' => 0,
+                    'cantidad' => 0,
+                ];
+            }
+
+            $totales[$fpId]['monto'] += $pago->monto_final;
+            $totales[$fpId]['cantidad']++;
         }
 
         return $totales;
@@ -371,6 +417,82 @@ class TurnoActual extends Component
         $ingresos = $movimientosOperativos->where('tipo', 'ingreso')->sum('monto');
         $egresos = $movimientosOperativos->where('tipo', 'egreso')->sum('monto');
 
+        // Calcular desglose por moneda (incluye principal y extranjeras)
+        $porMoneda = [];
+        $monedaPrincipal = Moneda::obtenerPrincipal();
+
+        if ($monedaPrincipal) {
+            $porMoneda[$monedaPrincipal->codigo] = [
+                'codigo' => $monedaPrincipal->codigo,
+                'simbolo' => $monedaPrincipal->simbolo,
+                'nombre' => $monedaPrincipal->nombre,
+                'es_principal' => true,
+                'ingresos' => 0,
+                'egresos' => 0,
+                'saldo' => 0,
+                'operaciones' => 0,
+            ];
+        }
+
+        foreach ($movimientosOperativos as $mov) {
+            $esExtranjera = $mov->moneda_id && $mov->monto_moneda_original > 0 && $mov->moneda && !$mov->moneda->es_principal;
+
+            if ($esExtranjera) {
+                $moneda = $mov->moneda;
+                $key = $moneda->codigo;
+                if (!isset($porMoneda[$key])) {
+                    $porMoneda[$key] = [
+                        'codigo' => $moneda->codigo,
+                        'simbolo' => $moneda->simbolo,
+                        'nombre' => $moneda->nombre,
+                        'es_principal' => false,
+                        'ingresos' => 0,
+                        'egresos' => 0,
+                        'saldo' => 0,
+                        'ingresos_convertido' => 0,
+                        'egresos_convertido' => 0,
+                        'saldo_convertido' => 0,
+                        'operaciones' => 0,
+                    ];
+                }
+                $montoOriginal = (float) $mov->monto_moneda_original;
+                $montoConvertido = (float) $mov->monto;
+                if ($mov->tipo === 'ingreso') {
+                    $porMoneda[$key]['ingresos'] += $montoOriginal;
+                    $porMoneda[$key]['ingresos_convertido'] += $montoConvertido;
+                } else {
+                    $porMoneda[$key]['egresos'] += $montoOriginal;
+                    $porMoneda[$key]['egresos_convertido'] += $montoConvertido;
+                }
+                $porMoneda[$key]['operaciones']++;
+            } elseif ($monedaPrincipal) {
+                // Movimiento en moneda principal
+                $key = $monedaPrincipal->codigo;
+                if ($mov->tipo === 'ingreso') {
+                    $porMoneda[$key]['ingresos'] += (float) $mov->monto;
+                } else {
+                    $porMoneda[$key]['egresos'] += (float) $mov->monto;
+                }
+                $porMoneda[$key]['operaciones']++;
+            }
+        }
+
+        // Calcular saldos
+        foreach ($porMoneda as $key => &$data) {
+            if ($data['es_principal'] ?? false) {
+                $data['saldo'] = $caja->saldo_inicial + $data['ingresos'] - $data['egresos'];
+            } else {
+                $data['saldo'] = $data['ingresos'] - $data['egresos'];
+                $data['saldo_convertido'] = $data['ingresos_convertido'] - $data['egresos_convertido'];
+            }
+        }
+        unset($data);
+
+        // Eliminar moneda principal si no hay monedas extranjeras (no mostrar desglose)
+        if (count($porMoneda) <= 1) {
+            $porMoneda = [];
+        }
+
         return [
             'ingresos' => $ingresos,
             'egresos' => $egresos,
@@ -378,6 +500,7 @@ class TurnoActual extends Component
             'cantidadEgresos' => $movimientosOperativos->where('tipo', 'egreso')->count(),
             'saldoCalculado' => $caja->saldo_inicial + $ingresos - $egresos,
             'totalMovimientos' => $movimientos->count(),
+            'porMoneda' => $porMoneda,
         ];
     }
 
@@ -426,6 +549,8 @@ class TurnoActual extends Component
             'operaciones' => 0,
             'movimientos' => 0,
             'porConcepto' => [],
+            'porFormaPago' => [],
+            'porMoneda' => [],
         ];
 
         // Calcular ingresos, egresos y saldo actual
@@ -461,6 +586,35 @@ class TurnoActual extends Component
                 }
                 $this->totalesGenerales['porConcepto'][$codigo]['monto'] += $concepto['monto'];
                 $this->totalesGenerales['porConcepto'][$codigo]['cantidad'] += $concepto['cantidad'];
+            }
+
+            foreach ($caja->totalesPorFormaPago ?? [] as $fpId => $fp) {
+                if (!isset($this->totalesGenerales['porFormaPago'][$fpId])) {
+                    $this->totalesGenerales['porFormaPago'][$fpId] = [
+                        'nombre' => $fp['nombre'],
+                        'monto' => 0,
+                        'cantidad' => 0,
+                    ];
+                }
+                $this->totalesGenerales['porFormaPago'][$fpId]['monto'] += $fp['monto'];
+                $this->totalesGenerales['porFormaPago'][$fpId]['cantidad'] += $fp['cantidad'];
+            }
+
+            // Acumular desglose por moneda
+            foreach ($caja->resumenMovimientos['porMoneda'] ?? [] as $codigo => $monedaData) {
+                if (!isset($this->totalesGenerales['porMoneda'][$codigo])) {
+                    $this->totalesGenerales['porMoneda'][$codigo] = $monedaData;
+                } else {
+                    $this->totalesGenerales['porMoneda'][$codigo]['ingresos'] += $monedaData['ingresos'];
+                    $this->totalesGenerales['porMoneda'][$codigo]['egresos'] += $monedaData['egresos'];
+                    $this->totalesGenerales['porMoneda'][$codigo]['saldo'] += $monedaData['saldo'];
+                    $this->totalesGenerales['porMoneda'][$codigo]['operaciones'] += $monedaData['operaciones'];
+                    if (!($monedaData['es_principal'] ?? true)) {
+                        $this->totalesGenerales['porMoneda'][$codigo]['ingresos_convertido'] = ($this->totalesGenerales['porMoneda'][$codigo]['ingresos_convertido'] ?? 0) + ($monedaData['ingresos_convertido'] ?? 0);
+                        $this->totalesGenerales['porMoneda'][$codigo]['egresos_convertido'] = ($this->totalesGenerales['porMoneda'][$codigo]['egresos_convertido'] ?? 0) + ($monedaData['egresos_convertido'] ?? 0);
+                        $this->totalesGenerales['porMoneda'][$codigo]['saldo_convertido'] = ($this->totalesGenerales['porMoneda'][$codigo]['saldo_convertido'] ?? 0) + ($monedaData['saldo_convertido'] ?? 0);
+                    }
+                }
             }
         }
     }
@@ -764,10 +918,26 @@ class TurnoActual extends Component
             if ($this->cierreUsaFondoComun) {
                 // Fondo común: un solo input para todo el grupo
                 $this->saldoDeclaradoFondoComun = '';
+                // Pre-crear entries para monedas extranjeras consolidadas (key 0)
+                $monedasConsolidadas = [];
+                foreach ($this->cajasACerrar as $cId) {
+                    foreach ($this->getMonedasExtranjeras($cId) as $codigo => $info) {
+                        if (!isset($monedasConsolidadas[$codigo])) {
+                            $monedasConsolidadas[$codigo] = '';
+                        }
+                    }
+                }
+                if (!empty($monedasConsolidadas)) {
+                    $this->declaradosMoneda[0] = $monedasConsolidadas;
+                }
             } else {
                 // Fondo individual: input por cada caja
                 foreach ($cajasGrupo as $caja) {
                     $this->saldosDeclarados[$caja->id] = '';
+                    $monedasCaja = $this->getMonedasExtranjeras($caja->id);
+                    if (!empty($monedasCaja)) {
+                        $this->declaradosMoneda[$caja->id] = array_map(fn() => '', $monedasCaja);
+                    }
                 }
             }
         } elseif ($cajaId) {
@@ -790,6 +960,11 @@ class TurnoActual extends Component
             $this->cajasACerrar = [$cajaId];
             // NO pre-cargar saldo - el usuario debe ingresar el arqueo manualmente
             $this->saldosDeclarados[$cajaId] = '';
+            // Pre-crear entries para monedas extranjeras
+            $monedasCaja = $this->getMonedasExtranjeras($cajaId);
+            if (!empty($monedasCaja)) {
+                $this->declaradosMoneda[$cajaId] = array_map(fn() => '', $monedasCaja);
+            }
         }
 
         $this->showCierreModal = true;
@@ -801,6 +976,7 @@ class TurnoActual extends Component
         $this->grupoCierreId = null;
         $this->cajasACerrar = [];
         $this->saldosDeclarados = [];
+        $this->declaradosMoneda = [];
         $this->observacionesCierre = '';
         $this->esCierreGrupal = false;
         $this->cierreUsaFondoComun = false;
@@ -863,7 +1039,13 @@ class TurnoActual extends Component
                 $totalSaldoInicial = $datosConsolidados['fondo_inicial'];
                 $totalIngresos = $datosConsolidados['total_ingresos'];
                 $totalEgresos = $datosConsolidados['total_egresos'];
-                $saldoSistema = $datosConsolidados['saldo_sistema'];
+                $saldoSistemaTotal = $datosConsolidados['saldo_sistema'];
+
+                // Si hay monedas extranjeras, usar saldo ARS puro para sistema/declarado/diferencia
+                $hayExtranjeras = !empty($datosConsolidados['monedasConsolidadas']);
+                $saldoSistema = $hayExtranjeras
+                    ? $datosConsolidados['saldo_sistema_principal']
+                    : $saldoSistemaTotal;
 
                 $saldoDeclarado = $this->saldoDeclaradoFondoComun !== ''
                     ? (float)$this->saldoDeclaradoFondoComun
@@ -892,12 +1074,29 @@ class TurnoActual extends Component
                     // Calcular desgloses de formas de pago y conceptos
                     $desgloses = $this->calcularDesglosesCaja($cajaId);
 
+                    // Enriquecer desglose monedas con declarados y diferencia (fondo común usa key 0)
+                    if (!empty($desgloses['monedas'])) {
+                        foreach ($desgloses['monedas'] as $codMon => &$dataMon) {
+                            if ($dataMon['es_principal'] ?? false) {
+                                $dataMon['declarado'] = $saldoDeclarado;
+                                $dataMon['diferencia'] = $totalDiferencia;
+                            } else {
+                                $decMon = isset($this->declaradosMoneda[0][$codMon]) && $this->declaradosMoneda[0][$codMon] !== ''
+                                    ? (float)$this->declaradosMoneda[0][$codMon] : null;
+                                $saldoSistMon = $dataMon['saldo'] ?? 0;
+                                $dataMon['declarado'] = $decMon;
+                                $dataMon['diferencia'] = $decMon !== null ? round($decMon - $saldoSistMon, 2) : null;
+                            }
+                        }
+                        unset($dataMon);
+                    }
+
                     // Crear detalle del cierre por caja (para auditoría)
                     CierreTurnoCaja::create([
                         'cierre_turno_id' => $cierreTurno->id,
                         'caja_id' => $cajaId,
                         'caja_nombre' => $caja->nombre,
-                        'saldo_inicial' => 0, // Las cajas tienen saldo 0 con fondo común
+                        'saldo_inicial' => 0,
                         'saldo_final' => 0,
                         'saldo_sistema' => 0,
                         'saldo_declarado' => 0,
@@ -906,6 +1105,7 @@ class TurnoActual extends Component
                         'diferencia' => 0,
                         'desglose_formas_pago' => $desgloses['formas_pago'],
                         'desglose_conceptos' => $desgloses['conceptos'],
+                        'desglose_monedas' => $desgloses['monedas'] ?? null,
                     ]);
 
                     // Marcar ventas, venta_pagos, cobros y cobro_pagos con el cierre_turno_id
@@ -925,8 +1125,42 @@ class TurnoActual extends Component
                         ->update(['cierre_turno_id' => $cierreTurno->id]);
                 }
 
+                // Consolidar monedas extranjeras de todas las CierreTurnoCaja creadas
+                // Primero sumar saldo_sistema de cada caja, luego usar el declarado del fondo común
+                $monedasExtGrupo = [];
+                foreach ($cierreTurno->detalleCajas as $detalleCaja) {
+                    if (!$detalleCaja->desglose_monedas) continue;
+                    foreach ($detalleCaja->desglose_monedas as $codMon => $dataMon) {
+                        if ($dataMon['es_principal'] ?? false) continue;
+                        if (!isset($dataMon['moneda_id'])) continue;
+                        $mId = $dataMon['moneda_id'];
+                        if (!isset($monedasExtGrupo[$mId])) {
+                            $monedasExtGrupo[$mId] = [
+                                'codigo' => $dataMon['codigo'] ?? $codMon,
+                                'simbolo' => $dataMon['simbolo'] ?? '',
+                                'nombre' => $dataMon['nombre'] ?? '',
+                                'saldo_sistema' => 0,
+                                'saldo' => 0,
+                            ];
+                        }
+                        $monedasExtGrupo[$mId]['saldo_sistema'] += (float) ($dataMon['saldo'] ?? 0);
+                    }
+                }
+                // Para cada moneda, usar el declarado del fondo común si existe
+                foreach ($monedasExtGrupo as $mId => &$dataMon) {
+                    $codMon = $dataMon['codigo'];
+                    $decMon = isset($this->declaradosMoneda[0][$codMon]) && $this->declaradosMoneda[0][$codMon] !== ''
+                        ? (float) $this->declaradosMoneda[0][$codMon]
+                        : null;
+                    // Si el cajero declaró, usar ese monto; si no, fallback al saldo sistema
+                    $dataMon['saldo'] = $decMon !== null ? $decMon : $dataMon['saldo_sistema'];
+                }
+                unset($dataMon);
+                // Filtrar monedas con saldo > 0
+                $monedasExtGrupo = array_filter($monedasExtGrupo, fn($d) => round($d['saldo'], 2) > 0);
+
                 // Rendir el fondo común a tesorería (solo si está activa)
-                if ($tesoreria && $tesoreria->activo && $saldoDeclarado > 0) {
+                if ($tesoreria && $tesoreria->activo && ($saldoDeclarado > 0 || !empty($monedasExtGrupo))) {
                     TesoreriaService::rendirFondoGrupo(
                         $grupo,
                         $tesoreria,
@@ -934,7 +1168,8 @@ class TurnoActual extends Component
                         $saldoSistema,
                         $usuarioId,
                         $cierreTurno->id,
-                        'Cierre de turno grupal con fondo común'
+                        'Cierre de turno grupal con fondo común',
+                        !empty($monedasExtGrupo) ? $monedasExtGrupo : null
                     );
                 }
 
@@ -959,15 +1194,43 @@ class TurnoActual extends Component
                         ->where('tipo', 'egreso')
                         ->sum('monto');
 
-                    // El saldo del sistema es el saldo_actual de la caja
-                    $saldoSistema = $caja->saldo_actual;
+                    // Determinar si hay monedas extranjeras para esta caja
+                    $monedasExtCaja = $this->getMonedasExtranjeras($cajaId);
+                    $hayExtranjerasCaja = !empty($monedasExtCaja);
+
+                    // Saldo sistema: ARS puro si hay extranjeras, total si no
+                    if ($hayExtranjerasCaja) {
+                        $foreignConvNeto = array_sum(array_column($monedasExtCaja, 'saldo_convertido'));
+                        $saldoSistema = round($caja->saldo_actual - $foreignConvNeto, 2);
+                    } else {
+                        $saldoSistema = $caja->saldo_actual;
+                    }
+
+                    // saldosDeclarados contiene solo ARS cuando hay extranjeras
                     $saldoDeclarado = isset($this->saldosDeclarados[$cajaId]) && $this->saldosDeclarados[$cajaId] !== ''
                         ? (float)$this->saldosDeclarados[$cajaId]
-                        : $caja->saldo_actual;
+                        : $saldoSistema;
                     $diferencia = $saldoDeclarado - $saldoSistema;
 
                     // Calcular desgloses de formas de pago y conceptos
                     $desgloses = $this->calcularDesglosesCaja($cajaId);
+
+                    // Enriquecer desglose monedas con declarados y diferencia
+                    if (!empty($desgloses['monedas'])) {
+                        foreach ($desgloses['monedas'] as $codMon => &$dataMon) {
+                            if ($dataMon['es_principal'] ?? false) {
+                                $dataMon['declarado'] = $saldoDeclarado;
+                                $dataMon['diferencia'] = $diferencia;
+                            } else {
+                                $decMon = isset($this->declaradosMoneda[$cajaId][$codMon]) && $this->declaradosMoneda[$cajaId][$codMon] !== ''
+                                    ? (float)$this->declaradosMoneda[$cajaId][$codMon] : null;
+                                $saldoSistMon = $dataMon['saldo'] ?? 0;
+                                $dataMon['declarado'] = $decMon;
+                                $dataMon['diferencia'] = $decMon !== null ? round($decMon - $saldoSistMon, 2) : null;
+                            }
+                        }
+                        unset($dataMon);
+                    }
 
                     // Crear detalle del cierre
                     CierreTurnoCaja::create([
@@ -983,10 +1246,33 @@ class TurnoActual extends Component
                         'diferencia' => $diferencia,
                         'desglose_formas_pago' => $desgloses['formas_pago'],
                         'desglose_conceptos' => $desgloses['conceptos'],
+                        'desglose_monedas' => $desgloses['monedas'] ?? null,
                     ]);
 
                     // Marcar ventas, venta_pagos, cobros y cobro_pagos con el cierre_turno_id
                     $this->marcarTransaccionesCierre($cajaId, $cierreTurno->id);
+
+                    // Extraer monedas extranjeras del desglose para pasar a tesorería
+                    // Usar el declarado del cajero (si existe), no el saldo sistema
+                    $monedasExtCierre = [];
+                    if (!empty($desgloses['monedas'])) {
+                        foreach ($desgloses['monedas'] as $codMon => $dataMon) {
+                            if ($dataMon['es_principal'] ?? false) continue;
+                            if (!isset($dataMon['moneda_id'])) continue;
+                            $saldoSistemaMon = (float) ($dataMon['saldo'] ?? 0);
+                            $declaradoMon = $dataMon['declarado'] ?? null;
+                            // Si el cajero declaró, usar ese monto; si no, fallback al sistema
+                            $montoRendir = $declaradoMon !== null ? (float) $declaradoMon : $saldoSistemaMon;
+                            if ($montoRendir > 0) {
+                                $monedasExtCierre[$dataMon['moneda_id']] = [
+                                    'codigo' => $dataMon['codigo'] ?? $codMon,
+                                    'simbolo' => $dataMon['simbolo'] ?? '',
+                                    'nombre' => $dataMon['nombre'] ?? '',
+                                    'saldo' => $montoRendir,
+                                ];
+                            }
+                        }
+                    }
 
                     // Usar CajaService con integración de tesorería para cerrar
                     $resultado = CajaService::cerrarCajaConTesoreria(
@@ -995,7 +1281,8 @@ class TurnoActual extends Component
                         $usuarioId,
                         $cierreTurno,
                         $tesoreria,
-                        $this->observacionesCierre
+                        $this->observacionesCierre,
+                        !empty($monedasExtCierre) ? $monedasExtCierre : null
                     );
 
                     if (!$resultado['success']) {
@@ -1055,8 +1342,9 @@ class TurnoActual extends Component
     }
 
     /**
-     * Calcula los desgloses de formas de pago y conceptos para una caja
-     * Incluye tanto ventas como cobros del turno (sin cierre previo)
+     * Calcula los desgloses de formas de pago, conceptos y monedas para una caja
+     * Formas de pago y conceptos: basados en pagos de ventas/cobros
+     * Monedas: basado en MovimientoCaja para reflejar ingresos/egresos reales
      */
     protected function calcularDesglosesCaja(int $cajaId): array
     {
@@ -1078,13 +1366,11 @@ class TurnoActual extends Component
                 $formaPagoNombre = $pago->formaPago?->nombre ?? 'Sin forma de pago';
                 $conceptoNombre = $pago->conceptoPago?->nombre ?? $pago->formaPago?->conceptoPago?->nombre ?? 'Ventas';
 
-                // Acumular por forma de pago
                 if (!isset($desgloseFormasPago[$formaPagoNombre])) {
                     $desgloseFormasPago[$formaPagoNombre] = 0;
                 }
                 $desgloseFormasPago[$formaPagoNombre] += (float) $pago->monto_final;
 
-                // Acumular por concepto
                 if (!isset($desgloseConceptos[$conceptoNombre])) {
                     $desgloseConceptos[$conceptoNombre] = 0;
                 }
@@ -1107,13 +1393,11 @@ class TurnoActual extends Component
                 $formaPagoNombre = $pago->formaPago?->nombre ?? 'Sin forma de pago';
                 $conceptoNombre = $pago->conceptoPago?->nombre ?? 'Cobros Cta. Cte.';
 
-                // Acumular por forma de pago
                 if (!isset($desgloseFormasPago[$formaPagoNombre])) {
                     $desgloseFormasPago[$formaPagoNombre] = 0;
                 }
                 $desgloseFormasPago[$formaPagoNombre] += (float) $pago->monto_final;
 
-                // Acumular por concepto (separado de ventas)
                 if (!isset($desgloseConceptos[$conceptoNombre])) {
                     $desgloseConceptos[$conceptoNombre] = 0;
                 }
@@ -1129,10 +1413,105 @@ class TurnoActual extends Component
             $desgloseConceptos[$key] = round($value, 2);
         }
 
+        // Desglose por moneda basado en MovimientoCaja (ingresos/egresos reales)
+        $desgloseMonedas = $this->calcularDesgloseMonedaCaja($cajaId);
+
         return [
             'formas_pago' => $desgloseFormasPago,
             'conceptos' => $desgloseConceptos,
+            'monedas' => $desgloseMonedas,
         ];
+    }
+
+    /**
+     * Calcula desglose por moneda basado en MovimientoCaja
+     * Excluye apertura/provision/rendicion para reflejar operaciones reales
+     */
+    protected function calcularDesgloseMonedaCaja(int $cajaId): array
+    {
+        $tiposExcluidos = ['apertura', 'provision_fondo', 'rendicion_fondo'];
+        $monedaPrincipal = Moneda::obtenerPrincipal();
+
+        $movimientos = MovimientoCaja::where('caja_id', $cajaId)
+            ->whereNull('cierre_turno_id')
+            ->whereNotIn('referencia_tipo', $tiposExcluidos)
+            ->with('moneda')
+            ->get();
+
+        $desgloseMonedas = [];
+
+        // Inicializar moneda principal
+        if ($monedaPrincipal) {
+            $desgloseMonedas[$monedaPrincipal->codigo] = [
+                'moneda_id' => $monedaPrincipal->id,
+                'codigo' => $monedaPrincipal->codigo,
+                'simbolo' => $monedaPrincipal->simbolo,
+                'nombre' => $monedaPrincipal->nombre,
+                'es_principal' => true,
+                'ingresos' => 0,
+                'egresos' => 0,
+                'saldo' => 0,
+                'operaciones' => 0,
+            ];
+        }
+
+        foreach ($movimientos as $mov) {
+            $esExtranjera = $mov->moneda_id && $mov->monto_moneda_original > 0 && $mov->moneda && !$mov->moneda->es_principal;
+
+            if ($esExtranjera) {
+                $moneda = $mov->moneda;
+                $key = $moneda->codigo;
+                if (!isset($desgloseMonedas[$key])) {
+                    $desgloseMonedas[$key] = [
+                        'moneda_id' => $moneda->id,
+                        'codigo' => $moneda->codigo,
+                        'simbolo' => $moneda->simbolo,
+                        'nombre' => $moneda->nombre,
+                        'es_principal' => false,
+                        'ingresos' => 0,
+                        'egresos' => 0,
+                        'saldo' => 0,
+                        'ingresos_convertido' => 0,
+                        'egresos_convertido' => 0,
+                        'saldo_convertido' => 0,
+                        'operaciones' => 0,
+                    ];
+                }
+                $montoOriginal = (float) $mov->monto_moneda_original;
+                $montoConvertido = (float) $mov->monto;
+                if ($mov->tipo === 'ingreso') {
+                    $desgloseMonedas[$key]['ingresos'] += $montoOriginal;
+                    $desgloseMonedas[$key]['ingresos_convertido'] += $montoConvertido;
+                } else {
+                    $desgloseMonedas[$key]['egresos'] += $montoOriginal;
+                    $desgloseMonedas[$key]['egresos_convertido'] += $montoConvertido;
+                }
+                $desgloseMonedas[$key]['operaciones']++;
+            } elseif ($monedaPrincipal) {
+                $key = $monedaPrincipal->codigo;
+                if ($mov->tipo === 'ingreso') {
+                    $desgloseMonedas[$key]['ingresos'] += (float) $mov->monto;
+                } else {
+                    $desgloseMonedas[$key]['egresos'] += (float) $mov->monto;
+                }
+                $desgloseMonedas[$key]['operaciones']++;
+            }
+        }
+
+        // Calcular saldos y redondear
+        foreach ($desgloseMonedas as $key => &$data) {
+            $data['ingresos'] = round($data['ingresos'], 2);
+            $data['egresos'] = round($data['egresos'], 2);
+            $data['saldo'] = round($data['ingresos'] - $data['egresos'], 2);
+            if (!($data['es_principal'] ?? true)) {
+                $data['ingresos_convertido'] = round($data['ingresos_convertido'], 2);
+                $data['egresos_convertido'] = round($data['egresos_convertido'], 2);
+                $data['saldo_convertido'] = round($data['ingresos_convertido'] - $data['egresos_convertido'], 2);
+            }
+        }
+        unset($data);
+
+        return $desgloseMonedas;
     }
 
     /**
@@ -1360,6 +1739,49 @@ class TurnoActual extends Component
     }
 
     /**
+     * Retorna monedas extranjeras con saldo calculado desde MovimientoCaja pendientes
+     */
+    protected function getMonedasExtranjeras(int $cajaId): array
+    {
+        $movimientos = MovimientoCaja::where('caja_id', $cajaId)
+            ->whereNull('cierre_turno_id')
+            ->whereNotNull('moneda_id')
+            ->where('monto_moneda_original', '>', 0)
+            ->with('moneda')
+            ->get();
+
+        $resultado = [];
+        foreach ($movimientos as $mov) {
+            $moneda = $mov->moneda;
+            if (!$moneda || $moneda->es_principal) continue;
+
+            $key = $moneda->codigo;
+            if (!isset($resultado[$key])) {
+                $resultado[$key] = [
+                    'codigo' => $moneda->codigo,
+                    'simbolo' => $moneda->simbolo,
+                    'nombre' => $moneda->nombre,
+                    'saldo_sistema' => 0,
+                    'saldo_convertido' => 0, // equivalente neto en moneda principal
+                ];
+            }
+
+            $monto = (float) $mov->monto_moneda_original;
+            $montoConvertido = (float) $mov->monto;
+            if ($mov->tipo === 'ingreso') {
+                $resultado[$key]['saldo_sistema'] += $monto;
+                $resultado[$key]['saldo_convertido'] += $montoConvertido;
+            } else {
+                $resultado[$key]['saldo_sistema'] -= $monto;
+                $resultado[$key]['saldo_convertido'] -= $montoConvertido;
+            }
+        }
+
+        // Solo devolver monedas con saldo distinto de cero
+        return array_filter($resultado, fn($d) => round($d['saldo_sistema'], 4) != 0);
+    }
+
+    /**
      * Obtiene información de caja para modal de cierre
      * SIEMPRE calcula los valores frescos (las propiedades dinámicas se pierden en Livewire)
      * EXCLUYE movimientos de apertura del cálculo de ingresos operativos
@@ -1380,16 +1802,28 @@ class TurnoActual extends Component
         $ingresos = $movimientosOperativos->where('tipo', 'ingreso')->sum('monto');
         $egresos = $movimientosOperativos->where('tipo', 'egreso')->sum('monto');
 
+        $monedasExtranjeras = $this->getMonedasExtranjeras($cajaId);
+
+        // Calcular saldo solo en moneda principal (ARS puro)
+        // saldo_actual incluye equivalente convertido de extranjeras → restarlo
+        $saldoSistemaPrincipal = null;
+        if (!empty($monedasExtranjeras)) {
+            $foreignConvertidoNeto = array_sum(array_column($monedasExtranjeras, 'saldo_convertido'));
+            $saldoSistemaPrincipal = round(($caja->saldo_actual ?? 0) - $foreignConvertidoNeto, 2);
+        }
+
         return [
             'id' => $caja->id,
             'nombre' => $caja->nombre,
             'numero' => $caja->numero_formateado ?? str_pad($caja->numero ?? $caja->id, 3, '0', STR_PAD_LEFT),
             'saldo_inicial' => $caja->saldo_inicial ?? 0,
             'saldo_actual' => $caja->saldo_actual ?? 0,
+            'saldo_sistema_principal' => $saldoSistemaPrincipal,
             'fecha_apertura' => $caja->fecha_apertura?->format('d/m/Y H:i'),
             'ingresos' => $ingresos,
             'egresos' => $egresos,
             'grupo' => $caja->grupoCierre?->nombre ?? null,
+            'monedasExtranjeras' => $monedasExtranjeras,
         ];
     }
 
@@ -1435,6 +1869,25 @@ class TurnoActual extends Component
         $fondoInicial = $grupo->saldo_fondo_comun ?? 0;
         $saldoSistema = $fondoInicial + $totalIngresos - $totalEgresos;
 
+        // Calcular saldo ARS puro consolidado (restar foreign convertido de todas las cajas)
+        $monedasConsolidadas = [];
+        foreach ($cajasGrupo as $caja) {
+            foreach ($this->getMonedasExtranjeras($caja->id) as $codMon => $infoMon) {
+                if (!isset($monedasConsolidadas[$codMon])) {
+                    $monedasConsolidadas[$codMon] = $infoMon;
+                } else {
+                    $monedasConsolidadas[$codMon]['saldo_sistema'] += $infoMon['saldo_sistema'];
+                    $monedasConsolidadas[$codMon]['saldo_convertido'] += $infoMon['saldo_convertido'];
+                }
+            }
+        }
+
+        $saldoSistemaPrincipal = null;
+        if (!empty($monedasConsolidadas)) {
+            $foreignConvertidoNeto = array_sum(array_column($monedasConsolidadas, 'saldo_convertido'));
+            $saldoSistemaPrincipal = round($saldoSistema - $foreignConvertidoNeto, 2);
+        }
+
         return [
             'grupo_id' => $grupo->id,
             'grupo_nombre' => $grupo->nombre ?? 'Grupo de Cajas',
@@ -1444,6 +1897,8 @@ class TurnoActual extends Component
             'total_ingresos' => $totalIngresos,
             'total_egresos' => $totalEgresos,
             'saldo_sistema' => $saldoSistema,
+            'saldo_sistema_principal' => $saldoSistemaPrincipal,
+            'monedasConsolidadas' => $monedasConsolidadas,
         ];
     }
 

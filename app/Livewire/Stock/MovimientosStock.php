@@ -147,6 +147,9 @@ class MovimientosStock extends Component
             MovimientoStock::TIPO_ANULACION_COMPRA => __('Anulación Compra'),
             MovimientoStock::TIPO_DEVOLUCION => __('Devolución'),
             MovimientoStock::TIPO_CARGA_INICIAL => __('Carga Inicial'),
+            MovimientoStock::TIPO_PRODUCCION_ENTRADA => __('Producción Entrada'),
+            MovimientoStock::TIPO_PRODUCCION_SALIDA => __('Producción Salida'),
+            MovimientoStock::TIPO_ANULACION_PRODUCCION => __('Anulación Producción'),
         ];
     }
 

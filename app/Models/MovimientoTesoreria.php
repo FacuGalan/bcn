@@ -44,12 +44,19 @@ class MovimientoTesoreria extends Model
         'referencia_tipo',
         'referencia_id',
         'observaciones',
+        'moneda_id',
+        'monto_moneda_original',
+        'saldo_anterior_moneda',
+        'saldo_posterior_moneda',
     ];
 
     protected $casts = [
         'monto' => 'decimal:2',
         'saldo_anterior' => 'decimal:2',
         'saldo_posterior' => 'decimal:2',
+        'monto_moneda_original' => 'decimal:2',
+        'saldo_anterior_moneda' => 'decimal:2',
+        'saldo_posterior_moneda' => 'decimal:2',
     ];
 
     // Tipos de referencia comunes
@@ -69,6 +76,11 @@ class MovimientoTesoreria extends Model
     public function usuario(): BelongsTo
     {
         return $this->belongsTo(User::class, 'usuario_id');
+    }
+
+    public function moneda(): BelongsTo
+    {
+        return $this->belongsTo(Moneda::class, 'moneda_id');
     }
 
     // ==================== SCOPES ====================
@@ -215,6 +227,37 @@ class MovimientoTesoreria extends Model
             'usuario_id' => $usuarioId,
             'referencia_tipo' => self::REFERENCIA_ARQUEO,
             'referencia_id' => $arqueoId,
+        ]);
+    }
+
+    /**
+     * Crea un movimiento de ajuste por arqueo en moneda extranjera.
+     * No afecta saldo_actual (ARS), solo el saldo de la moneda en TesoreriaSaldoMoneda.
+     */
+    public static function crearAjusteArqueoMoneda(Tesoreria $tesoreria, float $diferencia, int $usuarioId, int $arqueoId, int $monedaId): self
+    {
+        $saldoMoneda = TesoreriaSaldoMoneda::obtenerOCrear($tesoreria->id, $monedaId);
+        $saldoAnteriorMoneda = (float) $saldoMoneda->saldo_actual;
+        $saldoMoneda->saldo_actual += $diferencia;
+        $saldoMoneda->save();
+
+        $tipo = $diferencia >= 0 ? 'ingreso' : 'egreso';
+        $concepto = $diferencia >= 0 ? 'Ajuste por sobrante en arqueo' : 'Ajuste por faltante en arqueo';
+
+        return self::create([
+            'tesoreria_id' => $tesoreria->id,
+            'tipo' => $tipo,
+            'concepto' => $concepto,
+            'monto' => 0,
+            'saldo_anterior' => $tesoreria->saldo_actual,
+            'saldo_posterior' => $tesoreria->saldo_actual,
+            'usuario_id' => $usuarioId,
+            'referencia_tipo' => self::REFERENCIA_ARQUEO,
+            'referencia_id' => $arqueoId,
+            'moneda_id' => $monedaId,
+            'monto_moneda_original' => abs($diferencia),
+            'saldo_anterior_moneda' => $saldoAnteriorMoneda,
+            'saldo_posterior_moneda' => $saldoMoneda->saldo_actual,
         ]);
     }
 }

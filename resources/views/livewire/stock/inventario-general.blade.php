@@ -3,24 +3,13 @@
         <!-- Header -->
         <div class="mb-4 sm:mb-6">
             <div class="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-4">
-                <div class="flex items-center gap-3">
-                    <button
-                        wire:click="volver"
-                        class="inline-flex items-center justify-center w-10 h-10 text-gray-500 dark:text-gray-400 hover:text-purple-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-                        title="{{ __('Volver al inventario') }}"
-                    >
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                        </svg>
-                    </button>
-                    <div>
-                        <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white">{{ __('Inventario General') }}</h2>
-                        <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">{{ __('Inventario general de stock por sucursal') }}</p>
-                    </div>
+                <div>
+                    <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white">{{ __('Inventario General') }}</h2>
+                    <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">{{ __('Inventario general de stock por sucursal') }}</p>
                 </div>
-                @if(count($cantidadesFisicas) > 0)
+                @if(count(array_filter($cantidadesFisicas, fn($v) => $v !== '' && $v !== null)) > 0)
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                        {{ count($cantidadesFisicas) }} {{ __('con conteo') }}
+                        {{ count(array_filter($cantidadesFisicas, fn($v) => $v !== '' && $v !== null)) }} {{ __('con conteo') }}
                     </span>
                 @endif
             </div>
@@ -28,17 +17,25 @@
 
         <!-- Panel de filtros -->
         <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-4 sm:mb-6">
-            <!-- Búsqueda y toggle filtros -->
+            <!-- Búsqueda, filtro tipo y toggle filtros -->
             <div class="p-4 sm:p-6">
                 <div class="flex gap-3">
                     <div class="flex-1">
                         <input
                             type="text"
                             wire:model.live.debounce.300ms="search"
-                            placeholder="{{ __('Buscar por código o nombre...') }}"
+                            placeholder="{{ __('Buscar por nombre, código o categoría...') }}"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm"
                         />
                     </div>
+                    <select
+                        wire:model.live="filtroTipo"
+                        class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm"
+                    >
+                        <option value="">{{ __('Todos') }}</option>
+                        <option value="articulo">{{ __('Artículos') }}</option>
+                        <option value="materia_prima">{{ __('Materia prima') }}</option>
+                    </select>
                     <button
                         wire:click="toggleFilters"
                         class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -159,11 +156,11 @@
             @forelse($articulos as $articulo)
                 @php
                     $stockSistema = $stocksPorArticulo[$articulo->id] ?? 0;
-                    $tieneConteo = array_key_exists($articulo->id, $cantidadesFisicas);
-                    $conteo = $tieneConteo ? $cantidadesFisicas[$articulo->id] : null;
+                    $tieneConteo = isset($cantidadesFisicas[$articulo->id]) && $cantidadesFisicas[$articulo->id] !== '' && $cantidadesFisicas[$articulo->id] !== null;
+                    $conteo = $tieneConteo ? (float) $cantidadesFisicas[$articulo->id] : null;
                     $diferencia = $tieneConteo ? $conteo - $stockSistema : null;
                 @endphp
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-3 py-2.5 {{ $tieneConteo ? ($diferencia == 0 ? 'ring-1 ring-green-400' : ($diferencia > 0 ? 'ring-1 ring-yellow-400' : 'ring-1 ring-red-400')) : '' }}">
+                <div wire:key="mobile-{{ $articulo->id }}" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-3 py-2.5 {{ $tieneConteo ? ($diferencia == 0 ? 'ring-1 ring-green-400' : ($diferencia > 0 ? 'ring-1 ring-yellow-400' : 'ring-1 ring-red-400')) : '' }}">
                     <div class="flex items-center gap-3">
                         <!-- Info del artículo -->
                         <div class="flex-1 min-w-0">
@@ -172,6 +169,7 @@
                                     <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: {{ $articulo->categoriaModel->color }}"></span>
                                 @endif
                                 <span class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ $articulo->nombre }}</span>
+                                <span class="text-xs text-gray-400 dark:text-gray-500">{{ $articulo->unidad_medida ?? 'u' }}</span>
                             </div>
                             <div class="flex items-center gap-2 mt-0.5">
                                 <span class="text-xs text-gray-500 dark:text-gray-400">{{ $articulo->codigo }}</span>
@@ -189,8 +187,7 @@
                             type="number"
                             step="0.01"
                             min="0"
-                            value="{{ $tieneConteo ? $conteo : '' }}"
-                            wire:change="actualizarCantidad({{ $articulo->id }}, $event.target.value)"
+                            wire:model.live.debounce.300ms="cantidadesFisicas.{{ $articulo->id }}"
                             placeholder="-"
                             class="w-24 text-center rounded-md shadow-sm text-sm flex-shrink-0
                                 {{ $tieneConteo
@@ -225,6 +222,7 @@
                         <tr>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider w-20">{{ __('Código') }}</th>
                             <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Artículo') }}</th>
+                            <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider w-16">{{ __('Und') }}</th>
                             <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider w-32">{{ __('Stock Sistema') }}</th>
                             <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider w-40">{{ __('Conteo Físico') }}</th>
                             <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider w-32">{{ __('Diferencia') }}</th>
@@ -234,11 +232,11 @@
                         @forelse($articulos as $articulo)
                             @php
                                 $stockSistema = $stocksPorArticulo[$articulo->id] ?? 0;
-                                $tieneConteo = array_key_exists($articulo->id, $cantidadesFisicas);
-                                $conteo = $tieneConteo ? $cantidadesFisicas[$articulo->id] : null;
+                                $tieneConteo = isset($cantidadesFisicas[$articulo->id]) && $cantidadesFisicas[$articulo->id] !== '' && $cantidadesFisicas[$articulo->id] !== null;
+                                $conteo = $tieneConteo ? (float) $cantidadesFisicas[$articulo->id] : null;
                                 $diferencia = $tieneConteo ? $conteo - $stockSistema : null;
                             @endphp
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
+                            <tr wire:key="desktop-{{ $articulo->id }}" class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <div class="text-xs text-gray-500 dark:text-gray-400">{{ $articulo->codigo }}</div>
                                 </td>
@@ -250,6 +248,9 @@
                                         <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $articulo->nombre }}</span>
                                     </div>
                                 </td>
+                                <td class="px-4 py-3 text-center whitespace-nowrap">
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ $articulo->unidad_medida ?? 'u' }}</span>
+                                </td>
                                 <td class="px-4 py-3 text-right whitespace-nowrap">
                                     <span class="text-sm text-gray-700 dark:text-gray-300">{{ number_format($stockSistema, 2, ',', '.') }}</span>
                                 </td>
@@ -258,15 +259,14 @@
                                         type="number"
                                         step="0.01"
                                         min="0"
-                                        value="{{ $tieneConteo ? $conteo : '' }}"
-                                        wire:change="actualizarCantidad({{ $articulo->id }}, $event.target.value)"
+                                        wire:model.live.debounce.300ms="cantidadesFisicas.{{ $articulo->id }}"
                                         placeholder="-"
                                         class="w-28 text-center rounded-md shadow-sm text-sm
                                             {{ $tieneConteo
                                                 ? ($diferencia == 0 ? 'border-green-400 bg-green-50 dark:bg-green-900/20 focus:border-green-500 focus:ring-green-500' : ($diferencia > 0 ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 focus:border-yellow-500 focus:ring-yellow-500' : 'border-red-400 bg-red-50 dark:bg-red-900/20 focus:border-red-500 focus:ring-red-500'))
                                                 : 'border-gray-300 dark:border-gray-600 focus:border-purple-500 focus:ring-purple-500'
                                             }}
-                                            dark:text-white focus:ring focus:ring-opacity-50"
+                                            dark:bg-gray-700 dark:text-white focus:ring focus:ring-opacity-50"
                                     />
                                 </td>
                                 <td class="px-4 py-3 text-right whitespace-nowrap">
@@ -281,7 +281,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                <td colspan="6" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                                     <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                                     </svg>
@@ -315,13 +315,13 @@
                 </div>
                 <button
                     wire:click="confirmarProcesar"
-                    @if(count($cantidadesFisicas) === 0) disabled @endif
+                    @if(count(array_filter($cantidadesFisicas, fn($v) => $v !== '' && $v !== null)) === 0) disabled @endif
                     class="inline-flex items-center justify-center px-6 py-2.5 bg-purple-600 border border-transparent rounded-md font-semibold text-sm text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 >
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                     </svg>
-                    {{ __('Procesar Inventario') }} ({{ count($cantidadesFisicas) }})
+                    {{ __('Procesar Inventario') }} ({{ count(array_filter($cantidadesFisicas, fn($v) => $v !== '' && $v !== null)) }})
                 </button>
             </div>
         </div>
@@ -345,10 +345,10 @@
                             </div>
                             <div>
                                 <p class="text-sm text-gray-700 dark:text-gray-300">
-                                    {{ __('Se procesarán') }} <span class="font-bold text-purple-600">{{ count($cantidadesFisicas) }}</span> {{ __('artículos con conteo ingresado') }}.
+                                    {{ __('Se procesarán') }} <span class="font-bold text-purple-600">{{ count(array_filter($cantidadesFisicas, fn($v) => $v !== '' && $v !== null)) }}</span> {{ __('artículos con conteo ingresado') }}.
                                 </p>
                                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    {{ __('? Esta acción no se puede deshacer.') }}
+                                    {{ __('Esta acción no se puede deshacer.') }}
                                 </p>
                             </div>
                         </div>

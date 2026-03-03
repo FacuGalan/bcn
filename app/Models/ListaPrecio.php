@@ -342,9 +342,9 @@ class ListaPrecio extends Model
      * @param Articulo $articulo
      * @return array ['precio' => float, 'ajuste_porcentaje' => float, 'origen' => string]
      */
-    public function obtenerPrecioArticulo(Articulo $articulo): array
+    public function obtenerPrecioArticulo(Articulo $articulo, ?float $precioBaseOverride = null): array
     {
-        $precioBase = (float) $articulo->precio_base;
+        $precioBase = $precioBaseOverride ?? (float) $articulo->precio_base;
 
         // 1. Buscar por artículo específico
         $detalle = $this->articulos()

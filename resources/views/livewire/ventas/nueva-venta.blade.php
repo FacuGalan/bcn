@@ -1438,6 +1438,15 @@
                                                         </button>
                                                     </div>
 
+                                                    {{-- Detalle moneda extranjera --}}
+                                                    @if(!empty($pago['es_moneda_extranjera']) && !empty($pago['monto_moneda_original']))
+                                                        <div class="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                                                            {{ $pago['moneda_info']['simbolo'] ?? '' }} {{ number_format($pago['monto_moneda_original'], 2, ',', '.') }}
+                                                            {{ $pago['moneda_info']['codigo'] ?? '' }}
+                                                            × {{ number_format($pago['tipo_cambio_tasa'], 2, ',', '.') }}
+                                                        </div>
+                                                    @endif
+
                                                     {{-- Detalles del monto --}}
                                                     <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                                                         <span>{{ __('Base') }}: $@precio($pago['monto_base'])</span>
@@ -1546,16 +1555,21 @@
                                         @endforeach
                                     </select>
 
-                                    {{-- Monto (vacío = todo el pendiente) --}}
-                                    <div class="relative w-28">
-                                        <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 dark:text-gray-400 text-sm">$</span>
+                                    {{-- Monto --}}
+                                    @php
+                                        $fpSeleccionada = collect($formasPagoSucursal)->firstWhere('id', (int) $nuevoPago['forma_pago_id']);
+                                        $esMonedaExt = $fpSeleccionada && ($fpSeleccionada['es_moneda_extranjera'] ?? false);
+                                        $simboloMoneda = $esMonedaExt ? ($fpSeleccionada['moneda_info']['simbolo'] ?? '$') : '$';
+                                    @endphp
+                                    <div class="relative {{ $esMonedaExt ? 'w-36' : 'w-28' }}">
+                                        <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 dark:text-gray-400 text-xs font-medium">{{ $esMonedaExt ? ($fpSeleccionada['moneda_info']['codigo'] ?? $simboloMoneda) : $simboloMoneda }}</span>
                                         <input
                                             type="number"
                                             step="0.01"
                                             wire:model="nuevoPago.monto"
-                                            class="w-full pl-6 pr-2 py-1.5 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md shadow-sm focus:border-green-500 focus:ring-green-500"
-                                            placeholder="{{ number_format($montoPendienteDesglose, 2, ',', '.') }}"
-                                            :title="__('Vacío = monto pendiente completo')">
+                                            class="w-full {{ $esMonedaExt ? 'pl-11' : 'pl-6' }} pr-2 py-1.5 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md shadow-sm focus:border-green-500 focus:ring-green-500"
+                                            placeholder="{{ $esMonedaExt ? __('Monto') : number_format($montoPendienteDesglose, 2, ',', '.') }}"
+                                            title="{{ $esMonedaExt ? __('Monto en') . ' ' . ($fpSeleccionada['moneda_info']['codigo'] ?? '') : __('Vacío = monto pendiente completo') }}">
                                     </div>
 
                                     {{-- Botón Agregar --}}
@@ -1571,6 +1585,27 @@
                                         {{ __('Agregar') }}
                                     </button>
                                 </div>
+
+                                {{-- Cotización (si moneda extranjera) --}}
+                                @if($esMonedaExt)
+                                    <div class="mt-2 flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md px-2 py-1.5">
+                                        <span class="text-xs font-medium text-amber-700 dark:text-amber-300">{{ __('Cotización') }} ({{ $fpSeleccionada['moneda_info']['codigo'] ?? '' }}):</span>
+                                        <div class="relative w-24">
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                wire:model="nuevoPago.tipo_cambio_tasa"
+                                                class="w-full px-2 py-1 text-sm border-amber-300 dark:border-amber-600 dark:bg-gray-800 dark:text-white rounded-md shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                                                placeholder="0.00">
+                                        </div>
+                                        @if($nuevoPago['tipo_cambio_tasa'] > 0 && $nuevoPago['monto'] > 0)
+                                            <span class="text-xs text-amber-600 dark:text-amber-400">
+                                                = ${{ number_format((float)$nuevoPago['monto'] * (float)$nuevoPago['tipo_cambio_tasa'], 2, ',', '.') }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                @endif
 
                                 {{-- Cuotas (si aplica) - en fila separada, dropdown hacia arriba --}}
                                 @if(count($cuotasDisponibles) > 0)
@@ -1732,6 +1767,112 @@
                             type="button"
                             class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-3 py-2 bg-white dark:bg-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                             {{ __('Volver') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Modal Simple de Pago en Moneda Extranjera --}}
+    @if($mostrarModalMonedaExtranjera)
+        <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-moneda-ext" role="dialog" aria-modal="true"
+            x-data="{}"
+            @keydown.escape.window="$wire.cerrarModalMonedaExtranjera()"
+            @keydown.enter.window.prevent="$wire.confirmarPagoMonedaExtranjera()">
+            <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity" wire:click="cerrarModalMonedaExtranjera"></div>
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full w-full">
+                    {{-- Header --}}
+                    <div class="bg-amber-600 px-4 py-3 sm:px-6">
+                        <h3 class="text-lg leading-6 font-medium text-white flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            {{ __('Pago en') }} {{ $pagoMonedaExtranjera['moneda_codigo'] }} — {{ $pagoMonedaExtranjera['nombre'] }}
+                        </h3>
+                    </div>
+
+                    <div class="px-4 py-5 sm:p-6 space-y-4">
+                        {{-- Total de la venta --}}
+                        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('Total a pagar') }}</p>
+                            <p class="text-2xl font-bold text-gray-900 dark:text-white">${{ number_format($pagoMonedaExtranjera['total_venta'], 2, ',', '.') }}</p>
+                        </div>
+
+                        {{-- Cotización --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {{ __('Cotización') }} (1 {{ $pagoMonedaExtranjera['moneda_codigo'] }} = ? ARS)
+                            </label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                wire:model.live.debounce.300ms="pagoMonedaExtranjera.cotizacion"
+                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-amber-500 focus:ring focus:ring-amber-500 focus:ring-opacity-50 text-sm"
+                                placeholder="0.00">
+                        </div>
+
+                        {{-- Monto en moneda extranjera --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {{ __('¿Cuántos') }} {{ $pagoMonedaExtranjera['moneda_codigo'] }} {{ __('entrega?') }}
+                            </label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-amber-600 dark:text-amber-400 font-medium text-sm">{{ $pagoMonedaExtranjera['moneda_simbolo'] }}</span>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    wire:model.live.debounce.300ms="pagoMonedaExtranjera.monto_extranjera"
+                                    class="w-full pl-10 pr-3 py-2 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-amber-500 focus:ring focus:ring-amber-500 focus:ring-opacity-50 text-lg font-medium"
+                                    placeholder="0.00"
+                                    autofocus>
+                            </div>
+                        </div>
+
+                        {{-- Cálculo en vivo --}}
+                        @if($pagoMonedaExtranjera['equivalente_principal'] > 0)
+                            <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 space-y-2">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-blue-700 dark:text-blue-300">{{ __('Equivale a') }}</span>
+                                    <span class="text-lg font-bold text-blue-800 dark:text-blue-200">${{ number_format($pagoMonedaExtranjera['equivalente_principal'], 2, ',', '.') }}</span>
+                                </div>
+                                @if($pagoMonedaExtranjera['vuelto'] > 0)
+                                    <div class="flex justify-between items-center pt-2 border-t border-blue-200 dark:border-blue-700">
+                                        <span class="text-sm font-medium text-green-700 dark:text-green-300">{{ __('Vuelto') }}</span>
+                                        <span class="text-lg font-bold text-green-600 dark:text-green-400">${{ number_format($pagoMonedaExtranjera['vuelto'], 2, ',', '.') }}</span>
+                                    </div>
+                                @elseif($pagoMonedaExtranjera['equivalente_principal'] < $pagoMonedaExtranjera['total_venta'] - 0.01)
+                                    <div class="flex justify-between items-center pt-2 border-t border-blue-200 dark:border-blue-700">
+                                        <span class="text-sm font-medium text-red-600 dark:text-red-400">{{ __('Falta') }}</span>
+                                        <span class="text-lg font-bold text-red-600 dark:text-red-400">${{ number_format($pagoMonedaExtranjera['total_venta'] - $pagoMonedaExtranjera['equivalente_principal'], 2, ',', '.') }}</span>
+                                    </div>
+                                @endif
+                            </div>
+                        @endif
+                    </div>
+
+                    {{-- Footer --}}
+                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 flex flex-row-reverse gap-2">
+                        <button
+                            wire:click="confirmarPagoMonedaExtranjera"
+                            type="button"
+                            @if($pagoMonedaExtranjera['equivalente_principal'] < $pagoMonedaExtranjera['total_venta'] - 0.01) disabled @endif
+                            class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white sm:text-sm transition
+                                {{ $pagoMonedaExtranjera['equivalente_principal'] >= $pagoMonedaExtranjera['total_venta'] - 0.01
+                                    ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
+                                    : 'bg-gray-400 cursor-not-allowed' }}
+                                focus:outline-none focus:ring-2 focus:ring-offset-2">
+                            {{ __('Confirmar Pago') }}
+                        </button>
+                        <button
+                            wire:click="cerrarModalMonedaExtranjera"
+                            type="button"
+                            class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary sm:text-sm">
+                            {{ __('Cancelar') }}
                         </button>
                     </div>
                 </div>

@@ -2,10 +2,13 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\CajaService;
+use App\Services\SucursalService;
 use App\Services\TenantService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Session;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -64,8 +67,10 @@ class TenantMiddleware
 
         // Verificar si hay un comercio activo en sesión
         if (!$this->tenantService->hasComercio()) {
-            // Si el usuario no tiene comercio activo, redirigir al selector
-            return redirect()->route('comercio.selector');
+            // Intentar auto-restaurar el comercio desde ultimo_comercio_id o comercio único
+            if (!$this->tryAutoRestoreComercio($user)) {
+                return redirect()->route('comercio.selector');
+            }
         }
 
         $comercio = $this->tenantService->getComercio();
@@ -83,5 +88,64 @@ class TenantMiddleware
         $this->tenantService->setComercio($comercio);
 
         return $next($request);
+    }
+
+    /**
+     * Intenta restaurar automáticamente el comercio cuando la sesión se perdió
+     * (ej: remember me re-autenticó al usuario pero la sesión expiró)
+     *
+     * Prioridad:
+     * 1. ultimo_comercio_id del usuario (si tiene acceso)
+     * 2. Comercio único (si el usuario solo tiene uno)
+     *
+     * @param \App\Models\User $user Usuario autenticado
+     * @return bool True si se restauró exitosamente
+     */
+    protected function tryAutoRestoreComercio($user): bool
+    {
+        // System admins siempre van al selector (necesitan buscar entre todos)
+        if ($user->isSystemAdmin()) {
+            return false;
+        }
+
+        $comercios = $user->comercios()->get();
+
+        // Sin comercios asociados → al selector (mostrará error)
+        if ($comercios->isEmpty()) {
+            return false;
+        }
+
+        $comercio = null;
+
+        // Prioridad 1: último comercio usado (si tiene acceso)
+        if ($user->ultimo_comercio_id) {
+            $comercio = $comercios->firstWhere('id', $user->ultimo_comercio_id);
+        }
+
+        // Prioridad 2: si solo tiene un comercio, usarlo directamente
+        if (!$comercio && $comercios->count() === 1) {
+            $comercio = $comercios->first();
+        }
+
+        // Si tiene múltiples comercios y no hay ultimo_comercio_id → selector
+        if (!$comercio) {
+            return false;
+        }
+
+        // Restaurar comercio, sucursal y caja
+        $this->tenantService->setComercio($comercio);
+
+        // Limpiar cachés estáticos que pueden haberse llenado con resultados vacíos
+        // antes de que el comercio se restaurara (EnsureSucursalSelected corre antes)
+        SucursalService::clearCache();
+        CajaService::clearCache();
+
+        $sucursales = SucursalService::getSucursalesDisponibles();
+        if ($sucursales->isNotEmpty()) {
+            Session::put('sucursal_id', $sucursales->first()->id);
+            CajaService::establecerPrimeraCajaDisponible();
+        }
+
+        return true;
     }
 }

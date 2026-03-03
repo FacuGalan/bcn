@@ -11,6 +11,7 @@ use App\Models\ProvisionFondo;
 use App\Models\RendicionFondo;
 use App\Models\DepositoBancario;
 use App\Models\CuentaBancaria;
+use App\Models\CuentaEmpresa;
 use App\Models\ArqueoTesoreria;
 use App\Models\CierreTurno;
 use App\Models\CierreTurnoCaja;
@@ -18,6 +19,7 @@ use App\Models\Venta;
 use App\Models\VentaPago;
 use App\Models\Cobro;
 use App\Models\CobroPago;
+use App\Models\TesoreriaSaldoMoneda;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
@@ -57,6 +59,8 @@ class TesoreriaService
      * @param float $monto
      * @param int $usuarioId
      * @param string|null $observaciones
+     * @param int|null $monedaId Si es moneda extranjera
+     * @param float|null $montoOriginal Monto en moneda extranjera
      * @return ProvisionFondo
      * @throws \Exception
      */
@@ -65,51 +69,111 @@ class TesoreriaService
         Caja $caja,
         float $monto,
         int $usuarioId,
-        ?string $observaciones = null
+        ?string $observaciones = null,
+        ?int $monedaId = null,
+        ?float $montoOriginal = null
     ): ProvisionFondo {
-        if ($monto <= 0) {
+        if ($monto <= 0 && ($montoOriginal === null || $montoOriginal <= 0)) {
             throw new \Exception('El monto debe ser mayor a cero');
         }
 
-        if (!$tesoreria->tieneSaldoSuficiente($monto)) {
-            throw new \Exception('Saldo insuficiente en tesorería');
+        $esMonedaExtranjera = $monedaId !== null && $montoOriginal !== null && $montoOriginal > 0;
+
+        if ($esMonedaExtranjera) {
+            if (!$tesoreria->tieneSaldoSuficienteMoneda($montoOriginal, $monedaId)) {
+                $moneda = \App\Models\Moneda::find($monedaId);
+                $codigo = $moneda?->codigo ?? 'N/A';
+                throw new \Exception("Saldo insuficiente en tesorería para {$codigo}");
+            }
+        } else {
+            if (!$tesoreria->tieneSaldoSuficiente($monto)) {
+                throw new \Exception('Saldo insuficiente en tesorería');
+            }
         }
 
-        return DB::transaction(function () use ($tesoreria, $caja, $monto, $usuarioId, $observaciones) {
+        return DB::transaction(function () use ($tesoreria, $caja, $monto, $usuarioId, $observaciones, $monedaId, $montoOriginal, $esMonedaExtranjera) {
+            // Calcular equivalente ARS para moneda extranjera
+            $montoARS = $monto;
+            $tipoCambioId = null;
+            if ($esMonedaExtranjera) {
+                $monedaPrincipal = \App\Models\Moneda::obtenerPrincipal();
+                if ($monedaPrincipal) {
+                    $tasa = \App\Models\TipoCambio::obtenerTasaVenta($monedaId, $monedaPrincipal->id);
+                    if ($tasa && $tasa > 0) {
+                        $montoARS = round($montoOriginal * $tasa, 2);
+                        $tcRecord = \App\Models\TipoCambio::ultimaTasa($monedaId, $monedaPrincipal->id);
+                        $tipoCambioId = $tcRecord?->id;
+                    }
+                }
+            }
+
             // 1. Crear registro de provisión
             $provision = ProvisionFondo::create([
                 'tesoreria_id' => $tesoreria->id,
                 'caja_id' => $caja->id,
-                'monto' => $monto,
+                'monto' => $montoARS,
                 'usuario_entrega_id' => $usuarioId,
                 'fecha' => now(),
                 'estado' => ProvisionFondo::ESTADO_CONFIRMADO,
                 'observaciones' => $observaciones,
+                'moneda_id' => $monedaId,
+                'monto_moneda_original' => $montoOriginal,
             ]);
 
-            // 2. Registrar egreso en tesorería (con trazabilidad)
-            $movimientoTesoreria = $tesoreria->egreso(
-                $monto,
-                "Provisión de fondo a caja {$caja->nombre}",
-                $usuarioId,
-                MovimientoTesoreria::REFERENCIA_PROVISION,
-                $provision->id
-            );
+            if ($esMonedaExtranjera) {
+                // 2a. Egreso en moneda extranjera de tesorería (saldo independiente)
+                $moneda = \App\Models\Moneda::find($monedaId);
+                $movimientoTesoreria = $tesoreria->egresoMonedaExtranjera(
+                    $montoOriginal,
+                    "Provisión de fondo a caja {$caja->nombre} - {$moneda->codigo}",
+                    $usuarioId,
+                    $monedaId,
+                    MovimientoTesoreria::REFERENCIA_PROVISION,
+                    $provision->id
+                );
 
-            // 3. Registrar ingreso en caja (con trazabilidad)
-            $movimientoCaja = MovimientoCaja::create([
-                'caja_id' => $caja->id,
-                'tipo' => 'ingreso',
-                'concepto' => 'Provisión de fondo desde tesorería',
-                'monto' => $monto,
-                'usuario_id' => $usuarioId,
-                'referencia_tipo' => 'provision_fondo',
-                'referencia_id' => $provision->id,
-            ]);
+                // 3a. Registrar ingreso en caja con moneda y equivalente ARS
+                $movimientoCaja = MovimientoCaja::create([
+                    'caja_id' => $caja->id,
+                    'tipo' => 'ingreso',
+                    'concepto' => "Provisión de fondo desde tesorería - {$moneda->codigo}",
+                    'monto' => $montoARS,
+                    'usuario_id' => $usuarioId,
+                    'referencia_tipo' => 'provision_fondo',
+                    'referencia_id' => $provision->id,
+                    'moneda_id' => $monedaId,
+                    'monto_moneda_original' => $montoOriginal,
+                    'tipo_cambio_id' => $tipoCambioId,
+                ]);
 
-            // 4. Actualizar saldo de la caja
-            $caja->saldo_actual += $monto;
-            $caja->save();
+                // 4a. Actualizar saldo de la caja con equivalente ARS
+                $caja->saldo_actual += $montoARS;
+                $caja->save();
+            } else {
+                // 2b. Egreso ARS de tesorería (flujo original)
+                $movimientoTesoreria = $tesoreria->egreso(
+                    $monto,
+                    "Provisión de fondo a caja {$caja->nombre}",
+                    $usuarioId,
+                    MovimientoTesoreria::REFERENCIA_PROVISION,
+                    $provision->id
+                );
+
+                // 3b. Registrar ingreso en caja
+                $movimientoCaja = MovimientoCaja::create([
+                    'caja_id' => $caja->id,
+                    'tipo' => 'ingreso',
+                    'concepto' => 'Provisión de fondo desde tesorería',
+                    'monto' => $monto,
+                    'usuario_id' => $usuarioId,
+                    'referencia_tipo' => 'provision_fondo',
+                    'referencia_id' => $provision->id,
+                ]);
+
+                // 4b. Actualizar saldo de la caja
+                $caja->saldo_actual += $monto;
+                $caja->save();
+            }
 
             // 5. Vincular movimientos con la provisión
             $provision->update([
@@ -122,6 +186,8 @@ class TesoreriaService
                 'tesoreria_id' => $tesoreria->id,
                 'caja_id' => $caja->id,
                 'monto' => $monto,
+                'moneda_id' => $monedaId,
+                'monto_original' => $montoOriginal,
                 'usuario_id' => $usuarioId,
             ]);
 
@@ -202,11 +268,12 @@ class TesoreriaService
      *
      * @param Caja $caja
      * @param Tesoreria $tesoreria
-     * @param float $montoDeclarado Monto declarado por el cajero
-     * @param float $montoSistema Monto calculado por el sistema
+     * @param float $montoDeclarado Monto declarado por el cajero (solo ARS)
+     * @param float $montoSistema Monto calculado por el sistema (solo ARS)
      * @param int $usuarioId
      * @param int|null $cierreTurnoId
      * @param string|null $observaciones
+     * @param array|null $desgloseMonedas Array de monedas extranjeras: [monedaId => ['saldo' => float, 'codigo' => string, ...]]
      * @return RendicionFondo
      */
     public static function rendirFondo(
@@ -216,9 +283,10 @@ class TesoreriaService
         float $montoSistema,
         int $usuarioId,
         ?int $cierreTurnoId = null,
-        ?string $observaciones = null
+        ?string $observaciones = null,
+        ?array $desgloseMonedas = null
     ): RendicionFondo {
-        return DB::transaction(function () use ($caja, $tesoreria, $montoDeclarado, $montoSistema, $usuarioId, $cierreTurnoId, $observaciones) {
+        return DB::transaction(function () use ($caja, $tesoreria, $montoDeclarado, $montoSistema, $usuarioId, $cierreTurnoId, $observaciones, $desgloseMonedas) {
             $diferencia = $montoDeclarado - $montoSistema;
             $montoEntregado = $montoDeclarado; // Se entrega lo declarado
 
@@ -235,6 +303,7 @@ class TesoreriaService
                 'fecha' => now(),
                 'estado' => RendicionFondo::ESTADO_PENDIENTE,
                 'observaciones' => $observaciones,
+                'desglose_monedas' => $desgloseMonedas,
             ]);
 
             // 2. Registrar egreso en caja
@@ -248,7 +317,7 @@ class TesoreriaService
                 'referencia_id' => $rendicion->id,
             ]);
 
-            // 3. Registrar ingreso en tesorería
+            // 3. Registrar ingreso ARS en tesorería
             $movimientoTesoreria = $tesoreria->ingreso(
                 $montoEntregado,
                 "Rendición de caja {$caja->nombre}",
@@ -257,11 +326,29 @@ class TesoreriaService
                 $rendicion->id
             );
 
-            // 4. Actualizar saldo de la caja
+            // 4. Registrar ingresos de monedas extranjeras en tesorería (saldos independientes)
+            if (!empty($desgloseMonedas)) {
+                foreach ($desgloseMonedas as $monedaId => $dataMon) {
+                    $saldoMoneda = (float) ($dataMon['saldo'] ?? 0);
+                    if ($saldoMoneda > 0) {
+                        $codigoMon = $dataMon['codigo'] ?? '';
+                        $tesoreria->ingresoMonedaExtranjera(
+                            $saldoMoneda,
+                            "Rendición de caja {$caja->nombre} - {$codigoMon}",
+                            $usuarioId,
+                            (int) $monedaId,
+                            MovimientoTesoreria::REFERENCIA_RENDICION,
+                            $rendicion->id
+                        );
+                    }
+                }
+            }
+
+            // 5. Actualizar saldo de la caja
             $caja->saldo_actual -= $montoEntregado;
             $caja->save();
 
-            // 5. Vincular movimientos con la rendición
+            // 6. Vincular movimientos con la rendición
             $rendicion->update([
                 'movimiento_tesoreria_id' => $movimientoTesoreria->id,
                 'movimiento_caja_id' => $movimientoCaja->id,
@@ -273,6 +360,7 @@ class TesoreriaService
                 'tesoreria_id' => $tesoreria->id,
                 'monto_entregado' => $montoEntregado,
                 'diferencia' => $diferencia,
+                'monedas_extranjeras' => !empty($desgloseMonedas) ? count($desgloseMonedas) : 0,
                 'usuario_id' => $usuarioId,
             ]);
 
@@ -285,11 +373,12 @@ class TesoreriaService
      *
      * @param GrupoCierre $grupo
      * @param Tesoreria $tesoreria
-     * @param float $montoDeclarado Monto declarado por el cajero
-     * @param float $montoSistema Monto calculado por el sistema
+     * @param float $montoDeclarado Monto declarado por el cajero (solo ARS)
+     * @param float $montoSistema Monto calculado por el sistema (solo ARS)
      * @param int $usuarioId
      * @param int|null $cierreTurnoId
      * @param string|null $observaciones
+     * @param array|null $desgloseMonedas Array de monedas extranjeras: [monedaId => ['saldo' => float, 'codigo' => string, ...]]
      * @return RendicionFondo
      */
     public static function rendirFondoGrupo(
@@ -299,9 +388,10 @@ class TesoreriaService
         float $montoSistema,
         int $usuarioId,
         ?int $cierreTurnoId = null,
-        ?string $observaciones = null
+        ?string $observaciones = null,
+        ?array $desgloseMonedas = null
     ): RendicionFondo {
-        return DB::transaction(function () use ($grupo, $tesoreria, $montoDeclarado, $montoSistema, $usuarioId, $cierreTurnoId, $observaciones) {
+        return DB::transaction(function () use ($grupo, $tesoreria, $montoDeclarado, $montoSistema, $usuarioId, $cierreTurnoId, $observaciones, $desgloseMonedas) {
             $diferencia = $montoDeclarado - $montoSistema;
             $montoEntregado = $montoDeclarado;
 
@@ -321,9 +411,10 @@ class TesoreriaService
                 'fecha' => now(),
                 'estado' => RendicionFondo::ESTADO_PENDIENTE,
                 'observaciones' => $observaciones ?? "Cierre de grupo: {$grupo->nombre}",
+                'desglose_monedas' => $desgloseMonedas,
             ]);
 
-            // 2. Registrar ingreso en tesorería
+            // 2. Registrar ingreso ARS en tesorería
             $nombreGrupo = $grupo->nombre ?? "Grupo #{$grupo->id}";
             $movimientoTesoreria = $tesoreria->ingreso(
                 $montoEntregado,
@@ -333,7 +424,25 @@ class TesoreriaService
                 $rendicion->id
             );
 
-            // 3. Vincular movimiento con la rendición
+            // 3. Registrar ingresos de monedas extranjeras en tesorería (saldos independientes)
+            if (!empty($desgloseMonedas)) {
+                foreach ($desgloseMonedas as $monedaId => $dataMon) {
+                    $saldoMoneda = (float) ($dataMon['saldo'] ?? 0);
+                    if ($saldoMoneda > 0) {
+                        $codigoMon = $dataMon['codigo'] ?? '';
+                        $tesoreria->ingresoMonedaExtranjera(
+                            $saldoMoneda,
+                            "Rendición de fondo común - {$nombreGrupo} - {$codigoMon}",
+                            $usuarioId,
+                            (int) $monedaId,
+                            MovimientoTesoreria::REFERENCIA_RENDICION,
+                            $rendicion->id
+                        );
+                    }
+                }
+            }
+
+            // 4. Vincular movimiento con la rendición
             $rendicion->update([
                 'movimiento_tesoreria_id' => $movimientoTesoreria->id,
             ]);
@@ -344,6 +453,7 @@ class TesoreriaService
                 'tesoreria_id' => $tesoreria->id,
                 'monto_entregado' => $montoEntregado,
                 'diferencia' => $diferencia,
+                'monedas_extranjeras' => !empty($desgloseMonedas) ? count($desgloseMonedas) : 0,
                 'usuario_id' => $usuarioId,
             ]);
 
@@ -456,7 +566,7 @@ class TesoreriaService
                 // 1. Rechazar la rendición
                 $rendicion->rechazar($usuarioId, $motivo);
 
-                // 2. Contra-movimiento en tesorería (egreso)
+                // 2. Contra-movimiento ARS en tesorería (egreso)
                 $tesoreria->egreso(
                     $rendicion->monto_entregado,
                     "Reversión de rendición #{$rendicion->id} - Rechazo de cierre",
@@ -465,6 +575,9 @@ class TesoreriaService
                     $rendicion->id,
                     'Contra-movimiento por rechazo: ' . ($motivo ?? 'Sin motivo')
                 );
+
+                // 2b. Revertir monedas extranjeras de la rendición
+                static::revertirMonedasRendicion($rendicion, $tesoreria, $usuarioId, $motivo);
 
                 // 3. Restaurar fondo común del grupo al valor que tenía ANTES del cierre
                 // cierre.total_saldo_inicial = grupo.saldo_fondo_comun al momento del cierre
@@ -504,7 +617,7 @@ class TesoreriaService
                     // 1. Rechazar cada rendición
                     $rend->rechazar($usuarioId, $motivo);
 
-                    // 2. Contra-movimiento en tesorería (egreso)
+                    // 2. Contra-movimiento ARS en tesorería (egreso)
                     $tesoreria->refresh(); // refrescar saldo actualizado
                     $tesoreria->egreso(
                         $rend->monto_entregado,
@@ -514,6 +627,9 @@ class TesoreriaService
                         $rend->id,
                         'Contra-movimiento por rechazo: ' . ($motivo ?? 'Sin motivo')
                     );
+
+                    // 2b. Revertir monedas extranjeras
+                    static::revertirMonedasRendicion($rend, $tesoreria, $usuarioId, $motivo);
 
                     // 3. Contra-movimiento en caja (ingreso)
                     if ($rend->movimiento_caja_id) {
@@ -533,9 +649,12 @@ class TesoreriaService
                 foreach ($cierre->detalleCajas as $detalleCaja) {
                     $caja = Caja::find($detalleCaja->caja_id);
                     if ($caja) {
+                        // Reconstruir saldo total (ARS + foreign convertido) desde ingresos/egresos
+                        // Esto es compatible con datos viejos (saldo_sistema=total) y nuevos (saldo_sistema=ARS)
+                        $saldoActual = $detalleCaja->saldo_inicial + $detalleCaja->total_ingresos - $detalleCaja->total_egresos;
                         $caja->update([
                             'estado' => 'abierta',
-                            'saldo_actual' => $detalleCaja->saldo_sistema,
+                            'saldo_actual' => $saldoActual,
                             'fecha_cierre' => null,
                             'usuario_cierre_id' => null,
                         ]);
@@ -553,7 +672,7 @@ class TesoreriaService
                 // 1. Rechazar la rendición
                 $rendicion->rechazar($usuarioId, $motivo);
 
-                // 2. Contra-movimiento en tesorería (egreso)
+                // 2. Contra-movimiento ARS en tesorería (egreso)
                 $tesoreria->egreso(
                     $rendicion->monto_entregado,
                     "Reversión de rendición #{$rendicion->id} - Rechazo de cierre",
@@ -562,6 +681,9 @@ class TesoreriaService
                     $rendicion->id,
                     'Contra-movimiento por rechazo: ' . ($motivo ?? 'Sin motivo')
                 );
+
+                // 2b. Revertir monedas extranjeras
+                static::revertirMonedasRendicion($rendicion, $tesoreria, $usuarioId, $motivo);
 
                 // 3. Contra-movimiento en caja (ingreso)
                 if ($rendicion->movimiento_caja_id) {
@@ -580,9 +702,12 @@ class TesoreriaService
                 $detalleCaja = $cierre->detalleCajas->first();
                 $caja = Caja::find($detalleCaja->caja_id);
                 if ($caja) {
+                    // Reconstruir saldo total (ARS + foreign convertido) desde ingresos/egresos
+                    // Compatible con datos viejos (saldo_sistema=total) y nuevos (saldo_sistema=ARS)
+                    $saldoActual = $detalleCaja->saldo_inicial + $detalleCaja->total_ingresos - $detalleCaja->total_egresos;
                     $caja->update([
                         'estado' => 'abierta',
-                        'saldo_actual' => $detalleCaja->saldo_sistema,
+                        'saldo_actual' => $saldoActual,
                         'fecha_cierre' => null,
                         'usuario_cierre_id' => null,
                     ]);
@@ -659,11 +784,119 @@ class TesoreriaService
             // 2. Registrar egreso en tesorería
             MovimientoTesoreria::crearDeposito($tesoreria, $monto, $usuarioId, $deposito->id);
 
+            // 3. Registrar ingreso en cuenta empresa si hay una vinculada
+            // Buscar CuentaEmpresa que corresponda a la CuentaBancaria
+            $cuentaEmpresa = CuentaEmpresa::where('cbu', $cuenta->cbu)
+                ->orWhere(function ($q) use ($cuenta) {
+                    $q->where('banco', $cuenta->banco)
+                      ->where('numero_cuenta', $cuenta->numero_cuenta);
+                })
+                ->activas()
+                ->first();
+
+            if ($cuentaEmpresa) {
+                try {
+                    CuentaEmpresaService::registrarMovimientoAutomatico(
+                        $cuentaEmpresa,
+                        'ingreso', $monto, 'deposito_tesoreria',
+                        'DepositoBancario', $deposito->id,
+                        "Depósito desde tesorería - {$cuenta->banco}",
+                        $usuarioId
+                    );
+                } catch (\Exception $e) {
+                    Log::warning('Error al registrar depósito en cuenta empresa', ['error' => $e->getMessage()]);
+                }
+            }
+
             Log::info('Depósito bancario registrado', [
                 'deposito_id' => $deposito->id,
                 'tesoreria_id' => $tesoreria->id,
                 'cuenta_id' => $cuenta->id,
                 'monto' => $monto,
+            ]);
+
+            return $deposito;
+        });
+    }
+
+    /**
+     * Registra un depósito desde tesorería a una CuentaEmpresa (con soporte multi-moneda)
+     */
+    public static function registrarDepositoCuentaEmpresa(
+        Tesoreria $tesoreria,
+        CuentaEmpresa $cuenta,
+        float $monto,
+        Carbon $fechaDeposito,
+        int $usuarioId,
+        ?string $numeroComprobante = null,
+        ?string $observaciones = null
+    ): DepositoBancario {
+        if ($monto <= 0) {
+            throw new \Exception('El monto debe ser mayor a cero');
+        }
+
+        // Determinar si la cuenta es en moneda extranjera
+        $moneda = $cuenta->moneda;
+        $esMonedaExtranjera = $moneda && !$moneda->es_principal;
+
+        if ($esMonedaExtranjera) {
+            if (!$tesoreria->tieneSaldoSuficienteMoneda($monto, $moneda->id)) {
+                throw new \Exception(__('Saldo insuficiente en la moneda seleccionada'));
+            }
+        } else {
+            if (!$tesoreria->tieneSaldoSuficiente($monto)) {
+                throw new \Exception('Saldo insuficiente en tesorería');
+            }
+        }
+
+        return DB::transaction(function () use ($tesoreria, $cuenta, $monto, $fechaDeposito, $usuarioId, $numeroComprobante, $observaciones, $moneda, $esMonedaExtranjera) {
+            // 1. Crear registro de depósito
+            $deposito = DepositoBancario::create([
+                'tesoreria_id' => $tesoreria->id,
+                'cuenta_bancaria_id' => 0,
+                'cuenta_empresa_id' => $cuenta->id,
+                'monto' => $monto,
+                'moneda_id' => $esMonedaExtranjera ? $moneda->id : null,
+                'fecha_deposito' => $fechaDeposito,
+                'numero_comprobante' => $numeroComprobante,
+                'usuario_id' => $usuarioId,
+                'estado' => DepositoBancario::ESTADO_PENDIENTE,
+                'observaciones' => $observaciones,
+            ]);
+
+            // 2. Registrar egreso en tesorería
+            if ($esMonedaExtranjera) {
+                $tesoreria->egresoMonedaExtranjera(
+                    $monto,
+                    "Depósito a {$cuenta->nombre_completo} - {$moneda->codigo}",
+                    $usuarioId,
+                    $moneda->id,
+                    'deposito_bancario',
+                    $deposito->id
+                );
+            } else {
+                MovimientoTesoreria::crearDeposito($tesoreria, $monto, $usuarioId, $deposito->id);
+            }
+
+            // 3. Registrar ingreso en CuentaEmpresa
+            try {
+                CuentaEmpresaService::registrarMovimientoAutomatico(
+                    $cuenta,
+                    'ingreso', $monto, 'deposito_tesoreria',
+                    'DepositoBancario', $deposito->id,
+                    "Depósito desde tesorería",
+                    $usuarioId
+                );
+            } catch (\Exception $e) {
+                Log::warning('Error al registrar depósito en cuenta empresa', ['error' => $e->getMessage()]);
+            }
+
+            Log::info('Depósito a cuenta empresa registrado', [
+                'deposito_id' => $deposito->id,
+                'tesoreria_id' => $tesoreria->id,
+                'cuenta_empresa_id' => $cuenta->id,
+                'monto' => $monto,
+                'moneda_id' => $esMonedaExtranjera ? $moneda->id : null,
             ]);
 
             return $deposito;
@@ -691,9 +924,10 @@ class TesoreriaService
         Tesoreria $tesoreria,
         float $saldoContado,
         int $usuarioId,
-        ?string $observaciones = null
+        ?string $observaciones = null,
+        ?int $monedaId = null
     ): ArqueoTesoreria {
-        $arqueo = ArqueoTesoreria::realizar($tesoreria, $saldoContado, $usuarioId, $observaciones);
+        $arqueo = ArqueoTesoreria::realizar($tesoreria, $saldoContado, $usuarioId, $observaciones, $monedaId);
 
         Log::info('Arqueo de tesorería realizado', [
             'arqueo_id' => $arqueo->id,
@@ -701,6 +935,7 @@ class TesoreriaService
             'saldo_sistema' => $arqueo->saldo_sistema,
             'saldo_contado' => $arqueo->saldo_contado,
             'diferencia' => $arqueo->diferencia,
+            'moneda_id' => $monedaId,
         ]);
 
         return $arqueo;
@@ -758,6 +993,37 @@ class TesoreriaService
                 'ingreso' => $movimientoIngreso,
             ];
         });
+    }
+
+    /**
+     * Revierte los ingresos de monedas extranjeras de una rendición
+     */
+    protected static function revertirMonedasRendicion(
+        RendicionFondo $rendicion,
+        Tesoreria $tesoreria,
+        int $usuarioId,
+        ?string $motivo = null
+    ): void {
+        $desglose = $rendicion->desglose_monedas;
+        if (empty($desglose)) {
+            return;
+        }
+
+        foreach ($desglose as $monedaId => $dataMon) {
+            $saldoMoneda = (float) ($dataMon['saldo'] ?? 0);
+            if ($saldoMoneda > 0) {
+                $codigoMon = $dataMon['codigo'] ?? '';
+                $tesoreria->egresoMonedaExtranjera(
+                    $saldoMoneda,
+                    "Reversión de rendición #{$rendicion->id} - {$codigoMon}",
+                    $usuarioId,
+                    (int) $monedaId,
+                    MovimientoTesoreria::REFERENCIA_RENDICION,
+                    $rendicion->id,
+                    'Contra-movimiento por rechazo: ' . ($motivo ?? 'Sin motivo')
+                );
+            }
+        }
     }
 
     // ==================== MÉTODOS DE CONSULTA ====================

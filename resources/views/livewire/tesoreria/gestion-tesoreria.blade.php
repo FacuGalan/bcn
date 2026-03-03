@@ -55,8 +55,23 @@
             @endif
         </div>
 
+        {{-- Saldos Monedas Extranjeras --}}
+        @if(!empty($saldosMonedas))
+        <div class="lg:col-span-1 space-y-2">
+            @foreach($saldosMonedas as $monData)
+            <div class="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl shadow-sm p-4 text-white">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-amber-100 text-xs font-medium">{{ $monData['nombre'] }}</span>
+                    <span class="text-amber-200 text-xs">{{ $monData['codigo'] }}</span>
+                </div>
+                <p class="text-2xl font-bold">{{ $monData['simbolo'] }} {{ number_format($monData['saldo'], 2, ',', '.') }}</p>
+            </div>
+            @endforeach
+        </div>
+        @endif
+
         {{-- Estadisticas del Dia --}}
-        <div class="lg:col-span-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+        <div class="{{ !empty($saldosMonedas) ? 'lg:col-span-2' : 'lg:col-span-3' }} bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
             <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">{{ __('Movimientos de Hoy') }}</h3>
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div class="text-center">
@@ -85,6 +100,25 @@
             </div>
         </div>
     </div>
+
+    {{-- Efectivo en Cajas por Moneda --}}
+    @if(!empty($this->resumenMonedasCajas))
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 mb-6">
+        <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">{{ __('Efectivo en Cajas por Moneda') }}</h3>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            @foreach($this->resumenMonedasCajas as $monedaData)
+            <div class="rounded-lg p-3 text-center border {{ ($monedaData['es_principal'] ?? false) ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700' }}">
+                <p class="text-xs {{ ($monedaData['es_principal'] ?? false) ? 'text-blue-600 dark:text-blue-400' : 'text-amber-600 dark:text-amber-400' }} uppercase font-medium">
+                    {{ $monedaData['nombre'] }}
+                </p>
+                <p class="text-xl font-bold mt-1 {{ ($monedaData['es_principal'] ?? false) ? 'text-blue-800 dark:text-blue-200' : 'text-amber-800 dark:text-amber-200' }}">
+                    {{ ($monedaData['es_principal'] ?? false) ? '$' : ($monedaData['simbolo'] ?? '') }} {{ number_format($monedaData['saldo'] ?? 0, 2, ',', '.') }}
+                </p>
+            </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
 
     {{-- Acciones Rapidas --}}
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
@@ -264,10 +298,28 @@
                             {{ $mov->usuario->name ?? __('Sistema') }}
                         </td>
                         <td class="px-4 py-3 text-sm text-right whitespace-nowrap font-medium {{ $mov->tipo === 'ingreso' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                            {{ $mov->tipo === 'ingreso' ? '+' : '-' }}${{ number_format($mov->monto, 2, ',', '.') }}
+                            @if($mov->moneda_id && $mov->monto_moneda_original > 0)
+                                <span class="inline-flex items-center gap-1">
+                                    {{ $mov->tipo === 'ingreso' ? '+' : '-' }}{{ $mov->moneda->simbolo ?? '' }} {{ number_format($mov->monto_moneda_original, 2, ',', '.') }}
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{{ $mov->moneda->codigo ?? '' }}</span>
+                                </span>
+                            @else
+                                {{ $mov->tipo === 'ingreso' ? '+' : '-' }}${{ number_format($mov->monto, 2, ',', '.') }}
+                            @endif
                         </td>
                         <td class="px-4 py-3 text-sm text-right text-gray-900 dark:text-white whitespace-nowrap">
-                            ${{ number_format($mov->saldo_posterior, 2, ',', '.') }}
+                            @if($mov->moneda_id && $mov->monto_moneda_original > 0)
+                                @if($mov->saldo_posterior_moneda !== null)
+                                    <span class="inline-flex items-center gap-1">
+                                        {{ $mov->moneda->simbolo ?? '' }} {{ number_format($mov->saldo_posterior_moneda, 2, ',', '.') }}
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{{ $mov->moneda->codigo ?? '' }}</span>
+                                    </span>
+                                @else
+                                    <span class="text-gray-400 text-xs">-</span>
+                                @endif
+                            @else
+                                ${{ number_format($mov->saldo_posterior, 2, ',', '.') }}
+                            @endif
                         </td>
                     </tr>
                     @empty
@@ -385,6 +437,11 @@
         @if($depositosPendientes->count() > 0)
         <div class="divide-y divide-gray-200 dark:divide-gray-700">
             @foreach($depositosPendientes as $deposito)
+            @php
+                $nombreCuentaDep = $deposito->cuentaEmpresa ? $deposito->cuentaEmpresa->nombre_completo : ($deposito->cuentaBancaria ? $deposito->cuentaBancaria->nombre_completo : __('Cuenta'));
+                $simDep = ($deposito->moneda ?? $deposito->cuentaEmpresa?->moneda);
+                $simboloDep = ($simDep && !$simDep->es_principal) ? $simDep->simbolo : '$';
+            @endphp
             <div class="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div class="flex-1">
@@ -392,9 +449,14 @@
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                                 {{ __('Pendiente') }}
                             </span>
+                            @if($simDep && !$simDep->es_principal)
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                {{ $simDep->codigo }}
+                            </span>
+                            @endif
                             <span class="text-sm text-gray-500 dark:text-gray-400">{{ $deposito->fecha_deposito->format('d/m/Y') }}</span>
                         </div>
-                        <h4 class="font-semibold text-gray-900 dark:text-white mt-1">{{ $deposito->cuentaBancaria->nombre_completo }}</h4>
+                        <h4 class="font-semibold text-gray-900 dark:text-white mt-1">{{ $nombreCuentaDep }}</h4>
                         <p class="text-sm text-gray-500 dark:text-gray-400">
                             {{ __('Registrado por') }} {{ $deposito->usuario->name ?? __('Usuario') }}
                             @if($deposito->numero_comprobante)
@@ -407,11 +469,11 @@
                     </div>
                     <div class="flex items-center gap-3">
                         <div class="text-right">
-                            <p class="text-xl font-bold text-gray-900 dark:text-white">${{ number_format($deposito->monto, 0, ',', '.') }}</p>
+                            <p class="text-xl font-bold text-gray-900 dark:text-white">{{ $simboloDep }} {{ number_format($deposito->monto, 0, ',', '.') }}</p>
                         </div>
                         <div class="flex flex-col gap-1">
                             <button wire:click="confirmarDepositoBancario({{ $deposito->id }})"
-                                    wire:confirm="{{ __('¿Confirmar la recepcion del deposito por') }} ${{ number_format($deposito->monto, 0, ',', '.') }}?"
+                                    wire:confirm="{{ __('¿Confirmar la recepcion del deposito por') }} {{ $simboloDep }} {{ number_format($deposito->monto, 0, ',', '.') }}?"
                                     class="px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700">
                                 {{ __('Confirmar') }}
                             </button>
@@ -461,6 +523,7 @@
                 <thead class="bg-gray-50 dark:bg-gray-700/50">
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Fecha') }}</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Moneda') }}</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Sistema') }}</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Contado') }}</th>
                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Diferencia') }}</th>
@@ -471,23 +534,33 @@
                 </thead>
                 <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                     @foreach($arqueos as $arqueo)
+                    @php $simArq = $arqueo->moneda ? $arqueo->moneda->simbolo : '$'; @endphp
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                         <td class="px-4 py-3 text-sm text-gray-900 dark:text-white whitespace-nowrap">
                             {{ $arqueo->fecha->format('d/m/Y H:i') }}
                         </td>
+                        <td class="px-4 py-3 text-sm text-center text-gray-600 dark:text-gray-400">
+                            @if($arqueo->moneda)
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                {{ $arqueo->moneda->codigo }}
+                            </span>
+                            @else
+                            <span class="text-gray-400">$</span>
+                            @endif
+                        </td>
                         <td class="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">
-                            ${{ number_format($arqueo->saldo_sistema, 0, ',', '.') }}
+                            {{ $simArq }} {{ number_format($arqueo->saldo_sistema, 0, ',', '.') }}
                         </td>
                         <td class="px-4 py-3 text-sm text-right text-gray-900 dark:text-white font-medium">
-                            ${{ number_format($arqueo->saldo_contado, 0, ',', '.') }}
+                            {{ $simArq }} {{ number_format($arqueo->saldo_contado, 0, ',', '.') }}
                         </td>
                         <td class="px-4 py-3 text-sm text-right whitespace-nowrap">
                             @if($arqueo->diferencia == 0)
                             <span class="text-green-600 dark:text-green-400 font-medium">OK</span>
                             @elseif($arqueo->diferencia > 0)
-                            <span class="text-blue-600 dark:text-blue-400 font-medium">+${{ number_format($arqueo->diferencia, 0, ',', '.') }}</span>
+                            <span class="text-blue-600 dark:text-blue-400 font-medium">+{{ $simArq }}{{ number_format($arqueo->diferencia, 0, ',', '.') }}</span>
                             @else
-                            <span class="text-red-600 dark:text-red-400 font-medium">-${{ number_format(abs($arqueo->diferencia), 0, ',', '.') }}</span>
+                            <span class="text-red-600 dark:text-red-400 font-medium">-{{ $simArq }}{{ number_format(abs($arqueo->diferencia), 0, ',', '.') }}</span>
                             @endif
                         </td>
                         <td class="px-4 py-3 text-center">
@@ -564,6 +637,18 @@
                         </select>
                         @error('cajaProvisionId') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                     </div>
+                    @if(!empty($monedasExtranjeras))
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Moneda') }}</label>
+                        <select wire:model.live="monedaProvisionId" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg">
+                            <option value="">{{ __('Moneda principal (ARS)') }}</option>
+                            @foreach($monedasExtranjeras as $monExt)
+                            <option value="{{ $monExt['id'] }}">{{ $monExt['nombre'] }} ({{ $monExt['simbolo'] }} {{ number_format($monExt['saldo'], 2, ',', '.') }} {{ __('disponible') }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    @endif
+                    @if(empty($monedaProvisionId))
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto') }}</label>
                         <div class="relative">
@@ -572,12 +657,30 @@
                         </div>
                         @error('montoProvision') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                     </div>
+                    @else
+                    <div>
+                        @php
+                            $monedaSel = collect($monedasExtranjeras)->firstWhere('id', $monedaProvisionId);
+                        @endphp
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto en :moneda', ['moneda' => $monedaSel['codigo'] ?? '']) }}</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">{{ $monedaSel['simbolo'] ?? '' }}</span>
+                            <input type="number" step="0.01" min="0" wire:model="montoProvisionMoneda" class="w-full pl-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" placeholder="0.00">
+                        </div>
+                        @error('montoProvisionMoneda') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                    </div>
+                    @endif
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Observaciones (opcional)') }}</label>
                         <textarea wire:model="observacionesProvision" rows="2" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"></textarea>
                     </div>
-                    <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg space-y-1">
                         <p class="text-sm text-gray-600 dark:text-gray-400">{{ __('Saldo disponible:') }} <span class="font-semibold text-gray-900 dark:text-white">${{ number_format($tesoreria->saldo_actual ?? 0, 2, ',', '.') }}</span></p>
+                        @if(!empty($saldosMonedas))
+                            @foreach($saldosMonedas as $smData)
+                            <p class="text-sm text-gray-600 dark:text-gray-400">{{ $smData['codigo'] }}: <span class="font-semibold text-gray-900 dark:text-white">{{ $smData['simbolo'] }} {{ number_format($smData['saldo'], 2, ',', '.') }}</span></p>
+                            @endforeach
+                        @endif
                     </div>
                 </div>
                 <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700 flex justify-end gap-3 rounded-b-lg">
@@ -620,6 +723,20 @@
                                     @endif
                                 </div>
                             </div>
+                            {{-- Desglose monedas extranjeras --}}
+                            @if(!empty($rendicion['desglose_monedas']))
+                            <div class="mt-2 flex flex-wrap gap-1.5">
+                                @foreach($rendicion['desglose_monedas'] as $codMon => $dataMon)
+                                <span class="inline-flex items-center px-2 py-1 rounded bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-xs">
+                                    <span class="text-amber-700 dark:text-amber-300 font-medium">{{ $dataMon['simbolo'] ?? '' }} {{ number_format($dataMon['saldo'] ?? 0, 2, ',', '.') }}</span>
+                                    @if(($dataMon['saldo_convertido'] ?? 0) > 0)
+                                    <span class="ml-1 text-amber-500 dark:text-amber-400">(≈ ${{ number_format($dataMon['saldo_convertido'], 0, ',', '.') }})</span>
+                                    @endif
+                                </span>
+                                @endforeach
+                            </div>
+                            @endif
+
                             <div class="mt-3 flex justify-end gap-2">
                                 @if($rendicion['puede_revertir'] ?? false)
                                 <button
@@ -701,23 +818,57 @@
                 </div>
                 <div class="p-6 space-y-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cuenta bancaria') }}</label>
-                        <select wire:model="cuentaBancariaId" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cuenta destino') }}</label>
+                        <select wire:model.live="cuentaEmpresaId" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg">
                             <option value="">{{ __('Seleccionar cuenta...') }}</option>
-                            @foreach($cuentasBancarias as $cuenta)
-                            <option value="{{ $cuenta->id }}">{{ $cuenta->nombre_completo }}</option>
+                            @foreach($cuentasEmpresa as $cuenta)
+                            <option value="{{ $cuenta->id }}">
+                                {{ $cuenta->nombre_completo }}
+                                @if($cuenta->moneda && !$cuenta->moneda->es_principal)
+                                    ({{ $cuenta->moneda->codigo }})
+                                @endif
+                                - {{ ($cuenta->moneda && !$cuenta->moneda->es_principal) ? $cuenta->moneda->simbolo : '$' }} {{ number_format($cuenta->saldo_actual, 2, ',', '.') }}
+                            </option>
                             @endforeach
                         </select>
-                        @error('cuentaBancariaId') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        @error('cuentaEmpresaId') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                     </div>
+                    @php
+                        $cuentaSelDeposito = $cuentaEmpresaId ? $cuentasEmpresa->firstWhere('id', $cuentaEmpresaId) : null;
+                        $esMonedaExtDeposito = $cuentaSelDeposito && $cuentaSelDeposito->moneda && !$cuentaSelDeposito->moneda->es_principal;
+                        $simboloDeposito = $esMonedaExtDeposito ? $cuentaSelDeposito->moneda->simbolo : '$';
+                    @endphp
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto') }}</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ __('Monto') }}
+                            @if($esMonedaExtDeposito)
+                            <span class="text-amber-600 dark:text-amber-400">({{ $cuentaSelDeposito->moneda->codigo }})</span>
+                            @endif
+                        </label>
                         <div class="relative">
-                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">$</span>
-                            <input type="number" step="0.01" min="0" wire:model="montoDeposito" class="w-full pl-8 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" placeholder="0.00">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">{{ $simboloDeposito }}</span>
+                            <input type="number" step="0.01" min="0" wire:model="montoDeposito" class="w-full pl-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" placeholder="0.00">
                         </div>
                         @error('montoDeposito') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                     </div>
+                    @if($cuentaSelDeposito)
+                    <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            {{ __('Saldo disponible en tesorería:') }}
+                            <span class="font-semibold text-gray-900 dark:text-white">
+                            @if($esMonedaExtDeposito)
+                                @php
+                                    $saldosDepTes = $tesoreria->getSaldosTodasMonedas();
+                                    $saldoMonDep = $saldosDepTes[$cuentaSelDeposito->moneda->codigo]['saldo'] ?? 0;
+                                @endphp
+                                {{ $simboloDeposito }} {{ number_format($saldoMonDep, 2, ',', '.') }}
+                            @else
+                                ${{ number_format($tesoreria->saldo_actual ?? 0, 2, ',', '.') }}
+                            @endif
+                            </span>
+                        </p>
+                    </div>
+                    @endif
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Fecha del deposito') }}</label>
                         <input type="date" wire:model="fechaDeposito" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg">
@@ -751,29 +902,54 @@
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Realizar Arqueo de Tesoreria') }}</h3>
                 </div>
                 <div class="p-6 space-y-4">
+                    {{-- Selector de Moneda --}}
+                    @if(count($saldosMonedas) > 0)
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Moneda a arquear') }}</label>
+                        <select wire:model.live="monedaArqueoId"
+                                class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-purple-500 focus:border-purple-500">
+                            <option value="">{{ __('Moneda principal') }} ($)</option>
+                            @foreach($saldosMonedas as $codMoneda => $datosMoneda)
+                            <option value="{{ $datosMoneda['id'] }}">{{ $datosMoneda['codigo'] }} - {{ $datosMoneda['nombre'] }} ({{ $datosMoneda['simbolo'] }} {{ number_format($datosMoneda['saldo'], 2, ',', '.') }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    @endif
+
+                    @php
+                        $simboloArqueo = '$';
+                        $saldoSistemaArqueo = $tesoreria->saldo_actual ?? 0;
+                        if ($monedaArqueoId) {
+                            $saldoMonedaObj = \App\Models\TesoreriaSaldoMoneda::obtenerOCrear($tesoreria->id, $monedaArqueoId);
+                            $saldoSistemaArqueo = (float) $saldoMonedaObj->saldo_actual;
+                            $monedaArqueoObj = \App\Models\Moneda::find($monedaArqueoId);
+                            $simboloArqueo = $monedaArqueoObj ? $monedaArqueoObj->simbolo : '$';
+                        }
+                    @endphp
+
                     <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                         <p class="text-sm text-blue-700 dark:text-blue-400">
-                            <strong>{{ __('Saldo segun sistema:') }}</strong> ${{ number_format($tesoreria->saldo_actual ?? 0, 2, ',', '.') }}
+                            <strong>{{ __('Saldo segun sistema:') }}</strong> {{ $simboloArqueo }} {{ number_format($saldoSistemaArqueo, 2, ',', '.') }}
                         </p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Saldo contado fisicamente') }}</label>
                         <div class="relative">
-                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">$</span>
-                            <input type="number" step="0.01" min="0" wire:model="saldoContado" class="w-full pl-8 text-lg font-semibold border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" placeholder="0.00">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">{{ $simboloArqueo }}</span>
+                            <input type="number" step="0.01" min="0" wire:model="saldoContado" class="w-full pl-10 text-lg font-semibold border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" placeholder="0.00">
                         </div>
                         @error('saldoContado') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                     </div>
-                    @if($saldoContado > 0)
-                    @php $diferencia = $saldoContado - ($tesoreria->saldo_actual ?? 0); @endphp
+                    @if($saldoContado > 0 || $saldoContado === 0.0)
+                    @php $diferencia = $saldoContado - $saldoSistemaArqueo; @endphp
                     <div class="p-3 rounded-lg {{ $diferencia == 0 ? 'bg-green-50 dark:bg-green-900/20' : ($diferencia > 0 ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-red-50 dark:bg-red-900/20') }}">
                         <p class="text-sm font-medium {{ $diferencia == 0 ? 'text-green-700 dark:text-green-400' : ($diferencia > 0 ? 'text-blue-700 dark:text-blue-400' : 'text-red-700 dark:text-red-400') }}">
                             @if($diferencia == 0)
                                 {{ __('Caja cuadrada') }}
                             @elseif($diferencia > 0)
-                                {{ __('Sobrante:') }} +${{ number_format($diferencia, 2, ',', '.') }}
+                                {{ __('Sobrante:') }} +{{ $simboloArqueo }} {{ number_format($diferencia, 2, ',', '.') }}
                             @else
-                                {{ __('Faltante:') }} -${{ number_format(abs($diferencia), 2, ',', '.') }}
+                                {{ __('Faltante:') }} -{{ $simboloArqueo }} {{ number_format(abs($diferencia), 2, ',', '.') }}
                             @endif
                         </p>
                     </div>
@@ -818,15 +994,26 @@
                     @endif
                 </div>
                 <div class="p-6 space-y-4">
+                    @php $simDet = $arqueoDetalle->moneda ? $arqueoDetalle->moneda->simbolo : '$'; @endphp
+
+                    {{-- Moneda (si es extranjera) --}}
+                    @if($arqueoDetalle->moneda)
+                    <div class="flex items-center justify-center">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                            {{ $arqueoDetalle->moneda->codigo }} - {{ $arqueoDetalle->moneda->nombre }}
+                        </span>
+                    </div>
+                    @endif
+
                     {{-- Montos --}}
                     <div class="grid grid-cols-3 gap-4">
                         <div class="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                             <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">{{ __('Sistema') }}</p>
-                            <p class="text-lg font-bold text-gray-900 dark:text-white">${{ number_format($arqueoDetalle->saldo_sistema, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ $simDet }} {{ number_format($arqueoDetalle->saldo_sistema, 0, ',', '.') }}</p>
                         </div>
                         <div class="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                             <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">{{ __('Contado') }}</p>
-                            <p class="text-lg font-bold text-gray-900 dark:text-white">${{ number_format($arqueoDetalle->saldo_contado, 0, ',', '.') }}</p>
+                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ $simDet }} {{ number_format($arqueoDetalle->saldo_contado, 0, ',', '.') }}</p>
                         </div>
                         <div class="text-center p-3 rounded-lg {{ $arqueoDetalle->diferencia == 0 ? 'bg-green-50 dark:bg-green-900/20' : ($arqueoDetalle->diferencia > 0 ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-red-50 dark:bg-red-900/20') }}">
                             <p class="text-xs {{ $arqueoDetalle->diferencia == 0 ? 'text-green-600' : ($arqueoDetalle->diferencia > 0 ? 'text-blue-600' : 'text-red-600') }} uppercase">{{ __('Diferencia') }}</p>
@@ -834,9 +1021,9 @@
                                 @if($arqueoDetalle->diferencia == 0)
                                     OK
                                 @elseif($arqueoDetalle->diferencia > 0)
-                                    +${{ number_format($arqueoDetalle->diferencia, 0, ',', '.') }}
+                                    +{{ $simDet }} {{ number_format($arqueoDetalle->diferencia, 0, ',', '.') }}
                                 @else
-                                    -${{ number_format(abs($arqueoDetalle->diferencia), 0, ',', '.') }}
+                                    -{{ $simDet }} {{ number_format(abs($arqueoDetalle->diferencia), 0, ',', '.') }}
                                 @endif
                             </p>
                         </div>
@@ -870,7 +1057,7 @@
                         <p class="text-sm text-amber-700 dark:text-amber-400 mb-3">{{ __('Este arqueo esta pendiente de aprobacion.') }}</p>
                         @if($arqueoDetalle->diferencia != 0)
                         <p class="text-xs text-amber-600 dark:text-amber-500 mb-3">
-                            {{ __('Si aprueba con ajuste, se') }} {{ $arqueoDetalle->diferencia > 0 ? __('sumara') : __('restara') }} ${{ number_format(abs($arqueoDetalle->diferencia), 0, ',', '.') }} {{ __('al saldo de tesoreria.') }}
+                            {{ __('Si aprueba con ajuste, se') }} {{ $arqueoDetalle->diferencia > 0 ? __('sumara') : __('restara') }} {{ $simDet }} {{ number_format(abs($arqueoDetalle->diferencia), 0, ',', '.') }} {{ __('al saldo de tesoreria.') }}
                         </p>
                         @endif
                         <div class="flex gap-2">
@@ -880,7 +1067,7 @@
                             </button>
                             @if($arqueoDetalle->diferencia != 0)
                             <button wire:click="aprobarArqueo({{ $arqueoDetalle->id }}, true)"
-                                    wire:confirm="{{ __('¿Aprobar y aplicar el ajuste de') }} ${{ number_format(abs($arqueoDetalle->diferencia), 0, ',', '.') }}?"
+                                    wire:confirm="{{ __('¿Aprobar y aplicar el ajuste de') }} {{ $simDet }} {{ number_format(abs($arqueoDetalle->diferencia), 0, ',', '.') }}?"
                                     class="flex-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
                                 {{ __('Aprobar + Ajustar') }}
                             </button>

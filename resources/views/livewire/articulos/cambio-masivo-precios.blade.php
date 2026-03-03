@@ -1,144 +1,275 @@
-<div class="py-4">
+<div class="py-2">
     <div class="px-4 sm:px-6 lg:px-8">
-        <!-- Header -->
-        <div class="mb-4 sm:mb-6">
-            <div class="flex justify-between items-start gap-3 sm:gap-4">
-                <div class="flex-1">
-                    <div class="flex items-center gap-3">
-                        <button
-                            wire:click="volver"
-                            class="inline-flex items-center justify-center w-10 h-10 text-gray-500 dark:text-gray-400 hover:text-bcn-primary hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-                            :title="__('Volver a artículos')"
-                        >
+        <!-- Header con stepper integrado -->
+        <div class="mb-3">
+            <div class="flex items-center justify-between gap-3">
+                <!-- Izquierda: Volver + Título -->
+                <div class="flex items-center gap-3">
+                    <button
+                        wire:click="volver"
+                        class="inline-flex items-center justify-center w-8 h-8 text-gray-500 dark:text-gray-400 hover:text-bcn-primary hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                        :title="__('Volver a artículos')"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                    </button>
+                    <h2 class="text-lg sm:text-xl font-bold text-bcn-secondary dark:text-white">{{ __('Cambio Masivo de Precios') }}</h2>
+                </div>
+
+                <!-- Centro: Stepper compacto -->
+                <div class="hidden sm:flex items-center gap-1">
+                    <div class="flex items-center gap-1.5">
+                        <div class="flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold {{ $paso >= 1 ? 'bg-bcn-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300' }}">1</div>
+                        <span class="text-xs font-medium {{ $paso >= 1 ? 'text-bcn-primary' : 'text-gray-400' }}">{{ __('Configurar') }}</span>
+                    </div>
+                    <div class="w-8 h-0.5 {{ $paso >= 2 ? 'bg-bcn-primary' : 'bg-gray-200 dark:bg-gray-700' }}"></div>
+                    <div class="flex items-center gap-1.5">
+                        <div class="flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold {{ $paso >= 2 ? 'bg-bcn-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300' }}">2</div>
+                        <span class="text-xs font-medium {{ $paso >= 2 ? 'text-bcn-primary' : 'text-gray-400' }}">{{ __('Revisar y Aplicar') }}</span>
+                    </div>
+                </div>
+
+                <!-- Derecha: Botón programados -->
+                <button
+                    wire:click="toggleProgramados"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-bcn-primary text-bcn-primary hover:bg-bcn-primary hover:text-white rounded-lg text-xs font-medium transition-colors"
+                >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {{ __('Programados') }}
+                    @if($this->pendientesCount > 0)
+                        <span class="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-amber-500 rounded-full">
+                            {{ $this->pendientesCount }}
+                        </span>
+                    @endif
+                </button>
+            </div>
+        </div>
+
+        <!-- Panel de cambios programados -->
+        @if($showProgramados)
+            <div class="mb-6 bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                <div class="p-4 sm:p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Cambios programados') }}</h3>
+                        <button wire:click="toggleProgramados" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
-                        <div>
-                            <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white">{{ __('Cambio Masivo de Precios') }}</h2>
-                            <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">{{ __('Actualiza los precios de múltiples artículos de forma rápida') }}</p>
-                        </div>
                     </div>
+
+                    @if($this->cambiosProgramados->isEmpty())
+                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">{{ __('No hay cambios programados') }}</p>
+                    @else
+                        <!-- Desktop table -->
+                        <div class="hidden sm:block overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead class="bg-gray-50 dark:bg-gray-700">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Fecha programada') }}</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Ajuste') }}</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Artículos') }}</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Alcance') }}</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Estado') }}</th>
+                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Acciones') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                    @foreach($this->cambiosProgramados as $programado)
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                                {{ $programado->fecha_programada->format('d/m/Y H:i') }}
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                                {{ $programado->descripcion_ajuste }}
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                                {{ $programado->total_articulos }}
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                                @if($programado->alcance_precio === 'sucursal_actual')
+                                                    {{ __('Sucursal') }} #{{ $programado->sucursal_id }}
+                                                @else
+                                                    {{ __('Global') }}
+                                                @endif
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                @switch($programado->estado)
+                                                    @case('pendiente')
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">{{ __('Pendiente') }}</span>
+                                                        @break
+                                                    @case('procesado')
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">{{ __('Procesado') }}</span>
+                                                        @break
+                                                    @case('cancelado')
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200">{{ __('Cancelado') }}</span>
+                                                        @break
+                                                    @case('error')
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" title="{{ $programado->resultado }}">{{ __('Error') }}</span>
+                                                        @break
+                                                @endswitch
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                                @if($programado->estado === 'pendiente')
+                                                    <button
+                                                        wire:click="cancelarCambioProgramado({{ $programado->id }})"
+                                                        wire:confirm="{{ __('¿Cancelar este cambio programado?') }}"
+                                                        class="px-3 py-1.5 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white rounded-md text-xs font-medium transition-colors"
+                                                    >
+                                                        {{ __('Cancelar') }}
+                                                    </button>
+                                                @elseif($programado->estado === 'procesado')
+                                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ $programado->procesado_at?->format('d/m/Y H:i') }}</span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Mobile cards -->
+                        <div class="sm:hidden space-y-3">
+                            @foreach($this->cambiosProgramados as $programado)
+                                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $programado->fecha_programada->format('d/m/Y H:i') }}</span>
+                                        @switch($programado->estado)
+                                            @case('pendiente')
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">{{ __('Pendiente') }}</span>
+                                                @break
+                                            @case('procesado')
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">{{ __('Procesado') }}</span>
+                                                @break
+                                            @case('cancelado')
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200">{{ __('Cancelado') }}</span>
+                                                @break
+                                            @case('error')
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">{{ __('Error') }}</span>
+                                                @break
+                                        @endswitch
+                                    </div>
+                                    <div class="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                                        <p>{{ $programado->descripcion_ajuste }} — {{ $programado->total_articulos }} {{ __('artículos') }}</p>
+                                        <p class="text-xs">
+                                            @if($programado->alcance_precio === 'sucursal_actual')
+                                                {{ __('Sucursal') }} #{{ $programado->sucursal_id }}
+                                            @else
+                                                {{ __('Global') }}
+                                            @endif
+                                        </p>
+                                    </div>
+                                    @if($programado->estado === 'pendiente')
+                                        <div class="mt-3">
+                                            <button
+                                                wire:click="cancelarCambioProgramado({{ $programado->id }})"
+                                                wire:confirm="{{ __('¿Cancelar este cambio programado?') }}"
+                                                class="w-full px-3 py-1.5 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white rounded-md text-xs font-medium transition-colors"
+                                            >
+                                                {{ __('Cancelar') }}
+                                            </button>
+                                        </div>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
             </div>
-        </div>
-
-        <!-- Indicador de pasos -->
-        <div class="mb-6">
-            <div class="flex items-center justify-center">
-                <div class="flex items-center">
-                    <!-- Paso 1 -->
-                    <div class="flex items-center">
-                        <div class="flex items-center justify-center w-10 h-10 rounded-full {{ $paso >= 1 ? 'bg-bcn-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300' }} font-semibold">
-                            1
-                        </div>
-                        <span class="ml-2 text-sm font-medium {{ $paso >= 1 ? 'text-bcn-primary' : 'text-gray-500 dark:text-gray-400' }}">{{ __('Configurar') }}</span>
-                    </div>
-
-                    <!-- Línea -->
-                    <div class="w-16 sm:w-24 h-1 mx-4 {{ $paso >= 2 ? 'bg-bcn-primary' : 'bg-gray-200 dark:bg-gray-700' }}"></div>
-
-                    <!-- Paso 2 -->
-                    <div class="flex items-center">
-                        <div class="flex items-center justify-center w-10 h-10 rounded-full {{ $paso >= 2 ? 'bg-bcn-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300' }} font-semibold">
-                            2
-                        </div>
-                        <span class="ml-2 text-sm font-medium {{ $paso >= 2 ? 'text-bcn-primary' : 'text-gray-500 dark:text-gray-400' }}">{{ __('Revisar y Aplicar') }}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
+        @endif
 
         <!-- Paso 1: Configuración -->
         @if($paso === 1)
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-4 sm:p-6">
+                <div class="p-3 sm:p-4">
                     <!-- Títulos alineados -->
-                    <div class="grid grid-cols-1 lg:grid-cols-10 gap-6 mb-4">
+                    <div class="grid grid-cols-1 lg:grid-cols-10 gap-4 mb-3">
                         <div class="lg:col-span-3">
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Configuración del ajuste') }}</h3>
+                            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Configuración del ajuste') }}</h3>
                         </div>
                         <div class="lg:col-span-7">
                             <div class="flex items-center justify-between">
-                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Filtros (opcional)') }}</h3>
+                                <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Filtros (opcional)') }}</h3>
                                 <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Si no seleccionas ningún filtro, se aplicará a todos los artículos activos.') }}</p>
                             </div>
                         </div>
                     </div>
 
                     <!-- Contenido -->
-                    <div class="grid grid-cols-1 lg:grid-cols-10 gap-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-10 gap-4">
                         <!-- Columna izquierda: Ajuste (30%) -->
-                        <div class="lg:col-span-3 space-y-4">
-                            <!-- Tipo de ajuste -->
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Tipo de ajuste') }}</label>
-                                <div class="flex gap-4">
-                                    <label class="flex items-center">
-                                        <input type="radio" wire:model.live="tipoAjuste" value="descuento" class="text-bcn-primary focus:ring-bcn-primary">
-                                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ __('Descuento') }}</span>
-                                    </label>
-                                    <label class="flex items-center">
-                                        <input type="radio" wire:model.live="tipoAjuste" value="recargo" class="text-bcn-primary focus:ring-bcn-primary">
-                                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ __('Recargo') }}</span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <!-- Tipo de valor -->
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Tipo de valor') }}</label>
-                                <div class="flex gap-4">
-                                    <label class="flex items-center">
-                                        <input type="radio" wire:model.live="tipoValor" value="porcentual" class="text-bcn-primary focus:ring-bcn-primary">
-                                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ __('Porcentual (%)') }}</span>
-                                    </label>
-                                    <label class="flex items-center">
-                                        <input type="radio" wire:model.live="tipoValor" value="fijo" class="text-bcn-primary focus:ring-bcn-primary">
-                                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ __('Fijo ($)') }}</span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <!-- Valor del ajuste -->
-                            <div>
-                                <label for="valorAjuste" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    {{ __('Valor del') }} {{ $tipoAjuste }} *
-                                </label>
-                                <div class="relative rounded-md shadow-sm">
-                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <span class="text-gray-500 dark:text-gray-400 sm:text-sm">{{ $tipoValor === 'porcentual' ? '%' : '$' }}</span>
+                        <div class="lg:col-span-3 space-y-3">
+                            <!-- Tipo de ajuste + Tipo de valor en una fila -->
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipo de ajuste') }}</label>
+                                    <div class="flex gap-3">
+                                        <label class="flex items-center">
+                                            <input type="radio" wire:model.live="tipoAjuste" value="descuento" class="text-bcn-primary focus:ring-bcn-primary">
+                                            <span class="ml-1.5 text-xs text-gray-700 dark:text-gray-300">{{ __('Descuento') }}</span>
+                                        </label>
+                                        <label class="flex items-center">
+                                            <input type="radio" wire:model.live="tipoAjuste" value="recargo" class="text-bcn-primary focus:ring-bcn-primary">
+                                            <span class="ml-1.5 text-xs text-gray-700 dark:text-gray-300">{{ __('Recargo') }}</span>
+                                        </label>
                                     </div>
-                                    <input
-                                        type="number"
-                                        id="valorAjuste"
-                                        wire:model.live="valorAjuste"
-                                        step="{{ $tipoValor === 'porcentual' ? '0.1' : '0.01' }}"
-                                        min="0"
-                                        class="block w-full pl-8 pr-3 py-2 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                        placeholder="0"
-                                    />
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipo de valor') }}</label>
+                                    <div class="flex gap-3">
+                                        <label class="flex items-center">
+                                            <input type="radio" wire:model.live="tipoValor" value="porcentual" class="text-bcn-primary focus:ring-bcn-primary">
+                                            <span class="ml-1.5 text-xs text-gray-700 dark:text-gray-300">%</span>
+                                        </label>
+                                        <label class="flex items-center">
+                                            <input type="radio" wire:model.live="tipoValor" value="fijo" class="text-bcn-primary focus:ring-bcn-primary">
+                                            <span class="ml-1.5 text-xs text-gray-700 dark:text-gray-300">$</span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
 
-                            <!-- Tipo de redondeo -->
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Redondeo') }}</label>
-                                <select
-                                    wire:model.live="tipoRedondeo"
-                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                                >
-                                    <option value="sin_redondeo">{{ __('Sin redondeo (2 decimales)') }}</option>
-                                    <option value="entero">{{ __('Entero (ej: 99.50 -> 100)') }}</option>
-                                    <option value="decena">{{ __('Decena (ej: 93 -> 90)') }}</option>
-                                    <option value="centena">{{ __('Centena (ej: 850 -> 900)') }}</option>
-                                </select>
+                            <!-- Valor + Redondeo en una fila -->
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label for="valorAjuste" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        {{ __('Valor del') }} {{ $tipoAjuste }} *
+                                    </label>
+                                    <div class="relative rounded-md shadow-sm">
+                                        <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                                            <span class="text-gray-500 dark:text-gray-400 text-xs">{{ $tipoValor === 'porcentual' ? '%' : '$' }}</span>
+                                        </div>
+                                        <input
+                                            type="number"
+                                            id="valorAjuste"
+                                            wire:model.live="valorAjuste"
+                                            step="{{ $tipoValor === 'porcentual' ? '0.1' : '0.01' }}"
+                                            min="0"
+                                            class="block w-full pl-7 pr-2 py-1.5 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Redondeo') }}</label>
+                                    <select
+                                        wire:model.live="tipoRedondeo"
+                                        class="w-full py-1.5 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                                    >
+                                        <option value="sin_redondeo">{{ __('Sin redondeo') }}</option>
+                                        <option value="entero">{{ __('Entero') }}</option>
+                                        <option value="decena">{{ __('Decena') }}</option>
+                                        <option value="centena">{{ __('Centena') }}</option>
+                                    </select>
+                                </div>
                             </div>
 
                             <!-- Ejemplo -->
                             @if($valorAjuste > 0)
-                                <div class="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                                    <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">{{ __('Ejemplo:') }}</p>
+                                <div class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                                     @php
                                         $ejemploPrecio = 1000;
                                         $ejemploNuevo = $tipoValor === 'porcentual'
@@ -151,130 +282,151 @@
                                             default => round($ejemploNuevo, 2),
                                         };
                                     @endphp
-                                    <p class="text-sm">
-                                        <span class="text-gray-500 dark:text-gray-400">{{ __('Precio:') }} $1,000</span>
-                                        <span class="mx-2">→</span>
+                                    <p class="text-xs">
+                                        <span class="text-gray-500 dark:text-gray-400">{{ __('Ejemplo:') }} $1.000</span>
+                                        <span class="mx-1">→</span>
                                         <span class="font-semibold {{ $tipoAjuste === 'descuento' ? 'text-green-600' : 'text-orange-600' }}">
                                             ${{ number_format($ejemploNuevo, 2, ',', '.') }}
                                         </span>
                                     </p>
                                 </div>
                             @endif
+
+                            <!-- Alcance del cambio -->
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Alcance del cambio') }}</label>
+                                <div class="space-y-1.5">
+                                    <label class="flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors {{ $alcancePrecio === 'global' ? 'border-bcn-primary bg-bcn-primary/5' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                                        <input type="radio" wire:model.live="alcancePrecio" value="global" class="text-bcn-primary focus:ring-bcn-primary mt-0.5">
+                                        <div>
+                                            <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Todas las sucursales (precio genérico)') }}</span>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('Se eliminarán los precios propios de las sucursales') }}</p>
+                                        </div>
+                                    </label>
+                                    <label class="flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors {{ $alcancePrecio === 'sucursal_actual' ? 'border-bcn-primary bg-bcn-primary/5' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                                        <input type="radio" wire:model.live="alcancePrecio" value="sucursal_actual" class="text-bcn-primary focus:ring-bcn-primary mt-0.5">
+                                        <div>
+                                            <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Sucursal actual') }}</span>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('Los precios propios no se verán afectados en otras sucursales') }}</p>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Columna derecha: Filtros (70%) -->
                         <div class="lg:col-span-7">
                             <!-- Grid de Categorías y Etiquetas lado a lado -->
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <!-- Categorías -->
                                 <div class="flex flex-col">
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         {{ __('Categorías') }}
                                         @if(count($categoriasSeleccionadas) > 0)
-                                            <span class="ml-2 px-2 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">
-                                                {{ count($categoriasSeleccionadas) }} {{ __('seleccionadas') }}
+                                            <span class="ml-1 px-1.5 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">
+                                                {{ count($categoriasSeleccionadas) }}
                                             </span>
                                         @endif
                                     </label>
-                                    <!-- Buscador de categorías -->
-                                    <div class="relative mb-2">
+                                    <div class="relative mb-1.5">
                                         <input
                                             type="text"
                                             wire:model.live.debounce.300ms="busquedaCategoria"
                                             :placeholder="__('Buscar categoría...')"
-                                            class="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
+                                            class="w-full pl-7 pr-3 py-1 text-xs border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
                                         >
-                                        <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                                         </svg>
                                     </div>
-                                    <div class="flex-1 max-h-[19rem] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md p-2 space-y-1">
+                                    <div class="flex-1 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md p-1.5 space-y-0.5" style="max-height: calc(100vh - 280px);">
                                         @forelse($categorias as $categoria)
-                                            <label class="flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer">
+                                            <label class="flex items-center px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer">
                                                 <input
                                                     type="checkbox"
                                                     wire:model.live="categoriasSeleccionadas"
                                                     value="{{ $categoria->id }}"
                                                     class="rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary"
                                                 />
-                                                <span class="ml-2 flex items-center gap-2">
-                                                    <span class="w-3 h-3 rounded-full" style="background-color: {{ $categoria->color }}"></span>
-                                                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ $categoria->nombre }}</span>
+                                                <span class="ml-2 flex items-center gap-1.5">
+                                                    <span class="w-2.5 h-2.5 rounded-full" style="background-color: {{ $categoria->color }}"></span>
+                                                    <span class="text-xs text-gray-700 dark:text-gray-300">{{ $categoria->nombre }}</span>
                                                 </span>
                                             </label>
                                         @empty
-                                            <p class="text-sm text-gray-500 dark:text-gray-400 p-2">{{ __('No hay categorías disponibles') }}</p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 p-2">{{ __('No hay categorías disponibles') }}</p>
                                         @endforelse
                                     </div>
                                 </div>
 
                                 <!-- Etiquetas agrupadas -->
                                 <div class="flex flex-col">
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         {{ __('Etiquetas') }}
                                         @if(count($etiquetasSeleccionadas) > 0)
-                                            <span class="ml-2 px-2 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">
-                                                {{ count($etiquetasSeleccionadas) }} {{ __('seleccionadas') }}
+                                            <span class="ml-1 px-1.5 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">
+                                                {{ count($etiquetasSeleccionadas) }}
                                             </span>
                                         @endif
                                     </label>
-                                    <!-- Buscador de etiquetas -->
-                                    <div class="relative mb-2">
+                                    <div class="relative mb-1.5">
                                         <input
                                             type="text"
                                             wire:model.live.debounce.300ms="busquedaEtiqueta"
                                             :placeholder="__('Buscar grupo o etiqueta...')"
-                                            class="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
+                                            class="w-full pl-7 pr-3 py-1 text-xs border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
                                         >
-                                        <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                                         </svg>
                                     </div>
-                                    <div class="flex-1 max-h-[19rem] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md">
+                                    <div class="flex-1 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md" style="max-height: calc(100vh - 280px);">
                                         @forelse($gruposEtiquetas as $grupo)
                                             @if($grupo->etiquetas->count() > 0)
                                                 <div class="border-b border-gray-100 dark:border-gray-700 last:border-b-0">
-                                                    <div class="px-3 py-2 bg-gray-50 dark:bg-gray-700 flex items-center gap-2 sticky top-0">
-                                                        <span class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: {{ $grupo->color }}"></span>
+                                                    <div class="px-2.5 py-1.5 bg-gray-50 dark:bg-gray-700 flex items-center gap-1.5 sticky top-0">
+                                                        <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: {{ $grupo->color }}"></span>
                                                         <span class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ $grupo->nombre }}</span>
                                                     </div>
-                                                    <div class="p-2 space-y-1">
+                                                    <div class="p-1.5 space-y-0.5">
                                                         @foreach($grupo->etiquetas as $etiqueta)
-                                                            <label class="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer">
+                                                            <label class="flex items-center gap-1.5 px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer">
                                                                 <input
                                                                     type="checkbox"
                                                                     wire:model.live="etiquetasSeleccionadas"
                                                                     value="{{ $etiqueta->id }}"
-                                                                    class="w-4 h-4 rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary"
+                                                                    class="w-3.5 h-3.5 rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary"
                                                                 />
                                                                 <span class="w-2 h-2 rounded-full flex-shrink-0" style="background-color: {{ $etiqueta->color ?? $grupo->color }}"></span>
-                                                                <span class="text-sm text-gray-700 dark:text-gray-300">{{ $etiqueta->nombre }}</span>
+                                                                <span class="text-xs text-gray-700 dark:text-gray-300">{{ $etiqueta->nombre }}</span>
                                                             </label>
                                                         @endforeach
                                                     </div>
                                                 </div>
                                             @endif
                                         @empty
-                                            <p class="text-sm text-gray-500 dark:text-gray-400 p-3">{{ __('No hay etiquetas disponibles') }}</p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 p-2">{{ __('No hay etiquetas disponibles') }}</p>
                                         @endforelse
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <!-- Botón siguiente -->
-                    <div class="mt-6 flex justify-end">
-                        <button
-                            wire:click="siguientePaso"
-                            class="inline-flex items-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
-                        >
-                            {{ __('Procesar') }}
-                            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                            </svg>
-                        </button>
-                    </div>
+            <!-- Barra inferior sticky: Botón -->
+            <div class="sticky bottom-0 z-10 mt-3 bg-white dark:bg-gray-800 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] sm:rounded-lg border-t border-gray-200 dark:border-gray-700">
+                <div class="px-4 py-2.5 sm:px-5 flex justify-end">
+                    <button
+                        wire:click="siguientePaso"
+                        class="inline-flex items-center justify-center px-5 py-2 bg-bcn-primary border border-transparent rounded-lg font-semibold text-xs text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150 whitespace-nowrap"
+                    >
+                        {{ __('Procesar') }}
+                        <svg class="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
                 </div>
             </div>
         @endif
@@ -362,6 +514,25 @@
                                     </div>
                                 </div>
                             @endif
+
+                            <!-- Alcance sucursal -->
+                            <div class="flex items-center gap-2 px-3 py-2 rounded-lg {{ $alcancePrecio === 'sucursal_actual' ? 'bg-purple-50 border border-purple-200' : 'bg-cyan-50 border border-cyan-200' }}">
+                                <div class="flex items-center justify-center w-8 h-8 rounded-full {{ $alcancePrecio === 'sucursal_actual' ? 'bg-purple-100' : 'bg-cyan-100' }}">
+                                    <svg class="w-4 h-4 {{ $alcancePrecio === 'sucursal_actual' ? 'text-purple-600' : 'text-cyan-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p class="text-xs {{ $alcancePrecio === 'sucursal_actual' ? 'text-purple-600' : 'text-cyan-600' }} font-medium">{{ __('Alcance del cambio') }}</p>
+                                    <p class="text-sm font-bold {{ $alcancePrecio === 'sucursal_actual' ? 'text-purple-700' : 'text-cyan-700' }}">
+                                        @if($alcancePrecio === 'sucursal_actual')
+                                            {{ __('Sucursal actual') }}
+                                        @else
+                                            {{ __('Precio genérico') }}
+                                        @endif
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Botón modificar filtros -->
@@ -650,7 +821,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                                 </svg>
                             </div>
-                            <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                            <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
                                 <h3 class="text-lg font-semibold leading-6 text-gray-900 dark:text-white" id="modal-title">
                                     {{ __('Confirmar cambio de precios') }}
                                 </h3>
@@ -658,27 +829,93 @@
                                     <p class="text-sm text-gray-500 dark:text-gray-400">
                                         {{ __('Estás a punto de modificar el precio de') }} <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $totalArticulos }} {{ __('artículos') }}</span>.
                                     </p>
-                                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                                        {{ __('Esta acción también actualizará los precios fijos en las listas de precios donde estos artículos participen.') }}
-                                    </p>
-                                    <p class="text-sm text-red-600 mt-2 font-medium">
-                                        {{ __('Esta acción no se puede deshacer.') }}
-                                    </p>
+                                    @if($alcancePrecio === 'sucursal_actual')
+                                        <p class="text-sm text-purple-600 dark:text-purple-400 mt-2 font-medium">
+                                            {{ __('Se guardarán como precios propios en') }} {{ __('la sucursal actual') }}.
+                                        </p>
+                                    @else
+                                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                                            {{ __('Esta acción también actualizará los precios fijos en las listas de precios donde estos artículos participen.') }}
+                                        </p>
+                                        <p class="text-sm text-amber-600 dark:text-amber-400 mt-1">
+                                            {{ __('Se eliminarán los precios propios de las sucursales') }}.
+                                        </p>
+                                    @endif
+
+                                    <!-- Modo de aplicación -->
+                                    <div class="mt-4 space-y-2">
+                                        <label class="flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors {{ $modoAplicacion === 'ahora' ? 'border-bcn-primary bg-bcn-primary/5' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                                            <input type="radio" wire:model.live="modoAplicacion" value="ahora" class="text-bcn-primary focus:ring-bcn-primary mt-0.5">
+                                            <div>
+                                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Aplicar ahora') }}</span>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Los precios se actualizarán inmediatamente') }}</p>
+                                            </div>
+                                        </label>
+                                        <label class="flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors {{ $modoAplicacion === 'programar' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                                            <input type="radio" wire:model.live="modoAplicacion" value="programar" class="text-blue-500 focus:ring-blue-500 mt-0.5">
+                                            <div>
+                                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Programar para después') }}</span>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Los precios se actualizarán en la fecha y hora indicada') }}</p>
+                                            </div>
+                                        </label>
+                                    </div>
+
+                                    <!-- Campos de fecha/hora (solo si programar) -->
+                                    @if($modoAplicacion === 'programar')
+                                        <div class="mt-3 grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Fecha') }}</label>
+                                                <input
+                                                    type="date"
+                                                    wire:model="fechaProgramada"
+                                                    min="{{ now()->format('Y-m-d') }}"
+                                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 text-sm"
+                                                >
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Hora') }}</label>
+                                                <input
+                                                    type="time"
+                                                    wire:model="horaProgramada"
+                                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 text-sm"
+                                                >
+                                            </div>
+                                        </div>
+                                    @endif
+
+                                    @if($modoAplicacion === 'ahora')
+                                        <p class="text-sm text-red-600 mt-2 font-medium">
+                                            {{ __('Esta acción no se puede deshacer.') }}
+                                        </p>
+                                    @endif
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
-                        <button
-                            type="button"
-                            wire:click="aplicarCambios"
-                            class="inline-flex w-full justify-center rounded-md bg-bcn-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-opacity-90 sm:w-auto transition-colors"
-                        >
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                            </svg>
-                            {{ __('Confirmar') }}
-                        </button>
+                        @if($modoAplicacion === 'ahora')
+                            <button
+                                type="button"
+                                wire:click="aplicarCambios"
+                                class="inline-flex w-full justify-center rounded-md bg-bcn-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-opacity-90 sm:w-auto transition-colors"
+                            >
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                {{ __('Aplicar ahora') }}
+                            </button>
+                        @else
+                            <button
+                                type="button"
+                                wire:click="programarCambios"
+                                class="inline-flex w-full justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 sm:w-auto transition-colors"
+                            >
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                {{ __('Programar cambio') }}
+                            </button>
+                        @endif
                         <button
                             type="button"
                             wire:click="cancelarConfirmacion"

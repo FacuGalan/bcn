@@ -33,6 +33,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/qz/sign',
         ]);
     })
+    ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
+        $schedule->command('precios:procesar-programados')->everyMinute();
+    })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();

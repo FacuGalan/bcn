@@ -48,10 +48,13 @@ class ProvisionFondo extends Model
         'movimiento_tesoreria_id',
         'movimiento_caja_id',
         'observaciones',
+        'moneda_id',
+        'monto_moneda_original',
     ];
 
     protected $casts = [
         'monto' => 'decimal:2',
+        'monto_moneda_original' => 'decimal:2',
         'fecha' => 'datetime',
     ];
 
@@ -96,6 +99,11 @@ class ProvisionFondo extends Model
     public function movimientoCaja(): BelongsTo
     {
         return $this->belongsTo(MovimientoCaja::class, 'movimiento_caja_id');
+    }
+
+    public function moneda(): BelongsTo
+    {
+        return $this->belongsTo(Moneda::class, 'moneda_id');
     }
 
     // ==================== SCOPES ====================

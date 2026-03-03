@@ -10,9 +10,12 @@ use App\Models\ProvisionFondo;
 use App\Models\RendicionFondo;
 use App\Models\DepositoBancario;
 use App\Models\ArqueoTesoreria;
-use App\Models\CuentaBancaria;
+use App\Models\CuentaEmpresa;
 use App\Models\Caja;
 use App\Models\CierreTurno;
+use App\Models\Moneda;
+use App\Models\MovimientoCaja;
+use App\Models\TesoreriaSaldoMoneda;
 use App\Services\TesoreriaService;
 use App\Services\SucursalService;
 use App\Traits\SucursalAware;
@@ -50,6 +53,8 @@ class GestionTesoreria extends Component
     public ?int $cajaProvisionId = null;
     public float $montoProvision = 0;
     public string $observacionesProvision = '';
+    public ?int $monedaProvisionId = null; // null = moneda principal (ARS)
+    public float $montoProvisionMoneda = 0;
 
     // Modal de rendición
     public bool $showRendicionModal = false;
@@ -58,7 +63,7 @@ class GestionTesoreria extends Component
 
     // Modal de depósito
     public bool $showDepositoModal = false;
-    public ?int $cuentaBancariaId = null;
+    public ?int $cuentaEmpresaId = null;
     public float $montoDeposito = 0;
     public string $fechaDeposito = '';
     public string $numeroComprobante = '';
@@ -68,6 +73,7 @@ class GestionTesoreria extends Component
     public bool $showArqueoModal = false;
     public float $saldoContado = 0;
     public string $observacionesArqueo = '';
+    public ?int $monedaArqueoId = null;
 
     // Datos cargados
     public array $estadisticasHoy = [];
@@ -134,8 +140,105 @@ class GestionTesoreria extends Component
         $this->rendicionesPendientes = $rendiciones->map(function ($rendicion) {
             $data = $rendicion->toArray();
             $data['puede_revertir'] = $this->evaluarRevertibilidad($rendicion);
+
+            // Consolidar desglose de monedas desde el cierre asociado
+            $data['desglose_monedas'] = $this->consolidarDesgloseMonedas($rendicion);
+
             return $data;
         })->toArray();
+    }
+
+    /**
+     * Saldos de monedas extranjeras en tesorería
+     */
+    public function getSaldosMonedasProperty(): array
+    {
+        if (!$this->tesoreria) return [];
+        return $this->tesoreria->getSaldosTodasMonedas();
+    }
+
+    /**
+     * Monedas extranjeras activas (para select de provisión)
+     */
+    public function getMonedasExtranjeras(): array
+    {
+        if (!$this->tesoreria) return [];
+        return $this->tesoreria->saldosMoneda()
+            ->where('saldo_actual', '>', 0)
+            ->with('moneda')
+            ->get()
+            ->map(fn($s) => [
+                'id' => $s->moneda_id,
+                'codigo' => $s->moneda->codigo,
+                'simbolo' => $s->moneda->simbolo,
+                'nombre' => $s->moneda->nombre,
+                'saldo' => (float) $s->saldo_actual,
+            ])
+            ->toArray();
+    }
+
+    /**
+     * Resumen de efectivo en cajas por moneda (cajas abiertas de la sucursal)
+     */
+    public function getResumenMonedasCajasProperty(): array
+    {
+        $sucursalId = SucursalService::getSucursalActiva();
+        if (!$sucursalId) return [];
+
+        $cajasAbiertas = Caja::where('sucursal_id', $sucursalId)
+            ->where('estado', 'abierta')
+            ->pluck('id');
+
+        if ($cajasAbiertas->isEmpty()) return [];
+
+        $tiposExcluidos = ['apertura', 'provision_fondo', 'rendicion_fondo'];
+        $monedaPrincipal = Moneda::obtenerPrincipal();
+
+        $movimientos = MovimientoCaja::whereIn('caja_id', $cajasAbiertas)
+            ->whereNull('cierre_turno_id')
+            ->whereNotIn('referencia_tipo', $tiposExcluidos)
+            ->with('moneda')
+            ->get();
+
+        $resumen = [];
+
+        if ($monedaPrincipal) {
+            // Calcular saldo inicial total de cajas
+            $saldoInicial = Caja::whereIn('id', $cajasAbiertas)->sum('saldo_inicial');
+            $resumen[$monedaPrincipal->codigo] = [
+                'codigo' => $monedaPrincipal->codigo,
+                'simbolo' => $monedaPrincipal->simbolo,
+                'nombre' => $monedaPrincipal->nombre,
+                'es_principal' => true,
+                'saldo' => $saldoInicial,
+            ];
+        }
+
+        foreach ($movimientos as $mov) {
+            $esExtranjera = $mov->moneda_id && $mov->monto_moneda_original > 0 && $mov->moneda && !$mov->moneda->es_principal;
+
+            if ($esExtranjera) {
+                $moneda = $mov->moneda;
+                $key = $moneda->codigo;
+                if (!isset($resumen[$key])) {
+                    $resumen[$key] = [
+                        'codigo' => $moneda->codigo,
+                        'simbolo' => $moneda->simbolo,
+                        'nombre' => $moneda->nombre,
+                        'es_principal' => false,
+                        'saldo' => 0,
+                    ];
+                }
+                $monto = (float) $mov->monto_moneda_original;
+                $resumen[$key]['saldo'] += $mov->tipo === 'ingreso' ? $monto : -$monto;
+            } elseif ($monedaPrincipal) {
+                $monto = (float) $mov->monto;
+                $resumen[$monedaPrincipal->codigo]['saldo'] += $mov->tipo === 'ingreso' ? $monto : -$monto;
+            }
+        }
+
+        // Solo mostrar si hay más de 1 moneda
+        return count($resumen) > 1 ? $resumen : [];
     }
 
     /**
@@ -148,7 +251,7 @@ class GestionTesoreria extends Component
         }
 
         $query = MovimientoTesoreria::where('tesoreria_id', $this->tesoreria->id)
-            ->with('usuario');
+            ->with(['usuario', 'moneda']);
 
         // Filtro por tipo
         if ($this->filtroTipo) {
@@ -189,9 +292,9 @@ class GestionTesoreria extends Component
     }
 
     /**
-     * Obtiene las cuentas bancarias disponibles
+     * Obtiene las cuentas de empresa disponibles para depósitos
      */
-    public function getCuentasBancariasProperty()
+    public function getCuentasEmpresaProperty()
     {
         $sucursalId = SucursalService::getSucursalActiva();
 
@@ -199,10 +302,12 @@ class GestionTesoreria extends Component
             return collect();
         }
 
-        return CuentaBancaria::where('sucursal_id', $sucursalId)
-            ->where('activo', true)
-            ->orderBy('banco')
-            ->get();
+        return CuentaEmpresa::activas()
+            ->with('moneda')
+            ->orderBy('orden')
+            ->get()
+            ->filter(fn($cuenta) => $cuenta->estaDisponibleEnSucursal($sucursalId))
+            ->values();
     }
 
     /**
@@ -248,7 +353,7 @@ class GestionTesoreria extends Component
 
         return DepositoBancario::where('tesoreria_id', $this->tesoreria->id)
             ->where('estado', DepositoBancario::ESTADO_PENDIENTE)
-            ->with(['cuentaBancaria', 'usuario'])
+            ->with(['cuentaBancaria', 'cuentaEmpresa.moneda', 'moneda', 'usuario'])
             ->orderBy('fecha_deposito', 'desc')
             ->get();
     }
@@ -263,7 +368,7 @@ class GestionTesoreria extends Component
         }
 
         return ArqueoTesoreria::where('tesoreria_id', $this->tesoreria->id)
-            ->with(['usuario:id,name', 'supervisor:id,name'])
+            ->with(['usuario:id,name', 'supervisor:id,name', 'moneda:id,codigo,simbolo,nombre'])
             ->orderBy('fecha', 'desc')
             ->limit(20)
             ->get();
@@ -305,20 +410,39 @@ class GestionTesoreria extends Component
 
     public function abrirModalProvision(): void
     {
-        $this->reset(['cajaProvisionId', 'montoProvision', 'observacionesProvision']);
+        $this->reset(['cajaProvisionId', 'montoProvision', 'observacionesProvision', 'monedaProvisionId', 'montoProvisionMoneda']);
         $this->showProvisionModal = true;
+    }
+
+    public function updatedMonedaProvisionId(): void
+    {
+        $this->montoProvision = 0;
+        $this->montoProvisionMoneda = 0;
     }
 
     public function procesarProvision(): void
     {
-        $this->validate([
-            'cajaProvisionId' => 'required|exists:pymes_tenant.cajas,id',
-            'montoProvision' => 'required|numeric|min:0.01',
-        ], [
-            'cajaProvisionId.required' => __('Seleccione una caja'),
-            'montoProvision.required' => __('Ingrese el monto'),
-            'montoProvision.min' => __('El monto debe ser mayor a 0'),
-        ]);
+        $esMonedaExtranjera = !empty($this->monedaProvisionId);
+
+        if ($esMonedaExtranjera) {
+            $this->validate([
+                'cajaProvisionId' => 'required|exists:pymes_tenant.cajas,id',
+                'montoProvisionMoneda' => 'required|numeric|min:0.01',
+            ], [
+                'cajaProvisionId.required' => __('Seleccione una caja'),
+                'montoProvisionMoneda.required' => __('Ingrese el monto'),
+                'montoProvisionMoneda.min' => __('El monto debe ser mayor a 0'),
+            ]);
+        } else {
+            $this->validate([
+                'cajaProvisionId' => 'required|exists:pymes_tenant.cajas,id',
+                'montoProvision' => 'required|numeric|min:0.01',
+            ], [
+                'cajaProvisionId.required' => __('Seleccione una caja'),
+                'montoProvision.required' => __('Ingrese el monto'),
+                'montoProvision.min' => __('El monto debe ser mayor a 0'),
+            ]);
+        }
 
         try {
             $caja = Caja::find($this->cajaProvisionId);
@@ -326,15 +450,28 @@ class GestionTesoreria extends Component
             $provision = TesoreriaService::provisionarFondo(
                 $this->tesoreria,
                 $caja,
-                $this->montoProvision,
+                $esMonedaExtranjera ? 0 : $this->montoProvision,
                 auth()->id(),
-                $this->observacionesProvision ?: null
+                $this->observacionesProvision ?: null,
+                $esMonedaExtranjera ? (int) $this->monedaProvisionId : null,
+                $esMonedaExtranjera ? $this->montoProvisionMoneda : null
             );
 
             $this->showProvisionModal = false;
             $this->cargarDatos();
 
-            $this->dispatch('toast-success', message: __('Provision de :monto realizada a :caja', ['monto' => '$' . $this->montoProvision, 'caja' => $caja->nombre]));
+            if ($esMonedaExtranjera) {
+                $moneda = Moneda::find($this->monedaProvisionId);
+                $this->dispatch('toast-success', message: __('Provision de :monto realizada a :caja', [
+                    'monto' => ($moneda->simbolo ?? '') . ' ' . $this->montoProvisionMoneda,
+                    'caja' => $caja->nombre,
+                ]));
+            } else {
+                $this->dispatch('toast-success', message: __('Provision de :monto realizada a :caja', [
+                    'monto' => '$' . $this->montoProvision,
+                    'caja' => $caja->nombre,
+                ]));
+            }
 
         } catch (\Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
@@ -463,11 +600,84 @@ class GestionTesoreria extends Component
         return true;
     }
 
+    /**
+     * Resumen de monedas extranjeras en rendiciones pendientes
+     */
+    public function getResumenMonedasRendicionesProperty(): array
+    {
+        $monedas = [];
+        foreach ($this->rendicionesPendientes as $rendicion) {
+            if (empty($rendicion['desglose_monedas'])) continue;
+            foreach ($rendicion['desglose_monedas'] as $codigo => $data) {
+                if (!isset($monedas[$codigo])) {
+                    $monedas[$codigo] = [
+                        'codigo' => $data['codigo'] ?? $codigo,
+                        'simbolo' => $data['simbolo'] ?? '',
+                        'nombre' => $data['nombre'] ?? '',
+                        'saldo' => 0,
+                        'saldo_convertido' => 0,
+                    ];
+                }
+                $monedas[$codigo]['saldo'] += $data['saldo'] ?? 0;
+                $monedas[$codigo]['saldo_convertido'] += $data['saldo_convertido'] ?? 0;
+            }
+        }
+        return $monedas;
+    }
+
+    /**
+     * Consolida desglose de monedas desde las CierreTurnoCaja del cierre asociado a la rendición.
+     * Retorna array de monedas extranjeras (excluye principal) con saldo consolidado.
+     */
+    protected function consolidarDesgloseMonedas(RendicionFondo $rendicion): array
+    {
+        $cierre = $rendicion->cierreTurno;
+        if (!$cierre || !$cierre->detalleCajas) {
+            return [];
+        }
+
+        $esFondoComun = $cierre->esGrupal() && $cierre->grupoCierre?->fondo_comun;
+        $monedas = [];
+
+        foreach ($cierre->detalleCajas as $detalleCaja) {
+            if (!$detalleCaja->desglose_monedas) continue;
+
+            foreach ($detalleCaja->desglose_monedas as $codigo => $data) {
+                // Solo incluir monedas extranjeras (la principal ya está en monto_entregado)
+                if ($data['es_principal'] ?? false) continue;
+
+                if (!isset($monedas[$codigo])) {
+                    $monedas[$codigo] = [
+                        'codigo' => $data['codigo'] ?? $codigo,
+                        'simbolo' => $data['simbolo'] ?? '',
+                        'nombre' => $data['nombre'] ?? '',
+                        'saldo' => 0,
+                        'saldo_convertido' => 0,
+                        'declarado' => null,
+                    ];
+                }
+
+                $monedas[$codigo]['saldo'] += $data['saldo'] ?? 0;
+                $monedas[$codigo]['saldo_convertido'] += $data['saldo_convertido'] ?? 0;
+
+                if (isset($data['declarado']) && $data['declarado'] !== null) {
+                    if ($esFondoComun) {
+                        $monedas[$codigo]['declarado'] = $data['declarado'];
+                    } else {
+                        $monedas[$codigo]['declarado'] = ($monedas[$codigo]['declarado'] ?? 0) + $data['declarado'];
+                    }
+                }
+            }
+        }
+
+        return $monedas;
+    }
+
     // ==================== DEPÓSITO BANCARIO ====================
 
     public function abrirModalDeposito(): void
     {
-        $this->reset(['cuentaBancariaId', 'montoDeposito', 'numeroComprobante', 'observacionesDeposito']);
+        $this->reset(['cuentaEmpresaId', 'montoDeposito', 'numeroComprobante', 'observacionesDeposito']);
         $this->fechaDeposito = now()->format('Y-m-d');
         $this->showDepositoModal = true;
     }
@@ -475,20 +685,20 @@ class GestionTesoreria extends Component
     public function procesarDeposito(): void
     {
         $this->validate([
-            'cuentaBancariaId' => 'required|exists:pymes_tenant.cuentas_bancarias,id',
+            'cuentaEmpresaId' => 'required|exists:pymes_tenant.cuentas_empresa,id',
             'montoDeposito' => 'required|numeric|min:0.01',
             'fechaDeposito' => 'required|date',
         ], [
-            'cuentaBancariaId.required' => __('Seleccione una cuenta bancaria'),
+            'cuentaEmpresaId.required' => __('Seleccione una cuenta'),
             'montoDeposito.required' => __('Ingrese el monto'),
             'montoDeposito.min' => __('El monto debe ser mayor a 0'),
             'fechaDeposito.required' => __('Ingrese la fecha del deposito'),
         ]);
 
         try {
-            $cuenta = CuentaBancaria::find($this->cuentaBancariaId);
+            $cuenta = CuentaEmpresa::with('moneda')->find($this->cuentaEmpresaId);
 
-            $deposito = TesoreriaService::registrarDeposito(
+            $deposito = TesoreriaService::registrarDepositoCuentaEmpresa(
                 $this->tesoreria,
                 $cuenta,
                 $this->montoDeposito,
@@ -501,7 +711,11 @@ class GestionTesoreria extends Component
             $this->showDepositoModal = false;
             $this->cargarDatos();
 
-            $this->dispatch('toast-success', message: __('Deposito de :monto registrado en :banco', ['monto' => '$' . $this->montoDeposito, 'banco' => $cuenta->banco]));
+            $simbolo = ($cuenta->moneda && !$cuenta->moneda->es_principal) ? $cuenta->moneda->simbolo : '$';
+            $this->dispatch('toast-success', message: __('Deposito de :monto registrado en :cuenta', [
+                'monto' => $simbolo . ' ' . number_format($this->montoDeposito, 2, ',', '.'),
+                'cuenta' => $cuenta->nombre_completo,
+            ]));
 
         } catch (\Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
@@ -512,9 +726,19 @@ class GestionTesoreria extends Component
 
     public function abrirModalArqueo(): void
     {
-        $this->reset(['saldoContado', 'observacionesArqueo']);
-        $this->saldoContado = $this->tesoreria->saldo_actual; // Pre-cargar saldo actual
+        $this->reset(['saldoContado', 'observacionesArqueo', 'monedaArqueoId']);
+        $this->saldoContado = $this->tesoreria->saldo_actual;
         $this->showArqueoModal = true;
+    }
+
+    public function updatedMonedaArqueoId(): void
+    {
+        if ($this->monedaArqueoId) {
+            $saldoMoneda = TesoreriaSaldoMoneda::obtenerOCrear($this->tesoreria->id, (int) $this->monedaArqueoId);
+            $this->saldoContado = (float) $saldoMoneda->saldo_actual;
+        } else {
+            $this->saldoContado = (float) $this->tesoreria->saldo_actual;
+        }
     }
 
     public function procesarArqueo(): void
@@ -527,23 +751,29 @@ class GestionTesoreria extends Component
         ]);
 
         try {
+            $monedaId = $this->monedaArqueoId ? (int) $this->monedaArqueoId : null;
+
             $arqueo = TesoreriaService::realizarArqueo(
                 $this->tesoreria,
                 $this->saldoContado,
                 auth()->id(),
-                $this->observacionesArqueo ?: null
+                $this->observacionesArqueo ?: null,
+                $monedaId
             );
 
             $this->showArqueoModal = false;
             $this->cargarDatos();
 
             $diferencia = $arqueo->diferencia;
+            $monedaInfo = $monedaId ? Moneda::find($monedaId) : null;
+            $simbolo = $monedaInfo ? $monedaInfo->simbolo : '$';
+
             if ($diferencia == 0) {
                 $this->dispatch('toast-success', message: __('Arqueo realizado - Caja cuadrada'));
             } elseif ($diferencia > 0) {
-                $this->dispatch('toast-success', message: __('Arqueo realizado - Sobrante:') . " \$" . number_format($diferencia, 2));
+                $this->dispatch('toast-success', message: __('Arqueo realizado - Sobrante:') . " {$simbolo}" . number_format($diferencia, 2));
             } else {
-                $this->dispatch('toast-error', message: __('Arqueo realizado - Faltante:') . " \$" . number_format(abs($diferencia), 2));
+                $this->dispatch('toast-error', message: __('Arqueo realizado - Faltante:') . " {$simbolo}" . number_format(abs($diferencia), 2));
             }
 
         } catch (\Exception $e) {
@@ -556,7 +786,7 @@ class GestionTesoreria extends Component
     public function confirmarDepositoBancario(int $depositoId): void
     {
         try {
-            $deposito = DepositoBancario::find($depositoId);
+            $deposito = DepositoBancario::with(['moneda', 'cuentaEmpresa.moneda'])->find($depositoId);
 
             if (!$deposito) {
                 throw new \Exception(__('Deposito no encontrado'));
@@ -564,7 +794,9 @@ class GestionTesoreria extends Component
 
             TesoreriaService::confirmarDeposito($deposito);
 
-            $this->dispatch('toast-success', message: __('Deposito de :monto confirmado', ['monto' => '$' . $deposito->monto]));
+            $monedaDep = $deposito->moneda ?? $deposito->cuentaEmpresa?->moneda;
+            $simbolo = ($monedaDep && !$monedaDep->es_principal) ? $monedaDep->simbolo : '$';
+            $this->dispatch('toast-success', message: __('Deposito de :monto confirmado', ['monto' => $simbolo . ' ' . number_format($deposito->monto, 2, ',', '.')]));
 
         } catch (\Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
@@ -594,7 +826,7 @@ class GestionTesoreria extends Component
 
     public function verDetalleArqueo(int $arqueoId): void
     {
-        $this->arqueoDetalle = ArqueoTesoreria::with(['usuario:id,name', 'supervisor:id,name'])
+        $this->arqueoDetalle = ArqueoTesoreria::with(['usuario:id,name', 'supervisor:id,name', 'moneda:id,codigo,simbolo,nombre'])
             ->find($arqueoId);
         $this->showArqueoDetalleModal = true;
     }
@@ -665,12 +897,14 @@ class GestionTesoreria extends Component
         return view('livewire.tesoreria.gestion-tesoreria', [
             'movimientos' => $this->movimientos,
             'cajasDisponibles' => $this->cajasDisponibles,
-            'cuentasBancarias' => $this->cuentasBancarias,
+            'cuentasEmpresa' => $this->cuentasEmpresa,
             'estadoCajas' => $this->estadoCajas,
             'depositosPendientes' => $this->depositosPendientes,
             'arqueos' => $this->arqueos,
             'provisionesRecientes' => $this->provisionesRecientes,
             'rendicionesRecientes' => $this->rendicionesRecientes,
+            'saldosMonedas' => $this->saldosMonedas,
+            'monedasExtranjeras' => $this->getMonedasExtranjeras(),
         ]);
     }
 }

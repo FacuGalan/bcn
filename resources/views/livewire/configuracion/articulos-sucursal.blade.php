@@ -176,7 +176,7 @@
             <!-- Vista móvil (cards) -->
             <div class="sm:hidden space-y-3" wire:key="sucursal-{{ sucursal_activa() }}-mobile">
                 @forelse($articulos as $articulo)
-                    @php $config = $articulosConfig[$articulo->id] ?? ['activo' => true, 'modo_stock' => 'ninguno', 'vendible' => true]; @endphp
+                    @php $config = $articulosConfig[$articulo->id] ?? ['activo' => true, 'modo_stock' => 'ninguno', 'vendible' => true, 'precio_base' => null]; @endphp
                     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 {{ !$config['activo'] ? 'opacity-50' : '' }}">
                         <!-- Header: nombre, código, badges -->
                         <div class="flex items-start gap-2.5 px-3 py-3 pb-2">
@@ -205,6 +205,40 @@
                                         {{ number_format($stockActual->cantidad ?? 0, 2, ',', '.') }}
                                     </div>
                                 </div>
+                            @endif
+                        </div>
+
+                        <!-- Precio base -->
+                        <div class="flex items-center gap-2 px-3 py-2 border-t border-gray-100 dark:border-gray-700" x-data="{ editando: false }" wire:key="precio-mobile-{{ $articulo->id }}">
+                            <span class="text-[11px] text-gray-500 dark:text-gray-400 flex-shrink-0">{{ __('Precio base') }}:</span>
+                            @if($config['precio_base'] !== null)
+                                <span class="text-sm font-semibold text-indigo-600 dark:text-indigo-400">${{ number_format($config['precio_base'], 2, ',', '.') }}</span>
+                                <span class="text-[10px] text-gray-400 line-through">${{ number_format($articulo->precio_base, 2, ',', '.') }}</span>
+                                <button wire:click="restablecerPrecioBase({{ $articulo->id }})" class="ml-auto text-gray-400 hover:text-red-500 transition-colors" title="{{ __('Restablecer al genérico') }}">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            @else
+                                <template x-if="!editando">
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-sm text-gray-700 dark:text-gray-300">${{ number_format($articulo->precio_base, 2, ',', '.') }}</span>
+                                        <span class="text-[10px] text-gray-400">({{ __('genérico') }})</span>
+                                        <button @click="editando = true" class="text-gray-400 hover:text-bcn-primary transition-colors" title="{{ __('Precio propio') }}">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                        </button>
+                                    </div>
+                                </template>
+                                <template x-if="editando">
+                                    <div class="flex items-center gap-1" x-data="{ valor: '' }">
+                                        <span class="text-gray-400">$</span>
+                                        <input type="number" step="0.01" min="0" x-model="valor" placeholder="{{ number_format($articulo->precio_base, 2, '.', '') }}" class="w-24 text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-1 px-2" @keydown.enter="if(valor) { $wire.actualizarPrecioBase({{ $articulo->id }}, valor); editando = false; }" @keydown.escape="editando = false" x-init="$nextTick(() => $el.focus())" />
+                                        <button @click="if(valor) { $wire.actualizarPrecioBase({{ $articulo->id }}, valor); editando = false; }" class="text-green-600 hover:text-green-700">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        </button>
+                                        <button @click="editando = false" class="text-gray-400 hover:text-gray-600">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                        </button>
+                                    </div>
+                                </template>
                             @endif
                         </div>
 
@@ -245,6 +279,7 @@
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Código') }}</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Artículo') }}</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Categoría') }}</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Precio base') }}</th>
                                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Modo Stock') }}</th>
                                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Stock') }}</th>
                                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Vendible') }}</th>
@@ -253,7 +288,7 @@
                         </thead>
                         <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                             @forelse($articulos as $articulo)
-                                @php $config = $articulosConfig[$articulo->id] ?? ['activo' => true, 'modo_stock' => 'ninguno', 'vendible' => true]; @endphp
+                                @php $config = $articulosConfig[$articulo->id] ?? ['activo' => true, 'modo_stock' => 'ninguno', 'vendible' => true, 'precio_base' => null]; @endphp
                                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors {{ !$config['activo'] ? 'opacity-50' : '' }}">
                                     <td class="px-4 py-3">
                                         <input type="checkbox" wire:click="toggleArticulo({{ $articulo->id }})" @checked($config['activo']) class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary h-5 w-5" />
@@ -274,6 +309,38 @@
                                             </span>
                                         @else
                                             <span class="text-xs text-gray-400">-</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-right" x-data="{ editando: false }" wire:key="precio-desktop-{{ $articulo->id }}">
+                                        @if($config['precio_base'] !== null)
+                                            <div class="flex items-center justify-end gap-1.5">
+                                                <span class="text-sm font-semibold text-indigo-600 dark:text-indigo-400">${{ number_format($config['precio_base'], 2, ',', '.') }}</span>
+                                                <span class="text-[10px] text-gray-400 line-through">${{ number_format($articulo->precio_base, 2, ',', '.') }}</span>
+                                                <button wire:click="restablecerPrecioBase({{ $articulo->id }})" class="text-gray-400 hover:text-red-500 transition-colors" title="{{ __('Restablecer al genérico') }}">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                </button>
+                                            </div>
+                                        @else
+                                            <template x-if="!editando">
+                                                <div class="flex items-center justify-end gap-1.5">
+                                                    <span class="text-sm text-gray-700 dark:text-gray-300">${{ number_format($articulo->precio_base, 2, ',', '.') }}</span>
+                                                    <button @click="editando = true" class="text-gray-400 hover:text-bcn-primary transition-colors" title="{{ __('Precio propio') }}">
+                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                                    </button>
+                                                </div>
+                                            </template>
+                                            <template x-if="editando">
+                                                <div class="flex items-center justify-end gap-1" x-data="{ valor: '' }">
+                                                    <span class="text-gray-400 text-sm">$</span>
+                                                    <input type="number" step="0.01" min="0" x-model="valor" placeholder="{{ number_format($articulo->precio_base, 2, '.', '') }}" class="w-24 text-sm text-right rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-1 px-2" @keydown.enter="if(valor) { $wire.actualizarPrecioBase({{ $articulo->id }}, valor); editando = false; }" @keydown.escape="editando = false" x-init="$nextTick(() => $el.focus())" />
+                                                    <button @click="if(valor) { $wire.actualizarPrecioBase({{ $articulo->id }}, valor); editando = false; }" class="text-green-600 hover:text-green-700">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                                    </button>
+                                                    <button @click="editando = false" class="text-gray-400 hover:text-gray-600">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                    </button>
+                                                </div>
+                                            </template>
                                         @endif
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap text-center">
@@ -305,7 +372,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                    <td colspan="9" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                                         <p>{{ __('No se encontraron artículos') }}</p>
                                     </td>
                                 </tr>
@@ -413,29 +480,56 @@
                         <h3 class="text-base sm:text-lg leading-6 font-medium text-gray-900 dark:text-white mb-2 truncate">
                             {{ __('Receta de') }}: {{ $configArticuloNombre }}
                         </h3>
-                        @if(!$recetaEsOverride && $recetaId === null && count($recetaIngredientes) > 0)
-                            <p class="text-xs text-blue-600 dark:text-blue-400 mb-3 sm:mb-4">{{ __('Mostrando receta default. Al guardar se creará un override para esta sucursal.') }}</p>
-                        @elseif(!$recetaEsOverride && count($recetaIngredientes) === 0)
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-3 sm:mb-4">{{ __('No hay receta default. Agregue ingredientes para crear un override.') }}</p>
-                        @endif
 
-                        <div class="max-h-[60vh] overflow-y-auto pr-1 -mr-1">
-                            @include('livewire.articulos._receta-editor')
-                        </div>
+                        @if($recetaAnulada)
+                            {{-- Estado: receta anulada en esta sucursal --}}
+                            <div class="rounded-lg border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-4 sm:p-6 text-center">
+                                <svg class="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-amber-500 dark:text-amber-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                </svg>
+                                <h4 class="text-sm sm:text-base font-semibold text-amber-800 dark:text-amber-300 mb-1">{{ __('Receta anulada en esta sucursal') }}</h4>
+                                <p class="text-xs sm:text-sm text-amber-700 dark:text-amber-400">{{ __('Este artículo no descuenta ingredientes por receta en esta sucursal.') }}</p>
+                                @if($tieneRecetaDefault)
+                                    <p class="text-xs text-amber-600 dark:text-amber-500 mt-2">{{ __('Existe una receta default que no se aplica aquí.') }}</p>
+                                @endif
+                            </div>
+                        @else
+                            @if(!$recetaEsOverride && $recetaId === null && count($recetaIngredientes) > 0)
+                                <p class="text-xs text-blue-600 dark:text-blue-400 mb-3 sm:mb-4">{{ __('Mostrando receta default. Al guardar se creará un override para esta sucursal.') }}</p>
+                            @elseif(!$recetaEsOverride && count($recetaIngredientes) === 0)
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3 sm:mb-4">{{ __('No hay receta default. Agregue ingredientes para crear un override.') }}</p>
+                            @endif
+
+                            <div class="max-h-[60vh] overflow-y-auto pr-1 -mr-1">
+                                @include('livewire.articulos._receta-editor')
+                            </div>
+                        @endif
                     </div>
 
                     <div class="bg-gray-50 dark:bg-gray-700 px-3 py-3 sm:px-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
                         <button type="button" wire:click="cancelarReceta" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto">
                             {{ __('Cancelar') }}
                         </button>
-                        @if($recetaId && $recetaEsOverride)
-                            <button type="button" wire:click="confirmarEliminarRecetaOverride" class="w-full inline-flex justify-center rounded-md border border-red-600 shadow-sm px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-600 hover:text-white sm:w-auto transition-colors">
-                                {{ __('Restablecer default') }}
+                        @if($recetaAnulada)
+                            {{-- Receta anulada: solo botón restaurar --}}
+                            <button type="button" wire:click="restaurarRecetaDefault" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-sm font-medium text-white hover:bg-opacity-90 sm:w-auto">
+                                {{ __('Restaurar receta default') }}
+                            </button>
+                        @else
+                            @if($recetaId && $recetaEsOverride)
+                                <button type="button" wire:click="confirmarEliminarRecetaOverride" class="w-full inline-flex justify-center rounded-md border border-red-600 shadow-sm px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-600 hover:text-white sm:w-auto transition-colors">
+                                    {{ __('Restablecer default') }}
+                                </button>
+                            @endif
+                            @if($tieneRecetaDefault && !$recetaEsOverride)
+                                <button type="button" wire:click="anularReceta" class="w-full inline-flex justify-center rounded-md border border-amber-500 shadow-sm px-4 py-2 text-sm font-medium text-amber-600 hover:bg-amber-500 hover:text-white sm:w-auto transition-colors">
+                                    {{ __('Anular receta en esta sucursal') }}
+                                </button>
+                            @endif
+                            <button type="button" wire:click="guardarRecetaOverride" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-sm font-medium text-white hover:bg-opacity-90 sm:w-auto">
+                                {{ $recetaEsOverride ? __('Actualizar Override') : __('Crear Override') }}
                             </button>
                         @endif
-                        <button type="button" wire:click="guardarRecetaOverride" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-sm font-medium text-white hover:bg-opacity-90 sm:w-auto">
-                            {{ $recetaEsOverride ? __('Actualizar Override') : __('Crear Override') }}
-                        </button>
                     </div>
                 </div>
             </div>

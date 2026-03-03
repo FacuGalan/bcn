@@ -62,6 +62,7 @@ class RendicionFondo extends Model
         'motivo_rechazo',
         'usuario_rechazo_id',
         'fecha_rechazo',
+        'desglose_monedas',
     ];
 
     protected $casts = [
@@ -72,6 +73,7 @@ class RendicionFondo extends Model
         'fecha' => 'datetime',
         'fecha_confirmacion' => 'datetime',
         'fecha_rechazo' => 'datetime',
+        'desglose_monedas' => 'array',
     ];
 
     // Estados

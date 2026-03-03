@@ -64,6 +64,8 @@ class FormaPago extends Model
         'ajuste_porcentaje',
         'factura_fiscal',
         'activo',
+        'cuenta_empresa_id',
+        'moneda_id',
     ];
 
     protected $casts = [
@@ -131,6 +133,30 @@ class FormaPago extends Model
     public function promocionesCondiciones(): HasMany
     {
         return $this->hasMany(PromocionCondicion::class, 'forma_pago_id');
+    }
+
+    /**
+     * Cuenta empresa vinculada (para registro automático de movimientos)
+     */
+    public function cuentaEmpresa(): BelongsTo
+    {
+        return $this->belongsTo(CuentaEmpresa::class, 'cuenta_empresa_id');
+    }
+
+    /**
+     * Moneda asociada
+     */
+    public function moneda(): BelongsTo
+    {
+        return $this->belongsTo(Moneda::class, 'moneda_id');
+    }
+
+    /**
+     * Verifica si tiene vinculación con cuenta empresa
+     */
+    public function tieneVinculoCuenta(): bool
+    {
+        return $this->cuenta_empresa_id !== null;
     }
 
     // ==================== Scopes ====================

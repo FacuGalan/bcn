@@ -110,23 +110,35 @@ class ProvisionComercioCommand extends Command
             $this->configureTenantConnection();
 
             // ── Paso 7: Seed — Sucursal ──
-            $this->info('[6/10] Creando sucursal principal...');
+            $this->info('[6/13] Creando sucursal principal...');
             $sucursalId = $this->seedSucursal();
 
-            // ── Paso 8: Seed — Caja ──
-            $this->info('[7/10] Creando caja...');
+            // ── Paso 8: Seed — Lista de Precios Base ──
+            $this->info('[7/13] Creando lista de precios base...');
+            $this->seedListaPreciosBase($sucursalId);
+
+            // ── Paso 9: Seed — Caja ──
+            $this->info('[8/13] Creando caja...');
             $this->seedCaja($sucursalId);
 
-            // ── Paso 9: Seed — Tipos IVA ──
-            $this->info('[8/10] Creando tipos de IVA...');
+            // ── Paso 10: Seed — Tipos IVA ──
+            $this->info('[9/13] Creando tipos de IVA...');
             $this->seedTiposIva();
 
-            // ── Paso 10-11: Seed — Conceptos y Formas de Pago ──
-            $this->info('[9/10] Creando conceptos y formas de pago...');
+            // ── Paso 11: Seed — Conceptos y Formas de Pago ──
+            $this->info('[10/13] Creando conceptos y formas de pago...');
             $this->seedConceptosYFormasPago();
 
-            // ── Paso 12-14: Seed — Roles, Permisos y Asignación ──
-            $this->info('[10/10] Creando roles, permisos y asignando rol admin...');
+            // ── Paso 12: Seed — Monedas ──
+            $this->info('[11/13] Creando monedas...');
+            $this->seedMonedas();
+
+            // ── Paso 13: Seed — Conceptos Movimiento Cuenta ──
+            $this->info('[12/13] Creando conceptos de movimiento de cuenta...');
+            $this->seedConceptosMovimientoCuenta();
+
+            // ── Paso 14: Seed — Roles, Permisos y Asignación ──
+            $this->info('[13/13] Creando roles, permisos y asignando rol admin...');
             $this->seedRolesYPermisos($user);
 
             // ── Marcar migraciones como ejecutadas ──
@@ -155,6 +167,7 @@ class ProvisionComercioCommand extends Command
                 ['Contraseña', $password],
                 ['Sucursal', 'Sucursal Principal (SUC001)'],
                 ['Caja', 'Caja 1 (CAJA001)'],
+                ['Lista de Precios', 'Lista Base (BASE)'],
                 ['Tipos IVA', '3 (Exento, 10.5%, 21%)'],
                 ['Conceptos pago', '7'],
                 ['Formas pago', '7 (5 + Cuenta Corriente + Mixta)'],
@@ -235,6 +248,32 @@ class ProvisionComercioCommand extends Command
         ]);
 
         return (int) DB::connection('pymes_tenant')->getPdo()->lastInsertId();
+    }
+
+    /**
+     * Crea la lista de precios base para la sucursal
+     */
+    protected function seedListaPreciosBase(int $sucursalId): void
+    {
+        $now = now();
+
+        DB::connection('pymes_tenant')->table('listas_precios')->insert([
+            'sucursal_id' => $sucursalId,
+            'nombre' => 'Lista Base',
+            'codigo' => 'BASE',
+            'descripcion' => 'Lista de precios base de la sucursal',
+            'ajuste_porcentaje' => 0.00,
+            'redondeo' => 'ninguno',
+            'aplica_promociones' => true,
+            'promociones_alcance' => 'todos',
+            'es_lista_base' => true,
+            'prioridad' => 999,
+            'activo' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $this->info("    Lista de precios base creada para sucursal #{$sucursalId}");
     }
 
     /**
@@ -494,8 +533,20 @@ class ProvisionComercioCommand extends Command
                 || $name === 'menu.listas-precios'
                 || $name === 'menu.promociones'
                 || $name === 'menu.promociones-especiales'
+                || $name === 'menu.stock'
+                || $name === 'menu.inventario'
+                || $name === 'menu.movimientos-stock'
+                || $name === 'menu.inventario-general'
+                || $name === 'menu.recetas'
+                || $name === 'menu.produccion'
+                || $name === 'menu.bancos'
+                || $name === 'menu.resumen-cuentas'
+                || $name === 'menu.cuentas-empresa'
+                || $name === 'menu.movimientos-cuenta'
+                || $name === 'menu.transferencias-cuenta'
                 || $name === 'menu.configuracion'
-                || $name === 'menu.empresa';
+                || $name === 'menu.empresa'
+                || $name === 'menu.monedas';
         });
         if ($gerentePerms->isNotEmpty()) {
             $db->table('role_has_permissions')->insert(
@@ -512,7 +563,9 @@ class ProvisionComercioCommand extends Command
                 || $name === 'menu.nueva-venta'
                 || $name === 'menu.listado-ventas'
                 || $name === 'menu.cajas'
-                || $name === 'menu.turno-actual';
+                || $name === 'menu.turno-actual'
+                || $name === 'menu.bancos'
+                || $name === 'menu.resumen-cuentas';
         });
         if ($vendedorPerms->isNotEmpty()) {
             $db->table('role_has_permissions')->insert(
@@ -556,6 +609,64 @@ class ProvisionComercioCommand extends Command
         $this->info("    Roles: " . implode(', ', array_keys($roleIds)));
         $this->info("    Permisos asignados: " . count($allPermIds) . " permisos × roles correspondientes");
         $this->info("    Usuario {$user->email} + Usuario #2 → Super Administrador");
+    }
+
+    /**
+     * Crea las monedas base del sistema
+     */
+    protected function seedMonedas(): void
+    {
+        $now = now();
+        $db = DB::connection('pymes_tenant');
+
+        $monedas = [
+            ['codigo' => 'ARS', 'nombre' => 'Peso Argentino', 'simbolo' => '$', 'es_principal' => true, 'activo' => true, 'orden' => 1],
+            ['codigo' => 'USD', 'nombre' => 'Dólar Estadounidense', 'simbolo' => 'US$', 'es_principal' => false, 'activo' => false, 'orden' => 2],
+            ['codigo' => 'BRL', 'nombre' => 'Real Brasileño', 'simbolo' => 'R$', 'es_principal' => false, 'activo' => false, 'orden' => 3],
+        ];
+
+        foreach ($monedas as $moneda) {
+            $db->table('monedas')->insert(array_merge($moneda, [
+                'decimales' => 2,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]));
+        }
+
+        $this->info("    Monedas creadas: " . count($monedas));
+    }
+
+    /**
+     * Crea los conceptos de movimiento de cuenta empresa
+     */
+    protected function seedConceptosMovimientoCuenta(): void
+    {
+        $now = now();
+        $db = DB::connection('pymes_tenant');
+
+        $conceptos = [
+            ['codigo' => 'venta', 'nombre' => 'Cobro de Venta', 'tipo' => 'ingreso', 'es_sistema' => true, 'orden' => 1],
+            ['codigo' => 'cobro', 'nombre' => 'Cobro de Cuenta Corriente', 'tipo' => 'ingreso', 'es_sistema' => true, 'orden' => 2],
+            ['codigo' => 'comision_bancaria', 'nombre' => 'Comisión Bancaria', 'tipo' => 'egreso', 'es_sistema' => true, 'orden' => 3],
+            ['codigo' => 'interes', 'nombre' => 'Interés Bancario', 'tipo' => 'ingreso', 'es_sistema' => true, 'orden' => 4],
+            ['codigo' => 'transferencia_entre_cuentas', 'nombre' => 'Transferencia entre Cuentas', 'tipo' => 'ambos', 'es_sistema' => true, 'orden' => 5],
+            ['codigo' => 'deposito_tesoreria', 'nombre' => 'Depósito desde Tesorería', 'tipo' => 'ingreso', 'es_sistema' => true, 'orden' => 6],
+            ['codigo' => 'retiro_tesoreria', 'nombre' => 'Retiro hacia Tesorería', 'tipo' => 'egreso', 'es_sistema' => true, 'orden' => 7],
+            ['codigo' => 'pago_proveedor', 'nombre' => 'Pago a Proveedor', 'tipo' => 'egreso', 'es_sistema' => false, 'orden' => 8],
+            ['codigo' => 'devolucion', 'nombre' => 'Devolución', 'tipo' => 'egreso', 'es_sistema' => true, 'orden' => 9],
+            ['codigo' => 'ajuste', 'nombre' => 'Ajuste', 'tipo' => 'ambos', 'es_sistema' => false, 'orden' => 10],
+            ['codigo' => 'otro', 'nombre' => 'Otro', 'tipo' => 'ambos', 'es_sistema' => false, 'orden' => 11],
+        ];
+
+        foreach ($conceptos as $concepto) {
+            $db->table('conceptos_movimiento_cuenta')->insert(array_merge($concepto, [
+                'activo' => true,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]));
+        }
+
+        $this->info("    Conceptos de movimiento creados: " . count($conceptos));
     }
 
     /**

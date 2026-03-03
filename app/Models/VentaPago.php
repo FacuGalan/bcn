@@ -67,6 +67,10 @@ class VentaPago extends Model
         'anulado_at',
         'motivo_anulacion',
         'cierre_turno_id',
+        'moneda_id',
+        'monto_moneda_original',
+        'tipo_cambio_tasa',
+        'movimiento_cuenta_empresa_id',
     ];
 
     protected $casts = [
@@ -81,6 +85,8 @@ class VentaPago extends Model
         'recargo_cuotas_porcentaje' => 'decimal:2',
         'recargo_cuotas_monto' => 'decimal:2',
         'monto_cuota' => 'decimal:2',
+        'monto_moneda_original' => 'decimal:2',
+        'tipo_cambio_tasa' => 'decimal:6',
         'monto_facturado' => 'decimal:2',
         'es_cuenta_corriente' => 'boolean',
         'afecta_caja' => 'boolean',
@@ -119,6 +125,16 @@ class VentaPago extends Model
     public function cierreTurno(): BelongsTo
     {
         return $this->belongsTo(CierreTurno::class, 'cierre_turno_id');
+    }
+
+    public function movimientoCuentaEmpresa(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\MovimientoCuentaEmpresa::class, 'movimiento_cuenta_empresa_id');
+    }
+
+    public function moneda(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Moneda::class, 'moneda_id');
     }
 
     /**

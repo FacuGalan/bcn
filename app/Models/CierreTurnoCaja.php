@@ -49,6 +49,7 @@ class CierreTurnoCaja extends Model
         'diferencia',
         'desglose_formas_pago',
         'desglose_conceptos',
+        'desglose_monedas',
         'observaciones',
     ];
 
@@ -62,6 +63,7 @@ class CierreTurnoCaja extends Model
         'diferencia' => 'decimal:2',
         'desglose_formas_pago' => 'array',
         'desglose_conceptos' => 'array',
+        'desglose_monedas' => 'array',
     ];
 
     // ==================== RELACIONES ====================

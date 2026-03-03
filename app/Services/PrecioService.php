@@ -104,6 +104,8 @@ class PrecioService
             return null;
         }
 
+        $precioBaseEfectivo = $articulo->obtenerPrecioBaseEfectivo($sucursalId);
+
         // Buscar lista aplicable
         $listaPrecio = $this->obtenerListaAplicable(
             $sucursalId,
@@ -113,20 +115,20 @@ class PrecioService
         );
 
         if ($listaPrecio) {
-            $resultado = $listaPrecio->obtenerPrecioArticulo($articulo);
+            $resultado = $listaPrecio->obtenerPrecioArticulo($articulo, $precioBaseEfectivo);
             $resultado['lista_precio'] = $listaPrecio;
             $resultado['lista_precio_id'] = $listaPrecio->id;
             $resultado['lista_precio_nombre'] = $listaPrecio->nombre;
             return $resultado;
         }
 
-        // Sin lista, usar precio base del artículo
+        // Sin lista, usar precio base efectivo
         return [
-            'precio' => (float) $articulo->precio_base,
-            'precio_sin_redondeo' => (float) $articulo->precio_base,
+            'precio' => $precioBaseEfectivo,
+            'precio_sin_redondeo' => $precioBaseEfectivo,
             'ajuste_porcentaje' => 0,
             'origen' => 'articulo_sin_lista',
-            'precio_base' => (float) $articulo->precio_base,
+            'precio_base' => $precioBaseEfectivo,
             'lista_precio' => null,
             'lista_precio_id' => null,
             'lista_precio_nombre' => null,
@@ -287,7 +289,7 @@ class PrecioService
             'cantidad' => $cantidad,
 
             // Precio base y lista
-            'precio_base_articulo' => (float) $articulo->precio_base,
+            'precio_base_articulo' => $precioInfo['precio_base'],
             'precio_unitario_lista' => round($precioUnitario, 2),
             'lista_precio_id' => $precioInfo['lista_precio_id'],
             'lista_precio_nombre' => $precioInfo['lista_precio_nombre'],

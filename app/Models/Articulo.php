@@ -314,6 +314,20 @@ class Articulo extends Model
     // ==================== Métodos del Sistema de Listas de Precios ====================
 
     /**
+     * Obtiene el precio base efectivo para una sucursal (override o genérico)
+     */
+    public function obtenerPrecioBaseEfectivo(int $sucursalId): float
+    {
+        $override = \Illuminate\Support\Facades\DB::connection('pymes_tenant')
+            ->table('articulos_sucursales')
+            ->where('articulo_id', $this->id)
+            ->where('sucursal_id', $sucursalId)
+            ->value('precio_base');
+
+        return $override !== null ? (float) $override : (float) $this->precio_base;
+    }
+
+    /**
      * Obtiene el precio del artículo según una lista de precios
      *
      * @param ListaPrecio $listaPrecio Lista de precios a aplicar
@@ -339,6 +353,8 @@ class Articulo extends Model
         ?int $listaPrecioIdManual = null,
         ?int $clienteId = null
     ): array {
+        $precioBaseEfectivo = $this->obtenerPrecioBaseEfectivo($sucursalId);
+
         // Buscar lista aplicable
         $listaPrecio = ListaPrecio::buscarListaAplicable(
             $sucursalId,
@@ -348,18 +364,18 @@ class Articulo extends Model
         );
 
         if ($listaPrecio) {
-            $resultado = $listaPrecio->obtenerPrecioArticulo($this);
+            $resultado = $listaPrecio->obtenerPrecioArticulo($this, $precioBaseEfectivo);
             $resultado['lista_precio'] = $listaPrecio;
             return $resultado;
         }
 
         // Si no hay lista, devolver precio base sin ajuste
         return [
-            'precio' => (float) $this->precio_base,
-            'precio_sin_redondeo' => (float) $this->precio_base,
+            'precio' => $precioBaseEfectivo,
+            'precio_sin_redondeo' => $precioBaseEfectivo,
             'ajuste_porcentaje' => 0,
             'origen' => 'articulo_sin_lista',
-            'precio_base' => (float) $this->precio_base,
+            'precio_base' => $precioBaseEfectivo,
             'lista_precio' => null,
         ];
     }

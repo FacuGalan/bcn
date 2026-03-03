@@ -22,6 +22,7 @@ class InventarioGeneral extends Component
 
     // Filtros
     public string $search = '';
+    public string $filtroTipo = ''; // '', 'articulo', 'materia_prima'
     public array $categoriasSeleccionadas = [];
     public array $etiquetasSeleccionadas = [];
     public string $busquedaCategoria = '';
@@ -67,6 +68,11 @@ class InventarioGeneral extends Component
         $this->resetPage();
     }
 
+    public function updatingFiltroTipo(): void
+    {
+        $this->resetPage();
+    }
+
     public function toggleFilters(): void
     {
         $this->showFilters = !$this->showFilters;
@@ -98,7 +104,7 @@ class InventarioGeneral extends Component
      */
     public function getConteoIngresadosProperty(): int
     {
-        return count($this->cantidadesFisicas);
+        return count(array_filter($this->cantidadesFisicas, fn($v) => $v !== '' && $v !== null));
     }
 
     /**
@@ -106,7 +112,9 @@ class InventarioGeneral extends Component
      */
     public function confirmarProcesar()
     {
-        if (empty($this->cantidadesFisicas)) {
+        $cantidades = array_filter($this->cantidadesFisicas, fn($v) => $v !== '' && $v !== null);
+
+        if (empty($cantidades)) {
             $this->dispatch('toast-error', message: __('No hay artículos con conteo ingresado'));
             return;
         }
@@ -127,7 +135,10 @@ class InventarioGeneral extends Component
      */
     public function procesarInventario()
     {
-        if (empty($this->cantidadesFisicas)) {
+        // Filtrar entradas vacías
+        $cantidades = array_filter($this->cantidadesFisicas, fn($v) => $v !== '' && $v !== null);
+
+        if (empty($cantidades)) {
             $this->dispatch('toast-error', message: __('No hay artículos con conteo ingresado'));
             return;
         }
@@ -144,7 +155,7 @@ class InventarioGeneral extends Component
         DB::connection('pymes_tenant')->beginTransaction();
 
         try {
-            foreach ($this->cantidadesFisicas as $articuloId => $cantidadFisica) {
+            foreach ($cantidades as $articuloId => $cantidadFisica) {
                 // Obtener o crear el stock para este artículo en la sucursal activa
                 $stock = Stock::firstOrCreate(
                     [
@@ -247,12 +258,26 @@ class InventarioGeneral extends Component
             });
         }
 
-        // Filtro de búsqueda
+        // Filtro por tipo (artículo / materia prima)
+        if ($this->filtroTipo === 'articulo') {
+            $query->where('es_materia_prima', false);
+        } elseif ($this->filtroTipo === 'materia_prima') {
+            $query->where('es_materia_prima', true);
+        }
+
+        // Filtro de búsqueda inteligente (multi-word con categoría)
         if ($this->search) {
-            $query->where(function ($q) {
-                $q->where('nombre', 'like', "%{$this->search}%")
-                  ->orWhere('codigo', 'like', "%{$this->search}%");
-            });
+            $palabras = preg_split('/\s+/', trim($this->search), -1, PREG_SPLIT_NO_EMPTY);
+            foreach ($palabras as $palabra) {
+                $query->where(function ($q) use ($palabra) {
+                    $q->where('nombre', 'like', '%' . $palabra . '%')
+                      ->orWhere('codigo', 'like', '%' . $palabra . '%')
+                      ->orWhere('codigo_barras', 'like', '%' . $palabra . '%')
+                      ->orWhereHas('categoriaModel', function ($subQ) use ($palabra) {
+                          $subQ->where('nombre', 'like', '%' . $palabra . '%');
+                      });
+                });
+            }
         }
 
         $articulos = $query->with(['categoriaModel'])

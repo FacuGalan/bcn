@@ -19,6 +19,7 @@ use App\Models\Receta;
 use App\Models\Sucursal;
 use App\Services\CobroService;
 use App\Services\CuentaCorrienteService;
+use App\Services\CuentaEmpresaService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
@@ -869,7 +870,39 @@ class VentaService
                 if ($pago->afecta_caja && $pago->movimiento_caja_id) {
                     $movimiento = MovimientoCaja::find($pago->movimiento_caja_id);
                     if ($movimiento && $venta->caja) {
-                        $venta->caja->disminuirSaldo($pago->monto_final);
+                        // Crear contra-movimiento (egreso) para anular el ingreso
+                        MovimientoCaja::create([
+                            'caja_id' => $venta->caja_id,
+                            'tipo' => MovimientoCaja::TIPO_EGRESO,
+                            'concepto' => "Anulación Venta #{$venta->numero}",
+                            'monto' => $movimiento->monto,
+                            'usuario_id' => $usuarioId,
+                            'referencia_tipo' => MovimientoCaja::REF_ANULACION_VENTA,
+                            'referencia_id' => $venta->id,
+                            'moneda_id' => $movimiento->moneda_id,
+                            'tipo_cambio_id' => $movimiento->tipo_cambio_id,
+                            'monto_moneda_original' => $movimiento->monto_moneda_original,
+                        ]);
+                        $venta->caja->disminuirSaldo($movimiento->monto);
+
+                        // Revertir egreso de vuelto por moneda extranjera si existe
+                        $movVuelto = MovimientoCaja::where('referencia_tipo', MovimientoCaja::REF_VUELTO_VENTA)
+                            ->where('referencia_id', $venta->id)
+                            ->where('caja_id', $venta->caja_id)
+                            ->first();
+                        if ($movVuelto) {
+                            // Crear contra-movimiento (ingreso) para anular el vuelto
+                            MovimientoCaja::create([
+                                'caja_id' => $venta->caja_id,
+                                'tipo' => MovimientoCaja::TIPO_INGRESO,
+                                'concepto' => "Anulación vuelto Venta #{$venta->numero}",
+                                'monto' => $movVuelto->monto,
+                                'usuario_id' => $usuarioId,
+                                'referencia_tipo' => MovimientoCaja::REF_ANULACION_VENTA,
+                                'referencia_id' => $venta->id,
+                            ]);
+                            $venta->caja->aumentarSaldo($movVuelto->monto);
+                        }
                     }
                 }
 
@@ -882,6 +915,19 @@ class VentaService
                     'comprobante_fiscal_id' => null,
                     'monto_facturado' => null,
                 ]);
+
+                // Revertir movimiento en cuenta empresa si existe
+                if ($pago->movimiento_cuenta_empresa_id) {
+                    try {
+                        CuentaEmpresaService::revertirMovimiento(
+                            $pago->movimiento_cuenta_empresa_id,
+                            $motivo ?? 'Cancelación de venta #' . $venta->numero,
+                            $usuarioId
+                        );
+                    } catch (\Exception $e) {
+                        Log::warning('Error al revertir movimiento cuenta empresa', ['error' => $e->getMessage()]);
+                    }
+                }
             }
 
             // 3. Revertir saldo del cliente si era cuenta corriente
@@ -1066,7 +1112,20 @@ class VentaService
                 if ($pago->afecta_caja && $pago->movimiento_caja_id) {
                     $movimiento = MovimientoCaja::find($pago->movimiento_caja_id);
                     if ($movimiento && $venta->caja) {
-                        $venta->caja->disminuirSaldo($pago->monto_final);
+                        // Crear contra-movimiento (egreso) para anular el ingreso
+                        MovimientoCaja::create([
+                            'caja_id' => $venta->caja_id,
+                            'tipo' => MovimientoCaja::TIPO_EGRESO,
+                            'concepto' => "Anulación pago Venta #{$venta->numero} (pase a Cta. Cte.)",
+                            'monto' => $movimiento->monto,
+                            'usuario_id' => $usuarioId,
+                            'referencia_tipo' => MovimientoCaja::REF_ANULACION_VENTA,
+                            'referencia_id' => $venta->id,
+                            'moneda_id' => $movimiento->moneda_id,
+                            'tipo_cambio_id' => $movimiento->tipo_cambio_id,
+                            'monto_moneda_original' => $movimiento->monto_moneda_original,
+                        ]);
+                        $venta->caja->disminuirSaldo($movimiento->monto);
                     }
                 }
 
@@ -1077,6 +1136,19 @@ class VentaService
                     'anulado_at' => $ahora,
                     'motivo_anulacion' => $motivo ?? 'Conversión a cuenta corriente',
                 ]);
+
+                // Revertir movimiento en cuenta empresa si existe
+                if ($pago->movimiento_cuenta_empresa_id) {
+                    try {
+                        CuentaEmpresaService::revertirMovimiento(
+                            $pago->movimiento_cuenta_empresa_id,
+                            $motivo ?? 'Conversión a cuenta corriente',
+                            $usuarioId
+                        );
+                    } catch (\Exception $e) {
+                        Log::warning('Error al revertir movimiento cuenta empresa', ['error' => $e->getMessage()]);
+                    }
+                }
             }
 
             // 2. Buscar la forma de pago de tipo cuenta corriente (crédito cliente)

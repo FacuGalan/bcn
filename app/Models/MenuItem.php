@@ -307,6 +307,9 @@ class MenuItem extends Model
             'configuracion.formas-pago' => [
                 'configuracion.formas-pago-sucursal',
             ],
+            'stock.produccion' => [
+                'stock.produccion-lote',
+            ],
         ];
 
         // Si esta ruta tiene rutas relacionadas, verificar si estamos en alguna de ellas

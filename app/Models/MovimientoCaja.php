@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 use App\Models\User;
 use App\Models\Venta;
 use App\Models\Caja;
+use App\Models\Moneda;
+use App\Models\TipoCambio;
 
 /**
  * Modelo MovimientoCaja
@@ -50,10 +52,14 @@ class MovimientoCaja extends Model
         'referencia_tipo',
         'referencia_id',
         'cierre_turno_id',
+        'moneda_id',
+        'tipo_cambio_id',
+        'monto_moneda_original',
     ];
 
     protected $casts = [
         'monto' => 'decimal:2',
+        'monto_moneda_original' => 'decimal:2',
     ];
 
     // ==================== Constantes ====================
@@ -71,6 +77,10 @@ class MovimientoCaja extends Model
     public const REF_TRANSFERENCIA = 'transferencia';
     public const REF_INGRESO_MANUAL = 'ingreso_manual';
     public const REF_EGRESO_MANUAL = 'egreso_manual';
+    public const REF_VUELTO_VENTA = 'vuelto_venta';
+    public const REF_VUELTO_COBRO = 'vuelto_cobro';
+    public const REF_ANULACION_VENTA = 'anulacion_venta';
+    public const REF_ANULACION_COBRO = 'anulacion_cobro';
 
     // ==================== Relaciones ====================
 
@@ -87,6 +97,16 @@ class MovimientoCaja extends Model
     public function cierreTurno(): BelongsTo
     {
         return $this->belongsTo(CierreTurno::class, 'cierre_turno_id');
+    }
+
+    public function moneda(): BelongsTo
+    {
+        return $this->belongsTo(Moneda::class, 'moneda_id');
+    }
+
+    public function tipoCambio(): BelongsTo
+    {
+        return $this->belongsTo(TipoCambio::class, 'tipo_cambio_id');
     }
 
     /**

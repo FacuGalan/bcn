@@ -89,14 +89,6 @@ class Opcional extends Model
      */
     public function resolverReceta(int $sucursalId): ?Receta
     {
-        return Receta::where('recetable_type', 'Opcional')
-            ->where('recetable_id', $this->id)
-            ->where('activo', true)
-            ->where(function ($q) use ($sucursalId) {
-                $q->where('sucursal_id', $sucursalId)
-                  ->orWhereNull('sucursal_id');
-            })
-            ->orderByRaw('sucursal_id IS NULL ASC')
-            ->first();
+        return Receta::resolver('Opcional', $this->id, $sucursalId);
     }
 }

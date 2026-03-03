@@ -7,6 +7,7 @@ use App\Models\ArticuloGrupoOpcional;
 use App\Models\Categoria;
 use App\Models\GrupoEtiqueta;
 use App\Models\GrupoOpcional;
+use App\Models\HistorialPrecio;
 use App\Models\Receta;
 use App\Models\RecetaIngrediente;
 use App\Models\Sucursal;
@@ -74,6 +75,10 @@ class GestionarArticulos extends Component
     public string $recetaNotas = '';
     public bool $recetaEsOverride = false;
     public ?string $recetaSucursalNombre = null;
+
+    // Modal de historial de precios
+    public bool $showHistorialModal = false;
+    public ?int $historialArticuloId = null;
 
     // Submodal confirmar eliminar receta
     public bool $showDeleteRecetaModal = false;
@@ -285,12 +290,29 @@ class GestionarArticulos extends Component
         if ($this->editMode) {
             // Actualizar artículo existente
             $articulo = Articulo::findOrFail($this->articuloId);
+            $precioAnterior = (float) $articulo->precio_base;
             $articulo->update($datos);
+
+            if ((float) $this->precio_base !== $precioAnterior) {
+                HistorialPrecio::registrar([
+                    'articulo_id' => $articulo->id,
+                    'precio_anterior' => $precioAnterior,
+                    'precio_nuevo' => $this->precio_base,
+                    'origen' => 'articulo_editar',
+                ]);
+            }
 
             $message = __('Artículo actualizado correctamente');
         } else {
             // Crear nuevo artículo
             $articulo = Articulo::create($datos);
+
+            HistorialPrecio::registrar([
+                'articulo_id' => $articulo->id,
+                'precio_anterior' => 0,
+                'precio_nuevo' => $this->precio_base,
+                'origen' => 'articulo_crear',
+            ]);
 
             $message = __('Artículo creado correctamente');
         }
@@ -793,6 +815,54 @@ class GestionarArticulos extends Component
         $this->recetaNotas = '';
         $this->recetaEsOverride = false;
         $this->recetaSucursalNombre = null;
+    }
+
+    // ===== Historial de Precios Modal =====
+
+    public function verHistorial(int $articuloId): void
+    {
+        $this->historialArticuloId = $articuloId;
+        $this->showHistorialModal = true;
+    }
+
+    public function cerrarHistorial(): void
+    {
+        $this->showHistorialModal = false;
+        $this->historialArticuloId = null;
+    }
+
+    public function getHistorial(): array
+    {
+        if (!$this->historialArticuloId) return [];
+
+        $registros = HistorialPrecio::where('articulo_id', $this->historialArticuloId)
+            ->with('sucursal')
+            ->latest()
+            ->take(50)
+            ->get();
+
+        // Obtener nombres de usuario desde config (cross-connection)
+        $userIds = $registros->pluck('usuario_id')->filter()->unique()->values()->toArray();
+        $usuarios = [];
+        if (!empty($userIds)) {
+            $usuarios = DB::connection('config')->table('users')
+                ->whereIn('id', $userIds)
+                ->pluck('name', 'id')
+                ->toArray();
+        }
+
+        return $registros->map(function ($r) use ($usuarios) {
+            return [
+                'fecha' => $r->created_at->format('d/m/Y H:i'),
+                'usuario' => $usuarios[$r->usuario_id] ?? '-',
+                'precio_anterior' => $r->precio_anterior,
+                'precio_nuevo' => $r->precio_nuevo,
+                'origen' => $r->origen,
+                'sucursal' => $r->sucursal?->nombre,
+                'detalle' => $r->detalle,
+                'porcentaje_cambio' => $r->porcentaje_cambio,
+            ];
+        })->toArray();
     }
 
     /**

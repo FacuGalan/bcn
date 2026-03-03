@@ -7,6 +7,7 @@ use Livewire\Attributes\On;
 use App\Traits\CajaAware;
 use App\Traits\AperturaTurnoTrait;
 use App\Services\CajaService;
+use App\Services\CuentaEmpresaService;
 use App\Services\VentaService;
 use App\Services\OpcionalService;
 use App\Models\Cliente;
@@ -30,8 +31,11 @@ use App\Models\PuntoVenta;
 use App\Models\TipoIva;
 use App\Models\CondicionIva;
 use App\Models\MovimientoCaja;
+use App\Models\CuentaEmpresa;
 use App\Models\Stock;
 use App\Models\Receta;
+use App\Models\Moneda;
+use App\Models\TipoCambio;
 use App\Services\ARCA\ComprobanteFiscalService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -219,6 +223,25 @@ class NuevaVenta extends Component
         'monto' => null,
         'cuotas' => 1,
         'monto_recibido' => 0,
+        'tipo_cambio_tasa' => null,
+        'monto_moneda_extranjera' => null,
+    ];
+
+    /** @var bool Modal simple de pago en moneda extranjera */
+    public $mostrarModalMonedaExtranjera = false;
+
+    /** @var array Datos del pago en moneda extranjera (modal simple) */
+    public $pagoMonedaExtranjera = [
+        'forma_pago_id' => null,
+        'nombre' => '',
+        'moneda_codigo' => '',
+        'moneda_simbolo' => '',
+        'moneda_id' => null,
+        'cotizacion' => 0,
+        'monto_extranjera' => null,
+        'total_venta' => 0,
+        'equivalente_principal' => 0,
+        'vuelto' => 0,
     ];
 
     /** @var array Formas de pago disponibles para la sucursal actual (con ajustes) */
@@ -634,13 +657,13 @@ class NuevaVenta extends Component
      */
     protected function obtenerPrecioConLista(Articulo $articulo): array
     {
-        $precioBaseArticulo = (float) $articulo->precio_base;
+        $precioBaseArticulo = $articulo->obtenerPrecioBaseEfectivo($this->sucursalId);
 
         // Obtener precio de la lista base
         $listaBase = ListaPrecio::obtenerListaBase($this->sucursalId);
         $precioListaBase = $precioBaseArticulo;
         if ($listaBase) {
-            $precioInfoBase = $listaBase->obtenerPrecioArticulo($articulo);
+            $precioInfoBase = $listaBase->obtenerPrecioArticulo($articulo, $precioBaseArticulo);
             $precioListaBase = $precioInfoBase['precio'];
         }
 
@@ -687,7 +710,7 @@ class NuevaVenta extends Component
         }
 
         // Lista diferente a la base y cumple condiciones
-        $precioInfo = $listaPrecio->obtenerPrecioArticulo($articulo);
+        $precioInfo = $listaPrecio->obtenerPrecioArticulo($articulo, $precioBaseArticulo);
         return [
             'precio' => $precioInfo['precio'],
             'precio_base' => $precioBaseArticulo,
@@ -3640,6 +3663,24 @@ class NuevaVenta extends Component
                 }
             }
 
+            // Datos de moneda para multi-moneda
+            $monedaPrincipal = Moneda::obtenerPrincipal();
+            $monedaId = $fp->moneda_id ?? $monedaPrincipal?->id;
+            $esMonedaExtranjera = $monedaId && $monedaPrincipal && $monedaId != $monedaPrincipal->id;
+            $monedaInfo = null;
+            $ultimaTasa = null;
+
+            if ($esMonedaExtranjera) {
+                $monedaObj = Moneda::find($monedaId);
+                $monedaInfo = $monedaObj ? [
+                    'id' => $monedaObj->id,
+                    'codigo' => $monedaObj->codigo,
+                    'simbolo' => $monedaObj->simbolo,
+                    'nombre' => $monedaObj->nombre,
+                ] : null;
+                $ultimaTasa = TipoCambio::obtenerTasaVenta($monedaId, $monedaPrincipal->id);
+            }
+
             return [
                 'id' => $fp->id,
                 'nombre' => $fp->nombre,
@@ -3660,6 +3701,10 @@ class NuevaVenta extends Component
                         'nombre' => $c->nombre,
                     ])->toArray()
                     : [],
+                'moneda_id' => $monedaId,
+                'es_moneda_extranjera' => $esMonedaExtranjera,
+                'moneda_info' => $monedaInfo,
+                'ultima_tasa' => $ultimaTasa,
             ];
         })->filter()->values()->toArray();
     }
@@ -4098,6 +4143,30 @@ class NuevaVenta extends Component
             return;
         }
 
+        // Si es moneda extranjera, abrir modal simple dedicado
+        if ($fp['es_moneda_extranjera'] ?? false) {
+            $totalVenta = $this->resultado['total_final'] ?? 0;
+            $ajuste = $this->ajusteFormaPagoInfo['porcentaje'];
+            $montoAjuste = round($totalVenta * ($ajuste / 100), 2);
+            $totalConAjuste = round($totalVenta + $montoAjuste, 2);
+
+            $this->pagoMonedaExtranjera = [
+                'forma_pago_id' => $fp['id'],
+                'nombre' => $fp['nombre'],
+                'moneda_codigo' => $fp['moneda_info']['codigo'] ?? '',
+                'moneda_simbolo' => $fp['moneda_info']['simbolo'] ?? '',
+                'moneda_id' => $fp['moneda_id'],
+                'cotizacion' => $fp['ultima_tasa'] ?? 0,
+                'monto_extranjera' => null,
+                'total_venta' => $totalConAjuste,
+                'ajuste_porcentaje' => $ajuste,
+                'equivalente_principal' => 0,
+                'vuelto' => 0,
+            ];
+            $this->mostrarModalMonedaExtranjera = true;
+            return;
+        }
+
         $totalBase = $this->resultado['total_final'] ?? 0;
         $ajuste = $this->ajusteFormaPagoInfo['porcentaje'];
         $montoAjuste = $this->ajusteFormaPagoInfo['monto'];
@@ -4178,6 +4247,8 @@ class NuevaVenta extends Component
             'monto' => null,
             'cuotas' => 1,
             'monto_recibido' => 0,
+            'tipo_cambio_tasa' => null,
+            'monto_moneda_extranjera' => null,
         ];
         $this->cuotasDisponibles = [];
         $this->cuotasDesgloseConMontos = [];
@@ -4193,6 +4264,8 @@ class NuevaVenta extends Component
             $this->cuotasDisponibles = [];
             $this->cuotasDesgloseConMontos = [];
             $this->cuotasDesgloseSelectorAbierto = false;
+            $this->nuevoPago['tipo_cambio_tasa'] = null;
+            $this->nuevoPago['monto_moneda_extranjera'] = null;
             return;
         }
 
@@ -4200,6 +4273,16 @@ class NuevaVenta extends Component
         $this->cuotasDisponibles = $fp ? $fp['cuotas'] : [];
         $this->nuevoPago['cuotas'] = 1;
         $this->cuotasDesgloseSelectorAbierto = false;
+
+        // Pre-cargar tipo de cambio si es moneda extranjera
+        if ($fp && ($fp['es_moneda_extranjera'] ?? false)) {
+            $this->nuevoPago['tipo_cambio_tasa'] = $fp['ultima_tasa'];
+            $this->nuevoPago['monto_moneda_extranjera'] = null;
+        } else {
+            $this->nuevoPago['tipo_cambio_tasa'] = null;
+            $this->nuevoPago['monto_moneda_extranjera'] = null;
+        }
+
         $this->calcularCuotasDesglose();
     }
 
@@ -4291,21 +4374,40 @@ class NuevaVenta extends Component
             return;
         }
 
-        if ($monto > $this->montoPendienteDesglose + 0.01) {
-            $this->dispatch('toast-error', message: 'El monto excede el pendiente');
-            return;
-        }
-
         $fp = collect($this->formasPagoSucursal)->firstWhere('id', (int) $this->nuevoPago['forma_pago_id']);
         if (!$fp) {
             $this->dispatch('toast-error', message: 'Forma de pago no válida');
             return;
         }
 
+        $permiteVuelto = $fp['permite_vuelto'] ?? false;
+
+        // Multi-moneda: si es moneda extranjera, convertir monto a moneda principal
+        $esMonedaExtranjera = $fp['es_moneda_extranjera'] ?? false;
+        $tipoCambioTasa = null;
+        $montoMonedaOriginal = null;
+        $monedaId = $fp['moneda_id'] ?? null;
+
+        if ($esMonedaExtranjera) {
+            $tipoCambioTasa = (float) ($this->nuevoPago['tipo_cambio_tasa'] ?? 0);
+            if ($tipoCambioTasa <= 0) {
+                $this->dispatch('toast-error', message: __('Ingrese la cotización para esta moneda'));
+                return;
+            }
+            // El monto ingresado es en moneda extranjera, convertimos a principal
+            $montoMonedaOriginal = $monto;
+            $monto = round($monto * $tipoCambioTasa, 2);
+        }
+
+        // Validar que no exceda el pendiente (salvo que permita vuelto)
+        if ($monto > $this->montoPendienteDesglose + 0.01 && !$permiteVuelto) {
+            $this->dispatch('toast-error', message: __('El monto excede el pendiente'));
+            return;
+        }
+
         // Validar que solo haya un pago en Cuenta Corriente
         $esCuentaCorriente = isset($fp['codigo']) && strtoupper($fp['codigo']) === 'CTA_CTE';
         if ($esCuentaCorriente) {
-            // Verificar si ya existe un pago en CC
             $yaExisteCC = collect($this->desglosePagos)->contains(function ($pago) {
                 $fpExistente = collect($this->formasPagoSucursal)->firstWhere('id', $pago['forma_pago_id']);
                 return $fpExistente && isset($fpExistente['codigo']) && strtoupper($fpExistente['codigo']) === 'CTA_CTE';
@@ -4317,10 +4419,25 @@ class NuevaVenta extends Component
             }
         }
 
-        // Calcular ajuste
+        // Si el monto excede el pendiente y permite vuelto, calcular vuelto
+        $montoRecibido = null;
+        $vuelto = 0;
+        $montoParaBase = $monto;
+
+        if ($permiteVuelto && $monto > $this->montoPendienteDesglose + 0.01) {
+            // El cliente paga de más: base = pendiente, recibido = lo que paga, vuelto = diferencia
+            $montoRecibido = $monto;
+            $montoParaBase = $this->montoPendienteDesglose;
+            // Si es moneda extranjera, ajustar monto_moneda_original proporcionalmente
+            if ($esMonedaExtranjera && $tipoCambioTasa > 0) {
+                $montoMonedaOriginal = $montoMonedaOriginal; // mantener lo que entregó en USD
+            }
+        }
+
+        // Calcular ajuste (sobre monto base en moneda principal)
         $ajuste = $fp['ajuste_porcentaje'];
-        $montoAjuste = round($monto * ($ajuste / 100), 2);
-        $montoConAjuste = round($monto + $montoAjuste, 2);
+        $montoAjuste = round($montoParaBase * ($ajuste / 100), 2);
+        $montoConAjuste = round($montoParaBase + $montoAjuste, 2);
 
         // Calcular cuotas si aplica
         $cuotas = (int) ($this->nuevoPago['cuotas'] ?? 1);
@@ -4336,27 +4453,41 @@ class NuevaVenta extends Component
             }
         }
 
+        // Calcular vuelto si pagó de más
+        if ($montoRecibido !== null) {
+            $vuelto = round($montoRecibido - $montoFinal, 2);
+            if ($vuelto < 0) $vuelto = 0;
+        } elseif ($permiteVuelto) {
+            $montoRecibido = $montoFinal;
+        }
+
         $this->desglosePagos[] = [
             'forma_pago_id' => $fp['id'],
             'nombre' => $fp['nombre'],
             'codigo' => $fp['codigo'] ?? null,
             'concepto_pago_id' => $fp['concepto_pago_id'],
-            'monto_base' => $monto,
+            'monto_base' => $montoParaBase,
             'ajuste_porcentaje' => $ajuste,
             'monto_ajuste' => $montoAjuste,
             'monto_final' => $montoFinal,
             'cuotas' => $cuotas,
             'recargo_cuotas' => $recargoCuotas,
-            'monto_recibido' => $fp['permite_vuelto'] ? $montoFinal : null,
-            'vuelto' => 0,
+            'monto_recibido' => $montoRecibido,
+            'vuelto' => $vuelto,
             'permite_vuelto' => $fp['permite_vuelto'],
             'permite_cuotas' => $fp['permite_cuotas'],
             'cuotas_disponibles' => $fp['cuotas'],
-            'factura_fiscal' => $fp['factura_fiscal'] ?? false, // Por defecto según config de FP
+            'factura_fiscal' => $fp['factura_fiscal'] ?? false,
             'es_cuenta_corriente' => $esCuentaCorriente,
+            'moneda_id' => $monedaId,
+            'es_moneda_extranjera' => $esMonedaExtranjera,
+            'moneda_info' => $fp['moneda_info'] ?? null,
+            'tipo_cambio_tasa' => $tipoCambioTasa,
+            'monto_moneda_original' => $montoMonedaOriginal,
         ];
 
-        $this->montoPendienteDesglose = round($this->montoPendienteDesglose - $monto, 2);
+        $this->montoPendienteDesglose = round($this->montoPendienteDesglose - $montoParaBase, 2);
+        if ($this->montoPendienteDesglose < 0) $this->montoPendienteDesglose = 0;
 
         // Recalcular el monto fiscal
         $this->calcularMontoFacturaFiscal();
@@ -4575,6 +4706,116 @@ class NuevaVenta extends Component
             $this->limpiarDesgloseIvaMixto();
         }
         $this->resetNuevoPago();
+    }
+
+    // =========================================
+    // MODAL SIMPLE DE MONEDA EXTRANJERA
+    // =========================================
+
+    /**
+     * Actualiza el cálculo en vivo del modal de moneda extranjera
+     */
+    public function updatedPagoMonedaExtranjeraMontoExtranjera($value): void
+    {
+        $this->calcularEquivalenteMonedaExtranjera();
+    }
+
+    public function updatedPagoMonedaExtranjeraCotizacion($value): void
+    {
+        $this->calcularEquivalenteMonedaExtranjera();
+    }
+
+    protected function calcularEquivalenteMonedaExtranjera(): void
+    {
+        $monto = (float) ($this->pagoMonedaExtranjera['monto_extranjera'] ?? 0);
+        $cotizacion = (float) ($this->pagoMonedaExtranjera['cotizacion'] ?? 0);
+        $totalVenta = (float) ($this->pagoMonedaExtranjera['total_venta'] ?? 0);
+
+        if ($monto > 0 && $cotizacion > 0) {
+            $equivalente = round($monto * $cotizacion, 2);
+            $this->pagoMonedaExtranjera['equivalente_principal'] = $equivalente;
+            $this->pagoMonedaExtranjera['vuelto'] = max(0, round($equivalente - $totalVenta, 2));
+        } else {
+            $this->pagoMonedaExtranjera['equivalente_principal'] = 0;
+            $this->pagoMonedaExtranjera['vuelto'] = 0;
+        }
+    }
+
+    /**
+     * Confirma el pago en moneda extranjera y crea el desglose
+     */
+    public function confirmarPagoMonedaExtranjera(): void
+    {
+        $monto = (float) ($this->pagoMonedaExtranjera['monto_extranjera'] ?? 0);
+        $cotizacion = (float) ($this->pagoMonedaExtranjera['cotizacion'] ?? 0);
+        $totalVenta = (float) ($this->pagoMonedaExtranjera['total_venta'] ?? 0);
+        $ajuste = (float) ($this->pagoMonedaExtranjera['ajuste_porcentaje'] ?? 0);
+
+        if ($monto <= 0) {
+            $this->dispatch('toast-error', message: __('Ingrese el monto en moneda extranjera'));
+            return;
+        }
+        if ($cotizacion <= 0) {
+            $this->dispatch('toast-error', message: __('Ingrese la cotización'));
+            return;
+        }
+
+        $equivalente = round($monto * $cotizacion, 2);
+        if ($equivalente < $totalVenta - 0.01) {
+            $this->dispatch('toast-error', message: __('El monto es insuficiente para cubrir la venta'));
+            return;
+        }
+
+        $vuelto = max(0, round($equivalente - $totalVenta, 2));
+        $fp = collect($this->formasPagoSucursal)->firstWhere('id', (int) $this->pagoMonedaExtranjera['forma_pago_id']);
+
+        if (!$fp) {
+            $this->dispatch('toast-error', message: __('Forma de pago no válida'));
+            return;
+        }
+
+        // Calcular base sin ajuste para registro correcto
+        $totalBase = $this->resultado['total_final'] ?? 0;
+        $montoAjuste = round($totalBase * ($ajuste / 100), 2);
+
+        $this->desglosePagos = [[
+            'forma_pago_id' => $fp['id'],
+            'nombre' => $fp['nombre'],
+            'codigo' => $fp['codigo'] ?? null,
+            'concepto_pago_id' => $fp['concepto_pago_id'] ?? null,
+            'monto_base' => $totalBase,
+            'ajuste_porcentaje' => $ajuste,
+            'monto_ajuste' => $montoAjuste,
+            'monto_final' => $totalVenta,
+            'cuotas' => 1,
+            'recargo_cuotas' => 0,
+            'monto_recibido' => $equivalente,
+            'vuelto' => $vuelto,
+            'factura_fiscal' => $this->sucursalFacturaAutomatica
+                ? ($fp['factura_fiscal'] ?? false)
+                : $this->emitirFacturaFiscal,
+            'es_cuenta_corriente' => false,
+            'moneda_id' => $this->pagoMonedaExtranjera['moneda_id'],
+            'es_moneda_extranjera' => true,
+            'moneda_info' => $fp['moneda_info'] ?? null,
+            'tipo_cambio_tasa' => $cotizacion,
+            'monto_moneda_original' => $monto,
+        ]];
+
+        $this->totalConAjustes = $totalVenta;
+        $this->montoPendienteDesglose = 0;
+        $this->mostrarModalMonedaExtranjera = false;
+
+        $this->calcularMontoFacturaFiscal();
+        $this->verificarPuntoVentaYProcesar();
+    }
+
+    /**
+     * Cierra el modal de moneda extranjera sin confirmar
+     */
+    public function cerrarModalMonedaExtranjera(): void
+    {
+        $this->mostrarModalMonedaExtranjera = false;
     }
 
     /**
@@ -4872,11 +5113,56 @@ class NuevaVenta extends Component
                     $movimientoCajaId = null;
                     if ($afectaCaja) {
                         $caja = Caja::find($cajaId);
-                        $movimiento = MovimientoCaja::crearIngresoVenta($caja, $venta, $pago['monto_final'], Auth::id());
+                        $vuelto = (float) ($pago['vuelto'] ?? 0);
+                        $esMonedaExtranjera = !empty($pago['es_moneda_extranjera']) && !empty($pago['tipo_cambio_tasa']);
+
+                        if ($esMonedaExtranjera && $vuelto > 0) {
+                            // Moneda extranjera con vuelto: ingreso por el TOTAL recibido + egreso por vuelto
+                            $montoRecibido = (float) ($pago['monto_recibido'] ?? $pago['monto_final']);
+                            $movimiento = MovimientoCaja::crearIngresoVenta($caja, $venta, $montoRecibido, Auth::id());
+
+                            $tcRecord = TipoCambio::ultimaTasa($pago['moneda_id'], Moneda::obtenerPrincipal()?->id);
+                            $movimiento->update([
+                                'moneda_id' => $pago['moneda_id'],
+                                'monto_moneda_original' => $pago['monto_moneda_original'],
+                                'tipo_cambio_id' => $tcRecord?->id,
+                            ]);
+
+                            // Egreso por el vuelto entregado
+                            MovimientoCaja::create([
+                                'caja_id' => $caja->id,
+                                'tipo' => MovimientoCaja::TIPO_EGRESO,
+                                'concepto' => "Vuelto Venta #{$venta->numero}",
+                                'monto' => $vuelto,
+                                'usuario_id' => Auth::id(),
+                                'referencia_tipo' => MovimientoCaja::REF_VUELTO_VENTA,
+                                'referencia_id' => $venta->id,
+                            ]);
+                        } else {
+                            // Caso normal: sin vuelto o misma moneda
+                            $movimiento = MovimientoCaja::crearIngresoVenta($caja, $venta, $pago['monto_final'], Auth::id());
+
+                            if ($esMonedaExtranjera) {
+                                $tcRecord = TipoCambio::ultimaTasa($pago['moneda_id'], Moneda::obtenerPrincipal()?->id);
+                                $movimiento->update([
+                                    'moneda_id' => $pago['moneda_id'],
+                                    'monto_moneda_original' => $pago['monto_moneda_original'],
+                                    'tipo_cambio_id' => $tcRecord?->id,
+                                ]);
+                            }
+                        }
+
                         $movimientoCajaId = $movimiento->id;
 
-                        // Actualizar saldo de caja
+                        // Actualizar saldo de caja (siempre neto en moneda principal)
                         $caja->aumentarSaldo($pago['monto_final']);
+                    }
+
+                    // Obtener moneda de la forma de pago
+                    $fpMonedaId = null;
+                    $fpObj = FormaPago::find($pago['forma_pago_id']);
+                    if ($fpObj) {
+                        $fpMonedaId = $fpObj->moneda_id;
                     }
 
                     $ventaPago = VentaPago::create([
@@ -4897,12 +5183,33 @@ class NuevaVenta extends Component
                         'monto_cuota' => $pago['cuotas'] > 1
                             ? round($pago['monto_final'] / $pago['cuotas'], 2)
                             : null,
-                        // Nuevos campos
                         'es_cuenta_corriente' => $esCuentaCorriente,
                         'afecta_caja' => $afectaCaja,
                         'estado' => 'activo',
                         'movimiento_caja_id' => $movimientoCajaId,
+                        'moneda_id' => $pago['moneda_id'] ?? $fpMonedaId ?? Moneda::obtenerPrincipal()?->id,
+                        'monto_moneda_original' => $pago['monto_moneda_original'] ?? null,
+                        'tipo_cambio_tasa' => $pago['tipo_cambio_tasa'] ?? null,
                     ]);
+
+                    // Si la forma de pago tiene cuenta empresa vinculada, registrar movimiento
+                    if (!$esCuentaCorriente) {
+                        $fpVinculada = FormaPago::find($pago['forma_pago_id']);
+                        if ($fpVinculada && $fpVinculada->cuenta_empresa_id) {
+                            try {
+                                $movCuenta = CuentaEmpresaService::registrarMovimientoAutomatico(
+                                    CuentaEmpresa::find($fpVinculada->cuenta_empresa_id),
+                                    'ingreso', $pago['monto_final'], 'venta',
+                                    'VentaPago', $ventaPago->id,
+                                    "Venta #{$venta->numero} - {$fpVinculada->nombre}",
+                                    Auth::id(), sucursal_activa()
+                                );
+                                $ventaPago->update(['movimiento_cuenta_empresa_id' => $movCuenta->id]);
+                            } catch (\Exception $e) {
+                                Log::warning('Error al registrar movimiento en cuenta empresa', ['error' => $e->getMessage()]);
+                            }
+                        }
+                    }
 
                     // Guardar ID y si requiere factura fiscal para usarlo después
                     $pagosCreados[$index] = [
@@ -5142,7 +5449,7 @@ class NuevaVenta extends Component
                     $caja->aumentarSaldo($totalVenta);
                 }
 
-                VentaPago::create([
+                $ventaPagoSimple = VentaPago::create([
                     'venta_id' => $venta->id,
                     'forma_pago_id' => $this->formaPagoId,
                     'concepto_pago_id' => $formaPago?->concepto_pago_id,
@@ -5156,7 +5463,24 @@ class NuevaVenta extends Component
                     'afecta_caja' => $afectaCaja,
                     'estado' => 'activo',
                     'movimiento_caja_id' => $movimientoCajaId,
+                    'moneda_id' => $formaPago?->moneda_id ?? Moneda::obtenerPrincipal()?->id,
                 ]);
+
+                // Si la forma de pago tiene cuenta empresa vinculada, registrar movimiento
+                if (!$esCuentaCorriente && $formaPago && $formaPago->cuenta_empresa_id) {
+                    try {
+                        $movCuenta = CuentaEmpresaService::registrarMovimientoAutomatico(
+                            CuentaEmpresa::find($formaPago->cuenta_empresa_id),
+                            'ingreso', $totalVenta, 'venta',
+                            'VentaPago', $ventaPagoSimple->id,
+                            "Venta #{$venta->numero} - {$formaPago->nombre}",
+                            Auth::id(), sucursal_activa()
+                        );
+                        $ventaPagoSimple->update(['movimiento_cuenta_empresa_id' => $movCuenta->id]);
+                    } catch (\Exception $e) {
+                        Log::warning('Error al registrar movimiento en cuenta empresa', ['error' => $e->getMessage()]);
+                    }
+                }
 
                 // Generar comprobante fiscal si corresponde
                 $comprobanteFiscal = null;

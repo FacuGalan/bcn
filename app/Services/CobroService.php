@@ -12,7 +12,12 @@ use App\Models\MovimientoCaja;
 use App\Models\MovimientoCuentaCorriente;
 use App\Models\Caja;
 use App\Models\FormaPago;
+use App\Models\CuentaEmpresa;
+use App\Models\Moneda;
+use App\Models\TipoCambio;
 use App\Services\CuentaCorrienteService;
+use App\Services\CuentaEmpresaService;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -168,6 +173,8 @@ class CobroService
             foreach ($pagos as $pago) {
                 $afectaCaja = ($pago['afecta_caja'] ?? false) && $caja;
 
+                $fpMoneda = FormaPago::find($pago['forma_pago_id']);
+
                 $cobroPago = CobroPago::create([
                     'cobro_id' => $cobro->id,
                     'forma_pago_id' => $pago['forma_pago_id'],
@@ -186,17 +193,77 @@ class CobroService
                     'observaciones' => $pago['observaciones'] ?? null,
                     'afecta_caja' => $afectaCaja,
                     'estado' => 'activo',
+                    'moneda_id' => $pago['moneda_id'] ?? $fpMoneda?->moneda_id ?? Moneda::obtenerPrincipal()?->id,
+                    'monto_moneda_original' => $pago['monto_moneda_original'] ?? null,
+                    'tipo_cambio_tasa' => $pago['tipo_cambio_tasa'] ?? null,
                 ]);
 
                 // Si afecta caja, crear movimiento de caja
                 if ($afectaCaja) {
-                    $movimiento = MovimientoCaja::crearIngresoCobro(
-                        $caja,
-                        $cobro,
-                        $pago['monto_final'] ?? $pago['monto_base'],
-                        $usuarioId
-                    );
+                    $vuelto = (float) ($pago['vuelto'] ?? 0);
+                    $esMonedaExtranjera = !empty($pago['es_moneda_extranjera']) && !empty($pago['tipo_cambio_tasa']);
+                    $montoFinal = $pago['monto_final'] ?? $pago['monto_base'];
+
+                    if ($esMonedaExtranjera && $vuelto > 0) {
+                        // Moneda extranjera con vuelto: ingreso por el TOTAL recibido + egreso por vuelto
+                        $montoRecibido = (float) ($pago['monto_recibido'] ?? $montoFinal);
+                        $movimiento = MovimientoCaja::crearIngresoCobro($caja, $cobro, $montoRecibido, $usuarioId);
+
+                        $monedaPrincipalId = Moneda::obtenerPrincipal()?->id;
+                        $tcRecord = $pago['moneda_id'] && $monedaPrincipalId
+                            ? TipoCambio::ultimaTasa($pago['moneda_id'], $monedaPrincipalId)
+                            : null;
+                        $movimiento->update([
+                            'moneda_id' => $pago['moneda_id'],
+                            'monto_moneda_original' => $pago['monto_moneda_original'],
+                            'tipo_cambio_id' => $tcRecord?->id,
+                        ]);
+
+                        // Egreso por el vuelto entregado
+                        MovimientoCaja::create([
+                            'caja_id' => $caja->id,
+                            'tipo' => MovimientoCaja::TIPO_EGRESO,
+                            'concepto' => "Vuelto Cobro #{$cobro->numero_recibo}",
+                            'monto' => $vuelto,
+                            'usuario_id' => $usuarioId,
+                            'referencia_tipo' => MovimientoCaja::REF_VUELTO_COBRO,
+                            'referencia_id' => $cobro->id,
+                        ]);
+                    } else {
+                        // Caso normal: sin vuelto o misma moneda
+                        $movimiento = MovimientoCaja::crearIngresoCobro($caja, $cobro, $montoFinal, $usuarioId);
+
+                        if ($esMonedaExtranjera) {
+                            $monedaPrincipalId = Moneda::obtenerPrincipal()?->id;
+                            $tcRecord = $pago['moneda_id'] && $monedaPrincipalId
+                                ? TipoCambio::ultimaTasa($pago['moneda_id'], $monedaPrincipalId)
+                                : null;
+                            $movimiento->update([
+                                'moneda_id' => $pago['moneda_id'],
+                                'monto_moneda_original' => $pago['monto_moneda_original'],
+                                'tipo_cambio_id' => $tcRecord?->id,
+                            ]);
+                        }
+                    }
+
                     $cobroPago->update(['movimiento_caja_id' => $movimiento->id]);
+                }
+
+                // Si la forma de pago tiene cuenta empresa vinculada, registrar movimiento
+                $fpCobro = FormaPago::find($pago['forma_pago_id']);
+                if ($fpCobro && $fpCobro->cuenta_empresa_id) {
+                    try {
+                        $movCuenta = CuentaEmpresaService::registrarMovimientoAutomatico(
+                            CuentaEmpresa::find($fpCobro->cuenta_empresa_id),
+                            'ingreso', $pago['monto_final'] ?? $pago['monto_base'], 'cobro',
+                            'CobroPago', $cobroPago->id,
+                            "Cobro #{$cobro->numero_recibo} - {$fpCobro->nombre}",
+                            $usuarioId, $cobro->sucursal_id
+                        );
+                        $cobroPago->update(['movimiento_cuenta_empresa_id' => $movCuenta->id]);
+                    } catch (\Exception $e) {
+                        Log::warning('Error al registrar movimiento en cuenta empresa desde cobro', ['error' => $e->getMessage()]);
+                    }
                 }
             }
 
@@ -450,12 +517,58 @@ class CobroService
             // Anular pagos asociados y revertir movimientos de caja
             foreach ($cobro->pagos as $pago) {
                 if ($pago->afecta_caja && $pago->movimiento_caja_id) {
+                    $movimiento = MovimientoCaja::find($pago->movimiento_caja_id);
                     $caja = $cobro->caja;
-                    if ($caja) {
-                        $caja->disminuirSaldo($pago->monto_final);
+                    if ($movimiento && $caja) {
+                        // Crear contra-movimiento (egreso) para anular el ingreso
+                        MovimientoCaja::create([
+                            'caja_id' => $caja->id,
+                            'tipo' => MovimientoCaja::TIPO_EGRESO,
+                            'concepto' => "Anulación Cobro #{$cobro->id}",
+                            'monto' => $movimiento->monto,
+                            'usuario_id' => $usuarioId,
+                            'referencia_tipo' => MovimientoCaja::REF_ANULACION_COBRO,
+                            'referencia_id' => $cobro->id,
+                            'moneda_id' => $movimiento->moneda_id,
+                            'tipo_cambio_id' => $movimiento->tipo_cambio_id,
+                            'monto_moneda_original' => $movimiento->monto_moneda_original,
+                        ]);
+                        $caja->disminuirSaldo($movimiento->monto);
+
+                        // Revertir egreso de vuelto por moneda extranjera si existe
+                        $movVuelto = MovimientoCaja::where('referencia_tipo', MovimientoCaja::REF_VUELTO_COBRO)
+                            ->where('referencia_id', $cobro->id)
+                            ->where('caja_id', $caja->id)
+                            ->first();
+                        if ($movVuelto) {
+                            // Crear contra-movimiento (ingreso) para anular el vuelto
+                            MovimientoCaja::create([
+                                'caja_id' => $caja->id,
+                                'tipo' => MovimientoCaja::TIPO_INGRESO,
+                                'concepto' => "Anulación vuelto Cobro #{$cobro->id}",
+                                'monto' => $movVuelto->monto,
+                                'usuario_id' => $usuarioId,
+                                'referencia_tipo' => MovimientoCaja::REF_ANULACION_COBRO,
+                                'referencia_id' => $cobro->id,
+                            ]);
+                            $caja->aumentarSaldo($movVuelto->monto);
+                        }
                     }
                 }
                 $pago->update(['estado' => 'anulado']);
+
+                // Revertir movimiento en cuenta empresa si existe
+                if ($pago->movimiento_cuenta_empresa_id) {
+                    try {
+                        CuentaEmpresaService::revertirMovimiento(
+                            $pago->movimiento_cuenta_empresa_id,
+                            $motivo,
+                            $usuarioId
+                        );
+                    } catch (\Exception $e) {
+                        Log::warning('Error al revertir movimiento cuenta empresa en cobro', ['error' => $e->getMessage()]);
+                    }
+                }
             }
 
             // Marcar el cobro como anulado

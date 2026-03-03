@@ -8,6 +8,7 @@ use App\Models\CierreTurno;
 use App\Models\CierreTurnoCaja;
 use App\Models\Caja;
 use App\Models\GrupoCierre;
+use App\Models\MovimientoCaja;
 use App\Services\SucursalService;
 use App\Traits\SucursalAware;
 use Carbon\Carbon;
@@ -220,6 +221,68 @@ class HistorialTurnos extends Component
             'total_diferencia' => $query->sum('total_diferencia'),
             'cierres_con_diferencia' => (clone $query)->where('total_diferencia', '!=', 0)->count(),
         ];
+    }
+
+    /**
+     * Obtiene el resumen de monedas extranjeras para un cierre de turno.
+     * Consolida desglose_monedas de las detalleCajas y consulta movimientos.
+     *
+     * @return array ['USD' => ['simbolo'=>'u$d', 'ingresos'=>8, 'egresos'=>2, 'declarado'=>10]]
+     */
+    public function getResumenMonedasCierre(CierreTurno $cierre): array
+    {
+        $resumen = [];
+
+        // 1. Obtener declarados del desglose_monedas de cada detalleCaja
+        foreach ($cierre->detalleCajas as $detalle) {
+            $desglose = $detalle->desglose_monedas ?? [];
+            foreach ($desglose as $codigo => $datos) {
+                if (!empty($datos['es_principal'])) {
+                    continue;
+                }
+                if (!isset($resumen[$codigo])) {
+                    $resumen[$codigo] = [
+                        'simbolo' => $datos['simbolo'] ?? $codigo,
+                        'ingresos' => 0,
+                        'egresos' => 0,
+                        'declarado' => 0,
+                    ];
+                }
+                $resumen[$codigo]['declarado'] += (float) ($datos['declarado'] ?? 0);
+            }
+        }
+
+        // 2. Consultar movimientos del cierre con moneda extranjera para ingresos/egresos
+        $movimientos = MovimientoCaja::where('cierre_turno_id', $cierre->id)
+            ->whereNotNull('moneda_id')
+            ->with('moneda:id,codigo,simbolo')
+            ->get();
+
+        foreach ($movimientos as $mov) {
+            if (!$mov->moneda) {
+                continue;
+            }
+            $codigo = $mov->moneda->codigo;
+            if (!isset($resumen[$codigo])) {
+                $resumen[$codigo] = [
+                    'simbolo' => $mov->moneda->simbolo ?? $codigo,
+                    'ingresos' => 0,
+                    'egresos' => 0,
+                    'declarado' => 0,
+                ];
+            }
+            $monto = (float) $mov->monto_moneda_original;
+            if ($mov->tipo === 'ingreso') {
+                $resumen[$codigo]['ingresos'] += $monto;
+            } else {
+                $resumen[$codigo]['egresos'] += $monto;
+            }
+        }
+
+        // Filtrar monedas sin actividad
+        return array_filter($resumen, function ($datos) {
+            return $datos['ingresos'] > 0 || $datos['egresos'] > 0 || $datos['declarado'] > 0;
+        });
     }
 
     public function render()

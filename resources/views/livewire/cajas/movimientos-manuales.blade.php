@@ -18,6 +18,9 @@
                 <div class="text-right">
                     <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Saldo') }}</p>
                     <p class="font-semibold text-green-600 dark:text-green-400">${{ number_format($cajaActual->saldo_actual, 2, ',', '.') }}</p>
+                    @foreach($saldosMonedasCaja as $saldoMoneda)
+                    <p class="text-xs text-amber-600 dark:text-amber-400">{{ $saldoMoneda['simbolo'] }} {{ number_format($saldoMoneda['saldo'], 2, ',', '.') }}</p>
+                    @endforeach
                 </div>
             </div>
             @endif
@@ -109,16 +112,41 @@
                             @error('transferencia.caja_destino_id') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
 
+                        {{-- Moneda --}}
+                        @if(count($monedasDisponibles) > 0)
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Moneda') }}</label>
+                            <select wire:model.live="transferencia.moneda_id"
+                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">{{ __('Moneda principal') }} ($)</option>
+                                @foreach($monedasDisponibles as $moneda)
+                                <option value="{{ $moneda['id'] }}">{{ $moneda['codigo'] }} - {{ $moneda['nombre'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        @endif
+
                         {{-- Monto --}}
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto') }}</label>
+                            @php $simboloTransf = '$'; @endphp
+                            @if($transferencia['moneda_id'])
+                                @foreach($monedasDisponibles as $m)
+                                    @if($m['id'] == $transferencia['moneda_id'])
+                                        @php $simboloTransf = $m['simbolo']; @endphp
+                                    @endif
+                                @endforeach
+                            @endif
                             <div class="relative">
-                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{{ $simboloTransf }}</span>
                                 <input type="number" wire:model="transferencia.monto" step="0.01" min="0"
-                                       class="w-full pl-8 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
+                                       class="w-full pl-10 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
                                        placeholder="0.00">
                             </div>
                             @error('transferencia.monto') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
+                            @if($transferencia['moneda_id'] && isset($saldosMonedasCaja[$transferencia['moneda_id']]))
+                            <p class="mt-1 text-xs text-gray-500">{{ __('Disponible') }}: {{ $saldosMonedasCaja[$transferencia['moneda_id']]['simbolo'] }} {{ number_format($saldosMonedasCaja[$transferencia['moneda_id']]['saldo'], 2, ',', '.') }}</p>
+                            @endif
                         </div>
 
                         {{-- Motivo --}}
@@ -169,13 +197,44 @@
                             @error('ingreso.origen') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
 
+                        {{-- Moneda --}}
+                        @if(count($monedasDisponibles) > 0)
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Moneda') }}</label>
+                            <select wire:model.live="ingreso.moneda_id"
+                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-green-500 focus:border-green-500">
+                                <option value="">{{ __('Moneda principal') }} ($)</option>
+                                @foreach($monedasDisponibles as $moneda)
+                                <option value="{{ $moneda['id'] }}">{{ $moneda['codigo'] }} - {{ $moneda['nombre'] }}</option>
+                                @endforeach
+                            </select>
+                            @if($ingreso['moneda_id'] && $ingreso['origen'] === 'tesoreria' && $tesoreriaActiva)
+                            @php
+                                $saldosTesoreria = $tesoreria->getSaldosTodasMonedas();
+                                $monedaIngreso = collect($monedasDisponibles)->firstWhere('id', $ingreso['moneda_id']);
+                                $codigoIngreso = $monedaIngreso ? $monedaIngreso['codigo'] : '';
+                                $saldoTesoreriaMoneda = $saldosTesoreria[$codigoIngreso]['saldo'] ?? 0;
+                            @endphp
+                            <p class="mt-1 text-xs text-gray-500">{{ __('Disponible en tesorería') }}: {{ $monedaIngreso['simbolo'] ?? '' }} {{ number_format($saldoTesoreriaMoneda, 2, ',', '.') }}</p>
+                            @endif
+                        </div>
+                        @endif
+
                         {{-- Monto --}}
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto') }}</label>
+                            @php $simboloIngreso = '$'; @endphp
+                            @if($ingreso['moneda_id'])
+                                @foreach($monedasDisponibles as $m)
+                                    @if($m['id'] == $ingreso['moneda_id'])
+                                        @php $simboloIngreso = $m['simbolo']; @endphp
+                                    @endif
+                                @endforeach
+                            @endif
                             <div class="relative">
-                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{{ $simboloIngreso }}</span>
                                 <input type="number" wire:model="ingreso.monto" step="0.01" min="0"
-                                       class="w-full pl-8 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-green-500 focus:border-green-500"
+                                       class="w-full pl-10 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-green-500 focus:border-green-500"
                                        placeholder="0.00">
                             </div>
                             @error('ingreso.monto') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
@@ -229,18 +288,46 @@
                             @error('egreso.destino') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
 
+                        {{-- Moneda --}}
+                        @if(count($monedasDisponibles) > 0)
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Moneda') }}</label>
+                            <select wire:model.live="egreso.moneda_id"
+                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-red-500 focus:border-red-500">
+                                <option value="">{{ __('Moneda principal') }} ($)</option>
+                                @foreach($monedasDisponibles as $moneda)
+                                <option value="{{ $moneda['id'] }}">{{ $moneda['codigo'] }} - {{ $moneda['nombre'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        @endif
+
                         {{-- Monto --}}
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto') }}</label>
+                            @php $simboloEgreso = '$'; @endphp
+                            @if($egreso['moneda_id'])
+                                @foreach($monedasDisponibles as $m)
+                                    @if($m['id'] == $egreso['moneda_id'])
+                                        @php $simboloEgreso = $m['simbolo']; @endphp
+                                    @endif
+                                @endforeach
+                            @endif
                             <div class="relative">
-                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{{ $simboloEgreso }}</span>
                                 <input type="number" wire:model="egreso.monto" step="0.01" min="0"
-                                       class="w-full pl-8 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-red-500 focus:border-red-500"
+                                       class="w-full pl-10 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-red-500 focus:border-red-500"
                                        placeholder="0.00">
                             </div>
                             @error('egreso.monto') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             @if($cajaActual)
-                            <p class="mt-1 text-xs text-gray-500">{{ __('Disponible') }}: ${{ number_format($cajaActual->saldo_actual, 2, ',', '.') }}</p>
+                                @if($egreso['moneda_id'] && isset($saldosMonedasCaja[$egreso['moneda_id']]))
+                                <p class="mt-1 text-xs text-gray-500">{{ __('Disponible') }}: {{ $saldosMonedasCaja[$egreso['moneda_id']]['simbolo'] }} {{ number_format($saldosMonedasCaja[$egreso['moneda_id']]['saldo'], 2, ',', '.') }}</p>
+                                @elseif(!$egreso['moneda_id'])
+                                <p class="mt-1 text-xs text-gray-500">{{ __('Disponible') }}: ${{ number_format($cajaActual->saldo_actual, 2, ',', '.') }}</p>
+                                @else
+                                <p class="mt-1 text-xs text-gray-500">{{ __('Disponible') }}: 0,00</p>
+                                @endif
                             @endif
                         </div>
 
@@ -297,9 +384,14 @@
                                     <p class="text-xs text-gray-500 dark:text-gray-400">{{ $mov['fecha'] }} - {{ $mov['usuario'] }}</p>
                                 </div>
                             </div>
-                            <span class="font-medium {{ $mov['tipo'] === 'ingreso' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                                {{ $mov['tipo'] === 'ingreso' ? '+' : '-' }}${{ number_format($mov['monto'], 2, ',', '.') }}
-                            </span>
+                            <div class="text-right">
+                                <span class="font-medium {{ $mov['tipo'] === 'ingreso' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
+                                    {{ $mov['tipo'] === 'ingreso' ? '+' : '-' }}${{ number_format($mov['monto'], 2, ',', '.') }}
+                                </span>
+                                @if(!empty($mov['moneda_simbolo']) && $mov['monto_moneda_original'])
+                                <p class="text-xs text-amber-600 dark:text-amber-400">{{ $mov['moneda_simbolo'] }} {{ number_format($mov['monto_moneda_original'], 2, ',', '.') }}</p>
+                                @endif
+                            </div>
                         </div>
                         @endforeach
                     </div>
@@ -403,12 +495,26 @@
                                     <span class="font-medium">{{ $accionPendiente === 'ingreso' ? __('Origen') : __('Destino') }}:</span> {{ $datosPendientes[$accionPendiente === 'ingreso' ? 'origen' : 'destino'] ?? '' }}
                                 </p>
                                 @endif
+                                @if(!empty($datosPendientes['moneda_nombre']))
+                                <p class="text-sm text-gray-600 dark:text-gray-400">
+                                    <span class="font-medium">{{ __('Moneda') }}:</span> {{ $datosPendientes['moneda_nombre'] }}
+                                </p>
+                                @endif
                                 <p class="text-sm text-gray-600 dark:text-gray-400">
                                     <span class="font-medium">{{ __('Monto') }}:</span>
                                     <span class="text-lg font-bold {{ $accionPendiente === 'ingreso' ? 'text-green-600' : ($accionPendiente === 'egreso' ? 'text-red-600' : 'text-indigo-600') }}">
-                                        ${{ number_format($datosPendientes['monto'] ?? 0, 2, ',', '.') }}
+                                        {{ $datosPendientes['moneda_simbolo'] ?? '$' }} {{ number_format($datosPendientes['monto'] ?? 0, 2, ',', '.') }}
                                     </span>
                                 </p>
+                                @if(!empty($datosPendientes['equivalente_ars']))
+                                <p class="text-sm text-gray-600 dark:text-gray-400">
+                                    <span class="font-medium">{{ __('Cotización') }}:</span> ${{ number_format($datosPendientes['cotizacion'] ?? 0, 2, ',', '.') }}
+                                </p>
+                                <p class="text-sm text-gray-600 dark:text-gray-400">
+                                    <span class="font-medium">{{ __('Equivalente') }}:</span>
+                                    <span class="font-semibold text-gray-900 dark:text-white">${{ number_format($datosPendientes['equivalente_ars'], 2, ',', '.') }}</span>
+                                </p>
+                                @endif
                                 <p class="text-sm text-gray-600 dark:text-gray-400">
                                     <span class="font-medium">{{ __('Motivo') }}:</span> {{ $datosPendientes['motivo'] ?? '' }}
                                 </p>

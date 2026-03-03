@@ -15,6 +15,7 @@ use App\Livewire\Configuracion\PromocionesEspeciales\ListarPromocionesEspeciales
 use App\Livewire\Configuracion\PromocionesEspeciales\WizardPromocionEspecial;
 use App\Livewire\Configuracion\FormasPago\ListarFormasPago;
 use App\Livewire\Configuracion\Impresoras;
+use App\Livewire\Configuracion\GestionMonedas;
 use App\Livewire\Ventas\Ventas;
 use App\Livewire\Ventas\NuevaVenta;
 use App\Livewire\Compras\Compras;
@@ -27,6 +28,10 @@ use App\Livewire\Cajas\MovimientosManuales;
 use App\Livewire\Cajas\HistorialTurnos;
 use App\Livewire\Tesoreria\GestionTesoreria;
 use App\Livewire\Tesoreria\ReportesTesoreria;
+use App\Livewire\Bancos\ResumenCuentas;
+use App\Livewire\Bancos\GestionCuentas;
+use App\Livewire\Bancos\MovimientosCuenta;
+use App\Livewire\Bancos\TransferenciasCuenta;
 use App\Livewire\Dashboard\DashboardSucursal;
 use App\Livewire\Articulos\GestionarArticulos;
 use App\Livewire\Articulos\GestionarCategorias;
@@ -36,6 +41,8 @@ use App\Livewire\Articulos\CambioMasivoPrecios;
 use App\Livewire\Articulos\AsignarOpcionales;
 use App\Livewire\Articulos\GestionarGruposOpcionales;
 use App\Livewire\Articulos\GestionarRecetas;
+use App\Livewire\Stock\Produccion;
+use App\Livewire\Stock\ProduccionLote;
 use App\Livewire\Clientes\GestionarClientes;
 use App\Livewire\Clientes\GestionarCobranzas;
 use Illuminate\Support\Facades\Route;
@@ -86,6 +93,9 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
     Route::get('stock', StockInventario::class)->name('stock.index');
     Route::get('stock/movimientos', MovimientosStock::class)->name('stock.movimientos');
     Route::get('stock/inventario-general', InventarioGeneral::class)->name('stock.inventario-general');
+    Route::get('stock/recetas', GestionarRecetas::class)->name('stock.recetas');
+    Route::get('stock/produccion/lote', ProduccionLote::class)->name('stock.produccion-lote');
+    Route::get('stock/produccion', Produccion::class)->name('stock.produccion');
 
     /**
      * Cajas
@@ -124,6 +134,17 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
     });
 
     // =========================================
+    // BANCOS / CUENTAS EMPRESA
+    // =========================================
+
+    Route::prefix('bancos')->name('bancos.')->group(function () {
+        Route::get('/', ResumenCuentas::class)->name('resumen');
+        Route::get('cuentas', GestionCuentas::class)->name('cuentas');
+        Route::get('movimientos', MovimientosCuenta::class)->name('movimientos');
+        Route::get('transferencias', TransferenciasCuenta::class)->name('transferencias');
+    });
+
+    // =========================================
     // ARTÍCULOS
     // =========================================
 
@@ -159,10 +180,9 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
         Route::get('cambio-masivo-precios', CambioMasivoPrecios::class)->name('cambio-masivo-precios');
 
         /**
-         * Recetas
-         * Gestión de recetas default de artículos (ingredientes y cantidades)
+         * Recetas - Redirige a Stock > Recetas
          */
-        Route::get('recetas', GestionarRecetas::class)->name('recetas');
+        Route::redirect('recetas', '/stock/recetas')->name('recetas');
 
         /**
          * Grupos Opcionales
@@ -260,6 +280,12 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
          * Configuración de disponibilidad de artículos por sucursal
          */
         Route::get('articulos-sucursal', ArticulosSucursal::class)->name('articulos-sucursal');
+
+        /**
+         * Monedas y Tipos de Cambio
+         * Gestión de monedas del sistema y cotizaciones
+         */
+        Route::get('monedas', GestionMonedas::class)->name('monedas');
 
         /**
          * Impresoras

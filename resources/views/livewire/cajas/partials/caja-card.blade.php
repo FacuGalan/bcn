@@ -209,33 +209,91 @@
         </div>
         @endif
 
-        {{-- Totales por concepto (colapsable) --}}
+        {{-- Desglose por moneda --}}
+        @php
+            $porMonedaCaja = $cajasResumenMovimientos[$caja->id]['porMoneda'] ?? $caja->resumenMovimientos['porMoneda'] ?? [];
+        @endphp
+        @if(!empty($porMonedaCaja))
+        <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+            <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">{{ __('Desglose por Moneda') }}</p>
+            <div class="space-y-1">
+                @foreach($porMonedaCaja as $monedaData)
+                <div class="flex items-center justify-between text-xs py-1 px-2 rounded {{ ($monedaData['es_principal'] ?? false) ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-amber-50 dark:bg-amber-900/20' }}">
+                    <span class="font-medium {{ ($monedaData['es_principal'] ?? false) ? 'text-blue-700 dark:text-blue-300' : 'text-amber-700 dark:text-amber-300' }}">
+                        {{ $monedaData['simbolo'] ?? '' }} {{ $monedaData['codigo'] }}
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                        @if(($monedaData['ingresos'] ?? 0) > 0)
+                        <span class="text-green-600 dark:text-green-400">+{{ ($monedaData['es_principal'] ?? false) ? '$' : ($monedaData['simbolo'] ?? '') }}{{ number_format($monedaData['ingresos'], 0, ',', '.') }}</span>
+                        @endif
+                        @if(($monedaData['egresos'] ?? 0) > 0)
+                        <span class="text-red-600 dark:text-red-400">-{{ ($monedaData['es_principal'] ?? false) ? '$' : ($monedaData['simbolo'] ?? '') }}{{ number_format($monedaData['egresos'], 0, ',', '.') }}</span>
+                        @endif
+                        <span class="font-bold {{ ($monedaData['es_principal'] ?? false) ? 'text-blue-800 dark:text-blue-200' : 'text-amber-800 dark:text-amber-200' }}">
+                            = {{ ($monedaData['es_principal'] ?? false) ? '$' : ($monedaData['simbolo'] ?? '') }}{{ number_format($monedaData['saldo'] ?? 0, 2, ',', '.') }}
+                        </span>
+                        @if(!($monedaData['es_principal'] ?? false) && ($monedaData['saldo_convertido'] ?? 0) != 0)
+                        <span class="text-gray-400">(≈${{ number_format($monedaData['saldo_convertido'], 0, ',', '.') }})</span>
+                        @endif
+                    </span>
+                </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
+        {{-- Totales por concepto y forma de pago (colapsable) --}}
         @php
             $totalesConceptoCaja = $cajasTotalesPorConcepto[$caja->id] ?? $caja->totalesPorConcepto ?? [];
+            $totalesFPCaja = $cajasTotalesPorFormaPago[$caja->id] ?? $caja->totalesPorFormaPago ?? [];
         @endphp
-        @if(!empty($totalesConceptoCaja))
+        @if(!empty($totalesConceptoCaja) || !empty($totalesFPCaja))
         <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
             <button
                 wire:click="toggleConcepto('caja-{{ $caja->id }}')"
                 class="w-full flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
             >
-                <span>{{ __('Por Concepto de Pago') }}</span>
+                <span>{{ __('Por Concepto / Forma de Pago') }}</span>
                 <svg class="w-3.5 h-3.5 transition-transform {{ in_array('caja-' . $caja->id, $conceptosExpandidos) ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                 </svg>
             </button>
 
             @if(in_array('caja-' . $caja->id, $conceptosExpandidos))
-            <div class="mt-2 space-y-1">
-                @foreach($totalesConceptoCaja as $concepto)
-                <div class="flex items-center justify-between text-xs py-1 px-2 bg-gray-50 dark:bg-gray-700/30 rounded">
-                    <span class="text-gray-600 dark:text-gray-400">{{ $concepto['nombre'] }}</span>
-                    <span class="font-medium text-gray-900 dark:text-white">
-                        ${{ number_format($concepto['monto'], 2, ',', '.') }}
-                        <span class="text-gray-400">({{ $concepto['cantidad'] }})</span>
-                    </span>
+            <div class="mt-2 grid grid-cols-1 {{ !empty($totalesConceptoCaja) && !empty($totalesFPCaja) ? 'sm:grid-cols-2' : '' }} gap-3">
+                @if(!empty($totalesConceptoCaja))
+                <div>
+                    <p class="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">{{ __('Concepto') }}</p>
+                    <div class="space-y-0.5">
+                        @foreach($totalesConceptoCaja as $concepto)
+                        <div class="flex items-center justify-between text-xs py-1 px-2 bg-gray-50 dark:bg-gray-700/30 rounded">
+                            <span class="text-gray-600 dark:text-gray-400">{{ $concepto['nombre'] }}</span>
+                            <span class="font-medium text-gray-900 dark:text-white">
+                                ${{ number_format($concepto['monto'], 2, ',', '.') }}
+                                <span class="text-gray-400">({{ $concepto['cantidad'] }})</span>
+                            </span>
+                        </div>
+                        @endforeach
+                    </div>
                 </div>
-                @endforeach
+                @endif
+
+                @if(!empty($totalesFPCaja))
+                <div>
+                    <p class="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">{{ __('Forma de Pago') }}</p>
+                    <div class="space-y-0.5">
+                        @foreach($totalesFPCaja as $fp)
+                        <div class="flex items-center justify-between text-xs py-1 px-2 bg-gray-50 dark:bg-gray-700/30 rounded">
+                            <span class="text-gray-600 dark:text-gray-400">{{ $fp['nombre'] }}</span>
+                            <span class="font-medium text-gray-900 dark:text-white">
+                                ${{ number_format($fp['monto'], 2, ',', '.') }}
+                                <span class="text-gray-400">({{ $fp['cantidad'] }})</span>
+                            </span>
+                        </div>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
             </div>
             @endif
         </div>
