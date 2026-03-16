@@ -36,6 +36,7 @@ class GestionarCategorias extends Component
 
     // Propiedades del formulario
     public string $nombre = '';
+    public string $prefijo = '';
     public string $color = '#3B82F6'; // Color azul por defecto
     public string $icono = '';
     public bool $activo = true;
@@ -91,7 +92,7 @@ class GestionarCategorias extends Component
      */
     public function create(): void
     {
-        $this->reset(['nombre', 'color', 'icono', 'activo', 'categoriaId']);
+        $this->reset(['nombre', 'prefijo', 'color', 'icono', 'activo', 'categoriaId']);
         $this->editMode = false;
         $this->activo = true;
         $this->color = '#3B82F6';
@@ -107,6 +108,7 @@ class GestionarCategorias extends Component
 
         $this->categoriaId = $categoria->id;
         $this->nombre = $categoria->nombre;
+        $this->prefijo = $categoria->prefijo ?? '';
         $this->color = $categoria->color;
         $this->icono = $categoria->icono ?? '';
         $this->activo = $categoria->activo;
@@ -122,6 +124,7 @@ class GestionarCategorias extends Component
     {
         $rules = [
             'nombre' => 'required|string|max:100|unique:pymes_tenant.categorias,nombre,' . $this->categoriaId,
+            'prefijo' => 'nullable|string|max:10',
             'color' => 'required|string|max:7',
             'icono' => 'nullable|string|max:50',
             'activo' => 'boolean',
@@ -129,10 +132,13 @@ class GestionarCategorias extends Component
 
         $this->validate($rules);
 
+        $prefijoLimpio = $this->prefijo ? strtoupper(trim($this->prefijo)) : null;
+
         if ($this->editMode) {
             // Actualizar categoría existente
             $categoria = Categoria::findOrFail($this->categoriaId);
             $categoria->nombre = $this->nombre;
+            $categoria->prefijo = $prefijoLimpio;
             $categoria->color = $this->color;
             $categoria->icono = $this->icono ?: null;
             $categoria->activo = $this->activo;
@@ -143,6 +149,7 @@ class GestionarCategorias extends Component
             // Crear nueva categoría
             Categoria::create([
                 'nombre' => $this->nombre,
+                'prefijo' => $prefijoLimpio,
                 'color' => $this->color,
                 'icono' => $this->icono ?: null,
                 'activo' => $this->activo,
@@ -153,7 +160,7 @@ class GestionarCategorias extends Component
 
         $this->dispatch('notify', message: $message, type: 'success');
         $this->showModal = false;
-        $this->reset(['nombre', 'color', 'icono', 'activo', 'categoriaId']);
+        $this->reset(['nombre', 'prefijo', 'color', 'icono', 'activo', 'categoriaId']);
     }
 
     /**
@@ -162,7 +169,7 @@ class GestionarCategorias extends Component
     public function cancel(): void
     {
         $this->showModal = false;
-        $this->reset(['nombre', 'color', 'icono', 'activo', 'categoriaId']);
+        $this->reset(['nombre', 'prefijo', 'color', 'icono', 'activo', 'categoriaId']);
     }
 
     /**

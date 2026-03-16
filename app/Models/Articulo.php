@@ -98,7 +98,7 @@ class Articulo extends Model
     public function sucursales(): BelongsToMany
     {
         return $this->belongsToMany(Sucursal::class, 'articulos_sucursales', 'articulo_id', 'sucursal_id')
-                    ->withPivot('activo')
+                    ->withPivot('activo', 'modo_stock')
                     ->withTimestamps();
     }
 

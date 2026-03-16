@@ -97,19 +97,6 @@
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">{{ __('Datos Basicos') }}</h3>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {{-- Sucursal --}}
-                        <div class="sm:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Sucursal') }} *</label>
-                            <select wire:model="sucursalId"
-                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                <option value="">{{ __('Seleccionar sucursal...') }}</option>
-                                @foreach($this->sucursales as $sucursal)
-                                    <option value="{{ $sucursal->id }}">{{ $sucursal->nombre }}</option>
-                                @endforeach
-                            </select>
-                            @error('sucursalId') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
                         {{-- Nombre --}}
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Nombre') }} *</label>

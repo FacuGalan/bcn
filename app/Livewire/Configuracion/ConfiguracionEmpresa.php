@@ -485,28 +485,46 @@ class ConfiguracionEmpresa extends Component
             'nuevoPuntoVentaNumero.max' => __('El número no puede superar 99999.'),
         ]);
 
-        // Verificar que no exista el número para este CUIT
-        $existe = PuntoVenta::where('cuit_id', $this->cuitId)
-            ->where('numero', $this->nuevoPuntoVentaNumero)
-            ->exists();
-
-        if ($existe) {
-            $this->addError('nuevoPuntoVentaNumero', __('Este número de punto de venta ya existe para este CUIT.'));
-            return;
-        }
-
         try {
-            PuntoVenta::create([
-                'cuit_id' => $this->cuitId,
-                'numero' => $this->nuevoPuntoVentaNumero,
-                'nombre' => $this->nuevoPuntoVentaNombre ?: null,
-                'activo' => true,
-            ]);
+            // Verificar si existe uno soft-deleted con el mismo número
+            $pvEliminado = PuntoVenta::withTrashed()
+                ->where('cuit_id', $this->cuitId)
+                ->where('numero', $this->nuevoPuntoVentaNumero)
+                ->whereNotNull('deleted_at')
+                ->first();
+
+            if ($pvEliminado) {
+                // Restaurar el punto de venta eliminado
+                $pvEliminado->restore();
+                $pvEliminado->update([
+                    'nombre' => $this->nuevoPuntoVentaNombre ?: $pvEliminado->nombre,
+                    'activo' => true,
+                ]);
+                $mensaje = __('Punto de venta restaurado');
+            } else {
+                // Verificar que no exista uno activo con el mismo número
+                $existe = PuntoVenta::where('cuit_id', $this->cuitId)
+                    ->where('numero', $this->nuevoPuntoVentaNumero)
+                    ->exists();
+
+                if ($existe) {
+                    $this->addError('nuevoPuntoVentaNumero', __('Este número de punto de venta ya existe para este CUIT.'));
+                    return;
+                }
+
+                PuntoVenta::create([
+                    'cuit_id' => $this->cuitId,
+                    'numero' => $this->nuevoPuntoVentaNumero,
+                    'nombre' => $this->nuevoPuntoVentaNombre ?: null,
+                    'activo' => true,
+                ]);
+                $mensaje = __('Punto de venta agregado');
+            }
 
             $this->resetFormularioPuntoVenta();
             $this->puntosVenta = Cuit::find($this->cuitId)->puntosVenta->toArray();
 
-            $this->dispatch('notify', message: __('Punto de venta agregado'), type: 'success');
+            $this->dispatch('notify', message: $mensaje, type: 'success');
         } catch (\Exception $e) {
             $this->dispatch('notify', message: __('Error: ') . $e->getMessage(), type: 'error');
         }
@@ -537,6 +555,8 @@ class ConfiguracionEmpresa extends Component
         try {
             $pv = PuntoVenta::findOrFail($this->pvEliminarId);
             $numero = $pv->numero_formateado;
+            $pv->activo = false;
+            $pv->save();
             $pv->delete();
 
             $this->puntosVenta = Cuit::find($this->cuitId)->puntosVenta->toArray();

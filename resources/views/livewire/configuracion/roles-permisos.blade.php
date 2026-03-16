@@ -175,21 +175,19 @@
                                                     @foreach($groupedPermissions as $moduleName => $permissions)
                                                         @php
                                                             $parentIsProtected = $isSuperAdmin && in_array($permissions['parent']->name, $protectedPermissions ?? []);
+                                                            $parentChecked = $parentIsProtected || in_array($permissions['parent']->id, $selectedPermissions);
                                                         @endphp
                                                         <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-600">
                                                             <!-- Permiso padre (módulo) - cabecera plegable -->
                                                             <div class="flex items-center p-3 cursor-pointer" @click="open = !open">
                                                                 <input
                                                                     type="checkbox"
-                                                                    id="perm_{{ $permissions['parent']->id }}"
-                                                                    value="{{ $permissions['parent']->id }}"
-                                                                    @click.stop
+                                                                    @click.stop="$wire.toggleParentPermission({{ $permissions['parent']->id }}, '{{ addslashes($moduleName) }}')"
+                                                                    {{ $parentChecked ? 'checked' : '' }}
                                                                     @if($parentIsProtected)
-                                                                        checked
                                                                         disabled
                                                                         class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary cursor-not-allowed opacity-60"
                                                                     @else
-                                                                        wire:model="selectedPermissions"
                                                                         class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
                                                                     @endif
                                                                 />
@@ -215,18 +213,17 @@
                                                                     @foreach($permissions['children'] as $childPermission)
                                                                         @php
                                                                             $childIsProtected = $isSuperAdmin && in_array($childPermission->name, $protectedPermissions ?? []);
+                                                                            $childChecked = $childIsProtected || in_array($childPermission->id, $selectedPermissions);
                                                                         @endphp
-                                                                        <label for="perm_{{ $childPermission->id }}" class="flex items-center p-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
+                                                                        <label class="flex items-center p-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
                                                                             <input
                                                                                 type="checkbox"
-                                                                                id="perm_{{ $childPermission->id }}"
-                                                                                value="{{ $childPermission->id }}"
+                                                                                @click.prevent="$wire.toggleChildPermission({{ $childPermission->id }}, {{ $permissions['parent']->id }}, '{{ addslashes($moduleName) }}')"
+                                                                                {{ $childChecked ? 'checked' : '' }}
                                                                                 @if($childIsProtected)
-                                                                                    checked
                                                                                     disabled
                                                                                     class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary cursor-not-allowed opacity-60"
                                                                                 @else
-                                                                                    wire:model="selectedPermissions"
                                                                                     class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
                                                                                 @endif
                                                                             />

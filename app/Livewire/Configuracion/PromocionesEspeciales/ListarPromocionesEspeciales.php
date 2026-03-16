@@ -5,21 +5,17 @@ namespace App\Livewire\Configuracion\PromocionesEspeciales;
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\PromocionEspecial;
-use App\Services\SucursalService;
+use App\Traits\SucursalAware;
 
 class ListarPromocionesEspeciales extends Component
 {
-    use WithPagination;
+    use WithPagination, SucursalAware;
 
     // Filtros
     public $busqueda = '';
-    public $sucursalFiltro = '';
     public $tipoFiltro = ''; // nxm, combo
     public $activoFiltro = 'todos';
     public $vigenteFiltro = 'todos';
-
-    // Colecciones para filtros
-    public $sucursales = [];
 
     // Ordenamiento
     public $ordenarPor = 'prioridad';
@@ -30,16 +26,10 @@ class ListarPromocionesEspeciales extends Component
 
     protected $queryString = [
         'busqueda' => ['except' => ''],
-        'sucursalFiltro' => ['except' => ''],
         'tipoFiltro' => ['except' => ''],
         'ordenarPor' => ['except' => 'prioridad'],
         'ordenDireccion' => ['except' => 'asc'],
     ];
-
-    public function mount()
-    {
-        $this->sucursales = SucursalService::getSucursalesDisponibles();
-    }
 
     public function updatingBusqueda()
     {
@@ -50,7 +40,6 @@ class ListarPromocionesEspeciales extends Component
     {
         $this->reset([
             'busqueda',
-            'sucursalFiltro',
             'tipoFiltro',
             'activoFiltro',
             'vigenteFiltro',
@@ -129,12 +118,11 @@ class ListarPromocionesEspeciales extends Component
 
     public function getPromociones()
     {
-        $query = PromocionEspecial::query()
-            ->with(['sucursal', 'articuloNxM', 'categoriaNxM', 'grupos.articulos', 'gruposTrigger', 'gruposReward', 'escalas']);
+        $sucursalId = sucursal_activa();
 
-        // Filtrar por sucursales del usuario
-        $sucursalesUsuario = $this->sucursales->pluck('id')->toArray();
-        $query->whereIn('sucursal_id', $sucursalesUsuario);
+        $query = PromocionEspecial::query()
+            ->with(['articuloNxM', 'categoriaNxM', 'grupos.articulos', 'gruposTrigger', 'gruposReward', 'escalas'])
+            ->where('sucursal_id', $sucursalId);
 
         // Búsqueda
         if ($this->busqueda) {
@@ -142,11 +130,6 @@ class ListarPromocionesEspeciales extends Component
                 $q->where('nombre', 'like', '%' . $this->busqueda . '%')
                   ->orWhere('descripcion', 'like', '%' . $this->busqueda . '%');
             });
-        }
-
-        // Filtro por sucursal
-        if ($this->sucursalFiltro) {
-            $query->where('sucursal_id', $this->sucursalFiltro);
         }
 
         // Filtro por tipo

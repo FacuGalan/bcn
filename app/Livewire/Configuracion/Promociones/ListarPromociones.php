@@ -5,25 +5,19 @@ namespace App\Livewire\Configuracion\Promociones;
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\Promocion;
-use App\Models\Sucursal;
-use App\Models\Categoria;
-use App\Services\SucursalService;
+use App\Traits\SucursalAware;
 
 class ListarPromociones extends Component
 {
-    use WithPagination;
+    use WithPagination, SucursalAware;
 
     // Filtros
     public $busqueda = '';
-    public $sucursalFiltro = '';
     public $tipoFiltro = '';
     public $activoFiltro = 'todos';
     public $vigenteFiltro = 'todos'; // todos, vigentes, vencidas
     public $cuponFiltro = 'todos'; // todos, con_cupon, sin_cupon
     public $combinableFiltro = 'todos';
-
-    // Colecciones para filtros
-    public $sucursales = [];
 
     // Tipos de promoci�n disponibles
     public $tiposPromocion = [];
@@ -49,17 +43,10 @@ class ListarPromociones extends Component
 
     protected $queryString = [
         'busqueda' => ['except' => ''],
-        'sucursalFiltro' => ['except' => ''],
         'tipoFiltro' => ['except' => ''],
         'ordenarPor' => ['except' => 'prioridad'],
         'ordenDireccion' => ['except' => 'asc'],
     ];
-
-    public function mount()
-    {
-        // Cargar solo las sucursales a las que el usuario tiene acceso
-        $this->sucursales = SucursalService::getSucursalesDisponibles();
-    }
 
     public function updatingBusqueda()
     {
@@ -70,7 +57,6 @@ class ListarPromociones extends Component
     {
         $this->reset([
             'busqueda',
-            'sucursalFiltro',
             'tipoFiltro',
             'activoFiltro',
             'vigenteFiltro',
@@ -146,17 +132,14 @@ class ListarPromociones extends Component
 
     public function render()
     {
-        // Obtener IDs de sucursales del usuario
-        $sucursalesDisponibles = SucursalService::getSucursalesDisponibles()->pluck('id');
+        $sucursalId = sucursal_activa();
 
         $query = Promocion::query()
             ->with([
-                'sucursal:id,nombre',
                 'condiciones',
                 'escalas'
             ])
-            // Filtrar solo promociones de sucursales del usuario
-            ->whereIn('sucursal_id', $sucursalesDisponibles);
+            ->where('sucursal_id', $sucursalId);
 
         // Aplicar filtros
         if ($this->busqueda) {
@@ -165,10 +148,6 @@ class ListarPromociones extends Component
                   ->orWhere('descripcion', 'like', '%' . $this->busqueda . '%')
                   ->orWhere('codigo_cupon', 'like', '%' . $this->busqueda . '%');
             });
-        }
-
-        if ($this->sucursalFiltro) {
-            $query->where('sucursal_id', $this->sucursalFiltro);
         }
 
         if ($this->tipoFiltro) {

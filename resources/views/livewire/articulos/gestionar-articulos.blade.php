@@ -468,254 +468,293 @@
 
                 <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:my-8 sm:align-middle sm:max-w-5xl sm:w-full">
                     <form wire:submit="save">
+                        <!-- Header coloreado -->
+                        <div class="{{ $editMode ? 'bg-bcn-primary' : 'bg-green-600' }} px-4 py-4 sm:px-6">
+                            <h3 class="text-lg leading-6 font-medium text-white" id="modal-title">
+                                {{ $editMode ? __('Editar Artículo') : __('Nuevo Artículo') }}
+                            </h3>
+                        </div>
+
                         <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                            <div class="sm:flex sm:items-start">
-                                <div class="w-full mt-3 sm:mt-0 text-left">
-                                    <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4" id="modal-title">
-                                        {{ $editMode ? __('Editar Artículo') : __('Nuevo Artículo') }}
-                                    </h3>
+                            <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                                <!-- Nombre (full width) -->
+                                <div>
+                                    <label for="nombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
+                                    <input
+                                        type="text"
+                                        id="nombre"
+                                        wire:model="nombre"
+                                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                        placeholder="{{ __('Ej: Coca Cola 500ml') }}"
+                                        required
+                                    />
+                                    @error('nombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                </div>
 
-                                    <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <!-- Código -->
-                                            <div>
-                                                <label for="codigo" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Código') }} *</label>
-                                                <input
-                                                    type="text"
-                                                    id="codigo"
-                                                    wire:model="codigo"
-                                                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                    placeholder="Ej: ART-001"
-                                                    required
-                                                />
-                                                @error('codigo') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <!-- Categoría -->
+                                    <div>
+                                        <label for="categoria_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Categoría') }}</label>
+                                        <select
+                                            id="categoria_id"
+                                            wire:model.live="categoria_id"
+                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                        >
+                                            <option value="">{{ __('Sin categoría') }}</option>
+                                            @foreach($categorias as $categoria)
+                                                <option value="{{ $categoria->id }}">{{ $categoria->nombre }}</option>
+                                            @endforeach
+                                        </select>
+                                        @error('categoria_id') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                    </div>
+
+                                    <!-- Código -->
+                                    <div>
+                                        <label for="codigo" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Código') }} *</label>
+                                        <input
+                                            type="text"
+                                            id="codigo"
+                                            wire:model="codigo"
+                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                            placeholder="Ej: ART-001"
+                                            required
+                                        />
+                                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Se propone automáticamente si la categoría tiene prefijo') }}</p>
+                                        @error('codigo') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                    </div>
+
+                                    <!-- Código de Barras -->
+                                    <div>
+                                        <label for="codigo_barras" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Código de barras') }}</label>
+                                        <input
+                                            type="text"
+                                            id="codigo_barras"
+                                            wire:model="codigo_barras"
+                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                            placeholder="EAN-13, UPC..."
+                                            maxlength="50"
+                                        />
+                                        @error('codigo_barras') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                    </div>
+
+                                    <!-- Unidad de Medida -->
+                                    <div>
+                                        <label for="unidad_medida" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Unidad de Medida') }} *</label>
+                                        <select
+                                            id="unidad_medida"
+                                            wire:model="unidad_medida"
+                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                            required
+                                        >
+                                            <option value="unidad">{{ __('Unidad') }}</option>
+                                            <option value="kg">{{ __('Kilogramo (kg)') }}</option>
+                                            <option value="gr">{{ __('Gramo (gr)') }}</option>
+                                            <option value="lt">{{ __('Litro (lt)') }}</option>
+                                            <option value="ml">{{ __('Mililitro (ml)') }}</option>
+                                            <option value="mt">{{ __('Metro (mt)') }}</option>
+                                            <option value="cm">{{ __('Centímetro (cm)') }}</option>
+                                            <option value="caja">{{ __('Caja') }}</option>
+                                            <option value="paquete">{{ __('Paquete') }}</option>
+                                        </select>
+                                        @error('unidad_medida') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                    </div>
+
+                                    <!-- Modo de Stock -->
+                                    <div>
+                                        <label for="modo_stock" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Modo de stock') }}</label>
+                                        <select
+                                            id="modo_stock"
+                                            wire:model="modo_stock"
+                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                        >
+                                            <option value="ninguno">{{ __('Ninguno') }}</option>
+                                            <option value="unitario">{{ __('Unitario') }}</option>
+                                            <option value="receta">{{ __('Receta') }}</option>
+                                        </select>
+                                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Default para nuevas sucursales. Se puede cambiar por sucursal.') }}</p>
+                                        @error('modo_stock') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                    </div>
+
+                                    <!-- Tipo IVA -->
+                                    <div>
+                                        <label for="tipo_iva_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Tipo de IVA') }} *</label>
+                                        <select
+                                            id="tipo_iva_id"
+                                            wire:model="tipo_iva_id"
+                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                            required
+                                        >
+                                            <option value="">{{ __('Seleccionar...') }}</option>
+                                            @foreach($tiposIva as $tipoIva)
+                                                <option value="{{ $tipoIva->id }}">{{ $tipoIva->nombre }} ({{ $tipoIva->porcentaje }}%)</option>
+                                            @endforeach
+                                        </select>
+                                        @error('tipo_iva_id') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                    </div>
+
+                                    <!-- Precio Base -->
+                                    <div>
+                                        <label for="precio_base" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            {{ __('Precio Base') }} *
+                                            <span class="text-xs text-gray-500 dark:text-gray-400 font-normal ml-1">({{ __('fallback global') }})</span>
+                                        </label>
+                                        <div class="mt-1 relative rounded-md shadow-sm">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <span class="text-gray-500 dark:text-gray-400 sm:text-sm">$</span>
                                             </div>
+                                            <input
+                                                type="number"
+                                                id="precio_base"
+                                                wire:model="precio_base"
+                                                step="0.01"
+                                                min="0"
+                                                class="block w-full pl-7 pr-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                                placeholder="0.00"
+                                                required
+                                            />
+                                        </div>
+                                        @error('precio_base') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                    </div>
+                                </div>
 
-                                            <!-- Nombre -->
-                                            <div>
-                                                <label for="nombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
-                                                <input
-                                                    type="text"
-                                                    id="nombre"
-                                                    wire:model="nombre"
-                                                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                    placeholder="Ej: Coca Cola 500ml"
-                                                    required
-                                                />
-                                                @error('nombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                            </div>
+                                <!-- Descripción -->
+                                <div>
+                                    <label for="descripcion" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Descripción') }}</label>
+                                    <textarea
+                                        id="descripcion"
+                                        wire:model="descripcion"
+                                        rows="2"
+                                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                        placeholder="{{ __('Descripción detallada del artículo...') }}"
+                                    ></textarea>
+                                    @error('descripcion') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                </div>
 
-                                            <!-- Unidad de Medida -->
-                                            <div>
-                                                <label for="unidad_medida" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Unidad de Medida') }} *</label>
-                                                <select
-                                                    id="unidad_medida"
-                                                    wire:model="unidad_medida"
-                                                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                    required
-                                                >
-                                                    <option value="unidad">{{ __('Unidad') }}</option>
-                                                    <option value="kg">{{ __('Kilogramo (kg)') }}</option>
-                                                    <option value="gr">{{ __('Gramo (gr)') }}</option>
-                                                    <option value="lt">{{ __('Litro (lt)') }}</option>
-                                                    <option value="ml">{{ __('Mililitro (ml)') }}</option>
-                                                    <option value="mt">{{ __('Metro (mt)') }}</option>
-                                                    <option value="cm">{{ __('Centímetro (cm)') }}</option>
-                                                    <option value="caja">{{ __('Caja') }}</option>
-                                                    <option value="paquete">{{ __('Paquete') }}</option>
-                                                </select>
-                                                @error('unidad_medida') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                            </div>
+                                <!-- Toggles -->
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <!-- Materia Prima -->
+                                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between">
+                                        <label for="es_materia_prima" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('Es Materia Prima') }}</label>
+                                        <button
+                                            type="button"
+                                            wire:click="$toggle('es_materia_prima')"
+                                            class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $es_materia_prima ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
+                                            role="switch"
+                                            aria-checked="{{ $es_materia_prima ? 'true' : 'false' }}"
+                                        >
+                                            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $es_materia_prima ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                                        </button>
+                                    </div>
 
-                                            <!-- Categoría -->
-                                            <div>
-                                                <label for="categoria_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Categoría') }}</label>
-                                                <select
-                                                    id="categoria_id"
-                                                    wire:model="categoria_id"
-                                                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                >
-                                                    <option value="">{{ __('Sin categoría') }}</option>
-                                                    @foreach($categorias as $categoria)
-                                                        <option value="{{ $categoria->id }}">{{ $categoria->nombre }}</option>
-                                                    @endforeach
-                                                </select>
-                                                @error('categoria_id') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                            </div>
+                                    <!-- IVA Incluido -->
+                                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between">
+                                        <label for="precio_iva_incluido" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('IVA Incluido') }}</label>
+                                        <button
+                                            type="button"
+                                            wire:click="$toggle('precio_iva_incluido')"
+                                            class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $precio_iva_incluido ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
+                                            role="switch"
+                                            aria-checked="{{ $precio_iva_incluido ? 'true' : 'false' }}"
+                                        >
+                                            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $precio_iva_incluido ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                                        </button>
+                                    </div>
 
-                                            <!-- Tipo IVA -->
-                                            <div>
-                                                <label for="tipo_iva_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Tipo de IVA') }} *</label>
-                                                <select
-                                                    id="tipo_iva_id"
-                                                    wire:model="tipo_iva_id"
-                                                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                    required
-                                                >
-                                                    <option value="">{{ __('Seleccionar...') }}</option>
-                                                    @foreach($tiposIva as $tipoIva)
-                                                        <option value="{{ $tipoIva->id }}">{{ $tipoIva->nombre }} ({{ $tipoIva->porcentaje }}%)</option>
-                                                    @endforeach
-                                                </select>
-                                                @error('tipo_iva_id') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                            </div>
+                                    <!-- Activo -->
+                                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between">
+                                        <label for="activo" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('Activo') }}</label>
+                                        <button
+                                            type="button"
+                                            wire:click="$toggle('activo')"
+                                            class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $activo ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-500' }}"
+                                            role="switch"
+                                            aria-checked="{{ $activo ? 'true' : 'false' }}"
+                                        >
+                                            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $activo ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                                        </button>
+                                    </div>
+                                </div>
 
-                                            <!-- Precio Base -->
-                                            <div>
-                                                <label for="precio_base" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                    {{ __('Precio Base') }} *
-                                                    <span class="text-xs text-gray-500 dark:text-gray-400 font-normal ml-1">({{ __('fallback global') }})</span>
-                                                </label>
-                                                <div class="mt-1 relative rounded-md shadow-sm">
-                                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                        <span class="text-gray-500 dark:text-gray-400 sm:text-sm">$</span>
-                                                    </div>
+                                <!-- Disponibilidad en Sucursales y Etiquetas -->
+                                <div class="pt-4 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <!-- Sucursales -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                            {{ __('Disponibilidad en Sucursales') }}
+                                        </label>
+                                        <div class="grid grid-cols-1 gap-2">
+                                            @foreach($sucursales as $sucursal)
+                                                <div class="flex items-center p-2 bg-gray-50 dark:bg-gray-700 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
                                                     <input
-                                                        type="number"
-                                                        id="precio_base"
-                                                        wire:model="precio_base"
-                                                        step="0.01"
-                                                        min="0"
-                                                        class="block w-full pl-7 pr-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                        placeholder="0.00"
-                                                        required
+                                                        type="checkbox"
+                                                        id="sucursal_{{ $sucursal->id }}"
+                                                        wire:model="sucursales_seleccionadas"
+                                                        value="{{ $sucursal->id }}"
+                                                        class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary h-4 w-4 dark:bg-gray-600"
                                                     />
+                                                    <label for="sucursal_{{ $sucursal->id }}" class="ml-3 block text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                                                        {{ $sucursal->nombre }}
+                                                    </label>
                                                 </div>
-                                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                    {{ __('Precio predeterminado usado cuando no hay precio específico configurado') }}
-                                                </p>
-                                                @error('precio_base') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                            </div>
+                                            @endforeach
                                         </div>
+                                    </div>
 
-                                        <!-- Descripción -->
-                                        <div>
-                                            <label for="descripcion" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Descripción') }}</label>
-                                            <textarea
-                                                id="descripcion"
-                                                wire:model="descripcion"
-                                                rows="3"
-                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                :placeholder="__('Descripción detallada del artículo...')"
-                                            ></textarea>
-                                            @error('descripcion') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                    <!-- Etiquetas -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            {{ __('Etiquetas') }}
+                                            @if(count($etiquetas_seleccionadas) > 0)
+                                                <span class="ml-2 px-2 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">
+                                                    {{ count($etiquetas_seleccionadas) }} {{ __('seleccionadas') }}
+                                                </span>
+                                            @endif
+                                        </label>
+                                        <!-- Buscador de etiquetas -->
+                                        <div class="relative mb-2">
+                                            <input
+                                                type="text"
+                                                wire:model.live.debounce.300ms="busquedaEtiqueta"
+                                                placeholder="{{ __('Buscar grupo o etiqueta...') }}"
+                                                class="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
+                                            >
+                                            <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                            </svg>
                                         </div>
-
-                                        <!-- Checkboxes -->
-                                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-2">
-                                            <div class="flex items-center">
-                                                <input
-                                                    type="checkbox"
-                                                    id="es_materia_prima"
-                                                    wire:model="es_materia_prima"
-                                                    class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
-                                                />
-                                                <label for="es_materia_prima" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Es Materia Prima') }}</label>
-                                            </div>
-
-                                            <div class="flex items-center">
-                                                <input
-                                                    type="checkbox"
-                                                    id="precio_iva_incluido"
-                                                    wire:model="precio_iva_incluido"
-                                                    class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
-                                                />
-                                                <label for="precio_iva_incluido" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('IVA Incluido') }}</label>
-                                            </div>
-
-                                            <div class="flex items-center">
-                                                <input
-                                                    type="checkbox"
-                                                    id="activo"
-                                                    wire:model="activo"
-                                                    class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
-                                                />
-                                                <label for="activo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Activo') }}</label>
-                                            </div>
-                                        </div>
-
-                                        <!-- Disponibilidad en Sucursales y Etiquetas -->
-                                        <div class="pt-4 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                            <!-- Sucursales -->
-                                            <div>
-                                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                                    {{ __('Disponibilidad en Sucursales') }}
-                                                </label>
-                                                <div class="grid grid-cols-1 gap-2">
-                                                    @foreach($sucursales as $sucursal)
-                                                        <div class="flex items-center p-2 bg-gray-50 dark:bg-gray-700 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                                                            <input
-                                                                type="checkbox"
-                                                                id="sucursal_{{ $sucursal->id }}"
-                                                                wire:model="sucursales_seleccionadas"
-                                                                value="{{ $sucursal->id }}"
-                                                                class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 h-4 w-4 dark:bg-gray-600"
-                                                            />
-                                                            <label for="sucursal_{{ $sucursal->id }}" class="ml-3 block text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                                                                {{ $sucursal->nombre }}
-                                                            </label>
+                                        <div class="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg">
+                                            @forelse($gruposEtiquetas as $grupo)
+                                                @if($grupo->etiquetas->count() > 0)
+                                                    <div class="border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                                                        <div class="px-3 py-2 bg-gray-50 dark:bg-gray-700 flex items-center gap-2 sticky top-0">
+                                                            <div class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: {{ $grupo->color }};"></div>
+                                                            <span class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ $grupo->nombre }}</span>
                                                         </div>
-                                                    @endforeach
-                                                </div>
-                                            </div>
-
-                                            <!-- Etiquetas -->
-                                            <div>
-                                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    {{ __('Etiquetas') }}
-                                                    @if(count($etiquetas_seleccionadas) > 0)
-                                                        <span class="ml-2 px-2 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">
-                                                            {{ count($etiquetas_seleccionadas) }} {{ __('seleccionadas') }}
-                                                        </span>
-                                                    @endif
-                                                </label>
-                                                <!-- Buscador de etiquetas -->
-                                                <div class="relative mb-2">
-                                                    <input
-                                                        type="text"
-                                                        wire:model.live.debounce.300ms="busquedaEtiqueta"
-                                                        :placeholder="__('Buscar grupo o etiqueta...')"
-                                                        class="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
-                                                    >
-                                                    <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                                                    </svg>
-                                                </div>
-                                                <div class="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg">
-                                                    @forelse($gruposEtiquetas as $grupo)
-                                                        @if($grupo->etiquetas->count() > 0)
-                                                            <div class="border-b border-gray-100 dark:border-gray-700 last:border-b-0">
-                                                                <div class="px-3 py-2 bg-gray-50 dark:bg-gray-700 flex items-center gap-2 sticky top-0">
-                                                                    <div class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: {{ $grupo->color }};"></div>
-                                                                    <span class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ $grupo->nombre }}</span>
-                                                                </div>
-                                                                <div class="p-2 space-y-1">
-                                                                    @foreach($grupo->etiquetas as $etiqueta)
-                                                                        <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-                                                                            <input
-                                                                                type="checkbox"
-                                                                                wire:click="toggleEtiqueta({{ $etiqueta->id }})"
-                                                                                {{ in_array($etiqueta->id, $etiquetas_seleccionadas) ? 'checked' : '' }}
-                                                                                class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-600"
-                                                                            >
-                                                                            <div class="w-2 h-2 rounded-full flex-shrink-0" style="background-color: {{ $etiqueta->color ?? $grupo->color }};"></div>
-                                                                            <span class="text-sm text-gray-700 dark:text-gray-300">{{ $etiqueta->nombre }}</span>
-                                                                        </label>
-                                                                    @endforeach
-                                                                </div>
-                                                            </div>
-                                                        @endif
-                                                    @empty
-                                                        <div class="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-                                                            {{ __('No hay etiquetas disponibles') }}
+                                                        <div class="p-2 space-y-1">
+                                                            @foreach($grupo->etiquetas as $etiqueta)
+                                                                <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        wire:click="toggleEtiqueta({{ $etiqueta->id }})"
+                                                                        {{ in_array($etiqueta->id, $etiquetas_seleccionadas) ? 'checked' : '' }}
+                                                                        class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-600"
+                                                                    >
+                                                                    <div class="w-2 h-2 rounded-full flex-shrink-0" style="background-color: {{ $etiqueta->color ?? $grupo->color }};"></div>
+                                                                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ $etiqueta->nombre }}</span>
+                                                                </label>
+                                                            @endforeach
                                                         </div>
-                                                    @endforelse
+                                                    </div>
+                                                @endif
+                                            @empty
+                                                <div class="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+                                                    {{ __('No hay etiquetas disponibles') }}
                                                 </div>
-                                                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                                    {{ __('Asigna etiquetas para clasificar este artículo') }}
-                                                </p>
-                                            </div>
+                                            @endforelse
                                         </div>
+                                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                            {{ __('Asigna etiquetas para clasificar este artículo') }}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -724,7 +763,7 @@
                         <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                             <button
                                 type="submit"
-                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary dark:focus:ring-offset-gray-800 sm:ml-3 sm:w-auto sm:text-sm"
+                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 {{ $editMode ? 'bg-bcn-primary' : 'bg-green-600 hover:bg-green-700' }} text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary dark:focus:ring-offset-gray-800 sm:ml-3 sm:w-auto sm:text-sm"
                             >
                                 {{ $editMode ? __('Actualizar') : __('Crear') }}
                             </button>

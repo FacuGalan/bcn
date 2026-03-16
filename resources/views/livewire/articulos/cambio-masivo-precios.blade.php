@@ -1,41 +1,32 @@
-<div class="py-2">
-    <div class="px-4 sm:px-6 lg:px-8">
-        <!-- Header con stepper integrado -->
-        <div class="mb-3">
-            <div class="flex items-center justify-between gap-3">
-                <!-- Izquierda: Volver + Título -->
-                <div class="flex items-center gap-3">
-                    <button
-                        wire:click="volver"
-                        class="inline-flex items-center justify-center w-8 h-8 text-gray-500 dark:text-gray-400 hover:text-bcn-primary hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-                        :title="__('Volver a artículos')"
-                    >
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                        </svg>
-                    </button>
-                    <h2 class="text-lg sm:text-xl font-bold text-bcn-secondary dark:text-white">{{ __('Cambio Masivo de Precios') }}</h2>
-                </div>
-
-                <!-- Centro: Stepper compacto -->
-                <div class="hidden sm:flex items-center gap-1">
-                    <div class="flex items-center gap-1.5">
-                        <div class="flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold {{ $paso >= 1 ? 'bg-bcn-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300' }}">1</div>
-                        <span class="text-xs font-medium {{ $paso >= 1 ? 'text-bcn-primary' : 'text-gray-400' }}">{{ __('Configurar') }}</span>
-                    </div>
-                    <div class="w-8 h-0.5 {{ $paso >= 2 ? 'bg-bcn-primary' : 'bg-gray-200 dark:bg-gray-700' }}"></div>
-                    <div class="flex items-center gap-1.5">
-                        <div class="flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold {{ $paso >= 2 ? 'bg-bcn-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300' }}">2</div>
-                        <span class="text-xs font-medium {{ $paso >= 2 ? 'text-bcn-primary' : 'text-gray-400' }}">{{ __('Revisar y Aplicar') }}</span>
+<div class="py-4 h-[calc(100dvh-85px)] flex flex-col" x-data>
+    <div class="px-4 sm:px-6 lg:px-8 flex flex-col flex-1 min-h-0">
+        <!-- Header -->
+        <div class="mb-4 sm:mb-6 flex-shrink-0">
+            <div class="flex justify-between items-start gap-3 sm:gap-4">
+                <div class="flex-1">
+                    <div class="flex items-center gap-3">
+                        <button
+                            wire:click="volver"
+                            class="inline-flex items-center justify-center w-8 h-8 text-gray-500 dark:text-gray-400 hover:text-bcn-primary hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                            :title="__('Volver a artículos')"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                            </svg>
+                        </button>
+                        <div>
+                            <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white">{{ __('Cambio Masivo de Precios') }}</h2>
+                            <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">{{ __('Configura y aplica ajustes de precios a múltiples artículos') }}</p>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Derecha: Botón programados -->
                 <button
                     wire:click="toggleProgramados"
-                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-bcn-primary text-bcn-primary hover:bg-bcn-primary hover:text-white rounded-lg text-xs font-medium transition-colors"
+                    class="inline-flex items-center gap-1.5 px-3 py-2 border border-bcn-primary text-bcn-primary hover:bg-bcn-primary hover:text-white rounded-lg text-xs font-medium transition-colors"
                 >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     {{ __('Programados') }}
@@ -50,74 +41,102 @@
 
         <!-- Panel de cambios programados -->
         @if($showProgramados)
-            <div class="mb-6 bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-4 sm:p-6">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Cambios programados') }}</h3>
-                        <button wire:click="toggleProgramados" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
+            <div class="mb-4 bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                <div class="p-3 sm:p-4">
+                    <!-- Header + Filtros -->
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                        <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Cambios programados') }}</h3>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <!-- Filtro estado -->
+                            <select
+                                wire:model.live="filtroProgramadosEstado"
+                                class="py-1 px-2 text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                            >
+                                <option value="pendiente">{{ __('Pendientes') }}</option>
+                                <option value="procesado">{{ __('Procesados') }}</option>
+                                <option value="cancelado">{{ __('Cancelados') }}</option>
+                                <option value="error">{{ __('Con error') }}</option>
+                                <option value="todos">{{ __('Todos') }}</option>
+                            </select>
+                            <!-- Filtro fecha desde -->
+                            <input
+                                type="date"
+                                wire:model.live="filtroProgramadosFechaDesde"
+                                class="py-1 px-2 text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                :title="__('Desde')"
+                            >
+                            <!-- Filtro fecha hasta -->
+                            <input
+                                type="date"
+                                wire:model.live="filtroProgramadosFechaHasta"
+                                class="py-1 px-2 text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                :title="__('Hasta')"
+                            >
+                            <button wire:click="toggleProgramados" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
 
                     @if($this->cambiosProgramados->isEmpty())
-                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">{{ __('No hay cambios programados') }}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 text-center py-3">{{ __('No hay cambios programados') }}</p>
                     @else
                         <!-- Desktop table -->
                         <div class="hidden sm:block overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                 <thead class="bg-gray-50 dark:bg-gray-700">
                                     <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Fecha programada') }}</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Ajuste') }}</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Artículos') }}</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Alcance') }}</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Estado') }}</th>
-                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Acciones') }}</th>
+                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Fecha programada') }}</th>
+                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Ajuste') }}</th>
+                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Artículos') }}</th>
+                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Alcance') }}</th>
+                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Estado') }}</th>
+                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Acciones') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                     @foreach($this->cambiosProgramados as $programado)
                                         <tr>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900 dark:text-white">
                                                 {{ $programado->fecha_programada->format('d/m/Y H:i') }}
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-300">
                                                 {{ $programado->descripcion_ajuste }}
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-300">
                                                 {{ $programado->total_articulos }}
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-300">
                                                 @if($programado->alcance_precio === 'sucursal_actual')
                                                     {{ __('Sucursal') }} #{{ $programado->sucursal_id }}
                                                 @else
                                                     {{ __('Global') }}
                                                 @endif
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap">
+                                            <td class="px-3 py-2 whitespace-nowrap">
                                                 @switch($programado->estado)
                                                     @case('pendiente')
-                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">{{ __('Pendiente') }}</span>
+                                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">{{ __('Pendiente') }}</span>
                                                         @break
                                                     @case('procesado')
-                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">{{ __('Procesado') }}</span>
+                                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">{{ __('Procesado') }}</span>
                                                         @break
                                                     @case('cancelado')
-                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200">{{ __('Cancelado') }}</span>
+                                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200">{{ __('Cancelado') }}</span>
                                                         @break
                                                     @case('error')
-                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" title="{{ $programado->resultado }}">{{ __('Error') }}</span>
+                                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" title="{{ $programado->resultado }}">{{ __('Error') }}</span>
                                                         @break
                                                 @endswitch
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                            <td class="px-3 py-2 whitespace-nowrap text-right text-xs">
                                                 @if($programado->estado === 'pendiente')
                                                     <button
                                                         wire:click="cancelarCambioProgramado({{ $programado->id }})"
                                                         wire:confirm="{{ __('¿Cancelar este cambio programado?') }}"
-                                                        class="px-3 py-1.5 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white rounded-md text-xs font-medium transition-colors"
+                                                        class="px-2 py-1 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white rounded-md text-xs font-medium transition-colors"
                                                     >
                                                         {{ __('Cancelar') }}
                                                     </button>
@@ -132,11 +151,11 @@
                         </div>
 
                         <!-- Mobile cards -->
-                        <div class="sm:hidden space-y-3">
+                        <div class="sm:hidden space-y-2">
                             @foreach($this->cambiosProgramados as $programado)
-                                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                    <div class="flex items-center justify-between mb-2">
-                                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $programado->fecha_programada->format('d/m/Y H:i') }}</span>
+                                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-xs font-medium text-gray-900 dark:text-white">{{ $programado->fecha_programada->format('d/m/Y H:i') }}</span>
                                         @switch($programado->estado)
                                             @case('pendiente')
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">{{ __('Pendiente') }}</span>
@@ -152,9 +171,9 @@
                                                 @break
                                         @endswitch
                                     </div>
-                                    <div class="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                                    <div class="text-xs text-gray-600 dark:text-gray-300 space-y-0.5">
                                         <p>{{ $programado->descripcion_ajuste }} — {{ $programado->total_articulos }} {{ __('artículos') }}</p>
-                                        <p class="text-xs">
+                                        <p>
                                             @if($programado->alcance_precio === 'sucursal_actual')
                                                 {{ __('Sucursal') }} #{{ $programado->sucursal_id }}
                                             @else
@@ -163,11 +182,11 @@
                                         </p>
                                     </div>
                                     @if($programado->estado === 'pendiente')
-                                        <div class="mt-3">
+                                        <div class="mt-2">
                                             <button
                                                 wire:click="cancelarCambioProgramado({{ $programado->id }})"
                                                 wire:confirm="{{ __('¿Cancelar este cambio programado?') }}"
-                                                class="w-full px-3 py-1.5 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white rounded-md text-xs font-medium transition-colors"
+                                                class="w-full px-2 py-1 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white rounded-md text-xs font-medium transition-colors"
                                             >
                                                 {{ __('Cancelar') }}
                                             </button>
@@ -245,7 +264,7 @@
                                         <input
                                             type="number"
                                             id="valorAjuste"
-                                            wire:model.live="valorAjuste"
+                                            wire:model.live.debounce.500ms="valorAjuste"
                                             step="{{ $tipoValor === 'porcentual' ? '0.1' : '0.01' }}"
                                             min="0"
                                             class="block w-full pl-7 pr-2 py-1.5 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
@@ -339,7 +358,7 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                                         </svg>
                                     </div>
-                                    <div class="flex-1 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md p-1.5 space-y-0.5" style="max-height: calc(100vh - 280px);">
+                                    <div class="flex-1 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md p-1.5 space-y-0.5" style="max-height: calc(100vh - 380px);">
                                         @forelse($categorias as $categoria)
                                             <label class="flex items-center px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer">
                                                 <input
@@ -380,7 +399,7 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                                         </svg>
                                     </div>
-                                    <div class="flex-1 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md" style="max-height: calc(100vh - 280px);">
+                                    <div class="flex-1 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md" style="max-height: calc(100vh - 380px);">
                                         @forelse($gruposEtiquetas as $grupo)
                                             @if($grupo->etiquetas->count() > 0)
                                                 <div class="border-b border-gray-100 dark:border-gray-700 last:border-b-0">
@@ -431,276 +450,226 @@
             </div>
         @endif
 
-        <!-- Paso 2: Vista previa y confirmación -->
+        <!-- Paso 2: Vista previa y confirmación (layout fijo, solo tabla scrolleable) -->
         @if($paso === 2)
-            <!-- Resumen de configuración -->
-            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-4">
-                <div class="p-4 sm:p-6">
-                    <div class="flex flex-wrap items-center justify-between gap-4">
-                        <!-- Indicadores de configuración -->
-                        <div class="flex flex-wrap items-center gap-3">
-                            <!-- Ajuste -->
-                            <div class="flex items-center gap-2 px-3 py-2 rounded-lg {{ $tipoAjuste === 'descuento' ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200' }}">
-                                <div class="flex items-center justify-center w-8 h-8 rounded-full {{ $tipoAjuste === 'descuento' ? 'bg-green-100' : 'bg-orange-100' }}">
+            <div class="flex flex-col flex-1 min-h-0">
+                <!-- Resumen compacto de configuración -->
+                <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-3 flex-shrink-0">
+                    <div class="p-3 sm:p-4">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <!-- Ajuste -->
+                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium {{ $tipoAjuste === 'descuento' ? 'bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800' : 'bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800' }}">
                                     @if($tipoAjuste === 'descuento')
-                                        <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                                        </svg>
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
                                     @else
-                                        <svg class="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                                        </svg>
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
                                     @endif
-                                </div>
-                                <div>
-                                    <p class="text-xs {{ $tipoAjuste === 'descuento' ? 'text-green-600' : 'text-orange-600' }} font-medium">{{ ucfirst($tipoAjuste) }}</p>
-                                    <p class="text-sm font-bold {{ $tipoAjuste === 'descuento' ? 'text-green-700' : 'text-orange-700' }}">
-                                        {{ $tipoValor === 'porcentual' ? $valorAjuste . '%' : '$' . number_format($valorAjuste, 2, ',', '.') }}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <!-- Redondeo -->
-                            <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-700">
-                                <div class="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-600">
-                                    <svg class="w-4 h-4 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">{{ __('Redondeo') }}</p>
-                                    <p class="text-sm font-bold text-gray-700 dark:text-gray-300">
-                                        {{ match($tipoRedondeo) {
-                                            'entero' => __('Entero'),
-                                            'decena' => __('Decena'),
-                                            'centena' => __('Centena'),
-                                            default => __('Sin redondeo'),
-                                        } }}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <!-- Filtros aplicados -->
-                            @if(!empty($categoriasSeleccionadas) || !empty($etiquetasSeleccionadas))
-                                <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200">
-                                    <div class="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100">
-                                        <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <p class="text-xs text-indigo-600 font-medium">{{ __('Filtros') }}</p>
-                                        <p class="text-sm font-bold text-indigo-700">
-                                            @if(!empty($categoriasSeleccionadas) && !empty($etiquetasSeleccionadas))
-                                                {{ count($categoriasSeleccionadas) }} {{ __('cat.') }} · {{ count($etiquetasSeleccionadas) }} {{ __('etiq.') }}
-                                            @elseif(!empty($categoriasSeleccionadas))
-                                                {{ count($categoriasSeleccionadas) }} {{ __('categoría(s)') }}
-                                            @else
-                                                {{ count($etiquetasSeleccionadas) }} {{ __('etiqueta(s)') }}
-                                            @endif
-                                        </p>
-                                    </div>
-                                </div>
-                            @else
-                                <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200">
-                                    <div class="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100">
-                                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <p class="text-xs text-blue-600 font-medium">{{ __('Alcance') }}</p>
-                                        <p class="text-sm font-bold text-blue-700">{{ __('Todos los artículos') }}</p>
-                                    </div>
-                                </div>
-                            @endif
-
-                            <!-- Alcance sucursal -->
-                            <div class="flex items-center gap-2 px-3 py-2 rounded-lg {{ $alcancePrecio === 'sucursal_actual' ? 'bg-purple-50 border border-purple-200' : 'bg-cyan-50 border border-cyan-200' }}">
-                                <div class="flex items-center justify-center w-8 h-8 rounded-full {{ $alcancePrecio === 'sucursal_actual' ? 'bg-purple-100' : 'bg-cyan-100' }}">
-                                    <svg class="w-4 h-4 {{ $alcancePrecio === 'sucursal_actual' ? 'text-purple-600' : 'text-cyan-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <p class="text-xs {{ $alcancePrecio === 'sucursal_actual' ? 'text-purple-600' : 'text-cyan-600' }} font-medium">{{ __('Alcance del cambio') }}</p>
-                                    <p class="text-sm font-bold {{ $alcancePrecio === 'sucursal_actual' ? 'text-purple-700' : 'text-cyan-700' }}">
-                                        @if($alcancePrecio === 'sucursal_actual')
-                                            {{ __('Sucursal actual') }}
-                                        @else
-                                            {{ __('Precio genérico') }}
-                                        @endif
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Botón modificar filtros -->
-                        <button
-                            wire:click="pasoAnterior"
-                            class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg font-medium text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
-                        >
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                            {{ __('Modificar filtros') }}
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Totales -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-                    <div class="text-sm text-gray-500 dark:text-gray-400">{{ __('Artículos a modificar') }}</div>
-                    <div class="text-2xl font-bold text-bcn-secondary dark:text-white">{{ $totalArticulos }}</div>
-                </div>
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-                    <div class="text-sm text-gray-500 dark:text-gray-400">{{ __('Total precio actual') }}</div>
-                    <div class="text-2xl font-bold text-gray-600 dark:text-gray-300">${{ number_format($totalPrecioViejo, 2, ',', '.') }}</div>
-                </div>
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-                    <div class="text-sm text-gray-500 dark:text-gray-400">{{ __('Total precio nuevo') }}</div>
-                    <div class="text-2xl font-bold {{ $tipoAjuste === 'descuento' ? 'text-green-600' : 'text-orange-600' }}">${{ number_format($totalPrecioNuevo, 2, ',', '.') }}</div>
-                </div>
-            </div>
-
-            <!-- Tabla de artículos -->
-            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                <!-- Buscador de artículos en el preview -->
-                <div class="p-4 border-b border-gray-200 dark:border-gray-700">
-                    <div class="flex items-center justify-between gap-4">
-                        <div class="relative flex-1 max-w-md">
-                            <input
-                                type="text"
-                                wire:model.live.debounce.300ms="busquedaArticuloPreview"
-                                :placeholder="__('Buscar por código o nombre...')"
-                                class="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors text-sm"
-                            >
-                            <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                            </svg>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            @if($busquedaArticuloPreview)
-                                <span class="text-sm text-gray-500 dark:text-gray-400">
-                                    {{ __('Mostrando') }} {{ count($articulosPreviewFiltrados) }} {{ __('de') }} {{ $totalArticulos }} {{ __('artículos') }}
+                                    {{ ucfirst($tipoAjuste) }} {{ $tipoValor === 'porcentual' ? $valorAjuste . '%' : '$' . number_format($valorAjuste, 2, ',', '.') }}
                                 </span>
-                            @endif
+
+                                <!-- Redondeo -->
+                                @if($tipoRedondeo !== 'sin_redondeo')
+                                    <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-50 text-gray-600 border border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600">
+                                        {{ __('Redondeo') }}: {{ match($tipoRedondeo) { 'entero' => __('Entero'), 'decena' => __('Decena'), 'centena' => __('Centena'), default => '' } }}
+                                    </span>
+                                @endif
+
+                                <!-- Filtros -->
+                                @if(!empty($categoriasSeleccionadas) || !empty($etiquetasSeleccionadas))
+                                    <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+                                        @if(!empty($categoriasSeleccionadas) && !empty($etiquetasSeleccionadas))
+                                            {{ count($categoriasSeleccionadas) }} {{ __('cat.') }} · {{ count($etiquetasSeleccionadas) }} {{ __('etiq.') }}
+                                        @elseif(!empty($categoriasSeleccionadas))
+                                            {{ count($categoriasSeleccionadas) }} {{ __('categoría(s)') }}
+                                        @else
+                                            {{ count($etiquetasSeleccionadas) }} {{ __('etiqueta(s)') }}
+                                        @endif
+                                    </span>
+                                @endif
+
+                                <!-- Alcance -->
+                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium {{ $alcancePrecio === 'sucursal_actual' ? 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800' : 'bg-cyan-50 text-cyan-700 border border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300 dark:border-cyan-800' }}">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                                    {{ $alcancePrecio === 'sucursal_actual' ? __('Sucursal actual') : __('Precio genérico') }}
+                                </span>
+                            </div>
+
+                            <!-- Botón modificar -->
                             <button
-                                wire:click="abrirModalAgregarArticulo"
-                                class="inline-flex items-center px-3 py-2 bg-bcn-primary text-white text-sm font-medium rounded-lg hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition-colors"
+                                wire:click="pasoAnterior"
+                                class="inline-flex items-center px-2.5 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md font-medium text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
                             >
-                                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
-                                {{ __('Agregar artículo') }}
+                                {{ __('Modificar') }}
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead class="bg-bcn-light dark:bg-gray-700">
-                            <tr>
-                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    {{ __('Código') }}
-                                </th>
-                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    {{ __('Artículo') }}
-                                </th>
-                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    {{ __('Categoría') }}
-                                </th>
-                                <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    {{ __('Precio Actual') }}
-                                </th>
-                                <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    {{ __('Precio Nuevo') }}
-                                </th>
-                                <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    {{ __('Diferencia') }}
-                                </th>
-                                <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                    {{ __('Acciones') }}
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                            @forelse($articulosPreviewFiltrados as $articulo)
-                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
-                                    <td class="px-4 py-3 whitespace-nowrap">
-                                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $articulo['codigo'] }}</span>
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <span class="text-sm text-gray-900 dark:text-white">{{ $articulo['nombre'] }}</span>
-                                    </td>
-                                    <td class="px-4 py-3 whitespace-nowrap">
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                              style="background-color: {{ $articulo['categoria_color'] }}20; color: {{ $articulo['categoria_color'] }}; border: 1px solid {{ $articulo['categoria_color'] }}40;">
-                                            {{ $articulo['categoria'] }}
-                                        </span>
-                                    </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-right">
-                                        <span class="text-sm text-gray-500 dark:text-gray-400">${{ number_format($articulo['precio_viejo'], 2, ',', '.') }}</span>
-                                    </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-right">
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            value="{{ $articulo['precio_nuevo'] }}"
-                                            wire:change="actualizarPrecioManual({{ $articulo['id'] }}, $event.target.value)"
-                                            class="w-28 text-right text-sm font-medium rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 {{ $tipoAjuste === 'descuento' ? 'text-green-600' : 'text-orange-600' }}"
-                                        />
-                                    </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-right">
-                                        <span class="text-sm {{ $articulo['diferencia'] >= 0 ? 'text-orange-600' : 'text-green-600' }}">
-                                            {{ $articulo['diferencia'] >= 0 ? '+' : '' }}${{ number_format($articulo['diferencia'], 2, ',', '.') }}
-                                            <span class="text-xs text-gray-400">({{ $articulo['diferencia_porcentaje'] >= 0 ? '+' : '' }}{{ $articulo['diferencia_porcentaje'] }}%)</span>
-                                        </span>
-                                    </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-center">
-                                        <button
-                                            wire:click="quitarArticulo({{ $articulo['id'] }})"
-                                            class="text-red-500 hover:text-red-700 transition-colors"
-                                            :title="__('Quitar de la lista')"
-                                        >
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="7" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                                        </svg>
-                                        <p class="mt-2">{{ __('No se encontraron artículos con los filtros seleccionados') }}</p>
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Botón de aplicar -->
-                @if(count($articulosPreview) > 0)
-                    <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
-                        <button
-                            wire:click="confirmarCambios"
-                            class="inline-flex items-center px-6 py-3 bg-bcn-primary border border-transparent rounded-md font-semibold text-sm text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
-                        >
-                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                            </svg>
-                            {{ __('Aplicar Cambios') }} ({{ $totalArticulos }} {{ __('artículos') }})
-                        </button>
+                <!-- Tabla de artículos (flex-1 para ocupar espacio restante) -->
+                <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg flex-1 flex flex-col min-h-0 overflow-hidden">
+                    <!-- Buscador (fijo) -->
+                    <div class="p-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="relative flex-1 max-w-md">
+                                <input
+                                    type="text"
+                                    wire:model.live.debounce.300ms="busquedaArticuloPreview"
+                                    :placeholder="__('Buscar por código o nombre...')"
+                                    class="w-full pl-8 pr-3 py-1.5 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors text-xs"
+                                >
+                                <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                </svg>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                @if($busquedaArticuloPreview)
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">
+                                        {{ count($articulosPreviewFiltrados) }}/{{ $totalArticulos }}
+                                    </span>
+                                @endif
+                                <button
+                                    wire:click="abrirModalAgregarArticulo"
+                                    class="inline-flex items-center px-2.5 py-1.5 bg-bcn-primary text-white text-xs font-medium rounded-md hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition-colors"
+                                >
+                                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    {{ __('Agregar') }}
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                @endif
+
+                    <!-- Contenido scrolleable de la tabla -->
+                    <div class="flex-1 overflow-y-auto overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-bcn-light dark:bg-gray-700 sticky top-0 z-[1]">
+                                <tr>
+                                    <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                        {{ __('Código') }}
+                                    </th>
+                                    <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                        {{ __('Artículo') }}
+                                    </th>
+                                    <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
+                                        {{ __('Categoría') }}
+                                    </th>
+                                    <th scope="col" class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                        {{ __('Actual') }}
+                                    </th>
+                                    <th scope="col" class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                        {{ __('Nuevo') }}
+                                    </th>
+                                    <th scope="col" class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider hidden sm:table-cell">
+                                        {{ __('Dif.') }}
+                                    </th>
+                                    <th scope="col" class="px-3 py-2 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider w-10">
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                @forelse($articulosPreviewFiltrados as $articulo)
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
+                                        <td class="px-3 py-2 whitespace-nowrap">
+                                            <span class="text-xs font-medium text-gray-900 dark:text-white">{{ $articulo['codigo'] }}</span>
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            <span class="text-xs text-gray-900 dark:text-white">{{ $articulo['nombre'] }}</span>
+                                        </td>
+                                        <td class="px-3 py-2 whitespace-nowrap hidden md:table-cell">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                                  style="background-color: {{ $articulo['categoria_color'] }}20; color: {{ $articulo['categoria_color'] }}; border: 1px solid {{ $articulo['categoria_color'] }}40;">
+                                                {{ $articulo['categoria'] }}
+                                            </span>
+                                        </td>
+                                        <td class="px-3 py-2 whitespace-nowrap text-right">
+                                            <span class="text-xs text-gray-500 dark:text-gray-400">${{ number_format($articulo['precio_viejo'], 2, ',', '.') }}</span>
+                                        </td>
+                                        <td class="px-3 py-2 whitespace-nowrap text-right">
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                value="{{ $articulo['precio_nuevo'] }}"
+                                                wire:change="actualizarPrecioManual({{ $articulo['id'] }}, $event.target.value)"
+                                                class="w-24 text-right text-xs font-medium rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 py-1 {{ $tipoAjuste === 'descuento' ? 'text-green-600' : 'text-orange-600' }}"
+                                            />
+                                        </td>
+                                        <td class="px-3 py-2 whitespace-nowrap text-right hidden sm:table-cell">
+                                            <span class="text-xs {{ $articulo['diferencia'] >= 0 ? 'text-orange-600' : 'text-green-600' }}">
+                                                {{ $articulo['diferencia'] >= 0 ? '+' : '' }}${{ number_format($articulo['diferencia'], 2, ',', '.') }}
+                                                <span class="text-xs text-gray-400">({{ $articulo['diferencia_porcentaje'] >= 0 ? '+' : '' }}{{ $articulo['diferencia_porcentaje'] }}%)</span>
+                                            </span>
+                                        </td>
+                                        <td class="px-3 py-2 whitespace-nowrap text-center">
+                                            <button
+                                                wire:click="quitarArticulo({{ $articulo['id'] }})"
+                                                class="text-red-400 hover:text-red-600 transition-colors"
+                                                :title="__('Quitar de la lista')"
+                                            >
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="7" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                                            <svg class="mx-auto h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                            </svg>
+                                            <p class="mt-2 text-sm">{{ __('No se encontraron artículos con los filtros seleccionados') }}</p>
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Footer fijo con totales + botón -->
+                    @if(count($articulosPreview) > 0)
+                        <div class="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 px-4 py-2.5 sm:px-5 flex-shrink-0">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex flex-wrap items-center gap-4">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Artículos') }}:</span>
+                                        <span class="text-sm font-bold text-bcn-secondary dark:text-white">{{ $totalArticulos }}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Total actual') }}:</span>
+                                        <span class="text-sm font-bold text-gray-600 dark:text-gray-300">${{ number_format($totalPrecioViejo, 2, ',', '.') }}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Total nuevo') }}:</span>
+                                        <span class="text-sm font-bold {{ $tipoAjuste === 'descuento' ? 'text-green-600' : 'text-orange-600' }}">${{ number_format($totalPrecioNuevo, 2, ',', '.') }}</span>
+                                    </div>
+                                    @php $diferenciaTotales = $totalPrecioNuevo - $totalPrecioViejo; @endphp
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Diferencia') }}:</span>
+                                        <span class="text-sm font-bold {{ $diferenciaTotales >= 0 ? 'text-orange-600' : 'text-green-600' }}">
+                                            {{ $diferenciaTotales >= 0 ? '+' : '' }}${{ number_format($diferenciaTotales, 2, ',', '.') }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <button
+                                    wire:click="confirmarCambios"
+                                    class="inline-flex items-center px-4 py-2 bg-bcn-primary border border-transparent rounded-lg font-semibold text-xs text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
+                                >
+                                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    {{ __('Aplicar Cambios') }} ({{ $totalArticulos }})
+                                </button>
+                            </div>
+                        </div>
+                    @endif
+                </div>
             </div>
         @endif
     </div>

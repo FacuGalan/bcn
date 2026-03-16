@@ -429,50 +429,6 @@
                     </div>
                 @endif
 
-                <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                            {{ __('Sucursales') }} *
-                            <span class="text-xs text-gray-500 dark:text-gray-400 font-normal">({{ __('Selecciona una o mas') }})</span>
-                        </label>
-                        <div class="flex gap-2">
-                            <button type="button"
-                                    wire:click="$set('sucursalesSeleccionadas', {{ $sucursales->pluck('id')->toJson() }})"
-                                    class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition">
-                                {{ __('Todas') }}
-                            </button>
-                            <span class="text-gray-300 dark:text-gray-600">|</span>
-                            <button type="button"
-                                    wire:click="$set('sucursalesSeleccionadas', [])"
-                                    class="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition">
-                                {{ __('Ninguna') }}
-                            </button>
-                        </div>
-                    </div>
-                    <div class="border rounded-lg p-3 {{ empty($sucursalesSeleccionadas) ? 'border-red-300 dark:border-red-700' : 'border-gray-300 dark:border-gray-600' }} bg-gray-50 dark:bg-gray-700">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-                            @foreach($sucursales as $sucursal)
-                                <label class="flex items-center p-2 rounded hover:bg-white dark:hover:bg-gray-600 cursor-pointer transition">
-                                    <input type="checkbox"
-                                           wire:model.live="sucursalesSeleccionadas"
-                                           value="{{ $sucursal->id }}"
-                                           class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary">
-                                    <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ $sucursal->nombre }}</span>
-                                </label>
-                            @endforeach
-                        </div>
-                        @if(!empty($sucursalesSeleccionadas))
-                            <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                                <span class="text-xs text-gray-600 dark:text-gray-400">
-                                    {{ count($sucursalesSeleccionadas) }} {{ __('sucursal(es) seleccionada(s)') }}
-                                </span>
-                            </div>
-                        @endif
-                    </div>
-                    @error('sucursalesSeleccionadas')
-                        <span class="text-red-500 text-xs mt-1">{{ $message }}</span>
-                    @enderror
-                </div>
             </div>
         @endif
 
@@ -670,10 +626,6 @@
                                         @default
                                             {{ ucfirst(str_replace('_', ' ', $tipo)) }}
                                     @endswitch
-                                    @if(count($sucursalesSeleccionadas) > 0)
-                                        <span class="text-gray-400 dark:text-gray-500 mx-1">•</span>
-                                        <span class="text-gray-500 dark:text-gray-400">{{ count($sucursalesSeleccionadas) }} sucursal(es)</span>
-                                    @endif
                                 </p>
                             </div>
                             <div class="flex items-center gap-2">
@@ -809,19 +761,6 @@
 
                                     {{-- Grid de filtros: 1 col en móvil, 2 cols en desktop --}}
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        {{-- Sucursal --}}
-                                        <div>
-                                            <label class="text-xs text-gray-500 block mb-1">{{ __('Sucursal') }}</label>
-                                            <select wire:model.live="simuladorSucursalId"
-                                                    class="w-full text-sm rounded border-gray-300 focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                                @foreach($sucursales as $suc)
-                                                    @if(in_array($suc->id, $sucursalesSeleccionadas))
-                                                        <option value="{{ $suc->id }}">{{ $suc->nombre }}</option>
-                                                    @endif
-                                                @endforeach
-                                            </select>
-                                        </div>
-
                                         {{-- Lista de Precios --}}
                                         <div wire:key="lista-precios-{{ $simuladorSucursalId }}">
                                             <label class="text-xs text-gray-500 block mb-1">{{ __('Lista de Precios') }}</label>
@@ -1404,20 +1343,6 @@
                             {{-- Columna 2: Alcance y Condiciones --}}
                             <div class="space-y-4">
                                 <h4 class="font-semibold text-gray-900 border-b pb-2">{{ __('Alcance') }}</h4>
-
-                                {{-- Sucursales --}}
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('Sucursales') }} *</label>
-                                    <div class="border rounded-md p-2 max-h-28 overflow-y-auto space-y-1">
-                                        @foreach($sucursales as $sucursal)
-                                            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 p-1 rounded">
-                                                <input type="checkbox" wire:model.live="sucursalesSeleccionadas" value="{{ $sucursal->id }}"
-                                                       class="rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary">
-                                                {{ $sucursal->nombre }}
-                                            </label>
-                                        @endforeach
-                                    </div>
-                                </div>
 
                                 {{-- Alcance de artículos --}}
                                 <div>

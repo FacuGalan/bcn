@@ -6,7 +6,6 @@ use Livewire\Component;
 use App\Models\Promocion;
 use App\Models\PromocionCondicion;
 use App\Models\PromocionEscala;
-use App\Models\Sucursal;
 use App\Models\Articulo;
 use App\Models\Categoria;
 use App\Models\FormaVenta;
@@ -83,7 +82,6 @@ class WizardPromocion extends Component
 
     // Colecciones
     public $articulos = [];
-    public $sucursales = [];
     public $categorias = [];
     public $formasVenta = [];
     public $canalesVenta = [];
@@ -115,11 +113,13 @@ class WizardPromocion extends Component
 
     public function mount($id = null)
     {
-        $this->sucursales = Sucursal::select('id', 'nombre')->orderBy('nombre')->get();
         $this->categorias = Categoria::activas()->orderBy('nombre')->get();
         $this->formasVenta = FormaVenta::activas()->get();
         $this->canalesVenta = CanalVenta::activos()->get();
         $this->formasPago = FormaPago::activas()->get();
+
+        // Auto-asignar sucursal activa
+        $this->sucursalesSeleccionadas = [sucursal_activa()];
 
         // Inicializar escalas vacías para tipo escalonado
         $this->escalas = [
@@ -146,8 +146,8 @@ class WizardPromocion extends Component
         // Cargar datos básicos
         $this->tipo = $promocion->tipo;
         $this->nombre = $promocion->nombre;
-        $this->descripcion = $promocion->descripcion;
-        $this->codigoCupon = $promocion->codigo_cupon;
+        $this->descripcion = $promocion->descripcion ?? '';
+        $this->codigoCupon = $promocion->codigo_cupon ?? '';
         $this->valor = $promocion->valor;
         $this->prioridad = $promocion->prioridad;
         $this->combinable = $promocion->combinable;

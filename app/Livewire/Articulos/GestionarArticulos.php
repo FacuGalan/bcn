@@ -10,6 +10,7 @@ use App\Models\GrupoOpcional;
 use App\Models\HistorialPrecio;
 use App\Models\Receta;
 use App\Models\RecetaIngrediente;
+use App\Models\Stock;
 use App\Models\Sucursal;
 use App\Models\TipoIva;
 use App\Services\OpcionalService;
@@ -85,6 +86,7 @@ class GestionarArticulos extends Component
 
     // Propiedades del formulario
     public string $codigo = '';
+    public string $codigo_barras = '';
     public string $nombre = '';
     public string $descripcion = '';
     public ?int $categoria_id = null;
@@ -94,6 +96,7 @@ class GestionarArticulos extends Component
     public bool $precio_iva_incluido = true;
     public ?float $precio_base = null;
     public bool $activo = true;
+    public string $modo_stock = 'ninguno';
 
     // Sucursales
     public array $sucursales_seleccionadas = [];
@@ -137,6 +140,54 @@ class GestionarArticulos extends Component
     public function updatingEtiquetasSeleccionadasFiltro(): void
     {
         $this->resetPage();
+    }
+
+    /**
+     * Hook: cuando cambia la categoría, proponer código automático si tiene prefijo
+     */
+    public function updatedCategoriaId($value): void
+    {
+        if (!$value) return;
+
+        $categoria = Categoria::find($value);
+        if (!$categoria || !$categoria->prefijo) return;
+
+        // Solo proponer si el código está vacío o ya es un código autogenerado de alguna categoría
+        $debeProponerCodigo = empty($this->codigo);
+
+        if (!$debeProponerCodigo) {
+            // Verificar si el código actual matchea patrón de alguna categoría con prefijo
+            $prefijos = Categoria::whereNotNull('prefijo')->pluck('prefijo')->toArray();
+            foreach ($prefijos as $pref) {
+                if (preg_match('/^' . preg_quote($pref, '/') . '\d+$/', $this->codigo)) {
+                    $debeProponerCodigo = true;
+                    break;
+                }
+            }
+        }
+
+        if ($debeProponerCodigo) {
+            $this->codigo = $this->calcularSiguienteCodigo($categoria->prefijo);
+        }
+    }
+
+    /**
+     * Calcula el siguiente código disponible para un prefijo dado
+     */
+    protected function calcularSiguienteCodigo(string $prefijo): string
+    {
+        $prefijo = strtoupper(trim($prefijo));
+
+        // Buscar artículos cuyo código empiece con el prefijo
+        $ultimoNumero = Articulo::where('codigo', 'LIKE', $prefijo . '%')
+            ->get(['codigo'])
+            ->map(function ($articulo) use ($prefijo) {
+                $sufijo = substr($articulo->codigo, strlen($prefijo));
+                return ctype_digit($sufijo) ? (int) $sufijo : 0;
+            })
+            ->max() ?? 0;
+
+        return $prefijo . str_pad($ultimoNumero + 1, 4, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -204,16 +255,17 @@ class GestionarArticulos extends Component
     public function create(): void
     {
         $this->reset([
-            'codigo', 'nombre', 'descripcion', 'categoria_id',
+            'codigo', 'codigo_barras', 'nombre', 'descripcion', 'categoria_id',
             'unidad_medida', 'es_materia_prima', 'tipo_iva_id',
             'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
-            'etiquetas_seleccionadas', 'busquedaEtiqueta'
+            'etiquetas_seleccionadas', 'busquedaEtiqueta', 'modo_stock'
         ]);
         $this->editMode = false;
         $this->activo = true;
         $this->precio_iva_incluido = true;
         $this->unidad_medida = 'unidad';
         $this->precio_base = null;
+        $this->modo_stock = 'ninguno';
 
         // Seleccionar todas las sucursales por defecto
         $this->sucursales_seleccionadas = Sucursal::pluck('id')->toArray();
@@ -230,6 +282,7 @@ class GestionarArticulos extends Component
 
         $this->articuloId = $articulo->id;
         $this->codigo = $articulo->codigo;
+        $this->codigo_barras = $articulo->codigo_barras ?? '';
         $this->nombre = $articulo->nombre;
         $this->descripcion = $articulo->descripcion ?? '';
         $this->categoria_id = $articulo->categoria_id;
@@ -239,6 +292,10 @@ class GestionarArticulos extends Component
         $this->precio_iva_incluido = $articulo->precio_iva_incluido ?? true;
         $this->precio_base = $articulo->precio_base;
         $this->activo = $articulo->activo ?? true;
+
+        // Cargar modo_stock del primer registro en articulos_sucursales
+        $primeraSucursal = $articulo->sucursales()->first();
+        $this->modo_stock = $primeraSucursal?->pivot?->modo_stock ?? 'ninguno';
 
         // Cargar sucursales donde está activo
         $this->sucursales_seleccionadas = $articulo->sucursales()
@@ -261,6 +318,7 @@ class GestionarArticulos extends Component
     {
         $rules = [
             'codigo' => 'required|string|max:50|unique:pymes_tenant.articulos,codigo,' . $this->articuloId,
+            'codigo_barras' => 'nullable|string|max:50',
             'nombre' => 'required|string|max:200',
             'descripcion' => 'nullable|string|max:1000',
             'categoria_id' => 'nullable|exists:pymes_tenant.categorias,id',
@@ -270,12 +328,14 @@ class GestionarArticulos extends Component
             'precio_iva_incluido' => 'boolean',
             'precio_base' => 'required|numeric|min:0',
             'activo' => 'boolean',
+            'modo_stock' => 'required|in:ninguno,unitario,receta',
         ];
 
         $this->validate($rules);
 
         $datos = [
             'codigo' => $this->codigo,
+            'codigo_barras' => $this->codigo_barras ?: null,
             'nombre' => $this->nombre,
             'descripcion' => $this->descripcion ?: null,
             'categoria_id' => $this->categoria_id,
@@ -318,21 +378,46 @@ class GestionarArticulos extends Component
         }
 
         // Sincronizar sucursales
-        $syncData = [];
-        foreach ($this->sucursales_seleccionadas as $sucursalId) {
-            $syncData[$sucursalId] = ['activo' => true];
-        }
-
-        // Primero marcar todas como inactivas, luego activar las seleccionadas
         $todasSucursales = Sucursal::pluck('id')->toArray();
-        $syncDataCompleto = [];
-        foreach ($todasSucursales as $sucursalId) {
-            $syncDataCompleto[$sucursalId] = [
-                'activo' => in_array($sucursalId, $this->sucursales_seleccionadas)
-            ];
+
+        if ($this->editMode) {
+            // En edición: solo aplicar modo_stock a sucursales nuevas (no pisar las ya configuradas)
+            $sucursalesExistentes = $articulo->sucursales()->pluck('sucursal_id')->toArray();
+            $syncDataCompleto = [];
+            foreach ($todasSucursales as $sucursalId) {
+                $esSeleccionada = in_array($sucursalId, $this->sucursales_seleccionadas);
+                $esNueva = !in_array($sucursalId, $sucursalesExistentes);
+                $syncDataCompleto[$sucursalId] = [
+                    'activo' => $esSeleccionada,
+                    'modo_stock' => $esNueva ? $this->modo_stock : DB::connection('pymes_tenant')
+                        ->table('articulos_sucursales')
+                        ->where('articulo_id', $articulo->id)
+                        ->where('sucursal_id', $sucursalId)
+                        ->value('modo_stock') ?? $this->modo_stock,
+                ];
+            }
+        } else {
+            // En creación: aplicar modo_stock a todas las sucursales
+            $syncDataCompleto = [];
+            foreach ($todasSucursales as $sucursalId) {
+                $syncDataCompleto[$sucursalId] = [
+                    'activo' => in_array($sucursalId, $this->sucursales_seleccionadas),
+                    'modo_stock' => $this->modo_stock,
+                ];
+            }
         }
 
         $articulo->sucursales()->sync($syncDataCompleto);
+
+        // Auto-crear filas en stock si modo_stock != 'ninguno'
+        if ($this->modo_stock !== 'ninguno') {
+            foreach ($this->sucursales_seleccionadas as $sucursalId) {
+                Stock::firstOrCreate(
+                    ['articulo_id' => $articulo->id, 'sucursal_id' => $sucursalId],
+                    ['cantidad' => 0, 'ultima_actualizacion' => now()]
+                );
+            }
+        }
 
         // Sincronizar etiquetas
         $articulo->etiquetas()->sync($this->etiquetas_seleccionadas);
@@ -340,10 +425,11 @@ class GestionarArticulos extends Component
         $this->js("window.notify('" . addslashes($message) . "', 'success')");
         $this->showModal = false;
         $this->reset([
-            'codigo', 'nombre', 'descripcion', 'categoria_id',
+            'codigo', 'codigo_barras', 'nombre', 'descripcion', 'categoria_id',
             'unidad_medida', 'es_materia_prima', 'tipo_iva_id',
             'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
-            'sucursales_seleccionadas', 'etiquetas_seleccionadas', 'busquedaEtiqueta'
+            'sucursales_seleccionadas', 'etiquetas_seleccionadas', 'busquedaEtiqueta',
+            'modo_stock'
         ]);
     }
 
@@ -354,10 +440,11 @@ class GestionarArticulos extends Component
     {
         $this->showModal = false;
         $this->reset([
-            'codigo', 'nombre', 'descripcion', 'categoria_id',
+            'codigo', 'codigo_barras', 'nombre', 'descripcion', 'categoria_id',
             'unidad_medida', 'es_materia_prima', 'tipo_iva_id',
             'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
-            'sucursales_seleccionadas', 'etiquetas_seleccionadas', 'busquedaEtiqueta'
+            'sucursales_seleccionadas', 'etiquetas_seleccionadas', 'busquedaEtiqueta',
+            'modo_stock'
         ]);
     }
 

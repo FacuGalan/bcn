@@ -401,13 +401,6 @@ class User extends Authenticatable
             // Verificar si el usuario tiene el permiso a través de sus roles
             $roles = $this->roles(); // Ya retorna una Collection
 
-            // Super Administrador tiene TODOS los permisos
-            foreach ($roles as $role) {
-                if ($role->name === 'Super Administrador') {
-                    return true;
-                }
-            }
-
             // Asegurar que estamos usando la conexión correcta
             if (is_string($permission)) {
                 $permissionModel = Permission::where('name', $permission)

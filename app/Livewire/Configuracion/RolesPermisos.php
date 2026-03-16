@@ -191,20 +191,97 @@ class RolesPermisos extends Component
         $this->name = $role->name;
         $this->isSuperAdmin = $role->name === 'Super Administrador';
 
-        // Obtener permisos de menú actuales del rol
-        $permissions = DB::connection('pymes_tenant')
+        // Obtener TODOS los permission_ids del rol
+        $allPermissionIds = DB::connection('pymes_tenant')
             ->table('role_has_permissions')
             ->where('role_id', $role->id)
             ->pluck('permission_id')
             ->toArray();
 
-        $this->selectedPermissions = $permissions;
+        // Excluir IDs de permisos funcionales para que no queden "atrapados" en selectedPermissions
+        $funcPermissionIds = Permission::where('name', 'like', PermisoFuncional::PERMISSION_PREFIX . '%')
+            ->pluck('id')
+            ->toArray();
+
+        $this->selectedPermissions = array_values(array_diff($allPermissionIds, $funcPermissionIds));
 
         // Obtener permisos funcionales del rol (códigos sin prefijo)
         $this->selectedFuncPermissions = PermisoFuncional::getCodigosForRole($role->id);
 
         $this->editMode = true;
         $this->showModal = true;
+    }
+
+    /**
+     * Alterna un permiso padre y todos sus hijos
+     */
+    public function toggleParentPermission(int $parentId, string $moduleName): void
+    {
+        $parentId = (int) $parentId;
+        $isCurrentlySelected = in_array($parentId, $this->selectedPermissions);
+
+        // Obtener IDs de hijos del módulo
+        $childIds = [];
+        if (isset($this->groupedPermissions[$moduleName])) {
+            foreach ($this->groupedPermissions[$moduleName]['children'] as $child) {
+                $childId = (int) $child->id;
+                // No incluir hijos protegidos en la remoción
+                if (!$isCurrentlySelected || !($this->isSuperAdmin && in_array($child->name, $this->protectedPermissions))) {
+                    $childIds[] = $childId;
+                }
+            }
+        }
+
+        if ($isCurrentlySelected) {
+            // Desmarcar padre + hijos (excepto protegidos)
+            $toRemove = array_merge([$parentId], $childIds);
+            // No quitar el padre si es protegido
+            if ($this->isSuperAdmin && in_array($parentId, $this->protectedPermissionIds)) {
+                return;
+            }
+            $this->selectedPermissions = array_values(array_filter(
+                $this->selectedPermissions,
+                fn($id) => !in_array((int) $id, $toRemove)
+            ));
+        } else {
+            // Marcar padre + todos los hijos
+            $allChildIds = [];
+            if (isset($this->groupedPermissions[$moduleName])) {
+                foreach ($this->groupedPermissions[$moduleName]['children'] as $child) {
+                    $allChildIds[] = (int) $child->id;
+                }
+            }
+            $toAdd = array_merge([$parentId], $allChildIds);
+            $this->selectedPermissions = array_values(array_unique(array_merge(
+                $this->selectedPermissions,
+                $toAdd
+            )));
+        }
+    }
+
+    /**
+     * Alterna un permiso hijo y ajusta el padre si corresponde
+     */
+    public function toggleChildPermission(int $childId, int $parentId, string $moduleName): void
+    {
+        $childId = (int) $childId;
+        $parentId = (int) $parentId;
+        $isCurrentlySelected = in_array($childId, $this->selectedPermissions);
+
+        if ($isCurrentlySelected) {
+            // Desmarcar hijo
+            $this->selectedPermissions = array_values(array_filter(
+                $this->selectedPermissions,
+                fn($id) => (int) $id !== $childId
+            ));
+        } else {
+            // Marcar hijo + asegurar que el padre esté marcado
+            $this->selectedPermissions[] = $childId;
+            if (!in_array($parentId, $this->selectedPermissions)) {
+                $this->selectedPermissions[] = $parentId;
+            }
+            $this->selectedPermissions = array_values(array_unique($this->selectedPermissions));
+        }
     }
 
     /**

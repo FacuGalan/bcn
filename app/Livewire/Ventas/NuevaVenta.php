@@ -244,6 +244,18 @@ class NuevaVenta extends Component
         'vuelto' => 0,
     ];
 
+    /** @var bool Modal de cobro con vuelto (pago simple en moneda local) */
+    public $mostrarModalVuelto = false;
+
+    /** @var array Datos del pago con vuelto */
+    public $pagoConVuelto = [
+        'forma_pago_id' => null,
+        'nombre' => '',
+        'total_a_pagar' => 0,
+        'monto_recibido' => 0,
+        'vuelto' => 0,
+    ];
+
     /** @var array Formas de pago disponibles para la sucursal actual (con ajustes) */
     public $formasPagoSucursal = [];
 
@@ -4172,40 +4184,28 @@ class NuevaVenta extends Component
         $montoAjuste = $this->ajusteFormaPagoInfo['monto'];
         $montoFinal = $this->ajusteFormaPagoInfo['total_con_ajuste'];
 
+        // Si permite vuelto y NO es cuenta corriente, abrir modal de cobro con vuelto
+        $permiteVuelto = $fp['permite_vuelto'] ?? false;
+        $esCuentaCorriente = isset($fp['codigo']) && strtoupper($fp['codigo']) === 'CTA_CTE';
+
+        if ($permiteVuelto && !$esCuentaCorriente) {
+            $this->pagoConVuelto = [
+                'forma_pago_id' => $fp['id'],
+                'nombre' => $fp['nombre'],
+                'total_a_pagar' => $montoFinal,
+                'monto_recibido' => $montoFinal,
+                'vuelto' => 0,
+            ];
+            $this->mostrarModalVuelto = true;
+            return;
+        }
+
         // Obtener información de cuotas si hay seleccionada
         $cantidadCuotas = $this->ajusteFormaPagoInfo['cuotas'] ?? 1;
         $recargoCuotas = $this->ajusteFormaPagoInfo['recargo_cuotas_porcentaje'] ?? 0;
 
         // Crear desglose con un solo pago (incluyendo info de cuotas)
-        $esCuentaCorriente = isset($fp['codigo']) && strtoupper($fp['codigo']) === 'CTA_CTE';
-
-        $this->desglosePagos = [[
-            'forma_pago_id' => $fp['id'],
-            'nombre' => $fp['nombre'],
-            'codigo' => $fp['codigo'] ?? null,
-            'concepto_pago_id' => $fp['concepto_pago_id'] ?? null,
-            'monto_base' => $totalBase,
-            'ajuste_porcentaje' => $ajuste,
-            'monto_ajuste' => $montoAjuste,
-            'monto_final' => $montoFinal,
-            'cuotas' => $cantidadCuotas,
-            'recargo_cuotas' => $recargoCuotas,
-            'monto_recibido' => null,
-            'vuelto' => 0,
-            'factura_fiscal' => $this->sucursalFacturaAutomatica
-                ? ($fp['factura_fiscal'] ?? false)  // Si es automática, usar config de FP
-                : $this->emitirFacturaFiscal,       // Si no, usar el checkbox del usuario
-            'es_cuenta_corriente' => $esCuentaCorriente,
-        ]];
-
-        $this->totalConAjustes = $montoFinal;
-        $this->montoPendienteDesglose = 0;
-
-        // Calcular el monto fiscal
-        $this->calcularMontoFacturaFiscal();
-
-        // Verificar si necesita selección de punto de venta
-        $this->verificarPuntoVentaYProcesar();
+        $this->crearDesglosePagoSimple($fp, $totalBase, $ajuste, $montoAjuste, $montoFinal, $cantidadCuotas, $recargoCuotas, $esCuentaCorriente);
     }
 
     /**
@@ -4493,6 +4493,11 @@ class NuevaVenta extends Component
         $this->calcularMontoFacturaFiscal();
         $this->recalcularTotalConAjustes();
         $this->resetNuevoPago();
+
+        // Devolver el foco al selector de formas de pago si hay pendiente
+        if ($this->montoPendienteDesglose > 0.01) {
+            $this->dispatch('focus-busqueda-fp');
+        }
     }
 
     /**
@@ -4816,6 +4821,100 @@ class NuevaVenta extends Component
     public function cerrarModalMonedaExtranjera(): void
     {
         $this->mostrarModalMonedaExtranjera = false;
+    }
+
+    // =========================================
+    // MODAL DE COBRO CON VUELTO (MONEDA LOCAL)
+    // =========================================
+
+    /**
+     * Actualiza el cálculo de vuelto en vivo
+     */
+    public function updatedPagoConVueltoMontoRecibido($value): void
+    {
+        $monto = (float) ($value ?? 0);
+        $total = (float) ($this->pagoConVuelto['total_a_pagar'] ?? 0);
+        $this->pagoConVuelto['vuelto'] = max(0, round($monto - $total, 2));
+    }
+
+    /**
+     * Confirma el pago con vuelto y procesa la venta
+     */
+    public function confirmarPagoConVuelto(): void
+    {
+        $montoRecibido = (float) ($this->pagoConVuelto['monto_recibido'] ?? 0);
+        $totalAPagar = (float) ($this->pagoConVuelto['total_a_pagar'] ?? 0);
+
+        if ($montoRecibido < $totalAPagar - 0.01) {
+            $this->dispatch('toast-error', message: __('El monto recibido es insuficiente'));
+            return;
+        }
+
+        $vuelto = max(0, round($montoRecibido - $totalAPagar, 2));
+
+        $fp = collect($this->formasPagoSucursal)->firstWhere('id', (int) $this->pagoConVuelto['forma_pago_id']);
+        if (!$fp) {
+            $this->dispatch('toast-error', message: __('Forma de pago no válida'));
+            return;
+        }
+
+        $totalBase = $this->resultado['total_final'] ?? 0;
+        $ajuste = $this->ajusteFormaPagoInfo['porcentaje'];
+        $montoAjuste = $this->ajusteFormaPagoInfo['monto'];
+        $cantidadCuotas = $this->ajusteFormaPagoInfo['cuotas'] ?? 1;
+        $recargoCuotas = $this->ajusteFormaPagoInfo['recargo_cuotas_porcentaje'] ?? 0;
+
+        $this->crearDesglosePagoSimple($fp, $totalBase, $ajuste, $montoAjuste, $totalAPagar, $cantidadCuotas, $recargoCuotas, false, $montoRecibido, $vuelto);
+        $this->mostrarModalVuelto = false;
+    }
+
+    /**
+     * Cierra el modal de vuelto sin confirmar
+     */
+    public function cerrarModalVuelto(): void
+    {
+        $this->mostrarModalVuelto = false;
+    }
+
+    /**
+     * Crea el desglose de pago simple y procesa la venta
+     */
+    protected function crearDesglosePagoSimple(
+        array $fp,
+        float $totalBase,
+        float $ajuste,
+        float $montoAjuste,
+        float $montoFinal,
+        int $cantidadCuotas,
+        float $recargoCuotas,
+        bool $esCuentaCorriente,
+        ?float $montoRecibido = null,
+        float $vuelto = 0
+    ): void {
+        $this->desglosePagos = [[
+            'forma_pago_id' => $fp['id'],
+            'nombre' => $fp['nombre'],
+            'codigo' => $fp['codigo'] ?? null,
+            'concepto_pago_id' => $fp['concepto_pago_id'] ?? null,
+            'monto_base' => $totalBase,
+            'ajuste_porcentaje' => $ajuste,
+            'monto_ajuste' => $montoAjuste,
+            'monto_final' => $montoFinal,
+            'cuotas' => $cantidadCuotas,
+            'recargo_cuotas' => $recargoCuotas,
+            'monto_recibido' => $montoRecibido,
+            'vuelto' => $vuelto,
+            'factura_fiscal' => $this->sucursalFacturaAutomatica
+                ? ($fp['factura_fiscal'] ?? false)
+                : $this->emitirFacturaFiscal,
+            'es_cuenta_corriente' => $esCuentaCorriente,
+        ]];
+
+        $this->totalConAjustes = $montoFinal;
+        $this->montoPendienteDesglose = 0;
+
+        $this->calcularMontoFacturaFiscal();
+        $this->verificarPuntoVentaYProcesar();
     }
 
     /**
@@ -5643,6 +5742,16 @@ class NuevaVenta extends Component
         $this->showPuntoVentaModal = false;
         $this->puntoVentaSeleccionadoId = null;
         $this->puntosVentaDisponibles = [];
+
+        // Resetear modal de vuelto
+        $this->mostrarModalVuelto = false;
+        $this->pagoConVuelto = [
+            'forma_pago_id' => null,
+            'nombre' => '',
+            'total_a_pagar' => 0,
+            'monto_recibido' => 0,
+            'vuelto' => 0,
+        ];
 
         // Resetear wizard de opcionales
         $this->mostrarWizardOpcionales = false;

@@ -28,7 +28,7 @@
             };
             actions[$event.key]?.();
         }
-        if ($event.key === 'F2') { $event.preventDefault(); $wire.iniciarCobro(); }
+        if ($event.key === 'F2' && !$wire.mostrarModalMonedaExtranjera && !$wire.mostrarModalVuelto) { $event.preventDefault(); $wire.iniciarCobro(); }
         if ($event.key === 'F3') { $event.preventDefault(); $wire.confirmarLimpiarCarrito(); }
      ">
 
@@ -1317,28 +1317,32 @@
             role="dialog"
             aria-modal="true"
             x-data="{
-                focusIndex: -1,
                 pagosCount: {{ count($desglosePagos) }},
                 init() {
                     this.$nextTick(() => {
-                        // Enfocar el primer elemento interactivo
-                        const firstInput = this.$el.querySelector('select, input, button[type=button]:not([disabled])');
+                        // Enfocar el input de búsqueda de FP si hay pendiente
+                        const busquedaFP = this.$el.querySelector('[x-ref=inputBusquedaFP]');
+                        if (busquedaFP) { busquedaFP.focus(); return; }
+                        // Si ya no hay pendiente, enfocar primer elemento
+                        const firstInput = this.$el.querySelector('input, button[type=button]:not([disabled])');
                         if (firstInput) firstInput.focus();
                     });
                 }
             }"
             @keydown.escape.window="$wire.cerrarModalPago()"
+            x-on:focus-busqueda-fp.window="setTimeout(() => { const el = $el.querySelector('[x-ref=inputBusquedaFP]'); if (el) el.focus(); }, 150)"
             @keydown.enter.window.prevent="
                 const activeEl = document.activeElement;
-                // Si el foco está en el botón Agregar, dejar que su handler maneje el evento
-                if (activeEl && activeEl.hasAttribute('x-ref') && activeEl.getAttribute('x-ref') === 'btnAgregar') {
-                    return;
+                // No interceptar Enter si estamos en inputs del selector de FP o monto (lo manejan ellos)
+                if (activeEl && (activeEl.hasAttribute('x-ref'))) {
+                    const ref = activeEl.getAttribute('x-ref');
+                    if (ref === 'inputBusquedaFP' || ref === 'inputMontoDesglose' || ref === 'btnAgregar') return;
                 }
                 // Si el desglose está completo, confirmar pago
                 if ({{ $this->desgloseCompleto() ? 'true' : 'false' }}) $wire.confirmarPago();
             "
             @keydown.tab.prevent="
-                const focusables = [...$el.querySelectorAll('select, input, button:not([disabled]), [tabindex]:not([tabindex=\'-1\'])')];
+                const focusables = [...$el.querySelectorAll('input, button:not([disabled]), [tabindex]:not([tabindex=\'-1\'])')];
                 const current = document.activeElement;
                 let idx = focusables.indexOf(current);
                 idx = $event.shiftKey ? idx - 1 : idx + 1;
@@ -1486,22 +1490,57 @@
 
                                                     {{-- Input monto recibido para efectivo --}}
                                                     @if($pago['permite_vuelto'])
-                                                        <div class="mt-2 flex items-center gap-2">
+                                                        <div class="mt-2 flex items-center gap-2"
+                                                            x-data="{
+                                                                recibido: {{ $pago['monto_recibido'] }},
+                                                                montoFinal: {{ $pago['monto_final'] }},
+                                                                iniciado: false,
+                                                                get vuelto() {
+                                                                    return Math.max(0, Math.round((this.recibido - this.montoFinal) * 100) / 100);
+                                                                },
+                                                                onKeydown(e) {
+                                                                    if (!this.iniciado && e.key >= '0' && e.key <= '9') {
+                                                                        e.preventDefault();
+                                                                        this.iniciado = true;
+                                                                        this.recibido = parseFloat(e.key);
+                                                                        this.$dispatch('vuelto-updated', { index: {{ $index }}, recibido: this.recibido });
+                                                                        this.$nextTick(() => {
+                                                                            const input = this.$refs.inputRecibido;
+                                                                            if (input) { input.value = e.key; input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+                                                                        });
+                                                                    } else if (e.key !== 'Tab' && e.key !== 'Escape') {
+                                                                        this.iniciado = true;
+                                                                    }
+                                                                },
+                                                                onInput(e) {
+                                                                    this.recibido = parseFloat(e.target.value) || 0;
+                                                                    this.iniciado = true;
+                                                                    this.$dispatch('vuelto-updated', { index: {{ $index }}, recibido: this.recibido });
+                                                                },
+                                                                sync() {
+                                                                    $wire.actualizarMontoRecibido({{ $index }}, this.recibido);
+                                                                }
+                                                            }"
+                                                            @click.away="sync()"
+                                                        >
                                                             <label class="text-xs text-gray-600 dark:text-gray-400">{{ __('Recibido') }}:</label>
                                                             <div class="relative">
                                                                 <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 dark:text-gray-400 text-sm">$</span>
                                                                 <input
                                                                     type="number"
                                                                     step="0.01"
-                                                                    value="{{ $pago['monto_recibido'] }}"
-                                                                    wire:change="actualizarMontoRecibido({{ $index }}, $event.target.value)"
-                                                                    class="w-28 pl-6 pr-2 py-1 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:border-green-500 focus:ring-green-500">
+                                                                    x-ref="inputRecibido"
+                                                                    :value="recibido"
+                                                                    @keydown="onKeydown($event)"
+                                                                    @input="onInput($event)"
+                                                                    @blur="sync()"
+                                                                    class="w-28 pl-6 pr-2 py-1 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:border-green-500 focus:ring-green-500"
+                                                                    tabindex="-1">
                                                             </div>
-                                                            @if($pago['vuelto'] > 0)
-                                                                <span class="text-sm font-medium text-blue-600">
-                                                                    {{ __('Vuelto') }}: $@precio($pago['vuelto'])
-                                                                </span>
-                                                            @endif
+                                                            <span class="text-lg font-bold transition-all"
+                                                                :class="vuelto > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-300 dark:text-gray-600'"
+                                                                x-text="'{{ __('Vuelto') }}: $' + vuelto.toFixed(2).replace('.', ',')"
+                                                            ></span>
                                                         </div>
                                                     @endif
                                                 </div>
@@ -1535,167 +1574,297 @@
 
                         {{-- Agregar forma de pago (solo si hay pendiente o es mixta) --}}
                         @if($montoPendienteDesglose > 0.01)
-                            <div class="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-gray-50 dark:bg-gray-700">
-                                {{-- Fila única: Select + Monto + Agregar --}}
-                                <div class="flex items-center gap-2">
-                                    {{-- Forma de pago --}}
-                                    <select
-                                        wire:model.live="nuevoPago.forma_pago_id"
-                                        class="flex-1 min-w-0 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md shadow-sm focus:border-green-500 focus:ring-green-500 py-1.5">
-                                        <option value="">{{ __('Forma de pago...') }}</option>
-                                        @foreach($formasPagoSucursal as $fp)
-                                            @if(!$fp['es_mixta'])
-                                                <option value="{{ $fp['id'] }}">
-                                                    {{ $fp['nombre'] }}
-                                                    @if($fp['ajuste_porcentaje'] != 0)
-                                                        ({{ $fp['ajuste_porcentaje'] > 0 ? '+' : '' }}{{ $fp['ajuste_porcentaje'] }}%)
-                                                    @endif
-                                                </option>
-                                            @endif
-                                        @endforeach
-                                    </select>
-
-                                    {{-- Monto --}}
-                                    @php
-                                        $fpSeleccionada = collect($formasPagoSucursal)->firstWhere('id', (int) $nuevoPago['forma_pago_id']);
-                                        $esMonedaExt = $fpSeleccionada && ($fpSeleccionada['es_moneda_extranjera'] ?? false);
-                                        $simboloMoneda = $esMonedaExt ? ($fpSeleccionada['moneda_info']['simbolo'] ?? '$') : '$';
-                                    @endphp
-                                    <div class="relative {{ $esMonedaExt ? 'w-36' : 'w-28' }}">
-                                        <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 dark:text-gray-400 text-xs font-medium">{{ $esMonedaExt ? ($fpSeleccionada['moneda_info']['codigo'] ?? $simboloMoneda) : $simboloMoneda }}</span>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            wire:model="nuevoPago.monto"
-                                            class="w-full {{ $esMonedaExt ? 'pl-11' : 'pl-6' }} pr-2 py-1.5 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md shadow-sm focus:border-green-500 focus:ring-green-500"
-                                            placeholder="{{ $esMonedaExt ? __('Monto') : number_format($montoPendienteDesglose, 2, ',', '.') }}"
-                                            title="{{ $esMonedaExt ? __('Monto en') . ' ' . ($fpSeleccionada['moneda_info']['codigo'] ?? '') : __('Vacío = monto pendiente completo') }}">
-                                    </div>
-
-                                    {{-- Botón Agregar --}}
-                                    <button
-                                        wire:click="agregarAlDesglose"
-                                        type="button"
-                                        x-ref="btnAgregar"
-                                        @keydown.enter.prevent="$wire.agregarAlDesglose()"
-                                        class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 whitespace-nowrap">
-                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                                        </svg>
-                                        {{ __('Agregar') }}
-                                    </button>
-                                </div>
-
-                                {{-- Cotización (si moneda extranjera) --}}
-                                @if($esMonedaExt)
-                                    <div class="mt-2 flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md px-2 py-1.5">
-                                        <span class="text-xs font-medium text-amber-700 dark:text-amber-300">{{ __('Cotización') }} ({{ $fpSeleccionada['moneda_info']['codigo'] ?? '' }}):</span>
-                                        <div class="relative w-24">
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                wire:model="nuevoPago.tipo_cambio_tasa"
-                                                class="w-full px-2 py-1 text-sm border-amber-300 dark:border-amber-600 dark:bg-gray-800 dark:text-white rounded-md shadow-sm focus:border-amber-500 focus:ring-amber-500"
-                                                placeholder="0.00">
-                                        </div>
-                                        @if($nuevoPago['tipo_cambio_tasa'] > 0 && $nuevoPago['monto'] > 0)
-                                            <span class="text-xs text-amber-600 dark:text-amber-400">
-                                                = ${{ number_format((float)$nuevoPago['monto'] * (float)$nuevoPago['tipo_cambio_tasa'], 2, ',', '.') }}
+                            <div class="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-gray-50 dark:bg-gray-700"
+                                x-data="{
+                                    busqueda: '',
+                                    fpSeleccionadaId: @entangle('nuevoPago.forma_pago_id'),
+                                    formasPago: @js(collect($formasPagoSucursal)->where('es_mixta', false)->values()->toArray()),
+                                    navIndex: -1,
+                                    cols: window.innerWidth >= 640 ? 4 : 3,
+                                    get filtradas() {
+                                        if (!this.busqueda) return this.formasPago;
+                                        const q = this.busqueda.trim().toLowerCase();
+                                        return this.formasPago.filter(fp =>
+                                            String(fp.id) === q ||
+                                            fp.nombre.toLowerCase().includes(q) ||
+                                            (fp.codigo && fp.codigo.toLowerCase().includes(q))
+                                        );
+                                    },
+                                    seleccionar(fp) {
+                                        this.fpSeleccionadaId = fp.id;
+                                        this.busqueda = '';
+                                        this.navIndex = -1;
+                                    },
+                                    limpiar() {
+                                        this.fpSeleccionadaId = null;
+                                        this.busqueda = '';
+                                        this.navIndex = -1;
+                                        this.$nextTick(() => {
+                                            if (this.$refs.inputBusquedaFP) this.$refs.inputBusquedaFP.focus();
+                                        });
+                                    },
+                                    handleBusquedaKeydown(e) {
+                                        const len = this.filtradas.length;
+                                        if (e.key === 'ArrowDown') {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            if (this.navIndex < 0) { this.navIndex = 0; }
+                                            else { this.navIndex = Math.min(this.navIndex + this.cols, len - 1); }
+                                        } else if (e.key === 'ArrowUp') {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            if (this.navIndex >= this.cols) { this.navIndex -= this.cols; }
+                                            else { this.navIndex = -1; this.$refs.inputBusquedaFP?.focus(); }
+                                        } else if (e.key === 'ArrowRight') {
+                                            if (this.navIndex >= 0) { e.preventDefault(); this.navIndex = Math.min(this.navIndex + 1, len - 1); }
+                                        } else if (e.key === 'ArrowLeft') {
+                                            if (this.navIndex >= 0) { e.preventDefault(); this.navIndex = Math.max(this.navIndex - 1, 0); }
+                                        } else if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            if (this.navIndex >= 0 && this.navIndex < len) {
+                                                this.seleccionar(this.filtradas[this.navIndex]);
+                                            } else if (len > 0) {
+                                                this.seleccionar(this.filtradas[0]);
+                                            }
+                                        } else {
+                                            this.navIndex = -1;
+                                        }
+                                    },
+                                    handleMontoKeydown(e) {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            $wire.agregarAlDesglose();
+                                        }
+                                    },
+                                    fpNombre(fp) {
+                                        return (fp.codigo || fp.nombre.substring(0,3).toUpperCase());
+                                    }
+                                }"
+                                x-init="$nextTick(() => { if (!fpSeleccionadaId && $refs.inputBusquedaFP) $refs.inputBusquedaFP.focus(); })"
+                            >
+                                {{-- Selector de forma de pago por botones --}}
+                                <template x-if="!fpSeleccionadaId">
+                                    <div>
+                                        {{-- Input de búsqueda --}}
+                                        <div class="relative mb-2">
+                                            <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                                             </span>
-                                        @endif
-                                    </div>
-                                @endif
+                                            <input
+                                                type="text"
+                                                x-ref="inputBusquedaFP"
+                                                x-model="busqueda"
+                                                @keydown="handleBusquedaKeydown($event)"
+                                                class="w-full pl-8 pr-3 py-2 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md shadow-sm focus:border-green-500 focus:ring-green-500"
+                                                placeholder="{{ __('Buscar por ID, código o nombre...') }}">
+                                        </div>
 
-                                {{-- Cuotas (si aplica) - en fila separada, dropdown hacia arriba --}}
-                                @if(count($cuotasDisponibles) > 0)
-                                    <div class="relative mt-2">
-                                        @php
-                                            $cuotaSelDesglose = collect($cuotasDesgloseConMontos)->firstWhere('cantidad', $nuevoPago['cuotas']);
-                                            $montoBase = (float) ($nuevoPago['monto'] ?? 0) ?: $montoPendienteDesglose;
-                                            $fpDesglose = collect($formasPagoSucursal)->firstWhere('id', (int) $nuevoPago['forma_pago_id']);
-                                            $ajusteDesglose = $fpDesglose ? ($fpDesglose['ajuste_porcentaje'] ?? 0) : 0;
-                                            $montoConAjusteDesglose = round($montoBase + ($montoBase * $ajusteDesglose / 100), 2);
-                                        @endphp
-
-                                        {{-- Dropdown de opciones (arriba del selector) --}}
-                                        @if($cuotasDesgloseSelectorAbierto)
-                                            <div class="absolute z-30 left-0 right-0 bottom-full mb-1 border border-gray-200 dark:border-gray-600 rounded-md divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800 shadow-lg max-h-40 overflow-y-auto">
-                                                {{-- Opción: 1 pago --}}
-                                                <div
-                                                    wire:click="seleccionarCuotaDesglose(1)"
-                                                    class="flex items-center px-2 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors {{ $nuevoPago['cuotas'] == 1 ? 'bg-blue-50 dark:bg-blue-900/30' : '' }}"
+                                        {{-- Grid de botones de formas de pago --}}
+                                        <div class="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-40 overflow-y-auto" x-ref="gridFP">
+                                            <template x-for="(fp, idx) in filtradas" :key="fp.id">
+                                                <button
+                                                    type="button"
+                                                    @click="seleccionar(fp)"
+                                                    class="flex flex-col items-center justify-center p-2 rounded-lg border-2 transition-all text-center min-h-[52px]"
+                                                    :class="navIndex === idx
+                                                        ? 'border-green-500 bg-green-50 dark:bg-green-900/30 ring-2 ring-green-400'
+                                                        : 'border-gray-200 dark:border-gray-600 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20'"
+                                                    :x-ref="'fp-btn-' + idx"
                                                 >
-                                                    <div class="flex-1">
-                                                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ __('1 pago') }}</span>
-                                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">{{ __('sin financiación') }}</span>
+                                                    <span class="text-[10px] text-gray-400 dark:text-gray-500 font-mono leading-none" x-text="fp.id"></span>
+                                                    <span class="text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-wide leading-tight" x-text="fp.codigo || fp.nombre.substring(0, 3).toUpperCase()"></span>
+                                                    <span class="text-[10px] text-gray-600 dark:text-gray-400 leading-tight mt-0.5 truncate w-full" x-text="fp.nombre"></span>
+                                                    <template x-if="fp.ajuste_porcentaje != 0">
+                                                        <span class="text-[9px] font-medium mt-0.5"
+                                                            :class="fp.ajuste_porcentaje > 0 ? 'text-red-600' : 'text-green-600'"
+                                                            x-text="(fp.ajuste_porcentaje > 0 ? '+' : '') + fp.ajuste_porcentaje + '%'"></span>
+                                                    </template>
+                                                </button>
+                                            </template>
+                                        </div>
+
+                                        {{-- Sin resultados --}}
+                                        <template x-if="busqueda && filtradas.length === 0">
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 text-center py-2">{{ __('No se encontraron formas de pago') }}</p>
+                                        </template>
+                                    </div>
+                                </template>
+
+                                {{-- FP seleccionada: mostrar chip + monto + agregar --}}
+                                <template x-if="fpSeleccionadaId">
+                                    <div x-data="{
+                                        get fpActual() {
+                                            return formasPago.find(fp => fp.id == fpSeleccionadaId) || null;
+                                        },
+                                        get esMonedaExt() {
+                                            return this.fpActual && (this.fpActual.es_moneda_extranjera || false);
+                                        },
+                                        get simbolo() {
+                                            if (this.esMonedaExt && this.fpActual.moneda_info) return this.fpActual.moneda_info.codigo || this.fpActual.moneda_info.simbolo || '$';
+                                            return '$';
+                                        },
+                                        get codigoLabel() {
+                                            if (!this.fpActual) return '';
+                                            return this.fpActual.codigo || this.fpActual.nombre.substring(0,3).toUpperCase();
+                                        }
+                                    }" x-init="$nextTick(() => { $refs.inputMontoDesglose?.focus() })">
+                                        <div class="flex items-center gap-2">
+                                            {{-- Chip de FP seleccionada --}}
+                                            <div class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-700 text-green-800 dark:text-green-300 rounded-lg text-sm font-medium">
+                                                <span class="font-bold uppercase" x-text="codigoLabel"></span>
+                                                <span class="text-green-600 dark:text-green-400" x-text="fpActual ? fpActual.nombre : ''"></span>
+                                                <template x-if="fpActual && fpActual.ajuste_porcentaje != 0">
+                                                    <span class="text-xs"
+                                                        :class="fpActual.ajuste_porcentaje > 0 ? 'text-red-600' : 'text-green-600'"
+                                                        x-text="'(' + (fpActual.ajuste_porcentaje > 0 ? '+' : '') + fpActual.ajuste_porcentaje + '%)'"></span>
+                                                </template>
+                                                <button type="button" @click="limpiar()" class="ml-0.5 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                </button>
+                                            </div>
+
+                                            {{-- Monto --}}
+                                            <div class="relative flex-1">
+                                                <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 dark:text-gray-400 text-xs font-medium" x-text="simbolo"></span>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    x-ref="inputMontoDesglose"
+                                                    wire:model="nuevoPago.monto"
+                                                    @keydown="handleMontoKeydown($event)"
+                                                    class="w-full pl-6 pr-2 py-1.5 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md shadow-sm focus:border-green-500 focus:ring-green-500"
+                                                    :class="esMonedaExt ? 'pl-11' : 'pl-6'"
+                                                    placeholder="{{ number_format($montoPendienteDesglose, 2, ',', '.') }}"
+                                                    title="{{ __('Vacío = monto pendiente completo') }}">
+                                            </div>
+
+                                            {{-- Botón Agregar --}}
+                                            <button
+                                                wire:click="agregarAlDesglose"
+                                                type="button"
+                                                x-ref="btnAgregar"
+                                                class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 whitespace-nowrap">
+                                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                                </svg>
+                                                {{ __('Agregar') }}
+                                            </button>
+                                        </div>
+
+                                        {{-- Cotización (si moneda extranjera) --}}
+                                        <template x-if="esMonedaExt">
+                                            <div class="mt-2 flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md px-2 py-1.5">
+                                                <span class="text-xs font-medium text-amber-700 dark:text-amber-300">{{ __('Cotización') }} (<span x-text="fpActual?.moneda_info?.codigo || ''"></span>):</span>
+                                                <div class="relative w-24">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        min="0"
+                                                        wire:model="nuevoPago.tipo_cambio_tasa"
+                                                        class="w-full px-2 py-1 text-sm border-amber-300 dark:border-amber-600 dark:bg-gray-800 dark:text-white rounded-md shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                                                        placeholder="0.00">
+                                                </div>
+                                                @if($nuevoPago['tipo_cambio_tasa'] > 0 && $nuevoPago['monto'] > 0)
+                                                    <span class="text-xs text-amber-600 dark:text-amber-400">
+                                                        = ${{ number_format((float)$nuevoPago['monto'] * (float)$nuevoPago['tipo_cambio_tasa'], 2, ',', '.') }}
+                                                    </span>
+                                                @endif
+                                            </div>
+                                        </template>
+
+                                        {{-- Cuotas (si aplica) - en fila separada, dropdown hacia arriba --}}
+                                        @if(count($cuotasDisponibles) > 0)
+                                            <div class="relative mt-2">
+                                                @php
+                                                    $cuotaSelDesglose = collect($cuotasDesgloseConMontos)->firstWhere('cantidad', $nuevoPago['cuotas']);
+                                                    $montoBase = (float) ($nuevoPago['monto'] ?? 0) ?: $montoPendienteDesglose;
+                                                    $fpDesglose = collect($formasPagoSucursal)->firstWhere('id', (int) $nuevoPago['forma_pago_id']);
+                                                    $ajusteDesglose = $fpDesglose ? ($fpDesglose['ajuste_porcentaje'] ?? 0) : 0;
+                                                    $montoConAjusteDesglose = round($montoBase + ($montoBase * $ajusteDesglose / 100), 2);
+                                                @endphp
+
+                                                {{-- Dropdown de opciones (arriba del selector) --}}
+                                                @if($cuotasDesgloseSelectorAbierto)
+                                                    <div class="absolute z-30 left-0 right-0 bottom-full mb-1 border border-gray-200 dark:border-gray-600 rounded-md divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800 shadow-lg max-h-40 overflow-y-auto">
+                                                        {{-- Opción: 1 pago --}}
+                                                        <div
+                                                            wire:click="seleccionarCuotaDesglose(1)"
+                                                            class="flex items-center px-2 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors {{ $nuevoPago['cuotas'] == 1 ? 'bg-blue-50 dark:bg-blue-900/30' : '' }}"
+                                                        >
+                                                            <div class="flex-1">
+                                                                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ __('1 pago') }}</span>
+                                                                <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">{{ __('sin financiación') }}</span>
+                                                            </div>
+                                                            <span class="text-sm font-semibold text-gray-900 dark:text-white">$@precio($montoConAjusteDesglose)</span>
+                                                            @if($nuevoPago['cuotas'] == 1)
+                                                                <svg class="w-3 h-3 text-blue-500 ml-2" fill="currentColor" viewBox="0 0 20 20">
+                                                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                                                </svg>
+                                                            @endif
+                                                        </div>
+
+                                                        {{-- Opciones de cuotas --}}
+                                                        @foreach($cuotasDesgloseConMontos as $cuota)
+                                                            <div
+                                                                wire:click="seleccionarCuotaDesglose({{ $cuota['cantidad'] }})"
+                                                                class="flex items-center px-2 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors {{ $nuevoPago['cuotas'] == $cuota['cantidad'] ? 'bg-blue-50 dark:bg-blue-900/30' : '' }}"
+                                                            >
+                                                                <div class="flex-1">
+                                                                    <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $cuota['cantidad'] }} cuotas</span>
+                                                                    <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">de $@precio($cuota['valor_cuota'])</span>
+                                                                </div>
+                                                                @if($cuota['recargo'] > 0)
+                                                                    <span class="text-xs font-medium text-red-600 mx-2">+{{ $cuota['recargo'] }}%</span>
+                                                                @endif
+                                                                <span class="text-sm font-semibold {{ $cuota['recargo'] > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white' }}">$@precio($cuota['total_con_recargo'])</span>
+                                                                @if($nuevoPago['cuotas'] == $cuota['cantidad'])
+                                                                    <svg class="w-3 h-3 text-blue-500 ml-2" fill="currentColor" viewBox="0 0 20 20">
+                                                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                                                    </svg>
+                                                                @endif
+                                                            </div>
+                                                        @endforeach
                                                     </div>
-                                                    <span class="text-sm font-semibold text-gray-900 dark:text-white">$@precio($montoConAjusteDesglose)</span>
-                                                    @if($nuevoPago['cuotas'] == 1)
-                                                        <svg class="w-3 h-3 text-blue-500 ml-2" fill="currentColor" viewBox="0 0 20 20">
-                                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                                                        </svg>
+                                                @endif
+
+                                                {{-- Selector visible --}}
+                                                <div
+                                                    wire:click="toggleCuotasDesgloseSelector"
+                                                    class="border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 cursor-pointer hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
+                                                >
+                                                    @if($nuevoPago['cuotas'] == 1 || !$cuotaSelDesglose)
+                                                        <div class="flex items-center px-2 py-1">
+                                                            <div class="flex-1 min-w-0">
+                                                                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ __('1 pago') }}</span>
+                                                                <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">{{ __('sin financiación') }}</span>
+                                                            </div>
+                                                            <span class="text-sm font-semibold text-gray-900 dark:text-white ml-2">$@precio($montoConAjusteDesglose)</span>
+                                                            <svg class="w-4 h-4 text-gray-400 ml-1 transition-transform {{ $cuotasDesgloseSelectorAbierto ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+                                                            </svg>
+                                                        </div>
+                                                    @else
+                                                        <div class="flex items-center px-2 py-1">
+                                                            <div class="flex-1 min-w-0">
+                                                                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $cuotaSelDesglose['cantidad'] }} cuotas</span>
+                                                                <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">de $@precio($cuotaSelDesglose['valor_cuota'])</span>
+                                                            </div>
+                                                            @if($cuotaSelDesglose['recargo'] > 0)
+                                                                <span class="text-xs font-medium text-red-600 mx-2">+{{ $cuotaSelDesglose['recargo'] }}%</span>
+                                                            @endif
+                                                            <span class="text-sm font-semibold {{ $cuotaSelDesglose['recargo'] > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white' }}">$@precio($cuotaSelDesglose['total_con_recargo'])</span>
+                                                            <svg class="w-4 h-4 text-gray-400 ml-1 transition-transform {{ $cuotasDesgloseSelectorAbierto ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+                                                            </svg>
+                                                        </div>
                                                     @endif
                                                 </div>
-
-                                                {{-- Opciones de cuotas --}}
-                                                @foreach($cuotasDesgloseConMontos as $cuota)
-                                                    <div
-                                                        wire:click="seleccionarCuotaDesglose({{ $cuota['cantidad'] }})"
-                                                        class="flex items-center px-2 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors {{ $nuevoPago['cuotas'] == $cuota['cantidad'] ? 'bg-blue-50 dark:bg-blue-900/30' : '' }}"
-                                                    >
-                                                        <div class="flex-1">
-                                                            <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $cuota['cantidad'] }} cuotas</span>
-                                                            <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">de $@precio($cuota['valor_cuota'])</span>
-                                                        </div>
-                                                        @if($cuota['recargo'] > 0)
-                                                            <span class="text-xs font-medium text-red-600 mx-2">+{{ $cuota['recargo'] }}%</span>
-                                                        @endif
-                                                        <span class="text-sm font-semibold {{ $cuota['recargo'] > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white' }}">$@precio($cuota['total_con_recargo'])</span>
-                                                        @if($nuevoPago['cuotas'] == $cuota['cantidad'])
-                                                            <svg class="w-3 h-3 text-blue-500 ml-2" fill="currentColor" viewBox="0 0 20 20">
-                                                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                                                            </svg>
-                                                        @endif
-                                                    </div>
-                                                @endforeach
                                             </div>
                                         @endif
-
-                                        {{-- Selector visible --}}
-                                        <div
-                                            wire:click="toggleCuotasDesgloseSelector"
-                                            class="border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 cursor-pointer hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
-                                        >
-                                            @if($nuevoPago['cuotas'] == 1 || !$cuotaSelDesglose)
-                                                <div class="flex items-center px-2 py-1">
-                                                    <div class="flex-1 min-w-0">
-                                                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ __('1 pago') }}</span>
-                                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">{{ __('sin financiación') }}</span>
-                                                    </div>
-                                                    <span class="text-sm font-semibold text-gray-900 dark:text-white ml-2">$@precio($montoConAjusteDesglose)</span>
-                                                    <svg class="w-4 h-4 text-gray-400 ml-1 transition-transform {{ $cuotasDesgloseSelectorAbierto ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
-                                                    </svg>
-                                                </div>
-                                            @else
-                                                <div class="flex items-center px-2 py-1">
-                                                    <div class="flex-1 min-w-0">
-                                                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $cuotaSelDesglose['cantidad'] }} cuotas</span>
-                                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-1">de $@precio($cuotaSelDesglose['valor_cuota'])</span>
-                                                    </div>
-                                                    @if($cuotaSelDesglose['recargo'] > 0)
-                                                        <span class="text-xs font-medium text-red-600 mx-2">+{{ $cuotaSelDesglose['recargo'] }}%</span>
-                                                    @endif
-                                                    <span class="text-sm font-semibold {{ $cuotaSelDesglose['recargo'] > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white' }}">$@precio($cuotaSelDesglose['total_con_recargo'])</span>
-                                                    <svg class="w-4 h-4 text-gray-400 ml-1 transition-transform {{ $cuotasDesgloseSelectorAbierto ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
-                                                    </svg>
-                                                </div>
-                                            @endif
-                                        </div>
-                                    </div>
-                                @endif
+                                    </div>{{-- /x-data fpActual --}}
+                                </template>
                             </div>
                         @endif
 
@@ -1704,13 +1873,30 @@
                             $vueltoTotal = collect($desglosePagos)->sum('vuelto');
                             $montoFiscalDesglose = collect($desglosePagos)->where('factura_fiscal', true)->sum('monto_final');
                             $cantidadFiscales = collect($desglosePagos)->where('factura_fiscal', true)->count();
+                            $pagosConVuelto = collect($desglosePagos)->filter(fn($p) => $p['permite_vuelto'])->values();
                         @endphp
-                        @if($vueltoTotal > 0)
-                            <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-2">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-sm text-blue-800 dark:text-blue-300 font-medium">{{ __('Vuelto total a entregar') }}:</span>
-                                    <span class="text-xl font-bold text-blue-600">$@precio($vueltoTotal)</span>
-                                </div>
+                        @if($pagosConVuelto->count() > 0)
+                            <div
+                                x-data="{
+                                    vueltoBase: {{ $vueltoTotal }},
+                                    pagosVuelto: @js($pagosConVuelto->map(fn($p, $i) => ['index' => collect($desglosePagos)->search($p), 'monto_final' => $p['monto_final'], 'monto_recibido' => $p['monto_recibido']])->values()->toArray()),
+                                    overrides: {},
+                                    get vueltoTotal() {
+                                        let total = 0;
+                                        for (const p of this.pagosVuelto) {
+                                            const recibido = this.overrides[p.index] !== undefined ? this.overrides[p.index] : p.monto_recibido;
+                                            total += Math.max(0, Math.round((recibido - p.monto_final) * 100) / 100);
+                                        }
+                                        return total;
+                                    }
+                                }"
+                                @vuelto-updated.window="overrides[$event.detail.index] = $event.detail.recibido"
+                                x-show="vueltoTotal > 0"
+                                x-transition
+                                class="bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800 rounded-xl p-5 text-center"
+                            >
+                                <p class="text-xs text-green-600 dark:text-green-400 uppercase tracking-wide mb-2">{{ __('Vuelto a entregar') }}</p>
+                                <p class="text-5xl font-extrabold text-green-600 dark:text-green-400" x-text="'$' + vueltoTotal.toFixed(2).replace('.', ',')"></p>
                             </div>
                         @endif
 
@@ -1776,10 +1962,51 @@
 
     {{-- Modal Simple de Pago en Moneda Extranjera --}}
     @if($mostrarModalMonedaExtranjera)
+        @php
+            $meEquivPrincipal = (float)($pagoMonedaExtranjera['equivalente_principal'] ?? 0);
+            $meTotalVenta = (float)($pagoMonedaExtranjera['total_venta'] ?? 0);
+            $meVuelto = (float)($pagoMonedaExtranjera['vuelto'] ?? 0);
+            $meEsInsuficiente = $meEquivPrincipal < $meTotalVenta - 0.01;
+            $meSinDatos = $meEquivPrincipal <= 0;
+        @endphp
         <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-moneda-ext" role="dialog" aria-modal="true"
-            x-data="{}"
+            x-data="{
+                iniciado: false,
+                init() {
+                    this.$nextTick(() => {
+                        const input = this.$refs.inputMontoExtranjera;
+                        if (input) { input.focus(); }
+                    });
+                },
+                onKeydown(e) {
+                    const input = this.$refs.inputMontoExtranjera;
+                    if (!this.iniciado && input && e.key >= '0' && e.key <= '9') {
+                        e.preventDefault();
+                        this.iniciado = true;
+                        $wire.set('pagoMonedaExtranjera.monto_extranjera', e.key);
+                        this.$nextTick(() => {
+                            input.focus();
+                            input.setSelectionRange(input.value.length, input.value.length);
+                        });
+                    } else if (e.key >= '0' && e.key <= '9' || e.key === '.' || e.key === ',' || e.key === 'Backspace' || e.key === 'Delete' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Tab') {
+                        this.iniciado = true;
+                    }
+                },
+                confirmar() {
+                    const input = this.$refs.inputMontoExtranjera;
+                    const monto = parseFloat(input ? input.value : 0) || 0;
+                    const cotizacion = parseFloat($wire.get('pagoMonedaExtranjera.cotizacion') || 0);
+                    if (monto > 0 && cotizacion > 0) {
+                        // Asegurar que el valor del input llegue al servidor antes de confirmar
+                        $wire.set('pagoMonedaExtranjera.monto_extranjera', monto).then(() => {
+                            $wire.confirmarPagoMonedaExtranjera();
+                        });
+                    }
+                }
+            }"
             @keydown.escape.window="$wire.cerrarModalMonedaExtranjera()"
-            @keydown.enter.window.prevent="$wire.confirmarPagoMonedaExtranjera()">
+            @keydown.f2.window.prevent="confirmar()"
+            @keydown.enter.window.prevent="confirmar()">
             <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
                 <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity" wire:click="cerrarModalMonedaExtranjera"></div>
                 <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
@@ -1794,26 +2021,17 @@
                         </h3>
                     </div>
 
-                    <div class="px-4 py-5 sm:p-6 space-y-4">
-                        {{-- Total de la venta --}}
-                        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('Total a pagar') }}</p>
-                            <p class="text-2xl font-bold text-gray-900 dark:text-white">${{ number_format($pagoMonedaExtranjera['total_venta'], 2, ',', '.') }}</p>
+                    <div class="px-4 py-5 sm:p-6 space-y-5">
+                        {{-- Total a pagar --}}
+                        <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-5 text-center">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">{{ __('Total a pagar') }}</p>
+                            <p class="text-4xl font-extrabold text-gray-900 dark:text-white">${{ number_format($pagoMonedaExtranjera['total_venta'], 2, ',', '.') }}</p>
                         </div>
 
-                        {{-- Cotización --}}
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                {{ __('Cotización') }} (1 {{ $pagoMonedaExtranjera['moneda_codigo'] }} = ? ARS)
-                            </label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                wire:model.live.debounce.300ms="pagoMonedaExtranjera.cotizacion"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-amber-500 focus:ring focus:ring-amber-500 focus:ring-opacity-50 text-sm"
-                                placeholder="0.00">
-                        </div>
+                        {{-- Cotización (informativa) --}}
+                        <p class="text-center text-sm text-gray-500 dark:text-gray-400">
+                            {{ __('Cotización') }}: <span class="font-semibold text-gray-700 dark:text-gray-300">1 {{ $pagoMonedaExtranjera['moneda_codigo'] }} = ${{ number_format((float)($pagoMonedaExtranjera['cotizacion'] ?? 0), 2, ',', '.') }}</span>
+                        </p>
 
                         {{-- Monto en moneda extranjera --}}
                         <div>
@@ -1821,36 +2039,36 @@
                                 {{ __('¿Cuántos') }} {{ $pagoMonedaExtranjera['moneda_codigo'] }} {{ __('entrega?') }}
                             </label>
                             <div class="relative">
-                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-amber-600 dark:text-amber-400 font-medium text-sm">{{ $pagoMonedaExtranjera['moneda_simbolo'] }}</span>
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-amber-600 dark:text-amber-400 font-bold text-lg">{{ $pagoMonedaExtranjera['moneda_simbolo'] }}</span>
                                 <input
                                     type="number"
                                     step="0.01"
                                     min="0"
-                                    wire:model.live.debounce.300ms="pagoMonedaExtranjera.monto_extranjera"
-                                    class="w-full pl-10 pr-3 py-2 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-amber-500 focus:ring focus:ring-amber-500 focus:ring-opacity-50 text-lg font-medium"
-                                    placeholder="0.00"
-                                    autofocus>
+                                    x-ref="inputMontoExtranjera"
+                                    @keydown="onKeydown($event)"
+                                    wire:model.live.debounce.200ms="pagoMonedaExtranjera.monto_extranjera"
+                                    class="w-full pl-10 pr-3 py-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-amber-500 focus:ring focus:ring-amber-500 focus:ring-opacity-50 text-2xl font-bold text-right"
+                                    placeholder="0.00">
                             </div>
                         </div>
 
-                        {{-- Cálculo en vivo --}}
-                        @if($pagoMonedaExtranjera['equivalente_principal'] > 0)
-                            <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 space-y-2">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-sm text-blue-700 dark:text-blue-300">{{ __('Equivale a') }}</span>
-                                    <span class="text-lg font-bold text-blue-800 dark:text-blue-200">${{ number_format($pagoMonedaExtranjera['equivalente_principal'], 2, ',', '.') }}</span>
-                                </div>
-                                @if($pagoMonedaExtranjera['vuelto'] > 0)
-                                    <div class="flex justify-between items-center pt-2 border-t border-blue-200 dark:border-blue-700">
-                                        <span class="text-sm font-medium text-green-700 dark:text-green-300">{{ __('Vuelto') }}</span>
-                                        <span class="text-lg font-bold text-green-600 dark:text-green-400">${{ number_format($pagoMonedaExtranjera['vuelto'], 2, ',', '.') }}</span>
-                                    </div>
-                                @elseif($pagoMonedaExtranjera['equivalente_principal'] < $pagoMonedaExtranjera['total_venta'] - 0.01)
-                                    <div class="flex justify-between items-center pt-2 border-t border-blue-200 dark:border-blue-700">
-                                        <span class="text-sm font-medium text-red-600 dark:text-red-400">{{ __('Falta') }}</span>
-                                        <span class="text-lg font-bold text-red-600 dark:text-red-400">${{ number_format($pagoMonedaExtranjera['total_venta'] - $pagoMonedaExtranjera['equivalente_principal'], 2, ',', '.') }}</span>
-                                    </div>
-                                @endif
+                        {{-- Equivalente en moneda principal --}}
+                        @if(!$meSinDatos)
+                            <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4 text-center">
+                                <p class="text-xs text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-1">{{ __('Equivale a') }}</p>
+                                <p class="text-2xl font-extrabold text-blue-800 dark:text-blue-200">${{ number_format($meEquivPrincipal, 2, ',', '.') }}</p>
+                            </div>
+                        @endif
+
+                        {{-- Vuelto / Falta --}}
+                        @if(!$meSinDatos)
+                            <div class="rounded-xl p-5 text-center {{ $meEsInsuficiente ? 'bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800' : 'bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800' }}">
+                                <p class="text-xs uppercase tracking-wide mb-2 {{ $meEsInsuficiente ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-400' }}">
+                                    {{ $meEsInsuficiente ? __('Falta') : __('Vuelto') }}
+                                </p>
+                                <p class="text-5xl font-extrabold {{ $meEsInsuficiente ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' }}">
+                                    ${{ number_format($meEsInsuficiente ? ($meTotalVenta - $meEquivPrincipal) : $meVuelto, 2, ',', '.') }}
+                                </p>
                             </div>
                         @endif
                     </div>
@@ -1858,20 +2076,156 @@
                     {{-- Footer --}}
                     <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 flex flex-row-reverse gap-2">
                         <button
-                            wire:click="confirmarPagoMonedaExtranjera"
+                            @click="confirmar()"
                             type="button"
-                            @if($pagoMonedaExtranjera['equivalente_principal'] < $pagoMonedaExtranjera['total_venta'] - 0.01) disabled @endif
-                            class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white sm:text-sm transition
-                                {{ $pagoMonedaExtranjera['equivalente_principal'] >= $pagoMonedaExtranjera['total_venta'] - 0.01
+                            @if($meSinDatos || $meEsInsuficiente) disabled @endif
+                            class="inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-5 py-2.5 text-base font-medium text-white sm:text-sm transition
+                                {{ !$meSinDatos && !$meEsInsuficiente
                                     ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
                                     : 'bg-gray-400 cursor-not-allowed' }}
                                 focus:outline-none focus:ring-2 focus:ring-offset-2">
                             {{ __('Confirmar Pago') }}
+                            <kbd class="ml-2 px-1.5 py-0.5 text-xs {{ !$meSinDatos && !$meEsInsuficiente ? 'bg-green-800' : 'bg-gray-500' }} rounded">F2</kbd>
                         </button>
                         <button
                             wire:click="cerrarModalMonedaExtranjera"
                             type="button"
-                            class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary sm:text-sm">
+                            class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2.5 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary sm:text-sm">
+                            {{ __('Cancelar') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Modal de Cobro con Vuelto (Moneda Local) --}}
+    @if($mostrarModalVuelto)
+        <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-vuelto" role="dialog" aria-modal="true"
+            x-data="{
+                iniciado: false,
+                recibido: {{ (float)($pagoConVuelto['monto_recibido'] ?? 0) }},
+                totalAPagar: {{ (float)($pagoConVuelto['total_a_pagar'] ?? 0) }},
+                get vuelto() {
+                    return Math.max(0, Math.round((this.recibido - this.totalAPagar) * 100) / 100);
+                },
+                get falta() {
+                    return Math.max(0, Math.round((this.totalAPagar - this.recibido) * 100) / 100);
+                },
+                get esInsuficiente() {
+                    return this.recibido < this.totalAPagar - 0.01;
+                },
+                init() {
+                    this.$nextTick(() => {
+                        const input = this.$refs.inputMontoRecibido;
+                        if (input) input.focus();
+                    });
+                },
+                onKeydown(e) {
+                    const input = this.$refs.inputMontoRecibido;
+                    if (!this.iniciado && input && e.key >= '0' && e.key <= '9') {
+                        e.preventDefault();
+                        this.iniciado = true;
+                        this.recibido = parseFloat(e.key);
+                        this.$nextTick(() => {
+                            input.value = e.key;
+                            input.focus();
+                            input.setSelectionRange(input.value.length, input.value.length);
+                        });
+                    } else if (e.key !== 'Tab' && e.key !== 'Escape' && e.key !== 'Enter' && e.key !== 'F2') {
+                        this.iniciado = true;
+                    }
+                },
+                onInput(e) {
+                    this.recibido = parseFloat(e.target.value) || 0;
+                    this.iniciado = true;
+                },
+                confirmar() {
+                    if (!this.esInsuficiente) {
+                        $wire.set('pagoConVuelto.monto_recibido', this.recibido).then(() => {
+                            $wire.confirmarPagoConVuelto();
+                        });
+                    }
+                }
+            }"
+            @keydown.escape.window="$wire.cerrarModalVuelto()"
+            @keydown.f2.window.prevent="confirmar()"
+            @keydown.enter.window.prevent="confirmar()"
+            @keydown.window="onKeydown($event)">
+            <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity" wire:click="cerrarModalVuelto"></div>
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full w-full">
+                    {{-- Header --}}
+                    <div class="bg-green-600 px-4 py-3 sm:px-6">
+                        <h3 class="text-lg leading-6 font-medium text-white flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                            </svg>
+                            {{ __('Cobrar') }} — {{ $pagoConVuelto['nombre'] }}
+                        </h3>
+                    </div>
+
+                    <div class="px-4 py-5 sm:p-6 space-y-5">
+                        {{-- Total a pagar --}}
+                        <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-5 text-center">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">{{ __('Total a pagar') }}</p>
+                            <p class="text-4xl font-extrabold text-gray-900 dark:text-white">${{ number_format($pagoConVuelto['total_a_pagar'], 2, ',', '.') }}</p>
+                        </div>
+
+                        {{-- Monto recibido --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {{ __('Monto recibido') }}
+                            </label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-green-600 dark:text-green-400 font-bold text-lg">$</span>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    x-ref="inputMontoRecibido"
+                                    :value="recibido"
+                                    @input="onInput($event)"
+                                    class="w-full pl-8 pr-3 py-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-green-500 focus:ring focus:ring-green-500 focus:ring-opacity-50 text-2xl font-bold text-right"
+                                >
+                            </div>
+                        </div>
+
+                        {{-- Vuelto / Falta --}}
+                        <div class="rounded-xl p-5 text-center border-2 transition-colors"
+                            :class="esInsuficiente
+                                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                                : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'"
+                        >
+                            <p class="text-xs uppercase tracking-wide mb-2"
+                                :class="esInsuficiente ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-400'"
+                                x-text="esInsuficiente ? '{{ __('Falta') }}' : '{{ __('Vuelto') }}'">
+                            </p>
+                            <p class="text-5xl font-extrabold"
+                                :class="esInsuficiente ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'"
+                                x-text="'$' + (esInsuficiente ? falta : vuelto).toFixed(2).replace('.', ',')">
+                            </p>
+                        </div>
+                    </div>
+
+                    {{-- Footer --}}
+                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 flex flex-row-reverse gap-2">
+                        <button
+                            @click="confirmar()"
+                            type="button"
+                            :disabled="esInsuficiente"
+                            class="inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-5 py-2.5 text-base font-medium text-white sm:text-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2"
+                            :class="!esInsuficiente
+                                ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
+                                : 'bg-gray-400 cursor-not-allowed'">
+                            {{ __('Confirmar Pago') }}
+                            <kbd class="ml-2 px-1.5 py-0.5 text-xs rounded" :class="!esInsuficiente ? 'bg-green-800' : 'bg-gray-500'">F2</kbd>
+                        </button>
+                        <button
+                            wire:click="cerrarModalVuelto"
+                            type="button"
+                            class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2.5 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary sm:text-sm">
                             {{ __('Cancelar') }}
                         </button>
                     </div>

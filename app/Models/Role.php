@@ -115,11 +115,6 @@ class Role extends SpatieRole
      */
     public function hasPermissionTo($permission, ?string $guardName = null): bool
     {
-        // Super Administrador tiene TODOS los permisos
-        if ($this->name === 'Super Administrador') {
-            return true;
-        }
-
         if (!static::isTenantConfigured()) {
             return false;
         }

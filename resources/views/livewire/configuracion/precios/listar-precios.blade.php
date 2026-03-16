@@ -33,7 +33,7 @@
         {{-- Filtros --}}
         <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-4 sm:mb-6">
             {{-- Boton de filtros (solo movil) --}}
-            <div class="sm:hidden p-4 border-b border-gray-200 dark:border-gray-700">
+            <div class="sm:hidden p-3 border-b border-gray-200 dark:border-gray-700">
                 <button
                     wire:click="$toggle('showFilters')"
                     class="w-full flex items-center justify-between text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-bcn-primary transition-colors">
@@ -42,7 +42,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                         </svg>
                         {{ __('Filtros') }}
-                        @if($busqueda || $sucursalFiltro || $activoFiltro !== 'todos' || $esListaBaseFiltro !== '')
+                        @if($busqueda || $activoFiltro !== 'todos' || $esListaBaseFiltro !== '')
                             <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-bcn-primary text-white">
                                 {{ __('Activos') }}
                             </span>
@@ -57,60 +57,42 @@
                 </button>
             </div>
 
-            {{-- Contenedor de filtros --}}
-            <div class="{{ ($showFilters ?? false) ? 'block' : 'hidden' }} sm:block p-4 sm:p-6">
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            {{-- Contenedor de filtros - una sola linea --}}
+            <div class="{{ ($showFilters ?? false) ? 'block' : 'hidden' }} sm:block p-3">
+                <div class="flex flex-col sm:flex-row gap-3 items-end">
                     {{-- Busqueda --}}
-                    <div class="sm:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar lista') }}</label>
+                    <div class="flex-1 w-full sm:w-auto">
                         <input type="text"
                                wire:model.live.debounce.300ms="busqueda"
-                               :placeholder="__('Nombre, codigo o descripcion...')"
+                               :placeholder="__('Buscar por nombre, codigo o descripcion...')"
                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
                     </div>
 
-                    {{-- Sucursal --}}
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Sucursal') }}</label>
-                        <select wire:model.live="sucursalFiltro"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                            <option value="">{{ __('Todas') }}</option>
-                            @foreach($sucursales as $sucursal)
-                                <option value="{{ $sucursal->id }}">{{ $sucursal->nombre }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
                     {{-- Estado --}}
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Estado') }}</label>
-                        <select wire:model.live="activoFiltro"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                            <option value="todos">{{ __('Todos') }}</option>
-                            <option value="activos">{{ __('Activos') }}</option>
-                            <option value="inactivos">{{ __('Inactivos') }}</option>
-                        </select>
-                    </div>
-                </div>
+                    <select wire:model.live="activoFiltro"
+                            class="w-full sm:w-auto rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
+                        <option value="todos">{{ __('Todos los estados') }}</option>
+                        <option value="activos">{{ __('Activos') }}</option>
+                        <option value="inactivos">{{ __('Inactivos') }}</option>
+                    </select>
 
-                <div class="flex flex-wrap gap-4 items-center">
-                    {{-- Lista Base --}}
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipo') }}</label>
-                        <select wire:model.live="esListaBaseFiltro"
-                                class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                            <option value="">{{ __('Todas') }}</option>
-                            <option value="si">{{ __('Solo listas base') }}</option>
-                            <option value="no">{{ __('Solo listas especiales') }}</option>
-                        </select>
-                    </div>
+                    {{-- Tipo --}}
+                    <select wire:model.live="esListaBaseFiltro"
+                            class="w-full sm:w-auto rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
+                        <option value="">{{ __('Todos los tipos') }}</option>
+                        <option value="si">{{ __('Solo listas base') }}</option>
+                        <option value="no">{{ __('Solo listas especiales') }}</option>
+                    </select>
 
-                    <div class="flex-1"></div>
-
-                    <button wire:click="limpiarFiltros"
-                            class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary transition">
-                        {{ __('Limpiar Filtros') }}
-                    </button>
+                    @if($busqueda || $activoFiltro !== 'todos' || $esListaBaseFiltro !== '')
+                        <button wire:click="limpiarFiltros"
+                                class="inline-flex items-center px-3 py-2 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
+                                title="{{ __('Limpiar Filtros') }}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    @endif
                 </div>
             </div>
         </div>
@@ -144,11 +126,6 @@
                     </div>
 
                     <div class="space-y-2 text-xs">
-                        <div class="flex justify-between">
-                            <span class="text-gray-500 dark:text-gray-400">{{ __('Sucursal') }}:</span>
-                            <span class="font-medium text-gray-900 dark:text-white">{{ $lista->sucursal->nombre }}</span>
-                        </div>
-
                         <div class="flex justify-between">
                             <span class="text-gray-500 dark:text-gray-400">{{ __('Ajuste') }}:</span>
                             <span class="font-bold {{ $lista->ajuste_porcentaje > 0 ? 'text-red-600' : ($lista->ajuste_porcentaje < 0 ? 'text-green-600' : 'text-gray-600 dark:text-gray-300') }}">
@@ -237,9 +214,6 @@
                                     <span class="ml-1">{{ $ordenDireccion === 'asc' ? '↑' : '↓' }}</span>
                                 @endif
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                {{ __('Sucursal') }}
-                            </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                                 wire:click="ordenar('ajuste')">
                                 {{ __('Ajuste') }}
@@ -284,11 +258,6 @@
                                     @if($lista->descripcion)
                                         <div class="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate max-w-xs" title="{{ $lista->descripcion }}">{{ $lista->descripcion }}</div>
                                     @endif
-                                </td>
-
-                                {{-- Sucursal --}}
-                                <td class="px-6 py-4">
-                                    <div class="text-sm text-gray-900 dark:text-white">{{ $lista->sucursal->nombre }}</div>
                                 </td>
 
                                 {{-- Ajuste --}}
@@ -383,7 +352,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                <td colspan="6" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                                     <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
                                     </svg>
@@ -404,22 +373,18 @@
         </div>
 
         {{-- Estadisticas rapidas --}}
-        <div class="mt-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                <div class="text-xs text-gray-500 dark:text-gray-400 uppercase">{{ __('Total Listas') }}</div>
-                <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ $listas->total() }}</div>
+        <div class="mt-4 flex flex-wrap gap-4">
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg px-4 py-2 flex items-center gap-2">
+                <span class="text-xs text-gray-500 dark:text-gray-400 uppercase">{{ __('Total') }}</span>
+                <span class="text-lg font-bold text-gray-900 dark:text-white">{{ $listas->total() }}</span>
             </div>
-            <div class="bg-green-50 dark:bg-green-900/30 rounded-lg p-4">
-                <div class="text-xs text-green-600 dark:text-green-400 uppercase">{{ __('Activas') }}</div>
-                <div class="text-2xl font-bold text-green-900 dark:text-green-300">{{ \App\Models\ListaPrecio::where('activo', true)->count() }}</div>
+            <div class="bg-green-50 dark:bg-green-900/30 rounded-lg px-4 py-2 flex items-center gap-2">
+                <span class="text-xs text-green-600 dark:text-green-400 uppercase">{{ __('Activas') }}</span>
+                <span class="text-lg font-bold text-green-900 dark:text-green-300">{{ $listas->where('activo', true)->count() }}</span>
             </div>
-            <div class="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4">
-                <div class="text-xs text-blue-600 dark:text-blue-400 uppercase">{{ __('Listas Base') }}</div>
-                <div class="text-2xl font-bold text-blue-900 dark:text-blue-300">{{ \App\Models\ListaPrecio::where('es_lista_base', true)->count() }}</div>
-            </div>
-            <div class="bg-purple-50 dark:bg-purple-900/30 rounded-lg p-4">
-                <div class="text-xs text-purple-600 dark:text-purple-400 uppercase">{{ __('Sucursales') }}</div>
-                <div class="text-2xl font-bold text-purple-900 dark:text-purple-300">{{ \App\Models\ListaPrecio::distinct('sucursal_id')->count('sucursal_id') }}</div>
+            <div class="bg-blue-50 dark:bg-blue-900/30 rounded-lg px-4 py-2 flex items-center gap-2">
+                <span class="text-xs text-blue-600 dark:text-blue-400 uppercase">{{ __('Base') }}</span>
+                <span class="text-lg font-bold text-blue-900 dark:text-blue-300">{{ $listas->where('es_lista_base', true)->count() }}</span>
             </div>
         </div>
     </div>

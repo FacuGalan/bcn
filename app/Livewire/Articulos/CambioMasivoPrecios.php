@@ -60,6 +60,11 @@ class CambioMasivoPrecios extends Component
     public ?string $horaProgramada = null;
     public bool $showProgramados = false;
 
+    // Filtros de cambios programados
+    public string $filtroProgramadosEstado = 'pendiente';
+    public ?string $filtroProgramadosFechaDesde = null;
+    public ?string $filtroProgramadosFechaHasta = null;
+
     public function mount()
     {
         // Inicializar
@@ -641,13 +646,25 @@ class CambioMasivoPrecios extends Component
     }
 
     /**
-     * Obtiene los cambios programados (últimos 20).
+     * Obtiene los cambios programados filtrados.
      */
     public function getCambiosProgramadosProperty()
     {
-        return CambioPrecioProgramado::orderByDesc('created_at')
-            ->limit(20)
-            ->get();
+        $query = CambioPrecioProgramado::orderByDesc('created_at');
+
+        if ($this->filtroProgramadosEstado !== 'todos') {
+            $query->where('estado', $this->filtroProgramadosEstado);
+        }
+
+        if ($this->filtroProgramadosFechaDesde) {
+            $query->whereDate('fecha_programada', '>=', $this->filtroProgramadosFechaDesde);
+        }
+
+        if ($this->filtroProgramadosFechaHasta) {
+            $query->whereDate('fecha_programada', '<=', $this->filtroProgramadosFechaHasta);
+        }
+
+        return $query->limit(20)->get();
     }
 
     /**

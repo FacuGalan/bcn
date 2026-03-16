@@ -6,7 +6,6 @@ use Livewire\Component;
 use App\Models\ListaPrecio;
 use App\Models\ListaPrecioCondicion;
 use App\Models\ListaPrecioArticulo;
-use App\Models\Sucursal;
 use App\Models\FormaPago;
 use App\Models\FormaVenta;
 use App\Models\CanalVenta;
@@ -138,22 +137,14 @@ class WizardListaPrecio extends Component
         if ($id) {
             $this->cargarListaParaEdicion($id);
         } else {
-            // Valor por defecto: primera sucursal
-            $primeraSucursal = Sucursal::select('id')->orderBy('nombre')->first();
-            if ($primeraSucursal) {
-                $this->sucursalId = $primeraSucursal->id;
-            }
+            // Usar la sucursal activa del selector del header
+            $this->sucursalId = sucursal_activa();
         }
     }
 
     /**
      * Computed properties para cargar colecciones sin almacenarlas en el estado
      */
-    public function getSucursalesProperty()
-    {
-        return Sucursal::select('id', 'nombre')->orderBy('nombre')->get();
-    }
-
     public function getFormasPagoProperty()
     {
         return FormaPago::where('activo', true)->orderBy('nombre')->get();
@@ -195,8 +186,8 @@ class WizardListaPrecio extends Component
         // Paso 1
         $this->sucursalId = $lista->sucursal_id;
         $this->nombre = $lista->nombre;
-        $this->codigo = $lista->codigo;
-        $this->descripcion = $lista->descripcion;
+        $this->codigo = $lista->codigo ?? '';
+        $this->descripcion = $lista->descripcion ?? '';
         $this->prioridad = $lista->prioridad;
 
         // Paso 2

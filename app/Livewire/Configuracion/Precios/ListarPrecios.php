@@ -5,7 +5,7 @@ namespace App\Livewire\Configuracion\Precios;
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\ListaPrecio;
-use App\Models\Sucursal;
+use App\Traits\SucursalAware;
 
 /**
  * Componente Livewire para listar y gestionar listas de precios
@@ -14,16 +14,12 @@ use App\Models\Sucursal;
  */
 class ListarPrecios extends Component
 {
-    use WithPagination;
+    use WithPagination, SucursalAware;
 
     // Filtros
     public $busqueda = '';
-    public $sucursalFiltro = '';
     public $activoFiltro = 'todos';
     public $esListaBaseFiltro = '';
-
-    // Colecciones para filtros
-    public $sucursales = [];
 
     // Ordenamiento
     public $ordenarPor = 'prioridad';
@@ -39,15 +35,9 @@ class ListarPrecios extends Component
 
     protected $queryString = [
         'busqueda' => ['except' => ''],
-        'sucursalFiltro' => ['except' => ''],
         'ordenarPor' => ['except' => 'prioridad'],
         'ordenDireccion' => ['except' => 'asc'],
     ];
-
-    public function mount()
-    {
-        $this->sucursales = Sucursal::select('id', 'nombre')->orderBy('nombre')->get();
-    }
 
     public function updatingBusqueda()
     {
@@ -58,7 +48,6 @@ class ListarPrecios extends Component
     {
         $this->reset([
             'busqueda',
-            'sucursalFiltro',
             'activoFiltro',
             'esListaBaseFiltro'
         ]);
@@ -183,8 +172,10 @@ class ListarPrecios extends Component
 
     public function render()
     {
+        $sucursalId = sucursal_activa();
+
         $query = ListaPrecio::query()
-            ->with(['sucursal:id,nombre'])
+            ->where('sucursal_id', $sucursalId)
             ->withCount(['condiciones', 'articulos']);
 
         // Aplicar filtros
@@ -194,10 +185,6 @@ class ListarPrecios extends Component
                   ->orWhere('codigo', 'like', '%' . $this->busqueda . '%')
                   ->orWhere('descripcion', 'like', '%' . $this->busqueda . '%');
             });
-        }
-
-        if ($this->sucursalFiltro) {
-            $query->where('sucursal_id', $this->sucursalFiltro);
         }
 
         if ($this->activoFiltro !== 'todos') {

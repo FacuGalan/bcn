@@ -38,8 +38,8 @@
 
         {{-- Filtros --}}
         <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-4 sm:mb-6">
-            {{-- Botón de filtros (solo móvil) --}}
-            <div class="sm:hidden p-4 border-b border-gray-200 dark:border-gray-700">
+            {{-- Boton de filtros (solo movil) --}}
+            <div class="sm:hidden p-3 border-b border-gray-200 dark:border-gray-700">
                 <button
                     wire:click="$toggle('showFilters')"
                     class="w-full flex items-center justify-between text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-bcn-primary transition-colors">
@@ -48,7 +48,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                         </svg>
                         {{ __('Filtros') }}
-                        @if($busqueda || $sucursalFiltro || $tipoFiltro || $activoFiltro !== 'todos')
+                        @if($busqueda || $tipoFiltro || $activoFiltro !== 'todos')
                             <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-bcn-primary text-white">
                                 {{ __('Activos') }}
                             </span>
@@ -63,88 +63,51 @@
                 </button>
             </div>
 
-            {{-- Contenedor de filtros --}}
-            <div class="{{ ($showFilters ?? false) ? 'block' : 'hidden' }} sm:block p-4 sm:p-6">
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                    {{-- Búsqueda --}}
-                    <div class="sm:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar promoción') }}</label>
+            {{-- Contenedor de filtros - una sola linea --}}
+            <div class="{{ ($showFilters ?? false) ? 'block' : 'hidden' }} sm:block p-3">
+                <div class="flex flex-col sm:flex-row gap-3 items-end">
+                    {{-- Busqueda --}}
+                    <div class="flex-1 w-full sm:w-auto">
                         <input type="text"
                                wire:model.live.debounce.300ms="busqueda"
-                               :placeholder="__('Nombre, descripción o código cupón...')"
+                               :placeholder="__('Buscar por nombre, descripcion o cupon...')"
                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
                     </div>
 
-                    {{-- Sucursal --}}
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Sucursal') }}</label>
-                        <select wire:model.live="sucursalFiltro"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                            <option value="">{{ __('Todas') }}</option>
-                            @foreach($sucursales as $sucursal)
-                                <option value="{{ $sucursal->id }}">{{ $sucursal->nombre }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
                     {{-- Tipo --}}
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipo') }}</label>
-                        <select wire:model.live="tipoFiltro"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                            <option value="">{{ __('Todos') }}</option>
-                            @foreach($tiposPromocion as $key => $label)
-                                <option value="{{ $key }}">{{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                </div>
+                    <select wire:model.live="tipoFiltro"
+                            class="w-full sm:w-auto rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
+                        <option value="">{{ __('Todos los tipos') }}</option>
+                        @foreach($tiposPromocion as $key => $label)
+                            <option value="{{ $key }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
 
-                <details class="mt-2">
-                    <summary class="cursor-pointer text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-bcn-primary transition">
-                        {{ __('Filtros Avanzados') }}
-                    </summary>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t">
-                        {{-- Estado --}}
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Estado') }}</label>
-                            <select wire:model.live="activoFiltro"
-                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                <option value="todos">{{ __('Todos') }}</option>
-                                <option value="activos">{{ __('Activos') }}</option>
-                                <option value="inactivos">{{ __('Inactivos') }}</option>
-                            </select>
-                        </div>
+                    {{-- Estado --}}
+                    <select wire:model.live="activoFiltro"
+                            class="w-full sm:w-auto rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
+                        <option value="todos">{{ __('Todos los estados') }}</option>
+                        <option value="activos">{{ __('Activos') }}</option>
+                        <option value="inactivos">{{ __('Inactivos') }}</option>
+                    </select>
 
-                        {{-- Vigencia --}}
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Vigencia') }}</label>
-                            <select wire:model.live="vigenteFiltro"
-                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                <option value="todos">{{ __('Todas') }}</option>
-                                <option value="vigentes">{{ __('Vigentes') }}</option>
-                                <option value="vencidas">{{ __('Vencidas') }}</option>
-                            </select>
-                        </div>
+                    {{-- Vigencia --}}
+                    <select wire:model.live="vigenteFiltro"
+                            class="w-full sm:w-auto rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
+                        <option value="todos">{{ __('Todas las vigencias') }}</option>
+                        <option value="vigentes">{{ __('Vigentes') }}</option>
+                        <option value="vencidas">{{ __('Vencidas') }}</option>
+                    </select>
 
-                        {{-- Cupón --}}
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cupón') }}</label>
-                            <select wire:model.live="cuponFiltro"
-                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                <option value="todos">{{ __('Todas') }}</option>
-                                <option value="con_cupon">{{ __('Con cupón') }}</option>
-                                <option value="sin_cupon">{{ __('Sin cupón (automáticas)') }}</option>
-                            </select>
-                        </div>
-                    </div>
-                </details>
-
-                <div class="mt-4 flex justify-end">
-                    <button wire:click="limpiarFiltros"
-                            class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary transition">
-                        {{ __('Limpiar Filtros') }}
-                    </button>
+                    @if($busqueda || $tipoFiltro || $activoFiltro !== 'todos' || $vigenteFiltro !== 'todos' || $cuponFiltro !== 'todos' || $combinableFiltro !== 'todos')
+                        <button wire:click="limpiarFiltros"
+                                class="inline-flex items-center px-3 py-2 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
+                                title="{{ __('Limpiar Filtros') }}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    @endif
                 </div>
             </div>
         </div>
@@ -164,14 +127,6 @@
                                 </span>
                             </div>
                             <div class="text-sm font-medium text-gray-900 dark:text-white mt-1">{{ $promocion->nombre }}</div>
-                            @if(!$sucursalFiltro)
-                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                                    </svg>
-                                    {{ $promocion->sucursal->nombre }}
-                                </div>
-                            @endif
                             @if($promocion->codigo_cupon)
                                 <div class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-yellow-50 text-yellow-800 mt-1">
                                     <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -307,11 +262,6 @@
                                     @endif
                                 </div>
                             </th>
-                            @if(!$sucursalFiltro)
-                                <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    {{ __('Sucursal') }}
-                                </th>
-                            @endif
                             <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                                 wire:click="ordenar('nombre')">
                                 <div class="flex items-center gap-1">
@@ -368,13 +318,6 @@
                                         {{ $promocion->prioridad }}
                                     </span>
                                 </td>
-
-                                {{-- Sucursal --}}
-                                @if(!$sucursalFiltro)
-                                    <td class="px-3 py-4 whitespace-nowrap">
-                                        <span class="text-sm text-gray-700 dark:text-gray-300">{{ $promocion->sucursal->nombre }}</span>
-                                    </td>
-                                @endif
 
                                 {{-- Promoción --}}
                                 <td class="px-3 py-4">
@@ -520,7 +463,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ $sucursalFiltro ? '8' : '9' }}" class="px-6 py-12 text-center">
+                                <td colspan="8" class="px-6 py-12 text-center">
                                     <div class="text-gray-400 dark:text-gray-500">
                                         <svg class="mx-auto h-12 w-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>

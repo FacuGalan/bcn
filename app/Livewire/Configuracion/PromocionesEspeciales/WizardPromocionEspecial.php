@@ -8,7 +8,6 @@ use App\Models\PromocionEspecialGrupo;
 use App\Models\PromocionEspecialEscala;
 use App\Models\Articulo;
 use App\Models\Categoria;
-use App\Models\Sucursal;
 use App\Models\FormaVenta;
 use App\Models\CanalVenta;
 use App\Models\FormaPago;
@@ -103,7 +102,6 @@ class WizardPromocionEspecial extends Component
     public $prioridadesTemporales = []; // [id_promocion => prioridad_temporal]
 
     // Colecciones
-    public $sucursales = [];
     public $categorias = [];
     public $formasVenta = [];
     public $canalesVenta = [];
@@ -111,11 +109,13 @@ class WizardPromocionEspecial extends Component
 
     public function mount($id = null)
     {
-        $this->sucursales = Sucursal::orderBy('nombre')->get();
         $this->categorias = Categoria::activas()->orderBy('nombre')->get();
         $this->formasVenta = FormaVenta::activas()->get();
         $this->canalesVenta = CanalVenta::activos()->get();
         $this->formasPago = FormaPago::activas()->get();
+
+        // Auto-asignar sucursal activa
+        $this->sucursalesSeleccionadas = [sucursal_activa()];
 
         if ($id) {
             $this->cargarPromocionParaEdicion($id);
@@ -133,7 +133,7 @@ class WizardPromocionEspecial extends Component
         // Datos básicos
         $this->tipo = $promo->tipo;
         $this->nombre = $promo->nombre;
-        $this->descripcion = $promo->descripcion;
+        $this->descripcion = $promo->descripcion ?? '';
         $this->sucursalesSeleccionadas = [$promo->sucursal_id];
         $this->prioridad = $promo->prioridad;
         $this->activo = $promo->activo;
@@ -141,7 +141,7 @@ class WizardPromocionEspecial extends Component
         // NxM básico
         if ($promo->tipo === PromocionEspecial::TIPO_NXM) {
             $this->nxmLleva = $promo->nxm_lleva;
-            $this->nxmBonifica = $promo->nxm_bonifica;
+            $this->nxmBonifica = $promo->nxm_bonifica ?? 1;
             $this->beneficioTipo = $promo->beneficio_tipo ?? 'gratis';
             $this->beneficioPorcentaje = $promo->beneficio_porcentaje ?? 50;
             $this->usarEscalas = $promo->usa_escalas;
@@ -185,7 +185,7 @@ class WizardPromocionEspecial extends Component
                 ])->toArray();
             } else {
                 $this->nxmLleva = $promo->nxm_lleva;
-                $this->nxmBonifica = $promo->nxm_bonifica;
+                $this->nxmBonifica = $promo->nxm_bonifica ?? 1;
             }
 
             // Cargar grupos trigger
@@ -1293,7 +1293,7 @@ class WizardPromocionEspecial extends Component
     {
         // Usar la primera sucursal seleccionada o la primera disponible
         if (!$this->simuladorSucursalId) {
-            $this->simuladorSucursalId = $this->sucursalesSeleccionadas[0] ?? $this->sucursales->first()?->id;
+            $this->simuladorSucursalId = $this->sucursalesSeleccionadas[0] ?? sucursal_activa();
         }
 
         $this->cargarListasPreciosSimulador();

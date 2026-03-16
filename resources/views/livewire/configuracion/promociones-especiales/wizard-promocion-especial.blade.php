@@ -213,39 +213,6 @@
                                       class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"></textarea>
                         </div>
 
-                        {{-- Sucursales --}}
-                        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                            @if($modoEdicion)
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Sucursal') }} *</label>
-                                <select wire:model.live="sucursalesSeleccionadas.0"
-                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                    @foreach($sucursales as $sucursal)
-                                        <option value="{{ $sucursal->id }}">{{ $sucursal->nombre }}</option>
-                                    @endforeach
-                                </select>
-                            @else
-                                <div class="flex items-center justify-between mb-2">
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Sucursales') }} *</label>
-                                    <div class="flex gap-2">
-                                        <button type="button" wire:click="$set('sucursalesSeleccionadas', {{ $sucursales->pluck('id')->toJson() }})"
-                                                class="text-xs text-blue-600 hover:text-blue-800">{{ __('Todas') }}</button>
-                                        <span class="text-gray-300 dark:text-gray-600">|</span>
-                                        <button type="button" wire:click="$set('sucursalesSeleccionadas', [])"
-                                                class="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">{{ __('Ninguna') }}</button>
-                                    </div>
-                                </div>
-                                <div class="space-y-1 max-h-32 overflow-y-auto">
-                                    @foreach($sucursales as $sucursal)
-                                        <label class="flex items-center p-1.5 rounded hover:bg-white dark:hover:bg-gray-600 cursor-pointer transition">
-                                            <input type="checkbox" wire:model.live="sucursalesSeleccionadas" value="{{ $sucursal->id }}"
-                                                   class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary">
-                                            <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ $sucursal->nombre }}</span>
-                                        </label>
-                                    @endforeach
-                                </div>
-                            @endif
-                        </div>
-
                         @if($modoEdicion)
                             <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                                 <label class="flex items-center gap-2 cursor-pointer">
@@ -1053,19 +1020,6 @@
 
                                     <div class="p-3 pt-0 space-y-2 {{ $mostrarFiltrosSimulador ? '' : 'hidden' }}">
                                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                            {{-- Sucursal --}}
-                                            <div>
-                                                <label class="text-xs text-gray-500 block mb-1">Sucursal</label>
-                                                <select wire:model.live="simuladorSucursalId"
-                                                        class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                                    @foreach($sucursales as $suc)
-                                                        @if(in_array($suc->id, $sucursalesSeleccionadas))
-                                                            <option value="{{ $suc->id }}">{{ $suc->nombre }}</option>
-                                                        @endif
-                                                    @endforeach
-                                                </select>
-                                            </div>
-
                                             {{-- Lista de Precios --}}
                                             <div>
                                                 <label class="text-xs text-gray-500 block mb-1">Lista de Precios</label>
