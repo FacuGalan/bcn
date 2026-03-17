@@ -2,11 +2,7 @@
 
 namespace Tests\Unit\Services;
 
-use App\Models\Articulo;
-use App\Models\Cliente;
-use App\Models\FormaPago;
 use App\Models\Receta;
-use App\Models\RecetaIngrediente;
 use App\Models\Stock;
 use App\Models\Venta;
 use App\Models\VentaDetalle;
@@ -22,7 +18,7 @@ use Tests\Traits\WithVentaHelpers;
 
 class VentaServiceCancelacionTest extends TestCase
 {
-    use WithTenant, WithSucursal, WithCaja, WithVentaHelpers;
+    use WithCaja, WithSucursal, WithTenant, WithVentaHelpers;
 
     protected VentaService $ventaService;
 
@@ -34,7 +30,7 @@ class VentaServiceCancelacionTest extends TestCase
         $this->setUpCaja();
         $this->crearTiposIva();
 
-        $this->ventaService = new VentaService();
+        $this->ventaService = new VentaService;
 
         // Crear un usuario y autenticarlo para Auth::id()
         $user = \App\Models\User::factory()->create();

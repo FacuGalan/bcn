@@ -2,19 +2,18 @@
 
 namespace Tests\Integration\Models;
 
-use App\Models\ConceptoPago;
 use App\Models\FormaPago;
 use App\Models\Venta;
 use App\Models\VentaPago;
 use Tests\TestCase;
-use Tests\Traits\WithTenant;
-use Tests\Traits\WithSucursal;
 use Tests\Traits\WithCaja;
+use Tests\Traits\WithSucursal;
+use Tests\Traits\WithTenant;
 use Tests\Traits\WithVentaHelpers;
 
 class VentaPagoTest extends TestCase
 {
-    use WithTenant, WithSucursal, WithCaja, WithVentaHelpers;
+    use WithCaja, WithSucursal, WithTenant, WithVentaHelpers;
 
     protected function setUp(): void
     {

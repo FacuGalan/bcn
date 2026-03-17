@@ -8,14 +8,14 @@ use App\Models\MovimientoCuentaCorriente;
 use App\Models\Venta;
 use App\Models\VentaPago;
 use Tests\TestCase;
-use Tests\Traits\WithTenant;
-use Tests\Traits\WithSucursal;
 use Tests\Traits\WithCaja;
+use Tests\Traits\WithSucursal;
+use Tests\Traits\WithTenant;
 use Tests\Traits\WithVentaHelpers;
 
 class MovimientoCuentaCorrienteTest extends TestCase
 {
-    use WithTenant, WithSucursal, WithCaja, WithVentaHelpers;
+    use WithCaja, WithSucursal, WithTenant, WithVentaHelpers;
 
     protected function setUp(): void
     {
@@ -63,7 +63,7 @@ class MovimientoCuentaCorrienteTest extends TestCase
             'sucursal_id' => $this->sucursalId,
             'cliente_id' => $clienteId,
             'caja_id' => $this->cajaId,
-            'numero_recibo' => 'REC-' . uniqid(),
+            'numero_recibo' => 'REC-'.uniqid(),
             'tipo' => 'cobro',
             'fecha' => now()->toDateString(),
             'hora' => now()->format('H:i:s'),

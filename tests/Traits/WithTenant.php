@@ -18,10 +18,13 @@ use Illuminate\Support\Facades\DB;
 trait WithTenant
 {
     protected Comercio $comercio;
+
     protected string $tenantPrefix;
 
     protected static ?int $cachedComercioId = null;
+
     protected static ?string $cachedPrefix = null;
+
     protected static bool $tablesChecked = false;
 
     /** Tablas que los tests realmente usan — solo estas se limpian */
@@ -131,7 +134,7 @@ trait WithTenant
         }
 
         static::$cachedComercioId = $comercio->id;
-        static::$cachedPrefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT) . '_';
+        static::$cachedPrefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT).'_';
     }
 
     private function ensureTenantTablesExist(): void
@@ -141,10 +144,11 @@ trait WithTenant
         if (env('TEST_FORCE_RECREATE', false)) {
             $this->dropTenantTables();
             $this->createTenantTables();
+
             return;
         }
 
-        $markerTable = static::$cachedPrefix . 'sucursales';
+        $markerTable = static::$cachedPrefix.'sucursales';
         $exists = DB::connection('pymes')
             ->selectOne(
                 "SELECT COUNT(*) as cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND TABLE_TYPE = 'BASE TABLE'",
@@ -172,7 +176,7 @@ trait WithTenant
 
         $statements = array_filter(
             array_map('trim', explode(';', $sql)),
-            fn($s) => ! empty($s) && $s !== ''
+            fn ($s) => ! empty($s) && $s !== ''
         );
 
         DB::connection('pymes')->statement('SET FOREIGN_KEY_CHECKS = 0');
@@ -197,14 +201,14 @@ trait WithTenant
         $prefix = static::$cachedPrefix;
 
         $views = DB::connection('pymes')
-            ->select("SELECT TABLE_NAME FROM information_schema.VIEWS WHERE TABLE_SCHEMA = ? AND TABLE_NAME LIKE ?", [$dbName, $prefix . '%']);
+            ->select('SELECT TABLE_NAME FROM information_schema.VIEWS WHERE TABLE_SCHEMA = ? AND TABLE_NAME LIKE ?', [$dbName, $prefix.'%']);
 
         foreach ($views as $view) {
             DB::connection('pymes')->statement("DROP VIEW IF EXISTS `{$view->TABLE_NAME}`");
         }
 
         $tables = DB::connection('pymes')
-            ->select("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME LIKE ? AND TABLE_TYPE = 'BASE TABLE'", [$dbName, $prefix . '%']);
+            ->select("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME LIKE ? AND TABLE_TYPE = 'BASE TABLE'", [$dbName, $prefix.'%']);
 
         DB::connection('pymes')->statement('SET FOREIGN_KEY_CHECKS = 0');
 

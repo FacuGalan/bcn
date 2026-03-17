@@ -2,27 +2,23 @@
 
 namespace Tests\Unit\Services;
 
-use Tests\TestCase;
-use Tests\Traits\WithTenant;
-use Tests\Traits\WithSucursal;
-use Tests\Traits\WithCaja;
-use Tests\Traits\WithVentaHelpers;
-use App\Services\VentaService;
-use App\Models\Articulo;
 use App\Models\Caja;
 use App\Models\Cliente;
-use App\Models\FormaPago;
 use App\Models\MovimientoStock;
 use App\Models\Promocion;
 use App\Models\PromocionEspecial;
 use App\Models\Receta;
-use App\Models\RecetaIngrediente;
 use App\Models\Stock;
 use App\Models\Venta;
 use App\Models\VentaDetalle;
-use App\Models\VentaPago;
+use App\Services\VentaService;
 use Exception;
 use Illuminate\Support\Facades\DB;
+use Tests\TestCase;
+use Tests\Traits\WithCaja;
+use Tests\Traits\WithSucursal;
+use Tests\Traits\WithTenant;
+use Tests\Traits\WithVentaHelpers;
 
 /**
  * Tests para VentaService — el servicio más crítico del sistema.
@@ -32,7 +28,7 @@ use Illuminate\Support\Facades\DB;
  */
 class VentaServiceTest extends TestCase
 {
-    use WithTenant, WithSucursal, WithCaja, WithVentaHelpers;
+    use WithCaja, WithSucursal, WithTenant, WithVentaHelpers;
 
     protected VentaService $ventaService;
 
@@ -43,7 +39,7 @@ class VentaServiceTest extends TestCase
         $this->setUpSucursal();
         $this->setUpCaja();
         $this->crearTiposIva();
-        $this->ventaService = new VentaService();
+        $this->ventaService = new VentaService;
     }
 
     protected function tearDown(): void
@@ -74,8 +70,8 @@ class VentaServiceTest extends TestCase
         return Caja::create([
             'sucursal_id' => $this->sucursalId,
             'numero' => rand(100, 999),
-            'nombre' => 'Caja ' . $estado . ' ' . uniqid(),
-            'codigo' => 'CAJA-' . uniqid(),
+            'nombre' => 'Caja '.$estado.' '.uniqid(),
+            'codigo' => 'CAJA-'.uniqid(),
             'estado' => $estado,
             'activo' => true,
             'saldo_actual' => 0,

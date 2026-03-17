@@ -2,18 +2,17 @@
 
 namespace Tests\Integration\Models;
 
-use App\Models\ConceptoPago;
 use App\Models\FormaPago;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
-use Tests\Traits\WithTenant;
-use Tests\Traits\WithSucursal;
 use Tests\Traits\WithCaja;
+use Tests\Traits\WithSucursal;
+use Tests\Traits\WithTenant;
 use Tests\Traits\WithVentaHelpers;
 
 class FormaPagoTest extends TestCase
 {
-    use WithTenant, WithSucursal, WithCaja, WithVentaHelpers;
+    use WithCaja, WithSucursal, WithTenant, WithVentaHelpers;
 
     protected function setUp(): void
     {
@@ -36,8 +35,8 @@ class FormaPagoTest extends TestCase
     private function crearFormaPago(array $overrides = []): FormaPago
     {
         return FormaPago::create(array_merge([
-            'nombre' => 'Forma Pago Test ' . uniqid(),
-            'codigo' => 'test_' . uniqid(),
+            'nombre' => 'Forma Pago Test '.uniqid(),
+            'codigo' => 'test_'.uniqid(),
             'concepto' => 'efectivo',
             'es_mixta' => false,
             'permite_cuotas' => false,

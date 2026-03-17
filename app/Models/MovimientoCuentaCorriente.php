@@ -48,27 +48,43 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class MovimientoCuentaCorriente extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'movimientos_cuenta_corriente';
 
     // Tipos de movimiento
     public const TIPO_VENTA = 'venta';
+
     public const TIPO_COBRO = 'cobro';
+
     public const TIPO_ANTICIPO = 'anticipo';
+
     public const TIPO_USO_SALDO_FAVOR = 'uso_saldo_favor';
+
     public const TIPO_DEVOLUCION_SALDO = 'devolucion_saldo';
+
     public const TIPO_ANULACION_VENTA = 'anulacion_venta';
+
     public const TIPO_ANULACION_COBRO = 'anulacion_cobro';
+
     public const TIPO_NOTA_CREDITO = 'nota_credito';
+
     public const TIPO_AJUSTE_DEBITO = 'ajuste_debito';
+
     public const TIPO_AJUSTE_CREDITO = 'ajuste_credito';
 
     // Tipos de documento
     public const DOC_VENTA = 'venta';
+
     public const DOC_VENTA_PAGO = 'venta_pago';
+
     public const DOC_COBRO = 'cobro';
+
     public const DOC_COBRO_VENTA = 'cobro_venta';
+
     public const DOC_COBRO_PAGO = 'cobro_pago';
+
     public const DOC_NOTA_CREDITO = 'nota_credito';
+
     public const DOC_AJUSTE = 'ajuste';
 
     protected $fillable = [
@@ -190,6 +206,7 @@ class MovimientoCuentaCorriente extends Model
         if ($hasta) {
             $query->where('fecha', '<=', $hasta);
         }
+
         return $query;
     }
 

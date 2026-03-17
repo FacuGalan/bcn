@@ -2,18 +2,17 @@
 
 namespace Tests\Integration\Models;
 
-use App\Models\Articulo;
 use App\Models\Venta;
 use App\Models\VentaDetalle;
 use Tests\TestCase;
-use Tests\Traits\WithTenant;
-use Tests\Traits\WithSucursal;
 use Tests\Traits\WithCaja;
+use Tests\Traits\WithSucursal;
+use Tests\Traits\WithTenant;
 use Tests\Traits\WithVentaHelpers;
 
 class VentaTest extends TestCase
 {
-    use WithTenant, WithSucursal, WithCaja, WithVentaHelpers;
+    use WithCaja, WithSucursal, WithTenant, WithVentaHelpers;
 
     protected function setUp(): void
     {

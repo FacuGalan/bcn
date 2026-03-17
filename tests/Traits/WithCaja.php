@@ -28,7 +28,7 @@ trait WithCaja
         // Usar pymes_tenant (prefijo automático, dentro de la transacción)
         $this->cajaId = DB::connection('pymes_tenant')->table('cajas')->insertGetId([
             'nombre' => $nombre,
-            'codigo' => 'CAJA-TEST-' . uniqid(),
+            'codigo' => 'CAJA-TEST-'.uniqid(),
             'numero' => 1,
             'sucursal_id' => $this->sucursalId,
             'activo' => true,

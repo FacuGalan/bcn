@@ -7,7 +7,6 @@ use App\Models\MovimientoCuentaCorriente;
 use App\Models\Venta;
 use App\Models\VentaPago;
 use App\Services\VentaService;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 use Tests\Traits\WithCaja;
 use Tests\Traits\WithSucursal;
@@ -16,9 +15,10 @@ use Tests\Traits\WithVentaHelpers;
 
 class VentaServicePagosCCTest extends TestCase
 {
-    use WithTenant, WithSucursal, WithCaja, WithVentaHelpers;
+    use WithCaja, WithSucursal, WithTenant, WithVentaHelpers;
 
     protected VentaService $ventaService;
+
     protected \App\Models\User $user;
 
     protected function setUp(): void
@@ -29,7 +29,7 @@ class VentaServicePagosCCTest extends TestCase
         $this->setUpCaja();
         $this->crearTiposIva();
 
-        $this->ventaService = new VentaService();
+        $this->ventaService = new VentaService;
 
         $this->user = \App\Models\User::factory()->create();
         $this->actingAs($this->user);
@@ -74,7 +74,7 @@ class VentaServicePagosCCTest extends TestCase
         $ccData = $this->crearFormaPagoCC();
 
         $venta = Venta::create([
-            'numero' => '0001-' . str_pad(rand(1, 99999), 8, '0', STR_PAD_LEFT),
+            'numero' => '0001-'.str_pad(rand(1, 99999), 8, '0', STR_PAD_LEFT),
             'sucursal_id' => $this->sucursalId,
             'caja_id' => $caja->id,
             'cliente_id' => $cliente->id,
@@ -191,7 +191,7 @@ class VentaServicePagosCCTest extends TestCase
         $efectivoData = $this->crearFormaPagoEfectivo();
 
         $venta = Venta::create([
-            'numero' => '0001-' . str_pad(rand(1, 99999), 8, '0', STR_PAD_LEFT),
+            'numero' => '0001-'.str_pad(rand(1, 99999), 8, '0', STR_PAD_LEFT),
             'sucursal_id' => $this->sucursalId,
             'caja_id' => $caja->id,
             'cliente_id' => $cliente->id,
@@ -250,7 +250,7 @@ class VentaServicePagosCCTest extends TestCase
         $caja = $this->crearCajaAbierta($this->sucursalId);
 
         $venta = Venta::create([
-            'numero' => '0001-' . str_pad(rand(1, 99999), 8, '0', STR_PAD_LEFT),
+            'numero' => '0001-'.str_pad(rand(1, 99999), 8, '0', STR_PAD_LEFT),
             'sucursal_id' => $this->sucursalId,
             'caja_id' => $caja->id,
             'cliente_id' => null, // Sin cliente

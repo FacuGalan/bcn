@@ -6,14 +6,14 @@ use App\Models\Categoria;
 use App\Models\ListaPrecio;
 use App\Models\ListaPrecioArticulo;
 use Tests\TestCase;
-use Tests\Traits\WithTenant;
-use Tests\Traits\WithSucursal;
 use Tests\Traits\WithCaja;
+use Tests\Traits\WithSucursal;
+use Tests\Traits\WithTenant;
 use Tests\Traits\WithVentaHelpers;
 
 class ListaPrecioTest extends TestCase
 {
-    use WithTenant, WithSucursal, WithCaja, WithVentaHelpers;
+    use WithCaja, WithSucursal, WithTenant, WithVentaHelpers;
 
     protected function setUp(): void
     {
@@ -37,7 +37,7 @@ class ListaPrecioTest extends TestCase
     {
         return ListaPrecio::create(array_merge([
             'sucursal_id' => $this->sucursalId,
-            'nombre' => 'Lista Test ' . uniqid(),
+            'nombre' => 'Lista Test '.uniqid(),
             'ajuste_porcentaje' => 0,
             'redondeo' => 'ninguno',
             'aplica_promociones' => true,

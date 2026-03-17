@@ -27,7 +27,7 @@ trait WithSucursal
         // Usar pymes_tenant (prefijo automático, dentro de la transacción)
         $this->sucursalId = DB::connection('pymes_tenant')->table('sucursales')->insertGetId([
             'nombre' => $nombre,
-            'codigo' => 'SUC-TEST-' . uniqid(),
+            'codigo' => 'SUC-TEST-'.uniqid(),
             'direccion' => 'Dirección Test 123',
             'activa' => true,
             'created_at' => now(),
@@ -45,7 +45,7 @@ trait WithSucursal
     {
         return DB::connection('pymes_tenant')->table('sucursales')->insertGetId([
             'nombre' => $nombre,
-            'codigo' => 'SUC-EXTRA-' . uniqid(),
+            'codigo' => 'SUC-EXTRA-'.uniqid(),
             'direccion' => 'Dirección Extra',
             'activa' => true,
             'created_at' => now(),

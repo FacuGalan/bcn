@@ -14,7 +14,6 @@ use App\Models\TipoIva;
 use App\Models\Venta;
 use App\Models\VentaDetalle;
 use App\Models\VentaPago;
-use App\Services\VentaService;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -51,8 +50,8 @@ trait WithVentaHelpers
         $tipoIva = $this->tiposIva[5] ?? TipoIva::first();
 
         $articulo = Articulo::create(array_merge([
-            'codigo' => 'ART-' . uniqid(),
-            'nombre' => 'Artículo Test ' . uniqid(),
+            'codigo' => 'ART-'.uniqid(),
+            'nombre' => 'Artículo Test '.uniqid(),
             'precio_base' => 1000.00,
             'tipo_iva_id' => $tipoIva->id,
             'precio_iva_incluido' => true,
@@ -105,7 +104,7 @@ trait WithVentaHelpers
                 $sucursalId,
                 $ingredienteData['stock'] ?? 100,
                 'unitario',
-                ['nombre' => 'Ingrediente ' . uniqid(), 'precio_base' => 100],
+                ['nombre' => 'Ingrediente '.uniqid(), 'precio_base' => 100],
             );
 
             RecetaIngrediente::create([
@@ -123,8 +122,8 @@ trait WithVentaHelpers
         return Caja::create(array_merge([
             'sucursal_id' => $sucursalId,
             'numero' => rand(1, 999),
-            'nombre' => 'Caja Test ' . uniqid(),
-            'codigo' => 'CAJA-' . uniqid(),
+            'nombre' => 'Caja Test '.uniqid(),
+            'codigo' => 'CAJA-'.uniqid(),
             'estado' => 'abierta',
             'activo' => true,
             'saldo_actual' => 0,
@@ -163,7 +162,7 @@ trait WithVentaHelpers
     protected function crearFormaPagoCC(): array
     {
         $concepto = ConceptoPago::where('codigo', ConceptoPago::CREDITO_CLIENTE)->first();
-        if (!$concepto) {
+        if (! $concepto) {
             $concepto = ConceptoPago::create([
                 'codigo' => ConceptoPago::CREDITO_CLIENTE,
                 'nombre' => 'Crédito Cliente',
@@ -194,7 +193,7 @@ trait WithVentaHelpers
         array $overrides = []
     ): Cliente {
         $cliente = Cliente::create(array_merge([
-            'nombre' => 'Cliente Test ' . uniqid(),
+            'nombre' => 'Cliente Test '.uniqid(),
             'activo' => true,
             'tiene_cuenta_corriente' => true,
             'limite_credito' => $limiteCredito,
@@ -226,7 +225,7 @@ trait WithVentaHelpers
         unset($overrides['_articulo'], $overrides['_caja']);
 
         $venta = Venta::create(array_merge([
-            'numero' => '0001-' . str_pad(rand(1, 99999999), 8, '0', STR_PAD_LEFT),
+            'numero' => '0001-'.str_pad(rand(1, 99999999), 8, '0', STR_PAD_LEFT),
             'sucursal_id' => $this->sucursalId,
             'caja_id' => $caja->id,
             'usuario_id' => 1,

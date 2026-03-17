@@ -2,17 +2,12 @@
 
 namespace Tests\Unit\Services;
 
-use App\Models\Cliente;
 use App\Models\Cobro;
-use App\Models\CobroPago;
 use App\Models\CobroVenta;
-use App\Models\ConceptoPago;
-use App\Models\FormaPago;
 use App\Models\Venta;
 use App\Models\VentaPago;
 use App\Services\CobroService;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 use Tests\Traits\WithCaja;
 use Tests\Traits\WithSucursal;
@@ -21,9 +16,10 @@ use Tests\Traits\WithVentaHelpers;
 
 class CobroServiceTest extends TestCase
 {
-    use WithTenant, WithSucursal, WithCaja, WithVentaHelpers;
+    use WithCaja, WithSucursal, WithTenant, WithVentaHelpers;
 
     protected CobroService $cobroService;
+
     protected \App\Models\User $user;
 
     protected function setUp(): void
@@ -34,7 +30,7 @@ class CobroServiceTest extends TestCase
         $this->setUpCaja();
         $this->crearTiposIva();
 
-        $this->cobroService = new CobroService();
+        $this->cobroService = new CobroService;
 
         // Crear y autenticar usuario
         $this->user = \App\Models\User::factory()->create();

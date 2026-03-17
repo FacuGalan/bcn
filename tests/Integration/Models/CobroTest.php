@@ -4,16 +4,15 @@ namespace Tests\Integration\Models;
 
 use App\Models\Cobro;
 use App\Models\CobroVenta;
-use App\Models\Venta;
 use Tests\TestCase;
-use Tests\Traits\WithTenant;
-use Tests\Traits\WithSucursal;
 use Tests\Traits\WithCaja;
+use Tests\Traits\WithSucursal;
+use Tests\Traits\WithTenant;
 use Tests\Traits\WithVentaHelpers;
 
 class CobroTest extends TestCase
 {
-    use WithTenant, WithSucursal, WithCaja, WithVentaHelpers;
+    use WithCaja, WithSucursal, WithTenant, WithVentaHelpers;
 
     protected function setUp(): void
     {
@@ -41,7 +40,7 @@ class CobroTest extends TestCase
             'sucursal_id' => $this->sucursalId,
             'caja_id' => $this->cajaId,
             'cliente_id' => $cliente->id,
-            'numero_recibo' => 'REC-' . uniqid(),
+            'numero_recibo' => 'REC-'.uniqid(),
             'tipo' => 'cobro',
             'fecha' => now()->toDateString(),
             'hora' => now()->toTimeString(),

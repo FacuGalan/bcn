@@ -3,16 +3,15 @@
 namespace Tests\Integration\Models;
 
 use App\Models\Promocion;
-use Carbon\Carbon;
 use Tests\TestCase;
-use Tests\Traits\WithTenant;
-use Tests\Traits\WithSucursal;
 use Tests\Traits\WithCaja;
+use Tests\Traits\WithSucursal;
+use Tests\Traits\WithTenant;
 use Tests\Traits\WithVentaHelpers;
 
 class PromocionTest extends TestCase
 {
-    use WithTenant, WithSucursal, WithCaja, WithVentaHelpers;
+    use WithCaja, WithSucursal, WithTenant, WithVentaHelpers;
 
     protected function setUp(): void
     {
@@ -36,7 +35,7 @@ class PromocionTest extends TestCase
     {
         return Promocion::create(array_merge([
             'sucursal_id' => $this->sucursalId,
-            'nombre' => 'Promo Test ' . uniqid(),
+            'nombre' => 'Promo Test '.uniqid(),
             'tipo' => 'descuento_porcentaje',
             'valor' => 10,
             'prioridad' => 1,

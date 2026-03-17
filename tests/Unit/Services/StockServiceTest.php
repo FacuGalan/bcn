@@ -2,19 +2,19 @@
 
 namespace Tests\Unit\Services;
 
-use Tests\TestCase;
-use Tests\Traits\WithTenant;
-use Tests\Traits\WithSucursal;
-use Tests\Traits\WithCaja;
-use Tests\Traits\WithVentaHelpers;
-use App\Services\StockService;
-use App\Models\Stock;
 use App\Models\MovimientoStock;
+use App\Models\Stock;
+use App\Services\StockService;
 use Exception;
+use Tests\TestCase;
+use Tests\Traits\WithCaja;
+use Tests\Traits\WithSucursal;
+use Tests\Traits\WithTenant;
+use Tests\Traits\WithVentaHelpers;
 
 class StockServiceTest extends TestCase
 {
-    use WithTenant, WithSucursal, WithCaja, WithVentaHelpers;
+    use WithCaja, WithSucursal, WithTenant, WithVentaHelpers;
 
     protected StockService $stockService;
 
@@ -25,7 +25,7 @@ class StockServiceTest extends TestCase
         $this->setUpSucursal();
         $this->setUpCaja();
         $this->crearTiposIva();
-        $this->stockService = new StockService();
+        $this->stockService = new StockService;
     }
 
     protected function tearDown(): void

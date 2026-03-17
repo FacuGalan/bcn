@@ -5,7 +5,6 @@ namespace Tests\Integration\Models;
 use App\Models\Articulo;
 use App\Models\Receta;
 use App\Models\RecetaIngrediente;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 use Tests\Traits\WithCaja;
 use Tests\Traits\WithSucursal;
@@ -14,7 +13,7 @@ use Tests\Traits\WithVentaHelpers;
 
 class RecetaTest extends TestCase
 {
-    use WithTenant, WithSucursal, WithCaja, WithVentaHelpers;
+    use WithCaja, WithSucursal, WithTenant, WithVentaHelpers;
 
     protected int $otraSucursalId;
 
