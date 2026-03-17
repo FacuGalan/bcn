@@ -136,13 +136,12 @@ Ejemplos:
 
 ### Workflow de branches
 - **Nunca push directo a master** — todo vía Pull Request
-- Cada PR ejecuta automáticamente: Lint (Pint) + Tests (PHPUnit) + Security Review (Claude)
+- Cada PR ejecuta automáticamente: Lint (Pint) + Tests (PHPUnit)
 - Si algo falla, el PR queda bloqueado
 - `master` siempre lista para producción
 
 ### GitHub Actions (`.github/workflows/`)
 - `ci.yml` — Lint con Pint + Tests con PHPUnit en cada PR
-- `claude-review.yml` — Security review automático + `@claude` interactivo en PRs
 - `release-please.yml` — Versionado automático con Release Please
 
 ### Release Please
