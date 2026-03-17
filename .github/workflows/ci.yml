@@ -98,10 +98,10 @@ jobs:
           cp .env.example .env
           php artisan key:generate
 
-          cat > .env.testing <<'EOF'
+          cat > .env.testing <<'ENVEOF'
           APP_NAME="BCN Pymes Testing"
           APP_ENV=testing
-          APP_KEY=
+          APP_KEY=base64:s8wmexXG2QNWXodsFwrgcynsTxRrE1RyXyA2eNVydOY=
           APP_DEBUG=true
           APP_URL=http://localhost
           APP_LOCALE=es
@@ -131,9 +131,7 @@ jobs:
           QUEUE_CONNECTION=sync
           MAIL_MAILER=array
           BROADCAST_CONNECTION=null
-          EOF
-
-          php artisan key:generate --env=testing
+          ENVEOF
 
       - name: Run migrations
         run: php artisan migrate --env=testing --force
