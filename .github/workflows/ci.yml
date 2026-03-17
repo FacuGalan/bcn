@@ -101,6 +101,7 @@ jobs:
           cat > .env.testing <<'EOF'
           APP_NAME="BCN Pymes Testing"
           APP_ENV=testing
+          APP_KEY=
           APP_DEBUG=true
           APP_URL=http://localhost
           APP_LOCALE=es
