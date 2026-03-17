@@ -18,10 +18,13 @@ return new class extends Migration
     public function up(): void
     {
         // Dropear primero si existen (para RefreshDatabase en testing)
+        // FK checks deshabilitados porque tablas tenant 000001_* referencian permissions
         if (app()->runningUnitTests()) {
+            \Illuminate\Support\Facades\DB::connection('pymes')->statement('SET FOREIGN_KEY_CHECKS=0');
             Schema::connection('pymes')->dropIfExists('permisos_funcionales');
             Schema::connection('pymes')->dropIfExists('permissions');
             Schema::connection('pymes')->dropIfExists('menu_items');
+            \Illuminate\Support\Facades\DB::connection('pymes')->statement('SET FOREIGN_KEY_CHECKS=1');
         }
 
         Schema::connection('pymes')->create('menu_items', function (Blueprint $table) {
@@ -66,8 +69,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        \Illuminate\Support\Facades\DB::connection('pymes')->statement('SET FOREIGN_KEY_CHECKS=0');
         Schema::connection('pymes')->dropIfExists('permisos_funcionales');
         Schema::connection('pymes')->dropIfExists('permissions');
         Schema::connection('pymes')->dropIfExists('menu_items');
+        \Illuminate\Support\Facades\DB::connection('pymes')->statement('SET FOREIGN_KEY_CHECKS=1');
     }
 };

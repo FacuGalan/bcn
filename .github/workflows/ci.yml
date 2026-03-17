@@ -98,7 +98,7 @@ jobs:
           cp .env.example .env
           php artisan key:generate
 
-          cat > .env.testing << 'EOF'
+          cat > .env.testing <<'EOF'
           APP_NAME="BCN Pymes Testing"
           APP_ENV=testing
           APP_DEBUG=true
@@ -109,32 +109,30 @@ jobs:
           BCRYPT_ROUNDS=4
           LOG_CHANNEL=null
           LOG_LEVEL=error
-
           DB_CONNECTION=config
           DB_HOST=127.0.0.1
           DB_PORT=3306
           DB_DATABASE=pymes_test
           DB_USERNAME=root
           DB_PASSWORD=password
-
           DB_CONFIG_HOST=127.0.0.1
           DB_CONFIG_PORT=3306
           DB_CONFIG_DATABASE=config_test
           DB_CONFIG_USERNAME=root
           DB_CONFIG_PASSWORD=password
-
           DB_PYMES_HOST=127.0.0.1
           DB_PYMES_PORT=3306
           DB_PYMES_DATABASE=pymes_test
           DB_PYMES_USERNAME=root
           DB_PYMES_PASSWORD=password
-
           SESSION_DRIVER=array
           CACHE_STORE=array
           QUEUE_CONNECTION=sync
           MAIL_MAILER=array
           BROADCAST_CONNECTION=null
           EOF
+
+          php artisan key:generate --env=testing
 
       - name: Run migrations
         run: php artisan migrate --env=testing --force
