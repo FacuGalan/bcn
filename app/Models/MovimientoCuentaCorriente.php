@@ -507,6 +507,7 @@ class MovimientoCuentaCorriente extends Model
             'cobro_id' => $movimientoOriginal->cobro_id,
             'concepto' => "Anulación: {$movimientoOriginal->concepto}",
             'observaciones' => $motivo,
+            'estado' => 'activo',
             'usuario_id' => $usuarioId,
         ]);
 

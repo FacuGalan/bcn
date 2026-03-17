@@ -17,6 +17,13 @@ return new class extends Migration
 
     public function up(): void
     {
+        // Dropear primero si existen (para RefreshDatabase en testing)
+        if (app()->runningUnitTests()) {
+            Schema::connection('pymes')->dropIfExists('permisos_funcionales');
+            Schema::connection('pymes')->dropIfExists('permissions');
+            Schema::connection('pymes')->dropIfExists('menu_items');
+        }
+
         Schema::connection('pymes')->create('menu_items', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('parent_id')->nullable();

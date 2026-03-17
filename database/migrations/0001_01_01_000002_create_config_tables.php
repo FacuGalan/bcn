@@ -31,6 +31,12 @@ return new class extends Migration
             $table->unique('cuit');
         });
 
+        // FK diferida: users.ultimo_comercio_id → comercios.id
+        // (la columna se crea en la migración de users como unsignedBigInteger)
+        Schema::table('users', function (Blueprint $table) {
+            $table->foreign('ultimo_comercio_id')->references('id')->on('comercios')->nullOnDelete();
+        });
+
         Schema::create('comercio_user', function (Blueprint $table) {
             $table->id();
             $table->foreignId('comercio_id')->constrained()->cascadeOnDelete();
@@ -77,6 +83,9 @@ return new class extends Migration
         Schema::dropIfExists('provincias');
         Schema::dropIfExists('condiciones_iva');
         Schema::dropIfExists('comercio_user');
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropForeign(['ultimo_comercio_id']);
+        });
         Schema::dropIfExists('comercios');
     }
 };

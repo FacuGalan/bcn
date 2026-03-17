@@ -41,7 +41,7 @@ class Caja extends Model
         'sucursal_id',
         'numero',
         'nombre',
-        'tipo',
+        'codigo',
         'saldo_actual',
         'saldo_inicial',
         'fecha_apertura',

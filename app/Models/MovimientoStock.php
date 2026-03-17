@@ -301,6 +301,7 @@ class MovimientoStock extends Model
             'venta_detalle_id' => $ventaDetalleId,
             'concepto' => $concepto,
             'costo_unitario' => $costoUnitario,
+            'estado' => 'activo',
             'usuario_id' => $usuarioId,
         ]);
     }
@@ -332,6 +333,7 @@ class MovimientoStock extends Model
             'venta_id' => $ventaId,
             'venta_detalle_id' => $ventaDetalleId,
             'concepto' => $concepto,
+            'estado' => 'activo',
             'usuario_id' => $usuarioId,
         ]);
     }
@@ -563,6 +565,7 @@ class MovimientoStock extends Model
             'transferencia_stock_id' => $movimientoOriginal->transferencia_stock_id,
             'concepto' => "Anulación: {$movimientoOriginal->concepto}",
             'observaciones' => $motivo,
+            'estado' => 'activo',
             'usuario_id' => $usuarioId,
         ]);
 
