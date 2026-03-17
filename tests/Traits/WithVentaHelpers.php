@@ -121,7 +121,7 @@ trait WithVentaHelpers
     {
         return Caja::create(array_merge([
             'sucursal_id' => $sucursalId,
-            'numero' => rand(1, 999),
+            'numero' => random_int(1000, 999999),
             'nombre' => 'Caja Test '.uniqid(),
             'codigo' => 'CAJA-'.uniqid(),
             'estado' => 'abierta',

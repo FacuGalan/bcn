@@ -18,6 +18,9 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
 
+        // Evitar que Vite busque manifest.json (no se compila en CI)
+        $this->withoutVite();
+
         // Asegurar que las BDs de testing existen
         if (! static::$migrationsRun) {
             $this->ensureTestDatabases();
