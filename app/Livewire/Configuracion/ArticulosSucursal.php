@@ -12,10 +12,10 @@ use App\Models\Receta;
 use App\Models\Stock;
 use App\Models\Sucursal;
 use App\Traits\SucursalAware;
+use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Componente Livewire para configurar artículos por sucursal.
@@ -27,16 +27,22 @@ use Illuminate\Support\Facades\DB;
 #[Layout('layouts.app')]
 class ArticulosSucursal extends Component
 {
-    use WithPagination;
     use SucursalAware;
+    use WithPagination;
 
     // Búsqueda y filtros
     public string $search = '';
+
     public array $categoriasSeleccionadas = [];
+
     public array $etiquetasSeleccionadasFiltro = [];
+
     public string $busquedaCategoriaFiltro = '';
+
     public string $busquedaEtiquetaFiltro = '';
+
     public string $filterTipo = 'all';
+
     public bool $showFilters = false;
 
     // Estado de artículos en la sucursal: [articulo_id => ['activo','modo_stock','vendible']]
@@ -44,19 +50,34 @@ class ArticulosSucursal extends Component
 
     // Modal de configuración detallada
     public bool $showConfigModal = false;
+
     public ?int $configArticuloId = null;
+
     public string $configArticuloNombre = '';
+
+    public string $configArticuloCodigo = '';
+
+    public ?float $configArticuloPrecioGenerico = null;
+
     public array $configGrupos = [];
 
     // Sub-modal receta override
     public bool $showRecetaModal = false;
+
     public ?int $recetaId = null;
+
     public bool $recetaEsOverride = false;
+
     public ?string $recetaSucursalNombre = null;
+
     public array $recetaIngredientes = [];
+
     public string $busquedaIngrediente = '';
+
     public array $resultadosBusqueda = [];
+
     public string $recetaCantidadProducida = '1.000';
+
     public string $recetaNotas = '';
 
     // Sub-modal confirmar eliminar receta override
@@ -64,6 +85,7 @@ class ArticulosSucursal extends Component
 
     // Estado de anulación de receta por sucursal
     public bool $recetaAnulada = false;
+
     public bool $tieneRecetaDefault = false;
 
     public function mount(): void
@@ -93,7 +115,7 @@ class ArticulosSucursal extends Component
 
     public function toggleFilters(): void
     {
-        $this->showFilters = !$this->showFilters;
+        $this->showFilters = ! $this->showFilters;
     }
 
     protected function onSucursalChanged($sucursalId = null, $sucursalNombre = null): void
@@ -110,8 +132,9 @@ class ArticulosSucursal extends Component
      */
     protected function loadArticulosConfig(): void
     {
-        if (!sucursal_activa()) {
+        if (! sucursal_activa()) {
             $this->articulosConfig = [];
+
             return;
         }
 
@@ -152,10 +175,12 @@ class ArticulosSucursal extends Component
      */
     public function toggleArticulo(int $articuloId): void
     {
-        if (!sucursal_activa()) return;
+        if (! sucursal_activa()) {
+            return;
+        }
 
         $config = $this->articulosConfig[$articuloId] ?? ['activo' => true, 'modo_stock' => 'ninguno', 'vendible' => true];
-        $nuevoEstado = !$config['activo'];
+        $nuevoEstado = ! $config['activo'];
 
         $this->guardarPivot($articuloId, ['activo' => $nuevoEstado]);
         $this->articulosConfig[$articuloId]['activo'] = $nuevoEstado;
@@ -166,8 +191,12 @@ class ArticulosSucursal extends Component
      */
     public function cambiarModoStock(int $articuloId, string $modo): void
     {
-        if (!sucursal_activa()) return;
-        if (!in_array($modo, ['ninguno', 'unitario', 'receta'])) return;
+        if (! sucursal_activa()) {
+            return;
+        }
+        if (! in_array($modo, ['ninguno', 'unitario', 'receta'])) {
+            return;
+        }
 
         $this->guardarPivot($articuloId, ['modo_stock' => $modo]);
         $this->articulosConfig[$articuloId]['modo_stock'] = $modo;
@@ -186,10 +215,12 @@ class ArticulosSucursal extends Component
      */
     public function toggleVendible(int $articuloId): void
     {
-        if (!sucursal_activa()) return;
+        if (! sucursal_activa()) {
+            return;
+        }
 
         $config = $this->articulosConfig[$articuloId] ?? ['activo' => true, 'modo_stock' => 'ninguno', 'vendible' => true];
-        $nuevoEstado = !$config['vendible'];
+        $nuevoEstado = ! $config['vendible'];
 
         $this->guardarPivot($articuloId, ['vendible' => $nuevoEstado]);
         $this->articulosConfig[$articuloId]['vendible'] = $nuevoEstado;
@@ -200,7 +231,9 @@ class ArticulosSucursal extends Component
      */
     public function actualizarPrecioBase(int $articuloId, $precio): void
     {
-        if (!sucursal_activa()) return;
+        if (! sucursal_activa()) {
+            return;
+        }
 
         $valor = ($precio !== null && $precio !== '') ? round((float) $precio, 2) : null;
 
@@ -268,7 +301,9 @@ class ArticulosSucursal extends Component
 
     public function selectAll(): void
     {
-        if (!sucursal_activa()) return;
+        if (! sucursal_activa()) {
+            return;
+        }
 
         DB::connection('pymes_tenant')->transaction(function () {
             $todosIds = Articulo::pluck('id');
@@ -283,7 +318,9 @@ class ArticulosSucursal extends Component
 
     public function deselectAll(): void
     {
-        if (!sucursal_activa()) return;
+        if (! sucursal_activa()) {
+            return;
+        }
 
         DB::connection('pymes_tenant')->transaction(function () {
             $todosIds = Articulo::pluck('id');
@@ -303,6 +340,8 @@ class ArticulosSucursal extends Component
         $articulo = Articulo::findOrFail($articuloId);
         $this->configArticuloId = $articulo->id;
         $this->configArticuloNombre = $articulo->nombre;
+        $this->configArticuloCodigo = $articulo->codigo;
+        $this->configArticuloPrecioGenerico = (float) $articulo->precio_base;
 
         $this->cargarGruposConfig();
         $this->showConfigModal = true;
@@ -310,12 +349,14 @@ class ArticulosSucursal extends Component
 
     protected function cargarGruposConfig(): void
     {
-        if (!$this->configArticuloId || !sucursal_activa()) return;
+        if (! $this->configArticuloId || ! sucursal_activa()) {
+            return;
+        }
 
         $asignaciones = ArticuloGrupoOpcional::with([
-                'grupoOpcional',
-                'opciones.opcional',
-            ])
+            'grupoOpcional',
+            'opciones.opcional',
+        ])
             ->where('articulo_id', $this->configArticuloId)
             ->where('sucursal_id', sucursal_activa())
             ->orderBy('orden')
@@ -328,7 +369,7 @@ class ArticulosSucursal extends Component
                 'nombre' => $asig->grupoOpcional->nombre,
                 'tipo' => $asig->grupoOpcional->tipo,
                 'activo' => $asig->activo,
-                'opciones' => $asig->opciones->map(fn($op) => [
+                'opciones' => $asig->opciones->map(fn ($op) => [
                     'opcion_id' => $op->id,
                     'opcional_id' => $op->opcional_id,
                     'nombre' => $op->opcional->nombre,
@@ -343,9 +384,11 @@ class ArticulosSucursal extends Component
     public function toggleGrupoActivo(int $asignacionId): void
     {
         $asig = ArticuloGrupoOpcional::find($asignacionId);
-        if (!$asig) return;
+        if (! $asig) {
+            return;
+        }
 
-        $asig->activo = !$asig->activo;
+        $asig->activo = ! $asig->activo;
         $asig->save();
         $this->cargarGruposConfig();
     }
@@ -353,9 +396,11 @@ class ArticulosSucursal extends Component
     public function toggleOpcionActivo(int $opcionId): void
     {
         $opcion = ArticuloGrupoOpcionalOpcion::find($opcionId);
-        if (!$opcion) return;
+        if (! $opcion) {
+            return;
+        }
 
-        $opcion->activo = !$opcion->activo;
+        $opcion->activo = ! $opcion->activo;
         $opcion->save();
         $this->cargarGruposConfig();
     }
@@ -363,9 +408,11 @@ class ArticulosSucursal extends Component
     public function toggleOpcionDisponible(int $opcionId): void
     {
         $opcion = ArticuloGrupoOpcionalOpcion::find($opcionId);
-        if (!$opcion) return;
+        if (! $opcion) {
+            return;
+        }
 
-        $opcion->disponible = !$opcion->disponible;
+        $opcion->disponible = ! $opcion->disponible;
         $opcion->save();
         $this->cargarGruposConfig();
     }
@@ -373,7 +420,9 @@ class ArticulosSucursal extends Component
     public function actualizarPrecioOpcion(int $opcionId, string $precio): void
     {
         $opcion = ArticuloGrupoOpcionalOpcion::find($opcionId);
-        if (!$opcion) return;
+        if (! $opcion) {
+            return;
+        }
 
         $opcion->precio_extra = max(0, (float) $precio);
         $opcion->save();
@@ -382,7 +431,9 @@ class ArticulosSucursal extends Component
     public function restablecerDefaults(int $asignacionId): void
     {
         $asig = ArticuloGrupoOpcional::find($asignacionId);
-        if (!$asig) return;
+        if (! $asig) {
+            return;
+        }
 
         $asig->restablecerDefaults();
         $this->cargarGruposConfig();
@@ -394,6 +445,8 @@ class ArticulosSucursal extends Component
         $this->showConfigModal = false;
         $this->configArticuloId = null;
         $this->configArticuloNombre = '';
+        $this->configArticuloCodigo = '';
+        $this->configArticuloPrecioGenerico = null;
         $this->configGrupos = [];
     }
 
@@ -401,7 +454,9 @@ class ArticulosSucursal extends Component
 
     public function abrirRecetaOverride(): void
     {
-        if (!$this->configArticuloId || !sucursal_activa()) return;
+        if (! $this->configArticuloId || ! sucursal_activa()) {
+            return;
+        }
 
         $sucursal = Sucursal::find(sucursal_activa());
         $this->recetaSucursalNombre = $sucursal?->nombre;
@@ -424,7 +479,7 @@ class ArticulosSucursal extends Component
             ->first();
 
         if ($override) {
-            if (!$override->activo) {
+            if (! $override->activo) {
                 // Override inactivo = receta anulada
                 $this->recetaAnulada = true;
                 $this->recetaEsOverride = true;
@@ -439,7 +494,7 @@ class ArticulosSucursal extends Component
                 $this->recetaId = $override->id;
                 $this->recetaCantidadProducida = (string) $override->cantidad_producida;
                 $this->recetaNotas = $override->notas ?? '';
-                $this->recetaIngredientes = $override->ingredientes->map(fn($ing) => [
+                $this->recetaIngredientes = $override->ingredientes->map(fn ($ing) => [
                     'articulo_id' => $ing->articulo_id,
                     'codigo' => $ing->articulo->codigo ?? '',
                     'nombre' => $ing->articulo->nombre ?? __('Artículo eliminado'),
@@ -456,7 +511,7 @@ class ArticulosSucursal extends Component
             if ($default) {
                 $this->recetaCantidadProducida = (string) $default->cantidad_producida;
                 $this->recetaNotas = $default->notas ?? '';
-                $this->recetaIngredientes = $default->ingredientes->map(fn($ing) => [
+                $this->recetaIngredientes = $default->ingredientes->map(fn ($ing) => [
                     'articulo_id' => $ing->articulo_id,
                     'codigo' => $ing->articulo->codigo ?? '',
                     'nombre' => $ing->articulo->nombre ?? __('Artículo eliminado'),
@@ -479,6 +534,7 @@ class ArticulosSucursal extends Component
     {
         if (strlen($this->busquedaIngrediente) < 2) {
             $this->resultadosBusqueda = [];
+
             return;
         }
 
@@ -490,13 +546,13 @@ class ArticulosSucursal extends Component
         $this->resultadosBusqueda = Articulo::where('activo', true)
             ->whereNotIn('id', $excluirIds)
             ->where(function ($q) {
-                $q->where('codigo', 'like', '%' . $this->busquedaIngrediente . '%')
-                  ->orWhere('nombre', 'like', '%' . $this->busquedaIngrediente . '%');
+                $q->where('codigo', 'like', '%'.$this->busquedaIngrediente.'%')
+                    ->orWhere('nombre', 'like', '%'.$this->busquedaIngrediente.'%');
             })
             ->orderBy('nombre')
             ->limit(10)
             ->get(['id', 'codigo', 'nombre', 'unidad_medida'])
-            ->map(fn($a) => [
+            ->map(fn ($a) => [
                 'id' => $a->id,
                 'codigo' => $a->codigo,
                 'nombre' => $a->nombre,
@@ -515,10 +571,14 @@ class ArticulosSucursal extends Component
     public function agregarIngrediente(int $articuloId): void
     {
         $articulo = Articulo::find($articuloId);
-        if (!$articulo) return;
+        if (! $articulo) {
+            return;
+        }
 
         foreach ($this->recetaIngredientes as $ing) {
-            if ($ing['articulo_id'] == $articuloId) return;
+            if ($ing['articulo_id'] == $articuloId) {
+                return;
+            }
         }
 
         $this->recetaIngredientes[] = [
@@ -545,16 +605,20 @@ class ArticulosSucursal extends Component
      */
     public function guardarRecetaOverride(): void
     {
-        if (!$this->configArticuloId || !sucursal_activa()) return;
+        if (! $this->configArticuloId || ! sucursal_activa()) {
+            return;
+        }
 
         if (empty($this->recetaIngredientes)) {
             $this->dispatch('notify', message: __('La receta debe tener al menos un ingrediente'), type: 'error');
+
             return;
         }
 
         foreach ($this->recetaIngredientes as $ing) {
-            if (!isset($ing['cantidad']) || (float) $ing['cantidad'] <= 0) {
+            if (! isset($ing['cantidad']) || (float) $ing['cantidad'] <= 0) {
                 $this->dispatch('notify', message: __('Todas las cantidades deben ser mayores a 0'), type: 'error');
+
                 return;
             }
         }
@@ -603,7 +667,9 @@ class ArticulosSucursal extends Component
 
     public function eliminarRecetaOverride(): void
     {
-        if (!$this->recetaId) return;
+        if (! $this->recetaId) {
+            return;
+        }
 
         $receta = Receta::find($this->recetaId);
         if ($receta) {
@@ -622,7 +688,9 @@ class ArticulosSucursal extends Component
      */
     public function anularReceta(): void
     {
-        if (!$this->configArticuloId || !sucursal_activa()) return;
+        if (! $this->configArticuloId || ! sucursal_activa()) {
+            return;
+        }
 
         Receta::updateOrCreate(
             [
@@ -647,10 +715,12 @@ class ArticulosSucursal extends Component
      */
     public function restaurarRecetaDefault(): void
     {
-        if (!$this->recetaId) return;
+        if (! $this->recetaId) {
+            return;
+        }
 
         $receta = Receta::find($this->recetaId);
-        if ($receta && !$receta->activo) {
+        if ($receta && ! $receta->activo) {
             $receta->ingredientes()->delete();
             $receta->delete();
         }
@@ -702,17 +772,17 @@ class ArticulosSucursal extends Component
 
         if ($this->search) {
             $query->where(function ($q) {
-                $q->where('codigo', 'like', '%' . $this->search . '%')
-                  ->orWhere('nombre', 'like', '%' . $this->search . '%')
-                  ->orWhere('descripcion', 'like', '%' . $this->search . '%');
+                $q->where('codigo', 'like', '%'.$this->search.'%')
+                    ->orWhere('nombre', 'like', '%'.$this->search.'%')
+                    ->orWhere('descripcion', 'like', '%'.$this->search.'%');
             });
         }
 
-        if (!empty($this->categoriasSeleccionadas)) {
+        if (! empty($this->categoriasSeleccionadas)) {
             $query->whereIn('categoria_id', $this->categoriasSeleccionadas);
         }
 
-        if (!empty($this->etiquetasSeleccionadasFiltro)) {
+        if (! empty($this->etiquetasSeleccionadasFiltro)) {
             $query->whereHas('etiquetas', function ($q) {
                 $q->whereIn('etiquetas.id', $this->etiquetasSeleccionadasFiltro);
             });
@@ -730,7 +800,7 @@ class ArticulosSucursal extends Component
         // Categorías para el panel de filtros (con búsqueda)
         $categoriasFiltroQuery = Categoria::where('activo', true);
         if ($this->busquedaCategoriaFiltro) {
-            $categoriasFiltroQuery->where('nombre', 'like', '%' . $this->busquedaCategoriaFiltro . '%');
+            $categoriasFiltroQuery->where('nombre', 'like', '%'.$this->busquedaCategoriaFiltro.'%');
         }
         $categoriasFiltro = $categoriasFiltroQuery->orderBy('nombre')->get();
 
@@ -740,11 +810,11 @@ class ArticulosSucursal extends Component
 
         if ($busquedaFiltro) {
             $gruposEtiquetasFiltroQuery->where(function ($query) use ($busquedaFiltro) {
-                $query->where('nombre', 'like', '%' . $busquedaFiltro . '%')
-                      ->orWhereHas('etiquetas', function ($q) use ($busquedaFiltro) {
-                          $q->where('activo', true)
-                            ->where('nombre', 'like', '%' . $busquedaFiltro . '%');
-                      });
+                $query->where('nombre', 'like', '%'.$busquedaFiltro.'%')
+                    ->orWhereHas('etiquetas', function ($q) use ($busquedaFiltro) {
+                        $q->where('activo', true)
+                            ->where('nombre', 'like', '%'.$busquedaFiltro.'%');
+                    });
             });
         }
 
@@ -753,8 +823,8 @@ class ArticulosSucursal extends Component
         foreach ($gruposEtiquetasFiltro as $grupo) {
             $etiquetasQuery = $grupo->etiquetas()->where('activo', true);
 
-            if ($busquedaFiltro && !str_contains(strtolower($grupo->nombre), strtolower($busquedaFiltro))) {
-                $etiquetasQuery->where('nombre', 'like', '%' . $busquedaFiltro . '%');
+            if ($busquedaFiltro && ! str_contains(strtolower($grupo->nombre), strtolower($busquedaFiltro))) {
+                $etiquetasQuery->where('nombre', 'like', '%'.$busquedaFiltro.'%');
             }
 
             $grupo->setRelation('etiquetas', $etiquetasQuery->orderBy('orden')->orderBy('nombre')->get());
