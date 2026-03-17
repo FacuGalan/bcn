@@ -177,8 +177,8 @@ class VentaServiceTest extends TestCase
 
         $venta = $this->ventaService->crearVenta($data, $detalles);
 
-        // Formato esperado: NNNN-NNNNNNNN (ej: 0001-00000001)
-        $this->assertMatchesRegularExpression('/^\d{4}-\d{8}$/', $venta->numero);
+        // Formato esperado: N+-NNNNNNNN (número caja + secuencial 8 dígitos)
+        $this->assertMatchesRegularExpression('/^\d+-\d{8}$/', $venta->numero);
     }
 
     /** @test */
