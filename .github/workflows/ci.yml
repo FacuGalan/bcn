@@ -11,6 +11,7 @@ concurrency:
 jobs:
   lint:
     name: Lint (Pint)
+    if: ${{ !startsWith(github.head_ref, 'release-please') }}
     runs-on: ubuntu-latest
 
     steps:
@@ -51,6 +52,7 @@ jobs:
 
   tests:
     name: Tests (PHPUnit)
+    if: ${{ !startsWith(github.head_ref, 'release-please') }}
     runs-on: ubuntu-latest
     needs: lint
 
