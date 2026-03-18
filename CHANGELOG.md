@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/FacuGalan/bcn/compare/v0.1.2...v0.1.3) (2026-03-18)
+
+
+### Rendimiento
+
+* **ci:** saltar lint y tests en PRs de Release Please ([#6](https://github.com/FacuGalan/bcn/issues/6)) ([a871c9e](https://github.com/FacuGalan/bcn/commit/a871c9ee6320cac30415f8fb70f15deeddddc73c))
+
 ## [0.1.2](https://github.com/FacuGalan/bcn/compare/v0.1.1...v0.1.2) (2026-03-18)
 
 
