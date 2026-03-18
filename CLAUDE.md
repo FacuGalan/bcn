@@ -145,10 +145,20 @@ Ejemplos:
 - `release-please.yml` — Versionado automático con Release Please
 
 ### Release Please
-- Tras merge en master → crea Release PR automáticamente
+- Tras merge en master → crea/actualiza un único Release PR con los cambios acumulados
 - Al mergear Release PR → crea tag `vX.Y.Z` + GitHub Release + CHANGELOG
+- **No mergear el Release PR después de cada PR** — dejar acumular cambios
+- Mergear el Release PR cuando hay un conjunto coherente (feature completo, grupo de fixes)
 - Config: `release-please-config.json` (tipo PHP)
 - Manifest: `.release-please-manifest.json` (versión actual)
+- Usa `RELEASE_PLEASE_TOKEN` (PAT) para que los PRs de release disparen CI
+- CI skipea automáticamente los PRs de release (no tocan código PHP)
+
+### Semver
+- `patch` (0.1.**X**) — fixes y ajustes menores
+- `minor` (0.**X**.0) — funcionalidad nueva
+- `major` (**X**.0.0) — cambios incompatibles (reservar para producción)
+- Proyecto en `0.x.x` hasta estar listo para producción → entonces `1.0.0`
 
 ---
 
