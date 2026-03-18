@@ -137,7 +137,6 @@ jobs:
 
       - name: Run migrations
         run: php artisan migrate --env=testing --force
-        continue-on-error: true
 
       - name: Run tests
         run: php artisan test --env=testing
