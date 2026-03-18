@@ -3,10 +3,7 @@ name: Release Please
 on:
   push:
     branches: [master]
-
-permissions:
-  contents: write
-  pull-requests: write
+  workflow_dispatch:
 
 jobs:
   release:
@@ -19,8 +16,8 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
-      # ── Post-release: generar notas con IA (opcional, requiere ANTHROPIC_API_KEY) ──
       - name: Log release info
         if: steps.release.outputs.release_created
         run: |
