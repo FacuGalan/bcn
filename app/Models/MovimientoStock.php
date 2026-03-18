@@ -41,31 +41,51 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class MovimientoStock extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'movimientos_stock';
 
     // Tipos de movimiento
     public const TIPO_VENTA = 'venta';
+
     public const TIPO_COMPRA = 'compra';
+
     public const TIPO_AJUSTE_MANUAL = 'ajuste_manual';
+
     public const TIPO_INVENTARIO_FISICO = 'inventario_fisico';
+
     public const TIPO_TRANSFERENCIA_SALIDA = 'transferencia_salida';
+
     public const TIPO_TRANSFERENCIA_ENTRADA = 'transferencia_entrada';
+
     public const TIPO_DEVOLUCION = 'devolucion';
+
     public const TIPO_ANULACION_VENTA = 'anulacion_venta';
+
     public const TIPO_ANULACION_COMPRA = 'anulacion_compra';
+
     public const TIPO_CARGA_INICIAL = 'carga_inicial';
+
     public const TIPO_PRODUCCION_ENTRADA = 'produccion_entrada';
+
     public const TIPO_PRODUCCION_SALIDA = 'produccion_salida';
+
     public const TIPO_ANULACION_PRODUCCION = 'anulacion_produccion';
 
     // Tipos de documento
     public const DOC_VENTA = 'venta';
+
     public const DOC_VENTA_DETALLE = 'venta_detalle';
+
     public const DOC_COMPRA = 'compra';
+
     public const DOC_COMPRA_DETALLE = 'compra_detalle';
+
     public const DOC_TRANSFERENCIA = 'transferencia';
+
     public const DOC_AJUSTE = 'ajuste';
+
     public const DOC_INVENTARIO = 'inventario';
+
     public const DOC_PRODUCCION = 'produccion';
 
     protected $fillable = [
@@ -176,6 +196,7 @@ class MovimientoStock extends Model
         if ($hasta) {
             $query->where('fecha', '<=', $hasta);
         }
+
         return $query;
     }
 
@@ -301,6 +322,7 @@ class MovimientoStock extends Model
             'venta_detalle_id' => $ventaDetalleId,
             'concepto' => $concepto,
             'costo_unitario' => $costoUnitario,
+            'estado' => 'activo',
             'usuario_id' => $usuarioId,
         ]);
     }
@@ -332,6 +354,7 @@ class MovimientoStock extends Model
             'venta_id' => $ventaId,
             'venta_detalle_id' => $ventaDetalleId,
             'concepto' => $concepto,
+            'estado' => 'activo',
             'usuario_id' => $usuarioId,
         ]);
     }
@@ -563,6 +586,7 @@ class MovimientoStock extends Model
             'transferencia_stock_id' => $movimientoOriginal->transferencia_stock_id,
             'concepto' => "Anulación: {$movimientoOriginal->concepto}",
             'observaciones' => $motivo,
+            'estado' => 'activo',
             'usuario_id' => $usuarioId,
         ]);
 

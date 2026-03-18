@@ -23,7 +23,7 @@ return new class extends Migration
             $table->boolean('activo')->default(true);
             $table->boolean('dark_mode')->default(false);
             $table->string('locale', 5)->default('es');
-            $table->foreignId('ultimo_comercio_id')->nullable()->constrained('comercios')->nullOnDelete();
+            $table->unsignedBigInteger('ultimo_comercio_id')->nullable();
             $table->boolean('is_system_admin')->default(false)->comment('Super admin del sistema');
             $table->text('password_visible')->nullable();
             $table->integer('max_concurrent_sessions')->default(3);

@@ -26,7 +26,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $activo
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Sucursal $sucursal
  * @property-read \Illuminate\Database\Eloquent\Collection|MovimientoCaja[] $movimientos
  * @property-read \Illuminate\Database\Eloquent\Collection|Venta[] $ventas
@@ -35,13 +34,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Caja extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'cajas';
 
     protected $fillable = [
         'sucursal_id',
         'numero',
         'nombre',
-        'tipo',
+        'codigo',
         'saldo_actual',
         'saldo_inicial',
         'fecha_apertura',
@@ -265,8 +265,7 @@ class Caja extends Model
     /**
      * Ajusta el saldo de la caja
      *
-     * @param float $monto Positivo aumenta, negativo disminuye
-     * @return bool
+     * @param  float  $monto  Positivo aumenta, negativo disminuye
      */
     public function ajustarSaldo(float $monto): bool
     {
@@ -322,17 +321,17 @@ class Caja extends Model
      */
     public function calcularDiferencia(): float
     {
-        if (!$this->estaAbierta()) {
+        if (! $this->estaAbierta()) {
             return 0;
         }
 
         $ingresos = $this->movimientos()
-                         ->where('tipo_movimiento', 'ingreso')
-                         ->sum('monto');
+            ->where('tipo_movimiento', 'ingreso')
+            ->sum('monto');
 
         $egresos = $this->movimientos()
-                        ->where('tipo_movimiento', 'egreso')
-                        ->sum('monto');
+            ->where('tipo_movimiento', 'egreso')
+            ->sum('monto');
 
         $saldoCalculado = $this->saldo_inicial + $ingresos - $egresos;
 
@@ -345,8 +344,8 @@ class Caja extends Model
     public function obtenerTotalIngresos(): float
     {
         return $this->movimientos()
-                    ->where('tipo_movimiento', 'ingreso')
-                    ->sum('monto');
+            ->where('tipo_movimiento', 'ingreso')
+            ->sum('monto');
     }
 
     /**
@@ -355,8 +354,8 @@ class Caja extends Model
     public function obtenerTotalEgresos(): float
     {
         return $this->movimientos()
-                    ->where('tipo_movimiento', 'egreso')
-                    ->sum('monto');
+            ->where('tipo_movimiento', 'egreso')
+            ->sum('monto');
     }
 
     // ==================== MÉTODOS DE GRUPO DE CIERRE ====================
@@ -382,7 +381,7 @@ class Caja extends Model
      */
     public function cajasDelMismoGrupo()
     {
-        if (!$this->comparteCierre()) {
+        if (! $this->comparteCierre()) {
             return collect();
         }
 
@@ -396,7 +395,7 @@ class Caja extends Model
      */
     public function todasLasCajasDelGrupo()
     {
-        if (!$this->comparteCierre()) {
+        if (! $this->comparteCierre()) {
             return collect([$this]);
         }
 
@@ -408,7 +407,7 @@ class Caja extends Model
      */
     public function getSaldoGrupoAttribute(): float
     {
-        if (!$this->comparteCierre()) {
+        if (! $this->comparteCierre()) {
             return $this->saldo_actual;
         }
 

@@ -415,6 +415,81 @@
 
                         {{-- Contenido scrollable --}}
                         <div class="max-h-[60vh] overflow-y-auto space-y-3 sm:space-y-4 pr-1 -mr-1">
+                            {{-- Datos del artículo en sucursal --}}
+                            @php $modalConfig = $articulosConfig[$configArticuloId] ?? null; @endphp
+                            @if($modalConfig)
+                                <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                    <div class="px-3 sm:px-4 py-2.5 bg-gray-50 dark:bg-gray-700 flex items-center justify-between">
+                                        <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">{{ __('Datos en sucursal') }}</h4>
+                                        <span class="text-xs font-mono text-gray-500 dark:text-gray-400">{{ $configArticuloCodigo }}</span>
+                                    </div>
+                                    <div class="px-3 sm:px-4 py-3">
+                                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                                            {{-- Activo --}}
+                                            <div class="flex flex-col items-center gap-1.5">
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Activo') }}</span>
+                                                <button wire:click="toggleArticulo({{ $configArticuloId }})" class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 {{ $modalConfig['activo'] ? 'bg-bcn-primary' : 'bg-gray-200 dark:bg-gray-600' }}" role="switch">
+                                                    <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $modalConfig['activo'] ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                                                </button>
+                                            </div>
+
+                                            {{-- Vendible --}}
+                                            <div class="flex flex-col items-center gap-1.5">
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Vendible') }}</span>
+                                                <button wire:click="toggleVendible({{ $configArticuloId }})" class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 {{ $modalConfig['vendible'] ? 'bg-bcn-primary' : 'bg-gray-200 dark:bg-gray-600' }}" role="switch">
+                                                    <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $modalConfig['vendible'] ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                                                </button>
+                                            </div>
+
+                                            {{-- Modo stock --}}
+                                            <div class="flex flex-col items-center gap-1.5">
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Modo stock') }}</span>
+                                                <select wire:change="cambiarModoStock({{ $configArticuloId }}, $event.target.value)" class="text-xs rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-1.5 pl-2 pr-6 focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                                    <option value="ninguno" @selected($modalConfig['modo_stock'] === 'ninguno')>{{ __('Ninguno') }}</option>
+                                                    <option value="unitario" @selected($modalConfig['modo_stock'] === 'unitario')>{{ __('Unitario') }}</option>
+                                                    <option value="receta" @selected($modalConfig['modo_stock'] === 'receta')>{{ __('Por receta') }}</option>
+                                                </select>
+                                            </div>
+
+                                            {{-- Precio base --}}
+                                            <div class="flex flex-col items-center gap-1.5" x-data="{ editandoPrecio: false, valorPrecio: '' }">
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Precio base') }}</span>
+                                                @if($modalConfig['precio_base'] !== null)
+                                                    <div class="flex items-center gap-1">
+                                                        <span class="text-sm font-semibold text-indigo-600 dark:text-indigo-400">${{ number_format($modalConfig['precio_base'], 2, ',', '.') }}</span>
+                                                        <button wire:click="restablecerPrecioBase({{ $configArticuloId }})" class="text-gray-400 hover:text-red-500 transition-colors" title="{{ __('Restablecer al genérico') }}">
+                                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                        </button>
+                                                    </div>
+                                                    <span class="text-[10px] text-gray-400 line-through">${{ number_format($configArticuloPrecioGenerico, 2, ',', '.') }}</span>
+                                                @else
+                                                    <template x-if="!editandoPrecio">
+                                                        <div class="flex items-center gap-1">
+                                                            <span class="text-sm text-gray-700 dark:text-gray-300">${{ number_format($configArticuloPrecioGenerico, 2, ',', '.') }}</span>
+                                                            <button @click="editandoPrecio = true" class="text-gray-400 hover:text-bcn-primary transition-colors" title="{{ __('Precio propio') }}">
+                                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                                            </button>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="editandoPrecio">
+                                                        <div class="flex items-center gap-1">
+                                                            <span class="text-gray-400 text-xs">$</span>
+                                                            <input type="number" step="0.01" min="0" x-model="valorPrecio" placeholder="{{ number_format($configArticuloPrecioGenerico, 2, '.', '') }}" class="w-20 text-xs text-right rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-1 px-1.5" @keydown.enter="if(valorPrecio) { $wire.actualizarPrecioBase({{ $configArticuloId }}, valorPrecio); editandoPrecio = false; }" @keydown.escape="editandoPrecio = false" x-init="$nextTick(() => $el.focus())" />
+                                                            <button @click="if(valorPrecio) { $wire.actualizarPrecioBase({{ $configArticuloId }}, valorPrecio); editandoPrecio = false; }" class="text-green-600 hover:text-green-700">
+                                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                                            </button>
+                                                            <button @click="editandoPrecio = false" class="text-gray-400 hover:text-gray-600">
+                                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                            </button>
+                                                        </div>
+                                                    </template>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
+
                             @if(count($configGrupos) > 0)
                                 <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">{{ __('Grupos Opcionales') }}</h4>
                                 @foreach($configGrupos as $grupo)

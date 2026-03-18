@@ -22,27 +22,31 @@ class AuthenticationTest extends TestCase
 
     public function test_users_can_authenticate_using_the_login_screen(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create([
+            'is_system_admin' => true,
+        ]);
 
         $component = Volt::test('pages.auth.login')
-            ->set('form.email', $user->email)
+            ->set('form.username', $user->username)
             ->set('form.password', 'password');
 
         $component->call('login');
 
         $component
             ->assertHasNoErrors()
-            ->assertRedirect(route('dashboard', absolute: false));
+            ->assertRedirect(route('comercio.selector', absolute: false));
 
         $this->assertAuthenticated();
     }
 
     public function test_users_can_not_authenticate_with_invalid_password(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create([
+            'is_system_admin' => true,
+        ]);
 
         $component = Volt::test('pages.auth.login')
-            ->set('form.email', $user->email)
+            ->set('form.username', $user->username)
             ->set('form.password', 'wrong-password');
 
         $component->call('login');
@@ -54,7 +58,7 @@ class AuthenticationTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_navigation_menu_can_be_rendered(): void
+    public function test_dashboard_redirects_to_comercio_selector_without_tenant(): void
     {
         $user = User::factory()->create();
 
@@ -62,9 +66,7 @@ class AuthenticationTest extends TestCase
 
         $response = $this->get('/dashboard');
 
-        $response
-            ->assertOk()
-            ->assertSeeVolt('layout.navigation');
+        $response->assertRedirect(route('comercio.selector'));
     }
 
     public function test_users_can_logout(): void

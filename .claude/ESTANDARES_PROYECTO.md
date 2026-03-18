@@ -34,13 +34,11 @@ Este proyecto implementa un **sistema multi-sucursal** donde:
 
 ### Documentos de Referencia
 
-| Documento | Propósito | Cuándo Consultarlo |
-|-----------|-----------|-------------------|
-| `GUIA_DESARROLLO_COMPONENTES.md` | Guía completa de desarrollo | Al crear cualquier componente nuevo |
-| `RESUMEN_DESARROLLO_RAPIDO.md` | Checklist rápido | Para recordar los pasos esenciales |
-| `SISTEMA_EVENTOS_SUCURSALES.md` | Arquitectura del sistema | Para entender cómo funciona el sistema |
-| `SISTEMA_ACCESO_SUCURSALES.md` | Permisos y acceso | Para implementar validaciones |
-| `OPTIMIZACIONES_SUCURSALES.md` | Optimizaciones aplicadas | Para entender el caché y rendimiento |
+| Documento | Propósito |
+|-----------|-----------|
+| `.claude/docs/componentes-livewire.md` | Patrones, traits, checklist y componentes de referencia |
+| `.claude/docs/servicios-referencia.md` | Listado de models, services, traits por módulo |
+| `.claude/ESTANDARES_PROYECTO.md` | Este archivo: estándares obligatorios |
 
 ---
 
@@ -430,12 +428,10 @@ Claude Code puede consultar estos archivos como referencia:
 
 ---
 
-## 📚 Orden de Consulta de Documentos
-
-Cuando Claude Code necesite desarrollar un componente:
+## Orden de Consulta
 
 1. **Primero:** Leer este archivo (`ESTANDARES_PROYECTO.md`)
-2. **Segundo:** Consultar `GUIA_DESARROLLO_COMPONENTES.md` para detalles
+2. **Segundo:** Consultar `.claude/docs/componentes-livewire.md` para patrones y checklist
 3. **Tercero:** Ver ejemplos en los componentes existentes
 4. **Cuarto:** Si hay dudas, preguntar al usuario
 
