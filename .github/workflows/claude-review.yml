@@ -1,0 +1,101 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize]
+    paths:
+      - '**.php'
+      - '**.blade.php'
+      - 'routes/**'
+      - 'config/**'
+      - 'database/migrations/**'
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Auto-review en cada PR (solo archivos PHP/Blade) ──
+  code-review:
+    name: Code Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: |
+      github.event_name == 'pull_request' &&
+      !contains(github.head_ref, 'release-please')
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_access_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Revisá este PR enfocándote en lo que importa para este proyecto Laravel multi-tenant.
+
+            **CRÍTICO — Errores de arquitectura tenant:**
+            - Modelos que acceden a tablas tenant DEBEN tener `protected $connection = 'pymes_tenant'`
+            - Migraciones tenant DEBEN iterar todos los comercios con prefijo `{NNNNNN}_`
+            - SQL raw DEBE usar el prefijo tenant, nunca tabla sin prefijo
+            - FK constraints DEBEN incluir prefijo en el nombre de la tabla referenciada
+
+            **ALTO — Integridad de datos:**
+            - MovimientoStock, MovimientoCuentaCorriente, MovimientoCuentaEmpresa son append-only (NUNCA update/delete)
+            - Stock se actualiza via movimientos, NUNCA directamente en la tabla `stock`
+            - Transacciones financieras DEBEN estar envueltas en DB::transaction()
+
+            **MEDIO — Patrones del proyecto:**
+            - Lógica de negocio DEBE estar en Services (`app/Services/`), NO en componentes Livewire
+            - Componentes con sucursal DEBEN usar trait `SucursalAware`
+            - Componentes de venta/cobranza DEBEN usar trait `CajaAware`
+
+            **BAJO — Seguridad:**
+            - SQL injection en queries raw
+            - XSS en vistas Blade (usar `{{ }}` no `{!! !!}`)
+            - Validación de input insuficiente
+            - Secrets hardcodeados
+
+            Reglas:
+            - Solo reportá problemas reales, no estilo (Pint se encarga)
+            - Calificá: 🔴 CRITICAL, 🟠 HIGH, 🟡 MEDIUM, 🔵 LOW
+            - Incluí número de línea y sugerencia de fix
+            - Respondé en español
+            - Sé conciso, no repitas contexto
+          claude_args: "--model claude-sonnet-4-6 --max-turns 3"
+
+  # ── @claude interactivo en comentarios de PRs e Issues ──
+  interactive:
+    name: Claude Interactive
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: |
+      (github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') &&
+      contains(github.event.comment.body, '@claude')
+
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_access_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: "--model claude-sonnet-4-6 --max-turns 10"
