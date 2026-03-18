@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/FacuGalan/bcn/compare/v0.1.1...v0.1.2) (2026-03-18)
+
+
+### Correcciones
+
+* **ci:** usar PAT en Release Please para disparar checks ([#4](https://github.com/FacuGalan/bcn/issues/4)) ([37eb544](https://github.com/FacuGalan/bcn/commit/37eb544432ee87a344141cc9f43255fcf35a4c1c))
+
 ## [0.1.1](https://github.com/FacuGalan/bcn/compare/v0.1.0...v0.1.1) (2026-03-18)
 
 
