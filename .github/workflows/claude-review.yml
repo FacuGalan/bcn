@@ -73,7 +73,7 @@ jobs:
             - Incluí número de línea y sugerencia de fix
             - Respondé en español
             - Sé conciso, no repitas contexto
-          claude_args: "--model claude-sonnet-4-6 --max-turns 3"
+          claude_args: "--model claude-sonnet-4-6 --max-turns 8"
 
   # ── @claude interactivo en comentarios de PRs e Issues ──
   interactive:
