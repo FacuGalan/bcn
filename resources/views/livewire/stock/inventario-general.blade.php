@@ -329,97 +329,92 @@
 
     {{-- Modal Confirmación --}}
     @if($showConfirmModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-confirm" role="dialog" aria-modal="true">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="cancelarConfirmacion"></div>
-            <div class="flex min-h-full items-center justify-center p-4">
-                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md">
-                    <div class="bg-purple-600 px-4 py-4 sm:px-6">
-                        <h3 class="text-lg font-semibold text-white">{{ __('Procesar Inventario') }}</h3>
+        <x-bcn-modal
+            :show="$showConfirmModal"
+            :title="__('Procesar Inventario')"
+            color="bg-purple-600"
+            maxWidth="md"
+            onClose="cancelarConfirmacion"
+        >
+            <x-slot:body>
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="flex-shrink-0 p-2 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                        <svg class="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
                     </div>
-                    <div class="px-4 py-5 sm:p-6">
-                        <div class="flex items-center gap-3 mb-4">
-                            <div class="flex-shrink-0 p-2 bg-purple-100 dark:bg-purple-900/30 rounded-full">
-                                <svg class="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <p class="text-sm text-gray-700 dark:text-gray-300">
-                                    {{ __('Se procesarán') }} <span class="font-bold text-purple-600">{{ count(array_filter($cantidadesFisicas, fn($v) => $v !== '' && $v !== null)) }}</span> {{ __('artículos con conteo ingresado') }}.
-                                </p>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    {{ __('Esta acción no se puede deshacer.') }}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
-                        <button
-                            wire:click="procesarInventario"
-                            wire:loading.attr="disabled"
-                            class="inline-flex w-full justify-center rounded-md bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-purple-500 sm:w-auto transition-colors disabled:opacity-50"
-                        >
-                            <span wire:loading.remove wire:target="procesarInventario">{{ __('Procesar Inventario') }}</span>
-                            <span wire:loading wire:target="procesarInventario">{{ __('Procesando inventario...') }}</span>
-                        </button>
-                        <button
-                            wire:click="cancelarConfirmacion"
-                            class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-600 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-200 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:w-auto transition-colors"
-                        >
-                            {{ __('Cancelar') }}
-                        </button>
+                    <div>
+                        <p class="text-sm text-gray-700 dark:text-gray-300">
+                            {{ __('Se procesarán') }} <span class="font-bold text-purple-600">{{ count(array_filter($cantidadesFisicas, fn($v) => $v !== '' && $v !== null)) }}</span> {{ __('artículos con conteo ingresado') }}.
+                        </p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {{ __('Esta acción no se puede deshacer.') }}
+                        </p>
                     </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="button"
+                        wire:click="procesarInventario"
+                        wire:loading.attr="disabled"
+                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm disabled:opacity-50">
+                    <span wire:loading.remove wire:target="procesarInventario">{{ __('Procesar Inventario') }}</span>
+                    <span wire:loading wire:target="procesarInventario">{{ __('Procesando inventario...') }}</span>
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal Resultado --}}
     @if($showResultModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-result" role="dialog" aria-modal="true">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
-            <div class="flex min-h-full items-center justify-center p-4">
-                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md">
-                    <div class="bg-green-600 px-4 py-4 sm:px-6">
-                        <h3 class="text-lg font-semibold text-white">{{ __('Resultado del Inventario') }}</h3>
+        <x-bcn-modal
+            :show="$showResultModal"
+            :title="__('Resultado del Inventario')"
+            color="bg-green-600"
+            maxWidth="md"
+            onClose="cerrarResultado"
+        >
+            <x-slot:body>
+                <div class="space-y-4">
+                    <!-- Total procesados -->
+                    <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Procesados') }}</span>
+                        <span class="text-lg font-bold text-gray-900 dark:text-white">{{ $resultado['procesados'] ?? 0 }}</span>
                     </div>
-                    <div class="px-4 py-5 sm:p-6">
-                        <div class="space-y-4">
-                            <!-- Total procesados -->
-                            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Procesados') }}</span>
-                                <span class="text-lg font-bold text-gray-900 dark:text-white">{{ $resultado['procesados'] ?? 0 }}</span>
-                            </div>
 
-                            <div class="grid grid-cols-3 gap-3">
-                                <!-- Sobrantes -->
-                                <div class="text-center p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                                    <p class="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{{ $resultado['sobrantes'] ?? 0 }}</p>
-                                    <p class="text-xs text-yellow-700 dark:text-yellow-300 mt-1">{{ __('sobrantes') }}</p>
-                                </div>
-                                <!-- Faltantes -->
-                                <div class="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                                    <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ $resultado['faltantes'] ?? 0 }}</p>
-                                    <p class="text-xs text-red-700 dark:text-red-300 mt-1">{{ __('faltantes') }}</p>
-                                </div>
-                                <!-- Sin diferencia -->
-                                <div class="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                                    <p class="text-2xl font-bold text-green-600 dark:text-green-400">{{ $resultado['sin_diferencia'] ?? 0 }}</p>
-                                    <p class="text-xs text-green-700 dark:text-green-300 mt-1">{{ __('sin diferencia') }}</p>
-                                </div>
-                            </div>
+                    <div class="grid grid-cols-3 gap-3">
+                        <!-- Sobrantes -->
+                        <div class="text-center p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                            <p class="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{{ $resultado['sobrantes'] ?? 0 }}</p>
+                            <p class="text-xs text-yellow-700 dark:text-yellow-300 mt-1">{{ __('sobrantes') }}</p>
+                        </div>
+                        <!-- Faltantes -->
+                        <div class="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                            <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ $resultado['faltantes'] ?? 0 }}</p>
+                            <p class="text-xs text-red-700 dark:text-red-300 mt-1">{{ __('faltantes') }}</p>
+                        </div>
+                        <!-- Sin diferencia -->
+                        <div class="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                            <p class="text-2xl font-bold text-green-600 dark:text-green-400">{{ $resultado['sin_diferencia'] ?? 0 }}</p>
+                            <p class="text-xs text-green-700 dark:text-green-300 mt-1">{{ __('sin diferencia') }}</p>
                         </div>
                     </div>
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:justify-end sm:px-6">
-                        <button
-                            wire:click="cerrarResultado"
-                            class="inline-flex w-full justify-center rounded-md bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-purple-500 sm:w-auto transition-colors"
-                        >
-                            {{ __('Aceptar') }}
-                        </button>
-                    </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                    {{ __('Aceptar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 </div>

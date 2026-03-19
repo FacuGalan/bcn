@@ -451,89 +451,88 @@
 
     {{-- Modal de Confirmacion --}}
     @if($showConfirmModal)
-    <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity"></div>
-
-            <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-
-            <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                    <div class="sm:flex sm:items-start">
-                        <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full {{ $accionPendiente === 'transferencia' ? 'bg-indigo-100 dark:bg-indigo-900/30' : ($accionPendiente === 'ingreso' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30') }} sm:mx-0 sm:h-10 sm:w-10">
-                            @if($accionPendiente === 'transferencia')
-                            <svg class="h-6 w-6 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
-                            </svg>
-                            @elseif($accionPendiente === 'ingreso')
-                            <svg class="h-6 w-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                            </svg>
-                            @else
-                            <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
-                            </svg>
-                            @endif
-                        </div>
-                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                            <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white" id="modal-title">
-                                {{ __('Confirmar') }} {{ $accionPendiente === 'transferencia' ? __('Transferencia') : ($accionPendiente === 'ingreso' ? __('Ingreso') : __('Egreso')) }}
-                            </h3>
-                            <div class="mt-4 space-y-2">
-                                @if($accionPendiente === 'transferencia')
-                                <p class="text-sm text-gray-600 dark:text-gray-400">
-                                    <span class="font-medium">{{ __('Desde') }}:</span> {{ $datosPendientes['caja_origen'] ?? '' }}
-                                </p>
-                                <p class="text-sm text-gray-600 dark:text-gray-400">
-                                    <span class="font-medium">{{ __('Hacia') }}:</span> {{ $datosPendientes['caja_destino'] ?? '' }}
-                                </p>
-                                @else
-                                <p class="text-sm text-gray-600 dark:text-gray-400">
-                                    <span class="font-medium">{{ __('Caja') }}:</span> {{ $datosPendientes['caja'] ?? '' }}
-                                </p>
-                                <p class="text-sm text-gray-600 dark:text-gray-400">
-                                    <span class="font-medium">{{ $accionPendiente === 'ingreso' ? __('Origen') : __('Destino') }}:</span> {{ $datosPendientes[$accionPendiente === 'ingreso' ? 'origen' : 'destino'] ?? '' }}
-                                </p>
-                                @endif
-                                @if(!empty($datosPendientes['moneda_nombre']))
-                                <p class="text-sm text-gray-600 dark:text-gray-400">
-                                    <span class="font-medium">{{ __('Moneda') }}:</span> {{ $datosPendientes['moneda_nombre'] }}
-                                </p>
-                                @endif
-                                <p class="text-sm text-gray-600 dark:text-gray-400">
-                                    <span class="font-medium">{{ __('Monto') }}:</span>
-                                    <span class="text-lg font-bold {{ $accionPendiente === 'ingreso' ? 'text-green-600' : ($accionPendiente === 'egreso' ? 'text-red-600' : 'text-indigo-600') }}">
-                                        {{ $datosPendientes['moneda_simbolo'] ?? '$' }} {{ number_format($datosPendientes['monto'] ?? 0, 2, ',', '.') }}
-                                    </span>
-                                </p>
-                                @if(!empty($datosPendientes['equivalente_ars']))
-                                <p class="text-sm text-gray-600 dark:text-gray-400">
-                                    <span class="font-medium">{{ __('Cotización') }}:</span> ${{ number_format($datosPendientes['cotizacion'] ?? 0, 2, ',', '.') }}
-                                </p>
-                                <p class="text-sm text-gray-600 dark:text-gray-400">
-                                    <span class="font-medium">{{ __('Equivalente') }}:</span>
-                                    <span class="font-semibold text-gray-900 dark:text-white">${{ number_format($datosPendientes['equivalente_ars'], 2, ',', '.') }}</span>
-                                </p>
-                                @endif
-                                <p class="text-sm text-gray-600 dark:text-gray-400">
-                                    <span class="font-medium">{{ __('Motivo') }}:</span> {{ $datosPendientes['motivo'] ?? '' }}
-                                </p>
-                            </div>
-                        </div>
+    @php
+        $confirmColor = $accionPendiente === 'transferencia' ? 'bg-indigo-600' : ($accionPendiente === 'ingreso' ? 'bg-green-600' : 'bg-red-600');
+        $confirmTitle = __('Confirmar') . ' ' . ($accionPendiente === 'transferencia' ? __('Transferencia') : ($accionPendiente === 'ingreso' ? __('Ingreso') : __('Egreso')));
+    @endphp
+    <x-bcn-modal
+        :title="$confirmTitle"
+        :color="$confirmColor"
+        maxWidth="lg"
+        onClose="cancelarAccion"
+    >
+        <x-slot:body>
+            <div class="sm:flex sm:items-start">
+                <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full {{ $accionPendiente === 'transferencia' ? 'bg-indigo-100 dark:bg-indigo-900/30' : ($accionPendiente === 'ingreso' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30') }} sm:mx-0 sm:h-10 sm:w-10">
+                    @if($accionPendiente === 'transferencia')
+                    <svg class="h-6 w-6 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                    </svg>
+                    @elseif($accionPendiente === 'ingreso')
+                    <svg class="h-6 w-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                    </svg>
+                    @else
+                    <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+                    </svg>
+                    @endif
+                </div>
+                <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                    <div class="mt-4 space-y-2">
+                        @if($accionPendiente === 'transferencia')
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            <span class="font-medium">{{ __('Desde') }}:</span> {{ $datosPendientes['caja_origen'] ?? '' }}
+                        </p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            <span class="font-medium">{{ __('Hacia') }}:</span> {{ $datosPendientes['caja_destino'] ?? '' }}
+                        </p>
+                        @else
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            <span class="font-medium">{{ __('Caja') }}:</span> {{ $datosPendientes['caja'] ?? '' }}
+                        </p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            <span class="font-medium">{{ $accionPendiente === 'ingreso' ? __('Origen') : __('Destino') }}:</span> {{ $datosPendientes[$accionPendiente === 'ingreso' ? 'origen' : 'destino'] ?? '' }}
+                        </p>
+                        @endif
+                        @if(!empty($datosPendientes['moneda_nombre']))
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            <span class="font-medium">{{ __('Moneda') }}:</span> {{ $datosPendientes['moneda_nombre'] }}
+                        </p>
+                        @endif
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            <span class="font-medium">{{ __('Monto') }}:</span>
+                            <span class="text-lg font-bold {{ $accionPendiente === 'ingreso' ? 'text-green-600' : ($accionPendiente === 'egreso' ? 'text-red-600' : 'text-indigo-600') }}">
+                                {{ $datosPendientes['moneda_simbolo'] ?? '$' }} {{ number_format($datosPendientes['monto'] ?? 0, 2, ',', '.') }}
+                            </span>
+                        </p>
+                        @if(!empty($datosPendientes['equivalente_ars']))
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            <span class="font-medium">{{ __('Cotización') }}:</span> ${{ number_format($datosPendientes['cotizacion'] ?? 0, 2, ',', '.') }}
+                        </p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            <span class="font-medium">{{ __('Equivalente') }}:</span>
+                            <span class="font-semibold text-gray-900 dark:text-white">${{ number_format($datosPendientes['equivalente_ars'], 2, ',', '.') }}</span>
+                        </p>
+                        @endif
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            <span class="font-medium">{{ __('Motivo') }}:</span> {{ $datosPendientes['motivo'] ?? '' }}
+                        </p>
                     </div>
                 </div>
-                <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
-                    <button type="button" wire:click="ejecutarAccion"
-                            class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 {{ $accionPendiente === 'transferencia' ? 'bg-indigo-600 hover:bg-indigo-700' : ($accionPendiente === 'ingreso' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700') }} text-base font-medium text-white focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
-                        {{ __('Confirmar') }}
-                    </button>
-                    <button type="button" wire:click="cancelarAccion"
-                            class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm">
-                        {{ __('Cancelar') }}
-                    </button>
-                </div>
             </div>
-        </div>
-    </div>
+        </x-slot:body>
+
+        <x-slot:footer>
+            <button type="button" @click="close()"
+                class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                {{ __('Cancelar') }}
+            </button>
+            <button type="button" wire:click="ejecutarAccion"
+                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                {{ __('Confirmar') }}
+            </button>
+        </x-slot:footer>
+    </x-bcn-modal>
     @endif
 </div>

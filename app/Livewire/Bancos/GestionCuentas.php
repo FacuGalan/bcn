@@ -164,6 +164,12 @@ class GestionCuentas extends Component
         $this->dispatch('toast-success', message: __('Cuenta eliminada correctamente'));
     }
 
+    public function cancelarEliminar()
+    {
+        $this->showConfirmDelete = false;
+        $this->deleteId = null;
+    }
+
     public function getMonedasProperty()
     {
         return Moneda::activas()->orderBy('orden')->get();

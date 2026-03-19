@@ -442,6 +442,13 @@ class Produccion extends Component
         $this->showAnularModal = true;
     }
 
+    public function cancelarAnulacion(): void
+    {
+        $this->showAnularModal = false;
+        $this->anularProduccionId = null;
+        $this->motivoAnulacion = '';
+    }
+
     /**
      * Confirma anulación de producción
      */

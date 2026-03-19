@@ -523,50 +523,47 @@
 
     {{-- Modal Anular Producción --}}
     @if($showAnularModal)
-        <div class="fixed inset-0 z-[60] overflow-y-auto" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="$set('showAnularModal', false)"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+        <x-bcn-modal
+            :show="$showAnularModal"
+            :title="__('Anular producción')"
+            color="bg-red-600"
+            maxWidth="lg"
+            onClose="cancelarAnulacion"
+            zIndex="z-[60]"
+        >
+            <x-slot:body>
+                <div class="flex items-start">
+                    <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/30">
+                        <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+                    </div>
+                    <div class="ml-4 flex-1">
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('Se revertirán todos los movimientos de stock. Esta acción no se puede deshacer.') }}</p>
 
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                    <div class="bg-white dark:bg-gray-800 px-6 pt-5 pb-4">
-                        <div class="flex items-start">
-                            <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/30">
-                                <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
-                            </div>
-                            <div class="ml-4 flex-1">
-                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Anular producción') }}</h3>
-                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ __('Se revertirán todos los movimientos de stock. Esta acción no se puede deshacer.') }}</p>
-
-                                <div class="mt-4">
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo de anulación') }} *</label>
-                                    <textarea
-                                        wire:model="motivoAnulacion"
-                                        rows="3"
-                                        class="block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:text-white"
-                                        placeholder="{{ __('Ingrese el motivo...') }}"
-                                    ></textarea>
-                                </div>
-                            </div>
+                        <div class="mt-4">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo de anulación') }} *</label>
+                            <textarea
+                                wire:model="motivoAnulacion"
+                                rows="3"
+                                class="block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:text-white"
+                                placeholder="{{ __('Ingrese el motivo...') }}"
+                            ></textarea>
                         </div>
                     </div>
-
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
-                        <button
-                            wire:click="confirmarAnulacion"
-                            class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                        >
-                            {{ __('Anular producción') }}
-                        </button>
-                        <button
-                            wire:click="$set('showAnularModal', false)"
-                            class="mt-3 sm:mt-0 w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none"
-                        >
-                            {{ __('Cancelar') }}
-                        </button>
-                    </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="button"
+                        wire:click="confirmarAnulacion"
+                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-500 sm:w-auto sm:text-sm">
+                    {{ __('Anular producción') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 </div>
