@@ -35,9 +35,7 @@ class StockServiceTest extends TestCase
     }
 
     // ==================== ajustarStock ====================
-
-    /** @test */
-    public function ajustar_stock_positivo(): void
+    public function test_ajustar_stock_positivo(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10);
         $stock = Stock::where('articulo_id', $articulo->id)
@@ -59,9 +57,7 @@ class StockServiceTest extends TestCase
         $this->assertEquals(5, (float) $movimiento->entrada);
         $this->assertEquals(0, (float) $movimiento->salida);
     }
-
-    /** @test */
-    public function ajustar_stock_negativo(): void
+    public function test_ajustar_stock_negativo(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10);
         $stock = Stock::where('articulo_id', $articulo->id)
@@ -72,9 +68,7 @@ class StockServiceTest extends TestCase
 
         $this->assertEquals(7, (float) $resultado->cantidad);
     }
-
-    /** @test */
-    public function ajustar_stock_falla_si_queda_negativo(): void
+    public function test_ajustar_stock_falla_si_queda_negativo(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 5);
         $stock = Stock::where('articulo_id', $articulo->id)
@@ -86,9 +80,7 @@ class StockServiceTest extends TestCase
 
         $this->stockService->ajustarStock($stock->id, -10, 1, 'Exceso');
     }
-
-    /** @test */
-    public function ajustar_stock_registra_movimiento(): void
+    public function test_ajustar_stock_registra_movimiento(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10);
         $stock = Stock::where('articulo_id', $articulo->id)
@@ -126,9 +118,7 @@ class StockServiceTest extends TestCase
     }
 
     // ==================== inicializarStockEnSucursal ====================
-
-    /** @test */
-    public function inicializar_stock_en_sucursal(): void
+    public function test_inicializar_stock_en_sucursal(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'unitario');
 
@@ -152,9 +142,7 @@ class StockServiceTest extends TestCase
         $this->assertEquals(5, (float) $stock->cantidad_minima);
         $this->assertEquals(200, (float) $stock->cantidad_maxima);
     }
-
-    /** @test */
-    public function inicializar_stock_falla_modo_ninguno(): void
+    public function test_inicializar_stock_falla_modo_ninguno(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'ninguno');
 
@@ -169,9 +157,7 @@ class StockServiceTest extends TestCase
     }
 
     // ==================== registrarInventarioFisico ====================
-
-    /** @test */
-    public function registrar_inventario_fisico_sobrante(): void
+    public function test_registrar_inventario_fisico_sobrante(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10);
         $stock = Stock::where('articulo_id', $articulo->id)
@@ -195,9 +181,7 @@ class StockServiceTest extends TestCase
         $stockActualizado = Stock::find($stock->id);
         $this->assertEquals(15, (float) $stockActualizado->cantidad);
     }
-
-    /** @test */
-    public function registrar_inventario_fisico_faltante(): void
+    public function test_registrar_inventario_fisico_faltante(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10);
         $stock = Stock::where('articulo_id', $articulo->id)
@@ -220,9 +204,7 @@ class StockServiceTest extends TestCase
         $stockActualizado = Stock::find($stock->id);
         $this->assertEquals(7, (float) $stockActualizado->cantidad);
     }
-
-    /** @test */
-    public function registrar_inventario_sin_diferencia(): void
+    public function test_registrar_inventario_sin_diferencia(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10);
         $stock = Stock::where('articulo_id', $articulo->id)
@@ -241,9 +223,7 @@ class StockServiceTest extends TestCase
         $this->assertEquals(0, (float) $resultado['diferencia']);
         $this->assertEquals('sin_diferencia', $resultado['tipo_diferencia']);
     }
-
-    /** @test */
-    public function registrar_inventario_crea_movimiento(): void
+    public function test_registrar_inventario_crea_movimiento(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10);
         $stock = Stock::where('articulo_id', $articulo->id)
@@ -283,9 +263,7 @@ class StockServiceTest extends TestCase
     }
 
     // ==================== obtenerStockBajoMinimo ====================
-
-    /** @test */
-    public function obtener_stock_bajo_minimo(): void
+    public function test_obtener_stock_bajo_minimo(): void
     {
         // Artículo bajo mínimo: cantidad 5, mínimo 10
         $articuloBajo = $this->crearArticuloConStock($this->sucursalId, 5);
@@ -310,9 +288,7 @@ class StockServiceTest extends TestCase
     }
 
     // ==================== obtenerArticulosSinStock ====================
-
-    /** @test */
-    public function obtener_articulos_sin_stock(): void
+    public function test_obtener_articulos_sin_stock(): void
     {
         // Artículo sin stock: cantidad 0
         $articuloSinStock = $this->crearArticuloConStock($this->sucursalId, 0);
@@ -328,9 +304,7 @@ class StockServiceTest extends TestCase
     }
 
     // ==================== Transacción y rollback ====================
-
-    /** @test */
-    public function ajustar_stock_rollback_en_error(): void
+    public function test_ajustar_stock_rollback_en_error(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 5);
         $stock = Stock::where('articulo_id', $articulo->id)
@@ -359,9 +333,7 @@ class StockServiceTest extends TestCase
     }
 
     // ==================== firstOrCreate (no duplica) ====================
-
-    /** @test */
-    public function inicializar_stock_no_duplica(): void
+    public function test_inicializar_stock_no_duplica(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'unitario');
 

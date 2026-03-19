@@ -46,9 +46,7 @@ class VentaServiceCancelacionTest extends TestCase
     // =========================================================================
     // cancelarVentaCompleta
     // =========================================================================
-
-    /** @test */
-    public function cancela_venta_cambia_estado(): void
+    public function test_cancela_venta_cambia_estado(): void
     {
         $venta = $this->crearVentaBasicaConPago();
 
@@ -57,9 +55,7 @@ class VentaServiceCancelacionTest extends TestCase
         $ventaActualizada = $result['venta'];
         $this->assertEquals('cancelada', $ventaActualizada->estado);
     }
-
-    /** @test */
-    public function cancela_venta_revierte_stock_unitario(): void
+    public function test_cancela_venta_revierte_stock_unitario(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario');
 
@@ -83,9 +79,7 @@ class VentaServiceCancelacionTest extends TestCase
         // así que el stock aumenta en 1 respecto al estado post-venta.
         $this->assertEquals($stockDespuesVenta + 1, $stockDespuesCancelacion);
     }
-
-    /** @test */
-    public function cancela_venta_revierte_stock_receta(): void
+    public function test_cancela_venta_revierte_stock_receta(): void
     {
         $ingrediente1 = $this->crearArticuloConStock($this->sucursalId, 50, 'unitario', [
             'nombre' => 'Ingrediente A',
@@ -125,9 +119,7 @@ class VentaServiceCancelacionTest extends TestCase
         $this->assertEquals($stockI1Antes + 2, $stockI1Despues);
         $this->assertEquals($stockI2Antes + 3, $stockI2Despues);
     }
-
-    /** @test */
-    public function cancela_venta_revierte_stock_opcionales(): void
+    public function test_cancela_venta_revierte_stock_opcionales(): void
     {
         // Este test verifica stock con opcionales - simplificado (artículo unitario sin opcionales)
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario');
@@ -148,9 +140,7 @@ class VentaServiceCancelacionTest extends TestCase
 
         $this->assertEquals($stockDespuesVenta + 1, $stockDespues);
     }
-
-    /** @test */
-    public function cancela_venta_anula_pagos(): void
+    public function test_cancela_venta_anula_pagos(): void
     {
         $venta = $this->crearVentaBasicaConPago();
 
@@ -161,9 +151,7 @@ class VentaServiceCancelacionTest extends TestCase
             $this->assertEquals('anulado', $pago->estado);
         }
     }
-
-    /** @test */
-    public function cancela_venta_cc_revierte_saldo(): void
+    public function test_cancela_venta_cc_revierte_saldo(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $monto = 5000;
@@ -200,9 +188,7 @@ class VentaServiceCancelacionTest extends TestCase
         // El saldo debe haber disminuido por el total_final
         $this->assertLessThan($saldoConDeuda, $saldoDespues);
     }
-
-    /** @test */
-    public function cancela_venta_falla_si_ya_cancelada(): void
+    public function test_cancela_venta_falla_si_ya_cancelada(): void
     {
         $venta = $this->crearVentaBasicaConPago();
 
@@ -214,9 +200,7 @@ class VentaServiceCancelacionTest extends TestCase
         $this->expectExceptionMessage('La venta ya está cancelada');
         $this->ventaService->cancelarVentaCompleta($venta->id);
     }
-
-    /** @test */
-    public function cancela_venta_saldo_pendiente_a_cero(): void
+    public function test_cancela_venta_saldo_pendiente_a_cero(): void
     {
         $venta = $this->crearVentaBasicaConPago([
             'saldo_pendiente_cache' => 1000,
@@ -226,9 +210,7 @@ class VentaServiceCancelacionTest extends TestCase
 
         $this->assertEquals(0, (float) $result['venta']->saldo_pendiente_cache);
     }
-
-    /** @test */
-    public function cancela_venta_con_motivo(): void
+    public function test_cancela_venta_con_motivo(): void
     {
         $venta = $this->crearVentaBasicaConPago();
         $motivo = 'Cliente solicito cancelacion';
@@ -237,9 +219,7 @@ class VentaServiceCancelacionTest extends TestCase
 
         $this->assertEquals($motivo, $result['venta']->motivo_anulacion);
     }
-
-    /** @test */
-    public function cancela_venta_retorna_array(): void
+    public function test_cancela_venta_retorna_array(): void
     {
         $venta = $this->crearVentaBasicaConPago();
 
@@ -253,9 +233,7 @@ class VentaServiceCancelacionTest extends TestCase
     // =========================================================================
     // anularPagosYPasarACtaCte
     // =========================================================================
-
-    /** @test */
-    public function pasa_a_cc_anula_pagos_originales(): void
+    public function test_pasa_a_cc_anula_pagos_originales(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaBasicaConPago([
@@ -275,9 +253,7 @@ class VentaServiceCancelacionTest extends TestCase
             $this->assertEquals('anulado', $pago->estado);
         }
     }
-
-    /** @test */
-    public function pasa_a_cc_crea_pago_cc(): void
+    public function test_pasa_a_cc_crea_pago_cc(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaBasicaConPago([
@@ -296,9 +272,7 @@ class VentaServiceCancelacionTest extends TestCase
         $this->assertTrue((bool) $pagoCC->es_cuenta_corriente);
         $this->assertEquals('activo', $pagoCC->estado);
     }
-
-    /** @test */
-    public function pasa_a_cc_actualiza_saldo(): void
+    public function test_pasa_a_cc_actualiza_saldo(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaBasicaConPago([
@@ -325,9 +299,7 @@ class VentaServiceCancelacionTest extends TestCase
         // El saldo debe haber aumentado por el total_final
         $this->assertGreaterThan($saldoAntes, $saldoDespues);
     }
-
-    /** @test */
-    public function pasa_a_cc_falla_si_ya_cc(): void
+    public function test_pasa_a_cc_falla_si_ya_cc(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 1000);
@@ -336,9 +308,7 @@ class VentaServiceCancelacionTest extends TestCase
         $this->expectExceptionMessage('La venta ya es cuenta corriente');
         $this->ventaService->anularPagosYPasarACtaCte($venta->id);
     }
-
-    /** @test */
-    public function pasa_a_cc_falla_sin_cliente(): void
+    public function test_pasa_a_cc_falla_sin_cliente(): void
     {
         $venta = $this->crearVentaBasicaConPago();
 
@@ -348,9 +318,7 @@ class VentaServiceCancelacionTest extends TestCase
         $this->expectExceptionMessage('cliente asignado');
         $this->ventaService->anularPagosYPasarACtaCte($venta->id);
     }
-
-    /** @test */
-    public function pasa_a_cc_falla_si_cancelada(): void
+    public function test_pasa_a_cc_falla_si_cancelada(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaBasicaConPago([
@@ -364,9 +332,7 @@ class VentaServiceCancelacionTest extends TestCase
         $this->expectExceptionMessage('cancelada');
         $this->ventaService->anularPagosYPasarACtaCte($venta->id);
     }
-
-    /** @test */
-    public function pasa_a_cc_busca_forma_pago_credito(): void
+    public function test_pasa_a_cc_busca_forma_pago_credito(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaBasicaConPago([
@@ -384,9 +350,7 @@ class VentaServiceCancelacionTest extends TestCase
         $this->assertNotNull($pagoCC);
         $this->assertEquals($ccData['formaPago']->id, $pagoCC->forma_pago_id);
     }
-
-    /** @test */
-    public function pasa_a_cc_cambia_estado_a_pendiente(): void
+    public function test_pasa_a_cc_cambia_estado_a_pendiente(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaBasicaConPago([

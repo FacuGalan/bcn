@@ -83,9 +83,7 @@ class VentaServiceTest extends TestCase
     // ====================================================================
     // A. CREACIÓN BÁSICA (10 tests)
     // ====================================================================
-
-    /** @test */
-    public function crear_venta_simple()
+    public function test_crear_venta_simple()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario');
@@ -101,9 +99,7 @@ class VentaServiceTest extends TestCase
         $this->assertEquals($this->sucursalId, $venta->sucursal_id);
         $this->assertEquals(1, VentaDetalle::where('venta_id', $venta->id)->count());
     }
-
-    /** @test */
-    public function crear_venta_multiples_items()
+    public function test_crear_venta_multiples_items()
     {
         $this->setControlStock('no_controla');
         $art1 = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario');
@@ -120,9 +116,7 @@ class VentaServiceTest extends TestCase
 
         $this->assertEquals(2, VentaDetalle::where('venta_id', $venta->id)->count());
     }
-
-    /** @test */
-    public function crear_venta_con_totales_proporcionados()
+    public function test_crear_venta_con_totales_proporcionados()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario');
@@ -147,9 +141,7 @@ class VentaServiceTest extends TestCase
         $this->assertEquals('2000.00', $venta->subtotal);
         $this->assertEquals('2000.00', $venta->total);
     }
-
-    /** @test */
-    public function crear_venta_recalcula_totales_sin_datos()
+    public function test_crear_venta_recalcula_totales_sin_datos()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario');
@@ -164,9 +156,7 @@ class VentaServiceTest extends TestCase
         // Totales deben ser recalculados (no 0)
         $this->assertGreaterThan(0, (float) $venta->total);
     }
-
-    /** @test */
-    public function crear_venta_genera_numero_por_caja()
+    public function test_crear_venta_genera_numero_por_caja()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario');
@@ -180,9 +170,7 @@ class VentaServiceTest extends TestCase
         // Formato esperado: N+-NNNNNNNN (número caja + secuencial 8 dígitos)
         $this->assertMatchesRegularExpression('/^\d+-\d{8}$/', $venta->numero);
     }
-
-    /** @test */
-    public function crear_venta_falla_sin_detalles()
+    public function test_crear_venta_falla_sin_detalles()
     {
         $this->expectException(Exception::class);
         $this->expectExceptionMessage('al menos un artículo');
@@ -190,9 +178,7 @@ class VentaServiceTest extends TestCase
         $data = $this->datosVentaBase();
         $this->ventaService->crearVenta($data, []);
     }
-
-    /** @test */
-    public function crear_venta_con_iva_incluido()
+    public function test_crear_venta_con_iva_incluido()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -211,9 +197,7 @@ class VentaServiceTest extends TestCase
         // precio_sin_iva debe ser menor que precio_unitario (porque IVA está incluido)
         $this->assertLessThan((float) $detalle->precio_unitario, (float) $detalle->precio_sin_iva);
     }
-
-    /** @test */
-    public function crear_venta_con_iva_excluido()
+    public function test_crear_venta_con_iva_excluido()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -235,9 +219,7 @@ class VentaServiceTest extends TestCase
             round((float) $detalle->precio_sin_iva, 2)
         );
     }
-
-    /** @test */
-    public function crear_venta_con_descuento_en_detalle()
+    public function test_crear_venta_con_descuento_en_detalle()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -253,9 +235,7 @@ class VentaServiceTest extends TestCase
         $detalle = VentaDetalle::where('venta_id', $venta->id)->first();
         $this->assertEquals('100.00', $detalle->descuento);
     }
-
-    /** @test */
-    public function crear_venta_con_ajuste_forma_pago()
+    public function test_crear_venta_con_ajuste_forma_pago()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario');
@@ -280,9 +260,7 @@ class VentaServiceTest extends TestCase
     // ====================================================================
     // B. VALIDACIÓN DE STOCK — 3 MODOS (9 tests)
     // ====================================================================
-
-    /** @test */
-    public function stock_bloquea_falla_sin_stock()
+    public function test_stock_bloquea_falla_sin_stock()
     {
         $this->setControlStock('bloquea');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 5, 'unitario');
@@ -296,9 +274,7 @@ class VentaServiceTest extends TestCase
 
         $this->ventaService->crearVenta($data, $detalles);
     }
-
-    /** @test */
-    public function stock_bloquea_permite_con_stock()
+    public function test_stock_bloquea_permite_con_stock()
     {
         $this->setControlStock('bloquea');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10, 'unitario');
@@ -311,9 +287,7 @@ class VentaServiceTest extends TestCase
 
         $this->assertNotNull($venta->id);
     }
-
-    /** @test */
-    public function stock_advierte_permite_sin_stock()
+    public function test_stock_advierte_permite_sin_stock()
     {
         $this->setControlStock('advierte');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 5, 'unitario');
@@ -327,9 +301,7 @@ class VentaServiceTest extends TestCase
         $this->assertNotNull($venta->id);
         $this->assertNotEmpty($this->ventaService->advertenciasStock);
     }
-
-    /** @test */
-    public function stock_no_controla_permite_sin_stock()
+    public function test_stock_no_controla_permite_sin_stock()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'unitario');
@@ -343,9 +315,7 @@ class VentaServiceTest extends TestCase
         $this->assertNotNull($venta->id);
         $this->assertEmpty($this->ventaService->advertenciasStock);
     }
-
-    /** @test */
-    public function stock_modo_ninguno_no_valida()
+    public function test_stock_modo_ninguno_no_valida()
     {
         $this->setControlStock('bloquea');
         // modo_stock = 'ninguno' → no crea stock, no valida
@@ -359,9 +329,7 @@ class VentaServiceTest extends TestCase
 
         $this->assertNotNull($venta->id);
     }
-
-    /** @test */
-    public function stock_receta_valida_ingredientes()
+    public function test_stock_receta_valida_ingredientes()
     {
         $this->setControlStock('bloquea');
 
@@ -383,9 +351,7 @@ class VentaServiceTest extends TestCase
 
         $this->ventaService->crearVenta($data, $detalles);
     }
-
-    /** @test */
-    public function stock_receta_permite_con_ingredientes()
+    public function test_stock_receta_permite_con_ingredientes()
     {
         $this->setControlStock('bloquea');
 
@@ -406,9 +372,7 @@ class VentaServiceTest extends TestCase
 
         $this->assertNotNull($venta->id);
     }
-
-    /** @test */
-    public function stock_ingredientes_acumulados_multiples_items()
+    public function test_stock_ingredientes_acumulados_multiples_items()
     {
         $this->setControlStock('bloquea');
 
@@ -436,9 +400,7 @@ class VentaServiceTest extends TestCase
 
         $this->ventaService->crearVenta($data, $detalles);
     }
-
-    /** @test */
-    public function stock_opcionales_con_receta()
+    public function test_stock_opcionales_con_receta()
     {
         // Los opcionales con receta se validan a través de acumularIngredientesOpcionales
         // Para este test simplificado, verificamos que la venta funciona sin opcionales con receta
@@ -462,9 +424,7 @@ class VentaServiceTest extends TestCase
     // ====================================================================
     // C. ACTUALIZACIÓN DE STOCK (7 tests)
     // ====================================================================
-
-    /** @test */
-    public function descuenta_stock_unitario()
+    public function test_descuenta_stock_unitario()
     {
         $this->setControlStock('bloquea');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10, 'unitario');
@@ -481,9 +441,7 @@ class VentaServiceTest extends TestCase
 
         $this->assertEquals('7.00', $stock->cantidad);
     }
-
-    /** @test */
-    public function descuenta_stock_receta_ingredientes()
+    public function test_descuenta_stock_receta_ingredientes()
     {
         $this->setControlStock('bloquea');
 
@@ -506,9 +464,7 @@ class VentaServiceTest extends TestCase
         // Se vendieron 2, receta requiere 5 por producción → 10 descontados
         $this->assertEquals('10.00', $stockIngrediente->cantidad);
     }
-
-    /** @test */
-    public function descuenta_stock_opcionales()
+    public function test_descuenta_stock_opcionales()
     {
         // Para opcionales con receta, se necesita un opcional con receta configurada
         // Este test verifica que si no hay opcionales, no falla
@@ -527,9 +483,7 @@ class VentaServiceTest extends TestCase
 
         $this->assertEquals('9.00', $stock->cantidad);
     }
-
-    /** @test */
-    public function no_descuenta_stock_modo_ninguno()
+    public function test_no_descuenta_stock_modo_ninguno()
     {
         $this->setControlStock('no_controla');
         // modo_stock = 'ninguno' → no crea registro de stock
@@ -547,9 +501,7 @@ class VentaServiceTest extends TestCase
             ->first();
         $this->assertNull($stock);
     }
-
-    /** @test */
-    public function registra_movimiento_stock_tipo_venta()
+    public function test_registra_movimiento_stock_tipo_venta()
     {
         $this->setControlStock('bloquea');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10, 'unitario');
@@ -569,9 +521,7 @@ class VentaServiceTest extends TestCase
         $this->assertEquals('2.00', $movimiento->salida);
         $this->assertEquals($venta->id, $movimiento->venta_id);
     }
-
-    /** @test */
-    public function permite_stock_negativo_en_advierte()
+    public function test_permite_stock_negativo_en_advierte()
     {
         $this->setControlStock('advierte');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 5, 'unitario');
@@ -588,9 +538,7 @@ class VentaServiceTest extends TestCase
 
         $this->assertEquals('-5.00', $stock->cantidad);
     }
-
-    /** @test */
-    public function permite_stock_negativo_en_no_controla()
+    public function test_permite_stock_negativo_en_no_controla()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'unitario');
@@ -611,9 +559,7 @@ class VentaServiceTest extends TestCase
     // ====================================================================
     // D. VALIDACIÓN DE CAJA (3 tests)
     // ====================================================================
-
-    /** @test */
-    public function crear_venta_falla_caja_cerrada()
+    public function test_crear_venta_falla_caja_cerrada()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario');
@@ -627,9 +573,7 @@ class VentaServiceTest extends TestCase
 
         $this->ventaService->crearVenta($data, $detalles);
     }
-
-    /** @test */
-    public function crear_venta_permite_caja_abierta()
+    public function test_crear_venta_permite_caja_abierta()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario');
@@ -643,9 +587,7 @@ class VentaServiceTest extends TestCase
         $this->assertNotNull($venta->id);
         $this->assertEquals($cajaAbierta->id, $venta->caja_id);
     }
-
-    /** @test */
-    public function crear_venta_permite_sin_caja()
+    public function test_crear_venta_permite_sin_caja()
     {
         // La tabla ventas requiere caja_id NOT NULL en la BD.
         // Este test verifica que cuando viene un número de venta pre-proveído
@@ -670,9 +612,7 @@ class VentaServiceTest extends TestCase
     // ====================================================================
     // E. CUENTA CORRIENTE Y CRÉDITO (5 tests)
     // ====================================================================
-
-    /** @test */
-    public function venta_cc_estado_pendiente()
+    public function test_venta_cc_estado_pendiente()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario');
@@ -692,9 +632,7 @@ class VentaServiceTest extends TestCase
         $this->assertEquals('pendiente', $venta->estado);
         $this->assertTrue($venta->es_cuenta_corriente);
     }
-
-    /** @test */
-    public function venta_cc_falla_credito_insuficiente()
+    public function test_venta_cc_falla_credito_insuficiente()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -722,9 +660,7 @@ class VentaServiceTest extends TestCase
 
         $this->ventaService->crearVenta($data, $detalles);
     }
-
-    /** @test */
-    public function venta_cc_permite_credito_suficiente()
+    public function test_venta_cc_permite_credito_suficiente()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -746,9 +682,7 @@ class VentaServiceTest extends TestCase
         $this->assertNotNull($venta->id);
         $this->assertEquals('pendiente', $venta->estado);
     }
-
-    /** @test */
-    public function venta_cc_ajusta_saldo_cliente()
+    public function test_venta_cc_ajusta_saldo_cliente()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -786,9 +720,7 @@ class VentaServiceTest extends TestCase
             ->first();
         $this->assertNotNull($registro);
     }
-
-    /** @test */
-    public function venta_cc_permite_sin_limite()
+    public function test_venta_cc_permite_sin_limite()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -815,9 +747,7 @@ class VentaServiceTest extends TestCase
     // ====================================================================
     // F. PROMOCIONES (4 tests)
     // ====================================================================
-
-    /** @test */
-    public function venta_guarda_promociones_comunes()
+    public function test_venta_guarda_promociones_comunes()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario');
@@ -863,9 +793,7 @@ class VentaServiceTest extends TestCase
         $this->assertCount(1, $promos);
         $this->assertEquals('Promo 5%', $promos->first()->descripcion_promocion);
     }
-
-    /** @test */
-    public function venta_guarda_promociones_especiales()
+    public function test_venta_guarda_promociones_especiales()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario');
@@ -912,9 +840,7 @@ class VentaServiceTest extends TestCase
         $this->assertCount(1, $promos);
         $this->assertEquals('Combo 2x1', $promos->first()->descripcion_promocion);
     }
-
-    /** @test */
-    public function venta_guarda_promociones_detalle()
+    public function test_venta_guarda_promociones_detalle()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario');
@@ -966,9 +892,7 @@ class VentaServiceTest extends TestCase
 
         $this->assertCount(1, $promos);
     }
-
-    /** @test */
-    public function venta_sin_promociones_no_crea_registros()
+    public function test_venta_sin_promociones_no_crea_registros()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario');
@@ -989,9 +913,7 @@ class VentaServiceTest extends TestCase
     // ====================================================================
     // G. ROLLBACK Y TRANSACCIONES (3 tests)
     // ====================================================================
-
-    /** @test */
-    public function rollback_por_stock_insuficiente()
+    public function test_rollback_por_stock_insuficiente()
     {
         $this->setControlStock('bloquea');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 1, 'unitario');
@@ -1009,9 +931,7 @@ class VentaServiceTest extends TestCase
             $this->assertEquals($ventasAntes, Venta::count());
         }
     }
-
-    /** @test */
-    public function rollback_por_credito_insuficiente()
+    public function test_rollback_por_credito_insuficiente()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -1042,9 +962,7 @@ class VentaServiceTest extends TestCase
             $this->assertEquals($ventasAntes, Venta::count());
         }
     }
-
-    /** @test */
-    public function rollback_por_articulo_inexistente()
+    public function test_rollback_por_articulo_inexistente()
     {
         $this->setControlStock('no_controla');
         $caja = $this->crearCajaAbierta($this->sucursalId);
@@ -1075,9 +993,7 @@ class VentaServiceTest extends TestCase
     // ====================================================================
     // H. EDGE CASES (7 tests)
     // ====================================================================
-
-    /** @test */
-    public function venta_legacy_sin_totales()
+    public function test_venta_legacy_sin_totales()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -1096,9 +1012,7 @@ class VentaServiceTest extends TestCase
         // Debe reflejar 3 unidades
         $this->assertGreaterThan(5000, (float) $venta->total);
     }
-
-    /** @test */
-    public function venta_cantidades_decimales()
+    public function test_venta_cantidades_decimales()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -1115,9 +1029,7 @@ class VentaServiceTest extends TestCase
         $detalle = VentaDetalle::where('venta_id', $venta->id)->first();
         $this->assertEquals('1.50', $detalle->cantidad);
     }
-
-    /** @test */
-    public function venta_con_iva_cero()
+    public function test_venta_con_iva_cero()
     {
         $this->setControlStock('no_controla');
         $tipoIvaCero = $this->tiposIva[3]; // IVA 0%
@@ -1142,9 +1054,7 @@ class VentaServiceTest extends TestCase
             round((float) $detalle->precio_sin_iva, 2)
         );
     }
-
-    /** @test */
-    public function venta_con_descuento_en_detalle_campo()
+    public function test_venta_con_descuento_en_detalle_campo()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -1162,9 +1072,7 @@ class VentaServiceTest extends TestCase
         // El descuento afecta el precio_sin_iva en modo legacy
         $this->assertLessThan(1000, (float) $detalle->precio_sin_iva);
     }
-
-    /** @test */
-    public function venta_con_descuento_promocion()
+    public function test_venta_con_descuento_promocion()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -1192,9 +1100,7 @@ class VentaServiceTest extends TestCase
         // total = subtotal - descuento_promocion
         $this->assertEquals('900.00', $detalle->total);
     }
-
-    /** @test */
-    public function venta_ajuste_manual_en_detalle()
+    public function test_venta_ajuste_manual_en_detalle()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -1223,9 +1129,7 @@ class VentaServiceTest extends TestCase
         $this->assertEquals('100.00', $detalle->ajuste_manual_valor);
         $this->assertEquals('1000.00', $detalle->precio_sin_ajuste_manual);
     }
-
-    /** @test */
-    public function venta_total_final_con_ajuste_forma_pago()
+    public function test_venta_total_final_con_ajuste_forma_pago()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [

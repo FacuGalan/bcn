@@ -37,9 +37,7 @@ class RecetaTest extends TestCase
     // =========================================================================
     // Receta::resolver
     // =========================================================================
-
-    /** @test */
-    public function resolver_override_tiene_prioridad(): void
+    public function test_resolver_override_tiene_prioridad(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'receta');
         $ingrediente = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -86,9 +84,7 @@ class RecetaTest extends TestCase
         $this->assertEquals($recetaOverride->id, $resultado->id);
         $this->assertEquals($this->sucursalId, $resultado->sucursal_id);
     }
-
-    /** @test */
-    public function resolver_default_si_no_hay_override(): void
+    public function test_resolver_default_si_no_hay_override(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'receta');
         $ingrediente = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -117,9 +113,7 @@ class RecetaTest extends TestCase
         $this->assertEquals($recetaDefault->id, $resultado->id);
         $this->assertNull($resultado->sucursal_id);
     }
-
-    /** @test */
-    public function resolver_null_si_override_inactivo(): void
+    public function test_resolver_null_si_override_inactivo(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'receta');
         $ingrediente = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -154,9 +148,7 @@ class RecetaTest extends TestCase
 
         $this->assertNull($resultado);
     }
-
-    /** @test */
-    public function resolver_null_sin_receta(): void
+    public function test_resolver_null_sin_receta(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'receta');
 
@@ -165,9 +157,7 @@ class RecetaTest extends TestCase
 
         $this->assertNull($resultado);
     }
-
-    /** @test */
-    public function receta_carga_ingredientes(): void
+    public function test_receta_carga_ingredientes(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'receta');
         $ingrediente1 = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -209,9 +199,7 @@ class RecetaTest extends TestCase
             $this->assertNotNull($ing->articulo);
         }
     }
-
-    /** @test */
-    public function es_default_vs_es_override(): void
+    public function test_es_default_vs_es_override(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'receta');
 

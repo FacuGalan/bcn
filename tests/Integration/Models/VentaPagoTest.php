@@ -52,9 +52,7 @@ class VentaPagoTest extends TestCase
             'estado' => 'activo',
         ], $pagoOverrides));
     }
-
-    /** @test */
-    public function calcular_monto_con_ajuste_recargo(): void
+    public function test_calcular_monto_con_ajuste_recargo(): void
     {
         $resultado = VentaPago::calcularMontoConAjuste(1000, 10);
 
@@ -63,9 +61,7 @@ class VentaPagoTest extends TestCase
         $this->assertEquals(100, $resultado['monto_ajuste']);
         $this->assertEquals(1100, $resultado['monto_final']);
     }
-
-    /** @test */
-    public function calcular_monto_con_ajuste_descuento(): void
+    public function test_calcular_monto_con_ajuste_descuento(): void
     {
         $resultado = VentaPago::calcularMontoConAjuste(1000, -5);
 
@@ -74,9 +70,7 @@ class VentaPagoTest extends TestCase
         $this->assertEquals(-50, $resultado['monto_ajuste']);
         $this->assertEquals(950, $resultado['monto_final']);
     }
-
-    /** @test */
-    public function calcular_monto_con_cuotas(): void
+    public function test_calcular_monto_con_cuotas(): void
     {
         $resultado = VentaPago::calcularMontoConCuotas(1000, 3, 15);
 
@@ -86,9 +80,7 @@ class VentaPagoTest extends TestCase
         $this->assertEquals(383.33, $resultado['monto_cuota']);
         $this->assertEquals(1150, $resultado['monto_total']);
     }
-
-    /** @test */
-    public function aplicar_cobro_reduce_saldo(): void
+    public function test_aplicar_cobro_reduce_saldo(): void
     {
         $pago = $this->crearVentaConPago([
             'monto_final' => 1000,
@@ -102,9 +94,7 @@ class VentaPagoTest extends TestCase
         $pago->refresh();
         $this->assertEquals('700.00', $pago->saldo_pendiente);
     }
-
-    /** @test */
-    public function aplicar_cobro_no_supera_saldo(): void
+    public function test_aplicar_cobro_no_supera_saldo(): void
     {
         $pago = $this->crearVentaConPago([
             'monto_final' => 1000,
@@ -118,9 +108,7 @@ class VentaPagoTest extends TestCase
         $pago->refresh();
         $this->assertEquals('0.00', $pago->saldo_pendiente);
     }
-
-    /** @test */
-    public function revertir_cobro_aumenta_saldo(): void
+    public function test_revertir_cobro_aumenta_saldo(): void
     {
         $pago = $this->crearVentaConPago([
             'monto_final' => 1000,
@@ -134,9 +122,7 @@ class VentaPagoTest extends TestCase
         $pago->refresh();
         $this->assertEquals('800.00', $pago->saldo_pendiente);
     }
-
-    /** @test */
-    public function revertir_cobro_no_supera_monto_final(): void
+    public function test_revertir_cobro_no_supera_monto_final(): void
     {
         $pago = $this->crearVentaConPago([
             'monto_final' => 1000,
@@ -150,9 +136,7 @@ class VentaPagoTest extends TestCase
         $pago->refresh();
         $this->assertEquals('1000.00', $pago->saldo_pendiente);
     }
-
-    /** @test */
-    public function scope_cuenta_corriente(): void
+    public function test_scope_cuenta_corriente(): void
     {
         $this->crearVentaConPago(['es_cuenta_corriente' => true]);
         $this->crearVentaConPago(['es_cuenta_corriente' => true]);
@@ -162,9 +146,7 @@ class VentaPagoTest extends TestCase
 
         $this->assertEquals(2, $cc);
     }
-
-    /** @test */
-    public function scope_con_saldo_pendiente(): void
+    public function test_scope_con_saldo_pendiente(): void
     {
         $this->crearVentaConPago(['saldo_pendiente' => 500]);
         $this->crearVentaConPago(['saldo_pendiente' => 100]);
@@ -174,26 +156,20 @@ class VentaPagoTest extends TestCase
 
         $this->assertEquals(2, $conSaldo);
     }
-
-    /** @test */
-    public function tiene_cuotas_true_con_mas_de_una(): void
+    public function test_tiene_cuotas_true_con_mas_de_una(): void
     {
         $pago = $this->crearVentaConPago(['cuotas' => 3]);
 
         $this->assertTrue($pago->tieneCuotas());
     }
-
-    /** @test */
-    public function es_recargo_true_ajuste_positivo(): void
+    public function test_es_recargo_true_ajuste_positivo(): void
     {
         $pago = $this->crearVentaConPago(['ajuste_porcentaje' => 10]);
 
         $this->assertTrue($pago->esRecargo());
         $this->assertFalse($pago->esDescuento());
     }
-
-    /** @test */
-    public function es_descuento_true_ajuste_negativo(): void
+    public function test_es_descuento_true_ajuste_negativo(): void
     {
         $pago = $this->crearVentaConPago(['ajuste_porcentaje' => -5]);
 

@@ -44,9 +44,7 @@ class VentaServicePagosCCTest extends TestCase
     // =========================================================================
     // procesarPagosCuentaCorriente
     // =========================================================================
-
-    /** @test */
-    public function procesar_pagos_cc_registra_debe(): void
+    public function test_procesar_pagos_cc_registra_debe(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 1500);
@@ -61,9 +59,7 @@ class VentaServicePagosCCTest extends TestCase
         $this->assertNotNull($movDebe);
         $this->assertEquals(1500, (float) $movDebe->debe);
     }
-
-    /** @test */
-    public function procesar_pagos_cc_registra_haber_por_pago_no_cc(): void
+    public function test_procesar_pagos_cc_registra_haber_por_pago_no_cc(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
 
@@ -145,9 +141,7 @@ class VentaServicePagosCCTest extends TestCase
         $this->assertNotNull($movHaber);
         $this->assertEquals(1000, (float) $movHaber->haber);
     }
-
-    /** @test */
-    public function procesar_pagos_cc_no_registra_haber_para_cc(): void
+    public function test_procesar_pagos_cc_no_registra_haber_para_cc(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 1000);
@@ -165,9 +159,7 @@ class VentaServicePagosCCTest extends TestCase
     // =========================================================================
     // registrarMovimientoCCPago
     // =========================================================================
-
-    /** @test */
-    public function registrar_movimiento_cc_pago_crea_movimiento(): void
+    public function test_registrar_movimiento_cc_pago_crea_movimiento(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 800);
@@ -181,9 +173,7 @@ class VentaServicePagosCCTest extends TestCase
         $this->assertNotNull($movimiento);
         $this->assertInstanceOf(MovimientoCuentaCorriente::class, $movimiento);
     }
-
-    /** @test */
-    public function registrar_movimiento_cc_pago_ignora_no_cc(): void
+    public function test_registrar_movimiento_cc_pago_ignora_no_cc(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'ninguno');
@@ -240,9 +230,7 @@ class VentaServicePagosCCTest extends TestCase
 
         $this->assertNull($resultado);
     }
-
-    /** @test */
-    public function registrar_movimiento_cc_pago_ignora_sin_cliente(): void
+    public function test_registrar_movimiento_cc_pago_ignora_sin_cliente(): void
     {
         // Venta sin cliente
         $ccData = $this->crearFormaPagoCC();
@@ -299,9 +287,7 @@ class VentaServicePagosCCTest extends TestCase
 
         $this->assertNull($resultado);
     }
-
-    /** @test */
-    public function procesar_pagos_cc_actualiza_saldo(): void
+    public function test_procesar_pagos_cc_actualiza_saldo(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 2000);
@@ -315,9 +301,7 @@ class VentaServicePagosCCTest extends TestCase
 
         $this->assertEquals(2000, (float) $ventaPagoCC->saldo_pendiente);
     }
-
-    /** @test */
-    public function registrar_movimiento_cc_pago_tipo_venta(): void
+    public function test_registrar_movimiento_cc_pago_tipo_venta(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 1200);

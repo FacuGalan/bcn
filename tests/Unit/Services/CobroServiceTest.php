@@ -46,9 +46,7 @@ class CobroServiceTest extends TestCase
     // =========================================================================
     // registrarCobro (10 tests)
     // =========================================================================
-
-    /** @test */
-    public function cobro_a_una_venta(): void
+    public function test_cobro_a_una_venta(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 1000);
@@ -94,9 +92,7 @@ class CobroServiceTest extends TestCase
         $this->assertNotNull($cobroVenta);
         $this->assertEquals(1000, (float) $cobroVenta->monto_aplicado);
     }
-
-    /** @test */
-    public function cobro_parcial(): void
+    public function test_cobro_parcial(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 1000);
@@ -136,9 +132,7 @@ class CobroServiceTest extends TestCase
         $ventaPago->refresh();
         $this->assertEquals(500, (float) $ventaPago->saldo_pendiente);
     }
-
-    /** @test */
-    public function cobro_a_multiples_ventas(): void
+    public function test_cobro_a_multiples_ventas(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta1 = $this->crearVentaCC($cliente->id, 600);
@@ -187,9 +181,7 @@ class CobroServiceTest extends TestCase
         $cobroVentas = CobroVenta::where('cobro_id', $cobro->id)->get();
         $this->assertCount(2, $cobroVentas);
     }
-
-    /** @test */
-    public function cobro_genera_numero_recibo(): void
+    public function test_cobro_genera_numero_recibo(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 500);
@@ -228,9 +220,7 @@ class CobroServiceTest extends TestCase
         // Formato: RC-XX-NNNNNNNN
         $this->assertMatchesRegularExpression('/^RC-\d{2}-\d{8}$/', $cobro->numero_recibo);
     }
-
-    /** @test */
-    public function cobro_excedente_como_saldo_favor(): void
+    public function test_cobro_excedente_como_saldo_favor(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 500);
@@ -270,9 +260,7 @@ class CobroServiceTest extends TestCase
 
         $this->assertEquals(300, (float) $cobro->monto_a_favor);
     }
-
-    /** @test */
-    public function cobro_valida_saldo_favor(): void
+    public function test_cobro_valida_saldo_favor(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 1000);
@@ -312,9 +300,7 @@ class CobroServiceTest extends TestCase
             ],
         );
     }
-
-    /** @test */
-    public function cobro_usa_saldo_favor(): void
+    public function test_cobro_usa_saldo_favor(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 500);
@@ -353,9 +339,7 @@ class CobroServiceTest extends TestCase
 
         $this->assertEquals(0, (float) $cobro->saldo_favor_usado);
     }
-
-    /** @test */
-    public function cobro_marca_completada_si_saldo_cero(): void
+    public function test_cobro_marca_completada_si_saldo_cero(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 1000);
@@ -395,9 +379,7 @@ class CobroServiceTest extends TestCase
         $venta->refresh();
         $this->assertEquals('completada', $venta->estado);
     }
-
-    /** @test */
-    public function cobro_registra_movimiento_caja(): void
+    public function test_cobro_registra_movimiento_caja(): void
     {
         // Verificar que el cobro se crea correctamente sin caja (afecta_caja=false)
         $cliente = $this->crearClienteConCC($this->sucursalId);
@@ -437,9 +419,7 @@ class CobroServiceTest extends TestCase
         $this->assertInstanceOf(Cobro::class, $cobro);
         $this->assertEquals(500, (float) $cobro->monto_cobrado);
     }
-
-    /** @test */
-    public function cobro_saldos_correctos_en_cobro_venta(): void
+    public function test_cobro_saldos_correctos_en_cobro_venta(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 2000);
@@ -483,9 +463,7 @@ class CobroServiceTest extends TestCase
     // =========================================================================
     // registrarAnticipo (2 tests)
     // =========================================================================
-
-    /** @test */
-    public function anticipo_sin_ventas(): void
+    public function test_anticipo_sin_ventas(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $efectivo = $this->crearFormaPagoEfectivo();
@@ -512,9 +490,7 @@ class CobroServiceTest extends TestCase
         $this->assertEquals('anticipo', $cobro->tipo);
         $this->assertEquals(3000, (float) $cobro->monto_cobrado);
     }
-
-    /** @test */
-    public function anticipo_con_ventas_vacias(): void
+    public function test_anticipo_con_ventas_vacias(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $efectivo = $this->crearFormaPagoEfectivo();
@@ -547,9 +523,7 @@ class CobroServiceTest extends TestCase
     // =========================================================================
     // calcularInteresMora (4 tests)
     // =========================================================================
-
-    /** @test */
-    public function calcula_interes_por_dias_vencidos(): void
+    public function test_calcula_interes_por_dias_vencidos(): void
     {
         // Vencio hace 30 dias, tasa 5%, saldo 1000.
         // El service calcula: $hoy->diffInDays($vencimiento) donde $vencimiento está en el pasado.
@@ -565,9 +539,7 @@ class CobroServiceTest extends TestCase
 
         $this->assertEquals(-50, $interes);
     }
-
-    /** @test */
-    public function sin_fecha_vencimiento_retorna_cero(): void
+    public function test_sin_fecha_vencimiento_retorna_cero(): void
     {
         $venta = (object) [
             'fecha_vencimiento' => null,
@@ -579,9 +551,7 @@ class CobroServiceTest extends TestCase
 
         $this->assertEquals(0, $interes);
     }
-
-    /** @test */
-    public function no_vencida_retorna_cero(): void
+    public function test_no_vencida_retorna_cero(): void
     {
         $venta = (object) [
             'fecha_vencimiento' => Carbon::now()->addDays(10)->toDateString(),
@@ -593,9 +563,7 @@ class CobroServiceTest extends TestCase
 
         $this->assertEquals(0, $interes);
     }
-
-    /** @test */
-    public function tasa_cero_retorna_cero(): void
+    public function test_tasa_cero_retorna_cero(): void
     {
         $venta = (object) [
             'fecha_vencimiento' => Carbon::now()->subDays(30)->toDateString(),
@@ -611,9 +579,7 @@ class CobroServiceTest extends TestCase
     // =========================================================================
     // distribuirMontoFIFO (3 tests)
     // =========================================================================
-
-    /** @test */
-    public function distribuye_por_antiguedad(): void
+    public function test_distribuye_por_antiguedad(): void
     {
         // Venta mas vieja primero
         $ventas = collect([
@@ -643,9 +609,7 @@ class CobroServiceTest extends TestCase
         $this->assertEquals(500, $distribucion[0]['monto_aplicado']);
         $this->assertEquals(200, $distribucion[1]['monto_aplicado']);
     }
-
-    /** @test */
-    public function no_excede_monto(): void
+    public function test_no_excede_monto(): void
     {
         $ventas = collect([
             (object) [
@@ -675,9 +639,7 @@ class CobroServiceTest extends TestCase
         $this->assertCount(1, $distribucion);
         $this->assertEquals(300, $distribucion[0]['monto_aplicado']);
     }
-
-    /** @test */
-    public function distribuye_todo_si_excede_deudas(): void
+    public function test_distribuye_todo_si_excede_deudas(): void
     {
         $ventas = collect([
             (object) [
@@ -711,9 +673,7 @@ class CobroServiceTest extends TestCase
     // =========================================================================
     // anularCobro (3 tests)
     // =========================================================================
-
-    /** @test */
-    public function anula_y_revierte_saldos(): void
+    public function test_anula_y_revierte_saldos(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 1000);
@@ -758,9 +718,7 @@ class CobroServiceTest extends TestCase
         $vp->refresh();
         $this->assertEquals(1000, (float) $vp->saldo_pendiente);
     }
-
-    /** @test */
-    public function falla_si_ya_anulado(): void
+    public function test_falla_si_ya_anulado(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 500);
@@ -804,9 +762,7 @@ class CobroServiceTest extends TestCase
         $this->expectExceptionMessage('ya está anulado');
         $this->cobroService->anularCobro($cobro->id, 'Segunda anulacion');
     }
-
-    /** @test */
-    public function falla_si_cierre_turno(): void
+    public function test_falla_si_cierre_turno(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
         $venta = $this->crearVentaCC($cliente->id, 500);
