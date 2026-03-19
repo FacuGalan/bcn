@@ -891,6 +891,15 @@ class TurnoActual extends Component
     }
 
     /**
+     * Cancela la apertura de turno y cierra el modal
+     */
+    public function cancelarApertura(): void
+    {
+        $this->showAperturaModal = false;
+        $this->resetAperturaForm();
+    }
+
+    /**
      * Abre el modal de cierre de turno
      */
     public function abrirModalCierre(?int $cajaId = null, ?int $grupoId = null): void

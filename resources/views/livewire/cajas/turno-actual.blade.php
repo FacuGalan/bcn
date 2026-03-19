@@ -284,855 +284,772 @@
 
     {{-- Modal de Apertura de Turno --}}
     @if($showAperturaModal)
-    <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity" wire:click="$set('showAperturaModal', false)"></div>
-
-            <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-xl sm:w-full">
-                <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                    <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-                        <div>
-                            <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
-                                {{ __('Abrir Turno') }}
-                            </h3>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">
-                                @if($esAperturaGrupal)
-                                    {{ __('Apertura grupal') }} - {{ count($cajasAAbrir) }} {{ __('cajas') }}
-                                @else
-                                    {{ __('Apertura individual') }}
-                                @endif
-                            </p>
-                        </div>
-                        <button wire:click="$set('showAperturaModal', false)" class="text-gray-400 hover:text-gray-500">
-                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+    <x-bcn-modal
+        :show="$showAperturaModal"
+        :title="__('Abrir Turno')"
+        color="bg-green-600"
+        maxWidth="xl"
+        onClose="cancelarApertura"
+    >
+        <x-slot:body>
+            <div class="space-y-4">
+                {{-- Si el grupo usa fondo común, mostrar un solo input --}}
+                @if($esAperturaGrupal && $grupoUsaFondoComun)
+                    @php $grupoInfo = $this->getGrupoParaApertura(); @endphp
+                    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                        <div class="flex items-center mb-3">
+                            <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
                             </svg>
-                        </button>
+                            <h4 class="font-semibold text-blue-900 dark:text-blue-300">
+                                {{ __('Fondo Comun del Grupo') }}
+                            </h4>
+                        </div>
+                        <p class="text-sm text-blue-700 dark:text-blue-400 mb-3">
+                            {{ __('Este grupo utiliza fondo comun. El monto ingresado sera compartido entre las') }} {{ $grupoInfo['cantidad_cajas'] ?? count($cajasAAbrir) }} {{ __('cajas.') }}
+                        </p>
+                        <div>
+                            <label class="block text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">
+                                {{ __('Fondo Comun Total') }}
+                            </label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-blue-600">$</span>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    wire:model.blur="fondoComunTotal"
+                                    x-init="$nextTick(() => $el.focus())"
+                                    class="block w-full pl-8 pr-4 py-3 text-xl font-bold border-blue-300 dark:border-blue-600 bg-white dark:bg-gray-700 text-blue-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                    placeholder="0.00"
+                                >
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="space-y-4">
-                        {{-- Si el grupo usa fondo común, mostrar un solo input --}}
-                        @if($esAperturaGrupal && $grupoUsaFondoComun)
-                            @php $grupoInfo = $this->getGrupoParaApertura(); @endphp
-                            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                                <div class="flex items-center mb-3">
-                                    <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
-                                    </svg>
-                                    <h4 class="font-semibold text-blue-900 dark:text-blue-300">
-                                        {{ __('Fondo Comun del Grupo') }}
-                                    </h4>
-                                </div>
-                                <p class="text-sm text-blue-700 dark:text-blue-400 mb-3">
-                                    {{ __('Este grupo utiliza fondo comun. El monto ingresado sera compartido entre las') }} {{ $grupoInfo['cantidad_cajas'] ?? count($cajasAAbrir) }} {{ __('cajas.') }}
-                                </p>
-                                <div>
-                                    <label class="block text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">
-                                        {{ __('Fondo Comun Total') }}
-                                    </label>
-                                    <div class="relative">
-                                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-blue-600">$</span>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            wire:model.blur="fondoComunTotal"
-                                            x-init="$nextTick(() => $el.focus())"
-                                            class="block w-full pl-8 pr-4 py-3 text-xl font-bold border-blue-300 dark:border-blue-600 bg-white dark:bg-gray-700 text-blue-900 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                                            placeholder="0.00"
-                                        >
-                                    </div>
-                                </div>
-                            </div>
-
-                            {{-- Lista informativa de cajas que se abrirán --}}
-                            <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                                <h5 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Cajas que se abriran:') }}</h5>
-                                <div class="flex flex-wrap gap-2">
-                                    @foreach($cajasAAbrir as $cajaId)
-                                        @php $cajaApertura = $this->getCajaParaApertura($cajaId); @endphp
-                                        @if($cajaApertura)
-                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300">
-                                            {{ $cajaApertura['nombre'] }} #{{ $cajaApertura['numero'] }}
-                                        </span>
-                                        @endif
-                                    @endforeach
-                                </div>
-                            </div>
-                        @else
-                            {{-- Fondo individual por caja (comportamiento original) --}}
+                    {{-- Lista informativa de cajas que se abrirán --}}
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                        <h5 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Cajas que se abriran:') }}</h5>
+                        <div class="flex flex-wrap gap-2">
                             @foreach($cajasAAbrir as $cajaId)
-                            @php $cajaApertura = $this->getCajaParaApertura($cajaId); @endphp
-                            @if($cajaApertura)
-                            <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                                <div class="flex items-center justify-between mb-3">
-                                    <h4 class="font-medium text-gray-900 dark:text-white">
-                                        {{ $cajaApertura['nombre'] }}
-                                        <span class="text-sm font-normal text-gray-500">#{{ $cajaApertura['numero'] }}</span>
-                                    </h4>
-                                    <span class="text-xs px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300">
-                                        @switch($cajaApertura['modo_carga'])
-                                            @case('ultimo_cierre')
-                                                {{ __('Auto (ultimo cierre)') }}
-                                                @break
-                                            @case('monto_fijo')
-                                                {{ __('Auto') }} (${{ number_format($cajaApertura['monto_fijo'], 0) }})
-                                                @break
-                                            @default
-                                                {{ __('Manual') }}
-                                        @endswitch
-                                    </span>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        {{ __('Fondo Inicial') }}
-                                    </label>
-                                    <div class="relative">
-                                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">$</span>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            wire:model.live="fondosIniciales.{{ $cajaId }}"
-                                            @if($loop->first) x-init="$nextTick(() => $el.focus())" @endif
-                                            class="block w-full pl-8 pr-4 py-2.5 text-lg font-semibold border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-bcn-primary focus:border-bcn-primary"
-                                            placeholder="0.00"
-                                        >
-                                    </div>
-                                </div>
-                            </div>
-                            @endif
+                                @php $cajaApertura = $this->getCajaParaApertura($cajaId); @endphp
+                                @if($cajaApertura)
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300">
+                                    {{ $cajaApertura['nombre'] }} #{{ $cajaApertura['numero'] }}
+                                </span>
+                                @endif
                             @endforeach
-                        @endif
-                    </div>
-                </div>
-
-                <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-3">
-                    <button
-                        wire:click="procesarApertura"
-                        wire:loading.attr="disabled"
-                        class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:w-auto sm:text-sm disabled:opacity-50"
-                    >
-                        <svg wire:loading wire:target="procesarApertura" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        {{ __('Abrir Turno') }}
-                    </button>
-                    <button
-                        wire:click="$set('showAperturaModal', false)"
-                        type="button"
-                        class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 sm:mt-0 sm:w-auto sm:text-sm"
-                    >
-                        {{ __('Cancelar') }}
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-    @endif
-
-    {{-- Modal de Cierre de Turno - Pantalla completa --}}
-    @if($showCierreModal)
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-4" aria-labelledby="modal-title" role="dialog" aria-modal="true"
-         x-data="{ init() { document.body.classList.add('overflow-hidden') }, destroy() { document.body.classList.remove('overflow-hidden') } }">
-        {{-- Overlay --}}
-        <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity" wire:click="cancelarCierre"></div>
-
-        {{-- Modal Container - altura máxima adaptativa --}}
-        <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-            {{-- Header fijo --}}
-            <div class="flex-shrink-0 px-5 py-3 border-b border-gray-200 dark:border-gray-700">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center">
-                        <svg class="w-5 h-5 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                        </svg>
-                        {{ __('Cierre de Turno') }}
-                        <span class="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
-                            @if($esCierreGrupal)
-                                — {{ __('Cierre grupal') }} ({{ count($cajasACerrar) }} {{ __('cajas') }})
-                            @else
-                                — {{ __('Cierre individual') }}
-                            @endif
-                        </span>
-                    </h3>
-                    <button wire:click="cancelarCierre" class="p-1.5 text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-
-            {{-- Contenido scrolleable --}}
-            <div class="flex-1 overflow-y-auto px-5 py-3">
-                <div class="space-y-3">
-                    @if($cierreUsaFondoComun)
-                        {{-- VISTA CONSOLIDADA PARA FONDO COMUN --}}
-                        @php $datosConsolidados = $this->getDatosConsolidadosCierre(); @endphp
-                        @if($datosConsolidados)
-                        <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-700">
-                            {{-- Header del grupo --}}
-                            <div class="flex items-center justify-between mb-3">
-                                <h4 class="text-base font-semibold text-gray-900 dark:text-white flex items-center">
-                                    <svg class="w-4 h-4 text-blue-600 dark:text-blue-400 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
-                                    </svg>
-                                    {{ $datosConsolidados['grupo_nombre'] }}
-                                    <span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800/30 dark:text-green-300">
-                                        {{ __('Fondo Comun') }}
-                                    </span>
-                                </h4>
-                                <span class="text-xs text-gray-500 dark:text-gray-400">
-                                    {{ $datosConsolidados['cantidad_cajas'] }} {{ __('cajas') }}
-                                </span>
-                            </div>
-
-                            {{-- Resumen consolidado - compacto inline --}}
-                            <div class="grid grid-cols-4 gap-2 mb-3">
-                                <div class="bg-white dark:bg-gray-800 rounded-lg px-2 py-1.5 text-center border border-gray-100 dark:border-gray-600">
-                                    <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('Fondo') }}</p>
-                                    <p class="text-sm font-bold text-gray-900 dark:text-white">${{ number_format($datosConsolidados['fondo_inicial'], 2, ',', '.') }}</p>
-                                </div>
-                                <div class="bg-white dark:bg-gray-800 rounded-lg px-2 py-1.5 text-center border border-gray-100 dark:border-gray-600">
-                                    <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('Ing.') }}</p>
-                                    <p class="text-sm font-bold text-green-600 dark:text-green-400">+${{ number_format($datosConsolidados['total_ingresos'], 2, ',', '.') }}</p>
-                                </div>
-                                <div class="bg-white dark:bg-gray-800 rounded-lg px-2 py-1.5 text-center border border-gray-100 dark:border-gray-600">
-                                    <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('Egr.') }}</p>
-                                    <p class="text-sm font-bold text-red-600 dark:text-red-400">-${{ number_format($datosConsolidados['total_egresos'], 2, ',', '.') }}</p>
-                                </div>
-                                <div class="bg-blue-100 dark:bg-blue-900/50 rounded-lg px-2 py-1.5 text-center border border-blue-300 dark:border-blue-600">
-                                    <p class="text-[10px] text-blue-700 dark:text-blue-300 uppercase tracking-wide font-medium">{{ __('Saldo') }}</p>
-                                    <p class="text-sm font-bold text-blue-800 dark:text-blue-200">${{ number_format($datosConsolidados['saldo_sistema'], 2, ',', '.') }}</p>
-                                </div>
-                            </div>
-
-                            {{-- Detalle por caja (compacto) --}}
-                            <div class="mb-3">
-                                <div class="flex flex-wrap gap-1.5">
-                                    @foreach($datosConsolidados['cajas'] as $cajaInfo)
-                                    <span class="inline-flex items-center px-2 py-1 rounded-md bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-xs">
-                                        <span class="font-medium text-gray-700 dark:text-gray-300">{{ $cajaInfo['nombre'] }}:</span>
-                                        <span class="ml-1 text-green-600 dark:text-green-400">+${{ number_format($cajaInfo['ingresos'], 2, ',', '.') }}</span>
-                                        @if($cajaInfo['egresos'] > 0)
-                                        <span class="ml-1 text-red-600 dark:text-red-400">-${{ number_format($cajaInfo['egresos'], 2, ',', '.') }}</span>
-                                        @endif
-                                    </span>
-                                    @endforeach
-                                </div>
-                            </div>
-
-                            @php $monedasConsFC = $datosConsolidados['monedasConsolidadas'] ?? []; @endphp
-
-                            @if(!empty($monedasConsFC))
-                            {{-- ═══ ARQUEO POR MONEDA (fondo común con extranjeras) ═══ --}}
-                            <div>
-                                <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-2">{{ __('Arqueo por Moneda') }}</p>
-
-                                {{-- Grid: ARS + monedas extranjeras lado a lado --}}
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
-                                    {{-- Input moneda principal (ARS) --}}
-                                    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-700">
-                                        <div class="flex items-center justify-between mb-1.5">
-                                            <label class="text-xs font-semibold text-blue-800 dark:text-blue-200">
-                                                {{ __('Pesos contados') }}
-                                            </label>
-                                            <span class="text-[10px] text-blue-600 dark:text-blue-400">
-                                                {{ __('En caja') }}: ${{ number_format($datosConsolidados['saldo_sistema_principal'], 2, ',', '.') }}
-                                            </span>
-                                        </div>
-                                        <div class="relative">
-                                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-blue-400 text-lg font-medium">$</span>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                wire:model.live.debounce.300ms="saldoDeclaradoFondoComun"
-                                                x-init="$nextTick(() => $el.focus())"
-                                                class="block w-full pl-8 pr-3 py-2 text-lg font-bold border-blue-300 dark:border-blue-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center"
-                                                placeholder="0,00"
-                                            >
-                                        </div>
-                                        @php
-                                            $saldoDeclaradoFC = $saldoDeclaradoFondoComun !== '' ? (float)$saldoDeclaradoFondoComun : null;
-                                            $saldoSistemaFCPrincipal = $datosConsolidados['saldo_sistema_principal'];
-                                            $diferenciaFC = $saldoDeclaradoFC !== null ? $saldoDeclaradoFC - $saldoSistemaFCPrincipal : null;
-                                        @endphp
-                                        @if($saldoDeclaradoFC !== null)
-                                        <div class="mt-1.5 py-1 px-2 rounded text-center text-xs {{ $diferenciaFC == 0 ? 'bg-green-100 dark:bg-green-900/40' : ($diferenciaFC > 0 ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-red-100 dark:bg-red-900/40') }}">
-                                            @if($diferenciaFC == 0)
-                                                <span class="font-bold text-green-700 dark:text-green-400">{{ __('Cuadrado') }}</span>
-                                            @elseif($diferenciaFC > 0)
-                                                <span class="font-bold text-amber-700 dark:text-amber-400">{{ __('Sobrante') }}: +${{ number_format($diferenciaFC, 2, ',', '.') }}</span>
-                                            @else
-                                                <span class="font-bold text-red-700 dark:text-red-400">{{ __('Faltante') }}: -${{ number_format(abs($diferenciaFC), 2, ',', '.') }}</span>
-                                            @endif
-                                        </div>
-                                        @endif
-                                    </div>
-
-                                    {{-- Inputs monedas extranjeras --}}
-                                    @foreach($monedasConsFC as $codMoneda => $infoMoneda)
-                                    <div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 dark:border-amber-700">
-                                        <div class="flex items-center justify-between mb-1.5">
-                                            <label class="text-xs font-semibold text-amber-800 dark:text-amber-200">
-                                                {{ $infoMoneda['nombre'] }}
-                                            </label>
-                                            <span class="text-[10px] text-amber-600 dark:text-amber-400">
-                                                {{ __('En caja') }}: {{ $infoMoneda['simbolo'] }} {{ number_format($infoMoneda['saldo_sistema'], 2, ',', '.') }}
-                                            </span>
-                                        </div>
-                                        <div class="relative">
-                                            <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-amber-500 text-sm font-medium">{{ $infoMoneda['simbolo'] }}</span>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                wire:model.live.debounce.300ms="declaradosMoneda.0.{{ $codMoneda }}"
-                                                class="block w-full pl-10 pr-3 py-2 text-lg font-bold border-amber-300 dark:border-amber-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-center"
-                                                placeholder="0,00"
-                                            >
-                                        </div>
-                                        @php
-                                            $decMonedaFC = isset($declaradosMoneda[0][$codMoneda]) && $declaradosMoneda[0][$codMoneda] !== '' ? (float)$declaradosMoneda[0][$codMoneda] : null;
-                                            $difMonedaFC2 = $decMonedaFC !== null ? $decMonedaFC - $infoMoneda['saldo_sistema'] : null;
-                                        @endphp
-                                        @if($decMonedaFC !== null)
-                                        <div class="mt-1.5 py-1 px-2 rounded text-center text-xs {{ $difMonedaFC2 == 0 ? 'bg-green-100 dark:bg-green-900/40' : ($difMonedaFC2 > 0 ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-red-100 dark:bg-red-900/40') }}">
-                                            @if($difMonedaFC2 == 0)
-                                                <span class="font-bold text-green-700 dark:text-green-400">{{ __('Cuadrado') }}</span>
-                                            @elseif($difMonedaFC2 > 0)
-                                                <span class="font-bold text-amber-700 dark:text-amber-400">{{ __('Sobrante') }}: +{{ $infoMoneda['simbolo'] }} {{ number_format($difMonedaFC2, 2, ',', '.') }}</span>
-                                            @else
-                                                <span class="font-bold text-red-700 dark:text-red-400">{{ __('Faltante') }}: -{{ $infoMoneda['simbolo'] }} {{ number_format(abs($difMonedaFC2), 2, ',', '.') }}</span>
-                                            @endif
-                                        </div>
-                                        @endif
-                                    </div>
-                                    @endforeach
-                                </div>
-
-                                {{-- Total Equivalente (compacto inline) --}}
-                                @php
-                                    $totalEquivFC = ($saldoDeclaradoFC ?? 0);
-                                    $detallePartsFC = [];
-                                    if ($saldoDeclaradoFC !== null) $detallePartsFC[] = '$' . number_format($saldoDeclaradoFC, 0, ',', '.');
-                                    foreach ($monedasConsFC as $codM => $infoM) {
-                                        $decM = isset($declaradosMoneda[0][$codM]) && $declaradosMoneda[0][$codM] !== '' ? (float)$declaradosMoneda[0][$codM] : null;
-                                        if ($decM !== null) {
-                                            $detallePartsFC[] = $infoM['simbolo'] . ' ' . number_format($decM, 2, ',', '.');
-                                            $totalEquivFC += ($infoM['saldo_sistema'] > 0 ? ($infoM['saldo_convertido'] / $infoM['saldo_sistema']) * $decM : 0);
-                                        }
-                                    }
-                                @endphp
-                                @if(count($detallePartsFC) > 0)
-                                <div class="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 py-2 flex items-center justify-between">
-                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Total equivalente') }}: {{ implode(' + ', $detallePartsFC) }}</span>
-                                    <span class="text-sm font-bold text-gray-900 dark:text-white">≈ ${{ number_format($totalEquivFC, 2, ',', '.') }}</span>
-                                </div>
-                                @endif
-                            </div>
-                            @else
-                            {{-- ═══ ARQUEO UNICO (fondo común sin extranjeras) ═══ --}}
-                            <div class="bg-white dark:bg-gray-800 rounded-lg p-3 border-2 border-blue-300 dark:border-blue-600">
-                                <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
-                                    {{ __('Efectivo Total Contado (Arqueo del Fondo Comun)') }}
-                                </label>
-                                <div class="relative">
-                                    <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-400 text-lg font-medium">$</span>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        wire:model.live.debounce.300ms="saldoDeclaradoFondoComun"
-                                        x-init="$nextTick(() => $el.focus())"
-                                        class="block w-full pl-10 pr-4 py-2.5 text-xl font-bold border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center"
-                                        :placeholder="__('Ingrese el total del efectivo')"
-                                    >
-                                </div>
-
-                                @php
-                                    $saldoDeclaradoFC = $saldoDeclaradoFondoComun !== '' ? (float)$saldoDeclaradoFondoComun : null;
-                                    $saldoSistemaFC = $datosConsolidados['saldo_sistema'];
-                                    $diferenciaFC = $saldoDeclaradoFC !== null ? $saldoDeclaradoFC - $saldoSistemaFC : null;
-                                @endphp
-
-                                @if($saldoDeclaradoFC !== null)
-                                <div class="mt-2 py-1.5 px-3 rounded-lg text-center {{ $diferenciaFC == 0 ? 'bg-green-100 dark:bg-green-900/40' : ($diferenciaFC > 0 ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-red-100 dark:bg-red-900/40') }}">
-                                    <div class="flex items-center justify-center space-x-1.5">
-                                        @if($diferenciaFC == 0)
-                                            <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                            </svg>
-                                            <span class="text-sm font-bold text-green-700 dark:text-green-400">{{ __('Fondo Cuadrado') }}</span>
-                                        @elseif($diferenciaFC > 0)
-                                            <svg class="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                                            </svg>
-                                            <span class="text-sm font-bold text-amber-700 dark:text-amber-400">{{ __('Sobrante') }}: +${{ number_format($diferenciaFC, 2, ',', '.') }}</span>
-                                        @else
-                                            <svg class="w-4 h-4 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                            </svg>
-                                            <span class="text-sm font-bold text-red-700 dark:text-red-400">{{ __('Faltante') }}: -${{ number_format(abs($diferenciaFC), 2, ',', '.') }}</span>
-                                        @endif
-                                    </div>
-                                </div>
-                                @else
-                                <p class="mt-2 text-xs text-center text-gray-500 dark:text-gray-400">
-                                    {{ __('Ingrese el efectivo total contado para calcular la diferencia') }}
-                                </p>
-                                @endif
-                            </div>
-                            @endif
                         </div>
-                        @endif
-                    @else
-                        {{-- VISTA NORMAL (por caja individual) --}}
-                        @foreach($cajasACerrar as $cajaId)
-                        @php $cajaCierre = $this->getCajaParaCierre($cajaId); @endphp
-                        @if($cajaCierre)
-                        <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 border border-gray-200 dark:border-gray-600">
-                            {{-- Nombre de la caja --}}
-                            <div class="flex items-center justify-between mb-3">
-                                <h4 class="text-base font-semibold text-gray-900 dark:text-white flex items-center">
-                                    <svg class="w-4 h-4 text-blue-600 dark:text-blue-400 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
-                                    </svg>
-                                    {{ $cajaCierre['nombre'] }}
-                                    <span class="ml-1.5 text-sm font-normal text-gray-500 dark:text-gray-400">#{{ $cajaCierre['numero'] }}</span>
-                                </h4>
-                                @if($cajaCierre['fecha_apertura'])
-                                <span class="text-xs text-gray-500 dark:text-gray-400">
-                                    {{ __('Abierta') }}: {{ $cajaCierre['fecha_apertura'] }}
-                                </span>
-                                @endif
-                            </div>
-
-                            {{-- Resumen de operaciones - compacto --}}
-                            <div class="grid grid-cols-4 gap-2 mb-3">
-                                <div class="bg-white dark:bg-gray-800 rounded-lg px-2 py-1.5 text-center border border-gray-100 dark:border-gray-600">
-                                    <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('Fondo') }}</p>
-                                    <p class="text-sm font-bold text-gray-900 dark:text-white">${{ number_format($cajaCierre['saldo_inicial'], 2, ',', '.') }}</p>
-                                </div>
-                                <div class="bg-white dark:bg-gray-800 rounded-lg px-2 py-1.5 text-center border border-gray-100 dark:border-gray-600">
-                                    <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('Ing.') }}</p>
-                                    <p class="text-sm font-bold text-green-600 dark:text-green-400">+${{ number_format($cajaCierre['ingresos'] ?? 0, 2, ',', '.') }}</p>
-                                </div>
-                                <div class="bg-white dark:bg-gray-800 rounded-lg px-2 py-1.5 text-center border border-gray-100 dark:border-gray-600">
-                                    <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('Egr.') }}</p>
-                                    <p class="text-sm font-bold text-red-600 dark:text-red-400">-${{ number_format($cajaCierre['egresos'] ?? 0, 2, ',', '.') }}</p>
-                                </div>
-                                <div class="bg-blue-50 dark:bg-blue-900/30 rounded-lg px-2 py-1.5 text-center border border-blue-200 dark:border-blue-700">
-                                    <p class="text-[10px] text-blue-600 dark:text-blue-400 uppercase tracking-wide font-medium">{{ __('Saldo') }}</p>
-                                    <p class="text-sm font-bold text-blue-700 dark:text-blue-300">${{ number_format($cajaCierre['saldo_actual'], 2, ',', '.') }}</p>
-                                </div>
-                            </div>
-
-                            @if(!empty($cajaCierre['monedasExtranjeras']))
-                            {{-- ═══ ARQUEO POR MONEDA (cuando hay monedas extranjeras) ═══ --}}
-                            <div>
-                                <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-2">{{ __('Arqueo por Moneda') }}</p>
-
-                                {{-- Grid: ARS + monedas extranjeras lado a lado --}}
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
-                                    {{-- Input moneda principal (ARS) --}}
-                                    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-700">
-                                        <div class="flex items-center justify-between mb-1.5">
-                                            <label class="text-xs font-semibold text-blue-800 dark:text-blue-200">
-                                                {{ __('Pesos contados') }}
-                                            </label>
-                                            <span class="text-[10px] text-blue-600 dark:text-blue-400">
-                                                {{ __('En caja') }}: ${{ number_format($cajaCierre['saldo_sistema_principal'], 2, ',', '.') }}
-                                            </span>
-                                        </div>
-                                        <div class="relative">
-                                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-blue-400 text-lg font-medium">$</span>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                wire:model.live.debounce.300ms="saldosDeclarados.{{ $cajaId }}"
-                                                @if($loop->first) x-init="$nextTick(() => $el.focus())" @endif
-                                                class="block w-full pl-8 pr-3 py-2 text-lg font-bold border-blue-300 dark:border-blue-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center"
-                                                placeholder="0,00"
-                                            >
-                                        </div>
-                                        @php
-                                            $saldoDeclarado = isset($saldosDeclarados[$cajaId]) && $saldosDeclarados[$cajaId] !== '' ? (float)$saldosDeclarados[$cajaId] : null;
-                                            $saldoSistemaARS = $cajaCierre['saldo_sistema_principal'];
-                                            $diferencia = $saldoDeclarado !== null ? $saldoDeclarado - $saldoSistemaARS : null;
-                                        @endphp
-                                        @if($saldoDeclarado !== null)
-                                        <div class="mt-1.5 py-1 px-2 rounded text-center text-xs {{ $diferencia == 0 ? 'bg-green-100 dark:bg-green-900/40' : ($diferencia > 0 ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-red-100 dark:bg-red-900/40') }}">
-                                            @if($diferencia == 0)
-                                                <span class="font-bold text-green-700 dark:text-green-400">{{ __('Cuadrado') }}</span>
-                                            @elseif($diferencia > 0)
-                                                <span class="font-bold text-amber-700 dark:text-amber-400">{{ __('Sobrante') }}: +${{ number_format($diferencia, 2, ',', '.') }}</span>
-                                            @else
-                                                <span class="font-bold text-red-700 dark:text-red-400">{{ __('Faltante') }}: -${{ number_format(abs($diferencia), 2, ',', '.') }}</span>
-                                            @endif
-                                        </div>
-                                        @endif
-                                    </div>
-
-                                    {{-- Inputs monedas extranjeras --}}
-                                    @foreach($cajaCierre['monedasExtranjeras'] as $codMoneda => $infoMoneda)
-                                    <div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 dark:border-amber-700">
-                                        <div class="flex items-center justify-between mb-1.5">
-                                            <label class="text-xs font-semibold text-amber-800 dark:text-amber-200">
-                                                {{ $infoMoneda['nombre'] }}
-                                            </label>
-                                            <span class="text-[10px] text-amber-600 dark:text-amber-400">
-                                                {{ __('En caja') }}: {{ $infoMoneda['simbolo'] }} {{ number_format($infoMoneda['saldo_sistema'], 2, ',', '.') }}
-                                            </span>
-                                        </div>
-                                        <div class="relative">
-                                            <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-amber-500 text-sm font-medium">{{ $infoMoneda['simbolo'] }}</span>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                wire:model.live.debounce.300ms="declaradosMoneda.{{ $cajaId }}.{{ $codMoneda }}"
-                                                class="block w-full pl-10 pr-3 py-2 text-lg font-bold border-amber-300 dark:border-amber-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-center"
-                                                placeholder="0,00"
-                                            >
-                                        </div>
-                                        @php
-                                            $decMoneda = isset($declaradosMoneda[$cajaId][$codMoneda]) && $declaradosMoneda[$cajaId][$codMoneda] !== '' ? (float)$declaradosMoneda[$cajaId][$codMoneda] : null;
-                                            $difMoneda = $decMoneda !== null ? $decMoneda - $infoMoneda['saldo_sistema'] : null;
-                                        @endphp
-                                        @if($decMoneda !== null)
-                                        <div class="mt-1.5 py-1 px-2 rounded text-center text-xs {{ $difMoneda == 0 ? 'bg-green-100 dark:bg-green-900/40' : ($difMoneda > 0 ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-red-100 dark:bg-red-900/40') }}">
-                                            @if($difMoneda == 0)
-                                                <span class="font-bold text-green-700 dark:text-green-400">{{ __('Cuadrado') }}</span>
-                                            @elseif($difMoneda > 0)
-                                                <span class="font-bold text-amber-700 dark:text-amber-400">{{ __('Sobrante') }}: +{{ $infoMoneda['simbolo'] }} {{ number_format($difMoneda, 2, ',', '.') }}</span>
-                                            @else
-                                                <span class="font-bold text-red-700 dark:text-red-400">{{ __('Faltante') }}: -{{ $infoMoneda['simbolo'] }} {{ number_format(abs($difMoneda), 2, ',', '.') }}</span>
-                                            @endif
-                                        </div>
-                                        @endif
-                                    </div>
-                                    @endforeach
-                                </div>
-
-                                {{-- Total Equivalente (compacto inline) --}}
-                                @php
-                                    $totalEquiv = ($saldoDeclarado ?? 0);
-                                    $detalleParts = [];
-                                    if ($saldoDeclarado !== null) $detalleParts[] = '$' . number_format($saldoDeclarado, 0, ',', '.');
-                                    foreach ($cajaCierre['monedasExtranjeras'] as $codM => $infoM) {
-                                        $decM = isset($declaradosMoneda[$cajaId][$codM]) && $declaradosMoneda[$cajaId][$codM] !== '' ? (float)$declaradosMoneda[$cajaId][$codM] : null;
-                                        if ($decM !== null) {
-                                            $detalleParts[] = $infoM['simbolo'] . ' ' . number_format($decM, 2, ',', '.');
-                                            $totalEquiv += ($infoM['saldo_sistema'] > 0 ? ($infoM['saldo_convertido'] / $infoM['saldo_sistema']) * $decM : 0);
-                                        }
-                                    }
-                                @endphp
-                                @if(count($detalleParts) > 0)
-                                <div class="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 py-2 flex items-center justify-between">
-                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Total equivalente') }}: {{ implode(' + ', $detalleParts) }}</span>
-                                    <span class="text-sm font-bold text-gray-900 dark:text-white">≈ ${{ number_format($totalEquiv, 2, ',', '.') }}</span>
-                                </div>
-                                @endif
-                            </div>
-                            @else
-                            {{-- ═══ ARQUEO UNICO (sin monedas extranjeras) ═══ --}}
-                            <div class="bg-white dark:bg-gray-800 rounded-lg p-3 border-2 border-gray-200 dark:border-gray-600">
-                                <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
-                                    {{ __('Efectivo Contado (Arqueo)') }}
-                                </label>
-                                <div class="relative">
-                                    <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-400 text-lg font-medium">$</span>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        wire:model.live.debounce.300ms="saldosDeclarados.{{ $cajaId }}"
-                                        @if($loop->first) x-init="$nextTick(() => $el.focus())" @endif
-                                        class="block w-full pl-10 pr-4 py-2.5 text-xl font-bold border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center"
-                                        :placeholder="__('Ingrese el monto contado')"
-                                    >
-                                </div>
-
-                                {{-- Calculo de diferencia --}}
-                                @php
-                                    $saldoDeclarado = isset($saldosDeclarados[$cajaId]) && $saldosDeclarados[$cajaId] !== '' ? (float)$saldosDeclarados[$cajaId] : null;
-                                    $saldoSistema = $cajaCierre['saldo_actual'];
-                                    $diferencia = $saldoDeclarado !== null ? $saldoDeclarado - $saldoSistema : null;
-                                @endphp
-
-                                @if($saldoDeclarado !== null)
-                                <div class="mt-2 py-1.5 px-3 rounded-lg text-center {{ $diferencia == 0 ? 'bg-green-100 dark:bg-green-900/40' : ($diferencia > 0 ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-red-100 dark:bg-red-900/40') }}">
-                                    <div class="flex items-center justify-center space-x-1.5">
-                                        @if($diferencia == 0)
-                                            <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                            </svg>
-                                            <span class="text-sm font-bold text-green-700 dark:text-green-400">{{ __('Caja Cuadrada') }}</span>
-                                        @elseif($diferencia > 0)
-                                            <svg class="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                                            </svg>
-                                            <span class="text-sm font-bold text-amber-700 dark:text-amber-400">{{ __('Sobrante') }}: +${{ number_format($diferencia, 2, ',', '.') }}</span>
-                                        @else
-                                            <svg class="w-4 h-4 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                            </svg>
-                                            <span class="text-sm font-bold text-red-700 dark:text-red-400">{{ __('Faltante') }}: -${{ number_format(abs($diferencia), 2, ',', '.') }}</span>
-                                        @endif
-                                    </div>
-                                </div>
-                                @else
-                                <p class="mt-2 text-xs text-center text-gray-500 dark:text-gray-400">
-                                    {{ __('Ingrese el efectivo contado para calcular la diferencia') }}
-                                </p>
-                                @endif
-                            </div>
-                            @endif
-                        </div>
-                        @endif
-                        @endforeach
-                    @endif
-
-                    {{-- Observaciones --}}
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                            {{ __('Observaciones (opcional)') }}
-                        </label>
-                        <input
-                            type="text"
-                            wire:model="observacionesCierre"
-                            class="block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm py-1.5"
-                            :placeholder="__('Notas sobre el cierre del turno...')"
-                        >
                     </div>
-                </div>
-            </div>
-
-            {{-- Footer fijo --}}
-            <div class="flex-shrink-0 px-5 py-3 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700 rounded-b-xl">
-                <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-                    <button
-                        wire:click="cancelarCierre"
-                        type="button"
-                        class="w-full sm:w-auto px-6 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                    >
-                        {{ __('Cancelar') }}
-                    </button>
-                    <button
-                        wire:click="procesarCierre"
-                        wire:loading.attr="disabled"
-                        class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <svg wire:loading wire:target="procesarCierre" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <svg wire:loading.remove wire:target="procesarCierre" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                        </svg>
-                        {{ __('Confirmar Cierre') }}
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-    @endif
-
-    {{-- ============================================================ --}}
-    {{-- MODAL: Detalle de Movimientos de Caja                        --}}
-    {{-- ============================================================ --}}
-    @if($showDetalleModal)
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden" aria-labelledby="modal-detalle" role="dialog" aria-modal="true"
-         x-data="{ init() { document.body.classList.add('overflow-hidden') }, destroy() { document.body.classList.remove('overflow-hidden') } }">
-        {{-- Overlay --}}
-        <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity"
-             wire:click="cerrarModalDetalle"></div>
-
-        {{-- Modal Container --}}
-        <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
-                {{-- Header --}}
-                <div class="flex-shrink-0 bg-indigo-50 dark:bg-indigo-900/20 px-6 py-4 border-b border-indigo-100 dark:border-indigo-800">
-                    <div class="flex items-center justify-between">
+                @else
+                    {{-- Fondo individual por caja (comportamiento original) --}}
+                    @foreach($cajasAAbrir as $cajaId)
+                    @php $cajaApertura = $this->getCajaParaApertura($cajaId); @endphp
+                    @if($cajaApertura)
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-medium text-gray-900 dark:text-white">
+                                {{ $cajaApertura['nombre'] }}
+                                <span class="text-sm font-normal text-gray-500">#{{ $cajaApertura['numero'] }}</span>
+                            </h4>
+                            <span class="text-xs px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300">
+                                @switch($cajaApertura['modo_carga'])
+                                    @case('ultimo_cierre')
+                                        {{ __('Auto (ultimo cierre)') }}
+                                        @break
+                                    @case('monto_fijo')
+                                        {{ __('Auto') }} (${{ number_format($cajaApertura['monto_fijo'], 0) }})
+                                        @break
+                                    @default
+                                        {{ __('Manual') }}
+                                @endswitch
+                            </span>
+                        </div>
                         <div>
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                                {{ __('Detalle de Movimientos') }} — {{ $detalleInfo['nombre'] ?? '' }}
-                            </h3>
-                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                {{ __('Saldo actual') }}:
-                                <span class="font-semibold text-gray-900 dark:text-white">
-                                    ${{ number_format($detalleInfo['saldo_actual'] ?? 0, 2, ',', '.') }}
-                                </span>
-                                &middot; {{ $detalleInfo['cantidad_movimientos'] ?? 0 }} {{ __('movimientos en efectivo') }}
-                                @if($detalleInfo['es_fondo_comun'] ?? false)
-                                    <span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                                        {{ __('Fondo Unificado') }}
-                                    </span>
-                                @endif
-                            </p>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {{ __('Fondo Inicial') }}
+                            </label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">$</span>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    wire:model.live="fondosIniciales.{{ $cajaId }}"
+                                    @if($loop->first) x-init="$nextTick(() => $el.focus())" @endif
+                                    class="block w-full pl-8 pr-4 py-2.5 text-lg font-semibold border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-bcn-primary focus:border-bcn-primary"
+                                    placeholder="0.00"
+                                >
+                            </div>
                         </div>
-                        <button wire:click="cerrarModalDetalle" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                        </button>
                     </div>
-                </div>
+                    @endif
+                    @endforeach
+                @endif
+            </div>
+        </x-slot:body>
 
-                {{-- Cuerpo scrollable --}}
-                <div class="flex-1 overflow-y-auto px-6 py-4">
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <x-slot:footer>
+            <button
+                @click="close()"
+                type="button"
+                class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+            >
+                {{ __('Cancelar') }}
+            </button>
+            <button
+                wire:click="procesarApertura"
+                wire:loading.attr="disabled"
+                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-500 sm:w-auto sm:text-sm"
+            >
+                <svg wire:loading wire:target="procesarApertura" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                {{ __('Abrir Turno') }}
+            </button>
+        </x-slot:footer>
+    </x-bcn-modal>
+    @endif
 
-                        {{-- Columna principal: Movimientos en Efectivo --}}
-                        <div class="lg:col-span-2">
-                            <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
-                                <svg class="w-4 h-4 mr-1.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    {{-- Modal de Cierre de Turno --}}
+    @if($showCierreModal)
+    <x-bcn-modal
+        :show="$showCierreModal"
+        :title="__('Cierre de Turno')"
+        color="bg-red-600"
+        maxWidth="4xl"
+        onClose="cancelarCierre"
+    >
+        <x-slot:body>
+            <div class="space-y-3">
+                @if($cierreUsaFondoComun)
+                    {{-- VISTA CONSOLIDADA PARA FONDO COMUN --}}
+                    @php $datosConsolidados = $this->getDatosConsolidadosCierre(); @endphp
+                    @if($datosConsolidados)
+                    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-700">
+                        {{-- Header del grupo --}}
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="text-base font-semibold text-gray-900 dark:text-white flex items-center">
+                                <svg class="w-4 h-4 text-blue-600 dark:text-blue-400 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
                                 </svg>
-                                {{ __('Movimientos en Efectivo') }}
+                                {{ $datosConsolidados['grupo_nombre'] }}
+                                <span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800/30 dark:text-green-300">
+                                    {{ __('Fondo Comun') }}
+                                </span>
                             </h4>
-
-                            @if(count($detalleMovimientos) > 0)
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-sm">
-                                    <thead>
-                                        <tr class="border-b border-gray-200 dark:border-gray-700">
-                                            <th class="text-left py-2 px-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Hora') }}</th>
-                                            <th class="text-left py-2 px-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Tipo') }}</th>
-                                            <th class="text-left py-2 px-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Concepto') }}</th>
-                                            <th class="text-right py-2 px-2 text-xs font-medium text-green-600 dark:text-green-400 uppercase">{{ __('Ingreso') }}</th>
-                                            <th class="text-right py-2 px-2 text-xs font-medium text-red-600 dark:text-red-400 uppercase">{{ __('Egreso') }}</th>
-                                            <th class="text-right py-2 px-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Saldo') }}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-                                        @foreach($detalleMovimientos as $mov)
-                                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                            <td class="py-1.5 px-2 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                                                {{ $mov['fecha'] }}
-                                            </td>
-                                            <td class="py-1.5 px-2 whitespace-nowrap">
-                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium
-                                                    {{ $mov['tipo'] === 'ingreso'
-                                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }}">
-                                                    {{ $mov['etiqueta'] }}
-                                                </span>
-                                            </td>
-                                            <td class="py-1.5 px-2 text-xs text-gray-700 dark:text-gray-300 max-w-[200px] truncate" title="{{ $mov['concepto'] }}">
-                                                {{ $mov['concepto'] }}
-                                            </td>
-                                            <td class="py-1.5 px-2 text-right text-xs whitespace-nowrap {{ $mov['tipo'] === 'ingreso' ? 'text-green-600 dark:text-green-400 font-medium' : 'text-gray-300 dark:text-gray-600' }}">
-                                                @if($mov['tipo'] === 'ingreso')
-                                                    +${{ number_format($mov['monto'], 2, ',', '.') }}
-                                                @else
-                                                    -
-                                                @endif
-                                            </td>
-                                            <td class="py-1.5 px-2 text-right text-xs whitespace-nowrap {{ $mov['tipo'] === 'egreso' ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-300 dark:text-gray-600' }}">
-                                                @if($mov['tipo'] === 'egreso')
-                                                    -${{ number_format($mov['monto'], 2, ',', '.') }}
-                                                @else
-                                                    -
-                                                @endif
-                                            </td>
-                                            <td class="py-1.5 px-2 text-right text-xs font-semibold text-gray-900 dark:text-white whitespace-nowrap">
-                                                ${{ number_format($mov['saldo_acumulado'], 2, ',', '.') }}
-                                            </td>
-                                        </tr>
-                                        @endforeach
-                                    </tbody>
-                                    <tfoot>
-                                        <tr class="border-t-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
-                                            <td colspan="3" class="py-2 px-2 text-xs font-semibold text-gray-700 dark:text-gray-300">
-                                                {{ __('TOTALES') }}
-                                            </td>
-                                            <td class="py-2 px-2 text-right text-xs font-bold text-green-600 dark:text-green-400">
-                                                +${{ number_format($detalleInfo['total_ingresos'] ?? 0, 2, ',', '.') }}
-                                            </td>
-                                            <td class="py-2 px-2 text-right text-xs font-bold text-red-600 dark:text-red-400">
-                                                -${{ number_format($detalleInfo['total_egresos'] ?? 0, 2, ',', '.') }}
-                                            </td>
-                                            <td class="py-2 px-2 text-right text-xs font-bold text-gray-900 dark:text-white">
-                                                ${{ number_format($detalleInfo['saldo_actual'] ?? 0, 2, ',', '.') }}
-                                            </td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
-                            @else
-                            <div class="text-center py-8 text-gray-400 dark:text-gray-500">
-                                <svg class="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
-                                </svg>
-                                <p class="text-sm">{{ __('Sin movimientos en efectivo') }}</p>
-                            </div>
-                            @endif
+                            <span class="text-xs text-gray-500 dark:text-gray-400">
+                                {{ $datosConsolidados['cantidad_cajas'] }} {{ __('cajas') }}
+                            </span>
                         </div>
 
-                        {{-- Columna secundaria: Otros Medios de Pago --}}
-                        <div class="lg:col-span-1">
-                            <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
-                                <svg class="w-4 h-4 mr-1.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
-                                </svg>
-                                {{ __('Otros Medios de Pago') }}
-                            </h4>
+                        {{-- Resumen consolidado - compacto inline --}}
+                        <div class="grid grid-cols-4 gap-2 mb-3">
+                            <div class="bg-white dark:bg-gray-800 rounded-lg px-2 py-1.5 text-center border border-gray-100 dark:border-gray-600">
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('Fondo') }}</p>
+                                <p class="text-sm font-bold text-gray-900 dark:text-white">${{ number_format($datosConsolidados['fondo_inicial'], 2, ',', '.') }}</p>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 rounded-lg px-2 py-1.5 text-center border border-gray-100 dark:border-gray-600">
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('Ing.') }}</p>
+                                <p class="text-sm font-bold text-green-600 dark:text-green-400">+${{ number_format($datosConsolidados['total_ingresos'], 2, ',', '.') }}</p>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 rounded-lg px-2 py-1.5 text-center border border-gray-100 dark:border-gray-600">
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('Egr.') }}</p>
+                                <p class="text-sm font-bold text-red-600 dark:text-red-400">-${{ number_format($datosConsolidados['total_egresos'], 2, ',', '.') }}</p>
+                            </div>
+                            <div class="bg-blue-100 dark:bg-blue-900/50 rounded-lg px-2 py-1.5 text-center border border-blue-300 dark:border-blue-600">
+                                <p class="text-[10px] text-blue-700 dark:text-blue-300 uppercase tracking-wide font-medium">{{ __('Saldo') }}</p>
+                                <p class="text-sm font-bold text-blue-800 dark:text-blue-200">${{ number_format($datosConsolidados['saldo_sistema'], 2, ',', '.') }}</p>
+                            </div>
+                        </div>
 
-                            @if(count($detalleOtrosConceptos) > 0)
-                            <div class="space-y-3">
-                                @foreach($detalleOtrosConceptos as $concepto)
-                                <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
-                                    <div class="flex items-center justify-between mb-2">
-                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                            {{ $concepto['nombre'] }}
-                                        </span>
-                                        <span class="text-sm font-bold text-purple-600 dark:text-purple-400">
-                                            ${{ number_format($concepto['monto_total'], 2, ',', '.') }}
+                        {{-- Detalle por caja (compacto) --}}
+                        <div class="mb-3">
+                            <div class="flex flex-wrap gap-1.5">
+                                @foreach($datosConsolidados['cajas'] as $cajaInfo)
+                                <span class="inline-flex items-center px-2 py-1 rounded-md bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-xs">
+                                    <span class="font-medium text-gray-700 dark:text-gray-300">{{ $cajaInfo['nombre'] }}:</span>
+                                    <span class="ml-1 text-green-600 dark:text-green-400">+${{ number_format($cajaInfo['ingresos'], 2, ',', '.') }}</span>
+                                    @if($cajaInfo['egresos'] > 0)
+                                    <span class="ml-1 text-red-600 dark:text-red-400">-${{ number_format($cajaInfo['egresos'], 2, ',', '.') }}</span>
+                                    @endif
+                                </span>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        @php $monedasConsFC = $datosConsolidados['monedasConsolidadas'] ?? []; @endphp
+
+                        @if(!empty($monedasConsFC))
+                        {{-- ARQUEO POR MONEDA (fondo comun con extranjeras) --}}
+                        <div>
+                            <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-2">{{ __('Arqueo por Moneda') }}</p>
+
+                            {{-- Grid: ARS + monedas extranjeras lado a lado --}}
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                                {{-- Input moneda principal (ARS) --}}
+                                <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-700">
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <label class="text-xs font-semibold text-blue-800 dark:text-blue-200">
+                                            {{ __('Pesos contados') }}
+                                        </label>
+                                        <span class="text-[10px] text-blue-600 dark:text-blue-400">
+                                            {{ __('En caja') }}: ${{ number_format($datosConsolidados['saldo_sistema_principal'], 2, ',', '.') }}
                                         </span>
                                     </div>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                                        {{ $concepto['cantidad'] }} {{ $concepto['cantidad'] === 1 ? __('operacion') : __('operaciones') }}
-                                    </p>
-                                    <div class="space-y-1">
-                                        @foreach($concepto['detalle'] as $det)
-                                        <div class="flex items-center justify-between text-xs">
-                                            <span class="text-gray-500 dark:text-gray-400">{{ $det['referencia'] }}</span>
-                                            <span class="font-medium text-gray-700 dark:text-gray-300">
-                                                ${{ number_format($det['monto'], 2, ',', '.') }}
-                                            </span>
-                                        </div>
-                                        @endforeach
+                                    <div class="relative">
+                                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-blue-400 text-lg font-medium">$</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            wire:model.live.debounce.300ms="saldoDeclaradoFondoComun"
+                                            x-init="$nextTick(() => $el.focus())"
+                                            class="block w-full pl-8 pr-3 py-2 text-lg font-bold border-blue-300 dark:border-blue-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center"
+                                            placeholder="0,00"
+                                        >
                                     </div>
+                                    @php
+                                        $saldoDeclaradoFC = $saldoDeclaradoFondoComun !== '' ? (float)$saldoDeclaradoFondoComun : null;
+                                        $saldoSistemaFCPrincipal = $datosConsolidados['saldo_sistema_principal'];
+                                        $diferenciaFC = $saldoDeclaradoFC !== null ? $saldoDeclaradoFC - $saldoSistemaFCPrincipal : null;
+                                    @endphp
+                                    @if($saldoDeclaradoFC !== null)
+                                    <div class="mt-1.5 py-1 px-2 rounded text-center text-xs {{ $diferenciaFC == 0 ? 'bg-green-100 dark:bg-green-900/40' : ($diferenciaFC > 0 ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-red-100 dark:bg-red-900/40') }}">
+                                        @if($diferenciaFC == 0)
+                                            <span class="font-bold text-green-700 dark:text-green-400">{{ __('Cuadrado') }}</span>
+                                        @elseif($diferenciaFC > 0)
+                                            <span class="font-bold text-amber-700 dark:text-amber-400">{{ __('Sobrante') }}: +${{ number_format($diferenciaFC, 2, ',', '.') }}</span>
+                                        @else
+                                            <span class="font-bold text-red-700 dark:text-red-400">{{ __('Faltante') }}: -${{ number_format(abs($diferenciaFC), 2, ',', '.') }}</span>
+                                        @endif
+                                    </div>
+                                    @endif
+                                </div>
+
+                                {{-- Inputs monedas extranjeras --}}
+                                @foreach($monedasConsFC as $codMoneda => $infoMoneda)
+                                <div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 dark:border-amber-700">
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <label class="text-xs font-semibold text-amber-800 dark:text-amber-200">
+                                            {{ $infoMoneda['nombre'] }}
+                                        </label>
+                                        <span class="text-[10px] text-amber-600 dark:text-amber-400">
+                                            {{ __('En caja') }}: {{ $infoMoneda['simbolo'] }} {{ number_format($infoMoneda['saldo_sistema'], 2, ',', '.') }}
+                                        </span>
+                                    </div>
+                                    <div class="relative">
+                                        <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-amber-500 text-sm font-medium">{{ $infoMoneda['simbolo'] }}</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            wire:model.live.debounce.300ms="declaradosMoneda.0.{{ $codMoneda }}"
+                                            class="block w-full pl-10 pr-3 py-2 text-lg font-bold border-amber-300 dark:border-amber-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-center"
+                                            placeholder="0,00"
+                                        >
+                                    </div>
+                                    @php
+                                        $decMonedaFC = isset($declaradosMoneda[0][$codMoneda]) && $declaradosMoneda[0][$codMoneda] !== '' ? (float)$declaradosMoneda[0][$codMoneda] : null;
+                                        $difMonedaFC2 = $decMonedaFC !== null ? $decMonedaFC - $infoMoneda['saldo_sistema'] : null;
+                                    @endphp
+                                    @if($decMonedaFC !== null)
+                                    <div class="mt-1.5 py-1 px-2 rounded text-center text-xs {{ $difMonedaFC2 == 0 ? 'bg-green-100 dark:bg-green-900/40' : ($difMonedaFC2 > 0 ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-red-100 dark:bg-red-900/40') }}">
+                                        @if($difMonedaFC2 == 0)
+                                            <span class="font-bold text-green-700 dark:text-green-400">{{ __('Cuadrado') }}</span>
+                                        @elseif($difMonedaFC2 > 0)
+                                            <span class="font-bold text-amber-700 dark:text-amber-400">{{ __('Sobrante') }}: +{{ $infoMoneda['simbolo'] }} {{ number_format($difMonedaFC2, 2, ',', '.') }}</span>
+                                        @else
+                                            <span class="font-bold text-red-700 dark:text-red-400">{{ __('Faltante') }}: -{{ $infoMoneda['simbolo'] }} {{ number_format(abs($difMonedaFC2), 2, ',', '.') }}</span>
+                                        @endif
+                                    </div>
+                                    @endif
                                 </div>
                                 @endforeach
                             </div>
-                            @else
-                            <div class="text-center py-8 text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
-                                <svg class="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
-                                </svg>
-                                <p class="text-sm">{{ __('Sin operaciones con otros medios de pago') }}</p>
+
+                            {{-- Total Equivalente (compacto inline) --}}
+                            @php
+                                $totalEquivFC = ($saldoDeclaradoFC ?? 0);
+                                $detallePartsFC = [];
+                                if ($saldoDeclaradoFC !== null) $detallePartsFC[] = '$' . number_format($saldoDeclaradoFC, 0, ',', '.');
+                                foreach ($monedasConsFC as $codM => $infoM) {
+                                    $decM = isset($declaradosMoneda[0][$codM]) && $declaradosMoneda[0][$codM] !== '' ? (float)$declaradosMoneda[0][$codM] : null;
+                                    if ($decM !== null) {
+                                        $detallePartsFC[] = $infoM['simbolo'] . ' ' . number_format($decM, 2, ',', '.');
+                                        $totalEquivFC += ($infoM['saldo_sistema'] > 0 ? ($infoM['saldo_convertido'] / $infoM['saldo_sistema']) * $decM : 0);
+                                    }
+                                }
+                            @endphp
+                            @if(count($detallePartsFC) > 0)
+                            <div class="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 py-2 flex items-center justify-between">
+                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Total equivalente') }}: {{ implode(' + ', $detallePartsFC) }}</span>
+                                <span class="text-sm font-bold text-gray-900 dark:text-white">&asymp; ${{ number_format($totalEquivFC, 2, ',', '.') }}</span>
                             </div>
                             @endif
                         </div>
-                    </div>
-                </div>
+                        @else
+                        {{-- ARQUEO UNICO (fondo comun sin extranjeras) --}}
+                        <div class="bg-white dark:bg-gray-800 rounded-lg p-3 border-2 border-blue-300 dark:border-blue-600">
+                            <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                                {{ __('Efectivo Total Contado (Arqueo del Fondo Comun)') }}
+                            </label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-400 text-lg font-medium">$</span>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    wire:model.live.debounce.300ms="saldoDeclaradoFondoComun"
+                                    x-init="$nextTick(() => $el.focus())"
+                                    class="block w-full pl-10 pr-4 py-2.5 text-xl font-bold border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center"
+                                    :placeholder="__('Ingrese el total del efectivo')"
+                                >
+                            </div>
 
-                {{-- Footer --}}
-                <div class="flex-shrink-0 bg-gray-50 dark:bg-gray-700/50 px-6 py-3 border-t border-gray-200 dark:border-gray-600 flex justify-end">
-                    <button
-                        wire:click="cerrarModalDetalle"
-                        class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                            @php
+                                $saldoDeclaradoFC = $saldoDeclaradoFondoComun !== '' ? (float)$saldoDeclaradoFondoComun : null;
+                                $saldoSistemaFC = $datosConsolidados['saldo_sistema'];
+                                $diferenciaFC = $saldoDeclaradoFC !== null ? $saldoDeclaradoFC - $saldoSistemaFC : null;
+                            @endphp
+
+                            @if($saldoDeclaradoFC !== null)
+                            <div class="mt-2 py-1.5 px-3 rounded-lg text-center {{ $diferenciaFC == 0 ? 'bg-green-100 dark:bg-green-900/40' : ($diferenciaFC > 0 ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-red-100 dark:bg-red-900/40') }}">
+                                <div class="flex items-center justify-center space-x-1.5">
+                                    @if($diferenciaFC == 0)
+                                        <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        <span class="text-sm font-bold text-green-700 dark:text-green-400">{{ __('Fondo Cuadrado') }}</span>
+                                    @elseif($diferenciaFC > 0)
+                                        <svg class="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                        </svg>
+                                        <span class="text-sm font-bold text-amber-700 dark:text-amber-400">{{ __('Sobrante') }}: +${{ number_format($diferenciaFC, 2, ',', '.') }}</span>
+                                    @else
+                                        <svg class="w-4 h-4 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        <span class="text-sm font-bold text-red-700 dark:text-red-400">{{ __('Faltante') }}: -${{ number_format(abs($diferenciaFC), 2, ',', '.') }}</span>
+                                    @endif
+                                </div>
+                            </div>
+                            @else
+                            <p class="mt-2 text-xs text-center text-gray-500 dark:text-gray-400">
+                                {{ __('Ingrese el efectivo total contado para calcular la diferencia') }}
+                            </p>
+                            @endif
+                        </div>
+                        @endif
+                    </div>
+                    @endif
+                @else
+                    {{-- VISTA NORMAL (por caja individual) --}}
+                    @foreach($cajasACerrar as $cajaId)
+                    @php $cajaCierre = $this->getCajaParaCierre($cajaId); @endphp
+                    @if($cajaCierre)
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 border border-gray-200 dark:border-gray-600">
+                        {{-- Nombre de la caja --}}
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="text-base font-semibold text-gray-900 dark:text-white flex items-center">
+                                <svg class="w-4 h-4 text-blue-600 dark:text-blue-400 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                </svg>
+                                {{ $cajaCierre['nombre'] }}
+                                <span class="ml-1.5 text-sm font-normal text-gray-500 dark:text-gray-400">#{{ $cajaCierre['numero'] }}</span>
+                            </h4>
+                            @if($cajaCierre['fecha_apertura'])
+                            <span class="text-xs text-gray-500 dark:text-gray-400">
+                                {{ __('Abierta') }}: {{ $cajaCierre['fecha_apertura'] }}
+                            </span>
+                            @endif
+                        </div>
+
+                        {{-- Resumen de operaciones - compacto --}}
+                        <div class="grid grid-cols-4 gap-2 mb-3">
+                            <div class="bg-white dark:bg-gray-800 rounded-lg px-2 py-1.5 text-center border border-gray-100 dark:border-gray-600">
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('Fondo') }}</p>
+                                <p class="text-sm font-bold text-gray-900 dark:text-white">${{ number_format($cajaCierre['saldo_inicial'], 2, ',', '.') }}</p>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 rounded-lg px-2 py-1.5 text-center border border-gray-100 dark:border-gray-600">
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('Ing.') }}</p>
+                                <p class="text-sm font-bold text-green-600 dark:text-green-400">+${{ number_format($cajaCierre['ingresos'] ?? 0, 2, ',', '.') }}</p>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 rounded-lg px-2 py-1.5 text-center border border-gray-100 dark:border-gray-600">
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ __('Egr.') }}</p>
+                                <p class="text-sm font-bold text-red-600 dark:text-red-400">-${{ number_format($cajaCierre['egresos'] ?? 0, 2, ',', '.') }}</p>
+                            </div>
+                            <div class="bg-blue-50 dark:bg-blue-900/30 rounded-lg px-2 py-1.5 text-center border border-blue-200 dark:border-blue-700">
+                                <p class="text-[10px] text-blue-600 dark:text-blue-400 uppercase tracking-wide font-medium">{{ __('Saldo') }}</p>
+                                <p class="text-sm font-bold text-blue-700 dark:text-blue-300">${{ number_format($cajaCierre['saldo_actual'], 2, ',', '.') }}</p>
+                            </div>
+                        </div>
+
+                        @if(!empty($cajaCierre['monedasExtranjeras']))
+                        {{-- ARQUEO POR MONEDA (cuando hay monedas extranjeras) --}}
+                        <div>
+                            <p class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-2">{{ __('Arqueo por Moneda') }}</p>
+
+                            {{-- Grid: ARS + monedas extranjeras lado a lado --}}
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                                {{-- Input moneda principal (ARS) --}}
+                                <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-700">
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <label class="text-xs font-semibold text-blue-800 dark:text-blue-200">
+                                            {{ __('Pesos contados') }}
+                                        </label>
+                                        <span class="text-[10px] text-blue-600 dark:text-blue-400">
+                                            {{ __('En caja') }}: ${{ number_format($cajaCierre['saldo_sistema_principal'], 2, ',', '.') }}
+                                        </span>
+                                    </div>
+                                    <div class="relative">
+                                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-blue-400 text-lg font-medium">$</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            wire:model.live.debounce.300ms="saldosDeclarados.{{ $cajaId }}"
+                                            @if($loop->first) x-init="$nextTick(() => $el.focus())" @endif
+                                            class="block w-full pl-8 pr-3 py-2 text-lg font-bold border-blue-300 dark:border-blue-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center"
+                                            placeholder="0,00"
+                                        >
+                                    </div>
+                                    @php
+                                        $saldoDeclarado = isset($saldosDeclarados[$cajaId]) && $saldosDeclarados[$cajaId] !== '' ? (float)$saldosDeclarados[$cajaId] : null;
+                                        $saldoSistemaARS = $cajaCierre['saldo_sistema_principal'];
+                                        $diferencia = $saldoDeclarado !== null ? $saldoDeclarado - $saldoSistemaARS : null;
+                                    @endphp
+                                    @if($saldoDeclarado !== null)
+                                    <div class="mt-1.5 py-1 px-2 rounded text-center text-xs {{ $diferencia == 0 ? 'bg-green-100 dark:bg-green-900/40' : ($diferencia > 0 ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-red-100 dark:bg-red-900/40') }}">
+                                        @if($diferencia == 0)
+                                            <span class="font-bold text-green-700 dark:text-green-400">{{ __('Cuadrado') }}</span>
+                                        @elseif($diferencia > 0)
+                                            <span class="font-bold text-amber-700 dark:text-amber-400">{{ __('Sobrante') }}: +${{ number_format($diferencia, 2, ',', '.') }}</span>
+                                        @else
+                                            <span class="font-bold text-red-700 dark:text-red-400">{{ __('Faltante') }}: -${{ number_format(abs($diferencia), 2, ',', '.') }}</span>
+                                        @endif
+                                    </div>
+                                    @endif
+                                </div>
+
+                                {{-- Inputs monedas extranjeras --}}
+                                @foreach($cajaCierre['monedasExtranjeras'] as $codMoneda => $infoMoneda)
+                                <div class="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 dark:border-amber-700">
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <label class="text-xs font-semibold text-amber-800 dark:text-amber-200">
+                                            {{ $infoMoneda['nombre'] }}
+                                        </label>
+                                        <span class="text-[10px] text-amber-600 dark:text-amber-400">
+                                            {{ __('En caja') }}: {{ $infoMoneda['simbolo'] }} {{ number_format($infoMoneda['saldo_sistema'], 2, ',', '.') }}
+                                        </span>
+                                    </div>
+                                    <div class="relative">
+                                        <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-amber-500 text-sm font-medium">{{ $infoMoneda['simbolo'] }}</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            wire:model.live.debounce.300ms="declaradosMoneda.{{ $cajaId }}.{{ $codMoneda }}"
+                                            class="block w-full pl-10 pr-3 py-2 text-lg font-bold border-amber-300 dark:border-amber-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-center"
+                                            placeholder="0,00"
+                                        >
+                                    </div>
+                                    @php
+                                        $decMoneda = isset($declaradosMoneda[$cajaId][$codMoneda]) && $declaradosMoneda[$cajaId][$codMoneda] !== '' ? (float)$declaradosMoneda[$cajaId][$codMoneda] : null;
+                                        $difMoneda = $decMoneda !== null ? $decMoneda - $infoMoneda['saldo_sistema'] : null;
+                                    @endphp
+                                    @if($decMoneda !== null)
+                                    <div class="mt-1.5 py-1 px-2 rounded text-center text-xs {{ $difMoneda == 0 ? 'bg-green-100 dark:bg-green-900/40' : ($difMoneda > 0 ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-red-100 dark:bg-red-900/40') }}">
+                                        @if($difMoneda == 0)
+                                            <span class="font-bold text-green-700 dark:text-green-400">{{ __('Cuadrado') }}</span>
+                                        @elseif($difMoneda > 0)
+                                            <span class="font-bold text-amber-700 dark:text-amber-400">{{ __('Sobrante') }}: +{{ $infoMoneda['simbolo'] }} {{ number_format($difMoneda, 2, ',', '.') }}</span>
+                                        @else
+                                            <span class="font-bold text-red-700 dark:text-red-400">{{ __('Faltante') }}: -{{ $infoMoneda['simbolo'] }} {{ number_format(abs($difMoneda), 2, ',', '.') }}</span>
+                                        @endif
+                                    </div>
+                                    @endif
+                                </div>
+                                @endforeach
+                            </div>
+
+                            {{-- Total Equivalente (compacto inline) --}}
+                            @php
+                                $totalEquiv = ($saldoDeclarado ?? 0);
+                                $detalleParts = [];
+                                if ($saldoDeclarado !== null) $detalleParts[] = '$' . number_format($saldoDeclarado, 0, ',', '.');
+                                foreach ($cajaCierre['monedasExtranjeras'] as $codM => $infoM) {
+                                    $decM = isset($declaradosMoneda[$cajaId][$codM]) && $declaradosMoneda[$cajaId][$codM] !== '' ? (float)$declaradosMoneda[$cajaId][$codM] : null;
+                                    if ($decM !== null) {
+                                        $detalleParts[] = $infoM['simbolo'] . ' ' . number_format($decM, 2, ',', '.');
+                                        $totalEquiv += ($infoM['saldo_sistema'] > 0 ? ($infoM['saldo_convertido'] / $infoM['saldo_sistema']) * $decM : 0);
+                                    }
+                                }
+                            @endphp
+                            @if(count($detalleParts) > 0)
+                            <div class="bg-gray-100 dark:bg-gray-700 rounded-lg px-3 py-2 flex items-center justify-between">
+                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Total equivalente') }}: {{ implode(' + ', $detalleParts) }}</span>
+                                <span class="text-sm font-bold text-gray-900 dark:text-white">&asymp; ${{ number_format($totalEquiv, 2, ',', '.') }}</span>
+                            </div>
+                            @endif
+                        </div>
+                        @else
+                        {{-- ARQUEO UNICO (sin monedas extranjeras) --}}
+                        <div class="bg-white dark:bg-gray-800 rounded-lg p-3 border-2 border-gray-200 dark:border-gray-600">
+                            <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                                {{ __('Efectivo Contado (Arqueo)') }}
+                            </label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-400 text-lg font-medium">$</span>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    wire:model.live.debounce.300ms="saldosDeclarados.{{ $cajaId }}"
+                                    @if($loop->first) x-init="$nextTick(() => $el.focus())" @endif
+                                    class="block w-full pl-10 pr-4 py-2.5 text-xl font-bold border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center"
+                                    :placeholder="__('Ingrese el monto contado')"
+                                >
+                            </div>
+
+                            {{-- Calculo de diferencia --}}
+                            @php
+                                $saldoDeclarado = isset($saldosDeclarados[$cajaId]) && $saldosDeclarados[$cajaId] !== '' ? (float)$saldosDeclarados[$cajaId] : null;
+                                $saldoSistema = $cajaCierre['saldo_actual'];
+                                $diferencia = $saldoDeclarado !== null ? $saldoDeclarado - $saldoSistema : null;
+                            @endphp
+
+                            @if($saldoDeclarado !== null)
+                            <div class="mt-2 py-1.5 px-3 rounded-lg text-center {{ $diferencia == 0 ? 'bg-green-100 dark:bg-green-900/40' : ($diferencia > 0 ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-red-100 dark:bg-red-900/40') }}">
+                                <div class="flex items-center justify-center space-x-1.5">
+                                    @if($diferencia == 0)
+                                        <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        <span class="text-sm font-bold text-green-700 dark:text-green-400">{{ __('Caja Cuadrada') }}</span>
+                                    @elseif($diferencia > 0)
+                                        <svg class="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                        </svg>
+                                        <span class="text-sm font-bold text-amber-700 dark:text-amber-400">{{ __('Sobrante') }}: +${{ number_format($diferencia, 2, ',', '.') }}</span>
+                                    @else
+                                        <svg class="w-4 h-4 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        <span class="text-sm font-bold text-red-700 dark:text-red-400">{{ __('Faltante') }}: -${{ number_format(abs($diferencia), 2, ',', '.') }}</span>
+                                    @endif
+                                </div>
+                            </div>
+                            @else
+                            <p class="mt-2 text-xs text-center text-gray-500 dark:text-gray-400">
+                                {{ __('Ingrese el efectivo contado para calcular la diferencia') }}
+                            </p>
+                            @endif
+                        </div>
+                        @endif
+                    </div>
+                    @endif
+                    @endforeach
+                @endif
+
+                {{-- Observaciones --}}
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                        {{ __('Observaciones (opcional)') }}
+                    </label>
+                    <input
+                        type="text"
+                        wire:model="observacionesCierre"
+                        class="block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm py-1.5"
+                        :placeholder="__('Notas sobre el cierre del turno...')"
                     >
-                        {{ __('Cerrar') }}
-                    </button>
                 </div>
             </div>
-        </div>
+        </x-slot:body>
+
+        <x-slot:footer>
+            <button
+                @click="close()"
+                type="button"
+                class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+            >
+                {{ __('Cancelar') }}
+            </button>
+            <button
+                wire:click="procesarCierre"
+                wire:loading.attr="disabled"
+                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-500 sm:w-auto sm:text-sm"
+            >
+                <svg wire:loading wire:target="procesarCierre" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <svg wire:loading.remove wire:target="procesarCierre" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+                {{ __('Confirmar Cierre') }}
+            </button>
+        </x-slot:footer>
+    </x-bcn-modal>
+    @endif
+
+    {{-- MODAL: Detalle de Movimientos de Caja --}}
+    @if($showDetalleModal)
+    <x-bcn-modal
+        :show="$showDetalleModal"
+        :title="__('Detalle de Movimientos') . ' — ' . ($detalleInfo['nombre'] ?? '')"
+        color="bg-bcn-primary"
+        maxWidth="5xl"
+        onClose="cerrarModalDetalle"
+    >
+        <x-slot:body>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                {{-- Columna principal: Movimientos en Efectivo --}}
+                <div class="lg:col-span-2">
+                    <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+                        <svg class="w-4 h-4 mr-1.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                        {{ __('Movimientos en Efectivo') }}
+                    </h4>
+
+                    @if(count($detalleMovimientos) > 0)
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b border-gray-200 dark:border-gray-700">
+                                    <th class="text-left py-2 px-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Hora') }}</th>
+                                    <th class="text-left py-2 px-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Tipo') }}</th>
+                                    <th class="text-left py-2 px-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Concepto') }}</th>
+                                    <th class="text-right py-2 px-2 text-xs font-medium text-green-600 dark:text-green-400 uppercase">{{ __('Ingreso') }}</th>
+                                    <th class="text-right py-2 px-2 text-xs font-medium text-red-600 dark:text-red-400 uppercase">{{ __('Egreso') }}</th>
+                                    <th class="text-right py-2 px-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Saldo') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                                @foreach($detalleMovimientos as $mov)
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                    <td class="py-1.5 px-2 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                        {{ $mov['fecha'] }}
+                                    </td>
+                                    <td class="py-1.5 px-2 whitespace-nowrap">
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium
+                                            {{ $mov['tipo'] === 'ingreso'
+                                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }}">
+                                            {{ $mov['etiqueta'] }}
+                                        </span>
+                                    </td>
+                                    <td class="py-1.5 px-2 text-xs text-gray-700 dark:text-gray-300 max-w-[200px] truncate" title="{{ $mov['concepto'] }}">
+                                        {{ $mov['concepto'] }}
+                                    </td>
+                                    <td class="py-1.5 px-2 text-right text-xs whitespace-nowrap {{ $mov['tipo'] === 'ingreso' ? 'text-green-600 dark:text-green-400 font-medium' : 'text-gray-300 dark:text-gray-600' }}">
+                                        @if($mov['tipo'] === 'ingreso')
+                                            +${{ number_format($mov['monto'], 2, ',', '.') }}
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                    <td class="py-1.5 px-2 text-right text-xs whitespace-nowrap {{ $mov['tipo'] === 'egreso' ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-300 dark:text-gray-600' }}">
+                                        @if($mov['tipo'] === 'egreso')
+                                            -${{ number_format($mov['monto'], 2, ',', '.') }}
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                    <td class="py-1.5 px-2 text-right text-xs font-semibold text-gray-900 dark:text-white whitespace-nowrap">
+                                        ${{ number_format($mov['saldo_acumulado'], 2, ',', '.') }}
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot>
+                                <tr class="border-t-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
+                                    <td colspan="3" class="py-2 px-2 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                        {{ __('TOTALES') }}
+                                    </td>
+                                    <td class="py-2 px-2 text-right text-xs font-bold text-green-600 dark:text-green-400">
+                                        +${{ number_format($detalleInfo['total_ingresos'] ?? 0, 2, ',', '.') }}
+                                    </td>
+                                    <td class="py-2 px-2 text-right text-xs font-bold text-red-600 dark:text-red-400">
+                                        -${{ number_format($detalleInfo['total_egresos'] ?? 0, 2, ',', '.') }}
+                                    </td>
+                                    <td class="py-2 px-2 text-right text-xs font-bold text-gray-900 dark:text-white">
+                                        ${{ number_format($detalleInfo['saldo_actual'] ?? 0, 2, ',', '.') }}
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    @else
+                    <div class="text-center py-8 text-gray-400 dark:text-gray-500">
+                        <svg class="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+                        </svg>
+                        <p class="text-sm">{{ __('Sin movimientos en efectivo') }}</p>
+                    </div>
+                    @endif
+                </div>
+
+                {{-- Columna secundaria: Otros Medios de Pago --}}
+                <div class="lg:col-span-1">
+                    <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+                        <svg class="w-4 h-4 mr-1.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                        </svg>
+                        {{ __('Otros Medios de Pago') }}
+                    </h4>
+
+                    @if(count($detalleOtrosConceptos) > 0)
+                    <div class="space-y-3">
+                        @foreach($detalleOtrosConceptos as $concepto)
+                        <div class="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    {{ $concepto['nombre'] }}
+                                </span>
+                                <span class="text-sm font-bold text-purple-600 dark:text-purple-400">
+                                    ${{ number_format($concepto['monto_total'], 2, ',', '.') }}
+                                </span>
+                            </div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                {{ $concepto['cantidad'] }} {{ $concepto['cantidad'] === 1 ? __('operacion') : __('operaciones') }}
+                            </p>
+                            <div class="space-y-1">
+                                @foreach($concepto['detalle'] as $det)
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="text-gray-500 dark:text-gray-400">{{ $det['referencia'] }}</span>
+                                    <span class="font-medium text-gray-700 dark:text-gray-300">
+                                        ${{ number_format($det['monto'], 2, ',', '.') }}
+                                    </span>
+                                </div>
+                                @endforeach
+                            </div>
+                        </div>
+                        @endforeach
+                    </div>
+                    @else
+                    <div class="text-center py-8 text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+                        <svg class="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                        </svg>
+                        <p class="text-sm">{{ __('Sin operaciones con otros medios de pago') }}</p>
+                    </div>
+                    @endif
+                </div>
+            </div>
+        </x-slot:body>
+
+        <x-slot:footer>
+            <button
+                @click="close()"
+                class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+            >
+                {{ __('Cerrar') }}
+            </button>
+        </x-slot:footer>
+    </x-bcn-modal>
     @endif
 </div>

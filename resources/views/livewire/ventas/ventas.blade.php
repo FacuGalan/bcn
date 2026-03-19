@@ -980,276 +980,240 @@
 
     {{-- Modal Confirmar Reimpresión --}}
     @if($showReimprimirModal)
-        <div class="fixed inset-0 z-[60] overflow-y-auto">
-            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                {{-- Overlay --}}
-                <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" wire:click="cerrarReimprimirModal"></div>
-
-                {{-- Modal Container --}}
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-                <div class="inline-block w-full max-w-md my-8 overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-gray-800 rounded-lg shadow-xl sm:align-middle">
-                    {{-- Header --}}
-                    <div class="bg-bcn-primary px-6 py-4">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-white/20">
-                                <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                                </svg>
-                            </div>
-                            <h3 class="ml-4 text-lg font-medium text-white">{{ __('Confirmar Reimpresión') }}</h3>
-                        </div>
-                    </div>
-
-                    {{-- Body --}}
-                    <div class="px-6 py-5">
-                        <p class="text-sm text-gray-600 dark:text-gray-300">
-                            {{ __('¿Está seguro que desea reimprimir el siguiente documento?') }}
-                        </p>
-                        <div class="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                            <p class="text-base font-semibold text-gray-900 dark:text-white">
-                                {{ $reimprimirTitulo }}
-                            </p>
-                        </div>
-                    </div>
-
-                    {{-- Footer --}}
-                    <div class="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex justify-end gap-3">
-                        <button
-                            wire:click="cerrarReimprimirModal"
-                            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
-                        >
-                            {{ __('Cancelar') }}
-                        </button>
-                        <button
-                            wire:click="ejecutarReimpresion"
-                            class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-bcn-primary hover:bg-bcn-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary transition-colors"
-                        >
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                            </svg>
-                            {{ __('Reimprimir') }}
-                        </button>
-                    </div>
+        <x-bcn-modal
+            :show="$showReimprimirModal"
+            :title="__('Confirmar Reimpresión')"
+            color="bg-bcn-primary"
+            maxWidth="md"
+            onClose="cerrarReimprimirModal"
+            zIndex="z-[60]"
+        >
+            <x-slot:body>
+                <p class="text-sm text-gray-600 dark:text-gray-300">
+                    {{ __('¿Está seguro que desea reimprimir el siguiente documento?') }}
+                </p>
+                <div class="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <p class="text-base font-semibold text-gray-900 dark:text-white">
+                        {{ $reimprimirTitulo }}
+                    </p>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button
+                    @click="close()"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                >
+                    {{ __('Cancelar') }}
+                </button>
+                <button
+                    wire:click="ejecutarReimpresion"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm"
+                >
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                    </svg>
+                    {{ __('Reimprimir') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal Cancelar Venta --}}
     @if($showCancelarModal)
-        <div class="fixed inset-0 z-[60] overflow-y-auto" x-data x-on:keydown.escape.window="$wire.cerrarCancelarModal()">
-            <div class="flex items-center justify-center min-h-screen p-4">
-                {{-- Overlay --}}
-                <div class="fixed inset-0 bg-gray-500/75 transition-opacity" wire:click="cerrarCancelarModal"></div>
-
-                {{-- Modal Container - Más ancho --}}
-                <div class="relative w-full max-w-4xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl">
-                    {{-- Header compacto --}}
-                    <div class="flex items-center justify-between px-5 py-3 bg-red-600 rounded-t-xl">
-                        <div class="flex items-center gap-3">
-                            <div class="p-2 bg-white/20 rounded-lg">
-                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                                </svg>
-                            </div>
-                            <h3 class="text-lg font-semibold text-white">{{ __('Cancelar Venta') }} {{ $cancelarVentaInfo['numero'] ?? '' }}</h3>
+        <x-bcn-modal
+            :show="$showCancelarModal"
+            :title="__('Cancelar Venta') . ' ' . ($cancelarVentaInfo['numero'] ?? '')"
+            color="bg-red-600"
+            maxWidth="4xl"
+            onClose="cerrarCancelarModal"
+            zIndex="z-[60]"
+        >
+            <x-slot:body>
+                {{-- Fila superior: Info venta + Pagos --}}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    {{-- Info de la venta --}}
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">{{ __('Datos de la Venta') }}</h4>
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                            <span class="text-gray-500 dark:text-gray-400">{{ __('Fecha') }}:</span>
+                            <span class="text-gray-900 dark:text-white">{{ $cancelarVentaInfo['fecha'] ?? '' }}</span>
+                            <span class="text-gray-500 dark:text-gray-400">{{ __('Cliente') }}:</span>
+                            <span class="text-gray-900 dark:text-white truncate">{{ $cancelarVentaInfo['cliente'] ?? __('Sin cliente') }}</span>
+                            <span class="text-gray-500 dark:text-gray-400">{{ __('Total') }}:</span>
+                            <span class="text-lg font-bold text-gray-900 dark:text-white">${{ number_format($cancelarVentaInfo['total'] ?? 0, 2, ',', '.') }}</span>
                         </div>
-                        <button wire:click="cerrarCancelarModal" class="p-1 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                        </button>
-                    </div>
-
-                    {{-- Body --}}
-                    <div class="p-5">
-                        {{-- Fila superior: Info venta + Pagos --}}
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            {{-- Info de la venta --}}
-                            <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                                <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">{{ __('Datos de la Venta') }}</h4>
-                                <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                                    <span class="text-gray-500 dark:text-gray-400">{{ __('Fecha') }}:</span>
-                                    <span class="text-gray-900 dark:text-white">{{ $cancelarVentaInfo['fecha'] ?? '' }}</span>
-                                    <span class="text-gray-500 dark:text-gray-400">{{ __('Cliente') }}:</span>
-                                    <span class="text-gray-900 dark:text-white truncate">{{ $cancelarVentaInfo['cliente'] ?? __('Sin cliente') }}</span>
-                                    <span class="text-gray-500 dark:text-gray-400">{{ __('Total') }}:</span>
-                                    <span class="text-lg font-bold text-gray-900 dark:text-white">${{ number_format($cancelarVentaInfo['total'] ?? 0, 2, ',', '.') }}</span>
-                                </div>
-                                @if($cancelarVentaInfo['es_cuenta_corriente'] ?? false)
-                                    <span class="inline-flex items-center mt-2 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                                        {{ __('Cuenta Corriente') }}
-                                    </span>
-                                @endif
-                            </div>
-
-                            {{-- Pagos --}}
-                            <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                                <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">{{ __('Formas de Pago') }}</h4>
-                                @if(!empty($cancelarVentaInfo['pagos']))
-                                    <div class="space-y-1.5 max-h-24 overflow-y-auto">
-                                        @foreach($cancelarVentaInfo['pagos'] as $pago)
-                                            <div class="flex items-center justify-between text-sm">
-                                                <div class="flex items-center gap-2">
-                                                    <span class="text-gray-700 dark:text-gray-300">{{ $pago['forma_pago'] }}</span>
-                                                    @if($pago['facturado'])
-                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                                                            <svg class="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-                                                            {{ __('Facturado') }}
-                                                        </span>
-                                                    @else
-                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-300">
-                                                            {{ __('Sin facturar') }}
-                                                        </span>
-                                                    @endif
-                                                </div>
-                                                <span class="font-medium text-gray-900 dark:text-white">${{ number_format($pago['monto'], 2, ',', '.') }}</span>
-                                            </div>
-                                        @endforeach
-                                    </div>
-                                @else
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('Sin pagos registrados') }}</p>
-                                @endif
-                            </div>
-                        </div>
-
-                        {{-- Comprobantes fiscales (si hay) --}}
-                        @if($cancelarTieneComprobanteFiscal)
-                            <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 mb-4">
-                                <div class="flex items-center gap-2 mb-2">
-                                    <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                                    </svg>
-                                    <span class="text-sm font-semibold text-green-800 dark:text-green-200">{{ __('Comprobantes Fiscales Vigentes') }}</span>
-                                </div>
-                                <div class="flex flex-wrap gap-2">
-                                    @foreach($cancelarComprobantesFiscales as $cf)
-                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-800/30 rounded text-xs font-medium text-green-700 dark:text-green-300">
-                                            {{ $cf['tipo'] }} {{ $cf['numero'] }}
-                                            <span class="text-green-600 dark:text-green-400">${{ number_format($cf['total'], 2, ',', '.') }}</span>
-                                        </span>
-                                    @endforeach
-                                </div>
-                            </div>
+                        @if($cancelarVentaInfo['es_cuenta_corriente'] ?? false)
+                            <span class="inline-flex items-center mt-2 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                                {{ __('Cuenta Corriente') }}
+                            </span>
                         @endif
-
-                        {{-- Motivo --}}
-                        <div class="mb-4">
-                            <label for="cancelarMotivo" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo (opcional)') }}</label>
-                            <input
-                                type="text"
-                                wire:model="cancelarMotivo"
-                                id="cancelarMotivo"
-                                class="block w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-red-500 focus:border-red-500"
-                                placeholder="Ingrese el motivo de la cancelación..."
-                            />
-                        </div>
-
-                        {{-- Opciones de cancelación - Horizontal --}}
-                        @php
-                            $numOpciones = 1 + ($cancelarPermiteCtaCte ? 1 : 0) + ($cancelarTieneComprobanteFiscal ? 1 : 0);
-                            $gridCols = $numOpciones === 3 ? 'md:grid-cols-3' : ($numOpciones === 2 ? 'md:grid-cols-2' : 'md:grid-cols-1');
-                        @endphp
-                        <div class="grid grid-cols-1 {{ $gridCols }} gap-3">
-                            {{-- Opción 1: Cancelar completo --}}
-                            <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 flex flex-col">
-                                <div class="flex items-center gap-2 mb-2">
-                                    <svg class="w-4 h-4 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                    </svg>
-                                    <h4 class="text-sm font-semibold text-red-800 dark:text-red-200">Cancelar completo</h4>
-                                </div>
-                                <p class="text-xs text-red-600 dark:text-red-400 mb-3 flex-1">
-                                    Revierte stock, anula pagos{{ ($cancelarVentaInfo['es_cuenta_corriente'] ?? false) ? ', revierte saldo cliente' : '' }} y registra la venta como cancelada.
-                                    @if($cancelarTieneComprobanteFiscal)
-                                        <strong>Emite NC.</strong>
-                                    @endif
-                                </p>
-                                <button
-                                    wire:click="ejecutarCancelacionCompleta"
-                                    wire:loading.attr="disabled"
-                                    class="w-full inline-flex items-center justify-center px-3 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50 transition-colors"
-                                >
-                                    <svg wire:loading wire:target="ejecutarCancelacionCompleta" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    <span wire:loading.remove wire:target="ejecutarCancelacionCompleta">{{ $cancelarTieneComprobanteFiscal ? 'Cancelar + NC' : 'Cancelar venta' }}</span>
-                                    <span wire:loading wire:target="ejecutarCancelacionCompleta">Procesando...</span>
-                                </button>
-                            </div>
-
-                            {{-- Opción 2: Pasar a Cta Cte --}}
-                            @if($cancelarPermiteCtaCte)
-                                <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex flex-col">
-                                    <div class="flex items-center gap-2 mb-2">
-                                        <svg class="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
-                                        </svg>
-                                        <h4 class="text-sm font-semibold text-amber-800 dark:text-amber-200">Pasar a Cta. Cte.</h4>
-                                    </div>
-                                    <p class="text-xs text-amber-600 dark:text-amber-400 mb-3 flex-1">
-                                        Anula pagos, cliente deberá el total. No revierte stock.
-                                        @if($cancelarTieneComprobanteFiscal)
-                                            <em>Factura vigente.</em>
-                                        @endif
-                                    </p>
-                                    <button
-                                        wire:click="ejecutarConversionACtaCte"
-                                        wire:loading.attr="disabled"
-                                        class="w-full inline-flex items-center justify-center px-3 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg disabled:opacity-50 transition-colors"
-                                    >
-                                        <svg wire:loading wire:target="ejecutarConversionACtaCte" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
-                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        <span wire:loading.remove wire:target="ejecutarConversionACtaCte">A Cuenta Corriente</span>
-                                        <span wire:loading wire:target="ejecutarConversionACtaCte">Procesando...</span>
-                                    </button>
-                                </div>
-                            @endif
-
-                            {{-- Opción 3: Solo parte fiscal --}}
-                            @if($cancelarTieneComprobanteFiscal)
-                                <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 flex flex-col">
-                                    <div class="flex items-center gap-2 mb-2">
-                                        <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                                        </svg>
-                                        <h4 class="text-sm font-semibold text-green-800 dark:text-green-200">Solo anular fiscal</h4>
-                                    </div>
-                                    <p class="text-xs text-green-600 dark:text-green-400 mb-3 flex-1">
-                                        Emite NC. No cancela venta, no revierte stock ni pagos.
-                                    </p>
-                                    <button
-                                        wire:click="ejecutarAnulacionFiscal"
-                                        wire:loading.attr="disabled"
-                                        class="w-full inline-flex items-center justify-center px-3 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50 transition-colors"
-                                    >
-                                        <svg wire:loading wire:target="ejecutarAnulacionFiscal" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
-                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        <span wire:loading.remove wire:target="ejecutarAnulacionFiscal">Emitir NC</span>
-                                        <span wire:loading wire:target="ejecutarAnulacionFiscal">Procesando...</span>
-                                    </button>
-                                </div>
-                            @endif
-                        </div>
                     </div>
 
-                    {{-- Footer --}}
-                    <div class="px-5 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-b-xl flex justify-end">
-                        <button
-                            wire:click="cerrarCancelarModal"
-                            class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-                        >
-                            Cerrar
-                        </button>
+                    {{-- Pagos --}}
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">{{ __('Formas de Pago') }}</h4>
+                        @if(!empty($cancelarVentaInfo['pagos']))
+                            <div class="space-y-1.5 max-h-24 overflow-y-auto">
+                                @foreach($cancelarVentaInfo['pagos'] as $pago)
+                                    <div class="flex items-center justify-between text-sm">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-gray-700 dark:text-gray-300">{{ $pago['forma_pago'] }}</span>
+                                            @if($pago['facturado'])
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                                                    <svg class="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                                    {{ __('Facturado') }}
+                                                </span>
+                                            @else
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-300">
+                                                    {{ __('Sin facturar') }}
+                                                </span>
+                                            @endif
+                                        </div>
+                                        <span class="font-medium text-gray-900 dark:text-white">${{ number_format($pago['monto'], 2, ',', '.') }}</span>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('Sin pagos registrados') }}</p>
+                        @endif
                     </div>
                 </div>
-            </div>
-        </div>
+
+                {{-- Comprobantes fiscales (si hay) --}}
+                @if($cancelarTieneComprobanteFiscal)
+                    <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 mb-4">
+                        <div class="flex items-center gap-2 mb-2">
+                            <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                            <span class="text-sm font-semibold text-green-800 dark:text-green-200">{{ __('Comprobantes Fiscales Vigentes') }}</span>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach($cancelarComprobantesFiscales as $cf)
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-800/30 rounded text-xs font-medium text-green-700 dark:text-green-300">
+                                    {{ $cf['tipo'] }} {{ $cf['numero'] }}
+                                    <span class="text-green-600 dark:text-green-400">${{ number_format($cf['total'], 2, ',', '.') }}</span>
+                                </span>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
+                {{-- Motivo --}}
+                <div class="mb-4">
+                    <label for="cancelarMotivo" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo (opcional)') }}</label>
+                    <input
+                        type="text"
+                        wire:model="cancelarMotivo"
+                        id="cancelarMotivo"
+                        class="block w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-red-500 focus:border-red-500"
+                        placeholder="Ingrese el motivo de la cancelación..."
+                    />
+                </div>
+
+                {{-- Opciones de cancelación - Horizontal --}}
+                @php
+                    $numOpciones = 1 + ($cancelarPermiteCtaCte ? 1 : 0) + ($cancelarTieneComprobanteFiscal ? 1 : 0);
+                    $gridCols = $numOpciones === 3 ? 'md:grid-cols-3' : ($numOpciones === 2 ? 'md:grid-cols-2' : 'md:grid-cols-1');
+                @endphp
+                <div class="grid grid-cols-1 {{ $gridCols }} gap-3">
+                    {{-- Opción 1: Cancelar completo --}}
+                    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 flex flex-col">
+                        <div class="flex items-center gap-2 mb-2">
+                            <svg class="w-4 h-4 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                            <h4 class="text-sm font-semibold text-red-800 dark:text-red-200">Cancelar completo</h4>
+                        </div>
+                        <p class="text-xs text-red-600 dark:text-red-400 mb-3 flex-1">
+                            Revierte stock, anula pagos{{ ($cancelarVentaInfo['es_cuenta_corriente'] ?? false) ? ', revierte saldo cliente' : '' }} y registra la venta como cancelada.
+                            @if($cancelarTieneComprobanteFiscal)
+                                <strong>Emite NC.</strong>
+                            @endif
+                        </p>
+                        <button
+                            wire:click="ejecutarCancelacionCompleta"
+                            wire:loading.attr="disabled"
+                            class="w-full inline-flex items-center justify-center px-3 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50 transition-colors"
+                        >
+                            <svg wire:loading wire:target="ejecutarCancelacionCompleta" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span wire:loading.remove wire:target="ejecutarCancelacionCompleta">{{ $cancelarTieneComprobanteFiscal ? 'Cancelar + NC' : 'Cancelar venta' }}</span>
+                            <span wire:loading wire:target="ejecutarCancelacionCompleta">Procesando...</span>
+                        </button>
+                    </div>
+
+                    {{-- Opción 2: Pasar a Cta Cte --}}
+                    @if($cancelarPermiteCtaCte)
+                        <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex flex-col">
+                            <div class="flex items-center gap-2 mb-2">
+                                <svg class="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                                </svg>
+                                <h4 class="text-sm font-semibold text-amber-800 dark:text-amber-200">Pasar a Cta. Cte.</h4>
+                            </div>
+                            <p class="text-xs text-amber-600 dark:text-amber-400 mb-3 flex-1">
+                                Anula pagos, cliente deberá el total. No revierte stock.
+                                @if($cancelarTieneComprobanteFiscal)
+                                    <em>Factura vigente.</em>
+                                @endif
+                            </p>
+                            <button
+                                wire:click="ejecutarConversionACtaCte"
+                                wire:loading.attr="disabled"
+                                class="w-full inline-flex items-center justify-center px-3 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg disabled:opacity-50 transition-colors"
+                            >
+                                <svg wire:loading wire:target="ejecutarConversionACtaCte" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span wire:loading.remove wire:target="ejecutarConversionACtaCte">A Cuenta Corriente</span>
+                                <span wire:loading wire:target="ejecutarConversionACtaCte">Procesando...</span>
+                            </button>
+                        </div>
+                    @endif
+
+                    {{-- Opción 3: Solo parte fiscal --}}
+                    @if($cancelarTieneComprobanteFiscal)
+                        <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 flex flex-col">
+                            <div class="flex items-center gap-2 mb-2">
+                                <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                                <h4 class="text-sm font-semibold text-green-800 dark:text-green-200">Solo anular fiscal</h4>
+                            </div>
+                            <p class="text-xs text-green-600 dark:text-green-400 mb-3 flex-1">
+                                Emite NC. No cancela venta, no revierte stock ni pagos.
+                            </p>
+                            <button
+                                wire:click="ejecutarAnulacionFiscal"
+                                wire:loading.attr="disabled"
+                                class="w-full inline-flex items-center justify-center px-3 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50 transition-colors"
+                            >
+                                <svg wire:loading wire:target="ejecutarAnulacionFiscal" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span wire:loading.remove wire:target="ejecutarAnulacionFiscal">Emitir NC</span>
+                                <span wire:loading wire:target="ejecutarAnulacionFiscal">Procesando...</span>
+                            </button>
+                        </div>
+                    @endif
+                </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button
+                    @click="close()"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                >
+                    {{ __('Cerrar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Scripts de impresión --}}

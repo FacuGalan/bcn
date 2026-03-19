@@ -1102,211 +1102,159 @@
 
     {{-- Modal de Consulta de Precios --}}
     @if($mostrarModalConsulta && $articuloConsulta)
-        <div class="fixed inset-0 z-50 overflow-y-auto"
-             aria-labelledby="modal-title"
-             role="dialog"
-             aria-modal="true"
-             x-data
-             @keydown.window.escape="$wire.cerrarModalConsulta()"
-             @keydown.window.enter="$wire.agregarArticuloYCerrarConsulta({{ $articuloConsulta['id'] }})"
+        <x-bcn-modal
+            :show="$mostrarModalConsulta"
+            :title="__('Consulta de Precios')"
+            color="bg-amber-500"
+            maxWidth="lg"
+            onClose="cerrarModalConsulta"
         >
-            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                {{-- Overlay --}}
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="cerrarModalConsulta"></div>
-
-                {{-- Centrado --}}
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                {{-- Modal --}}
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                    {{-- Header --}}
-                    <div class="bg-amber-500 px-4 py-3 flex items-center gap-3">
-                        <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-amber-100">
-                            <svg class="h-6 w-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                            </svg>
-                        </div>
-                        <h3 class="text-lg font-medium text-white" id="modal-title">
-                            {{ __('Consulta de Precios') }}
-                        </h3>
+            <x-slot:body>
+                {{-- Info del artículo --}}
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 mb-4">
+                    <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $articuloConsulta['nombre'] }}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ __('Código') }}: {{ $articuloConsulta['codigo'] }}
+                        @if($articuloConsulta['categoria'])
+                            | {{ $articuloConsulta['categoria'] }}
+                        @endif
                     </div>
-
-                    {{-- Contenido --}}
-                    <div class="px-4 py-4">
-                        {{-- Info del artículo --}}
-                        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 mb-4">
-                            <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $articuloConsulta['nombre'] }}</div>
-                            <div class="text-xs text-gray-500 dark:text-gray-400">
-                                {{ __('Código') }}: {{ $articuloConsulta['codigo'] }}
-                                @if($articuloConsulta['categoria'])
-                                    | {{ $articuloConsulta['categoria'] }}
-                                @endif
-                            </div>
-                            <div class="text-xs text-gray-500 mt-1">
-                                {{ __('Precio base') }}: <span class="font-medium">$@precio($articuloConsulta['precio_base'])</span>
-                            </div>
-                        </div>
-
-                        {{-- Tabla de precios por lista --}}
-                        <div class="overflow-hidden border border-gray-200 dark:border-gray-700 rounded-lg">
-                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                <thead class="bg-gray-50 dark:bg-gray-700">
-                                    <tr>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Lista') }}</th>
-                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Precio') }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                    @foreach($articuloConsulta['precios'] as $precio)
-                                        <tr class="{{ $precio['es_lista_base'] ? 'bg-green-50 dark:bg-green-900/30' : '' }} {{ $precio['lista_id'] == $listaPrecioId ? 'ring-2 ring-inset ring-indigo-500' : '' }}">
-                                            <td class="px-3 py-2 text-sm">
-                                                <div class="font-medium text-gray-900 dark:text-white">
-                                                    {{ $precio['lista_nombre'] }}
-                                                    @if($precio['es_lista_base'])
-                                                        <span class="ml-1 text-xs text-green-600">({{ __('Base') }})</span>
-                                                    @endif
-                                                    @if($precio['lista_id'] == $listaPrecioId)
-                                                        <span class="ml-1 text-xs text-indigo-600 dark:text-indigo-400">({{ __('Actual') }})</span>
-                                                    @endif
-                                                </div>
-                                                <div class="text-xs text-gray-500 dark:text-gray-400">
-                                                    @if($precio['tiene_precio_especifico'])
-                                                        {{ __('Precio específico') }}
-                                                    @elseif($precio['ajuste_porcentaje'] != 0)
-                                                        {{ $precio['ajuste_porcentaje'] > 0 ? '+' : '' }}{{ $precio['ajuste_porcentaje'] }}% {{ __('sobre base') }}
-                                                    @else
-                                                        {{ __('Sin ajuste') }}
-                                                    @endif
-                                                </div>
-                                            </td>
-                                            <td class="px-3 py-2 text-sm text-right">
-                                                <span class="font-medium {{ $precio['lista_id'] == $listaPrecioId ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-900 dark:text-white' }}">
-                                                    $@precio($precio['precio'])
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    {{-- Footer --}}
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 flex flex-row-reverse gap-2">
-                        <button
-                            wire:click="cerrarModalConsulta"
-                            type="button"
-                            class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">
-                            {{ __('Cerrar') }}
-                        </button>
-                        <button
-                            wire:click="agregarArticuloYCerrarConsulta({{ $articuloConsulta['id'] }})"
-                            type="button"
-                            class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">
-                            {{ __('Agregar al carrito') }}
-                        </button>
+                    <div class="text-xs text-gray-500 mt-1">
+                        {{ __('Precio base') }}: <span class="font-medium">$@precio($articuloConsulta['precio_base'])</span>
                     </div>
                 </div>
-            </div>
-        </div>
+
+                {{-- Tabla de precios por lista --}}
+                <div class="overflow-hidden border border-gray-200 dark:border-gray-700 rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-700">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Lista') }}</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Precio') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                            @foreach($articuloConsulta['precios'] as $precio)
+                                <tr class="{{ $precio['es_lista_base'] ? 'bg-green-50 dark:bg-green-900/30' : '' }} {{ $precio['lista_id'] == $listaPrecioId ? 'ring-2 ring-inset ring-indigo-500' : '' }}">
+                                    <td class="px-3 py-2 text-sm">
+                                        <div class="font-medium text-gray-900 dark:text-white">
+                                            {{ $precio['lista_nombre'] }}
+                                            @if($precio['es_lista_base'])
+                                                <span class="ml-1 text-xs text-green-600">({{ __('Base') }})</span>
+                                            @endif
+                                            @if($precio['lista_id'] == $listaPrecioId)
+                                                <span class="ml-1 text-xs text-indigo-600 dark:text-indigo-400">({{ __('Actual') }})</span>
+                                            @endif
+                                        </div>
+                                        <div class="text-xs text-gray-500 dark:text-gray-400">
+                                            @if($precio['tiene_precio_especifico'])
+                                                {{ __('Precio específico') }}
+                                            @elseif($precio['ajuste_porcentaje'] != 0)
+                                                {{ $precio['ajuste_porcentaje'] > 0 ? '+' : '' }}{{ $precio['ajuste_porcentaje'] }}% {{ __('sobre base') }}
+                                            @else
+                                                {{ __('Sin ajuste') }}
+                                            @endif
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-2 text-sm text-right">
+                                        <span class="font-medium {{ $precio['lista_id'] == $listaPrecioId ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-900 dark:text-white' }}">
+                                            $@precio($precio['precio'])
+                                        </span>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button
+                    wire:click="agregarArticuloYCerrarConsulta({{ $articuloConsulta['id'] }})"
+                    type="button"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Agregar al carrito') }}
+                </button>
+                <button
+                    @click="close()"
+                    type="button"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                    {{ __('Cerrar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Script para scroll y efectos --}}
     {{-- Modal de Agregar Concepto --}}
     @if($mostrarModalConcepto)
-        <div class="fixed inset-0 z-50 overflow-y-auto"
-             aria-labelledby="modal-concepto"
-             role="dialog"
-             aria-modal="true"
-             x-data="{ init() { this.$nextTick(() => this.$refs.inputImporte.focus()) } }"
-             @keydown.window.escape="$wire.cerrarModalConcepto()"
-             @keydown.window.enter="$wire.agregarConcepto()">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                {{-- Overlay --}}
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="cerrarModalConcepto"></div>
+        <x-bcn-modal
+            :show="$mostrarModalConcepto"
+            :title="__('Agregar Concepto')"
+            color="bg-emerald-500"
+            maxWidth="md"
+            onClose="cerrarModalConcepto"
+        >
+            <x-slot:body>
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                    {{ __('Agregue un concepto por importe sin especificar artículo (ej: venta de fiambrería por $5.000)') }}
+                </p>
 
-                {{-- Centrado --}}
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                {{-- Modal --}}
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
-                    {{-- Header --}}
-                    <div class="bg-emerald-500 px-4 py-3 flex items-center gap-3">
-                        <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-emerald-100">
-                            <svg class="h-6 w-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
-                            </svg>
-                        </div>
-                        <h3 class="text-lg font-medium text-white">
-                            {{ __('Agregar Concepto') }}
-                        </h3>
-                    </div>
-
-                    {{-- Contenido --}}
-                    <div class="px-4 py-4 space-y-4">
-                        <p class="text-sm text-gray-600 dark:text-gray-400">
-                            {{ __('Agregue un concepto por importe sin especificar artículo (ej: venta de fiambrería por $5.000)') }}
-                        </p>
-
-                        {{-- Importe (primero) --}}
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Importe') }}</label>
-                            <div class="relative">
-                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 dark:text-gray-400">$</span>
-                                <input
-                                    x-ref="inputImporte"
-                                    wire:model="conceptoImporte"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    class="block w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
-                                    placeholder="0.00">
-                            </div>
-                        </div>
-
-                        {{-- Categoría (opcional) --}}
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Categoría (opcional)') }}</label>
-                            <select
-                                wire:model="conceptoCategoriaId"
-                                class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
-                                <option value="">{{ __('-- Sin categoría (Varios) --') }}</option>
-                                @foreach($categoriasDisponibles as $cat)
-                                    <option value="{{ $cat['id'] }}">{{ $cat['nombre'] }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        {{-- Descripción (opcional) --}}
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Descripción (opcional)') }}</label>
-                            <input
-                                wire:model="conceptoDescripcion"
-                                type="text"
-                                class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
-                                :placeholder="__('Ej: Fiambrería variada')">
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Si está vacío, se usará el nombre de la categoría o "Varios"') }}</p>
-                        </div>
-                    </div>
-
-                    {{-- Footer --}}
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 flex flex-row-reverse gap-2">
-                        <button
-                            wire:click="agregarConcepto"
-                            type="button"
-                            class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-emerald-600 text-base font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:text-sm">
-                            {{ __('Agregar') }}
-                        </button>
-                        <button
-                            wire:click="cerrarModalConcepto"
-                            type="button"
-                            class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">
-                            {{ __('Cancelar') }}
-                        </button>
+                {{-- Importe (primero) --}}
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Importe') }}</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 dark:text-gray-400">$</span>
+                        <input
+                            wire:model="conceptoImporte"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            class="block w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                            placeholder="0.00">
                     </div>
                 </div>
-            </div>
-        </div>
+
+                {{-- Categoría (opcional) --}}
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Categoría (opcional)') }}</label>
+                    <select
+                        wire:model="conceptoCategoriaId"
+                        class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
+                        <option value="">{{ __('-- Sin categoría (Varios) --') }}</option>
+                        @foreach($categoriasDisponibles as $cat)
+                            <option value="{{ $cat['id'] }}">{{ $cat['nombre'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                {{-- Descripción (opcional) --}}
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Descripción (opcional)') }}</label>
+                    <input
+                        wire:model="conceptoDescripcion"
+                        type="text"
+                        class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                        :placeholder="__('Ej: Fiambrería variada')">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Si está vacío, se usará el nombre de la categoría o "Varios"') }}</p>
+                </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button
+                    @click="close()"
+                    type="button"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button
+                    wire:click="agregarConcepto"
+                    type="button"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                    {{ __('Agregar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal de Pago / Desglose --}}
@@ -2236,187 +2184,138 @@
 
     {{-- Modal de Alta Rápida de Cliente --}}
     @if($mostrarModalClienteRapido)
-        <div class="fixed inset-0 z-50 overflow-y-auto"
-             aria-labelledby="modal-cliente-rapido"
-             role="dialog"
-             aria-modal="true"
-             x-data="{ init() { this.$nextTick(() => this.$refs.inputNombre.focus()) } }"
-             @keydown.window.escape="$wire.cerrarModalClienteRapido()"
-             @keydown.window.enter="$wire.guardarClienteRapido()">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                {{-- Overlay --}}
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="cerrarModalClienteRapido"></div>
+        <x-bcn-modal
+            :show="$mostrarModalClienteRapido"
+            :title="__('Alta Rápida de Cliente')"
+            color="bg-indigo-500"
+            maxWidth="md"
+            onClose="cerrarModalClienteRapido"
+        >
+            <x-slot:body>
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                    {{ __('Complete los datos básicos para crear un nuevo cliente rápidamente.') }}
+                </p>
 
-                {{-- Centrado --}}
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                {{-- Modal --}}
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
-                    {{-- Header --}}
-                    <div class="bg-indigo-500 px-4 py-3 flex items-center gap-3">
-                        <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-indigo-100">
-                            <svg class="h-6 w-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
-                            </svg>
-                        </div>
-                        <h3 class="text-lg font-medium text-white">
-                            {{ __('Alta Rápida de Cliente') }}
-                        </h3>
-                    </div>
-
-                    {{-- Contenido --}}
-                    <div class="px-4 py-4 space-y-4">
-                        <p class="text-sm text-gray-600 dark:text-gray-400">
-                            {{ __('Complete los datos básicos para crear un nuevo cliente rápidamente.') }}
-                        </p>
-
-                        {{-- Nombre --}}
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Nombre') }} <span class="text-red-500">*</span></label>
-                            <input
-                                x-ref="inputNombre"
-                                wire:model="clienteRapidoNombre"
-                                type="text"
-                                class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                :placeholder="__('Nombre del cliente')">
-                            @error('clienteRapidoNombre')
-                                <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
-                            @enderror
-                        </div>
-
-                        {{-- Teléfono --}}
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Teléfono') }}</label>
-                            <input
-                                wire:model="clienteRapidoTelefono"
-                                type="text"
-                                class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                :placeholder="__('Teléfono (opcional)')">
-                        </div>
-
-                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                            {{ __('El cliente se creará como Consumidor Final. Puede completar los demás datos después desde la gestión de clientes.') }}
-                        </p>
-                    </div>
-
-                    {{-- Footer --}}
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 flex flex-row-reverse gap-2">
-                        <button
-                            wire:click="guardarClienteRapido"
-                            type="button"
-                            class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">
-                            {{ __('Crear Cliente') }}
-                        </button>
-                        <button
-                            wire:click="cerrarModalClienteRapido"
-                            type="button"
-                            class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">
-                            {{ __('Cancelar') }}
-                        </button>
-                    </div>
+                {{-- Nombre --}}
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Nombre') }} <span class="text-red-500">*</span></label>
+                    <input
+                        wire:model="clienteRapidoNombre"
+                        type="text"
+                        class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        :placeholder="__('Nombre del cliente')">
+                    @error('clienteRapidoNombre')
+                        <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                    @enderror
                 </div>
-            </div>
-        </div>
+
+                {{-- Teléfono --}}
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Teléfono') }}</label>
+                    <input
+                        wire:model="clienteRapidoTelefono"
+                        type="text"
+                        class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        :placeholder="__('Teléfono (opcional)')">
+                </div>
+
+                <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                    {{ __('El cliente se creará como Consumidor Final. Puede completar los demás datos después desde la gestión de clientes.') }}
+                </p>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button
+                    @click="close()"
+                    type="button"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button
+                    wire:click="guardarClienteRapido"
+                    type="button"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                    {{ __('Crear Cliente') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal: Selección de Punto de Venta Fiscal --}}
     @if($showPuntoVentaModal)
-        <div
-            x-data="{ show: @entangle('showPuntoVentaModal').live }"
-            x-show="show"
-            x-cloak
-            class="fixed inset-0 z-[70] overflow-y-auto"
-            aria-labelledby="modal-punto-venta"
-            role="dialog"
-            aria-modal="true"
+        <x-bcn-modal
+            :show="$showPuntoVentaModal"
+            :title="__('Seleccionar Punto de Venta Fiscal')"
+            color="bg-bcn-primary"
+            maxWidth="lg"
+            onClose="cancelarSeleccionPuntoVenta"
+            zIndex="z-[70]"
         >
-            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                {{-- Overlay --}}
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-80 transition-opacity"></div>
+            <x-slot:body>
+                <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                    {{ __('La caja tiene múltiples puntos de venta configurados. Seleccione con cuál desea emitir el comprobante fiscal:') }}
+                </p>
 
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                {{-- Modal Panel --}}
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                    {{-- Header --}}
-                    <div class="bg-bcn-primary px-4 py-3">
-                        <h3 class="text-lg font-semibold text-white flex items-center" id="modal-punto-venta">
-                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            {{ __('Seleccionar Punto de Venta Fiscal') }}
-                        </h3>
-                    </div>
-
-                    {{-- Content --}}
-                    <div class="px-4 py-5 sm:p-6">
-                        <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
-                            {{ __('La caja tiene múltiples puntos de venta configurados. Seleccione con cuál desea emitir el comprobante fiscal:') }}
-                        </p>
-
-                        <div class="space-y-2 max-h-64 overflow-y-auto">
-                            @foreach($puntosVentaDisponibles as $pv)
-                                <label
-                                    class="flex items-center p-3 border rounded-lg cursor-pointer transition-all
-                                        {{ $puntoVentaSeleccionadoId == $pv['id']
-                                            ? 'border-bcn-primary bg-bcn-primary/10 dark:bg-bcn-primary/20'
-                                            : 'border-gray-200 dark:border-gray-600 hover:border-bcn-primary/50' }}"
-                                >
-                                    <input
-                                        type="radio"
-                                        wire:model="puntoVentaSeleccionadoId"
-                                        value="{{ $pv['id'] }}"
-                                        class="h-4 w-4 text-bcn-primary focus:ring-bcn-primary border-gray-300 dark:border-gray-600"
-                                    >
-                                    <div class="ml-3 flex-1">
-                                        <div class="flex items-center justify-between">
-                                            <span class="text-sm font-semibold text-gray-900 dark:text-white">
-                                                PV {{ $pv['numero_formateado'] }}
-                                                @if($pv['nombre'])
-                                                    - {{ $pv['nombre'] }}
-                                                @endif
-                                            </span>
-                                            @if($pv['es_defecto'])
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                                    {{ __('Por defecto') }}
-                                                </span>
-                                            @endif
-                                        </div>
-                                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                            <span class="font-mono">{{ $pv['cuit_numero'] }}</span>
-                                            @if($pv['cuit_razon_social'])
-                                                <span class="ml-1">- {{ $pv['cuit_razon_social'] }}</span>
-                                            @endif
-                                        </div>
-                                    </div>
-                                </label>
-                            @endforeach
-                        </div>
-                    </div>
-
-                    {{-- Footer --}}
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 flex flex-row-reverse gap-2 border-t border-gray-200 dark:border-gray-600">
-                        <button
-                            wire:click="confirmarPuntoVenta"
-                            type="button"
-                            class="inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-sm font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary"
+                <div class="space-y-2 max-h-64 overflow-y-auto">
+                    @foreach($puntosVentaDisponibles as $pv)
+                        <label
+                            class="flex items-center p-3 border rounded-lg cursor-pointer transition-all
+                                {{ $puntoVentaSeleccionadoId == $pv['id']
+                                    ? 'border-bcn-primary bg-bcn-primary/10 dark:bg-bcn-primary/20'
+                                    : 'border-gray-200 dark:border-gray-600 hover:border-bcn-primary/50' }}"
                         >
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                            </svg>
-                            {{ __('Confirmar y Facturar') }}
-                        </button>
-                        <button
-                            wire:click="cancelarSeleccionPuntoVenta"
-                            type="button"
-                            class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary"
-                        >
-                            {{ __('Cancelar') }}
-                        </button>
-                    </div>
+                            <input
+                                type="radio"
+                                wire:model="puntoVentaSeleccionadoId"
+                                value="{{ $pv['id'] }}"
+                                class="h-4 w-4 text-bcn-primary focus:ring-bcn-primary border-gray-300 dark:border-gray-600"
+                            >
+                            <div class="ml-3 flex-1">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-semibold text-gray-900 dark:text-white">
+                                        PV {{ $pv['numero_formateado'] }}
+                                        @if($pv['nombre'])
+                                            - {{ $pv['nombre'] }}
+                                        @endif
+                                    </span>
+                                    @if($pv['es_defecto'])
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                            {{ __('Por defecto') }}
+                                        </span>
+                                    @endif
+                                </div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    <span class="font-mono">{{ $pv['cuit_numero'] }}</span>
+                                    @if($pv['cuit_razon_social'])
+                                        <span class="ml-1">- {{ $pv['cuit_razon_social'] }}</span>
+                                    @endif
+                                </div>
+                            </div>
+                        </label>
+                    @endforeach
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button
+                    @click="close()"
+                    type="button"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                >
+                    {{ __('Cancelar') }}
+                </button>
+                <button
+                    wire:click="confirmarPuntoVenta"
+                    type="button"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm"
+                >
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    {{ __('Confirmar y Facturar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Script para scroll y efectos --}}
@@ -2505,28 +2404,34 @@
 
     {{-- Modal de Confirmación: Limpiar Carrito --}}
     @if($mostrarConfirmLimpiar)
-        <div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true"
-             x-data x-trap.noscroll="true"
-             @keydown.escape.window="$wire.cancelarLimpiarCarrito()"
-             @keydown.enter.window="$wire.ejecutarLimpiarCarrito()">
-            <div class="flex items-center justify-center min-h-screen px-4">
-                <div class="fixed inset-0 bg-gray-500/75 dark:bg-gray-900/80 transition-opacity" wire:click="cancelarLimpiarCarrito"></div>
-                <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full p-6 z-10">
-                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">{{ __('¿Limpiar el carrito?') }}</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">{{ __('Se eliminarán todos los artículos del carrito.') }}</p>
-                    <div class="flex justify-end gap-3">
-                        <button wire:click="cancelarLimpiarCarrito" type="button"
-                                class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600">
-                            {{ __('Cancelar') }}
-                        </button>
-                        <button wire:click="ejecutarLimpiarCarrito" type="button"
-                                class="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700">
-                            {{ __('Limpiar') }}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <x-bcn-modal
+            :show="$mostrarConfirmLimpiar"
+            :title="__('¿Limpiar el carrito?')"
+            color="bg-red-600"
+            maxWidth="sm"
+            onClose="cancelarLimpiarCarrito"
+        >
+            <x-slot:body>
+                <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('Se eliminarán todos los artículos del carrito.') }}</p>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button
+                    @click="close()"
+                    type="button"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                >
+                    {{ __('Cancelar') }}
+                </button>
+                <button
+                    wire:click="ejecutarLimpiarCarrito"
+                    type="button"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-500 sm:w-auto sm:text-sm"
+                >
+                    {{ __('Limpiar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     </x-caja-operativa-requerida>
