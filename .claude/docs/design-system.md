@@ -105,25 +105,121 @@ Font: Figtree (bunny.net CDN).
 
 ## Modales
 
-Usar componente `<x-modal>`:
+**OBLIGATORIO**: Usar `<x-bcn-modal>` para TODOS los modales. NO usar `<x-modal>` (deprecado).
+
+### Características del componente
+- **Mobile**: Bottom sheet (sube desde abajo, pill handle, pull-down to dismiss)
+- **Desktop**: Modal centrado con animación fade+scale
+- **Scroll lock**: Body no scrollea mientras el modal está abierto
+- **Escape**: Cierra el modal con tecla Escape
+- **Overlay**: Click en overlay cierra el modal
+- **Footer fijo**: Los botones siempre visibles, contenido scrolleable
+
+### Props
+
+| Prop | Default | Descripción |
+|------|---------|-------------|
+| `title` | `''` | Título del modal (se muestra en el header) |
+| `color` | `'bg-bcn-primary'` | Color del header. **REGLA: debe coincidir con el color del botón que abre el modal** |
+| `maxWidth` | `'5xl'` | Ancho máximo: sm, md, lg, xl, 2xl, 3xl, 4xl, 5xl |
+| `onClose` | `'cancel'` | Método Livewire a ejecutar al cerrar |
+| `submit` | `null` | Si se pasa, envuelve el contenido en `<form wire:submit="...">` |
+
+### Slots
+
+| Slot | Descripción |
+|------|-------------|
+| `body` | Contenido principal (scrolleable) |
+| `footer` | Botones de acción (fijo abajo) |
+
+### Uso básico (modal con form)
 ```html
 @if($showModal)
-  <x-modal name="mi-modal" :show="true">
-    <!-- Header -->
-    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Título</h3>
-    </div>
-    <!-- Body -->
-    <div class="px-6 py-4">
-      <!-- Formulario -->
-    </div>
-    <!-- Footer -->
-    <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
-      <x-secondary-button wire:click="$set('showModal', false)">Cancelar</x-secondary-button>
-      <x-primary-button wire:click="save">Guardar</x-primary-button>
-    </div>
-  </x-modal>
+    <x-bcn-modal
+        :title="$editMode ? __('Editar Artículo') : __('Nuevo Artículo')"
+        color="bg-bcn-primary"
+        maxWidth="5xl"
+        onClose="cancel"
+        submit="save"
+    >
+        <x-slot:body>
+            {{-- Campos del formulario --}}
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }}</label>
+                    <input type="text" wire:model="nombre" class="mt-1 block w-full rounded-md ..." />
+                </div>
+            </div>
+        </x-slot:body>
+
+        <x-slot:footer>
+            <button type="button" @click="close()"
+                class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600
+                shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700
+                dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                {{ __('Cancelar') }}
+            </button>
+            <button type="submit"
+                class="w-full inline-flex justify-center rounded-md border border-transparent
+                shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white
+                hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                {{ $editMode ? __('Actualizar') : __('Crear') }}
+            </button>
+        </x-slot:footer>
+    </x-bcn-modal>
 @endif
+```
+
+### Uso sin form (modal informativo o con acciones directas)
+```html
+@if($showDeleteModal)
+    <x-bcn-modal
+        :title="__('Confirmar Eliminación')"
+        color="bg-red-600"
+        maxWidth="md"
+        onClose="cancelarEliminar"
+    >
+        <x-slot:body>
+            <p>{{ __('¿Estás seguro?') }}</p>
+        </x-slot:body>
+
+        <x-slot:footer>
+            <button type="button" @click="close()" class="...">{{ __('Cancelar') }}</button>
+            <button type="button" wire:click="eliminar" class="... bg-red-600 ...">{{ __('Eliminar') }}</button>
+        </x-slot:footer>
+    </x-bcn-modal>
+@endif
+```
+
+### Regla de colores
+
+El color del header y el botón de confirmar deben coincidir con el botón que abre el modal:
+
+| Acción | Color header | Color botón confirmar |
+|--------|-------------|----------------------|
+| Crear/Editar (CRUD) | `bg-bcn-primary` | `bg-bcn-primary` |
+| Eliminar | `bg-red-600` | `bg-red-600` |
+| Abrir caja | `bg-green-600` | `bg-green-600` |
+| Cerrar caja | `bg-red-600` | `bg-red-600` |
+| Movimiento | `bg-blue-600` | `bg-blue-600` |
+
+### Switches dentro de modales
+
+Usar formato switch (no checkbox) con fondo `bg-gray-100 dark:bg-gray-700`:
+```html
+<div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between">
+    <label class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('Label') }}</label>
+    <button type="button" wire:click="$toggle('propiedad')"
+        class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full
+        cursor-pointer transition-colors duration-200 focus:outline-none focus:ring-2
+        focus:ring-offset-2 focus:ring-bcn-primary
+        {{ $propiedad ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
+        role="switch">
+        <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow
+            transform transition duration-200
+            {{ $propiedad ? 'translate-x-5' : 'translate-x-0' }}"></span>
+    </button>
+</div>
 ```
 
 ## Notificaciones Toast

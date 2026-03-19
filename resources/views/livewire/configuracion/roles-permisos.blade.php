@@ -109,208 +109,186 @@
 
     <!-- Modal para crear/editar rol -->
     @if($showModal)
-        <div
-            x-data="{ show: @entangle('showModal').live }"
-            x-show="show"
-            x-cloak
-            class="fixed inset-0 z-50 overflow-y-auto"
-            aria-labelledby="modal-title"
-            role="dialog"
-            aria-modal="true"
+        <x-bcn-modal
+            :title="$editMode ? __('Editar Rol') : __('Nuevo Rol')"
+            color="bg-bcn-primary"
+            maxWidth="6xl"
+            onClose="cancel"
+            submit="save"
         >
-            <!-- Overlay -->
-            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                <div
-                    @click="show = false; $wire.cancel()"
-                    class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-                    aria-hidden="true"
-                ></div>
+            <x-slot:body>
+                @if($isSuperAdmin)
+                    <div class="mb-4">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 whitespace-nowrap">
+                            <svg class="w-3.5 h-3.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
+                            </svg>
+                            {{ __('Usuarios y Roles y Permisos son obligatorios') }}
+                        </span>
+                    </div>
+                @endif
 
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                <div class="space-y-4">
+                    <!-- Nombre del rol -->
+                    <div class="max-w-md">
+                        <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Nombre del rol *') }}</label>
+                        <input
+                            type="text"
+                            id="name"
+                            wire:model="name"
+                            class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 {{ $isSuperAdmin ? 'bg-gray-100 dark:bg-gray-600 cursor-not-allowed' : '' }}"
+                            placeholder="{{ __('Ej: Vendedor, Cajero, Supervisor...') }}"
+                            {{ $isSuperAdmin ? 'readonly' : 'required' }}
+                        />
+                        @error('name') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                    </div>
 
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-6xl sm:w-full">
-                    <form wire:submit="save">
-                        <div class="bg-white dark:bg-gray-800 px-6 py-4 sm:px-8 sm:py-5">
-                            <div class="w-full">
-                                <div class="flex items-center gap-3 mb-4">
-                                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white" id="modal-title">
-                                        {{ $editMode ? __('Editar Rol') : __('Nuevo Rol') }}
-                                    </h3>
-                                    @if($isSuperAdmin)
-                                        <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 whitespace-nowrap">
-                                            <svg class="w-3.5 h-3.5 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
-                                            </svg>
-                                            {{ __('Usuarios y Roles y Permisos son obligatorios') }}
-                                        </span>
-                                    @endif
-                                </div>
-
-                                <div class="space-y-4">
-                                    <!-- Nombre del rol -->
-                                    <div class="max-w-md">
-                                        <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Nombre del rol *') }}</label>
-                                        <input
-                                            type="text"
-                                            id="name"
-                                            wire:model="name"
-                                            class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 {{ $isSuperAdmin ? 'bg-gray-100 dark:bg-gray-600 cursor-not-allowed' : '' }}"
-                                            placeholder="{{ __('Ej: Vendedor, Cajero, Supervisor...') }}"
-                                            {{ $isSuperAdmin ? 'readonly' : 'required' }}
-                                        />
-                                        @error('name') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                    </div>
-
-                                    <!-- Grid de 2 columnas para permisos -->
-                                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                                        <!-- Permisos de menú -->
-                                        <div>
-                                            <label class="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                                                <svg class="w-5 h-5 inline mr-2 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                                                </svg>
-                                                {{ __('Acceso al Menú') }}
+                    <!-- Grid de 2 columnas para permisos -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        <!-- Permisos de menú -->
+                        <div>
+                            <label class="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                                <svg class="w-5 h-5 inline mr-2 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                                </svg>
+                                {{ __('Acceso al Menú') }}
+                            </label>
+                            <div class="max-h-[400px] overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3 space-y-2 bg-gray-50 dark:bg-gray-700/50">
+                                @foreach($groupedPermissions as $moduleName => $permissions)
+                                    @php
+                                        $parentIsProtected = $isSuperAdmin && in_array($permissions['parent']->name, $protectedPermissions ?? []);
+                                        $parentChecked = $parentIsProtected || in_array($permissions['parent']->id, $selectedPermissions);
+                                    @endphp
+                                    <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-600">
+                                        <!-- Permiso padre (módulo) - cabecera plegable -->
+                                        <div class="flex items-center p-3 cursor-pointer" @click="open = !open">
+                                            <input
+                                                type="checkbox"
+                                                @click.stop="$wire.toggleParentPermission({{ $permissions['parent']->id }}, '{{ addslashes($moduleName) }}')"
+                                                {{ $parentChecked ? 'checked' : '' }}
+                                                @if($parentIsProtected)
+                                                    disabled
+                                                    class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary cursor-not-allowed opacity-60"
+                                                @else
+                                                    class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
+                                                @endif
+                                            />
+                                            <label class="ml-2 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex-1 cursor-pointer flex items-center">
+                                                <span class="w-2 h-2 rounded-full bg-bcn-primary mr-2"></span>
+                                                {{ $moduleName }}
+                                                @if($parentIsProtected)
+                                                    <svg class="w-3.5 h-3.5 text-amber-500 ml-1" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
+                                                    </svg>
+                                                @endif
                                             </label>
-                                                <div class="max-h-[400px] overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3 space-y-2 bg-gray-50 dark:bg-gray-700/50">
-                                                    @foreach($groupedPermissions as $moduleName => $permissions)
-                                                        @php
-                                                            $parentIsProtected = $isSuperAdmin && in_array($permissions['parent']->name, $protectedPermissions ?? []);
-                                                            $parentChecked = $parentIsProtected || in_array($permissions['parent']->id, $selectedPermissions);
-                                                        @endphp
-                                                        <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-600">
-                                                            <!-- Permiso padre (módulo) - cabecera plegable -->
-                                                            <div class="flex items-center p-3 cursor-pointer" @click="open = !open">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    @click.stop="$wire.toggleParentPermission({{ $permissions['parent']->id }}, '{{ addslashes($moduleName) }}')"
-                                                                    {{ $parentChecked ? 'checked' : '' }}
-                                                                    @if($parentIsProtected)
-                                                                        disabled
-                                                                        class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary cursor-not-allowed opacity-60"
-                                                                    @else
-                                                                        class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
-                                                                    @endif
-                                                                />
-                                                                <label class="ml-2 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex-1 cursor-pointer flex items-center">
-                                                                    <span class="w-2 h-2 rounded-full bg-bcn-primary mr-2"></span>
-                                                                    {{ $moduleName }}
-                                                                    @if($parentIsProtected)
-                                                                        <svg class="w-3.5 h-3.5 text-amber-500 ml-1" fill="currentColor" viewBox="0 0 20 20">
-                                                                            <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
-                                                                        </svg>
-                                                                    @endif
-                                                                </label>
-                                                                @if(count($permissions['children']) > 0)
-                                                                    <svg class="w-4 h-4 text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                                                                    </svg>
-                                                                @endif
-                                                            </div>
+                                            @if(count($permissions['children']) > 0)
+                                                <svg class="w-4 h-4 text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            @endif
+                                        </div>
 
-                                                            <!-- Permisos hijos (plegables) -->
-                                                            @if(count($permissions['children']) > 0)
-                                                                <div x-show="open" x-collapse class="border-t border-gray-200 dark:border-gray-600 px-3 pb-3 pt-2 space-y-1">
-                                                                    @foreach($permissions['children'] as $childPermission)
-                                                                        @php
-                                                                            $childIsProtected = $isSuperAdmin && in_array($childPermission->name, $protectedPermissions ?? []);
-                                                                            $childChecked = $childIsProtected || in_array($childPermission->id, $selectedPermissions);
-                                                                        @endphp
-                                                                        <label class="flex items-center p-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
-                                                                            <input
-                                                                                type="checkbox"
-                                                                                @click.prevent="$wire.toggleChildPermission({{ $childPermission->id }}, {{ $permissions['parent']->id }}, '{{ addslashes($moduleName) }}')"
-                                                                                {{ $childChecked ? 'checked' : '' }}
-                                                                                @if($childIsProtected)
-                                                                                    disabled
-                                                                                    class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary cursor-not-allowed opacity-60"
-                                                                                @else
-                                                                                    class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
-                                                                                @endif
-                                                                            />
-                                                                            <span class="ml-2 text-sm font-medium text-gray-900 dark:text-white">
-                                                                                {{ str_replace('menu.', '', $childPermission->name) }}
-                                                                            </span>
-                                                                            @if($childIsProtected)
-                                                                                <svg class="w-3.5 h-3.5 text-amber-500 ml-1" fill="currentColor" viewBox="0 0 20 20">
-                                                                                    <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
-                                                                                </svg>
-                                                                            @endif
-                                                                        </label>
-                                                                    @endforeach
-                                                                </div>
+                                        <!-- Permisos hijos (plegables) -->
+                                        @if(count($permissions['children']) > 0)
+                                            <div x-show="open" x-collapse class="border-t border-gray-200 dark:border-gray-600 px-3 pb-3 pt-2 space-y-1">
+                                                @foreach($permissions['children'] as $childPermission)
+                                                    @php
+                                                        $childIsProtected = $isSuperAdmin && in_array($childPermission->name, $protectedPermissions ?? []);
+                                                        $childChecked = $childIsProtected || in_array($childPermission->id, $selectedPermissions);
+                                                    @endphp
+                                                    <label class="flex items-center p-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
+                                                        <input
+                                                            type="checkbox"
+                                                            @click.prevent="$wire.toggleChildPermission({{ $childPermission->id }}, {{ $permissions['parent']->id }}, '{{ addslashes($moduleName) }}')"
+                                                            {{ $childChecked ? 'checked' : '' }}
+                                                            @if($childIsProtected)
+                                                                disabled
+                                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary cursor-not-allowed opacity-60"
+                                                            @else
+                                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
                                                             @endif
-                                                        </div>
-                                                    @endforeach
-                                                </div>
-                                                @error('selectedPermissions') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                            </div>
-
-                                        <!-- Permisos Especiales (Funcionales) -->
-                                        <div>
-                                            <label class="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                                                <svg class="w-5 h-5 inline mr-2 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                                </svg>
-                                                {{ __('Permisos Especiales') }}
-                                            </label>
-                                            <div class="max-h-[400px] overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3 space-y-2 bg-gray-50 dark:bg-gray-700/50">
-                                                @foreach($permisosFuncionales as $grupo => $permisos)
-                                                    <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-600">
-                                                        <div class="flex items-center p-3 cursor-pointer" @click="open = !open">
-                                                            <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex-1 flex items-center">
-                                                                <span class="w-2 h-2 rounded-full bg-bcn-primary mr-2"></span>
-                                                                {{ $grupo }}
-                                                            </h4>
-                                                            <svg class="w-4 h-4 text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                                        />
+                                                        <span class="ml-2 text-sm font-medium text-gray-900 dark:text-white">
+                                                            {{ str_replace('menu.', '', $childPermission->name) }}
+                                                        </span>
+                                                        @if($childIsProtected)
+                                                            <svg class="w-3.5 h-3.5 text-amber-500 ml-1" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
                                                             </svg>
-                                                        </div>
-                                                        <div x-show="open" x-collapse class="border-t border-gray-200 dark:border-gray-600 px-3 pb-3 pt-2 space-y-1">
-                                                            @foreach($permisos as $permiso)
-                                                                <label class="flex items-start p-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        value="{{ $permiso['codigo'] }}"
-                                                                        wire:model="selectedFuncPermissions"
-                                                                        class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
-                                                                    />
-                                                                    <div class="ml-2 flex-1">
-                                                                        <span class="text-sm font-medium text-gray-900 dark:text-white block">{{ $permiso['etiqueta'] }}</span>
-                                                                        @if(!empty($permiso['descripcion']))
-                                                                            <span class="text-xs text-gray-500 dark:text-gray-400 block leading-tight mt-0.5">{{ $permiso['descripcion'] }}</span>
-                                                                        @endif
-                                                                    </div>
-                                                                </label>
-                                                            @endforeach
-                                                        </div>
-                                                    </div>
+                                                        @endif
+                                                    </label>
                                                 @endforeach
                                             </div>
-                                            @error('selectedFuncPermissions') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                        </div>
+                                        @endif
                                     </div>
-                                </div>
+                                @endforeach
                             </div>
+                            @error('selectedPermissions') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
 
-                        <div class="bg-gray-50 dark:bg-gray-700 px-6 py-3 sm:px-8 sm:flex sm:flex-row-reverse border-t border-gray-200 dark:border-gray-600">
-                            <button
-                                type="submit"
-                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-sm font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:ml-3 sm:w-auto"
-                            >
-                                {{ $editMode ? __('Actualizar') : __('Crear') }}
-                            </button>
-                            <button
-                                type="button"
-                                @click="show = false; $wire.cancel()"
-                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:mt-0 sm:ml-3 sm:w-auto"
-                            >
-                                {{ __('Cancelar') }}
-                            </button>
+                        <!-- Permisos Especiales (Funcionales) -->
+                        <div>
+                            <label class="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                                <svg class="w-5 h-5 inline mr-2 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                </svg>
+                                {{ __('Permisos Especiales') }}
+                            </label>
+                            <div class="max-h-[400px] overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-3 space-y-2 bg-gray-50 dark:bg-gray-700/50">
+                                @foreach($permisosFuncionales as $grupo => $permisos)
+                                    <div x-data="{ open: false }" class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-600">
+                                        <div class="flex items-center p-3 cursor-pointer" @click="open = !open">
+                                            <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex-1 flex items-center">
+                                                <span class="w-2 h-2 rounded-full bg-bcn-primary mr-2"></span>
+                                                {{ $grupo }}
+                                            </h4>
+                                            <svg class="w-4 h-4 text-gray-400 transition-transform duration-200" :class="{ 'rotate-180': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </div>
+                                        <div x-show="open" x-collapse class="border-t border-gray-200 dark:border-gray-600 px-3 pb-3 pt-2 space-y-1">
+                                            @foreach($permisos as $permiso)
+                                                <label class="flex items-start p-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors">
+                                                    <input
+                                                        type="checkbox"
+                                                        value="{{ $permiso['codigo'] }}"
+                                                        wire:model="selectedFuncPermissions"
+                                                        class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
+                                                    />
+                                                    <div class="ml-2 flex-1">
+                                                        <span class="text-sm font-medium text-gray-900 dark:text-white block">{{ $permiso['etiqueta'] }}</span>
+                                                        @if(!empty($permiso['descripcion']))
+                                                            <span class="text-xs text-gray-500 dark:text-gray-400 block leading-tight mt-0.5">{{ $permiso['descripcion'] }}</span>
+                                                        @endif
+                                                    </div>
+                                                </label>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                            @error('selectedFuncPermissions') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
-                    </form>
+                    </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button
+                    type="button"
+                    @click="close()"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                >
+                    {{ __('Cancelar') }}
+                </button>
+                <button
+                    type="submit"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm"
+                >
+                    {{ $editMode ? __('Actualizar') : __('Crear') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 </div>

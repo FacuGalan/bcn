@@ -83,7 +83,8 @@
         <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-4 sm:mb-6">
             <!-- Búsqueda, estado y toggle filtros -->
             <div class="p-4 sm:p-6">
-                <div class="flex gap-3">
+                {{-- Mobile: búsqueda arriba, selectores + botón abajo --}}
+                <div class="flex flex-col sm:flex-row gap-3">
                     <div class="flex-1">
                         <input
                             type="text"
@@ -92,35 +93,37 @@
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         />
                     </div>
-                    <select
-                        wire:model.live="filterStatus"
-                        class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                    >
-                        <option value="all">{{ __('Todos') }}</option>
-                        <option value="active">{{ __('Activos') }}</option>
-                        <option value="inactive">{{ __('Inactivos') }}</option>
-                    </select>
-                    <select
-                        wire:model.live="filterTipo"
-                        class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                    >
-                        <option value="all">{{ __('Tipo') }}</option>
-                        <option value="articulo">{{ __('Artículos') }}</option>
-                        <option value="materia_prima">{{ __('Materia prima') }}</option>
-                    </select>
-                    <button
-                        wire:click="toggleFilters"
-                        class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-bcn-primary"
-                    >
-                        <svg class="w-5 h-5 {{ $showFilters ? 'text-bcn-primary' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                        </svg>
-                        @if(count($categoriasSeleccionadas) > 0 || count($etiquetasSeleccionadasFiltro) > 0)
-                            <span class="ml-1 px-1.5 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">
-                                {{ count($categoriasSeleccionadas) + count($etiquetasSeleccionadasFiltro) }}
-                            </span>
-                        @endif
-                    </button>
+                    <div class="flex gap-2">
+                        <select
+                            wire:model.live="filterStatus"
+                            class="flex-1 sm:flex-none rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                        >
+                            <option value="all">{{ __('Todos') }}</option>
+                            <option value="active">{{ __('Activos') }}</option>
+                            <option value="inactive">{{ __('Inactivos') }}</option>
+                        </select>
+                        <select
+                            wire:model.live="filterTipo"
+                            class="flex-1 sm:flex-none rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                        >
+                            <option value="all">{{ __('Tipo') }}</option>
+                            <option value="articulo">{{ __('Artículos') }}</option>
+                            <option value="materia_prima">{{ __('Materia prima') }}</option>
+                        </select>
+                        <button
+                            wire:click="toggleFilters"
+                            class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-bcn-primary shrink-0"
+                        >
+                            <svg class="w-5 h-5 {{ $showFilters ? 'text-bcn-primary' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                            </svg>
+                            @if(count($categoriasSeleccionadas) > 0 || count($etiquetasSeleccionadasFiltro) > 0)
+                                <span class="ml-1 px-1.5 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">
+                                    {{ count($categoriasSeleccionadas) + count($etiquetasSeleccionadasFiltro) }}
+                                </span>
+                            @endif
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -447,36 +450,15 @@
 
     <!-- Modal para crear/editar artículo -->
     @if($showModal)
-        <div
-            x-data="{ show: @entangle('showModal').live }"
-            x-show="show"
-            x-cloak
-            class="fixed inset-0 z-50 overflow-y-auto"
-            aria-labelledby="modal-title"
-            role="dialog"
-            aria-modal="true"
+        <x-bcn-modal
+            :title="$editMode ? __('Editar Artículo') : __('Nuevo Artículo')"
+            color="bg-bcn-primary"
+            maxWidth="5xl"
+            onClose="cancel"
+            submit="save"
         >
-            <!-- Overlay -->
-            <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
-                <div
-                    @click="show = false; $wire.cancel()"
-                    class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-                    aria-hidden="true"
-                ></div>
-
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:my-8 sm:align-middle sm:max-w-5xl sm:w-full">
-                    <form wire:submit="save">
-                        <!-- Header coloreado -->
-                        <div class="{{ $editMode ? 'bg-bcn-primary' : 'bg-green-600' }} px-4 py-4 sm:px-6">
-                            <h3 class="text-lg leading-6 font-medium text-white" id="modal-title">
-                                {{ $editMode ? __('Editar Artículo') : __('Nuevo Artículo') }}
-                            </h3>
-                        </div>
-
-                        <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                            <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+            <x-slot:body>
+                <div class="space-y-4">
                                 <!-- Nombre (full width) -->
                                 <div>
                                     <label for="nombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
@@ -633,7 +615,7 @@
                                 <!-- Toggles -->
                                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                     <!-- Materia Prima -->
-                                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between">
+                                    <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between">
                                         <label for="es_materia_prima" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('Es Materia Prima') }}</label>
                                         <button
                                             type="button"
@@ -647,7 +629,7 @@
                                     </div>
 
                                     <!-- IVA Incluido -->
-                                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between">
+                                    <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between">
                                         <label for="precio_iva_incluido" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('IVA Incluido') }}</label>
                                         <button
                                             type="button"
@@ -661,12 +643,12 @@
                                     </div>
 
                                     <!-- Activo -->
-                                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between">
+                                    <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between">
                                         <label for="activo" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('Activo') }}</label>
                                         <button
                                             type="button"
                                             wire:click="$toggle('activo')"
-                                            class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $activo ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-500' }}"
+                                            class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $activo ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
                                             role="switch"
                                             aria-checked="{{ $activo ? 'true' : 'false' }}"
                                         >
@@ -684,17 +666,20 @@
                                         </label>
                                         <div class="grid grid-cols-1 gap-2">
                                             @foreach($sucursales as $sucursal)
-                                                <div class="flex items-center p-2 bg-gray-50 dark:bg-gray-700 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                                                    <input
-                                                        type="checkbox"
-                                                        id="sucursal_{{ $sucursal->id }}"
-                                                        wire:model="sucursales_seleccionadas"
-                                                        value="{{ $sucursal->id }}"
-                                                        class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary h-4 w-4 dark:bg-gray-600"
-                                                    />
-                                                    <label for="sucursal_{{ $sucursal->id }}" class="ml-3 block text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                                                <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 rounded-md">
+                                                    <label for="sucursal_{{ $sucursal->id }}" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
                                                         {{ $sucursal->nombre }}
                                                     </label>
+                                                    <button
+                                                        type="button"
+                                                        wire:click="$set('sucursales_seleccionadas', {{ in_array($sucursal->id, $sucursales_seleccionadas) ? json_encode(array_values(array_diff($sucursales_seleccionadas, [$sucursal->id]))) : json_encode(array_merge($sucursales_seleccionadas, [$sucursal->id])) }})"
+                                                        class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ in_array($sucursal->id, $sucursales_seleccionadas) ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
+                                                        role="switch"
+                                                        aria-checked="{{ in_array($sucursal->id, $sucursales_seleccionadas) ? 'true' : 'false' }}"
+                                                        id="sucursal_{{ $sucursal->id }}"
+                                                    >
+                                                        <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ in_array($sucursal->id, $sucursales_seleccionadas) ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                                                    </button>
                                                 </div>
                                             @endforeach
                                         </div>
@@ -758,27 +743,24 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
+            </x-slot:body>
 
-                        <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                            <button
-                                type="submit"
-                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 {{ $editMode ? 'bg-bcn-primary' : 'bg-green-600 hover:bg-green-700' }} text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary dark:focus:ring-offset-gray-800 sm:ml-3 sm:w-auto sm:text-sm"
-                            >
-                                {{ $editMode ? __('Actualizar') : __('Crear') }}
-                            </button>
-                            <button
-                                type="button"
-                                @click="show = false; $wire.cancel()"
-                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary dark:focus:ring-offset-gray-800 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                            >
-                                {{ __('Cancelar') }}
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
+            <x-slot:footer>
+                <button
+                    type="button"
+                    @click="close()"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary dark:focus:ring-offset-gray-800 sm:w-auto sm:text-sm"
+                >
+                    {{ __('Cancelar') }}
+                </button>
+                <button
+                    type="submit"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary dark:focus:ring-offset-gray-800 sm:w-auto sm:text-sm"
+                >
+                    {{ $editMode ? __('Actualizar') : __('Crear') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal de confirmación de eliminación --}}

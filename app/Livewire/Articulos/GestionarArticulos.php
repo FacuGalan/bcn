@@ -957,70 +957,78 @@ class GestionarArticulos extends Component
      */
     public function render()
     {
-        // Categorías para el modal de edición (sin filtrar)
-        $categorias = Categoria::where('activo', true)->orderBy('nombre')->get();
-        $tiposIva = TipoIva::orderBy('porcentaje')->get();
+        // Datos del modal: solo cuando está abierto
+        $categorias = collect();
+        $tiposIva = collect();
+        $sucursales = collect();
+        $gruposEtiquetas = collect();
 
-        // Todas las sucursales para el modal de edición
-        $sucursales = Sucursal::orderBy('nombre')->get();
+        if ($this->showModal) {
+            $categorias = Categoria::where('activo', true)->orderBy('nombre')->get();
+            $tiposIva = TipoIva::orderBy('porcentaje')->get();
+            $sucursales = Sucursal::orderBy('nombre')->get();
 
-        // Categorías para el panel de filtros (con búsqueda)
-        $categoriasFiltroQuery = Categoria::where('activo', true);
-        if ($this->busquedaCategoriaFiltro) {
-            $categoriasFiltroQuery->where('nombre', 'like', '%' . $this->busquedaCategoriaFiltro . '%');
-        }
-        $categoriasFiltro = $categoriasFiltroQuery->orderBy('nombre')->get();
+            $busquedaModal = $this->busquedaEtiqueta;
+            $gruposEtiquetasQuery = GrupoEtiqueta::where('activo', true);
 
-        // Grupos de etiquetas para el panel de filtros (con búsqueda)
-        $busquedaFiltro = $this->busquedaEtiquetaFiltro;
-        $gruposEtiquetasFiltroQuery = GrupoEtiqueta::where('activo', true);
-
-        if ($busquedaFiltro) {
-            $gruposEtiquetasFiltroQuery->where(function ($query) use ($busquedaFiltro) {
-                $query->where('nombre', 'like', '%' . $busquedaFiltro . '%')
-                      ->orWhereHas('etiquetas', function ($q) use ($busquedaFiltro) {
-                          $q->where('activo', true)
-                            ->where('nombre', 'like', '%' . $busquedaFiltro . '%');
-                      });
-            });
-        }
-
-        $gruposEtiquetasFiltro = $gruposEtiquetasFiltroQuery->orderBy('orden')->orderBy('nombre')->get();
-
-        foreach ($gruposEtiquetasFiltro as $grupo) {
-            $etiquetasQuery = $grupo->etiquetas()->where('activo', true);
-
-            if ($busquedaFiltro && !str_contains(strtolower($grupo->nombre), strtolower($busquedaFiltro))) {
-                $etiquetasQuery->where('nombre', 'like', '%' . $busquedaFiltro . '%');
+            if ($busquedaModal) {
+                $gruposEtiquetasQuery->where(function ($query) use ($busquedaModal) {
+                    $query->where('nombre', 'like', '%' . $busquedaModal . '%')
+                          ->orWhereHas('etiquetas', function ($q) use ($busquedaModal) {
+                              $q->where('activo', true)
+                                ->where('nombre', 'like', '%' . $busquedaModal . '%');
+                          });
+                });
             }
 
-            $grupo->setRelation('etiquetas', $etiquetasQuery->orderBy('orden')->orderBy('nombre')->get());
+            $gruposEtiquetas = $gruposEtiquetasQuery->orderBy('orden')->orderBy('nombre')->get();
+
+            foreach ($gruposEtiquetas as $grupo) {
+                $etiquetasQuery = $grupo->etiquetas()->where('activo', true);
+
+                if ($busquedaModal && !str_contains(strtolower($grupo->nombre), strtolower($busquedaModal))) {
+                    $etiquetasQuery->where('nombre', 'like', '%' . $busquedaModal . '%');
+                }
+
+                $grupo->setRelation('etiquetas', $etiquetasQuery->orderBy('orden')->orderBy('nombre')->get());
+            }
         }
 
-        // Grupos de etiquetas para el modal de edición (con búsqueda del modal)
-        $busquedaModal = $this->busquedaEtiqueta;
-        $gruposEtiquetasQuery = GrupoEtiqueta::where('activo', true);
+        // Filtros avanzados: solo cuando están expandidos
+        $categoriasFiltro = collect();
+        $gruposEtiquetasFiltro = collect();
 
-        if ($busquedaModal) {
-            $gruposEtiquetasQuery->where(function ($query) use ($busquedaModal) {
-                $query->where('nombre', 'like', '%' . $busquedaModal . '%')
-                      ->orWhereHas('etiquetas', function ($q) use ($busquedaModal) {
-                          $q->where('activo', true)
-                            ->where('nombre', 'like', '%' . $busquedaModal . '%');
-                      });
-            });
-        }
+        if ($this->showFilters) {
+            $categoriasFiltroQuery = Categoria::where('activo', true);
+            if ($this->busquedaCategoriaFiltro) {
+                $categoriasFiltroQuery->where('nombre', 'like', '%' . $this->busquedaCategoriaFiltro . '%');
+            }
+            $categoriasFiltro = $categoriasFiltroQuery->orderBy('nombre')->get();
 
-        $gruposEtiquetas = $gruposEtiquetasQuery->orderBy('orden')->orderBy('nombre')->get();
+            $busquedaFiltro = $this->busquedaEtiquetaFiltro;
+            $gruposEtiquetasFiltroQuery = GrupoEtiqueta::where('activo', true);
 
-        foreach ($gruposEtiquetas as $grupo) {
-            $etiquetasQuery = $grupo->etiquetas()->where('activo', true);
-
-            if ($busquedaModal && !str_contains(strtolower($grupo->nombre), strtolower($busquedaModal))) {
-                $etiquetasQuery->where('nombre', 'like', '%' . $busquedaModal . '%');
+            if ($busquedaFiltro) {
+                $gruposEtiquetasFiltroQuery->where(function ($query) use ($busquedaFiltro) {
+                    $query->where('nombre', 'like', '%' . $busquedaFiltro . '%')
+                          ->orWhereHas('etiquetas', function ($q) use ($busquedaFiltro) {
+                              $q->where('activo', true)
+                                ->where('nombre', 'like', '%' . $busquedaFiltro . '%');
+                          });
+                });
             }
 
-            $grupo->setRelation('etiquetas', $etiquetasQuery->orderBy('orden')->orderBy('nombre')->get());
+            $gruposEtiquetasFiltro = $gruposEtiquetasFiltroQuery->orderBy('orden')->orderBy('nombre')->get();
+
+            foreach ($gruposEtiquetasFiltro as $grupo) {
+                $etiquetasQuery = $grupo->etiquetas()->where('activo', true);
+
+                if ($busquedaFiltro && !str_contains(strtolower($grupo->nombre), strtolower($busquedaFiltro))) {
+                    $etiquetasQuery->where('nombre', 'like', '%' . $busquedaFiltro . '%');
+                }
+
+                $grupo->setRelation('etiquetas', $etiquetasQuery->orderBy('orden')->orderBy('nombre')->get());
+            }
         }
 
         return view('livewire.articulos.gestionar-articulos', [

@@ -229,154 +229,139 @@
 
     <!-- Modal Crear/Editar Grupo -->
     @if($showModal)
-        <div
-            x-data="{ show: @entangle('showModal').live }"
-            x-show="show"
-            x-cloak
-            class="fixed inset-0 z-50 overflow-y-auto"
-            aria-labelledby="modal-title"
-            role="dialog"
-            aria-modal="true"
+        <x-bcn-modal
+            :title="$editMode ? __('Editar Grupo Opcional') : __('Nuevo Grupo Opcional')"
+            color="bg-bcn-primary"
+            maxWidth="5xl"
+            onClose="cancel"
+            submit="save"
         >
-            <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
-                <div @click="show = false; $wire.cancel()" class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <x-slot:body>
+                <div class="grid grid-cols-1 lg:grid-cols-10 gap-6">
+                    <!-- Columna izquierda: Datos del grupo (30%) -->
+                    <div class="lg:col-span-3 space-y-4">
+                        <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('Configuración del grupo') }}</h4>
 
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:my-8 sm:align-middle sm:max-w-5xl sm:w-full">
-                    <form wire:submit="save">
-                        <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                            <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4" id="modal-title">
-                                {{ $editMode ? __('Editar Grupo Opcional') : __('Nuevo Grupo Opcional') }}
-                            </h3>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
+                            <input type="text" wire:model="nombre" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" placeholder="{{ __('Ej: Panes a elección, Salsas...') }}" required />
+                            @error('nombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                        </div>
 
-                            <div class="grid grid-cols-1 lg:grid-cols-10 gap-6">
-                                <!-- Columna izquierda: Datos del grupo (30%) -->
-                                <div class="lg:col-span-3 space-y-4">
-                                    <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('Configuración del grupo') }}</h4>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Tipo') }} *</label>
+                            <select wire:model="tipo" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
+                                <option value="seleccionable">{{ __('Seleccionable') }} - {{ __('sí/no por opción') }}</option>
+                                <option value="cuantitativo">{{ __('Cuantitativo') }} - {{ __('cantidad por opción') }}</option>
+                            </select>
+                        </div>
 
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
-                                        <input type="text" wire:model="nombre" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" placeholder="{{ __('Ej: Panes a elección, Salsas...') }}" required />
-                                        @error('nombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                    </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Descripción') }}</label>
+                            <textarea wire:model="descripcion" rows="2" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"></textarea>
+                        </div>
 
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Tipo') }} *</label>
-                                        <select wire:model="tipo" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                            <option value="seleccionable">{{ __('Seleccionable') }} - {{ __('sí/no por opción') }}</option>
-                                            <option value="cuantitativo">{{ __('Cuantitativo') }} - {{ __('cantidad por opción') }}</option>
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Descripción') }}</label>
-                                        <textarea wire:model="descripcion" rows="2" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"></textarea>
-                                    </div>
-
-                                    <div class="grid grid-cols-3 gap-3">
-                                        <div>
-                                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Mín. selección') }}</label>
-                                            <input type="number" wire:model="min_seleccion" min="0" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                                        </div>
-                                        <div>
-                                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Máx. selección') }}</label>
-                                            <input type="number" wire:model="max_seleccion" min="1" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" placeholder="{{ __('Sin límite') }}" />
-                                        </div>
-                                        <div>
-                                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Orden') }}</label>
-                                            <input type="number" wire:model="orden" min="0" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                                        </div>
-                                    </div>
-
-                                    <div class="flex items-center gap-6">
-                                        <label class="flex items-center gap-2 cursor-pointer">
-                                            <input type="checkbox" id="obligatorio" wire:model="obligatorio" class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700" />
-                                            <span class="text-sm text-gray-700 dark:text-gray-300">{{ __('Obligatorio') }}</span>
-                                        </label>
-                                        <label class="flex items-center gap-2 cursor-pointer">
-                                            <input type="checkbox" id="activo" wire:model="activo" class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700" />
-                                            <span class="text-sm text-gray-700 dark:text-gray-300">{{ __('Grupo activo') }}</span>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <!-- Columna derecha: Opciones del grupo (70%) -->
-                                <div class="lg:col-span-7 lg:border-l lg:border-gray-200 lg:dark:border-gray-700 lg:pl-6 flex flex-col">
-                                    <div class="flex items-center justify-between mb-3">
-                                        <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            {{ __('Opciones del grupo') }}
-                                            @if(count($opciones) > 0)
-                                                <span class="ml-1 px-2 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full normal-case">{{ count($opciones) }}</span>
-                                            @endif
-                                        </h4>
-                                    </div>
-
-                                    <!-- Agregar nueva opción (siempre visible arriba) -->
-                                    <div class="flex items-center gap-2 p-2 mb-3 border-2 border-dashed border-green-300 dark:border-green-600 rounded-md bg-green-50/50 dark:bg-green-900/10">
-                                        <input type="text" wire:model="nuevaOpcionNombre" wire:keydown.enter.prevent="agregarOpcion" class="flex-1 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" placeholder="{{ __('Nueva opción...') }}" />
-                                        <div class="relative w-28">
-                                            <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 text-xs">$</span>
-                                            <input type="number" wire:model="nuevaOpcionPrecio" step="0.01" min="0" class="w-full pl-5 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
-                                        </div>
-                                        <button type="button" wire:click="agregarOpcion" class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                                        </button>
-                                    </div>
-
-                                    <!-- Lista de opciones (scrolleable) -->
-                                    @if(count($opciones) > 0)
-                                        <div class="space-y-1.5 max-h-[35vh] overflow-y-auto pr-1 flex-1" x-data x-ref="listaOpciones"
-                                             @opcion-agregada.window="$nextTick(() => { $refs.listaOpciones.scrollTop = $refs.listaOpciones.scrollHeight })">
-                                            @foreach($opciones as $index => $opcion)
-                                                <div class="flex items-center gap-1.5 p-1.5 bg-gray-50 dark:bg-gray-700 rounded-md">
-                                                    <div class="flex flex-col gap-0.5">
-                                                        <button type="button" wire:click="moverOpcion({{ $index }}, 'up')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 {{ $index === 0 ? 'invisible' : '' }}">
-                                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
-                                                        </button>
-                                                        <button type="button" wire:click="moverOpcion({{ $index }}, 'down')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 {{ $index === count($opciones) - 1 ? 'invisible' : '' }}">
-                                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                                        </button>
-                                                    </div>
-                                                    <input type="text" wire:model="opciones.{{ $index }}.nombre" class="flex-1 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 py-1.5" placeholder="{{ __('Nombre') }}" />
-                                                    <div class="relative w-28">
-                                                        <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 text-xs">$</span>
-                                                        <input type="number" wire:model="opciones.{{ $index }}.precio_extra" step="0.01" min="0" class="w-full pl-5 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 py-1.5" />
-                                                    </div>
-                                                    <label class="flex items-center cursor-pointer" title="{{ __('Activo') }}">
-                                                        <input type="checkbox" wire:model="opciones.{{ $index }}.activo" class="rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-600" />
-                                                    </label>
-                                                    @if(isset($opcion['id']))
-                                                        <button type="button" wire:click="editarRecetaOpcional({{ $opcion['id'] }})" class="text-amber-500 hover:text-amber-700 p-0.5" title="{{ __('Receta') }}">
-                                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
-                                                        </button>
-                                                    @endif
-                                                    <button type="button" wire:click="eliminarOpcion({{ $index }})" class="text-red-500 hover:text-red-700 p-0.5">
-                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                                    </button>
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                    @else
-                                        <div class="flex-1 flex items-center justify-center text-sm text-gray-400 dark:text-gray-500 py-8">
-                                            {{ __('Agregá opciones usando el campo de arriba') }}
-                                        </div>
-                                    @endif
-                                </div>
+                        <div class="grid grid-cols-3 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Mín. selección') }}</label>
+                                <input type="number" wire:model="min_seleccion" min="0" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Máx. selección') }}</label>
+                                <input type="number" wire:model="max_seleccion" min="1" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" placeholder="{{ __('Sin límite') }}" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Orden') }}</label>
+                                <input type="number" wire:model="orden" min="0" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
                             </div>
                         </div>
 
-                        <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                            <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary dark:focus:ring-offset-gray-800 sm:ml-3 sm:w-auto sm:text-sm">
-                                {{ $editMode ? __('Actualizar') : __('Crear') }}
-                            </button>
-                            <button type="button" @click="show = false; $wire.cancel()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary dark:focus:ring-offset-gray-800 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                                {{ __('Cancelar') }}
+                        <div class="flex items-center gap-6">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="obligatorio" wire:model="obligatorio" class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700" />
+                                <span class="text-sm text-gray-700 dark:text-gray-300">{{ __('Obligatorio') }}</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="activo" wire:model="activo" class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700" />
+                                <span class="text-sm text-gray-700 dark:text-gray-300">{{ __('Grupo activo') }}</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Columna derecha: Opciones del grupo (70%) -->
+                    <div class="lg:col-span-7 lg:border-l lg:border-gray-200 lg:dark:border-gray-700 lg:pl-6 flex flex-col">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                {{ __('Opciones del grupo') }}
+                                @if(count($opciones) > 0)
+                                    <span class="ml-1 px-2 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full normal-case">{{ count($opciones) }}</span>
+                                @endif
+                            </h4>
+                        </div>
+
+                        <!-- Agregar nueva opción (siempre visible arriba) -->
+                        <div class="flex items-center gap-2 p-2 mb-3 border-2 border-dashed border-green-300 dark:border-green-600 rounded-md bg-green-50/50 dark:bg-green-900/10">
+                            <input type="text" wire:model="nuevaOpcionNombre" wire:keydown.enter.prevent="agregarOpcion" class="flex-1 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" placeholder="{{ __('Nueva opción...') }}" />
+                            <div class="relative w-28">
+                                <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 text-xs">$</span>
+                                <input type="number" wire:model="nuevaOpcionPrecio" step="0.01" min="0" class="w-full pl-5 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                            </div>
+                            <button type="button" wire:click="agregarOpcion" class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                             </button>
                         </div>
-                    </form>
+
+                        <!-- Lista de opciones (scrolleable) -->
+                        @if(count($opciones) > 0)
+                            <div class="space-y-1.5 max-h-[35vh] overflow-y-auto pr-1 flex-1" x-data x-ref="listaOpciones"
+                                 @opcion-agregada.window="$nextTick(() => { $refs.listaOpciones.scrollTop = $refs.listaOpciones.scrollHeight })">
+                                @foreach($opciones as $index => $opcion)
+                                    <div class="flex items-center gap-1.5 p-1.5 bg-gray-50 dark:bg-gray-700 rounded-md">
+                                        <div class="flex flex-col gap-0.5">
+                                            <button type="button" wire:click="moverOpcion({{ $index }}, 'up')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 {{ $index === 0 ? 'invisible' : '' }}">
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+                                            </button>
+                                            <button type="button" wire:click="moverOpcion({{ $index }}, 'down')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 {{ $index === count($opciones) - 1 ? 'invisible' : '' }}">
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                            </button>
+                                        </div>
+                                        <input type="text" wire:model="opciones.{{ $index }}.nombre" class="flex-1 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 py-1.5" placeholder="{{ __('Nombre') }}" />
+                                        <div class="relative w-28">
+                                            <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 text-xs">$</span>
+                                            <input type="number" wire:model="opciones.{{ $index }}.precio_extra" step="0.01" min="0" class="w-full pl-5 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 py-1.5" />
+                                        </div>
+                                        <label class="flex items-center cursor-pointer" title="{{ __('Activo') }}">
+                                            <input type="checkbox" wire:model="opciones.{{ $index }}.activo" class="rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-600" />
+                                        </label>
+                                        @if(isset($opcion['id']))
+                                            <button type="button" wire:click="editarRecetaOpcional({{ $opcion['id'] }})" class="text-amber-500 hover:text-amber-700 p-0.5" title="{{ __('Receta') }}">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+                                            </button>
+                                        @endif
+                                        <button type="button" wire:click="eliminarOpcion({{ $index }})" class="text-red-500 hover:text-red-700 p-0.5">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                        </button>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <div class="flex-1 flex items-center justify-center text-sm text-gray-400 dark:text-gray-500 py-8">
+                                {{ __('Agregá opciones usando el campo de arriba') }}
+                            </div>
+                        @endif
+                    </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button" @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                    {{ $editMode ? __('Actualizar') : __('Crear') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     <!-- Modal Receta de Opcional -->
@@ -617,41 +602,41 @@
 
     <!-- Modal Confirmación Eliminar -->
     @if($showDeleteModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="cancelarEliminar"></div>
-            <div class="flex min-h-full items-center justify-center p-4">
-                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
-                    <div class="bg-white dark:bg-gray-800 px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                        <div class="sm:flex sm:items-start">
-                            <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 sm:mx-0 sm:h-10 sm:w-10">
-                                <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                                </svg>
-                            </div>
-                            <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
-                                <h3 class="text-lg font-semibold leading-6 text-gray-900 dark:text-white">{{ __('Eliminar grupo opcional') }}</h3>
-                                <div class="mt-2">
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                                        {{ __('¿Estás seguro de eliminar el grupo') }} <span class="font-semibold text-gray-700 dark:text-gray-200">"{{ $nombreGrupoAEliminar }}"</span>?
-                                    </p>
-                                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                                        {{ __('El grupo y sus opciones serán marcados como eliminados. Podrás restaurarlos desde el filtro "Eliminados".') }}
-                                    </p>
-                                </div>
-                            </div>
+        <x-bcn-modal
+            :title="__('Eliminar grupo opcional')"
+            color="bg-red-600"
+            maxWidth="lg"
+            onClose="cancelarEliminar"
+        >
+            <x-slot:body>
+                <div class="sm:flex sm:items-start">
+                    <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 sm:mx-0 sm:h-10 sm:w-10">
+                        <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                        </svg>
+                    </div>
+                    <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                        <div class="mt-2">
+                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                                {{ __('¿Estás seguro de eliminar el grupo') }} <span class="font-semibold text-gray-700 dark:text-gray-200">"{{ $nombreGrupoAEliminar }}"</span>?
+                            </p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                                {{ __('El grupo y sus opciones serán marcados como eliminados. Podrás restaurarlos desde el filtro "Eliminados".') }}
+                            </p>
                         </div>
                     </div>
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
-                        <button type="button" wire:click="eliminar" class="inline-flex w-full justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:w-auto transition-colors">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                            {{ __('Eliminar') }}
-                        </button>
-                        <button type="button" wire:click="cancelarEliminar" class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-600 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-200 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:w-auto transition-colors">
-                            {{ __('Cancelar') }}
-                        </button>
-                    </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button" @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="button" wire:click="eliminar" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-500 sm:w-auto sm:text-sm">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    {{ __('Eliminar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 </div>

@@ -319,281 +319,260 @@
 
     <!-- Modal para crear/editar grupo -->
     @if($showGrupoModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
-                <div wire:click="cancelGrupo" class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <x-bcn-modal
+            title="{{ $editModeGrupo ? __('Editar Grupo de Etiquetas') : __('Nuevo Grupo de Etiquetas') }}"
+            color="bg-bcn-primary"
+            maxWidth="lg"
+            onClose="cancelGrupo"
+            submit="saveGrupo"
+        >
+            <x-slot:body>
+                <div class="space-y-4">
+                    <!-- Nombre -->
+                    <div>
+                        <label for="grupoNombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
+                        <input
+                            type="text"
+                            id="grupoNombre"
+                            wire:model="grupoNombre"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                            :placeholder="__('Ej: Marca, Color, Tamaño...')"
+                            required
+                        />
+                        @error('grupoNombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                    </div>
 
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                    <form wire:submit="saveGrupo">
-                        <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                            <div class="w-full">
-                                <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4" id="modal-title">
-                                    {{ $editModeGrupo ? __('Editar Grupo de Etiquetas') : __('Nuevo Grupo de Etiquetas') }}
-                                </h3>
+                    <!-- Código -->
+                    <div>
+                        <label for="grupoCodigo" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Código (opcional)') }}</label>
+                        <input
+                            type="text"
+                            id="grupoCodigo"
+                            wire:model="grupoCodigo"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono uppercase"
+                            :placeholder="__('Ej: MARCA')"
+                            maxlength="50"
+                        />
+                        @error('grupoCodigo') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                    </div>
 
-                                <div class="space-y-4">
-                                    <!-- Nombre -->
-                                    <div>
-                                        <label for="grupoNombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
-                                        <input
-                                            type="text"
-                                            id="grupoNombre"
-                                            wire:model="grupoNombre"
-                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                            :placeholder="__('Ej: Marca, Color, Tamaño...')"
-                                            required
-                                        />
-                                        @error('grupoNombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                    </div>
+                    <!-- Descripción -->
+                    <div>
+                        <label for="grupoDescripcion" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Descripción (opcional)') }}</label>
+                        <textarea
+                            id="grupoDescripcion"
+                            wire:model="grupoDescripcion"
+                            rows="2"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                            :placeholder="__('Descripción del grupo...')"
+                        ></textarea>
+                        @error('grupoDescripcion') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                    </div>
 
-                                    <!-- Código -->
-                                    <div>
-                                        <label for="grupoCodigo" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Código (opcional)') }}</label>
-                                        <input
-                                            type="text"
-                                            id="grupoCodigo"
-                                            wire:model="grupoCodigo"
-                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono uppercase"
-                                            :placeholder="__('Ej: MARCA')"
-                                            maxlength="50"
-                                        />
-                                        @error('grupoCodigo') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                    </div>
-
-                                    <!-- Descripción -->
-                                    <div>
-                                        <label for="grupoDescripcion" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Descripción (opcional)') }}</label>
-                                        <textarea
-                                            id="grupoDescripcion"
-                                            wire:model="grupoDescripcion"
-                                            rows="2"
-                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                            :placeholder="__('Descripción del grupo...')"
-                                        ></textarea>
-                                        @error('grupoDescripcion') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                    </div>
-
-                                    <!-- Color -->
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Color') }} *</label>
-                                        <div class="flex items-center gap-3">
-                                            <input
-                                                type="color"
-                                                wire:model.live="grupoColor"
-                                                class="h-12 w-24 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
-                                            />
-                                            <input
-                                                type="text"
-                                                wire:model.live="grupoColor"
-                                                class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono text-sm"
-                                                placeholder="#3B82F6"
-                                                maxlength="7"
-                                            />
-                                        </div>
-                                        @error('grupoColor') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                    </div>
-
-                                    <!-- Estado activo -->
-                                    <div class="flex items-center">
-                                        <input
-                                            type="checkbox"
-                                            id="grupoActivo"
-                                            wire:model="grupoActivo"
-                                            class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
-                                        />
-                                        <label for="grupoActivo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Grupo activo') }}</label>
-                                    </div>
-                                </div>
-                            </div>
+                    <!-- Color -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Color') }} *</label>
+                        <div class="flex items-center gap-3">
+                            <input
+                                type="color"
+                                wire:model.live="grupoColor"
+                                class="h-12 w-24 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
+                            />
+                            <input
+                                type="text"
+                                wire:model.live="grupoColor"
+                                class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono text-sm"
+                                placeholder="#3B82F6"
+                                maxlength="7"
+                            />
                         </div>
+                        @error('grupoColor') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                    </div>
 
-                        <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                            <button
-                                type="submit"
-                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:ml-3 sm:w-auto sm:text-sm"
-                            >
-                                {{ $editModeGrupo ? __('Actualizar') : __('Crear') }}
-                            </button>
-                            <button
-                                type="button"
-                                wire:click="cancelGrupo"
-                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                            >
-                                {{ __('Cancelar') }}
-                            </button>
-                        </div>
-                    </form>
+                    <!-- Estado activo -->
+                    <div class="flex items-center">
+                        <input
+                            type="checkbox"
+                            id="grupoActivo"
+                            wire:model="grupoActivo"
+                            class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
+                        />
+                        <label for="grupoActivo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Grupo activo') }}</label>
+                    </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button
+                    type="button"
+                    @click="close()"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                >
+                    {{ __('Cancelar') }}
+                </button>
+                <button
+                    type="submit"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm"
+                >
+                    {{ $editModeGrupo ? __('Actualizar') : __('Crear') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     <!-- Modal para crear/editar etiqueta -->
     @if($showEtiquetaModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
-                <div wire:click="cancelEtiqueta" class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <x-bcn-modal
+            title="{{ $editModeEtiqueta ? __('Editar Etiqueta') : __('Nueva Etiqueta') }}"
+            color="bg-bcn-primary"
+            maxWidth="lg"
+            onClose="cancelEtiqueta"
+            submit="saveEtiqueta"
+        >
+            <x-slot:body>
+                <div class="space-y-4">
+                    <!-- Nombre -->
+                    <div>
+                        <label for="etiquetaNombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
+                        <input
+                            type="text"
+                            id="etiquetaNombre"
+                            wire:model="etiquetaNombre"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                            :placeholder="__('Ej: Samsung, Rojo, Grande...')"
+                            required
+                        />
+                        @error('etiquetaNombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                    </div>
 
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                    <form wire:submit="saveEtiqueta">
-                        <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                            <div class="w-full">
-                                <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4" id="modal-title">
-                                    {{ $editModeEtiqueta ? __('Editar Etiqueta') : __('Nueva Etiqueta') }}
-                                </h3>
+                    <!-- Código -->
+                    <div>
+                        <label for="etiquetaCodigo" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Código (opcional)') }}</label>
+                        <input
+                            type="text"
+                            id="etiquetaCodigo"
+                            wire:model="etiquetaCodigo"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono uppercase"
+                            :placeholder="__('Ej: SAMS')"
+                            maxlength="50"
+                        />
+                        @error('etiquetaCodigo') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                    </div>
 
-                                <div class="space-y-4">
-                                    <!-- Nombre -->
-                                    <div>
-                                        <label for="etiquetaNombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
-                                        <input
-                                            type="text"
-                                            id="etiquetaNombre"
-                                            wire:model="etiquetaNombre"
-                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                            :placeholder="__('Ej: Samsung, Rojo, Grande...')"
-                                            required
-                                        />
-                                        @error('etiquetaNombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                    </div>
-
-                                    <!-- Código -->
-                                    <div>
-                                        <label for="etiquetaCodigo" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Código (opcional)') }}</label>
-                                        <input
-                                            type="text"
-                                            id="etiquetaCodigo"
-                                            wire:model="etiquetaCodigo"
-                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono uppercase"
-                                            :placeholder="__('Ej: SAMS')"
-                                            maxlength="50"
-                                        />
-                                        @error('etiquetaCodigo') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                    </div>
-
-                                    <!-- Color (opcional) -->
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                            {{ __('Color específico (opcional)') }}
-                                            <span class="text-xs text-gray-500 dark:text-gray-400 font-normal ml-1">- {{ __('Si no se define, usa el color del grupo') }}</span>
-                                        </label>
-                                        <div class="flex items-center gap-3">
-                                            <input
-                                                type="color"
-                                                wire:model.live="etiquetaColor"
-                                                class="h-12 w-24 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
-                                                value="{{ $etiquetaColor ?? '#6B7280' }}"
-                                            />
-                                            <input
-                                                type="text"
-                                                wire:model.live="etiquetaColor"
-                                                class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono text-sm"
-                                                :placeholder="__('Vacío = usa color del grupo')"
-                                                maxlength="7"
-                                            />
-                                            @if($etiquetaColor)
-                                                <button
-                                                    type="button"
-                                                    wire:click="$set('etiquetaColor', null)"
-                                                    class="text-xs text-red-600 hover:text-red-800"
-                                                >
-                                                    {{ __('Limpiar') }}
-                                                </button>
-                                            @endif
-                                        </div>
-                                        @error('etiquetaColor') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                    </div>
-
-                                    <!-- Estado activo -->
-                                    <div class="flex items-center">
-                                        <input
-                                            type="checkbox"
-                                            id="etiquetaActivo"
-                                            wire:model="etiquetaActivo"
-                                            class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
-                                        />
-                                        <label for="etiquetaActivo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Etiqueta activa') }}</label>
-                                    </div>
-                                </div>
-                            </div>
+                    <!-- Color (opcional) -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            {{ __('Color específico (opcional)') }}
+                            <span class="text-xs text-gray-500 dark:text-gray-400 font-normal ml-1">- {{ __('Si no se define, usa el color del grupo') }}</span>
+                        </label>
+                        <div class="flex items-center gap-3">
+                            <input
+                                type="color"
+                                wire:model.live="etiquetaColor"
+                                class="h-12 w-24 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
+                                value="{{ $etiquetaColor ?? '#6B7280' }}"
+                            />
+                            <input
+                                type="text"
+                                wire:model.live="etiquetaColor"
+                                class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono text-sm"
+                                :placeholder="__('Vacío = usa color del grupo')"
+                                maxlength="7"
+                            />
+                            @if($etiquetaColor)
+                                <button
+                                    type="button"
+                                    wire:click="$set('etiquetaColor', null)"
+                                    class="text-xs text-red-600 hover:text-red-800"
+                                >
+                                    {{ __('Limpiar') }}
+                                </button>
+                            @endif
                         </div>
+                        @error('etiquetaColor') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                    </div>
 
-                        <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                            <button
-                                type="submit"
-                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:ml-3 sm:w-auto sm:text-sm"
-                            >
-                                {{ $editModeEtiqueta ? __('Actualizar') : __('Crear') }}
-                            </button>
-                            <button
-                                type="button"
-                                wire:click="cancelEtiqueta"
-                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                            >
-                                {{ __('Cancelar') }}
-                            </button>
-                        </div>
-                    </form>
+                    <!-- Estado activo -->
+                    <div class="flex items-center">
+                        <input
+                            type="checkbox"
+                            id="etiquetaActivo"
+                            wire:model="etiquetaActivo"
+                            class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
+                        />
+                        <label for="etiquetaActivo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Etiqueta activa') }}</label>
+                    </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button
+                    type="button"
+                    @click="close()"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                >
+                    {{ __('Cancelar') }}
+                </button>
+                <button
+                    type="submit"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm"
+                >
+                    {{ $editModeEtiqueta ? __('Actualizar') : __('Crear') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     <!-- Modal de confirmación de eliminación -->
     @if($showDeleteModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="cancelarEliminar"></div>
-
-            <div class="flex min-h-full items-center justify-center p-4">
-                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
-                    <div class="bg-white dark:bg-gray-800 px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                        <div class="sm:flex sm:items-start">
-                            <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                                <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                                </svg>
-                            </div>
-                            <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
-                                <h3 class="text-lg font-semibold leading-6 text-gray-900 dark:text-white" id="modal-title">
-                                    {{ __('Eliminar') }} {{ $deleteType === 'grupo' ? __('grupo') : __('etiqueta') }}
-                                </h3>
-                                <div class="mt-2">
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                                        {{ __('¿Estás seguro de eliminar') }} {{ $deleteType === 'grupo' ? __('el grupo') : __('la etiqueta') }}
-                                        <span class="font-semibold text-gray-700 dark:text-gray-300">"{{ $nombreItemAEliminar }}"</span>?
-                                    </p>
-                                    @if($deleteType === 'grupo')
-                                        <p class="text-sm text-red-600 mt-2">
-                                            {{ __('Esta acción también eliminará todas las etiquetas del grupo.') }}
-                                        </p>
-                                    @endif
-                                </div>
-                            </div>
+        <x-bcn-modal
+            title="{{ __('Eliminar') }} {{ $deleteType === 'grupo' ? __('grupo') : __('etiqueta') }}"
+            color="bg-red-600"
+            maxWidth="lg"
+            onClose="cancelarEliminar"
+        >
+            <x-slot:body>
+                <div class="sm:flex sm:items-start">
+                    <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                        <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                        </svg>
+                    </div>
+                    <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                        <div class="mt-2">
+                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                                {{ __('¿Estás seguro de eliminar') }} {{ $deleteType === 'grupo' ? __('el grupo') : __('la etiqueta') }}
+                                <span class="font-semibold text-gray-700 dark:text-gray-300">"{{ $nombreItemAEliminar }}"</span>?
+                            </p>
+                            @if($deleteType === 'grupo')
+                                <p class="text-sm text-red-600 mt-2">
+                                    {{ __('Esta acción también eliminará todas las etiquetas del grupo.') }}
+                                </p>
+                            @endif
                         </div>
                     </div>
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
-                        <button
-                            type="button"
-                            wire:click="eliminar"
-                            class="inline-flex w-full justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:w-auto transition-colors"
-                        >
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                            </svg>
-                            {{ __('Eliminar') }}
-                        </button>
-                        <button
-                            type="button"
-                            wire:click="cancelarEliminar"
-                            class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-300 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 sm:mt-0 sm:w-auto transition-colors"
-                        >
-                            {{ __('Cancelar') }}
-                        </button>
-                    </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button
+                    type="button"
+                    @click="close()"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                >
+                    {{ __('Cancelar') }}
+                </button>
+                <button
+                    type="button"
+                    wire:click="eliminar"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-500 sm:w-auto sm:text-sm"
+                >
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                    {{ __('Eliminar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 </div>

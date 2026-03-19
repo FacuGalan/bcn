@@ -206,129 +206,123 @@
 
     <!-- Modal Crear/Editar Impresora -->
     @if($showModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                <div wire:click="cancel" class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                    <form wire:submit="save">
-                        <div class="bg-white dark:bg-gray-800 px-6 py-4">
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                                {{ $editMode ? __('Editar Impresora') : __('Nueva Impresora') }}
-                            </h3>
-
-                            <div class="space-y-4">
-                                <!-- Impresoras detectadas -->
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Impresoras del Sistema') }}</label>
-                                    @if(count($impresorasDetectadas) > 0)
-                                        <div class="max-h-40 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-md">
-                                            @foreach($impresorasDetectadas as $imp)
-                                                <button
-                                                    type="button"
-                                                    wire:click="seleccionarImpresoraDetectada('{{ $imp }}')"
-                                                    class="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 {{ $nombreSistema === $imp ? 'bg-bcn-primary text-white' : 'text-gray-700 dark:text-gray-300' }}"
-                                                >
-                                                    {{ $imp }}
-                                                </button>
-                                            @endforeach
-                                        </div>
-                                    @else
-                                        <div class="text-sm text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
-                                            <p>{{ __('Detectando impresoras...') }}</p>
-                                            <p class="text-xs mt-1">{{ __('Asegurate de tener QZ Tray instalado y ejecutandose.') }}</p>
-                                            <button type="button" wire:click="$dispatch('detectar-impresoras')" class="mt-2 text-bcn-primary hover:underline text-xs">
-                                                {{ __('Reintentar deteccion') }}
-                                            </button>
-                                        </div>
-                                    @endif
-                                </div>
-
-                                <!-- Nombre -->
-                                <div>
-                                    <label for="nombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Nombre') }} *</label>
-                                    <input
-                                        type="text"
-                                        id="nombre"
-                                        wire:model="nombre"
-                                        :placeholder="__('Ej: Impresora Caja 1')"
-                                        class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                    />
-                                    @error('nombre') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                                </div>
-
-                                <!-- Nombre del sistema (readonly) -->
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Impresora Seleccionada') }} *</label>
-                                    <input
-                                        type="text"
-                                        wire:model="nombreSistema"
-                                        readonly
-                                        class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm bg-gray-50 dark:bg-gray-600"
-                                    />
-                                    @error('nombreSistema') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                                </div>
-
-                                <!-- Tipo y Formato -->
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label for="tipo" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipo') }}</label>
-                                        <select
-                                            id="tipo"
-                                            wire:model.live="tipo"
-                                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                        >
-                                            @foreach(\App\Models\Impresora::TIPOS as $value => $label)
-                                                <option value="{{ $value }}">{{ $label }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label for="formatoPapel" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Formato Papel') }}</label>
-                                        <select
-                                            id="formatoPapel"
-                                            wire:model.live="formatoPapel"
-                                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                        >
-                                            @foreach(\App\Models\Impresora::FORMATOS_PAPEL as $value => $label)
-                                                <option value="{{ $value }}">{{ $label }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <!-- Activa -->
-                                <div class="flex items-center">
-                                    <input
-                                        type="checkbox"
-                                        id="activa"
-                                        wire:model="activa"
-                                        class="rounded border-gray-300 text-bcn-primary shadow-sm focus:ring-bcn-primary"
-                                    />
-                                    <label for="activa" class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ __('Impresora activa') }}</label>
-                                </div>
+        <x-bcn-modal
+            :title="$editMode ? __('Editar Impresora') : __('Nueva Impresora')"
+            color="bg-bcn-primary"
+            maxWidth="lg"
+            onClose="cancel"
+            submit="save"
+        >
+            <x-slot:body>
+                <div class="space-y-4">
+                    <!-- Impresoras detectadas -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Impresoras del Sistema') }}</label>
+                        @if(count($impresorasDetectadas) > 0)
+                            <div class="max-h-40 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-md">
+                                @foreach($impresorasDetectadas as $imp)
+                                    <button
+                                        type="button"
+                                        wire:click="seleccionarImpresoraDetectada('{{ $imp }}')"
+                                        class="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 {{ $nombreSistema === $imp ? 'bg-bcn-primary text-white' : 'text-gray-700 dark:text-gray-300' }}"
+                                    >
+                                        {{ $imp }}
+                                    </button>
+                                @endforeach
                             </div>
-                        </div>
+                        @else
+                            <div class="text-sm text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
+                                <p>{{ __('Detectando impresoras...') }}</p>
+                                <p class="text-xs mt-1">{{ __('Asegurate de tener QZ Tray instalado y ejecutandose.') }}</p>
+                                <button type="button" wire:click="$dispatch('detectar-impresoras')" class="mt-2 text-bcn-primary hover:underline text-xs">
+                                    {{ __('Reintentar deteccion') }}
+                                </button>
+                            </div>
+                        @endif
+                    </div>
 
-                        <div class="bg-gray-50 dark:bg-gray-700 px-6 py-3 flex justify-end space-x-3">
-                            <button
-                                type="button"
-                                wire:click="cancel"
-                                class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
+                    <!-- Nombre -->
+                    <div>
+                        <label for="nombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Nombre') }} *</label>
+                        <input
+                            type="text"
+                            id="nombre"
+                            wire:model="nombre"
+                            :placeholder="__('Ej: Impresora Caja 1')"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                        />
+                        @error('nombre') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                    </div>
+
+                    <!-- Nombre del sistema (readonly) -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Impresora Seleccionada') }} *</label>
+                        <input
+                            type="text"
+                            wire:model="nombreSistema"
+                            readonly
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm bg-gray-50 dark:bg-gray-600"
+                        />
+                        @error('nombreSistema') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                    </div>
+
+                    <!-- Tipo y Formato -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="tipo" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipo') }}</label>
+                            <select
+                                id="tipo"
+                                wire:model.live="tipo"
+                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                             >
-                                {{ __('Cancelar') }}
-                            </button>
-                            <button
-                                type="submit"
-                                class="px-4 py-2 bg-bcn-primary border border-transparent rounded-md text-sm font-medium text-white hover:bg-opacity-90"
-                            >
-                                {{ $editMode ? __('Actualizar') : __('Crear') }}
-                            </button>
+                                @foreach(\App\Models\Impresora::TIPOS as $value => $label)
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
                         </div>
-                    </form>
+                        <div>
+                            <label for="formatoPapel" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Formato Papel') }}</label>
+                            <select
+                                id="formatoPapel"
+                                wire:model.live="formatoPapel"
+                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                            >
+                                @foreach(\App\Models\Impresora::FORMATOS_PAPEL as $value => $label)
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Activa -->
+                    <div class="flex items-center">
+                        <input
+                            type="checkbox"
+                            id="activa"
+                            wire:model="activa"
+                            class="rounded border-gray-300 text-bcn-primary shadow-sm focus:ring-bcn-primary"
+                        />
+                        <label for="activa" class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ __('Impresora activa') }}</label>
+                    </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button
+                    type="button"
+                    @click="close()"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                >
+                    {{ __('Cancelar') }}
+                </button>
+                <button
+                    type="submit"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm"
+                >
+                    {{ $editMode ? __('Actualizar') : __('Crear') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     <!-- Modal Asignaciones -->

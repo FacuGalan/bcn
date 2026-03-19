@@ -275,288 +275,255 @@
 
     <!-- Modal para crear/editar categoría -->
     @if($showModal)
-        <div
-            x-data="{ show: @entangle('showModal').live }"
-            x-show="show"
-            x-cloak
-            class="fixed inset-0 z-50 overflow-y-auto"
-            aria-labelledby="modal-title"
-            role="dialog"
-            aria-modal="true"
+        <x-bcn-modal
+            :title="$editMode ? __('Editar Categoría') : __('Nueva Categoría')"
+            color="bg-bcn-primary"
+            maxWidth="lg"
+            onClose="cancel"
+            submit="save"
         >
-            <!-- Overlay -->
-            <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
-                <div
-                    @click="show = false; $wire.cancel()"
-                    class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-                    aria-hidden="true"
-                ></div>
+            <x-slot:body>
+                <div class="space-y-4">
+                    <!-- Nombre -->
+                    <div>
+                        <label for="nombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
+                        <input
+                            type="text"
+                            id="nombre"
+                            wire:model="nombre"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                            :placeholder="__('Ej: Bebidas, Alimentos, Electrónica...')"
+                            required
+                        />
+                        @error('nombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                    </div>
 
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                    <!-- Prefijo -->
+                    <div>
+                        <label for="prefijo" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Prefijo') }}</label>
+                        <input
+                            type="text"
+                            id="prefijo"
+                            wire:model="prefijo"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 uppercase"
+                            placeholder="{{ __('Ej: MAT, BEB') }}"
+                            maxlength="10"
+                            style="text-transform: uppercase;"
+                        />
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Se usará para generar códigos automáticos en artículos (ej: MAT0001)') }}</p>
+                        @error('prefijo') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                    </div>
 
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                    <form wire:submit="save">
-                        <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                            <div class="sm:flex sm:items-start">
-                                <div class="w-full mt-3 sm:mt-0 text-left">
-                                    <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4" id="modal-title">
-                                        {{ $editMode ? __('Editar Categoría') : __('Nueva Categoría') }}
-                                    </h3>
+                    <!-- Color -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Color') }} *</label>
+                        <div class="flex items-center gap-3">
+                            <input
+                                type="color"
+                                wire:model.live="color"
+                                class="h-12 w-24 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
+                            />
+                            <input
+                                type="text"
+                                wire:model.live="color"
+                                class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono text-sm"
+                                placeholder="#3B82F6"
+                                maxlength="7"
+                            />
+                        </div>
+                        @error('color') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                    </div>
 
-                                    <div class="space-y-4">
-                                        <!-- Nombre -->
-                                        <div>
-                                            <label for="nombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
-                                            <input
-                                                type="text"
-                                                id="nombre"
-                                                wire:model="nombre"
-                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                :placeholder="__('Ej: Bebidas, Alimentos, Electrónica...')"
-                                                required
-                                            />
-                                            @error('nombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                        </div>
+                    <!-- Icono -->
+                    <div x-data="{ openCategory: null }">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            {{ __('Icono (opcional)') }}
+                            @if($icono)
+                                <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">- {{ $icono }}</span>
+                            @endif
+                        </label>
 
-                                        <!-- Prefijo -->
-                                        <div>
-                                            <label for="prefijo" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Prefijo') }}</label>
-                                            <input
-                                                type="text"
-                                                id="prefijo"
-                                                wire:model="prefijo"
-                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 uppercase"
-                                                placeholder="{{ __('Ej: MAT, BEB') }}"
-                                                maxlength="10"
-                                                style="text-transform: uppercase;"
-                                            />
-                                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Se usará para generar códigos automáticos en artículos (ej: MAT0001)') }}</p>
-                                            @error('prefijo') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                        </div>
+                        {{-- Icono seleccionado actualmente --}}
+                        @if($icono)
+                            <div class="mb-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-md flex items-center gap-2">
+                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Seleccionado:') }}</span>
+                                <div class="h-10 w-10 flex items-center justify-center rounded border-2 border-bcn-primary bg-bcn-primary bg-opacity-10 text-bcn-primary">
+                                    <x-dynamic-component :component="$icono" class="h-5 w-5" />
+                                </div>
+                                <button
+                                    type="button"
+                                    wire:click="$set('icono', '')"
+                                    class="ml-auto text-xs text-red-600 hover:text-red-800"
+                                >
+                                    {{ __('Quitar') }}
+                                </button>
+                            </div>
+                        @endif
 
-                                        <!-- Color -->
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Color') }} *</label>
-                                            <div class="flex items-center gap-3">
-                                                <input
-                                                    type="color"
-                                                    wire:model.live="color"
-                                                    class="h-12 w-24 rounded border border-gray-300 dark:border-gray-600 cursor-pointer"
-                                                />
-                                                <input
-                                                    type="text"
-                                                    wire:model.live="color"
-                                                    class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono text-sm"
-                                                    placeholder="#3B82F6"
-                                                    maxlength="7"
-                                                />
-                                            </div>
-                                            @error('color') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                        </div>
+                        <div class="max-h-80 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700">
+                            @php
+                                $categorias_iconos = [
+                                    __('Gastronomía & Bebidas') => [
+                                        'food.pizza', 'food.hamburguesa', 'food.hot-dog', 'food.helado',
+                                        'food.galleta', 'food.manzana', 'food.zanahoria', 'food.chile',
+                                        'food.pescado', 'food.pollo', 'food.pan', 'food.queso',
+                                        'food.huevo', 'food.limon', 'food.camaron', 'food.tocino',
+                                        'food.arroz', 'food.cafe', 'food.copa-vino', 'food.botella-vino',
+                                        'food.cerveza', 'food.champan', 'food.whiskey', 'food.martini',
+                                        'food.coctel', 'food.taza-cafe', 'food.licuado',
+                                    ],
+                                    __('Comercio & Ventas') => [
+                                        'icon.tag', 'icon.shopping-bag', 'icon.shopping-cart',
+                                        'icon.credit-card', 'icon.dollar-sign',
+                                    ],
+                                    __('Celebración') => [
+                                        'icon.gift', 'icon.heart', 'icon.star', 'icon.sparkles', 'icon.bolt',
+                                    ],
+                                    __('Hogar') => [
+                                        'icon.house', 'icon.building', 'icon.lightbulb', 'icon.key',
+                                    ],
+                                    __('Naturaleza') => [
+                                        'icon.sun', 'icon.moon', 'icon.cloud',
+                                    ],
+                                    __('Tecnología') => [
+                                        'icon.mobile', 'icon.desktop', 'icon.tv', 'icon.camera',
+                                        'icon.printer', 'icon.wifi',
+                                    ],
+                                    __('Herramientas') => [
+                                        'icon.wrench', 'icon.scissors', 'icon.pencil', 'icon.paintbrush',
+                                    ],
+                                    __('Organización') => [
+                                        'icon.folder', 'icon.folder-open', 'icon.box-archive',
+                                        'icon.inbox', 'icon.clipboard', 'icon.file', 'icon.bookmark',
+                                        'icon.cube', 'icon.table-cells', 'icon.layer-group',
+                                    ],
+                                    __('Transporte') => [
+                                        'icon.truck', 'icon.location-dot', 'icon.map', 'icon.globe',
+                                    ],
+                                    __('Otros') => [
+                                        'icon.music', 'icon.volume-high', 'icon.microphone',
+                                        'icon.shield-halved', 'icon.lock', 'icon.eye',
+                                        'icon.comment', 'icon.envelope', 'icon.phone',
+                                        'icon.chart-column', 'icon.calculator',
+                                        'icon.bell', 'icon.clock', 'icon.calendar',
+                                        'icon.users', 'icon.user',
+                                        'icon.image', 'icon.film', 'icon.play',
+                                        'icon.flag', 'icon.book-open', 'icon.briefcase', 'icon.gear',
+                                    ],
+                                ];
+                            @endphp
 
-                                        <!-- Icono -->
-                                        <div x-data="{ openCategory: null }">
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                {{ __('Icono (opcional)') }}
-                                                @if($icono)
-                                                    <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">- {{ $icono }}</span>
-                                                @endif
-                                            </label>
+                            @foreach($categorias_iconos as $categoria => $iconos)
+                                <div class="border-b border-gray-200 dark:border-gray-600 last:border-b-0">
+                                    {{-- Header de categoría (colapsable) --}}
+                                    <button
+                                        type="button"
+                                        @click="openCategory = openCategory === '{{ $categoria }}' ? null : '{{ $categoria }}'"
+                                        class="w-full px-3 py-2 flex items-center justify-between text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                                    >
+                                        <span>{{ $categoria }} ({{ count($iconos) }})</span>
+                                        <svg class="w-4 h-4 transition-transform" :class="openCategory === '{{ $categoria }}' ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
 
-                                            {{-- Icono seleccionado actualmente --}}
-                                            @if($icono)
-                                                <div class="mb-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-md flex items-center gap-2">
-                                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Seleccionado:') }}</span>
-                                                    <div class="h-10 w-10 flex items-center justify-center rounded border-2 border-bcn-primary bg-bcn-primary bg-opacity-10 text-bcn-primary">
-                                                        <x-dynamic-component :component="$icono" class="h-5 w-5" />
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        wire:click="$set('icono', '')"
-                                                        class="ml-auto text-xs text-red-600 hover:text-red-800"
-                                                    >
-                                                        {{ __('Quitar') }}
-                                                    </button>
-                                                </div>
-                                            @endif
-
-                                            <div class="max-h-80 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700">
-                                                @php
-                                                    $categorias_iconos = [
-                                                        __('Gastronomía & Bebidas') => [
-                                                            'food.pizza', 'food.hamburguesa', 'food.hot-dog', 'food.helado',
-                                                            'food.galleta', 'food.manzana', 'food.zanahoria', 'food.chile',
-                                                            'food.pescado', 'food.pollo', 'food.pan', 'food.queso',
-                                                            'food.huevo', 'food.limon', 'food.camaron', 'food.tocino',
-                                                            'food.arroz', 'food.cafe', 'food.copa-vino', 'food.botella-vino',
-                                                            'food.cerveza', 'food.champan', 'food.whiskey', 'food.martini',
-                                                            'food.coctel', 'food.taza-cafe', 'food.licuado',
-                                                        ],
-                                                        __('Comercio & Ventas') => [
-                                                            'icon.tag', 'icon.shopping-bag', 'icon.shopping-cart',
-                                                            'icon.credit-card', 'icon.dollar-sign',
-                                                        ],
-                                                        __('Celebración') => [
-                                                            'icon.gift', 'icon.heart', 'icon.star', 'icon.sparkles', 'icon.bolt',
-                                                        ],
-                                                        __('Hogar') => [
-                                                            'icon.house', 'icon.building', 'icon.lightbulb', 'icon.key',
-                                                        ],
-                                                        __('Naturaleza') => [
-                                                            'icon.sun', 'icon.moon', 'icon.cloud',
-                                                        ],
-                                                        __('Tecnología') => [
-                                                            'icon.mobile', 'icon.desktop', 'icon.tv', 'icon.camera',
-                                                            'icon.printer', 'icon.wifi',
-                                                        ],
-                                                        __('Herramientas') => [
-                                                            'icon.wrench', 'icon.scissors', 'icon.pencil', 'icon.paintbrush',
-                                                        ],
-                                                        __('Organización') => [
-                                                            'icon.folder', 'icon.folder-open', 'icon.box-archive',
-                                                            'icon.inbox', 'icon.clipboard', 'icon.file', 'icon.bookmark',
-                                                            'icon.cube', 'icon.table-cells', 'icon.layer-group',
-                                                        ],
-                                                        __('Transporte') => [
-                                                            'icon.truck', 'icon.location-dot', 'icon.map', 'icon.globe',
-                                                        ],
-                                                        __('Otros') => [
-                                                            'icon.music', 'icon.volume-high', 'icon.microphone',
-                                                            'icon.shield-halved', 'icon.lock', 'icon.eye',
-                                                            'icon.comment', 'icon.envelope', 'icon.phone',
-                                                            'icon.chart-column', 'icon.calculator',
-                                                            'icon.bell', 'icon.clock', 'icon.calendar',
-                                                            'icon.users', 'icon.user',
-                                                            'icon.image', 'icon.film', 'icon.play',
-                                                            'icon.flag', 'icon.book-open', 'icon.briefcase', 'icon.gear',
-                                                        ],
-                                                    ];
-                                                @endphp
-
-                                                @foreach($categorias_iconos as $categoria => $iconos)
-                                                    <div class="border-b border-gray-200 dark:border-gray-600 last:border-b-0">
-                                                        {{-- Header de categoría (colapsable) --}}
-                                                        <button
-                                                            type="button"
-                                                            @click="openCategory = openCategory === '{{ $categoria }}' ? null : '{{ $categoria }}'"
-                                                            class="w-full px-3 py-2 flex items-center justify-between text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-                                                        >
-                                                            <span>{{ $categoria }} ({{ count($iconos) }})</span>
-                                                            <svg class="w-4 h-4 transition-transform" :class="openCategory === '{{ $categoria }}' ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                                                            </svg>
-                                                        </button>
-
-                                                        {{-- Iconos (solo se renderizan cuando está abierto) --}}
-                                                        <div x-show="openCategory === '{{ $categoria }}'" x-collapse class="px-3 pb-3">
-                                                            <div class="grid grid-cols-6 gap-2">
-                                                                @foreach($iconos as $iconoNombre)
-                                                                    <button
-                                                                        type="button"
-                                                                        wire:click="$set('icono', '{{ $iconoNombre }}')"
-                                                                        class="h-10 w-10 flex items-center justify-center rounded border-2 transition-all {{ $icono === $iconoNombre ? 'border-bcn-primary bg-bcn-primary bg-opacity-10 text-bcn-primary' : 'border-gray-200 dark:border-gray-600 hover:border-bcn-primary hover:bg-gray-50 dark:hover:bg-gray-600' }}"
-                                                                        title="{{ $iconoNombre }}"
-                                                                    >
-                                                                        <x-dynamic-component :component="$iconoNombre" class="h-5 w-5" />
-                                                                    </button>
-                                                                @endforeach
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                @endforeach
-                                            </div>
-                                            @error('icono') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                        </div>
-
-                                        <!-- Estado activo -->
-                                        <div class="flex items-center">
-                                            <input
-                                                type="checkbox"
-                                                id="activo"
-                                                wire:model="activo"
-                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
-                                            />
-                                            <label for="activo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Categoría activa') }}</label>
+                                    {{-- Iconos (solo se renderizan cuando está abierto) --}}
+                                    <div x-show="openCategory === '{{ $categoria }}'" x-collapse class="px-3 pb-3">
+                                        <div class="grid grid-cols-6 gap-2">
+                                            @foreach($iconos as $iconoNombre)
+                                                <button
+                                                    type="button"
+                                                    wire:click="$set('icono', '{{ $iconoNombre }}')"
+                                                    class="h-10 w-10 flex items-center justify-center rounded border-2 transition-all {{ $icono === $iconoNombre ? 'border-bcn-primary bg-bcn-primary bg-opacity-10 text-bcn-primary' : 'border-gray-200 dark:border-gray-600 hover:border-bcn-primary hover:bg-gray-50 dark:hover:bg-gray-600' }}"
+                                                    title="{{ $iconoNombre }}"
+                                                >
+                                                    <x-dynamic-component :component="$iconoNombre" class="h-5 w-5" />
+                                                </button>
+                                            @endforeach
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            @endforeach
                         </div>
+                        @error('icono') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                    </div>
 
-                        <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                            <button
-                                type="submit"
-                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:ml-3 sm:w-auto sm:text-sm"
-                            >
-                                {{ $editMode ? __('Actualizar') : __('Crear') }}
-                            </button>
-                            <button
-                                type="button"
-                                @click="show = false; $wire.cancel()"
-                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                            >
-                                {{ __('Cancelar') }}
-                            </button>
-                        </div>
-                    </form>
+                    <!-- Estado activo -->
+                    <div class="flex items-center">
+                        <input
+                            type="checkbox"
+                            id="activo"
+                            wire:model="activo"
+                            class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
+                        />
+                        <label for="activo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Categoría activa') }}</label>
+                    </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button
+                    type="button"
+                    @click="close()"
+                    class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:mt-0 sm:w-auto sm:text-sm"
+                >
+                    {{ __('Cancelar') }}
+                </button>
+                <button
+                    type="submit"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:w-auto sm:text-sm"
+                >
+                    {{ $editMode ? __('Actualizar') : __('Crear') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal de confirmación de eliminación --}}
     @if($showDeleteModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-            {{-- Overlay --}}
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-                 wire:click="cancelarEliminar"></div>
-
-            {{-- Modal --}}
-            <div class="flex min-h-full items-center justify-center p-4">
-                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
-                    {{-- Header --}}
-                    <div class="bg-white dark:bg-gray-800 px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                        <div class="sm:flex sm:items-start">
-                            {{-- Icono --}}
-                            <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                                <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                                </svg>
-                            </div>
-                            {{-- Contenido --}}
-                            <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
-                                <h3 class="text-lg font-semibold leading-6 text-gray-900 dark:text-white" id="modal-title">
-                                    {{ __('Eliminar categoria') }}
-                                </h3>
-                                <div class="mt-2">
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                                        {{ __('¿Estas seguro de eliminar la categoria') }} <span class="font-semibold text-gray-700 dark:text-gray-300">"{{ $nombreCategoriaAEliminar }}"</span>?
-                                    </p>
-                                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                                        {{ __('Esta accion no eliminara permanentemente los datos, pero la categoria dejara de estar disponible en el sistema.') }}
-                                    </p>
-                                </div>
-                            </div>
+        <x-bcn-modal
+            :title="__('Eliminar categoria')"
+            color="bg-red-600"
+            maxWidth="md"
+            onClose="cancelarEliminar"
+        >
+            <x-slot:body>
+                <div class="sm:flex sm:items-start">
+                    {{-- Icono --}}
+                    <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                        <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                        </svg>
+                    </div>
+                    {{-- Contenido --}}
+                    <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                        <div class="mt-2">
+                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                                {{ __('¿Estas seguro de eliminar la categoria') }} <span class="font-semibold text-gray-700 dark:text-gray-300">"{{ $nombreCategoriaAEliminar }}"</span>?
+                            </p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                                {{ __('Esta accion no eliminara permanentemente los datos, pero la categoria dejara de estar disponible en el sistema.') }}
+                            </p>
                         </div>
                     </div>
-                    {{-- Acciones --}}
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
-                        <button type="button"
-                                wire:click="eliminar"
-                                class="inline-flex w-full justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:w-auto transition-colors">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                            </svg>
-                            {{ __('Eliminar') }}
-                        </button>
-                        <button type="button"
-                                wire:click="cancelarEliminar"
-                                class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-300 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 sm:mt-0 sm:w-auto transition-colors">
-                            {{ __('Cancelar') }}
-                        </button>
-                    </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button"
+                        @click="close()"
+                        class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-300 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 sm:mt-0 sm:w-auto transition-colors">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="button"
+                        wire:click="eliminar"
+                        class="inline-flex w-full justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:w-auto transition-colors">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                    {{ __('Eliminar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 </div>
