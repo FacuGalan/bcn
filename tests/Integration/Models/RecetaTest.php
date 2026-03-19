@@ -84,6 +84,7 @@ class RecetaTest extends TestCase
         $this->assertEquals($recetaOverride->id, $resultado->id);
         $this->assertEquals($this->sucursalId, $resultado->sucursal_id);
     }
+
     public function test_resolver_default_si_no_hay_override(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'receta');
@@ -113,6 +114,7 @@ class RecetaTest extends TestCase
         $this->assertEquals($recetaDefault->id, $resultado->id);
         $this->assertNull($resultado->sucursal_id);
     }
+
     public function test_resolver_null_si_override_inactivo(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'receta');
@@ -148,6 +150,7 @@ class RecetaTest extends TestCase
 
         $this->assertNull($resultado);
     }
+
     public function test_resolver_null_sin_receta(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'receta');
@@ -157,6 +160,7 @@ class RecetaTest extends TestCase
 
         $this->assertNull($resultado);
     }
+
     public function test_receta_carga_ingredientes(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'receta');
@@ -199,6 +203,7 @@ class RecetaTest extends TestCase
             $this->assertNotNull($ing->articulo);
         }
     }
+
     public function test_es_default_vs_es_override(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'receta');

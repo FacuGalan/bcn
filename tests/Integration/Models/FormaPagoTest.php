@@ -44,6 +44,7 @@ class FormaPagoTest extends TestCase
             'activo' => true,
         ], $overrides));
     }
+
     public function test_calcular_ajuste_recargo(): void
     {
         $fp = $this->crearFormaPago(['ajuste_porcentaje' => 10]);
@@ -54,6 +55,7 @@ class FormaPagoTest extends TestCase
         $this->assertEquals(10, $resultado['porcentaje']);
         $this->assertEquals(100, $resultado['monto']);
     }
+
     public function test_calcular_ajuste_descuento(): void
     {
         $fp = $this->crearFormaPago(['ajuste_porcentaje' => -5]);
@@ -64,6 +66,7 @@ class FormaPagoTest extends TestCase
         $this->assertEquals(5, $resultado['porcentaje']);
         $this->assertEquals(50, $resultado['monto']);
     }
+
     public function test_calcular_ajuste_ninguno(): void
     {
         $fp = $this->crearFormaPago(['ajuste_porcentaje' => 0]);
@@ -74,6 +77,7 @@ class FormaPagoTest extends TestCase
         $this->assertEquals(0, $resultado['porcentaje']);
         $this->assertEquals(0, $resultado['monto']);
     }
+
     public function test_esta_habilitada_en_sucursal_true(): void
     {
         $fp = $this->crearFormaPago();
@@ -89,6 +93,7 @@ class FormaPagoTest extends TestCase
 
         $this->assertTrue($fp->estaHabilitadaEnSucursal($this->sucursalId));
     }
+
     public function test_esta_habilitada_en_sucursal_false(): void
     {
         $fp = $this->crearFormaPago();
@@ -96,18 +101,21 @@ class FormaPagoTest extends TestCase
         // Sin registro pivot
         $this->assertFalse($fp->estaHabilitadaEnSucursal($this->sucursalId));
     }
+
     public function test_es_efectivo_true(): void
     {
         $fp = $this->crearFormaPago(['concepto' => 'efectivo']);
 
         $this->assertTrue($fp->esEfectivo());
     }
+
     public function test_es_mixta_true(): void
     {
         $fp = $this->crearFormaPago(['es_mixta' => true]);
 
         $this->assertTrue($fp->esMixta());
     }
+
     public function test_scope_activas(): void
     {
         $this->crearFormaPago(['activo' => true]);

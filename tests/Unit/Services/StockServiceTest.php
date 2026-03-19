@@ -57,6 +57,7 @@ class StockServiceTest extends TestCase
         $this->assertEquals(5, (float) $movimiento->entrada);
         $this->assertEquals(0, (float) $movimiento->salida);
     }
+
     public function test_ajustar_stock_negativo(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10);
@@ -68,6 +69,7 @@ class StockServiceTest extends TestCase
 
         $this->assertEquals(7, (float) $resultado->cantidad);
     }
+
     public function test_ajustar_stock_falla_si_queda_negativo(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 5);
@@ -80,6 +82,7 @@ class StockServiceTest extends TestCase
 
         $this->stockService->ajustarStock($stock->id, -10, 1, 'Exceso');
     }
+
     public function test_ajustar_stock_registra_movimiento(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10);
@@ -142,6 +145,7 @@ class StockServiceTest extends TestCase
         $this->assertEquals(5, (float) $stock->cantidad_minima);
         $this->assertEquals(200, (float) $stock->cantidad_maxima);
     }
+
     public function test_inicializar_stock_falla_modo_ninguno(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'ninguno');
@@ -181,6 +185,7 @@ class StockServiceTest extends TestCase
         $stockActualizado = Stock::find($stock->id);
         $this->assertEquals(15, (float) $stockActualizado->cantidad);
     }
+
     public function test_registrar_inventario_fisico_faltante(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10);
@@ -204,6 +209,7 @@ class StockServiceTest extends TestCase
         $stockActualizado = Stock::find($stock->id);
         $this->assertEquals(7, (float) $stockActualizado->cantidad);
     }
+
     public function test_registrar_inventario_sin_diferencia(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10);
@@ -223,6 +229,7 @@ class StockServiceTest extends TestCase
         $this->assertEquals(0, (float) $resultado['diferencia']);
         $this->assertEquals('sin_diferencia', $resultado['tipo_diferencia']);
     }
+
     public function test_registrar_inventario_crea_movimiento(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10);

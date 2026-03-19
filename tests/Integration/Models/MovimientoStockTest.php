@@ -29,6 +29,7 @@ class MovimientoStockTest extends TestCase
         $this->tearDownTenant();
         parent::tearDown();
     }
+
     public function test_crear_movimiento_venta_registra_salida(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100);
@@ -52,6 +53,7 @@ class MovimientoStockTest extends TestCase
         $this->assertEquals($venta->id, $movimiento->venta_id);
         $this->assertEquals($ventaDetalle->id, $movimiento->venta_detalle_id);
     }
+
     public function test_crear_movimiento_anulacion_venta_registra_entrada(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100);
@@ -73,6 +75,7 @@ class MovimientoStockTest extends TestCase
         $this->assertEquals(MovimientoStock::TIPO_ANULACION_VENTA, $movimiento->tipo);
         $this->assertEquals('activo', $movimiento->estado);
     }
+
     public function test_crear_movimiento_ajuste_positivo(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100);
@@ -89,6 +92,7 @@ class MovimientoStockTest extends TestCase
         $this->assertEquals('0.00', $movimiento->salida);
         $this->assertEquals(MovimientoStock::TIPO_AJUSTE_MANUAL, $movimiento->tipo);
     }
+
     public function test_crear_movimiento_ajuste_negativo(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100);
@@ -105,6 +109,7 @@ class MovimientoStockTest extends TestCase
         $this->assertEquals('3.00', $movimiento->salida);
         $this->assertEquals(MovimientoStock::TIPO_AJUSTE_MANUAL, $movimiento->tipo);
     }
+
     public function test_calcular_stock_suma_entradas_menos_salidas(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100);
@@ -137,6 +142,7 @@ class MovimientoStockTest extends TestCase
         // 10 entrada - 3 salida = 7
         $this->assertEquals(7, $stockCalculado);
     }
+
     public function test_calcular_stock_a_fecha(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100);
@@ -176,6 +182,7 @@ class MovimientoStockTest extends TestCase
         );
         $this->assertEquals(15, $stockHoy);
     }
+
     public function test_crear_contraasiento_invierte_montos(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100);
@@ -212,6 +219,7 @@ class MovimientoStockTest extends TestCase
         $movOriginal->refresh();
         $this->assertEquals($contraasiento->id, $movOriginal->anulado_por_movimiento_id);
     }
+
     public function test_scope_activos_excluye_anulados(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100);

@@ -28,6 +28,7 @@ class ClienteTest extends TestCase
         $this->tearDownTenant();
         parent::tearDown();
     }
+
     public function test_obtener_saldo_en_sucursal(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
@@ -42,6 +43,7 @@ class ClienteTest extends TestCase
 
         $this->assertEquals(5000, $saldo);
     }
+
     public function test_ajustar_saldo_positivo(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
@@ -57,6 +59,7 @@ class ClienteTest extends TestCase
         $saldoActualizado = $cliente->obtenerSaldoEnSucursal($this->sucursalId);
         $this->assertEquals(1500, $saldoActualizado);
     }
+
     public function test_ajustar_saldo_negativo(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
@@ -72,6 +75,7 @@ class ClienteTest extends TestCase
         $saldoActualizado = $cliente->obtenerSaldoEnSucursal($this->sucursalId);
         $this->assertEquals(700, $saldoActualizado);
     }
+
     public function test_ajustar_saldo_no_permite_negativo(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
@@ -88,6 +92,7 @@ class ClienteTest extends TestCase
         // max(0, 100 - 500) = 0
         $this->assertEquals(0, $saldoActualizado);
     }
+
     public function test_tiene_disponibilidad_credito_con_limite(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId, 10000);
@@ -104,6 +109,7 @@ class ClienteTest extends TestCase
         // Pedir 8000 debe ser false (excede disponibilidad de 7000)
         $this->assertFalse($cliente->tieneDisponibilidadCredito(8000, $this->sucursalId));
     }
+
     public function test_tiene_disponibilidad_credito_sin_limite(): void
     {
         // Limite 0 = sin limite = credito ilimitado
@@ -113,6 +119,7 @@ class ClienteTest extends TestCase
         // lo que significa credito ilimitado -> siempre true
         $this->assertTrue($cliente->tieneDisponibilidadCredito(999999, $this->sucursalId));
     }
+
     public function test_puede_operar_a_credito(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId, 10000, [
@@ -122,6 +129,7 @@ class ClienteTest extends TestCase
 
         $this->assertTrue($cliente->puedeOperarACredito());
     }
+
     public function test_puede_operar_a_credito_bloqueado(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId, 10000, [

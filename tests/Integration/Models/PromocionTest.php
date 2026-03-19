@@ -44,6 +44,7 @@ class PromocionTest extends TestCase
             'usos_actuales' => 0,
         ], $overrides));
     }
+
     public function test_calcular_ajuste_descuento_porcentaje(): void
     {
         $promo = $this->crearPromocion([
@@ -57,6 +58,7 @@ class PromocionTest extends TestCase
         $this->assertEquals(20, $ajuste['porcentaje']);
         $this->assertEquals(200, $ajuste['valor']);
     }
+
     public function test_calcular_ajuste_descuento_monto(): void
     {
         $promo = $this->crearPromocion([
@@ -70,6 +72,7 @@ class PromocionTest extends TestCase
         $this->assertNull($ajuste['porcentaje']);
         $this->assertEquals(500, $ajuste['valor']);
     }
+
     public function test_calcular_ajuste_precio_fijo(): void
     {
         $promo = $this->crearPromocion([
@@ -84,6 +87,7 @@ class PromocionTest extends TestCase
         // valor = max(0, 1000 - 800) = 200
         $this->assertEquals(200, $ajuste['valor']);
     }
+
     public function test_calcular_ajuste_recargo_porcentaje(): void
     {
         $promo = $this->crearPromocion([
@@ -97,6 +101,7 @@ class PromocionTest extends TestCase
         $this->assertEquals(10, $ajuste['porcentaje']);
         $this->assertEquals(100, $ajuste['valor']);
     }
+
     public function test_calcular_ajuste_recargo_monto(): void
     {
         $promo = $this->crearPromocion([
@@ -110,6 +115,7 @@ class PromocionTest extends TestCase
         $this->assertNull($ajuste['porcentaje']);
         $this->assertEquals(200, $ajuste['valor']);
     }
+
     public function test_calcular_ajuste_descuento_monto_no_supera_monto(): void
     {
         $promo = $this->crearPromocion([
@@ -123,6 +129,7 @@ class PromocionTest extends TestCase
         // min(1500, 1000) = 1000
         $this->assertEquals(1000, $ajuste['valor']);
     }
+
     public function test_vigencia_por_fecha_dentro_de_rango(): void
     {
         $promo = $this->crearPromocion([
@@ -132,6 +139,7 @@ class PromocionTest extends TestCase
 
         $this->assertTrue($promo->estaVigentePorFecha(now()));
     }
+
     public function test_vigencia_por_fecha_fuera_de_rango(): void
     {
         $promo = $this->crearPromocion([
@@ -141,6 +149,7 @@ class PromocionTest extends TestCase
 
         $this->assertFalse($promo->estaVigentePorFecha(now()));
     }
+
     public function test_aplica_en_dia_semana(): void
     {
         $promo = $this->crearPromocion([
@@ -153,6 +162,7 @@ class PromocionTest extends TestCase
         // Dia 5 (Viernes) no debe aplicar
         $this->assertFalse($promo->aplicaEnDiaSemana(5));
     }
+
     public function test_aplica_en_horario(): void
     {
         $promo = $this->crearPromocion([
@@ -166,6 +176,7 @@ class PromocionTest extends TestCase
         // 22:00 fuera de rango
         $this->assertFalse($promo->aplicaEnHorario('22:00:00'));
     }
+
     public function test_tiene_usos_disponibles(): void
     {
         $promo = $this->crearPromocion([
@@ -181,6 +192,7 @@ class PromocionTest extends TestCase
 
         $this->assertFalse($promo->tieneUsosDisponibles());
     }
+
     public function test_scope_vigentes_filtra_por_fecha(): void
     {
         // 2 promociones vigentes

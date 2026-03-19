@@ -28,6 +28,7 @@ class VentaTest extends TestCase
         $this->tearDownTenant();
         parent::tearDown();
     }
+
     public function test_scope_completadas_filtra_ventas_completadas(): void
     {
         $this->crearVentaBasica(['estado' => 'completada']);
@@ -38,6 +39,7 @@ class VentaTest extends TestCase
 
         $this->assertEquals(2, $completadas);
     }
+
     public function test_scope_pendientes_filtra_ventas_pendientes(): void
     {
         $this->crearVentaBasica(['estado' => 'pendiente']);
@@ -48,6 +50,7 @@ class VentaTest extends TestCase
 
         $this->assertEquals(1, $pendientes);
     }
+
     public function test_scope_canceladas_filtra_ventas_canceladas(): void
     {
         $this->crearVentaBasica(['estado' => 'cancelada']);
@@ -58,6 +61,7 @@ class VentaTest extends TestCase
 
         $this->assertEquals(1, $canceladas);
     }
+
     public function test_scope_con_saldo_pendiente(): void
     {
         $this->crearVentaBasica(['saldo_pendiente_cache' => 500]);
@@ -68,6 +72,7 @@ class VentaTest extends TestCase
 
         $this->assertEquals(2, $conSaldo);
     }
+
     public function test_scope_cta_cte(): void
     {
         $this->crearVentaBasica(['es_cuenta_corriente' => true]);
@@ -78,6 +83,7 @@ class VentaTest extends TestCase
 
         $this->assertEquals(1, $ctaCte);
     }
+
     public function test_scope_por_sucursal(): void
     {
         $otraSucursalId = $this->crearSucursalAdicional('Sucursal 2');
@@ -89,6 +95,7 @@ class VentaTest extends TestCase
         $this->assertEquals(2, Venta::porSucursal($this->sucursalId)->count());
         $this->assertEquals(1, Venta::porSucursal($otraSucursalId)->count());
     }
+
     public function test_scope_por_fecha(): void
     {
         $this->crearVentaBasica(['fecha' => '2025-01-15']);
@@ -99,24 +106,28 @@ class VentaTest extends TestCase
 
         $this->assertEquals(2, $filtradas);
     }
+
     public function test_esta_completada_retorna_true(): void
     {
         $venta = $this->crearVentaBasica(['estado' => 'completada']);
 
         $this->assertTrue($venta->estaCompletada());
     }
+
     public function test_esta_cancelada_retorna_true(): void
     {
         $venta = $this->crearVentaBasica(['estado' => 'cancelada']);
 
         $this->assertTrue($venta->estaCancelada());
     }
+
     public function test_tiene_saldo_pendiente_retorna_true_con_saldo(): void
     {
         $venta = $this->crearVentaBasica(['saldo_pendiente_cache' => 250.50]);
 
         $this->assertTrue($venta->tieneSaldoPendiente());
     }
+
     public function test_relacion_detalles_carga_items(): void
     {
         $venta = $this->crearVentaBasica();
@@ -141,6 +152,7 @@ class VentaTest extends TestCase
 
         $this->assertCount(2, $venta->detalles);
     }
+
     public function test_calcular_totales_desde_detalles(): void
     {
         $articulo1 = $this->crearArticuloConStock($this->sucursalId, 100);

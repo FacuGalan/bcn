@@ -37,6 +37,7 @@ class StockTest extends TestCase
             ->where('sucursal_id', $this->sucursalId)
             ->firstOrFail();
     }
+
     public function test_aumentar_incrementa_stock(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10);
@@ -48,6 +49,7 @@ class StockTest extends TestCase
         $stock->refresh();
         $this->assertEquals('15.00', $stock->cantidad);
     }
+
     public function test_disminuir_decrementa_stock(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10);
@@ -59,6 +61,7 @@ class StockTest extends TestCase
         $stock->refresh();
         $this->assertEquals('7.00', $stock->cantidad);
     }
+
     public function test_disminuir_falla_sin_stock(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 5);
@@ -70,6 +73,7 @@ class StockTest extends TestCase
         $stock->refresh();
         $this->assertEquals('5.00', $stock->cantidad);
     }
+
     public function test_disminuir_permite_negativo(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 5);
@@ -81,6 +85,7 @@ class StockTest extends TestCase
         $stock->refresh();
         $this->assertEquals('-5.00', $stock->cantidad);
     }
+
     public function test_hay_suficiente_true_con_stock(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10);
@@ -88,6 +93,7 @@ class StockTest extends TestCase
 
         $this->assertTrue($stock->haySuficiente(8));
     }
+
     public function test_hay_suficiente_false_sin_stock(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 5);
@@ -95,6 +101,7 @@ class StockTest extends TestCase
 
         $this->assertFalse($stock->haySuficiente(10));
     }
+
     public function test_esta_bajo_minimo_true(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 3);
@@ -105,6 +112,7 @@ class StockTest extends TestCase
 
         $this->assertTrue($stock->estaBajoMinimo());
     }
+
     public function test_esta_bajo_minimo_false_sin_minimo(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 3);
@@ -113,6 +121,7 @@ class StockTest extends TestCase
         // cantidad_minima es null por defecto desde crearArticuloConStock
         $this->assertFalse($stock->estaBajoMinimo());
     }
+
     public function test_esta_sobre_maximo_true(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 15);
@@ -123,6 +132,7 @@ class StockTest extends TestCase
 
         $this->assertTrue($stock->estaSobreMaximo());
     }
+
     public function test_scope_bajo_minimo_filtra(): void
     {
         // Articulo bajo minimo: cantidad 3, minimo 5

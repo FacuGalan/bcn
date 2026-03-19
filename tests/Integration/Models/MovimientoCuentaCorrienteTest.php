@@ -77,6 +77,7 @@ class MovimientoCuentaCorrienteTest extends TestCase
             'usuario_id' => 1,
         ], $overrides));
     }
+
     public function test_calcular_saldo_deudor(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
@@ -98,6 +99,7 @@ class MovimientoCuentaCorrienteTest extends TestCase
 
         $this->assertEquals(3000, $saldo);
     }
+
     public function test_calcular_saldo_deudor_solo_activos(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
@@ -117,6 +119,7 @@ class MovimientoCuentaCorrienteTest extends TestCase
 
         $this->assertEquals(5000, $saldo);
     }
+
     public function test_calcular_saldo_favor(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
@@ -130,6 +133,7 @@ class MovimientoCuentaCorrienteTest extends TestCase
 
         $this->assertEquals(1000, $saldoFavor);
     }
+
     public function test_crear_contraasiento_invierte_debe_haber(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
@@ -147,6 +151,7 @@ class MovimientoCuentaCorrienteTest extends TestCase
         $this->assertEquals('0.00', $contraasiento->debe);
         $this->assertEquals('5000.00', $contraasiento->haber);
     }
+
     public function test_crear_contraasiento_ambos_quedan_activos(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
@@ -165,6 +170,7 @@ class MovimientoCuentaCorrienteTest extends TestCase
         // El original tiene referencia al contraasiento
         $this->assertEquals($contraasiento->id, $original->anulado_por_movimiento_id);
     }
+
     public function test_crear_movimiento_venta(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
@@ -185,6 +191,7 @@ class MovimientoCuentaCorrienteTest extends TestCase
         $this->assertEquals($venta->id, $movimiento->venta_id);
         $this->assertEquals($ventaPago->id, $movimiento->venta_pago_id);
     }
+
     public function test_crear_movimiento_cobro(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
@@ -213,6 +220,7 @@ class MovimientoCuentaCorrienteTest extends TestCase
         $this->assertEquals(MovimientoCuentaCorriente::TIPO_COBRO, $movimiento->tipo);
         $this->assertEquals($cobro->id, $movimiento->cobro_id);
     }
+
     public function test_crear_movimiento_anticipo(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
@@ -231,6 +239,7 @@ class MovimientoCuentaCorrienteTest extends TestCase
         $this->assertEquals('1000.00', $movimiento->saldo_favor_haber);
         $this->assertEquals(MovimientoCuentaCorriente::TIPO_ANTICIPO, $movimiento->tipo);
     }
+
     public function test_crear_movimiento_uso_saldo_favor(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
@@ -247,6 +256,7 @@ class MovimientoCuentaCorrienteTest extends TestCase
         $this->assertEquals('0.00', $movimiento->saldo_favor_haber);
         $this->assertEquals(MovimientoCuentaCorriente::TIPO_USO_SALDO_FAVOR, $movimiento->tipo);
     }
+
     public function test_obtener_saldos_retorna_ambos(): void
     {
         $cliente = $this->crearClienteConCC($this->sucursalId);
