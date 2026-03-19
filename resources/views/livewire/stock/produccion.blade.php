@@ -348,177 +348,167 @@
 
     {{-- Modal Historial --}}
     @if($showHistorialModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="cerrarHistorial"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-5xl sm:w-full max-h-[90vh] overflow-y-auto">
-                    <div class="bg-white dark:bg-gray-800 px-6 pt-5 pb-4">
-                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ __('Historial de producciones') }}</h3>
-
-                        {{-- Filtros de fecha --}}
-                        <div class="flex flex-col sm:flex-row gap-3 mb-4">
-                            <div>
-                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('Desde') }}</label>
-                                <input type="date" wire:model="filterFechaDesde" wire:change="cargarHistorial" class="rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm dark:bg-gray-700 dark:text-white">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('Hasta') }}</label>
-                                <input type="date" wire:model="filterFechaHasta" wire:change="cargarHistorial" class="rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm dark:bg-gray-700 dark:text-white">
-                            </div>
-                        </div>
-
-                        {{-- Tabla de historial --}}
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-                                <thead class="bg-gray-50 dark:bg-gray-700">
-                                    <tr>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Fecha') }}</th>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('# Lote') }}</th>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Artículos') }}</th>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Usuario') }}</th>
-                                        <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Estado') }}</th>
-                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Acciones') }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                                    @forelse($historial as $prod)
-                                        <tr>
-                                            <td class="px-3 py-2 text-gray-900 dark:text-white whitespace-nowrap">{{ $prod['fecha'] }}</td>
-                                            <td class="px-3 py-2 text-gray-500 dark:text-gray-400">#{{ $prod['id'] }}</td>
-                                            <td class="px-3 py-2 text-gray-900 dark:text-white">
-                                                @foreach($prod['articulos'] as $art)
-                                                    <span class="inline-block mr-1">{{ $art['nombre'] }} x{{ $art['cantidad'] }}{{ !$loop->last ? ',' : '' }}</span>
-                                                @endforeach
-                                            </td>
-                                            <td class="px-3 py-2 text-gray-500 dark:text-gray-400">{{ $prod['usuario'] }}</td>
-                                            <td class="px-3 py-2 text-center">
-                                                @if($prod['estado'] === 'confirmado')
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
-                                                        {{ __('Confirmado') }}
-                                                    </span>
-                                                @else
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300" title="{{ $prod['motivo_anulacion'] }}">
-                                                        {{ __('Anulado') }}
-                                                    </span>
-                                                @endif
-                                            </td>
-                                            <td class="px-3 py-2 text-right whitespace-nowrap">
-                                                <button wire:click="verDetalle({{ $prod['id'] }})" class="text-bcn-primary hover:text-bcn-primary/80 text-xs font-medium mr-2">
-                                                    {{ __('Ver') }}
-                                                </button>
-                                                @if($prod['estado'] === 'confirmado')
-                                                    <button wire:click="abrirAnular({{ $prod['id'] }})" class="text-red-600 dark:text-red-400 hover:text-red-800 text-xs font-medium">
-                                                        {{ __('Anular') }}
-                                                    </button>
-                                                @endif
-                                            </td>
-                                        </tr>
-                                    @empty
-                                        <tr>
-                                            <td colspan="6" class="px-3 py-8 text-center text-gray-500 dark:text-gray-400">
-                                                {{ __('No hay producciones en el período seleccionado.') }}
-                                            </td>
-                                        </tr>
-                                    @endforelse
-                                </tbody>
-                            </table>
-                        </div>
+        <x-bcn-modal
+            :show="$showHistorialModal"
+            :title="__('Historial de producciones')"
+            color="bg-bcn-primary"
+            maxWidth="5xl"
+            onClose="cerrarHistorial"
+        >
+            <x-slot:body>
+                {{-- Filtros de fecha --}}
+                <div class="flex flex-col sm:flex-row gap-3 mb-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('Desde') }}</label>
+                        <input type="date" wire:model="filterFechaDesde" wire:change="cargarHistorial" class="rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm dark:bg-gray-700 dark:text-white">
                     </div>
-
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                        <button
-                            wire:click="cerrarHistorial"
-                            class="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none"
-                        >
-                            {{ __('Cerrar') }}
-                        </button>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('Hasta') }}</label>
+                        <input type="date" wire:model="filterFechaHasta" wire:change="cargarHistorial" class="rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm dark:bg-gray-700 dark:text-white">
                     </div>
                 </div>
-            </div>
-        </div>
+
+                {{-- Tabla de historial --}}
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                        <thead class="bg-gray-50 dark:bg-gray-700">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Fecha') }}</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('# Lote') }}</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Artículos') }}</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Usuario') }}</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Estado') }}</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Acciones') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                            @forelse($historial as $prod)
+                                <tr>
+                                    <td class="px-3 py-2 text-gray-900 dark:text-white whitespace-nowrap">{{ $prod['fecha'] }}</td>
+                                    <td class="px-3 py-2 text-gray-500 dark:text-gray-400">#{{ $prod['id'] }}</td>
+                                    <td class="px-3 py-2 text-gray-900 dark:text-white">
+                                        @foreach($prod['articulos'] as $art)
+                                            <span class="inline-block mr-1">{{ $art['nombre'] }} x{{ $art['cantidad'] }}{{ !$loop->last ? ',' : '' }}</span>
+                                        @endforeach
+                                    </td>
+                                    <td class="px-3 py-2 text-gray-500 dark:text-gray-400">{{ $prod['usuario'] }}</td>
+                                    <td class="px-3 py-2 text-center">
+                                        @if($prod['estado'] === 'confirmado')
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
+                                                {{ __('Confirmado') }}
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300" title="{{ $prod['motivo_anulacion'] }}">
+                                                {{ __('Anulado') }}
+                                            </span>
+                                        @endif
+                                    </td>
+                                    <td class="px-3 py-2 text-right whitespace-nowrap">
+                                        <button wire:click="verDetalle({{ $prod['id'] }})" class="text-bcn-primary hover:text-bcn-primary/80 text-xs font-medium mr-2">
+                                            {{ __('Ver') }}
+                                        </button>
+                                        @if($prod['estado'] === 'confirmado')
+                                            <button wire:click="abrirAnular({{ $prod['id'] }})" class="text-red-600 dark:text-red-400 hover:text-red-800 text-xs font-medium">
+                                                {{ __('Anular') }}
+                                            </button>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="px-3 py-8 text-center text-gray-500 dark:text-gray-400">
+                                        {{ __('No hay producciones en el período seleccionado.') }}
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cerrar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal Detalle Producción --}}
     @if($showDetalleModal && $detalleProduccion)
-        <div class="fixed inset-0 z-[60] overflow-y-auto" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="cerrarDetalle"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full max-h-[90vh] overflow-y-auto">
-                    <div class="bg-white dark:bg-gray-800 px-6 pt-5 pb-4">
-                        <div class="flex justify-between items-start mb-4">
-                            <div>
-                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                                    {{ __('Producción') }} #{{ $detalleProduccion['id'] }}
-                                </h3>
-                                <p class="text-sm text-gray-500 dark:text-gray-400">{{ $detalleProduccion['fecha'] }} - {{ $detalleProduccion['usuario'] }}</p>
-                            </div>
-                            @if($detalleProduccion['estado'] === 'confirmado')
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">{{ __('Confirmado') }}</span>
-                            @else
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300">{{ __('Anulado') }}</span>
-                            @endif
-                        </div>
-
-                        @if($detalleProduccion['observaciones'])
-                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 italic">{{ $detalleProduccion['observaciones'] }}</p>
-                        @endif
-
-                        @if($detalleProduccion['estado'] === 'anulado' && $detalleProduccion['motivo_anulacion'])
-                            <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-md">
-                                <p class="text-sm text-red-700 dark:text-red-300">
-                                    <strong>{{ __('Motivo de anulación') }}:</strong> {{ $detalleProduccion['motivo_anulacion'] }}
-                                </p>
-                                @if($detalleProduccion['anulado_por'])
-                                    <p class="text-xs text-red-600 dark:text-red-400 mt-1">{{ __('Por') }}: {{ $detalleProduccion['anulado_por'] }}</p>
-                                @endif
-                            </div>
-                        @endif
-
-                        @foreach($detalleProduccion['detalles'] as $detalle)
-                            <div class="mb-4 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                                <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                                    {{ $detalle['articulo'] }} - {{ $detalle['cantidad_producida'] }} {{ __('unidades') }}
-                                </h4>
-                                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
-                                    <thead class="bg-gray-50 dark:bg-gray-700">
-                                        <tr>
-                                            <th class="px-2 py-1 text-left font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Ingrediente') }}</th>
-                                            <th class="px-2 py-1 text-right font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Según receta') }}</th>
-                                            <th class="px-2 py-1 text-right font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Real usado') }}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                                        @foreach($detalle['ingredientes'] as $ing)
-                                            @php $diferente = abs($ing['cantidad_receta'] - $ing['cantidad_real']) > 0.001; @endphp
-                                            <tr>
-                                                <td class="px-2 py-1 text-gray-900 dark:text-white">{{ $ing['articulo'] }}</td>
-                                                <td class="px-2 py-1 text-right text-gray-500 dark:text-gray-400">{{ number_format($ing['cantidad_receta'], 3) }}</td>
-                                                <td class="px-2 py-1 text-right {{ $diferente ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-gray-900 dark:text-white' }}">
-                                                    {{ number_format($ing['cantidad_real'], 3) }}
-                                                </td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        @endforeach
-                    </div>
-
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                        <button
-                            wire:click="cerrarDetalle"
-                            class="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none"
-                        >
-                            {{ __('Cerrar') }}
-                        </button>
-                    </div>
+        <x-bcn-modal
+            :show="$showDetalleModal"
+            :title="__('Producción') . ' #' . $detalleProduccion['id']"
+            color="bg-bcn-primary"
+            maxWidth="3xl"
+            onClose="cerrarDetalle"
+            zIndex="z-[60]"
+        >
+            <x-slot:body>
+                <div class="flex justify-between items-start mb-4">
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ $detalleProduccion['fecha'] }} - {{ $detalleProduccion['usuario'] }}</p>
+                    @if($detalleProduccion['estado'] === 'confirmado')
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">{{ __('Confirmado') }}</span>
+                    @else
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300">{{ __('Anulado') }}</span>
+                    @endif
                 </div>
-            </div>
-        </div>
+
+                @if($detalleProduccion['observaciones'])
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 italic">{{ $detalleProduccion['observaciones'] }}</p>
+                @endif
+
+                @if($detalleProduccion['estado'] === 'anulado' && $detalleProduccion['motivo_anulacion'])
+                    <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-md">
+                        <p class="text-sm text-red-700 dark:text-red-300">
+                            <strong>{{ __('Motivo de anulación') }}:</strong> {{ $detalleProduccion['motivo_anulacion'] }}
+                        </p>
+                        @if($detalleProduccion['anulado_por'])
+                            <p class="text-xs text-red-600 dark:text-red-400 mt-1">{{ __('Por') }}: {{ $detalleProduccion['anulado_por'] }}</p>
+                        @endif
+                    </div>
+                @endif
+
+                @foreach($detalleProduccion['detalles'] as $detalle)
+                    <div class="mb-4 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                        <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                            {{ $detalle['articulo'] }} - {{ $detalle['cantidad_producida'] }} {{ __('unidades') }}
+                        </h4>
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
+                            <thead class="bg-gray-50 dark:bg-gray-700">
+                                <tr>
+                                    <th class="px-2 py-1 text-left font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Ingrediente') }}</th>
+                                    <th class="px-2 py-1 text-right font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Según receta') }}</th>
+                                    <th class="px-2 py-1 text-right font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Real usado') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                @foreach($detalle['ingredientes'] as $ing)
+                                    @php $diferente = abs($ing['cantidad_receta'] - $ing['cantidad_real']) > 0.001; @endphp
+                                    <tr>
+                                        <td class="px-2 py-1 text-gray-900 dark:text-white">{{ $ing['articulo'] }}</td>
+                                        <td class="px-2 py-1 text-right text-gray-500 dark:text-gray-400">{{ number_format($ing['cantidad_receta'], 3) }}</td>
+                                        <td class="px-2 py-1 text-right {{ $diferente ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-gray-900 dark:text-white' }}">
+                                            {{ number_format($ing['cantidad_real'], 3) }}
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endforeach
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cerrar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal Anular Producción --}}

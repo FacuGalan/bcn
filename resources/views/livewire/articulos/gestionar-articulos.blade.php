@@ -1076,146 +1076,130 @@
             $historial = $this->getHistorial();
             $articuloHistorial = $historialArticuloId ? \App\Models\Articulo::find($historialArticuloId) : null;
         @endphp
-        <div class="fixed inset-0 z-[55] overflow-y-auto" role="dialog" aria-modal="true">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="cerrarHistorial"></div>
-            <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-                <div class="relative inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
-                    <!-- Header -->
-                    <div class="bg-teal-600 px-4 py-3 sm:px-6">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-medium text-white flex items-center">
-                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                {{ __('Historial de precios') }} - {{ $articuloHistorial?->nombre ?? '' }}
-                            </h3>
-                            <button wire:click="cerrarHistorial" class="text-white hover:text-gray-200">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                            </button>
-                        </div>
+        <x-bcn-modal
+            :show="$showHistorialModal"
+            :title="__('Historial de precios') . ' - ' . ($articuloHistorial?->nombre ?? '')"
+            color="bg-bcn-primary"
+            maxWidth="4xl"
+            onClose="cerrarHistorial"
+            zIndex="z-[55]"
+        >
+            <x-slot:body>
+                @if(empty($historial))
+                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <p class="mt-2 text-sm">{{ __('Sin cambios registrados') }}</p>
+                    </div>
+                @else
+                    <!-- Vista móvil: cards -->
+                    <div class="sm:hidden space-y-3">
+                        @foreach($historial as $registro)
+                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ $registro['fecha'] }}</span>
+                                    @php
+                                        $origenClasses = match($registro['origen']) {
+                                            'articulo_crear' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+                                            'articulo_editar' => 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+                                            'override_sucursal' => 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+                                            'restablecer_sucursal' => 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+                                            'masivo_global' => 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+                                            'masivo_sucursal' => 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+                                            default => 'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200',
+                                        };
+                                        $origenLabel = match($registro['origen']) {
+                                            'articulo_crear' => __('Crear'),
+                                            'articulo_editar' => __('Editar'),
+                                            'override_sucursal' => __('Override'),
+                                            'restablecer_sucursal' => __('Restablecer'),
+                                            'masivo_global' => __('Masivo global'),
+                                            'masivo_sucursal' => __('Masivo sucursal'),
+                                            default => $registro['origen'],
+                                        };
+                                    @endphp
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $origenClasses }}">
+                                        {{ $origenLabel }}
+                                    </span>
+                                </div>
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-sm text-gray-500 dark:text-gray-400 line-through">${{ number_format($registro['precio_anterior'], 2) }}</span>
+                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                                    <span class="text-sm font-semibold text-gray-900 dark:text-white">${{ number_format($registro['precio_nuevo'], 2) }}</span>
+                                </div>
+                                <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                                    <span>{{ $registro['usuario'] }}</span>
+                                    <span>{{ $registro['sucursal'] ?? __('Genérico') }}</span>
+                                </div>
+                                @if($registro['detalle'])
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400 italic">{{ $registro['detalle'] }}</p>
+                                @endif
+                            </div>
+                        @endforeach
                     </div>
 
-                    <!-- Body -->
-                    <div class="px-4 py-4 sm:px-6 max-h-[70vh] overflow-y-auto">
-                        @if(empty($historial))
-                            <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                <p class="mt-2 text-sm">{{ __('Sin cambios registrados') }}</p>
-                            </div>
-                        @else
-                            <!-- Vista móvil: cards -->
-                            <div class="sm:hidden space-y-3">
+                    <!-- Vista desktop: tabla -->
+                    <div class="hidden sm:block overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-700">
+                                <tr>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Fecha') }}</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Usuario') }}</th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Anterior') }}</th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Nuevo') }}</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Origen') }}</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Sucursal') }}</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Detalle') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                 @foreach($historial as $registro)
-                                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
-                                        <div class="flex items-center justify-between mb-2">
-                                            <span class="text-xs text-gray-500 dark:text-gray-400">{{ $registro['fecha'] }}</span>
-                                            @php
-                                                $origenClasses = match($registro['origen']) {
-                                                    'articulo_crear' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-                                                    'articulo_editar' => 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-                                                    'override_sucursal' => 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-                                                    'restablecer_sucursal' => 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
-                                                    'masivo_global' => 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-                                                    'masivo_sucursal' => 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-                                                    default => 'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200',
-                                                };
-                                                $origenLabel = match($registro['origen']) {
-                                                    'articulo_crear' => __('Crear'),
-                                                    'articulo_editar' => __('Editar'),
-                                                    'override_sucursal' => __('Override'),
-                                                    'restablecer_sucursal' => __('Restablecer'),
-                                                    'masivo_global' => __('Masivo global'),
-                                                    'masivo_sucursal' => __('Masivo sucursal'),
-                                                    default => $registro['origen'],
-                                                };
-                                            @endphp
+                                    @php
+                                        $origenClasses = match($registro['origen']) {
+                                            'articulo_crear' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+                                            'articulo_editar' => 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+                                            'override_sucursal' => 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+                                            'restablecer_sucursal' => 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+                                            'masivo_global' => 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+                                            'masivo_sucursal' => 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+                                            default => 'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200',
+                                        };
+                                        $origenLabel = match($registro['origen']) {
+                                            'articulo_crear' => __('Crear'),
+                                            'articulo_editar' => __('Editar'),
+                                            'override_sucursal' => __('Override'),
+                                            'restablecer_sucursal' => __('Restablecer'),
+                                            'masivo_global' => __('Masivo global'),
+                                            'masivo_sucursal' => __('Masivo sucursal'),
+                                            default => $registro['origen'],
+                                        };
+                                    @endphp
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{{ $registro['fecha'] }}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{{ $registro['usuario'] }}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400 line-through">${{ number_format($registro['precio_anterior'], 2) }}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-right font-medium text-gray-900 dark:text-white">${{ number_format($registro['precio_nuevo'], 2) }}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap">
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $origenClasses }}">
                                                 {{ $origenLabel }}
                                             </span>
-                                        </div>
-                                        <div class="flex items-center gap-2 mb-1">
-                                            <span class="text-sm text-gray-500 dark:text-gray-400 line-through">${{ number_format($registro['precio_anterior'], 2) }}</span>
-                                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                                            <span class="text-sm font-semibold text-gray-900 dark:text-white">${{ number_format($registro['precio_nuevo'], 2) }}</span>
-                                        </div>
-                                        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                                            <span>{{ $registro['usuario'] }}</span>
-                                            <span>{{ $registro['sucursal'] ?? __('Genérico') }}</span>
-                                        </div>
-                                        @if($registro['detalle'])
-                                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400 italic">{{ $registro['detalle'] }}</p>
-                                        @endif
-                                    </div>
+                                        </td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{{ $registro['sucursal'] ?? __('Genérico') }}</td>
+                                        <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">{{ $registro['detalle'] ?? '-' }}</td>
+                                    </tr>
                                 @endforeach
-                            </div>
-
-                            <!-- Vista desktop: tabla -->
-                            <div class="hidden sm:block overflow-x-auto">
-                                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                    <thead class="bg-gray-50 dark:bg-gray-700">
-                                        <tr>
-                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Fecha') }}</th>
-                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Usuario') }}</th>
-                                            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Anterior') }}</th>
-                                            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Nuevo') }}</th>
-                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Origen') }}</th>
-                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Sucursal') }}</th>
-                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Detalle') }}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                        @foreach($historial as $registro)
-                                            @php
-                                                $origenClasses = match($registro['origen']) {
-                                                    'articulo_crear' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-                                                    'articulo_editar' => 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-                                                    'override_sucursal' => 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-                                                    'restablecer_sucursal' => 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
-                                                    'masivo_global' => 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-                                                    'masivo_sucursal' => 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-                                                    default => 'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200',
-                                                };
-                                                $origenLabel = match($registro['origen']) {
-                                                    'articulo_crear' => __('Crear'),
-                                                    'articulo_editar' => __('Editar'),
-                                                    'override_sucursal' => __('Override'),
-                                                    'restablecer_sucursal' => __('Restablecer'),
-                                                    'masivo_global' => __('Masivo global'),
-                                                    'masivo_sucursal' => __('Masivo sucursal'),
-                                                    default => $registro['origen'],
-                                                };
-                                            @endphp
-                                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{{ $registro['fecha'] }}</td>
-                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{{ $registro['usuario'] }}</td>
-                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400 line-through">${{ number_format($registro['precio_anterior'], 2) }}</td>
-                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-right font-medium text-gray-900 dark:text-white">${{ number_format($registro['precio_nuevo'], 2) }}</td>
-                                                <td class="px-4 py-2 whitespace-nowrap">
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $origenClasses }}">
-                                                        {{ $origenLabel }}
-                                                    </span>
-                                                </td>
-                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{{ $registro['sucursal'] ?? __('Genérico') }}</td>
-                                                <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">{{ $registro['detalle'] ?? '-' }}</td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        @endif
+                            </tbody>
+                        </table>
                     </div>
+                @endif
+            </x-slot:body>
 
-                    <!-- Footer -->
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 flex justify-end">
-                        <button
-                            type="button"
-                            wire:click="cerrarHistorial"
-                            class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-500 transition-colors"
-                        >
-                            {{ __('Cerrar') }}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+            <x-slot:footer>
+                <button type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cerrar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 </div>

@@ -970,15 +970,18 @@
 
     {{-- Modal de Detalle de Arqueo --}}
     @if($showArqueoDetalleModal && $arqueoDetalle)
-    <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75" wire:click="cerrarDetalleArqueo"></div>
-            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full">
-                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Detalle del Arqueo') }}</h3>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ $arqueoDetalle->fecha->format('d/m/Y H:i') }}</p>
-                    </div>
+    <x-bcn-modal
+        :show="$showArqueoDetalleModal"
+        :title="__('Detalle del Arqueo')"
+        color="bg-bcn-primary"
+        maxWidth="lg"
+        onClose="cerrarDetalleArqueo"
+    >
+        <x-slot:body>
+            <div class="space-y-4">
+                {{-- Fecha y estado --}}
+                <div class="flex items-center justify-between">
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ $arqueoDetalle->fecha->format('d/m/Y H:i') }}</p>
                     @if($arqueoDetalle->estado === 'pendiente')
                     <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                         {{ __('Pendiente') }}
@@ -993,94 +996,98 @@
                     </span>
                     @endif
                 </div>
-                <div class="p-6 space-y-4">
-                    @php $simDet = $arqueoDetalle->moneda ? $arqueoDetalle->moneda->simbolo : '$'; @endphp
 
-                    {{-- Moneda (si es extranjera) --}}
-                    @if($arqueoDetalle->moneda)
-                    <div class="flex items-center justify-center">
-                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                            {{ $arqueoDetalle->moneda->codigo }} - {{ $arqueoDetalle->moneda->nombre }}
-                        </span>
+                @php $simDet = $arqueoDetalle->moneda ? $arqueoDetalle->moneda->simbolo : '$'; @endphp
+
+                {{-- Moneda (si es extranjera) --}}
+                @if($arqueoDetalle->moneda)
+                <div class="flex items-center justify-center">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                        {{ $arqueoDetalle->moneda->codigo }} - {{ $arqueoDetalle->moneda->nombre }}
+                    </span>
+                </div>
+                @endif
+
+                {{-- Montos --}}
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">{{ __('Sistema') }}</p>
+                        <p class="text-lg font-bold text-gray-900 dark:text-white">{{ $simDet }} {{ number_format($arqueoDetalle->saldo_sistema, 0, ',', '.') }}</p>
                     </div>
-                    @endif
-
-                    {{-- Montos --}}
-                    <div class="grid grid-cols-3 gap-4">
-                        <div class="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">{{ __('Sistema') }}</p>
-                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ $simDet }} {{ number_format($arqueoDetalle->saldo_sistema, 0, ',', '.') }}</p>
-                        </div>
-                        <div class="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">{{ __('Contado') }}</p>
-                            <p class="text-lg font-bold text-gray-900 dark:text-white">{{ $simDet }} {{ number_format($arqueoDetalle->saldo_contado, 0, ',', '.') }}</p>
-                        </div>
-                        <div class="text-center p-3 rounded-lg {{ $arqueoDetalle->diferencia == 0 ? 'bg-green-50 dark:bg-green-900/20' : ($arqueoDetalle->diferencia > 0 ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-red-50 dark:bg-red-900/20') }}">
-                            <p class="text-xs {{ $arqueoDetalle->diferencia == 0 ? 'text-green-600' : ($arqueoDetalle->diferencia > 0 ? 'text-blue-600' : 'text-red-600') }} uppercase">{{ __('Diferencia') }}</p>
-                            <p class="text-lg font-bold {{ $arqueoDetalle->diferencia == 0 ? 'text-green-700 dark:text-green-400' : ($arqueoDetalle->diferencia > 0 ? 'text-blue-700 dark:text-blue-400' : 'text-red-700 dark:text-red-400') }}">
-                                @if($arqueoDetalle->diferencia == 0)
-                                    OK
-                                @elseif($arqueoDetalle->diferencia > 0)
-                                    +{{ $simDet }} {{ number_format($arqueoDetalle->diferencia, 0, ',', '.') }}
-                                @else
-                                    -{{ $simDet }} {{ number_format(abs($arqueoDetalle->diferencia), 0, ',', '.') }}
-                                @endif
-                            </p>
-                        </div>
+                    <div class="text-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">{{ __('Contado') }}</p>
+                        <p class="text-lg font-bold text-gray-900 dark:text-white">{{ $simDet }} {{ number_format($arqueoDetalle->saldo_contado, 0, ',', '.') }}</p>
                     </div>
-
-                    {{-- Usuarios --}}
-                    <div class="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                            <p class="text-gray-500 dark:text-gray-400">{{ __('Realizado por') }}</p>
-                            <p class="font-medium text-gray-900 dark:text-white">{{ $arqueoDetalle->usuario->name ?? 'N/A' }}</p>
-                        </div>
-                        @if($arqueoDetalle->supervisor)
-                        <div>
-                            <p class="text-gray-500 dark:text-gray-400">{{ __('Aprobado por') }}</p>
-                            <p class="font-medium text-gray-900 dark:text-white">{{ $arqueoDetalle->supervisor->name }}</p>
-                        </div>
-                        @endif
-                    </div>
-
-                    {{-- Observaciones --}}
-                    @if($arqueoDetalle->observaciones)
-                    <div>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">{{ __('Observaciones') }}</p>
-                        <p class="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">{{ $arqueoDetalle->observaciones }}</p>
-                    </div>
-                    @endif
-
-                    {{-- Acciones para arqueo pendiente --}}
-                    @if($arqueoDetalle->estado === 'pendiente')
-                    <div class="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                        <p class="text-sm text-amber-700 dark:text-amber-400 mb-3">{{ __('Este arqueo esta pendiente de aprobacion.') }}</p>
-                        @if($arqueoDetalle->diferencia != 0)
-                        <p class="text-xs text-amber-600 dark:text-amber-500 mb-3">
-                            {{ __('Si aprueba con ajuste, se') }} {{ $arqueoDetalle->diferencia > 0 ? __('sumara') : __('restara') }} {{ $simDet }} {{ number_format(abs($arqueoDetalle->diferencia), 0, ',', '.') }} {{ __('al saldo de tesoreria.') }}
-                        </p>
-                        @endif
-                        <div class="flex gap-2">
-                            <button wire:click="aprobarArqueo({{ $arqueoDetalle->id }}, false)"
-                                    class="flex-1 px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700">
-                                {{ __('Aprobar') }}
-                            </button>
-                            @if($arqueoDetalle->diferencia != 0)
-                            <button wire:click="aprobarArqueo({{ $arqueoDetalle->id }}, true)"
-                                    wire:confirm="{{ __('¿Aprobar y aplicar el ajuste de') }} {{ $simDet }} {{ number_format(abs($arqueoDetalle->diferencia), 0, ',', '.') }}?"
-                                    class="flex-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-                                {{ __('Aprobar + Ajustar') }}
-                            </button>
+                    <div class="text-center p-3 rounded-lg {{ $arqueoDetalle->diferencia == 0 ? 'bg-green-50 dark:bg-green-900/20' : ($arqueoDetalle->diferencia > 0 ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-red-50 dark:bg-red-900/20') }}">
+                        <p class="text-xs {{ $arqueoDetalle->diferencia == 0 ? 'text-green-600' : ($arqueoDetalle->diferencia > 0 ? 'text-blue-600' : 'text-red-600') }} uppercase">{{ __('Diferencia') }}</p>
+                        <p class="text-lg font-bold {{ $arqueoDetalle->diferencia == 0 ? 'text-green-700 dark:text-green-400' : ($arqueoDetalle->diferencia > 0 ? 'text-blue-700 dark:text-blue-400' : 'text-red-700 dark:text-red-400') }}">
+                            @if($arqueoDetalle->diferencia == 0)
+                                OK
+                            @elseif($arqueoDetalle->diferencia > 0)
+                                +{{ $simDet }} {{ number_format($arqueoDetalle->diferencia, 0, ',', '.') }}
+                            @else
+                                -{{ $simDet }} {{ number_format(abs($arqueoDetalle->diferencia), 0, ',', '.') }}
                             @endif
-                        </div>
+                        </p>
+                    </div>
+                </div>
+
+                {{-- Usuarios --}}
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <p class="text-gray-500 dark:text-gray-400">{{ __('Realizado por') }}</p>
+                        <p class="font-medium text-gray-900 dark:text-white">{{ $arqueoDetalle->usuario->name ?? 'N/A' }}</p>
+                    </div>
+                    @if($arqueoDetalle->supervisor)
+                    <div>
+                        <p class="text-gray-500 dark:text-gray-400">{{ __('Aprobado por') }}</p>
+                        <p class="font-medium text-gray-900 dark:text-white">{{ $arqueoDetalle->supervisor->name }}</p>
                     </div>
                     @endif
                 </div>
-                <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700 flex justify-end rounded-b-lg">
-                    <button wire:click="cerrarDetalleArqueo" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-500">{{ __('Cerrar') }}</button>
+
+                {{-- Observaciones --}}
+                @if($arqueoDetalle->observaciones)
+                <div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">{{ __('Observaciones') }}</p>
+                    <p class="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">{{ $arqueoDetalle->observaciones }}</p>
                 </div>
+                @endif
+
+                {{-- Acciones para arqueo pendiente --}}
+                @if($arqueoDetalle->estado === 'pendiente')
+                <div class="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                    <p class="text-sm text-amber-700 dark:text-amber-400 mb-3">{{ __('Este arqueo esta pendiente de aprobacion.') }}</p>
+                    @if($arqueoDetalle->diferencia != 0)
+                    <p class="text-xs text-amber-600 dark:text-amber-500 mb-3">
+                        {{ __('Si aprueba con ajuste, se') }} {{ $arqueoDetalle->diferencia > 0 ? __('sumara') : __('restara') }} {{ $simDet }} {{ number_format(abs($arqueoDetalle->diferencia), 0, ',', '.') }} {{ __('al saldo de tesoreria.') }}
+                    </p>
+                    @endif
+                    <div class="flex gap-2">
+                        <button wire:click="aprobarArqueo({{ $arqueoDetalle->id }}, false)"
+                                class="flex-1 px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700">
+                            {{ __('Aprobar') }}
+                        </button>
+                        @if($arqueoDetalle->diferencia != 0)
+                        <button wire:click="aprobarArqueo({{ $arqueoDetalle->id }}, true)"
+                                wire:confirm="{{ __('¿Aprobar y aplicar el ajuste de') }} {{ $simDet }} {{ number_format(abs($arqueoDetalle->diferencia), 0, ',', '.') }}?"
+                                class="flex-1 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                            {{ __('Aprobar + Ajustar') }}
+                        </button>
+                        @endif
+                    </div>
+                </div>
+                @endif
             </div>
-        </div>
-    </div>
+        </x-slot:body>
+
+        <x-slot:footer>
+            <button type="button"
+                    @click="close()"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                {{ __('Cerrar') }}
+            </button>
+        </x-slot:footer>
+    </x-bcn-modal>
     @endif
 </div>

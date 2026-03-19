@@ -298,35 +298,14 @@
 
         {{-- ==================== Modal de Cobro ==================== --}}
         @if($showCobroModal)
-        <div class="fixed inset-0 z-50 overflow-hidden" aria-labelledby="modal-cobro" role="dialog" aria-modal="true">
-            {{-- Overlay --}}
-            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity" wire:click="cerrarModalCobro"></div>
-
-            {{-- Modal Container --}}
-            <div class="fixed inset-4 sm:inset-6 lg:inset-auto lg:top-1/2 lg:left-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2 lg:max-w-7xl lg:w-[calc(100%-3rem)] lg:max-h-[calc(100vh-3rem)] flex flex-col bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-hidden">
-                {{-- Header fijo --}}
-                <div class="flex-shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b border-gray-200 dark:border-gray-700 {{ $esAnticipo ? 'bg-green-50 dark:bg-green-900/20' : 'bg-gray-50 dark:bg-gray-700/50' }}">
-                    <div class="flex items-center gap-2 sm:gap-3 min-w-0">
-                        <h3 class="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate">
-                            {{ $esAnticipo ? __('Registrar Anticipo') : __('Registrar Cobro') }}
-                        </h3>
-                        <span class="text-sm text-gray-500 dark:text-gray-400 hidden sm:inline">—</span>
-                        <span class="text-sm font-medium text-bcn-primary truncate">{{ $clienteCobro?->nombre }}</span>
-                        @if($esAnticipo)
-                            <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100">
-                                {{ __('Anticipo') }}
-                            </span>
-                        @endif
-                    </div>
-                    <button type="button" wire:click="cerrarModalCobro" class="flex-shrink-0 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                {{-- Body sin scroll --}}
-                <div class="flex-1 overflow-hidden px-4 sm:px-6 py-4 flex flex-col">
+            <x-bcn-modal
+                :title="($esAnticipo ? __('Registrar Anticipo') : __('Registrar Cobro')) . ' — ' . ($clienteCobro?->nombre ?? '')"
+                :color="$esAnticipo ? 'bg-green-600' : 'bg-green-600'"
+                maxWidth="6xl"
+                onClose="cerrarModalCobro"
+            >
+                <x-slot:body>
+                <div class="flex flex-col">
                     <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 flex-1 min-h-0">
                         {{-- Columna Izquierda: Ventas y Observaciones (60%) --}}
                         <div class="flex flex-col min-h-0 lg:col-span-3">
@@ -887,85 +866,61 @@
                         </div>
                     </div>
                 </div>
+                </x-slot:body>
 
-                {{-- Footer fijo --}}
-                <div class="flex-shrink-0 px-4 sm:px-6 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-                    <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
-                        <button
-                            type="button"
-                            wire:click="cerrarModalCobro"
-                            class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-                        >
-                            {{ __('Cancelar') }}
-                        </button>
-                        <button
-                            type="button"
-                            wire:click="procesarCobro"
-                            wire:loading.attr="disabled"
-                            class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white {{ $esAnticipo ? 'bg-green-600 hover:bg-green-700' : 'bg-bcn-primary hover:bg-opacity-90' }} border border-transparent rounded-lg disabled:opacity-50"
-                        >
-                            <span wire:loading.remove wire:target="procesarCobro">{{ $esAnticipo ? __('Registrar Anticipo') : __('Registrar Cobro') }}</span>
-                            <span wire:loading wire:target="procesarCobro" class="inline-flex items-center">
-                                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                {{ __('Procesando...') }}
-                            </span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+                <x-slot:footer>
+                    <button
+                        type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                    >
+                        {{ __('Cancelar') }}
+                    </button>
+                    <button
+                        type="button"
+                        wire:click="procesarCobro"
+                        wire:loading.attr="disabled"
+                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-500 sm:w-auto sm:text-sm"
+                    >
+                        <span wire:loading.remove wire:target="procesarCobro">{{ $esAnticipo ? __('Registrar Anticipo') : __('Registrar Cobro') }}</span>
+                        <span wire:loading wire:target="procesarCobro" class="inline-flex items-center">
+                            <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            {{ __('Procesando...') }}
+                        </span>
+                    </button>
+                </x-slot:footer>
+            </x-bcn-modal>
         @endif
 
         {{-- ==================== Modal de Cuenta Corriente ==================== --}}
         @if($showCuentaCorrienteModal)
-            <div class="fixed z-50 inset-0 overflow-hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity" aria-hidden="true" wire:click="cerrarCuentaCorriente"></div>
-
-                {{-- Modal Container - fullscreen en móvil, centrado en desktop --}}
-                <div class="fixed inset-0 sm:inset-4 sm:m-auto sm:max-w-6xl sm:max-h-[calc(100vh-2rem)] flex flex-col bg-white dark:bg-gray-800 sm:rounded-lg shadow-xl overflow-hidden">
-                    {{-- Header fijo --}}
-                    <div class="flex-shrink-0 bg-white dark:bg-gray-800 px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-200 dark:border-gray-700">
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="min-w-0 flex-1">
-                                <h3 class="text-base sm:text-lg font-medium text-gray-900 dark:text-white truncate">{{ __('Cuenta Corriente') }}</h3>
-                                <p class="text-sm text-gray-500 dark:text-gray-400 truncate">{{ $clienteCC?->nombre }}</p>
-                            </div>
-                            <div class="flex items-center gap-3 sm:gap-6 flex-shrink-0">
-                                <div class="text-right">
-                                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Deuda') }}</p>
-                                    <p class="text-base sm:text-lg font-bold {{ $saldoDeudorSucursalCC > 0 ? 'text-red-600' : 'text-green-600' }}">
-                                        ${{ number_format($saldoDeudorSucursalCC, 2, ',', '.') }}
-                                    </p>
-                                </div>
-                                @if(($clienteCC?->saldo_a_favor_cache ?? 0) > 0)
-                                <div class="text-right hidden sm:block">
-                                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('A favor') }}</p>
-                                    <p class="text-lg font-bold text-green-600">
-                                        ${{ number_format($clienteCC?->saldo_a_favor_cache ?? 0, 2, ',', '.') }}
-                                    </p>
-                                </div>
-                                @endif
-                                <button type="button" wire:click="cerrarCuentaCorriente" class="p-2 -mr-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-                                    <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            </div>
+            <x-bcn-modal
+                :title="__('Cuenta Corriente') . ' — ' . ($clienteCC?->nombre ?? '')"
+                color="bg-bcn-primary"
+                maxWidth="6xl"
+                onClose="cerrarCuentaCorriente"
+            >
+                <x-slot:body>
+                    {{-- Resumen de saldos --}}
+                    <div class="flex items-center gap-4 sm:gap-6 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                        <div class="text-right">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Deuda') }}</p>
+                            <p class="text-base sm:text-lg font-bold {{ $saldoDeudorSucursalCC > 0 ? 'text-red-600' : 'text-green-600' }}">
+                                ${{ number_format($saldoDeudorSucursalCC, 2, ',', '.') }}
+                            </p>
                         </div>
-                        {{-- Saldo a favor en móvil (si existe) --}}
                         @if(($clienteCC?->saldo_a_favor_cache ?? 0) > 0)
-                        <div class="sm:hidden mt-2 flex items-center justify-between bg-green-50 dark:bg-green-900/20 rounded px-3 py-1.5">
-                            <span class="text-xs text-green-700 dark:text-green-300">{{ __('Saldo a favor') }}</span>
-                            <span class="text-sm font-bold text-green-600">${{ number_format($clienteCC?->saldo_a_favor_cache ?? 0, 2, ',', '.') }}</span>
+                        <div class="text-right">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('A favor') }}</p>
+                            <p class="text-lg font-bold text-green-600">
+                                ${{ number_format($clienteCC?->saldo_a_favor_cache ?? 0, 2, ',', '.') }}
+                            </p>
                         </div>
                         @endif
                     </div>
-
-                    {{-- Body scrolleable --}}
-                    <div class="flex-1 min-h-0 overflow-y-auto">
                         @php
                             $totalDebe = 0;
                             $totalHaber = 0;
@@ -1194,44 +1149,41 @@
                                 @endif
                             </table>
                         </div>
-                    </div>
 
-                    {{-- Footer fijo --}}
-                    <div class="flex-shrink-0 bg-gray-50 dark:bg-gray-700/50 px-4 py-3 sm:px-6 border-t border-gray-200 dark:border-gray-600">
-                        <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-                            <button
-                                type="button"
-                                wire:click="cerrarCuentaCorriente"
-                                class="w-full sm:w-auto inline-flex justify-center items-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                            >
-                                {{ __('Cerrar') }}
-                            </button>
-                            <button
-                                type="button"
-                                wire:click="abrirAnticipoDesdeCuentaCorriente"
-                                class="w-full sm:w-auto inline-flex justify-center items-center rounded-md border border-green-300 dark:border-green-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-sm font-medium text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20"
-                            >
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                </svg>
-                                {{ __('Anticipo') }}
-                            </button>
-                            @if($saldoDeudorSucursalCC > 0)
-                            <button
-                                type="button"
-                                wire:click="abrirCobroDesdeCuentaCorriente"
-                                class="w-full sm:w-auto inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-sm font-medium text-white hover:bg-opacity-90"
-                            >
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                                </svg>
-                                {{ __('Cobrar') }}
-                            </button>
-                            @endif
-                        </div>
-                    </div>
-                </div>
-            </div>
+                </x-slot:body>
+
+                <x-slot:footer>
+                    <button
+                        type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                    >
+                        {{ __('Cerrar') }}
+                    </button>
+                    <button
+                        type="button"
+                        wire:click="abrirAnticipoDesdeCuentaCorriente"
+                        class="w-full sm:w-auto inline-flex justify-center items-center rounded-md border border-green-300 dark:border-green-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-sm font-medium text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20"
+                    >
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        {{ __('Anticipo') }}
+                    </button>
+                    @if($saldoDeudorSucursalCC > 0)
+                    <button
+                        type="button"
+                        wire:click="abrirCobroDesdeCuentaCorriente"
+                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm"
+                    >
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        {{ __('Cobrar') }}
+                    </button>
+                    @endif
+                </x-slot:footer>
+            </x-bcn-modal>
         @endif
 
         {{-- ==================== Modal de Reporte de Antigüedad ==================== --}}

@@ -721,32 +721,16 @@
 
     {{-- Modal Detalle Venta --}}
     @if($showDetalleModal && $ventaDetalle)
-        <div class="fixed inset-0 z-50 overflow-y-auto">
-            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                {{-- Overlay --}}
-                <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" wire:click="cerrarDetalle"></div>
-
-                {{-- Modal Container --}}
-                <div class="inline-block w-full max-w-4xl my-8 overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-gray-800 rounded-lg shadow-xl">
-                    {{-- Header --}}
-                    <div class="bg-bcn-primary px-6 py-4">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <h3 class="text-lg font-medium text-white">{{ __('Detalle de Venta') }} #{{ $ventaDetalle->numero }}</h3>
-                                <p class="text-sm text-white/70">{{ $ventaDetalle->fecha->format('d/m/Y H:i') }} | {{ $ventaDetalle->usuario->name ?? 'N/A' }}</p>
-                            </div>
-                            <button
-                                wire:click="cerrarDetalle"
-                                class="text-white/80 hover:text-white">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    {{-- Body --}}
-                    <div class="px-6 py-4 space-y-5 max-h-[70vh] overflow-y-auto">
+        <x-bcn-modal
+            :show="$showDetalleModal"
+            :title="__('Detalle de Venta') . ' #' . $ventaDetalle->numero"
+            color="bg-bcn-primary"
+            maxWidth="4xl"
+            onClose="cerrarDetalle"
+        >
+            <x-slot:body>
+                <p class="text-sm text-gray-500 dark:text-gray-400 -mt-2 mb-4">{{ $ventaDetalle->fecha->format('d/m/Y H:i') }} | {{ $ventaDetalle->usuario->name ?? 'N/A' }}</p>
+                <div class="space-y-5">
                         {{-- Información general --}}
                         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                             <div>
@@ -968,34 +952,30 @@
                             </div>
                         @endif
                     </div>
+            </x-slot:body>
 
-                    {{-- Footer --}}
-                    @php
-                        $detalleComprobanteFiscalTotal = $ventaDetalle->comprobantesFiscales->where('es_total_venta', true)->count() > 0;
-                    @endphp
-                    <div class="bg-gray-50 dark:bg-gray-700 px-6 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-between">
-                        @if(!$detalleComprobanteFiscalTotal)
-                            <button
-                                wire:click="reimprimirTicket({{ $ventaDetalle->id }})"
-                                class="inline-flex items-center px-4 py-2 border border-bcn-primary rounded-md shadow-sm text-sm font-medium text-bcn-primary bg-white dark:bg-gray-800 hover:bg-bcn-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary transition-colors"
-                            >
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                                </svg>
-                                {{ __('Reimprimir Ticket') }}
-                            </button>
-                        @else
-                            <div></div>
-                        @endif
-                        <button
-                            wire:click="cerrarDetalle"
-                            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary dark:focus:ring-offset-gray-800">
-                            {{ __('Cerrar') }}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+            <x-slot:footer>
+                @php
+                    $detalleComprobanteFiscalTotal = $ventaDetalle->comprobantesFiscales->where('es_total_venta', true)->count() > 0;
+                @endphp
+                @if(!$detalleComprobanteFiscalTotal)
+                    <button
+                        wire:click="reimprimirTicket({{ $ventaDetalle->id }})"
+                        class="inline-flex items-center px-4 py-2 border border-bcn-primary rounded-md shadow-sm text-sm font-medium text-bcn-primary bg-white dark:bg-gray-800 hover:bg-bcn-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary transition-colors"
+                    >
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                        </svg>
+                        {{ __('Reimprimir Ticket') }}
+                    </button>
+                @endif
+                <button type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cerrar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal Confirmar Reimpresión --}}

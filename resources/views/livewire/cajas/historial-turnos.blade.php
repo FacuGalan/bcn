@@ -366,51 +366,28 @@
 
     {{-- Modal de Detalle --}}
     @if($showDetalleModal && $cierreDetalle)
-    <div class="fixed inset-0 z-50 overflow-hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-        {{-- Overlay --}}
-        <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity" wire:click="cerrarDetalle"></div>
-
-        {{-- Modal Container - Full screen en móvil, centrado en desktop --}}
-        <div class="fixed inset-0 sm:inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:max-w-4xl md:w-full md:max-h-[90vh] flex flex-col bg-white dark:bg-gray-800 sm:rounded-xl shadow-xl overflow-hidden">
-            {{-- Header --}}
-            <div class="flex-shrink-0 px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-                <div class="flex items-start justify-between gap-4">
-                    <div class="min-w-0 flex-1">
-                        <h3 class="text-lg sm:text-xl font-bold text-gray-900 dark:text-white flex items-center">
-                            <svg class="w-5 h-5 sm:w-6 sm:h-6 mr-2 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                            </svg>
-                            <span class="truncate">{{ __('Cierre') }} #{{ $cierreDetalle->id }}</span>
-                            @if($cierreDetalle->revertido)
-                            <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-300">
-                                {{ __('REVERTIDO') }}
-                            </span>
-                            @endif
-                        </h3>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                            {{ $cierreDetalle->fecha_cierre->format('d/m/Y H:i') }}
-                            <span class="hidden sm:inline">- {{ $cierreDetalle->usuario?->name }}</span>
-                        </p>
-                    </div>
-                    <div class="flex items-center gap-2 flex-shrink-0">
-                        <button wire:click="reimprimir({{ $cierreDetalle->id }})"
-                                class="inline-flex items-center p-2 sm:px-3 sm:py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600">
-                            <svg class="w-4 h-4 sm:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                            </svg>
-                            <span class="hidden sm:inline">{{ __('Reimprimir') }}</span>
-                        </button>
-                        <button wire:click="cerrarDetalle" class="p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
+    <x-bcn-modal
+        :show="$showDetalleModal"
+        :title="__('Cierre') . ' #' . $cierreDetalle->id . ($cierreDetalle->revertido ? ' — ' . __('REVERTIDO') : '')"
+        color="bg-bcn-primary"
+        maxWidth="4xl"
+        onClose="cerrarDetalle"
+    >
+        <x-slot:body>
+            {{-- Sub-header con info y botón reimprimir --}}
+            <div class="flex items-center justify-between mb-4">
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ $cierreDetalle->fecha_cierre->format('d/m/Y H:i') }}
+                    <span class="hidden sm:inline">- {{ $cierreDetalle->usuario?->name }}</span>
+                </p>
+                <button wire:click="reimprimir({{ $cierreDetalle->id }})"
+                        class="inline-flex items-center p-2 sm:px-3 sm:py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600">
+                    <svg class="w-4 h-4 sm:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                    </svg>
+                    <span class="hidden sm:inline">{{ __('Reimprimir') }}</span>
+                </button>
             </div>
-
-            {{-- Contenido scrolleable --}}
-            <div class="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
                 {{-- Información General --}}
                 <div class="mb-6">
                     <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">{{ __('Resumen General') }}</h4>
@@ -1020,16 +997,15 @@
                 @endif
             </div>
 
-            {{-- Footer --}}
-            <div class="flex-shrink-0 px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-                <div class="flex justify-end">
-                    <button wire:click="cerrarDetalle"
-                            class="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
-                        {{ __('Cerrar') }}
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+        </x-slot:body>
+
+        <x-slot:footer>
+            <button type="button"
+                    @click="close()"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                {{ __('Cerrar') }}
+            </button>
+        </x-slot:footer>
+    </x-bcn-modal>
     @endif
 </div>

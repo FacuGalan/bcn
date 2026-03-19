@@ -452,783 +452,725 @@
 
         <!-- Modal Crear/Editar Cliente -->
         @if($showModal)
-            <div class="fixed z-50 inset-0 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" wire:click="closeModal"></div>
-                    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                    <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
-                        <form wire:submit="save">
-                            <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                                <div class="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
-                                    <h3 class="text-lg font-medium text-gray-900 dark:text-white">
-                                        {{ $editMode ? __('Editar Cliente') : __('Nuevo Cliente') }}
-                                    </h3>
-                                    <button type="button" wire:click="closeModal" class="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300">
-                                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                    </button>
-                                </div>
-
-                                <div class="mt-6 space-y-6">
-                                    {{-- Toggle modo alta: Manual / Por CUIT (solo en alta, no edición) --}}
-                                    @if(!$editMode)
-                                        <div class="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-700 rounded-lg w-fit">
-                                            <button
-                                                type="button"
-                                                wire:click="$set('modoAlta', 'manual')"
-                                                class="px-4 py-2 text-sm font-medium rounded-md transition-colors duration-150 {{ $modoAlta === 'manual' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300' }}"
-                                            >
-                                                {{ __('Manual') }}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                wire:click="$set('modoAlta', 'cuit')"
-                                                @if(!$consultaArcaDisponible) disabled @endif
-                                                class="px-4 py-2 text-sm font-medium rounded-md transition-colors duration-150 {{ $modoAlta === 'cuit' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300' }} {{ !$consultaArcaDisponible ? 'opacity-50 cursor-not-allowed' : '' }}"
-                                                @if(!$consultaArcaDisponible) title="{{ __('No hay certificados ARCA configurados') }}" @endif
-                                            >
-                                                {{ __('Por CUIT') }}
-                                            </button>
-                                        </div>
-
-                                        {{-- Sección de consulta CUIT --}}
-                                        @if($modoAlta === 'cuit')
-                                            <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                                                <p class="text-sm text-blue-700 dark:text-blue-300 mb-3">
-                                                    <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                    </svg>
-                                                    {{ __('Ingrese el CUIT del cliente para obtener sus datos fiscales de ARCA.') }}
-                                                </p>
-                                                <div class="flex gap-2">
-                                                    <input
-                                                        type="text"
-                                                        wire:model="cuit"
-                                                        class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
-                                                        placeholder="20-12345678-9"
-                                                        wire:keydown.enter.prevent="consultarCuit"
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        wire:click="consultarCuit"
-                                                        wire:loading.attr="disabled"
-                                                        wire:target="consultarCuit"
-                                                        class="inline-flex items-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150 disabled:opacity-50"
-                                                    >
-                                                        <svg wire:loading wire:target="consultarCuit" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                        </svg>
-                                                        <span wire:loading.remove wire:target="consultarCuit">{{ __('Consultar') }}</span>
-                                                        <span wire:loading wire:target="consultarCuit">{{ __('Consultando...') }}</span>
-                                                    </button>
-                                                </div>
-
-                                                {{-- Error de consulta --}}
-                                                @if($errorConsultaCuit)
-                                                    <div class="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-                                                        <p class="text-sm text-red-700 dark:text-red-300">
-                                                            <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                            </svg>
-                                                            {{ $errorConsultaCuit }}
-                                                        </p>
-                                                    </div>
-                                                @endif
-
-                                                {{-- Éxito de consulta --}}
-                                                @if($exitoConsultaCuit)
-                                                    <div class="mt-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
-                                                        <p class="text-sm text-green-700 dark:text-green-300">
-                                                            <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                            </svg>
-                                                            {{ $exitoConsultaCuit }}
-                                                        </p>
-                                                    </div>
-                                                @endif
-                                            </div>
-                                        @endif
-                                    @endif
-
-                                    <!-- Datos básicos -->
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div class="sm:col-span-2">
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Nombre') }} *</label>
-                                            <input
-                                                type="text"
-                                                wire:model="nombre"
-                                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
-                                                placeholder="{{ __('Nombre del cliente') }}"
-                                            />
-                                            @error('nombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                        </div>
-
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Razón Social') }}</label>
-                                            <input
-                                                type="text"
-                                                wire:model="razon_social"
-                                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
-                                                placeholder="{{ __('Razón social (si difiere del nombre)') }}"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                {{ __('CUIT') }}
-                                                @if(!$editMode && $datosDesdeArca && $modoAlta === 'cuit')
-                                                    <svg class="inline w-4 h-4 text-green-500 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                                    </svg>
-                                                @endif
-                                            </label>
-                                            <input
-                                                type="text"
-                                                wire:model{{ !$editMode && $modoAlta === 'manual' ? '.live.debounce.500ms' : '' }}="cuit"
-                                                class="w-full rounded-md shadow-sm focus:border-bcn-primary focus:ring-bcn-primary {{ !$editMode && $datosDesdeArca && $modoAlta === 'cuit' ? 'bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-700 dark:text-gray-300' : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white' }}"
-                                                placeholder="20-12345678-9"
-                                                {{ !$editMode && $datosDesdeArca && $modoAlta === 'cuit' ? 'readonly' : '' }}
-                                            />
-                                            @error('cuit') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                            {{-- Validación en tiempo real (modo manual) --}}
-                                            @if(!$editMode && $modoAlta === 'manual' && $validacionCuitMsg)
-                                                <p class="mt-1 text-xs {{ $validacionCuitTipo === 'success' ? 'text-green-600 dark:text-green-400' : '' }}{{ $validacionCuitTipo === 'error' ? 'text-red-600 dark:text-red-400' : '' }}{{ $validacionCuitTipo === 'info' ? 'text-blue-600 dark:text-blue-400' : '' }}">
-                                                    @if($validacionCuitTipo === 'success')
-                                                        <svg class="inline w-3.5 h-3.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                    @elseif($validacionCuitTipo === 'error')
-                                                        <svg class="inline w-3.5 h-3.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                    @endif
-                                                    {{ $validacionCuitMsg }}
-                                                </p>
-                                            @endif
-                                        </div>
-
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Email') }}</label>
-                                            <input
-                                                type="email"
-                                                wire:model="email"
-                                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
-                                                placeholder="cliente@email.com"
-                                            />
-                                            @error('email') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                        </div>
-
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Teléfono') }}</label>
-                                            <input
-                                                type="text"
-                                                wire:model="telefono"
-                                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
-                                                placeholder="{{ __('Ej: +54 11 1234-5678') }}"
-                                            />
-                                        </div>
-
-                                        <div class="sm:col-span-2">
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Dirección') }}</label>
-                                            <input
-                                                type="text"
-                                                wire:model="direccion"
-                                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
-                                                placeholder="{{ __('Dirección completa') }}"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <!-- Configuración fiscal -->
-                                    <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-                                        <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">{{ __('Configuración Fiscal') }}</h4>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                {{ __('Condición IVA') }}
-                                                @if(!$editMode && $datosDesdeArca)
-                                                    <svg class="inline w-4 h-4 text-green-500 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                                    </svg>
-                                                    <span class="text-xs font-normal text-green-600 dark:text-green-400">{{ __('Dato de ARCA') }}</span>
-                                                @endif
-                                            </label>
-                                            <select
-                                                wire:model="condicion_iva_id"
-                                                class="w-full rounded-md shadow-sm focus:border-bcn-primary focus:ring-bcn-primary {{ !$editMode && $datosDesdeArca ? 'bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-700 dark:text-gray-300' : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white' }}"
-                                                {{ !$editMode && $datosDesdeArca ? 'disabled' : '' }}
-                                            >
-                                                @foreach($condicionesIva as $condicion)
-                                                    <option value="{{ $condicion->id }}">{{ $condicion->nombre }}</option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-                                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                            <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                            {{ __('Las listas de precios se configuran por sucursal después de guardar el cliente.') }}
-                                        </p>
-                                    </div>
-
-                                    <!-- Cuenta Corriente -->
-                                    <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-                                        <div class="flex items-center mb-3">
-                                            <input
-                                                type="checkbox"
-                                                id="tiene_cuenta_corriente"
-                                                wire:model.live="tiene_cuenta_corriente"
-                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
-                                            />
-                                            <label for="tiene_cuenta_corriente" class="ml-2 text-sm font-medium text-gray-900 dark:text-white">
-                                                {{ __('Habilitar Cuenta Corriente') }}
-                                            </label>
-                                        </div>
-
-                                        @if($tiene_cuenta_corriente)
-                                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                                                <div>
-                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Límite de Crédito') }}</label>
-                                                    <div class="relative">
-                                                        <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
-                                                        <input
-                                                            type="number"
-                                                            step="0.01"
-                                                            wire:model="limite_credito"
-                                                            class="w-full pl-8 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
-                                                            placeholder="0.00"
-                                                        />
-                                                    </div>
-                                                    <p class="text-xs text-gray-500 mt-1">{{ __('0 = sin límite') }}</p>
-                                                </div>
-
-                                                <div>
-                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Días de Crédito') }}</label>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        max="365"
-                                                        wire:model="dias_credito"
-                                                        class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
-                                                    />
-                                                </div>
-
-                                                <div>
-                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Interés Mensual (%)') }}</label>
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        min="0"
-                                                        max="100"
-                                                        wire:model="tasa_interes_mensual"
-                                                        class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
-                                                        placeholder="0.00"
-                                                    />
-                                                </div>
-                                            </div>
-                                        @endif
-                                    </div>
-
-                                    <!-- Vinculación Proveedor -->
-                                    <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-                                        <div class="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                                            <div class="flex items-center">
-                                                <input
-                                                    type="checkbox"
-                                                    id="tambien_es_proveedor"
-                                                    wire:model.live="tambien_es_proveedor"
-                                                    class="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
-                                                />
-                                                <label for="tambien_es_proveedor" class="ml-2 text-sm font-medium text-purple-900 dark:text-purple-300">
-                                                    {{ __('También es Proveedor') }}
-                                                </label>
-                                            </div>
-
-                                            @if($tambien_es_proveedor)
-                                                <div class="mt-3">
-                                                    <label class="block text-sm font-medium text-purple-900 dark:text-purple-300 mb-1">{{ __('Vincular a') }}</label>
-                                                    <select
-                                                        wire:model="proveedor_opcion"
-                                                        class="w-full rounded-md border-purple-300 dark:border-purple-600 dark:bg-purple-900/30 dark:text-white shadow-sm focus:border-purple-500 focus:ring-purple-500 text-sm"
-                                                    >
-                                                        <option value="crear_nuevo">{{ __('+ Crear nuevo proveedor') }}</option>
-                                                        @foreach($proveedoresDisponibles as $prov)
-                                                            <option value="{{ $prov->id }}">
-                                                                {{ $prov->nombre }}
-                                                                @if($prov->cuit) ({{ $prov->cuit }}) @endif
-                                                                @if($prov->cliente_id == $clienteId) - {{ __('Vinculado') }} @endif
-                                                            </option>
-                                                        @endforeach
-                                                    </select>
-                                                    <p class="mt-1 text-xs text-purple-600 dark:text-purple-400">
-                                                        @if($proveedor_opcion === 'crear_nuevo')
-                                                            {{ __('Se creará un nuevo proveedor con los datos de este cliente.') }}
-                                                        @else
-                                                            {{ __('Se vinculará al proveedor seleccionado para cuentas corrientes unificadas.') }}
-                                                        @endif
-                                                    </p>
-                                                </div>
-                                            @else
-                                                <p class="mt-2 text-xs text-purple-600 dark:text-purple-400">
-                                                    {{ __('Active esta opción para vincular este cliente con un proveedor existente o crear uno nuevo.') }}
-                                                </p>
-                                            @endif
-                                        </div>
-                                    </div>
-
-                                    <!-- Sucursales -->
-                                    @if($sucursales->count() > 0)
-                                        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{{ __('Sucursales donde estará disponible') }}</label>
-                                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                                @foreach($sucursales as $sucursal)
-                                                    <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                                                        <input
-                                                            type="checkbox"
-                                                            value="{{ $sucursal->id }}"
-                                                            wire:model="sucursales_seleccionadas"
-                                                            class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
-                                                        />
-                                                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ $sucursal->nombre }}</span>
-                                                    </label>
-                                                @endforeach
-                                            </div>
-                                        </div>
-                                    @endif
-
-                                    <!-- Estado activo -->
-                                    <div class="flex items-center">
-                                        <input
-                                            type="checkbox"
-                                            id="activo"
-                                            wire:model="activo"
-                                            class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
-                                        />
-                                        <label for="activo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Cliente activo') }}</label>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <x-bcn-modal
+                :title="$editMode ? __('Editar Cliente') : __('Nuevo Cliente')"
+                color="bg-bcn-primary"
+                maxWidth="3xl"
+                onClose="closeModal"
+                submit="save"
+            >
+                <x-slot:body>
+                    <div class="space-y-6">
+                        {{-- Toggle modo alta: Manual / Por CUIT (solo en alta, no edición) --}}
+                        @if(!$editMode)
+                            <div class="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-700 rounded-lg w-fit">
                                 <button
-                                    type="submit"
-                                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:ml-3 sm:w-auto sm:text-sm"
+                                    type="button"
+                                    wire:click="$set('modoAlta', 'manual')"
+                                    class="px-4 py-2 text-sm font-medium rounded-md transition-colors duration-150 {{ $modoAlta === 'manual' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300' }}"
                                 >
-                                    {{ $editMode ? __('Actualizar') : __('Crear') }}
+                                    {{ __('Manual') }}
                                 </button>
                                 <button
                                     type="button"
-                                    wire:click="closeModal"
-                                    class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-gray-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                                    wire:click="$set('modoAlta', 'cuit')"
+                                    @if(!$consultaArcaDisponible) disabled @endif
+                                    class="px-4 py-2 text-sm font-medium rounded-md transition-colors duration-150 {{ $modoAlta === 'cuit' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300' }} {{ !$consultaArcaDisponible ? 'opacity-50 cursor-not-allowed' : '' }}"
+                                    @if(!$consultaArcaDisponible) title="{{ __('No hay certificados ARCA configurados') }}" @endif
                                 >
-                                    {{ __('Cancelar') }}
+                                    {{ __('Por CUIT') }}
                                 </button>
                             </div>
-                        </form>
+
+                            {{-- Sección de consulta CUIT --}}
+                            @if($modoAlta === 'cuit')
+                                <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                                    <p class="text-sm text-blue-700 dark:text-blue-300 mb-3">
+                                        <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        {{ __('Ingrese el CUIT del cliente para obtener sus datos fiscales de ARCA.') }}
+                                    </p>
+                                    <div class="flex gap-2">
+                                        <input
+                                            type="text"
+                                            wire:model="cuit"
+                                            class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
+                                            placeholder="20-12345678-9"
+                                            wire:keydown.enter.prevent="consultarCuit"
+                                        />
+                                        <button
+                                            type="button"
+                                            wire:click="consultarCuit"
+                                            wire:loading.attr="disabled"
+                                            wire:target="consultarCuit"
+                                            class="inline-flex items-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150 disabled:opacity-50"
+                                        >
+                                            <svg wire:loading wire:target="consultarCuit" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            <span wire:loading.remove wire:target="consultarCuit">{{ __('Consultar') }}</span>
+                                            <span wire:loading wire:target="consultarCuit">{{ __('Consultando...') }}</span>
+                                        </button>
+                                    </div>
+
+                                    {{-- Error de consulta --}}
+                                    @if($errorConsultaCuit)
+                                        <div class="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                                            <p class="text-sm text-red-700 dark:text-red-300">
+                                                <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                {{ $errorConsultaCuit }}
+                                            </p>
+                                        </div>
+                                    @endif
+
+                                    {{-- Éxito de consulta --}}
+                                    @if($exitoConsultaCuit)
+                                        <div class="mt-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+                                            <p class="text-sm text-green-700 dark:text-green-300">
+                                                <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                {{ $exitoConsultaCuit }}
+                                            </p>
+                                        </div>
+                                    @endif
+                                </div>
+                            @endif
+                        @endif
+
+                        <!-- Datos básicos -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="sm:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Nombre') }} *</label>
+                                <input
+                                    type="text"
+                                    wire:model="nombre"
+                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
+                                    placeholder="{{ __('Nombre del cliente') }}"
+                                />
+                                @error('nombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Razón Social') }}</label>
+                                <input
+                                    type="text"
+                                    wire:model="razon_social"
+                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
+                                    placeholder="{{ __('Razón social (si difiere del nombre)') }}"
+                                />
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    {{ __('CUIT') }}
+                                    @if(!$editMode && $datosDesdeArca && $modoAlta === 'cuit')
+                                        <svg class="inline w-4 h-4 text-green-500 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                        </svg>
+                                    @endif
+                                </label>
+                                <input
+                                    type="text"
+                                    wire:model{{ !$editMode && $modoAlta === 'manual' ? '.live.debounce.500ms' : '' }}="cuit"
+                                    class="w-full rounded-md shadow-sm focus:border-bcn-primary focus:ring-bcn-primary {{ !$editMode && $datosDesdeArca && $modoAlta === 'cuit' ? 'bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-700 dark:text-gray-300' : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white' }}"
+                                    placeholder="20-12345678-9"
+                                    {{ !$editMode && $datosDesdeArca && $modoAlta === 'cuit' ? 'readonly' : '' }}
+                                />
+                                @error('cuit') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                {{-- Validación en tiempo real (modo manual) --}}
+                                @if(!$editMode && $modoAlta === 'manual' && $validacionCuitMsg)
+                                    <p class="mt-1 text-xs {{ $validacionCuitTipo === 'success' ? 'text-green-600 dark:text-green-400' : '' }}{{ $validacionCuitTipo === 'error' ? 'text-red-600 dark:text-red-400' : '' }}{{ $validacionCuitTipo === 'info' ? 'text-blue-600 dark:text-blue-400' : '' }}">
+                                        @if($validacionCuitTipo === 'success')
+                                            <svg class="inline w-3.5 h-3.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        @elseif($validacionCuitTipo === 'error')
+                                            <svg class="inline w-3.5 h-3.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        @endif
+                                        {{ $validacionCuitMsg }}
+                                    </p>
+                                @endif
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Email') }}</label>
+                                <input
+                                    type="email"
+                                    wire:model="email"
+                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
+                                    placeholder="cliente@email.com"
+                                />
+                                @error('email') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Teléfono') }}</label>
+                                <input
+                                    type="text"
+                                    wire:model="telefono"
+                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
+                                    placeholder="{{ __('Ej: +54 11 1234-5678') }}"
+                                />
+                            </div>
+
+                            <div class="sm:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Dirección') }}</label>
+                                <input
+                                    type="text"
+                                    wire:model="direccion"
+                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
+                                    placeholder="{{ __('Dirección completa') }}"
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Configuración fiscal -->
+                        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                            <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">{{ __('Configuración Fiscal') }}</h4>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    {{ __('Condición IVA') }}
+                                    @if(!$editMode && $datosDesdeArca)
+                                        <svg class="inline w-4 h-4 text-green-500 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                        </svg>
+                                        <span class="text-xs font-normal text-green-600 dark:text-green-400">{{ __('Dato de ARCA') }}</span>
+                                    @endif
+                                </label>
+                                <select
+                                    wire:model="condicion_iva_id"
+                                    class="w-full rounded-md shadow-sm focus:border-bcn-primary focus:ring-bcn-primary {{ !$editMode && $datosDesdeArca ? 'bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-gray-700 dark:text-gray-300' : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white' }}"
+                                    {{ !$editMode && $datosDesdeArca ? 'disabled' : '' }}
+                                >
+                                    @foreach($condicionesIva as $condicion)
+                                        <option value="{{ $condicion->id }}">{{ $condicion->nombre }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                {{ __('Las listas de precios se configuran por sucursal después de guardar el cliente.') }}
+                            </p>
+                        </div>
+
+                        <!-- Cuenta Corriente -->
+                        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                            <div class="flex items-center mb-3">
+                                <input
+                                    type="checkbox"
+                                    id="tiene_cuenta_corriente"
+                                    wire:model.live="tiene_cuenta_corriente"
+                                    class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
+                                />
+                                <label for="tiene_cuenta_corriente" class="ml-2 text-sm font-medium text-gray-900 dark:text-white">
+                                    {{ __('Habilitar Cuenta Corriente') }}
+                                </label>
+                            </div>
+
+                            @if($tiene_cuenta_corriente)
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Límite de Crédito') }}</label>
+                                        <div class="relative">
+                                            <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                wire:model="limite_credito"
+                                                class="w-full pl-8 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
+                                                placeholder="0.00"
+                                            />
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-1">{{ __('0 = sin límite') }}</p>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Días de Crédito') }}</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="365"
+                                            wire:model="dias_credito"
+                                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Interés Mensual (%)') }}</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            max="100"
+                                            wire:model="tasa_interes_mensual"
+                                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+
+                        <!-- Vinculación Proveedor -->
+                        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                            <div class="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                                <div class="flex items-center">
+                                    <input
+                                        type="checkbox"
+                                        id="tambien_es_proveedor"
+                                        wire:model.live="tambien_es_proveedor"
+                                        class="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500"
+                                    />
+                                    <label for="tambien_es_proveedor" class="ml-2 text-sm font-medium text-purple-900 dark:text-purple-300">
+                                        {{ __('También es Proveedor') }}
+                                    </label>
+                                </div>
+
+                                @if($tambien_es_proveedor)
+                                    <div class="mt-3">
+                                        <label class="block text-sm font-medium text-purple-900 dark:text-purple-300 mb-1">{{ __('Vincular a') }}</label>
+                                        <select
+                                            wire:model="proveedor_opcion"
+                                            class="w-full rounded-md border-purple-300 dark:border-purple-600 dark:bg-purple-900/30 dark:text-white shadow-sm focus:border-purple-500 focus:ring-purple-500 text-sm"
+                                        >
+                                            <option value="crear_nuevo">{{ __('+ Crear nuevo proveedor') }}</option>
+                                            @foreach($proveedoresDisponibles as $prov)
+                                                <option value="{{ $prov->id }}">
+                                                    {{ $prov->nombre }}
+                                                    @if($prov->cuit) ({{ $prov->cuit }}) @endif
+                                                    @if($prov->cliente_id == $clienteId) - {{ __('Vinculado') }} @endif
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                        <p class="mt-1 text-xs text-purple-600 dark:text-purple-400">
+                                            @if($proveedor_opcion === 'crear_nuevo')
+                                                {{ __('Se creará un nuevo proveedor con los datos de este cliente.') }}
+                                            @else
+                                                {{ __('Se vinculará al proveedor seleccionado para cuentas corrientes unificadas.') }}
+                                            @endif
+                                        </p>
+                                    </div>
+                                @else
+                                    <p class="mt-2 text-xs text-purple-600 dark:text-purple-400">
+                                        {{ __('Active esta opción para vincular este cliente con un proveedor existente o crear uno nuevo.') }}
+                                    </p>
+                                @endif
+                            </div>
+                        </div>
+
+                        <!-- Sucursales -->
+                        @if($sucursales->count() > 0)
+                            <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{{ __('Sucursales donde estará disponible') }}</label>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    @foreach($sucursales as $sucursal)
+                                        <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                                            <input
+                                                type="checkbox"
+                                                value="{{ $sucursal->id }}"
+                                                wire:model="sucursales_seleccionadas"
+                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
+                                            />
+                                            <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ $sucursal->nombre }}</span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+
+                        <!-- Estado activo -->
+                        <div class="flex items-center">
+                            <input
+                                type="checkbox"
+                                id="activo"
+                                wire:model="activo"
+                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
+                            />
+                            <label for="activo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Cliente activo') }}</label>
+                        </div>
                     </div>
-                </div>
-            </div>
+                </x-slot:body>
+
+                <x-slot:footer>
+                    <button
+                        type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                    >
+                        {{ __('Cancelar') }}
+                    </button>
+                    <button
+                        type="submit"
+                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm"
+                    >
+                        {{ $editMode ? __('Actualizar') : __('Crear') }}
+                    </button>
+                </x-slot:footer>
+            </x-bcn-modal>
         @endif
 
         <!-- Modal Confirmar Eliminación -->
         @if($showDeleteModal)
-            <div class="fixed z-50 inset-0 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" wire:click="closeDeleteModal"></div>
-                    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                    <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                        <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                            <div class="sm:flex sm:items-start">
-                                <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                                    <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                </div>
-                                <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                                    <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">{{ __('Eliminar Cliente') }}</h3>
-                                    <div class="mt-2">
-                                        <p class="text-sm text-gray-500 dark:text-gray-400">
-                                            {{ __('¿Estás seguro de eliminar el cliente') }} <strong>{{ $nombreClienteAEliminar }}</strong>?
-                                        </p>
-                                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                            {{ __('El cliente será movido a la papelera y podrá ser restaurado posteriormente.') }}
-                                        </p>
-                                    </div>
-                                </div>
+            <x-bcn-modal
+                :title="__('Eliminar Cliente')"
+                color="bg-red-600"
+                maxWidth="md"
+                onClose="closeDeleteModal"
+            >
+                <x-slot:body>
+                    <div class="sm:flex sm:items-start">
+                        <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                            <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                            <div class="mt-2">
+                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                    {{ __('¿Estás seguro de eliminar el cliente') }} <strong>{{ $nombreClienteAEliminar }}</strong>?
+                                </p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                    {{ __('El cliente será movido a la papelera y podrá ser restaurado posteriormente.') }}
+                                </p>
                             </div>
                         </div>
-                        <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                            <button
-                                type="button"
-                                wire:click="delete"
-                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
-                            >
-                                {{ __('Eliminar') }}
-                            </button>
-                            <button
-                                type="button"
-                                wire:click="closeDeleteModal"
-                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                            >
-                                {{ __('Cancelar') }}
-                            </button>
-                        </div>
                     </div>
-                </div>
-            </div>
+                </x-slot:body>
+
+                <x-slot:footer>
+                    <button
+                        type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                    >
+                        {{ __('Cancelar') }}
+                    </button>
+                    <button
+                        type="button"
+                        wire:click="delete"
+                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-500 sm:w-auto sm:text-sm"
+                    >
+                        {{ __('Eliminar') }}
+                    </button>
+                </x-slot:footer>
+            </x-bcn-modal>
         @endif
 
         <!-- Modal Historial de Ventas -->
         @if($showHistorialModal)
-            <div class="fixed z-50 inset-0 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" wire:click="closeHistorialModal"></div>
-                    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                    <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
-                        <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                            <div class="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
-                                <h3 class="text-lg font-medium text-gray-900 dark:text-white">
-                                    {{ __('Historial de Ventas') }} - {{ $nombreClienteHistorial }}
-                                </h3>
-                                <button type="button" wire:click="closeHistorialModal" class="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300">
-                                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            </div>
-
-                            <div class="mt-4 max-h-96 overflow-y-auto">
-                                @if($ventasHistorial->count() > 0)
-                                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                        <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0">
-                                            <tr>
-                                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Fecha') }}</th>
-                                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Sucursal') }}</th>
-                                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Forma Pago') }}</th>
-                                                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Total') }}</th>
-                                                <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Estado') }}</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                                            @foreach($ventasHistorial as $venta)
-                                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                                    <td class="px-4 py-2 text-sm text-gray-900 dark:text-white">{{ $venta->created_at->format('d/m/Y H:i') }}</td>
-                                                    <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{{ $venta->sucursal?->nombre ?? '-' }}</td>
-                                                    <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{{ $venta->formaPago?->nombre ?? '-' }}</td>
-                                                    <td class="px-4 py-2 text-sm text-gray-900 dark:text-white text-right font-medium">${{ number_format($venta->total, 2, ',', '.') }}</td>
-                                                    <td class="px-4 py-2 text-center">
-                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $venta->estado === 'completada' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800' }}">
-                                                            {{ ucfirst($venta->estado) }}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            @endforeach
-                                        </tbody>
-                                    </table>
-                                @else
-                                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                        </svg>
-                                        <p class="mt-2 text-sm">{{ __('No hay ventas registradas para este cliente') }}</p>
-                                    </div>
-                                @endif
-                            </div>
+            <x-bcn-modal
+                :show="$showHistorialModal"
+                :title="__('Historial de Ventas') . ' - ' . $nombreClienteHistorial"
+                color="bg-bcn-primary"
+                maxWidth="4xl"
+                onClose="closeHistorialModal"
+            >
+                <x-slot:body>
+                    @if($ventasHistorial->count() > 0)
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Fecha') }}</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Sucursal') }}</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Forma Pago') }}</th>
+                                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Total') }}</th>
+                                        <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Estado') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                    @foreach($ventasHistorial as $venta)
+                                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                            <td class="px-4 py-2 text-sm text-gray-900 dark:text-white">{{ $venta->created_at->format('d/m/Y H:i') }}</td>
+                                            <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{{ $venta->sucursal?->nombre ?? '-' }}</td>
+                                            <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{{ $venta->formaPago?->nombre ?? '-' }}</td>
+                                            <td class="px-4 py-2 text-sm text-gray-900 dark:text-white text-right font-medium">${{ number_format($venta->total, 2, ',', '.') }}</td>
+                                            <td class="px-4 py-2 text-center">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $venta->estado === 'completada' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800' }}">
+                                                    {{ ucfirst($venta->estado) }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
                         </div>
-
-                        <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                            <button
-                                type="button"
-                                wire:click="closeHistorialModal"
-                                class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 sm:w-auto sm:text-sm"
-                            >
-                                {{ __('Cerrar') }}
-                            </button>
+                    @else
+                        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                            <p class="mt-2 text-sm">{{ __('No hay ventas registradas para este cliente') }}</p>
                         </div>
-                    </div>
-                </div>
-            </div>
+                    @endif
+                </x-slot:body>
+
+                <x-slot:footer>
+                    <button type="button"
+                            @click="close()"
+                            class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                        {{ __('Cerrar') }}
+                    </button>
+                </x-slot:footer>
+            </x-bcn-modal>
         @endif
 
         {{-- Modal de Configuración de Sucursales (Listas de Precios) --}}
         @if($showSucursalesModal)
-            <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="closeSucursalesModal"></div>
+            <x-bcn-modal
+                :title="__('Configuración por Sucursal') . ' - ' . $clienteConfigNombre"
+                color="bg-bcn-primary"
+                maxWidth="2xl"
+                onClose="closeSucursalesModal"
+            >
+                <x-slot:body>
+                    <div class="space-y-4">
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            {{ __('Configure la lista de precios para cada sucursal donde el cliente está activo.') }}
+                        </p>
 
-                    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                    <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
-                        <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                            <div class="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
-                                <h3 class="text-lg font-medium text-gray-900 dark:text-white">
-                                    {{ __('Configuración por Sucursal') }} - {{ $clienteConfigNombre }}
-                                </h3>
-                                <button type="button" wire:click="closeSucursalesModal" class="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300">
-                                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            </div>
-
-                            <div class="mt-4 space-y-4 max-h-96 overflow-y-auto">
-                                <p class="text-sm text-gray-600 dark:text-gray-400">
-                                    {{ __('Configure la lista de precios para cada sucursal donde el cliente está activo.') }}
-                                </p>
-
-                                @foreach($sucursales as $sucursal)
-                                    @php
-                                        $isActive = isset($sucursalesConfig[$sucursal->id]) && $sucursalesConfig[$sucursal->id]['activo'];
-                                        $listasPrecio = $this->getListasPrecioSucursal($sucursal->id);
-                                        $listaPrecioSeleccionada = $sucursalesConfig[$sucursal->id]['lista_precio_id'] ?? null;
-                                    @endphp
-                                    <div class="p-4 border rounded-lg {{ $isActive ? 'border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50' }}">
-                                        <div class="flex items-center justify-between">
-                                            <div class="flex items-center space-x-3">
-                                                <label class="relative inline-flex items-center cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        class="sr-only peer"
-                                                        wire:click="toggleSucursalConfig({{ $sucursal->id }})"
-                                                        {{ $isActive ? 'checked' : '' }}
-                                                    >
-                                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-500 peer-checked:bg-indigo-600"></div>
-                                                </label>
-                                                <div>
-                                                    <span class="font-medium text-gray-900 dark:text-white">{{ $sucursal->nombre }}</span>
-                                                    @if($sucursal->direccion)
-                                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ $sucursal->direccion }}</p>
-                                                    @endif
-                                                </div>
-                                            </div>
-                                            <span class="text-xs px-2 py-1 rounded-full {{ $isActive ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' }}">
-                                                {{ $isActive ? __('Activo') : __('Inactivo') }}
-                                            </span>
+                        @foreach($sucursales as $sucursal)
+                            @php
+                                $isActive = isset($sucursalesConfig[$sucursal->id]) && $sucursalesConfig[$sucursal->id]['activo'];
+                                $listasPrecio = $this->getListasPrecioSucursal($sucursal->id);
+                                $listaPrecioSeleccionada = $sucursalesConfig[$sucursal->id]['lista_precio_id'] ?? null;
+                            @endphp
+                            <div class="p-4 border rounded-lg {{ $isActive ? 'border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50' }}">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-3">
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                class="sr-only peer"
+                                                wire:click="toggleSucursalConfig({{ $sucursal->id }})"
+                                                {{ $isActive ? 'checked' : '' }}
+                                            >
+                                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-500 peer-checked:bg-indigo-600"></div>
+                                        </label>
+                                        <div>
+                                            <span class="font-medium text-gray-900 dark:text-white">{{ $sucursal->nombre }}</span>
+                                            @if($sucursal->direccion)
+                                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $sucursal->direccion }}</p>
+                                            @endif
                                         </div>
-
-                                        @if($isActive)
-                                            <div class="mt-3 pl-14">
-                                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    {{ __('Lista de Precios') }}
-                                                </label>
-                                                <select
-                                                    wire:model.live="sucursalesConfig.{{ $sucursal->id }}.lista_precio_id"
-                                                    class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                                >
-                                                    <option value="">{{ __('Sin lista asignada') }}</option>
-                                                    @foreach($listasPrecio as $lista)
-                                                        <option value="{{ $lista->id }}">
-                                                            {{ $lista->nombre }}
-                                                            @if($lista->es_lista_base) ({{ __('Base') }}) @endif
-                                                        </option>
-                                                    @endforeach
-                                                </select>
-                                            </div>
-                                        @endif
                                     </div>
-                                @endforeach
+                                    <span class="text-xs px-2 py-1 rounded-full {{ $isActive ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' }}">
+                                        {{ $isActive ? __('Activo') : __('Inactivo') }}
+                                    </span>
+                                </div>
 
-                                @if($sucursales->isEmpty())
-                                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                        </svg>
-                                        <p class="mt-2 text-sm">{{ __('No hay sucursales configuradas') }}</p>
+                                @if($isActive)
+                                    <div class="mt-3 pl-14">
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            {{ __('Lista de Precios') }}
+                                        </label>
+                                        <select
+                                            wire:model.live="sucursalesConfig.{{ $sucursal->id }}.lista_precio_id"
+                                            class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        >
+                                            <option value="">{{ __('Sin lista asignada') }}</option>
+                                            @foreach($listasPrecio as $lista)
+                                                <option value="{{ $lista->id }}">
+                                                    {{ $lista->nombre }}
+                                                    @if($lista->es_lista_base) ({{ __('Base') }}) @endif
+                                                </option>
+                                            @endforeach
+                                        </select>
                                     </div>
                                 @endif
                             </div>
-                        </div>
+                        @endforeach
 
-                        <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
-                            <button
-                                type="button"
-                                wire:click="saveSucursalesConfig"
-                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-auto sm:text-sm"
-                            >
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        @if($sucursales->isEmpty())
+                            <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                                 </svg>
-                                {{ __('Guardar Configuración') }}
-                            </button>
-                            <button
-                                type="button"
-                                wire:click="closeSucursalesModal"
-                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 sm:mt-0 sm:w-auto sm:text-sm"
-                            >
-                                {{ __('Cancelar') }}
-                            </button>
-                        </div>
+                                <p class="mt-2 text-sm">{{ __('No hay sucursales configuradas') }}</p>
+                            </div>
+                        @endif
                     </div>
-                </div>
-            </div>
+                </x-slot:body>
+
+                <x-slot:footer>
+                    <button
+                        type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                    >
+                        {{ __('Cancelar') }}
+                    </button>
+                    <button
+                        type="button"
+                        wire:click="saveSucursalesConfig"
+                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm"
+                    >
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        {{ __('Guardar Configuración') }}
+                    </button>
+                </x-slot:footer>
+            </x-bcn-modal>
         @endif
 
         {{-- Modal de Importación --}}
         @if($showImportModal)
-            <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="closeImportModal"></div>
-
-                    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                    <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
-                        <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                            <div class="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
-                                <h3 class="text-lg font-medium text-gray-900 dark:text-white">
-                                    {{ __('Importar Clientes') }}
-                                </h3>
-                                <button type="button" wire:click="closeImportModal" class="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300">
-                                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            <x-bcn-modal
+                :title="__('Importar Clientes')"
+                color="bg-bcn-primary"
+                maxWidth="2xl"
+                onClose="closeImportModal"
+            >
+                <x-slot:body>
+                    <div class="space-y-4">
+                        @if(!$importacionProcesada)
+                            {{-- Instrucciones --}}
+                            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                                <div class="flex">
+                                    <svg class="h-5 w-5 text-blue-400 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
                                     </svg>
-                                </button>
+                                    <div class="text-sm text-blue-700 dark:text-blue-300">
+                                        <p class="font-medium mb-1">{{ __('Formato del archivo CSV:') }}</p>
+                                        <ul class="list-disc list-inside space-y-1 text-xs">
+                                            <li>{{ __('Columnas: Nombre, Razón Social, CUIT, Email, Teléfono, Dirección, Condición IVA, Cuenta Corriente, Límite Crédito, Estado') }}</li>
+                                            <li>{{ __('Separador: punto y coma (;) o coma (,)') }}</li>
+                                            <li>{{ __('Puede usar el archivo exportado como plantilla') }}</li>
+                                            <li>{{ __('Los clientes con CUIT duplicado serán omitidos') }}</li>
+                                        </ul>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div class="mt-4 space-y-4">
-                                @if(!$importacionProcesada)
-                                    {{-- Instrucciones --}}
-                                    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                                        <div class="flex">
-                                            <svg class="h-5 w-5 text-blue-400 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                                            </svg>
-                                            <div class="text-sm text-blue-700 dark:text-blue-300">
-                                                <p class="font-medium mb-1">{{ __('Formato del archivo CSV:') }}</p>
-                                                <ul class="list-disc list-inside space-y-1 text-xs">
-                                                    <li>{{ __('Columnas: Nombre, Razón Social, CUIT, Email, Teléfono, Dirección, Condición IVA, Cuenta Corriente, Límite Crédito, Estado') }}</li>
-                                                    <li>{{ __('Separador: punto y coma (;) o coma (,)') }}</li>
-                                                    <li>{{ __('Puede usar el archivo exportado como plantilla') }}</li>
-                                                    <li>{{ __('Los clientes con CUIT duplicado serán omitidos') }}</li>
-                                                </ul>
-                                            </div>
-                                        </div>
-                                    </div>
+                            {{-- Archivo --}}
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    {{ __('Archivo CSV') }} <span class="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="file"
+                                    wire:model="archivoImportacion"
+                                    accept=".csv,.txt"
+                                    class="block w-full text-sm text-gray-500 dark:text-gray-400
+                                        file:mr-4 file:py-2 file:px-4
+                                        file:rounded-md file:border-0
+                                        file:text-sm file:font-semibold
+                                        file:bg-bcn-primary file:text-white
+                                        hover:file:bg-opacity-90
+                                        file:cursor-pointer cursor-pointer"
+                                />
+                                @error('archivoImportacion')
+                                    <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                                @enderror
+                                <div wire:loading wire:target="archivoImportacion" class="mt-2 text-sm text-gray-500">
+                                    {{ __('Cargando archivo...') }}
+                                </div>
+                            </div>
 
-                                    {{-- Archivo --}}
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                            {{ __('Archivo CSV') }} <span class="text-red-500">*</span>
+                            {{-- Sucursales --}}
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    {{ __('Dar de alta en las siguientes sucursales:') }} <span class="text-red-500">*</span>
+                                </label>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                    @foreach($sucursales as $sucursal)
+                                        <label class="flex items-center space-x-2 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                wire:model="sucursales_importacion"
+                                                value="{{ $sucursal->id }}"
+                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
+                                            >
+                                            <span class="text-sm text-gray-700 dark:text-gray-300">{{ $sucursal->nombre }}</span>
                                         </label>
-                                        <input
-                                            type="file"
-                                            wire:model="archivoImportacion"
-                                            accept=".csv,.txt"
-                                            class="block w-full text-sm text-gray-500 dark:text-gray-400
-                                                file:mr-4 file:py-2 file:px-4
-                                                file:rounded-md file:border-0
-                                                file:text-sm file:font-semibold
-                                                file:bg-bcn-primary file:text-white
-                                                hover:file:bg-opacity-90
-                                                file:cursor-pointer cursor-pointer"
-                                        />
-                                        @error('archivoImportacion')
-                                            <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
-                                        @enderror
-                                        <div wire:loading wire:target="archivoImportacion" class="mt-2 text-sm text-gray-500">
-                                            {{ __('Cargando archivo...') }}
-                                        </div>
-                                    </div>
+                                    @endforeach
+                                </div>
+                                @error('sucursales_importacion')
+                                    <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                                @enderror
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    {{ __('Los clientes se darán de alta con la lista de precios base de cada sucursal seleccionada.') }}
+                                </p>
+                            </div>
+                        @else
+                            {{-- Resultado de la importación --}}
+                            <div class="space-y-4">
+                                <div class="text-center py-4">
+                                    @if($importacionResultado['exitosos'] > 0)
+                                        <svg class="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    @else
+                                        <svg class="mx-auto h-12 w-12 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                    @endif
+                                </div>
 
-                                    {{-- Sucursales --}}
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                            {{ __('Dar de alta en las siguientes sucursales:') }} <span class="text-red-500">*</span>
-                                        </label>
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded-lg">
-                                            @foreach($sucursales as $sucursal)
-                                                <label class="flex items-center space-x-2 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        wire:model="sucursales_importacion"
-                                                        value="{{ $sucursal->id }}"
-                                                        class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
-                                                    >
-                                                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ $sucursal->nombre }}</span>
-                                                </label>
+                                <div class="grid grid-cols-3 gap-4 text-center">
+                                    <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
+                                        <p class="text-2xl font-bold text-green-600 dark:text-green-400">{{ $importacionResultado['exitosos'] }}</p>
+                                        <p class="text-xs text-green-700 dark:text-green-300">{{ __('Importados') }}</p>
+                                    </div>
+                                    <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3">
+                                        <p class="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{{ $importacionResultado['omitidos'] }}</p>
+                                        <p class="text-xs text-yellow-700 dark:text-yellow-300">{{ __('Omitidos') }}</p>
+                                    </div>
+                                    <div class="bg-red-50 dark:bg-red-900/20 rounded-lg p-3">
+                                        <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ count($importacionResultado['errores']) }}</p>
+                                        <p class="text-xs text-red-700 dark:text-red-300">{{ __('Errores') }}</p>
+                                    </div>
+                                </div>
+
+                                @if(count($importacionResultado['errores']) > 0)
+                                    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 max-h-40 overflow-y-auto">
+                                        <p class="text-sm font-medium text-red-700 dark:text-red-300 mb-2">{{ __('Errores encontrados:') }}</p>
+                                        <ul class="text-xs text-red-600 dark:text-red-400 space-y-1">
+                                            @foreach($importacionResultado['errores'] as $error)
+                                                <li>{{ $error }}</li>
                                             @endforeach
-                                        </div>
-                                        @error('sucursales_importacion')
-                                            <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
-                                        @enderror
-                                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                            {{ __('Los clientes se darán de alta con la lista de precios base de cada sucursal seleccionada.') }}
-                                        </p>
-                                    </div>
-                                @else
-                                    {{-- Resultado de la importación --}}
-                                    <div class="space-y-4">
-                                        <div class="text-center py-4">
-                                            @if($importacionResultado['exitosos'] > 0)
-                                                <svg class="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                            @else
-                                                <svg class="mx-auto h-12 w-12 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                                </svg>
-                                            @endif
-                                        </div>
-
-                                        <div class="grid grid-cols-3 gap-4 text-center">
-                                            <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
-                                                <p class="text-2xl font-bold text-green-600 dark:text-green-400">{{ $importacionResultado['exitosos'] }}</p>
-                                                <p class="text-xs text-green-700 dark:text-green-300">{{ __('Importados') }}</p>
-                                            </div>
-                                            <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3">
-                                                <p class="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{{ $importacionResultado['omitidos'] }}</p>
-                                                <p class="text-xs text-yellow-700 dark:text-yellow-300">{{ __('Omitidos') }}</p>
-                                            </div>
-                                            <div class="bg-red-50 dark:bg-red-900/20 rounded-lg p-3">
-                                                <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ count($importacionResultado['errores']) }}</p>
-                                                <p class="text-xs text-red-700 dark:text-red-300">{{ __('Errores') }}</p>
-                                            </div>
-                                        </div>
-
-                                        @if(count($importacionResultado['errores']) > 0)
-                                            <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 max-h-40 overflow-y-auto">
-                                                <p class="text-sm font-medium text-red-700 dark:text-red-300 mb-2">{{ __('Errores encontrados:') }}</p>
-                                                <ul class="text-xs text-red-600 dark:text-red-400 space-y-1">
-                                                    @foreach($importacionResultado['errores'] as $error)
-                                                        <li>• {{ $error }}</li>
-                                                    @endforeach
-                                                </ul>
-                                            </div>
-                                        @endif
+                                        </ul>
                                     </div>
                                 @endif
                             </div>
-                        </div>
-
-                        <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
-                            @if(!$importacionProcesada)
-                                <button
-                                    type="button"
-                                    wire:click="importarClientes"
-                                    wire:loading.attr="disabled"
-                                    wire:target="importarClientes,archivoImportacion"
-                                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary sm:w-auto sm:text-sm disabled:opacity-50"
-                                >
-                                    <svg wire:loading wire:target="importarClientes" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    <svg wire:loading.remove wire:target="importarClientes" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                    </svg>
-                                    {{ __('Importar') }}
-                                </button>
-                            @endif
-                            <button
-                                type="button"
-                                wire:click="closeImportModal"
-                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 sm:mt-0 sm:w-auto sm:text-sm"
-                            >
-                                {{ $importacionProcesada ? __('Cerrar') : __('Cancelar') }}
-                            </button>
-                        </div>
+                        @endif
                     </div>
-                </div>
-            </div>
+                </x-slot:body>
+
+                <x-slot:footer>
+                    <button
+                        type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                    >
+                        {{ $importacionProcesada ? __('Cerrar') : __('Cancelar') }}
+                    </button>
+                    @if(!$importacionProcesada)
+                        <button
+                            type="button"
+                            wire:click="importarClientes"
+                            wire:loading.attr="disabled"
+                            wire:target="importarClientes,archivoImportacion"
+                            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm disabled:opacity-50"
+                        >
+                            <svg wire:loading wire:target="importarClientes" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <svg wire:loading.remove wire:target="importarClientes" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            {{ __('Importar') }}
+                        </button>
+                    @endif
+                </x-slot:footer>
+            </x-bcn-modal>
         @endif
     </div>
 </div>
