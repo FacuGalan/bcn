@@ -480,6 +480,16 @@ class Produccion extends Component
     }
 
     /**
+     * Cancela/cierra el modal de confirmar lote
+     */
+    public function cancelarConfirmarLote(): void
+    {
+        $this->showConfirmarLoteModal = false;
+        $this->resumenIngredientes = [];
+        $this->loteObservaciones = '';
+    }
+
+    /**
      * Cierra el modal de producir
      */
     public function cerrarProducirModal()

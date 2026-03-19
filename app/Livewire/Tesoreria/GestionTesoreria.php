@@ -862,6 +862,33 @@ class GestionTesoreria extends Component
         }
     }
 
+    // ==================== CANCEL MODALS ====================
+
+    public function cancelProvision(): void
+    {
+        $this->showProvisionModal = false;
+    }
+
+    public function cancelRendicion(): void
+    {
+        $this->showRendicionModal = false;
+    }
+
+    public function cancelRechazo(): void
+    {
+        $this->showRechazoModal = false;
+    }
+
+    public function cancelDeposito(): void
+    {
+        $this->showDepositoModal = false;
+    }
+
+    public function cancelArqueo(): void
+    {
+        $this->showArqueoModal = false;
+    }
+
     // ==================== FILTROS ====================
 
     public function limpiarFiltros(): void

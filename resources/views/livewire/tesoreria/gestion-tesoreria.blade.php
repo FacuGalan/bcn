@@ -619,353 +619,381 @@
 
     {{-- Modal de Provision --}}
     @if($showProvisionModal)
-    <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75" wire:click="$set('showProvisionModal', false)"></div>
-            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
-                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Provisionar Fondo a Caja') }}</h3>
+    <x-bcn-modal
+        :show="$showProvisionModal"
+        :title="__('Provisionar Fondo a Caja')"
+        color="bg-bcn-primary"
+        maxWidth="md"
+        onClose="cancelProvision"
+        submit="procesarProvision"
+    >
+        <x-slot:body>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Caja destino') }}</label>
+                    <select wire:model="cajaProvisionId" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg">
+                        <option value="">{{ __('Seleccionar caja...') }}</option>
+                        @foreach($cajasDisponibles as $caja)
+                        <option value="{{ $caja->id }}">{{ $caja->nombre }} (#{{ $caja->numero_formateado }})</option>
+                        @endforeach
+                    </select>
+                    @error('cajaProvisionId') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                 </div>
-                <div class="p-6 space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Caja destino') }}</label>
-                        <select wire:model="cajaProvisionId" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg">
-                            <option value="">{{ __('Seleccionar caja...') }}</option>
-                            @foreach($cajasDisponibles as $caja)
-                            <option value="{{ $caja->id }}">{{ $caja->nombre }} (#{{ $caja->numero_formateado }})</option>
-                            @endforeach
-                        </select>
-                        @error('cajaProvisionId') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                    </div>
-                    @if(!empty($monedasExtranjeras))
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Moneda') }}</label>
-                        <select wire:model.live="monedaProvisionId" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg">
-                            <option value="">{{ __('Moneda principal (ARS)') }}</option>
-                            @foreach($monedasExtranjeras as $monExt)
-                            <option value="{{ $monExt['id'] }}">{{ $monExt['nombre'] }} ({{ $monExt['simbolo'] }} {{ number_format($monExt['saldo'], 2, ',', '.') }} {{ __('disponible') }})</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    @endif
-                    @if(empty($monedaProvisionId))
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto') }}</label>
-                        <div class="relative">
-                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">$</span>
-                            <input type="number" step="0.01" min="0" wire:model="montoProvision" class="w-full pl-8 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" placeholder="0.00">
-                        </div>
-                        @error('montoProvision') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                    </div>
-                    @else
-                    <div>
-                        @php
-                            $monedaSel = collect($monedasExtranjeras)->firstWhere('id', $monedaProvisionId);
-                        @endphp
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto en :moneda', ['moneda' => $monedaSel['codigo'] ?? '']) }}</label>
-                        <div class="relative">
-                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">{{ $monedaSel['simbolo'] ?? '' }}</span>
-                            <input type="number" step="0.01" min="0" wire:model="montoProvisionMoneda" class="w-full pl-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" placeholder="0.00">
-                        </div>
-                        @error('montoProvisionMoneda') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                    </div>
-                    @endif
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Observaciones (opcional)') }}</label>
-                        <textarea wire:model="observacionesProvision" rows="2" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"></textarea>
-                    </div>
-                    <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg space-y-1">
-                        <p class="text-sm text-gray-600 dark:text-gray-400">{{ __('Saldo disponible:') }} <span class="font-semibold text-gray-900 dark:text-white">${{ number_format($tesoreria->saldo_actual ?? 0, 2, ',', '.') }}</span></p>
-                        @if(!empty($saldosMonedas))
-                            @foreach($saldosMonedas as $smData)
-                            <p class="text-sm text-gray-600 dark:text-gray-400">{{ $smData['codigo'] }}: <span class="font-semibold text-gray-900 dark:text-white">{{ $smData['simbolo'] }} {{ number_format($smData['saldo'], 2, ',', '.') }}</span></p>
-                            @endforeach
-                        @endif
-                    </div>
+                @if(!empty($monedasExtranjeras))
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Moneda') }}</label>
+                    <select wire:model.live="monedaProvisionId" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg">
+                        <option value="">{{ __('Moneda principal (ARS)') }}</option>
+                        @foreach($monedasExtranjeras as $monExt)
+                        <option value="{{ $monExt['id'] }}">{{ $monExt['nombre'] }} ({{ $monExt['simbolo'] }} {{ number_format($monExt['saldo'], 2, ',', '.') }} {{ __('disponible') }})</option>
+                        @endforeach
+                    </select>
                 </div>
-                <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700 flex justify-end gap-3 rounded-b-lg">
-                    <button wire:click="$set('showProvisionModal', false)" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-500">{{ __('Cancelar') }}</button>
-                    <button wire:click="procesarProvision" class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">{{ __('Provisionar') }}</button>
+                @endif
+                @if(empty($monedaProvisionId))
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto') }}</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">$</span>
+                        <input type="number" step="0.01" min="0" wire:model="montoProvision" class="w-full pl-8 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" placeholder="0.00">
+                    </div>
+                    @error('montoProvision') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                </div>
+                @else
+                <div>
+                    @php
+                        $monedaSel = collect($monedasExtranjeras)->firstWhere('id', $monedaProvisionId);
+                    @endphp
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto en :moneda', ['moneda' => $monedaSel['codigo'] ?? '']) }}</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">{{ $monedaSel['simbolo'] ?? '' }}</span>
+                        <input type="number" step="0.01" min="0" wire:model="montoProvisionMoneda" class="w-full pl-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" placeholder="0.00">
+                    </div>
+                    @error('montoProvisionMoneda') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                </div>
+                @endif
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Observaciones (opcional)') }}</label>
+                    <textarea wire:model="observacionesProvision" rows="2" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"></textarea>
+                </div>
+                <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg space-y-1">
+                    <p class="text-sm text-gray-600 dark:text-gray-400">{{ __('Saldo disponible:') }} <span class="font-semibold text-gray-900 dark:text-white">${{ number_format($tesoreria->saldo_actual ?? 0, 2, ',', '.') }}</span></p>
+                    @if(!empty($saldosMonedas))
+                        @foreach($saldosMonedas as $smData)
+                        <p class="text-sm text-gray-600 dark:text-gray-400">{{ $smData['codigo'] }}: <span class="font-semibold text-gray-900 dark:text-white">{{ $smData['simbolo'] }} {{ number_format($smData['saldo'], 2, ',', '.') }}</span></p>
+                        @endforeach
+                    @endif
                 </div>
             </div>
-        </div>
-    </div>
+        </x-slot:body>
+
+        <x-slot:footer>
+            <button type="button" @click="close()"
+                class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                {{ __('Cancelar') }}
+            </button>
+            <button type="submit"
+                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                {{ __('Provisionar') }}
+            </button>
+        </x-slot:footer>
+    </x-bcn-modal>
     @endif
 
     {{-- Modal de Rendiciones Pendientes --}}
     @if($showRendicionModal)
-    <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75" wire:click="$set('showRendicionModal', false)"></div>
-            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full">
-                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Rendiciones Pendientes') }}</h3>
-                </div>
-                <div class="p-6">
-                    @if(count($rendicionesPendientes) > 0)
-                    <div class="space-y-3">
-                        @foreach($rendicionesPendientes as $rendicion)
-                        <div class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <h4 class="font-medium text-gray-900 dark:text-white">{{ $rendicion['caja']['nombre'] ?? __('Caja') }}</h4>
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                                        {{ $rendicion['usuario_entrega']['name'] ?? __('Usuario') }} -
-                                        {{ \Carbon\Carbon::parse($rendicion['fecha'])->format('d/m/Y H:i') }}
-                                    </p>
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-lg font-bold text-green-600 dark:text-green-400">${{ number_format($rendicion['monto_entregado'], 2, ',', '.') }}</p>
-                                    @if($rendicion['diferencia'] != 0)
-                                    <p class="text-xs {{ $rendicion['diferencia'] > 0 ? 'text-blue-600' : 'text-red-600' }}">
-                                        {{ $rendicion['diferencia'] > 0 ? __('Sobrante') : __('Faltante') }}: ${{ number_format(abs($rendicion['diferencia']), 2, ',', '.') }}
-                                    </p>
-                                    @endif
-                                </div>
-                            </div>
-                            {{-- Desglose monedas extranjeras --}}
-                            @if(!empty($rendicion['desglose_monedas']))
-                            <div class="mt-2 flex flex-wrap gap-1.5">
-                                @foreach($rendicion['desglose_monedas'] as $codMon => $dataMon)
-                                <span class="inline-flex items-center px-2 py-1 rounded bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-xs">
-                                    <span class="text-amber-700 dark:text-amber-300 font-medium">{{ $dataMon['simbolo'] ?? '' }} {{ number_format($dataMon['saldo'] ?? 0, 2, ',', '.') }}</span>
-                                    @if(($dataMon['saldo_convertido'] ?? 0) > 0)
-                                    <span class="ml-1 text-amber-500 dark:text-amber-400">(≈ ${{ number_format($dataMon['saldo_convertido'], 0, ',', '.') }})</span>
-                                    @endif
-                                </span>
-                                @endforeach
-                            </div>
-                            @endif
-
-                            <div class="mt-3 flex justify-end gap-2">
-                                @if($rendicion['puede_revertir'] ?? false)
-                                <button
-                                    wire:click="abrirModalRechazo({{ $rendicion['id'] }})"
-                                    class="px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
-                                >
-                                    {{ __('Rechazar y Revertir') }}
-                                </button>
-                                @endif
-                                <button
-                                    wire:click="confirmarRendicion({{ $rendicion['id'] }})"
-                                    class="px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
-                                >
-                                    {{ __('Confirmar Recepcion') }}
-                                </button>
-                            </div>
+    <x-bcn-modal
+        :show="$showRendicionModal"
+        :title="__('Rendiciones Pendientes')"
+        color="bg-bcn-primary"
+        maxWidth="2xl"
+        onClose="cancelRendicion"
+    >
+        <x-slot:body>
+            @if(count($rendicionesPendientes) > 0)
+            <div class="space-y-3">
+                @foreach($rendicionesPendientes as $rendicion)
+                <div class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="font-medium text-gray-900 dark:text-white">{{ $rendicion['caja']['nombre'] ?? __('Caja') }}</h4>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                                {{ $rendicion['usuario_entrega']['name'] ?? __('Usuario') }} -
+                                {{ \Carbon\Carbon::parse($rendicion['fecha'])->format('d/m/Y H:i') }}
+                            </p>
                         </div>
+                        <div class="text-right">
+                            <p class="text-lg font-bold text-green-600 dark:text-green-400">${{ number_format($rendicion['monto_entregado'], 2, ',', '.') }}</p>
+                            @if($rendicion['diferencia'] != 0)
+                            <p class="text-xs {{ $rendicion['diferencia'] > 0 ? 'text-blue-600' : 'text-red-600' }}">
+                                {{ $rendicion['diferencia'] > 0 ? __('Sobrante') : __('Faltante') }}: ${{ number_format(abs($rendicion['diferencia']), 2, ',', '.') }}
+                            </p>
+                            @endif
+                        </div>
+                    </div>
+                    {{-- Desglose monedas extranjeras --}}
+                    @if(!empty($rendicion['desglose_monedas']))
+                    <div class="mt-2 flex flex-wrap gap-1.5">
+                        @foreach($rendicion['desglose_monedas'] as $codMon => $dataMon)
+                        <span class="inline-flex items-center px-2 py-1 rounded bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-xs">
+                            <span class="text-amber-700 dark:text-amber-300 font-medium">{{ $dataMon['simbolo'] ?? '' }} {{ number_format($dataMon['saldo'] ?? 0, 2, ',', '.') }}</span>
+                            @if(($dataMon['saldo_convertido'] ?? 0) > 0)
+                            <span class="ml-1 text-amber-500 dark:text-amber-400">(≈ ${{ number_format($dataMon['saldo_convertido'], 0, ',', '.') }})</span>
+                            @endif
+                        </span>
                         @endforeach
                     </div>
-                    @else
-                    <p class="text-center text-gray-500 dark:text-gray-400 py-8">{{ __('No hay rendiciones pendientes') }}</p>
                     @endif
+
+                    <div class="mt-3 flex justify-end gap-2">
+                        @if($rendicion['puede_revertir'] ?? false)
+                        <button
+                            wire:click="abrirModalRechazo({{ $rendicion['id'] }})"
+                            class="px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+                        >
+                            {{ __('Rechazar y Revertir') }}
+                        </button>
+                        @endif
+                        <button
+                            wire:click="confirmarRendicion({{ $rendicion['id'] }})"
+                            class="px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+                        >
+                            {{ __('Confirmar Recepcion') }}
+                        </button>
+                    </div>
                 </div>
-                <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700 flex justify-end rounded-b-lg">
-                    <button wire:click="$set('showRendicionModal', false)" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-500">{{ __('Cerrar') }}</button>
-                </div>
+                @endforeach
             </div>
-        </div>
-    </div>
+            @else
+            <p class="text-center text-gray-500 dark:text-gray-400 py-8">{{ __('No hay rendiciones pendientes') }}</p>
+            @endif
+        </x-slot:body>
+
+        <x-slot:footer>
+            <button type="button" @click="close()"
+                class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                {{ __('Cerrar') }}
+            </button>
+        </x-slot:footer>
+    </x-bcn-modal>
     @endif
 
     {{-- Modal de Rechazo y Reversion --}}
     @if($showRechazoModal)
-    <div class="fixed inset-0 z-[60] overflow-y-auto" aria-modal="true">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75" wire:click="$set('showRechazoModal', false)"></div>
-            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
-                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <h3 class="text-lg font-semibold text-red-600 dark:text-red-400">{{ __('Rechazar y Revertir Cierre') }}</h3>
+    <x-bcn-modal
+        :show="$showRechazoModal"
+        :title="__('Rechazar y Revertir Cierre')"
+        color="bg-red-600"
+        maxWidth="md"
+        onClose="cancelRechazo"
+        zIndex="z-[60]"
+    >
+        <x-slot:body>
+            <div class="space-y-4">
+                <div class="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                    <p class="text-sm text-red-700 dark:text-red-300">
+                        {{ __('Esta accion rechazara la rendicion y revertira completamente el cierre de turno asociado. Las cajas seran reabiertas y los saldos restaurados al estado anterior al cierre.') }}
+                    </p>
                 </div>
-                <div class="p-6 space-y-4">
-                    <div class="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                        <p class="text-sm text-red-700 dark:text-red-300">
-                            {{ __('Esta accion rechazara la rendicion y revertira completamente el cierre de turno asociado. Las cajas seran reabiertas y los saldos restaurados al estado anterior al cierre.') }}
-                        </p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo del rechazo (opcional)') }}</label>
-                        <textarea wire:model="motivoRechazo" rows="3"
-                            class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
-                            :placeholder="__('Ingrese el motivo del rechazo...')"></textarea>
-                    </div>
-                </div>
-                <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700 flex justify-end gap-3 rounded-b-lg">
-                    <button wire:click="$set('showRechazoModal', false)"
-                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-500">
-                        {{ __('Cancelar') }}
-                    </button>
-                    <button
-                        wire:click="rechazarYRevertirCierre"
-                        wire:confirm="{{ __('Esta seguro? Esta accion revertira el cierre de turno completo y reabrira las cajas.') }}"
-                        class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">
-                        {{ __('Rechazar y Revertir') }}
-                    </button>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo del rechazo (opcional)') }}</label>
+                    <textarea wire:model="motivoRechazo" rows="3"
+                        class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
+                        :placeholder="__('Ingrese el motivo del rechazo...')"></textarea>
                 </div>
             </div>
-        </div>
-    </div>
+        </x-slot:body>
+
+        <x-slot:footer>
+            <button type="button" @click="close()"
+                class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                {{ __('Cancelar') }}
+            </button>
+            <button type="button"
+                wire:click="rechazarYRevertirCierre"
+                wire:confirm="{{ __('Esta seguro? Esta accion revertira el cierre de turno completo y reabrira las cajas.') }}"
+                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-500 sm:w-auto sm:text-sm">
+                {{ __('Rechazar y Revertir') }}
+            </button>
+        </x-slot:footer>
+    </x-bcn-modal>
     @endif
 
     {{-- Modal de Deposito Bancario --}}
     @if($showDepositoModal)
-    <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75" wire:click="$set('showDepositoModal', false)"></div>
-            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
-                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Registrar Deposito Bancario') }}</h3>
-                </div>
-                <div class="p-6 space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cuenta destino') }}</label>
-                        <select wire:model.live="cuentaEmpresaId" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg">
-                            <option value="">{{ __('Seleccionar cuenta...') }}</option>
-                            @foreach($cuentasEmpresa as $cuenta)
-                            <option value="{{ $cuenta->id }}">
-                                {{ $cuenta->nombre_completo }}
-                                @if($cuenta->moneda && !$cuenta->moneda->es_principal)
-                                    ({{ $cuenta->moneda->codigo }})
-                                @endif
-                                - {{ ($cuenta->moneda && !$cuenta->moneda->es_principal) ? $cuenta->moneda->simbolo : '$' }} {{ number_format($cuenta->saldo_actual, 2, ',', '.') }}
-                            </option>
-                            @endforeach
-                        </select>
-                        @error('cuentaEmpresaId') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                    </div>
-                    @php
-                        $cuentaSelDeposito = $cuentaEmpresaId ? $cuentasEmpresa->firstWhere('id', $cuentaEmpresaId) : null;
-                        $esMonedaExtDeposito = $cuentaSelDeposito && $cuentaSelDeposito->moneda && !$cuentaSelDeposito->moneda->es_principal;
-                        $simboloDeposito = $esMonedaExtDeposito ? $cuentaSelDeposito->moneda->simbolo : '$';
-                    @endphp
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            {{ __('Monto') }}
-                            @if($esMonedaExtDeposito)
-                            <span class="text-amber-600 dark:text-amber-400">({{ $cuentaSelDeposito->moneda->codigo }})</span>
+    <x-bcn-modal
+        :show="$showDepositoModal"
+        :title="__('Registrar Deposito Bancario')"
+        color="bg-bcn-primary"
+        maxWidth="md"
+        onClose="cancelDeposito"
+        submit="procesarDeposito"
+    >
+        <x-slot:body>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cuenta destino') }}</label>
+                    <select wire:model.live="cuentaEmpresaId" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg">
+                        <option value="">{{ __('Seleccionar cuenta...') }}</option>
+                        @foreach($cuentasEmpresa as $cuenta)
+                        <option value="{{ $cuenta->id }}">
+                            {{ $cuenta->nombre_completo }}
+                            @if($cuenta->moneda && !$cuenta->moneda->es_principal)
+                                ({{ $cuenta->moneda->codigo }})
                             @endif
-                        </label>
-                        <div class="relative">
-                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">{{ $simboloDeposito }}</span>
-                            <input type="number" step="0.01" min="0" wire:model="montoDeposito" class="w-full pl-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" placeholder="0.00">
-                        </div>
-                        @error('montoDeposito') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                    </div>
-                    @if($cuentaSelDeposito)
-                    <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                        <p class="text-sm text-gray-600 dark:text-gray-400">
-                            {{ __('Saldo disponible en tesorería:') }}
-                            <span class="font-semibold text-gray-900 dark:text-white">
-                            @if($esMonedaExtDeposito)
-                                @php
-                                    $saldosDepTes = $tesoreria->getSaldosTodasMonedas();
-                                    $saldoMonDep = $saldosDepTes[$cuentaSelDeposito->moneda->codigo]['saldo'] ?? 0;
-                                @endphp
-                                {{ $simboloDeposito }} {{ number_format($saldoMonDep, 2, ',', '.') }}
-                            @else
-                                ${{ number_format($tesoreria->saldo_actual ?? 0, 2, ',', '.') }}
-                            @endif
-                            </span>
-                        </p>
-                    </div>
-                    @endif
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Fecha del deposito') }}</label>
-                        <input type="date" wire:model="fechaDeposito" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg">
-                        @error('fechaDeposito') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Numero de comprobante (opcional)') }}</label>
-                        <input type="text" wire:model="numeroComprobante" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" :placeholder="__('Ej: 123456')">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Observaciones (opcional)') }}</label>
-                        <textarea wire:model="observacionesDeposito" rows="2" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"></textarea>
-                    </div>
+                            - {{ ($cuenta->moneda && !$cuenta->moneda->es_principal) ? $cuenta->moneda->simbolo : '$' }} {{ number_format($cuenta->saldo_actual, 2, ',', '.') }}
+                        </option>
+                        @endforeach
+                    </select>
+                    @error('cuentaEmpresaId') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                 </div>
-                <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700 flex justify-end gap-3 rounded-b-lg">
-                    <button wire:click="$set('showDepositoModal', false)" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-500">{{ __('Cancelar') }}</button>
-                    <button wire:click="procesarDeposito" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">{{ __('Registrar Deposito') }}</button>
+                @php
+                    $cuentaSelDeposito = $cuentaEmpresaId ? $cuentasEmpresa->firstWhere('id', $cuentaEmpresaId) : null;
+                    $esMonedaExtDeposito = $cuentaSelDeposito && $cuentaSelDeposito->moneda && !$cuentaSelDeposito->moneda->es_principal;
+                    $simboloDeposito = $esMonedaExtDeposito ? $cuentaSelDeposito->moneda->simbolo : '$';
+                @endphp
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ __('Monto') }}
+                        @if($esMonedaExtDeposito)
+                        <span class="text-amber-600 dark:text-amber-400">({{ $cuentaSelDeposito->moneda->codigo }})</span>
+                        @endif
+                    </label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">{{ $simboloDeposito }}</span>
+                        <input type="number" step="0.01" min="0" wire:model="montoDeposito" class="w-full pl-10 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" placeholder="0.00">
+                    </div>
+                    @error('montoDeposito') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                </div>
+                @if($cuentaSelDeposito)
+                <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        {{ __('Saldo disponible en tesorería:') }}
+                        <span class="font-semibold text-gray-900 dark:text-white">
+                        @if($esMonedaExtDeposito)
+                            @php
+                                $saldosDepTes = $tesoreria->getSaldosTodasMonedas();
+                                $saldoMonDep = $saldosDepTes[$cuentaSelDeposito->moneda->codigo]['saldo'] ?? 0;
+                            @endphp
+                            {{ $simboloDeposito }} {{ number_format($saldoMonDep, 2, ',', '.') }}
+                        @else
+                            ${{ number_format($tesoreria->saldo_actual ?? 0, 2, ',', '.') }}
+                        @endif
+                        </span>
+                    </p>
+                </div>
+                @endif
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Fecha del deposito') }}</label>
+                    <input type="date" wire:model="fechaDeposito" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg">
+                    @error('fechaDeposito') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Numero de comprobante (opcional)') }}</label>
+                    <input type="text" wire:model="numeroComprobante" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" :placeholder="__('Ej: 123456')">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Observaciones (opcional)') }}</label>
+                    <textarea wire:model="observacionesDeposito" rows="2" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"></textarea>
                 </div>
             </div>
-        </div>
-    </div>
+        </x-slot:body>
+
+        <x-slot:footer>
+            <button type="button" @click="close()"
+                class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                {{ __('Cancelar') }}
+            </button>
+            <button type="submit"
+                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                {{ __('Registrar Deposito') }}
+            </button>
+        </x-slot:footer>
+    </x-bcn-modal>
     @endif
 
     {{-- Modal de Arqueo --}}
     @if($showArqueoModal)
-    <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75" wire:click="$set('showArqueoModal', false)"></div>
-            <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
-                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Realizar Arqueo de Tesoreria') }}</h3>
+    <x-bcn-modal
+        :show="$showArqueoModal"
+        :title="__('Realizar Arqueo de Tesoreria')"
+        color="bg-bcn-primary"
+        maxWidth="md"
+        onClose="cancelArqueo"
+        submit="procesarArqueo"
+    >
+        <x-slot:body>
+            <div class="space-y-4">
+                {{-- Selector de Moneda --}}
+                @if(count($saldosMonedas) > 0)
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Moneda a arquear') }}</label>
+                    <select wire:model.live="monedaArqueoId"
+                            class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-purple-500 focus:border-purple-500">
+                        <option value="">{{ __('Moneda principal') }} ($)</option>
+                        @foreach($saldosMonedas as $codMoneda => $datosMoneda)
+                        <option value="{{ $datosMoneda['id'] }}">{{ $datosMoneda['codigo'] }} - {{ $datosMoneda['nombre'] }} ({{ $datosMoneda['simbolo'] }} {{ number_format($datosMoneda['saldo'], 2, ',', '.') }})</option>
+                        @endforeach
+                    </select>
                 </div>
-                <div class="p-6 space-y-4">
-                    {{-- Selector de Moneda --}}
-                    @if(count($saldosMonedas) > 0)
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Moneda a arquear') }}</label>
-                        <select wire:model.live="monedaArqueoId"
-                                class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-purple-500 focus:border-purple-500">
-                            <option value="">{{ __('Moneda principal') }} ($)</option>
-                            @foreach($saldosMonedas as $codMoneda => $datosMoneda)
-                            <option value="{{ $datosMoneda['id'] }}">{{ $datosMoneda['codigo'] }} - {{ $datosMoneda['nombre'] }} ({{ $datosMoneda['simbolo'] }} {{ number_format($datosMoneda['saldo'], 2, ',', '.') }})</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    @endif
+                @endif
 
-                    @php
-                        $simboloArqueo = '$';
-                        $saldoSistemaArqueo = $tesoreria->saldo_actual ?? 0;
-                        if ($monedaArqueoId) {
-                            $saldoMonedaObj = \App\Models\TesoreriaSaldoMoneda::obtenerOCrear($tesoreria->id, $monedaArqueoId);
-                            $saldoSistemaArqueo = (float) $saldoMonedaObj->saldo_actual;
-                            $monedaArqueoObj = \App\Models\Moneda::find($monedaArqueoId);
-                            $simboloArqueo = $monedaArqueoObj ? $monedaArqueoObj->simbolo : '$';
-                        }
-                    @endphp
+                @php
+                    $simboloArqueo = '$';
+                    $saldoSistemaArqueo = $tesoreria->saldo_actual ?? 0;
+                    if ($monedaArqueoId) {
+                        $saldoMonedaObj = \App\Models\TesoreriaSaldoMoneda::obtenerOCrear($tesoreria->id, $monedaArqueoId);
+                        $saldoSistemaArqueo = (float) $saldoMonedaObj->saldo_actual;
+                        $monedaArqueoObj = \App\Models\Moneda::find($monedaArqueoId);
+                        $simboloArqueo = $monedaArqueoObj ? $monedaArqueoObj->simbolo : '$';
+                    }
+                @endphp
 
-                    <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                        <p class="text-sm text-blue-700 dark:text-blue-400">
-                            <strong>{{ __('Saldo segun sistema:') }}</strong> {{ $simboloArqueo }} {{ number_format($saldoSistemaArqueo, 2, ',', '.') }}
-                        </p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Saldo contado fisicamente') }}</label>
-                        <div class="relative">
-                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">{{ $simboloArqueo }}</span>
-                            <input type="number" step="0.01" min="0" wire:model="saldoContado" class="w-full pl-10 text-lg font-semibold border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" placeholder="0.00">
-                        </div>
-                        @error('saldoContado') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                    </div>
-                    @if($saldoContado > 0 || $saldoContado === 0.0)
-                    @php $diferencia = $saldoContado - $saldoSistemaArqueo; @endphp
-                    <div class="p-3 rounded-lg {{ $diferencia == 0 ? 'bg-green-50 dark:bg-green-900/20' : ($diferencia > 0 ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-red-50 dark:bg-red-900/20') }}">
-                        <p class="text-sm font-medium {{ $diferencia == 0 ? 'text-green-700 dark:text-green-400' : ($diferencia > 0 ? 'text-blue-700 dark:text-blue-400' : 'text-red-700 dark:text-red-400') }}">
-                            @if($diferencia == 0)
-                                {{ __('Caja cuadrada') }}
-                            @elseif($diferencia > 0)
-                                {{ __('Sobrante:') }} +{{ $simboloArqueo }} {{ number_format($diferencia, 2, ',', '.') }}
-                            @else
-                                {{ __('Faltante:') }} -{{ $simboloArqueo }} {{ number_format(abs($diferencia), 2, ',', '.') }}
-                            @endif
-                        </p>
-                    </div>
-                    @endif
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Observaciones (opcional)') }}</label>
-                        <textarea wire:model="observacionesArqueo" rows="2" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"></textarea>
-                    </div>
+                <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <p class="text-sm text-blue-700 dark:text-blue-400">
+                        <strong>{{ __('Saldo segun sistema:') }}</strong> {{ $simboloArqueo }} {{ number_format($saldoSistemaArqueo, 2, ',', '.') }}
+                    </p>
                 </div>
-                <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700 flex justify-end gap-3 rounded-b-lg">
-                    <button wire:click="$set('showArqueoModal', false)" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-500">{{ __('Cancelar') }}</button>
-                    <button wire:click="procesarArqueo" class="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700">{{ __('Registrar Arqueo') }}</button>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Saldo contado fisicamente') }}</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 text-sm">{{ $simboloArqueo }}</span>
+                        <input type="number" step="0.01" min="0" wire:model="saldoContado" class="w-full pl-10 text-lg font-semibold border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" placeholder="0.00">
+                    </div>
+                    @error('saldoContado') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                </div>
+                @if($saldoContado > 0 || $saldoContado === 0.0)
+                @php $diferencia = $saldoContado - $saldoSistemaArqueo; @endphp
+                <div class="p-3 rounded-lg {{ $diferencia == 0 ? 'bg-green-50 dark:bg-green-900/20' : ($diferencia > 0 ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-red-50 dark:bg-red-900/20') }}">
+                    <p class="text-sm font-medium {{ $diferencia == 0 ? 'text-green-700 dark:text-green-400' : ($diferencia > 0 ? 'text-blue-700 dark:text-blue-400' : 'text-red-700 dark:text-red-400') }}">
+                        @if($diferencia == 0)
+                            {{ __('Caja cuadrada') }}
+                        @elseif($diferencia > 0)
+                            {{ __('Sobrante:') }} +{{ $simboloArqueo }} {{ number_format($diferencia, 2, ',', '.') }}
+                        @else
+                            {{ __('Faltante:') }} -{{ $simboloArqueo }} {{ number_format(abs($diferencia), 2, ',', '.') }}
+                        @endif
+                    </p>
+                </div>
+                @endif
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Observaciones (opcional)') }}</label>
+                    <textarea wire:model="observacionesArqueo" rows="2" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"></textarea>
                 </div>
             </div>
-        </div>
-    </div>
+        </x-slot:body>
+
+        <x-slot:footer>
+            <button type="button" @click="close()"
+                class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                {{ __('Cancelar') }}
+            </button>
+            <button type="submit"
+                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                {{ __('Registrar Arqueo') }}
+            </button>
+        </x-slot:footer>
+    </x-bcn-modal>
     @endif
 
     {{-- Modal de Detalle de Arqueo --}}

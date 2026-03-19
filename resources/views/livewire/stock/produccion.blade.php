@@ -157,193 +157,181 @@
 
     {{-- Modal Producir --}}
     @if($showProducirModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="cerrarProducirModal"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+        <x-bcn-modal
+            :show="$showProducirModal"
+            :title="__('Producir') . ': ' . $producirArticuloNombre"
+            color="bg-emerald-600"
+            maxWidth="5xl"
+            onClose="cerrarProducirModal"
+        >
+            <x-slot:body>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ __('Define la cantidad a producir y revisa los ingredientes necesarios.') }}</p>
 
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-5xl sm:w-full">
-                    <div class="bg-white dark:bg-gray-800 px-6 pt-5 pb-4">
-                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                            {{ __('Producir') }}: {{ $producirArticuloNombre }}
-                        </h3>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ __('Define la cantidad a producir y revisa los ingredientes necesarios.') }}</p>
-
-                        {{-- Cantidad --}}
-                        <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad a producir') }}</label>
-                            <input
-                                type="number"
-                                wire:model.live.debounce.300ms="producirCantidad"
-                                min="0.001"
-                                step="0.001"
-                                class="block w-full sm:w-40 rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:text-white"
-                            >
-                        </div>
-
-                        {{-- Tabla de ingredientes --}}
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-                                <thead class="bg-gray-50 dark:bg-gray-700">
-                                    <tr>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Ingrediente') }}</th>
-                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Und') }}</th>
-                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('x Unidad') }}</th>
-                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Total') }}</th>
-                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Cant. usada') }}</th>
-                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Stock') }}</th>
-                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Stock result.') }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                                    @foreach($producirIngredientes as $i => $ing)
-                                        @php
-                                            $cantUsada = (float) $ing['cantidad_real'];
-                                            $stockDisp = (float) $ing['stock_disponible'];
-                                            $stockResultante = round($stockDisp - $cantUsada, 3);
-                                            $insuficiente = $stockResultante < 0;
-                                        @endphp
-                                        <tr class="{{ $insuficiente ? 'bg-red-50 dark:bg-red-900/10' : '' }}">
-                                            <td class="px-3 py-2 text-gray-900 dark:text-white">{{ $ing['nombre'] }}</td>
-                                            <td class="px-3 py-2 text-right text-gray-500 dark:text-gray-400">{{ $ing['unidad_medida'] }}</td>
-                                            <td class="px-3 py-2 text-right text-gray-500 dark:text-gray-400">{{ number_format($ing['cantidad_por_unidad'], 3) }}</td>
-                                            <td class="px-3 py-2 text-right font-medium text-gray-900 dark:text-white">{{ number_format($ing['cantidad_receta'], 3) }}</td>
-                                            <td class="px-3 py-2 text-right">
-                                                <input
-                                                    type="number"
-                                                    wire:model.live.debounce.300ms="producirIngredientes.{{ $i }}.cantidad_real"
-                                                    min="0"
-                                                    step="0.001"
-                                                    class="w-24 text-right rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm dark:bg-gray-700 dark:text-white"
-                                                >
-                                            </td>
-                                            <td class="px-3 py-2 text-right text-gray-500 dark:text-gray-400">
-                                                {{ number_format($stockDisp, 3) }}
-                                            </td>
-                                            <td class="px-3 py-2 text-right font-semibold {{ $insuficiente ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' }}">
-                                                {{ number_format($stockResultante, 3) }}
-                                            </td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 flex flex-col sm:flex-row-reverse gap-2">
-                        <button
-                            wire:click="producirIndividual"
-                            class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-emerald-600 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
-                        >
-                            {{ __('Producir ahora') }}
-                        </button>
-                        <button
-                            wire:click="agregarACola"
-                            class="w-full sm:w-auto inline-flex justify-center rounded-md border border-emerald-400 dark:border-emerald-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 focus:outline-none"
-                        >
-                            {{ __('Agregar a cola') }}
-                        </button>
-                        <button
-                            wire:click="cerrarProducirModal"
-                            class="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none"
-                        >
-                            {{ __('Cancelar') }}
-                        </button>
-                    </div>
+                {{-- Cantidad --}}
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad a producir') }}</label>
+                    <input
+                        type="number"
+                        wire:model.live.debounce.300ms="producirCantidad"
+                        min="0.001"
+                        step="0.001"
+                        class="block w-full sm:w-40 rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:text-white"
+                    >
                 </div>
-            </div>
-        </div>
+
+                {{-- Tabla de ingredientes --}}
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                        <thead class="bg-gray-50 dark:bg-gray-700">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Ingrediente') }}</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Und') }}</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('x Unidad') }}</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Total') }}</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Cant. usada') }}</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Stock') }}</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Stock result.') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                            @foreach($producirIngredientes as $i => $ing)
+                                @php
+                                    $cantUsada = (float) $ing['cantidad_real'];
+                                    $stockDisp = (float) $ing['stock_disponible'];
+                                    $stockResultante = round($stockDisp - $cantUsada, 3);
+                                    $insuficiente = $stockResultante < 0;
+                                @endphp
+                                <tr class="{{ $insuficiente ? 'bg-red-50 dark:bg-red-900/10' : '' }}">
+                                    <td class="px-3 py-2 text-gray-900 dark:text-white">{{ $ing['nombre'] }}</td>
+                                    <td class="px-3 py-2 text-right text-gray-500 dark:text-gray-400">{{ $ing['unidad_medida'] }}</td>
+                                    <td class="px-3 py-2 text-right text-gray-500 dark:text-gray-400">{{ number_format($ing['cantidad_por_unidad'], 3) }}</td>
+                                    <td class="px-3 py-2 text-right font-medium text-gray-900 dark:text-white">{{ number_format($ing['cantidad_receta'], 3) }}</td>
+                                    <td class="px-3 py-2 text-right">
+                                        <input
+                                            type="number"
+                                            wire:model.live.debounce.300ms="producirIngredientes.{{ $i }}.cantidad_real"
+                                            min="0"
+                                            step="0.001"
+                                            class="w-24 text-right rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm dark:bg-gray-700 dark:text-white"
+                                        >
+                                    </td>
+                                    <td class="px-3 py-2 text-right text-gray-500 dark:text-gray-400">
+                                        {{ number_format($stockDisp, 3) }}
+                                    </td>
+                                    <td class="px-3 py-2 text-right font-semibold {{ $insuficiente ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' }}">
+                                        {{ number_format($stockResultante, 3) }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="button"
+                        wire:click="agregarACola"
+                        class="w-full inline-flex justify-center rounded-md border border-emerald-400 dark:border-emerald-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 sm:w-auto sm:text-sm">
+                    {{ __('Agregar a cola') }}
+                </button>
+                <button type="button"
+                        wire:click="producirIndividual"
+                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                    {{ __('Producir ahora') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal Confirmar Lote --}}
     @if($showConfirmarLoteModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="$set('showConfirmarLoteModal', false)"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
-                    <div class="bg-white dark:bg-gray-800 px-6 pt-5 pb-4">
-                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ __('Confirmar lote de producción') }}</h3>
-
-                        {{-- Resumen de artículos a producir --}}
-                        <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Artículos a producir') }}</h4>
-                        <div class="overflow-x-auto mb-4">
-                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-                                <thead class="bg-gray-50 dark:bg-gray-700">
-                                    <tr>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Artículo') }}</th>
-                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Cantidad') }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                                    @foreach($colaProduccion as $item)
-                                        <tr>
-                                            <td class="px-3 py-2 text-gray-900 dark:text-white">{{ $item['nombre'] }}</td>
-                                            <td class="px-3 py-2 text-right font-medium text-gray-900 dark:text-white">{{ $item['cantidad'] }}</td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {{-- Resumen consolidado de ingredientes --}}
-                        <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Ingredientes necesarios (consolidado)') }}</h4>
-                        <div class="overflow-x-auto mb-4">
-                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-                                <thead class="bg-gray-50 dark:bg-gray-700">
-                                    <tr>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Ingrediente') }}</th>
-                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Total necesario') }}</th>
-                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Stock disponible') }}</th>
-                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Diferencia') }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                                    @foreach($resumenIngredientes as $ing)
-                                        @php $faltante = $ing['diferencia'] < 0; @endphp
-                                        <tr class="{{ $faltante ? 'bg-red-50 dark:bg-red-900/10' : '' }}">
-                                            <td class="px-3 py-2 text-gray-900 dark:text-white">{{ $ing['nombre'] }}</td>
-                                            <td class="px-3 py-2 text-right font-medium text-gray-900 dark:text-white">{{ number_format($ing['total_necesario'], 3) }}</td>
-                                            <td class="px-3 py-2 text-right text-gray-500 dark:text-gray-400">{{ number_format($ing['stock_disponible'], 2) }}</td>
-                                            <td class="px-3 py-2 text-right font-semibold {{ $faltante ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' }}">
-                                                {{ $faltante ? '' : '+' }}{{ number_format($ing['diferencia'], 3) }}
-                                            </td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {{-- Observaciones --}}
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Observaciones (opcional)') }}</label>
-                            <textarea
-                                wire:model="loteObservaciones"
-                                rows="2"
-                                class="block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:text-white"
-                                placeholder="{{ __('Notas sobre esta producción...') }}"
-                            ></textarea>
-                        </div>
-                    </div>
-
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
-                        <button
-                            wire:click="confirmarLote"
-                            class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-emerald-600 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
-                        >
-                            {{ __('Confirmar producción') }}
-                        </button>
-                        <button
-                            wire:click="$set('showConfirmarLoteModal', false)"
-                            class="mt-3 sm:mt-0 w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none"
-                        >
-                            {{ __('Cancelar') }}
-                        </button>
-                    </div>
+        <x-bcn-modal
+            :show="$showConfirmarLoteModal"
+            :title="__('Confirmar lote de producción')"
+            color="bg-emerald-600"
+            maxWidth="4xl"
+            onClose="cancelarConfirmarLote"
+        >
+            <x-slot:body>
+                {{-- Resumen de artículos a producir --}}
+                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Artículos a producir') }}</h4>
+                <div class="overflow-x-auto mb-4">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                        <thead class="bg-gray-50 dark:bg-gray-700">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Artículo') }}</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Cantidad') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                            @foreach($colaProduccion as $item)
+                                <tr>
+                                    <td class="px-3 py-2 text-gray-900 dark:text-white">{{ $item['nombre'] }}</td>
+                                    <td class="px-3 py-2 text-right font-medium text-gray-900 dark:text-white">{{ $item['cantidad'] }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </div>
-            </div>
-        </div>
+
+                {{-- Resumen consolidado de ingredientes --}}
+                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Ingredientes necesarios (consolidado)') }}</h4>
+                <div class="overflow-x-auto mb-4">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                        <thead class="bg-gray-50 dark:bg-gray-700">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Ingrediente') }}</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Total necesario') }}</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Stock disponible') }}</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Diferencia') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                            @foreach($resumenIngredientes as $ing)
+                                @php $faltante = $ing['diferencia'] < 0; @endphp
+                                <tr class="{{ $faltante ? 'bg-red-50 dark:bg-red-900/10' : '' }}">
+                                    <td class="px-3 py-2 text-gray-900 dark:text-white">{{ $ing['nombre'] }}</td>
+                                    <td class="px-3 py-2 text-right font-medium text-gray-900 dark:text-white">{{ number_format($ing['total_necesario'], 3) }}</td>
+                                    <td class="px-3 py-2 text-right text-gray-500 dark:text-gray-400">{{ number_format($ing['stock_disponible'], 2) }}</td>
+                                    <td class="px-3 py-2 text-right font-semibold {{ $faltante ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' }}">
+                                        {{ $faltante ? '' : '+' }}{{ number_format($ing['diferencia'], 3) }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                {{-- Observaciones --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Observaciones (opcional)') }}</label>
+                    <textarea
+                        wire:model="loteObservaciones"
+                        rows="2"
+                        class="block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:text-white"
+                        placeholder="{{ __('Notas sobre esta producción...') }}"
+                    ></textarea>
+                </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="button"
+                        wire:click="confirmarLote"
+                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                    {{ __('Confirmar producción') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal Historial --}}

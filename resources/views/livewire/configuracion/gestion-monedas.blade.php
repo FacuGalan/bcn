@@ -343,136 +343,124 @@
 
     <!-- Modal Crear/Editar Tipo de Cambio -->
     @if($mostrarModalTC)
-    <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-        <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
-            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity" wire:click="cerrarModalTC"></div>
-            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full w-full">
-                <!-- Header -->
-                <div class="{{ $modoEdicionTC ? 'bg-bcn-primary' : 'bg-green-600' }} px-4 py-3 sm:px-6">
-                    <h3 class="text-lg leading-6 font-medium text-white">
-                        {{ $modoEdicionTC ? __('Editar Tipo de Cambio') : __('Nueva Cotización') }}
-                    </h3>
+    <x-bcn-modal
+        :show="$mostrarModalTC"
+        :title="$modoEdicionTC ? __('Editar Tipo de Cambio') : __('Nueva Cotización')"
+        :color="$modoEdicionTC ? 'bg-bcn-primary' : 'bg-green-600'"
+        maxWidth="lg"
+        onClose="cerrarModalTC"
+        submit="guardarTC"
+    >
+        <x-slot:body>
+            <div class="space-y-4">
+                <!-- Par de monedas -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="moneda_origen_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Moneda que se cotiza') }}</label>
+                        <select
+                            id="moneda_origen_id"
+                            wire:model.live="moneda_origen_id"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                        >
+                            <option value="">{{ __('Seleccionar') }}</option>
+                            @foreach($monedasActivas as $m)
+                                <option value="{{ $m->id }}">{{ $m->codigo }} - {{ $m->nombre }}</option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Ej: USD, EUR') }}</p>
+                        @error('moneda_origen_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                    </div>
+                    <div>
+                        <label for="moneda_destino_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Se expresa en') }}</label>
+                        <select
+                            id="moneda_destino_id"
+                            wire:model.live="moneda_destino_id"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                        >
+                            <option value="">{{ __('Seleccionar') }}</option>
+                            @foreach($monedasActivas as $m)
+                                <option value="{{ $m->id }}">{{ $m->codigo }} - {{ $m->nombre }}</option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Ej: ARS, BRL') }}</p>
+                        @error('moneda_destino_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                    </div>
                 </div>
 
-                <form wire:submit="guardarTC">
-                    <div class="px-4 py-5 sm:p-6 space-y-4">
-                        <!-- Par de monedas -->
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label for="moneda_origen_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Moneda que se cotiza') }}</label>
-                                <select
-                                    id="moneda_origen_id"
-                                    wire:model.live="moneda_origen_id"
-                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                                >
-                                    <option value="">{{ __('Seleccionar') }}</option>
-                                    @foreach($monedasActivas as $m)
-                                        <option value="{{ $m->id }}">{{ $m->codigo }} - {{ $m->nombre }}</option>
-                                    @endforeach
-                                </select>
-                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Ej: USD, EUR') }}</p>
-                                @error('moneda_origen_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <label for="moneda_destino_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Se expresa en') }}</label>
-                                <select
-                                    id="moneda_destino_id"
-                                    wire:model.live="moneda_destino_id"
-                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                                >
-                                    <option value="">{{ __('Seleccionar') }}</option>
-                                    @foreach($monedasActivas as $m)
-                                        <option value="{{ $m->id }}">{{ $m->codigo }} - {{ $m->nombre }}</option>
-                                    @endforeach
-                                </select>
-                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Ej: ARS, BRL') }}</p>
-                                @error('moneda_destino_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                            </div>
-                        </div>
+                <!-- Texto de ayuda -->
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ __('Ej: si 1 dólar vale 1.400 pesos, seleccione USD como moneda a cotizar y ARS como moneda de expresión') }}
+                </p>
 
-                        <!-- Texto de ayuda -->
-                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                            {{ __('Ej: si 1 dólar vale 1.400 pesos, seleccione USD como moneda a cotizar y ARS como moneda de expresión') }}
+                <!-- Tasas -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="tasa_compra" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tasa compra') }}</label>
+                        <input
+                            type="number"
+                            id="tasa_compra"
+                            wire:model.live.debounce.500ms="tasa_compra"
+                            step="0.01"
+                            min="0"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                            placeholder="0.00"
+                        />
+                        @error('tasa_compra') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                    </div>
+                    <div>
+                        <label for="tasa_venta" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tasa venta') }}</label>
+                        <input
+                            type="number"
+                            id="tasa_venta"
+                            wire:model.live.debounce.500ms="tasa_venta"
+                            step="0.01"
+                            min="0"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                            placeholder="0.00"
+                        />
+                        @error('tasa_venta') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                    </div>
+                </div>
+
+                <!-- Preview dinámico (debajo de las tasas) -->
+                @if($moneda_origen_id && $moneda_destino_id && $tasa_venta)
+                    @php
+                        $mOrigen = $monedasActivas->firstWhere('id', (int)$moneda_origen_id);
+                        $mDestino = $monedasActivas->firstWhere('id', (int)$moneda_destino_id);
+                    @endphp
+                    @if($mOrigen && $mDestino)
+                    <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                        <p class="text-sm font-medium text-blue-800 dark:text-blue-200 text-center">
+                            1 {{ $mOrigen->codigo }} = {{ number_format((float)$tasa_venta, 2, ',', '.') }} {{ $mDestino->codigo }}
                         </p>
-
-                        <!-- Tasas -->
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label for="tasa_compra" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tasa compra') }}</label>
-                                <input
-                                    type="number"
-                                    id="tasa_compra"
-                                    wire:model.live.debounce.500ms="tasa_compra"
-                                    step="0.01"
-                                    min="0"
-                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                                    placeholder="0.00"
-                                />
-                                @error('tasa_compra') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                            </div>
-                            <div>
-                                <label for="tasa_venta" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tasa venta') }}</label>
-                                <input
-                                    type="number"
-                                    id="tasa_venta"
-                                    wire:model.live.debounce.500ms="tasa_venta"
-                                    step="0.01"
-                                    min="0"
-                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                                    placeholder="0.00"
-                                />
-                                @error('tasa_venta') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                            </div>
-                        </div>
-
-                        <!-- Preview dinámico (debajo de las tasas) -->
-                        @if($moneda_origen_id && $moneda_destino_id && $tasa_venta)
-                            @php
-                                $mOrigen = $monedasActivas->firstWhere('id', (int)$moneda_origen_id);
-                                $mDestino = $monedasActivas->firstWhere('id', (int)$moneda_destino_id);
-                            @endphp
-                            @if($mOrigen && $mDestino)
-                            <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                                <p class="text-sm font-medium text-blue-800 dark:text-blue-200 text-center">
-                                    1 {{ $mOrigen->codigo }} = {{ number_format((float)$tasa_venta, 2, ',', '.') }} {{ $mDestino->codigo }}
-                                </p>
-                            </div>
-                            @endif
-                        @endif
-
-                        <!-- Fecha -->
-                        <div>
-                            <label for="fecha" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Fecha') }}</label>
-                            <input
-                                type="date"
-                                id="fecha"
-                                wire:model="fecha"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                            />
-                            @error('fecha') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                        </div>
                     </div>
+                    @endif
+                @endif
 
-                    <!-- Footer -->
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
-                        <button
-                            type="submit"
-                            class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary sm:text-sm"
-                        >
-                            {{ $modoEdicionTC ? __('Actualizar') : __('Guardar') }}
-                        </button>
-                        <button
-                            type="button"
-                            wire:click="cerrarModalTC"
-                            class="mt-3 sm:mt-0 w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary sm:text-sm"
-                        >
-                            {{ __('Cancelar') }}
-                        </button>
-                    </div>
-                </form>
+                <!-- Fecha -->
+                <div>
+                    <label for="fecha" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Fecha') }}</label>
+                    <input
+                        type="date"
+                        id="fecha"
+                        wire:model="fecha"
+                        class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                    />
+                    @error('fecha') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                </div>
             </div>
-        </div>
-    </div>
+        </x-slot:body>
+
+        <x-slot:footer>
+            <button type="button" @click="close()"
+                class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                {{ __('Cancelar') }}
+            </button>
+            <button type="submit"
+                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                {{ $modoEdicionTC ? __('Actualizar') : __('Guardar') }}
+            </button>
+        </x-slot:footer>
+    </x-bcn-modal>
     @endif
 </div>

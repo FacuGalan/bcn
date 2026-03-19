@@ -812,262 +812,255 @@
 
     {{-- Modal Opcionales --}}
     @if($showOpcionalesModal)
-        <div class="fixed inset-0 z-[55] overflow-y-auto" aria-labelledby="modal-opcionales" role="dialog" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
-                <div wire:click="cancelarOpcionales" class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <x-bcn-modal
+            :show="$showOpcionalesModal"
+            :title="$mostrandoAgregarGrupo ? __('Agregar grupo a') . ': ' . $opcionalesArticuloNombre : __('Opcionales de') . ': ' . $opcionalesArticuloNombre"
+            color="bg-bcn-primary"
+            maxWidth="4xl"
+            onClose="cancelarOpcionales"
+            zIndex="z-[55]"
+        >
+            <x-slot:body>
+                @if(!$mostrandoAgregarGrupo)
+                    <div class="flex justify-end mb-4">
+                        <button
+                            type="button"
+                            wire:click="abrirAgregarGrupo"
+                            class="inline-flex items-center px-3 py-2 bg-bcn-primary border border-transparent rounded-md text-xs font-semibold text-white uppercase tracking-widest hover:bg-opacity-90 transition"
+                        >
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            {{ __('Agregar Grupo') }}
+                        </button>
+                    </div>
+                @endif
 
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
-                    <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">
-                                @if($mostrandoAgregarGrupo)
-                                    {{ __('Agregar grupo a') }}: {{ $opcionalesArticuloNombre }}
-                                @else
-                                    {{ __('Opcionales de') }}: {{ $opcionalesArticuloNombre }}
-                                @endif
-                            </h3>
-                            @if(!$mostrandoAgregarGrupo)
-                                <button
-                                    type="button"
-                                    wire:click="abrirAgregarGrupo"
-                                    class="inline-flex items-center px-3 py-2 bg-bcn-primary border border-transparent rounded-md text-xs font-semibold text-white uppercase tracking-widest hover:bg-opacity-90 transition"
-                                >
-                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                                    {{ __('Agregar Grupo') }}
-                                </button>
-                            @endif
-                        </div>
+                {{-- Vista: Agregar Grupo (inline) --}}
+                @if($mostrandoAgregarGrupo)
+                    <div>
+                        <input
+                            type="text"
+                            wire:model.live.debounce.300ms="busquedaGrupo"
+                            placeholder="{{ __('Buscar grupo por nombre...') }}"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                            autofocus
+                        />
+                    </div>
 
-                        {{-- Vista: Agregar Grupo (inline) --}}
-                        @if($mostrandoAgregarGrupo)
-                            <div>
-                                <input
-                                    type="text"
-                                    wire:model.live.debounce.300ms="busquedaGrupo"
-                                    placeholder="{{ __('Buscar grupo por nombre...') }}"
-                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                                    autofocus
-                                />
-                            </div>
-
-                            <div class="mt-3 max-h-[55vh] overflow-y-auto space-y-2 pr-1">
-                                @forelse($this->gruposDisponibles as $grupo)
-                                    <button
-                                        type="button"
-                                        wire:click="asignarGrupo({{ $grupo['id'] }})"
-                                        class="w-full text-left px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-bcn-primary hover:bg-bcn-primary/5 transition-colors"
-                                    >
-                                        <div class="flex items-center justify-between">
-                                            <div>
-                                                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $grupo['nombre'] }}</span>
-                                                <div class="flex items-center gap-2 mt-0.5">
-                                                    <span class="text-xs {{ $grupo['tipo'] === 'seleccionable' ? 'text-blue-600 dark:text-blue-400' : 'text-purple-600 dark:text-purple-400' }}">
-                                                        {{ $grupo['tipo'] === 'seleccionable' ? __('Seleccionable') : __('Cuantitativo') }}
-                                                    </span>
-                                                    @if($grupo['obligatorio'])
-                                                        <span class="text-xs text-red-600 dark:text-red-400">{{ __('Obligatorio') }}</span>
-                                                    @endif
-                                                </div>
-                                            </div>
-                                            <div class="flex items-center gap-3">
-                                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ $grupo['opcionales_count'] }} {{ __('opciones') }}</span>
-                                                <svg class="w-5 h-5 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                                            </div>
-                                        </div>
-                                    </button>
-                                @empty
-                                    <div class="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
-                                        <svg class="mx-auto h-10 w-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                        </svg>
-                                        {{ __('No hay grupos disponibles para asignar') }}
-                                    </div>
-                                @endforelse
-                            </div>
-
-                        {{-- Vista: Grupos Asignados --}}
-                        @else
-                            <div class="max-h-[55vh] overflow-y-auto space-y-3 pr-1">
-                                @if(count($gruposAsignados) > 0)
-                                    @foreach($gruposAsignados as $index => $grupo)
-                                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                                            <div class="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-700">
-                                                <div class="flex items-center gap-2 flex-wrap">
-                                                    <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ $grupo['nombre'] }}</span>
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $grupo['tipo'] === 'seleccionable' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' }}">
-                                                        {{ $grupo['tipo'] === 'seleccionable' ? __('Seleccionable') : __('Cuantitativo') }}
-                                                    </span>
-                                                    @if($grupo['obligatorio'])
-                                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">{{ __('Obligatorio') }}</span>
-                                                    @endif
-                                                </div>
-                                                <div class="flex items-center gap-1">
-                                                    <button type="button" wire:click="moverGrupoArriba({{ $index }})" @if($index === 0) disabled @endif class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors {{ $index === 0 ? 'opacity-30 cursor-not-allowed' : 'text-gray-500 dark:text-gray-400' }}" title="{{ __('Subir') }}">
-                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
-                                                    </button>
-                                                    <button type="button" wire:click="moverGrupoAbajo({{ $index }})" @if($index === count($gruposAsignados) - 1) disabled @endif class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors {{ $index === count($gruposAsignados) - 1 ? 'opacity-30 cursor-not-allowed' : 'text-gray-500 dark:text-gray-400' }}" title="{{ __('Bajar') }}">
-                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                                    </button>
-                                                    <button type="button" wire:click="confirmarDesasignar({{ $grupo['grupo_id'] }}, '{{ addslashes($grupo['nombre']) }}')" class="text-red-500 hover:text-red-700 p-1 ml-1" title="{{ __('Quitar grupo') }}">
-                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            @if(count($grupo['opciones']) > 0)
-                                                <div class="px-4 py-2 space-y-1">
-                                                    @foreach($grupo['opciones'] as $opcion)
-                                                        <div class="flex items-center justify-between text-sm py-1">
-                                                            <span class="text-gray-700 dark:text-gray-300">{{ $opcion['nombre'] }}</span>
-                                                            <span class="text-gray-500 dark:text-gray-400">
-                                                                @if((float)$opcion['precio_extra'] > 0)
-                                                                    +${{ number_format($opcion['precio_extra'], 2) }}
-                                                                @else
-                                                                    $0.00
-                                                                @endif
-                                                            </span>
-                                                        </div>
-                                                    @endforeach
-                                                </div>
-                                            @else
-                                                <div class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 italic">
-                                                    {{ __('Sin opciones activas') }}
-                                                </div>
+                    <div class="mt-3 max-h-[55vh] overflow-y-auto space-y-2 pr-1">
+                        @forelse($this->gruposDisponibles as $grupo)
+                            <button
+                                type="button"
+                                wire:click="asignarGrupo({{ $grupo['id'] }})"
+                                class="w-full text-left px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-bcn-primary hover:bg-bcn-primary/5 transition-colors"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $grupo['nombre'] }}</span>
+                                        <div class="flex items-center gap-2 mt-0.5">
+                                            <span class="text-xs {{ $grupo['tipo'] === 'seleccionable' ? 'text-blue-600 dark:text-blue-400' : 'text-purple-600 dark:text-purple-400' }}">
+                                                {{ $grupo['tipo'] === 'seleccionable' ? __('Seleccionable') : __('Cuantitativo') }}
+                                            </span>
+                                            @if($grupo['obligatorio'])
+                                                <span class="text-xs text-red-600 dark:text-red-400">{{ __('Obligatorio') }}</span>
                                             @endif
                                         </div>
-                                    @endforeach
-                                @else
-                                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" />
-                                        </svg>
-                                        <p class="mt-2 text-sm">{{ __('Este artículo no tiene grupos opcionales asignados') }}</p>
-                                        <p class="text-xs text-gray-400 mt-1">{{ __('Haz click en "Agregar Grupo" para asignar uno') }}</p>
                                     </div>
-                                @endif
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ $grupo['opcionales_count'] }} {{ __('opciones') }}</span>
+                                        <svg class="w-5 h-5 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                    </div>
+                                </div>
+                            </button>
+                        @empty
+                            <div class="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
+                                <svg class="mx-auto h-10 w-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                                {{ __('No hay grupos disponibles para asignar') }}
+                            </div>
+                        @endforelse
+                    </div>
+
+                {{-- Vista: Grupos Asignados --}}
+                @else
+                    <div class="max-h-[55vh] overflow-y-auto space-y-3 pr-1">
+                        @if(count($gruposAsignados) > 0)
+                            @foreach($gruposAsignados as $index => $grupo)
+                                <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                    <div class="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-700">
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ $grupo['nombre'] }}</span>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $grupo['tipo'] === 'seleccionable' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' }}">
+                                                {{ $grupo['tipo'] === 'seleccionable' ? __('Seleccionable') : __('Cuantitativo') }}
+                                            </span>
+                                            @if($grupo['obligatorio'])
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">{{ __('Obligatorio') }}</span>
+                                            @endif
+                                        </div>
+                                        <div class="flex items-center gap-1">
+                                            <button type="button" wire:click="moverGrupoArriba({{ $index }})" @if($index === 0) disabled @endif class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors {{ $index === 0 ? 'opacity-30 cursor-not-allowed' : 'text-gray-500 dark:text-gray-400' }}" title="{{ __('Subir') }}">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+                                            </button>
+                                            <button type="button" wire:click="moverGrupoAbajo({{ $index }})" @if($index === count($gruposAsignados) - 1) disabled @endif class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors {{ $index === count($gruposAsignados) - 1 ? 'opacity-30 cursor-not-allowed' : 'text-gray-500 dark:text-gray-400' }}" title="{{ __('Bajar') }}">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                            </button>
+                                            <button type="button" wire:click="confirmarDesasignar({{ $grupo['grupo_id'] }}, '{{ addslashes($grupo['nombre']) }}')" class="text-red-500 hover:text-red-700 p-1 ml-1" title="{{ __('Quitar grupo') }}">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    @if(count($grupo['opciones']) > 0)
+                                        <div class="px-4 py-2 space-y-1">
+                                            @foreach($grupo['opciones'] as $opcion)
+                                                <div class="flex items-center justify-between text-sm py-1">
+                                                    <span class="text-gray-700 dark:text-gray-300">{{ $opcion['nombre'] }}</span>
+                                                    <span class="text-gray-500 dark:text-gray-400">
+                                                        @if((float)$opcion['precio_extra'] > 0)
+                                                            +${{ number_format($opcion['precio_extra'], 2) }}
+                                                        @else
+                                                            $0.00
+                                                        @endif
+                                                    </span>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    @else
+                                        <div class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 italic">
+                                            {{ __('Sin opciones activas') }}
+                                        </div>
+                                    @endif
+                                </div>
+                            @endforeach
+                        @else
+                            <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" />
+                                </svg>
+                                <p class="mt-2 text-sm">{{ __('Este artículo no tiene grupos opcionales asignados') }}</p>
+                                <p class="text-xs text-gray-400 mt-1">{{ __('Haz click en "Agregar Grupo" para asignar uno') }}</p>
                             </div>
                         @endif
                     </div>
+                @endif
+            </x-slot:body>
 
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
-                        @if($mostrandoAgregarGrupo)
-                            <button type="button" wire:click="cancelarAgregarGrupo" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
-                                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-                                {{ __('Volver') }}
-                            </button>
-                        @else
-                            <button type="button" wire:click="cancelarOpcionales" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
-                                {{ __('Cerrar') }}
-                            </button>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        </div>
+            <x-slot:footer>
+                @if($mostrandoAgregarGrupo)
+                    <button type="button" wire:click="cancelarAgregarGrupo" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                        {{ __('Volver') }}
+                    </button>
+                @else
+                    <button type="button" @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                        {{ __('Cerrar') }}
+                    </button>
+                @endif
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Submodal Confirmar Desasignación --}}
     @if($showDesasignarModal)
-        <div class="fixed inset-0 z-[60] overflow-y-auto" aria-labelledby="modal-desasignar" role="dialog" aria-modal="true">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="cancelarDesasignar"></div>
-            <div class="flex min-h-full items-center justify-center p-4">
-                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
-                    <div class="bg-white dark:bg-gray-800 px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                        <div class="sm:flex sm:items-start">
-                            <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 sm:mx-0 sm:h-10 sm:w-10">
-                                <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                                </svg>
-                            </div>
-                            <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
-                                <h3 class="text-lg font-semibold leading-6 text-gray-900 dark:text-white">{{ __('Quitar grupo opcional') }}</h3>
-                                <div class="mt-2">
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                                        {{ __('¿Estás seguro de quitar el grupo') }} <span class="font-semibold text-gray-700 dark:text-gray-200">"{{ $nombreGrupoADesasignar }}"</span>?
-                                    </p>
-                                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                                        {{ __('Se eliminará de TODAS las sucursales, incluyendo precios y configuraciones personalizadas.') }}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+        <x-bcn-modal
+            :show="$showDesasignarModal"
+            :title="__('Quitar grupo opcional')"
+            color="bg-red-600"
+            maxWidth="lg"
+            onClose="cancelarDesasignar"
+            zIndex="z-[60]"
+        >
+            <x-slot:body>
+                <div class="sm:flex sm:items-start">
+                    <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 sm:mx-0 sm:h-10 sm:w-10">
+                        <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                        </svg>
                     </div>
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
-                        <button type="button" wire:click="desasignarGrupo" class="inline-flex w-full justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:w-auto transition-colors">
-                            {{ __('Quitar grupo') }}
-                        </button>
-                        <button type="button" wire:click="cancelarDesasignar" class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-600 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-200 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:w-auto transition-colors">
-                            {{ __('Cancelar') }}
-                        </button>
+                    <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                            {{ __('¿Estás seguro de quitar el grupo') }} <span class="font-semibold text-gray-700 dark:text-gray-200">"{{ $nombreGrupoADesasignar }}"</span>?
+                        </p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                            {{ __('Se eliminará de TODAS las sucursales, incluyendo precios y configuraciones personalizadas.') }}
+                        </p>
                     </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button" @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="button" wire:click="desasignarGrupo" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-500 sm:w-auto sm:text-sm">
+                    {{ __('Quitar grupo') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal Receta --}}
     @if($showRecetaModal)
-        <div class="fixed inset-0 z-[55] overflow-y-auto" role="dialog" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
-                <div wire:click="cancelarReceta" class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+        <x-bcn-modal
+            :show="$showRecetaModal"
+            :title="__('Receta de') . ': ' . $recetaArticuloNombre"
+            color="bg-bcn-primary"
+            maxWidth="2xl"
+            onClose="cancelarReceta"
+            zIndex="z-[55]"
+        >
+            <x-slot:body>
+                @include('livewire.articulos._receta-editor')
+            </x-slot:body>
 
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
-                    <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                        <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4">
-                            {{ __('Receta de') }}: {{ $recetaArticuloNombre }}
-                        </h3>
-
-                        <div class="max-h-[60vh] overflow-y-auto pr-2">
-                            @include('livewire.articulos._receta-editor')
-                        </div>
-                    </div>
-
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
-                        <button type="button" wire:click="guardarReceta" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
-                            {{ $recetaId ? __('Actualizar') : __('Guardar') }}
-                        </button>
-                        @if($recetaId)
-                            <button type="button" wire:click="confirmarEliminarReceta" class="w-full inline-flex justify-center rounded-md border border-red-600 shadow-sm px-4 py-2 text-base font-medium text-red-600 hover:bg-red-600 hover:text-white sm:w-auto sm:text-sm transition-colors">
-                                {{ __('Eliminar') }}
-                            </button>
-                        @endif
-                        <button type="button" wire:click="cancelarReceta" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:w-auto sm:text-sm">
-                            {{ __('Cancelar') }}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+            <x-slot:footer>
+                <button type="button" @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                @if($recetaId)
+                    <button type="button" wire:click="confirmarEliminarReceta" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-500 sm:w-auto sm:text-sm">
+                        {{ __('Eliminar') }}
+                    </button>
+                @endif
+                <button type="button" wire:click="guardarReceta" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                    {{ $recetaId ? __('Actualizar') : __('Guardar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Submodal Confirmar Eliminar Receta --}}
     @if($showDeleteRecetaModal)
-        <div class="fixed inset-0 z-[60] overflow-y-auto" role="dialog" aria-modal="true">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="cancelarEliminarReceta"></div>
-            <div class="flex min-h-full items-center justify-center p-4">
-                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl sm:my-8 sm:w-full sm:max-w-lg">
-                    <div class="bg-white dark:bg-gray-800 px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                        <div class="sm:flex sm:items-start">
-                            <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 sm:mx-0 sm:h-10 sm:w-10">
-                                <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
-                            </div>
-                            <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
-                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ __('Eliminar receta') }}</h3>
-                                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                    {{ __('¿Estás seguro de eliminar la receta de este artículo? Se eliminarán todos los ingredientes asociados.') }}
-                                </p>
-                            </div>
-                        </div>
+        <x-bcn-modal
+            :show="$showDeleteRecetaModal"
+            :title="__('Eliminar receta')"
+            color="bg-red-600"
+            maxWidth="lg"
+            onClose="cancelarEliminarReceta"
+            zIndex="z-[60]"
+        >
+            <x-slot:body>
+                <div class="sm:flex sm:items-start">
+                    <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 sm:mx-0 sm:h-10 sm:w-10">
+                        <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
                     </div>
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
-                        <button type="button" wire:click="eliminarReceta" class="inline-flex w-full justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:w-auto transition-colors">{{ __('Eliminar') }}</button>
-                        <button type="button" wire:click="cancelarEliminarReceta" class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-600 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-200 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:w-auto transition-colors">{{ __('Cancelar') }}</button>
+                    <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                            {{ __('¿Estás seguro de eliminar la receta de este artículo? Se eliminarán todos los ingredientes asociados.') }}
+                        </p>
                     </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button" @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="button" wire:click="eliminarReceta" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-500 sm:w-auto sm:text-sm">
+                    {{ __('Eliminar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     <!-- Modal Historial de Precios -->
