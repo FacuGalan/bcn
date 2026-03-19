@@ -393,33 +393,45 @@ class PrecioService
             return ['monto_final' => $montoInicial, 'promociones' => []];
         }
 
+        // Separar excluyentes (solo) de combinables
+        $excluyentes = array_filter($promociones, fn ($p) => ! $p['combinable']);
+        $combinables = array_values(array_filter($promociones, fn ($p) => $p['combinable']));
+
         $mejorResultado = ['monto_final' => $montoInicial, 'promociones' => []];
-        $n = count($promociones);
 
-        // Limitar a 15 promociones para evitar explosión combinatoria
-        if ($n > 15) {
-            $promociones = array_slice($promociones, 0, 15);
-            $n = 15;
-        }
-
-        $totalCombinaciones = pow(2, $n);
-
-        for ($i = 1; $i < $totalCombinaciones; $i++) {
-            $combinacion = [];
-            for ($j = 0; $j < $n; $j++) {
-                if ($i & (1 << $j)) {
-                    $combinacion[] = $promociones[$j];
-                }
-            }
-
-            if (! $this->esCombinacionValida($combinacion)) {
-                continue;
-            }
-
-            $resultado = $this->calcularCombinacion($combinacion, $montoInicial, $cantidad);
-
+        // 1. Evaluar cada excluyente por separado — O(n)
+        foreach ($excluyentes as $promo) {
+            $resultado = $this->calcularCombinacion([$promo], $montoInicial, $cantidad);
             if ($resultado['monto_final'] < $mejorResultado['monto_final']) {
                 $mejorResultado = $resultado;
+            }
+        }
+
+        // 2. Evaluar combinables
+        if (! empty($combinables)) {
+            $n = count($combinables);
+
+            if ($n <= 15) {
+                // Exhaustiva para sets pequeños — O(2^n)
+                $totalCombinaciones = pow(2, $n);
+                for ($i = 1; $i < $totalCombinaciones; $i++) {
+                    $combinacion = [];
+                    for ($j = 0; $j < $n; $j++) {
+                        if ($i & (1 << $j)) {
+                            $combinacion[] = $combinables[$j];
+                        }
+                    }
+                    $resultado = $this->calcularCombinacion($combinacion, $montoInicial, $cantidad);
+                    if ($resultado['monto_final'] < $mejorResultado['monto_final']) {
+                        $mejorResultado = $resultado;
+                    }
+                }
+            } else {
+                // Greedy para sets grandes — O(n log n)
+                $resultado = $this->calcularCombinacionGreedy($combinables, $montoInicial, $cantidad);
+                if ($resultado['monto_final'] < $mejorResultado['monto_final']) {
+                    $mejorResultado = $resultado;
+                }
             }
         }
 
@@ -427,21 +439,26 @@ class PrecioService
     }
 
     /**
-     * Verifica si una combinación respeta las reglas de combinabilidad.
+     * Fallback greedy para sets grandes de promociones combinables.
+     * Ordena por mayor descuento efectivo y aplica en cascada.
      */
-    private function esCombinacionValida(array $combinacion): bool
+    private function calcularCombinacionGreedy(array $combinables, float $montoInicial, int $cantidad): array
     {
-        if (count($combinacion) <= 1) {
-            return true;
+        // Calcular descuento efectivo de cada una y ordenar desc
+        $conDescuento = [];
+        foreach ($combinables as $promo) {
+            $model = $promo['_model'] ?? null;
+            $ajuste = $model
+                ? $model->calcularAjuste($montoInicial, $cantidad)
+                : $this->calcularAjusteDesdeArray($promo, $montoInicial, $cantidad);
+            $conDescuento[] = ['promo' => $promo, 'descuento_estimado' => $ajuste['valor']];
         }
 
-        foreach ($combinacion as $promo) {
-            if (! $promo['combinable']) {
-                return false;
-            }
-        }
+        usort($conDescuento, fn ($a, $b) => $b['descuento_estimado'] <=> $a['descuento_estimado']);
 
-        return true;
+        $ordenadas = array_map(fn ($item) => $item['promo'], $conDescuento);
+
+        return $this->calcularCombinacion($ordenadas, $montoInicial, $cantidad);
     }
 
     /**
@@ -529,6 +546,9 @@ class PrecioService
                             if ($tipoDesc === 'porcentaje') {
                                 $porcentaje = (float) $escala['valor'];
                                 $valor = round($monto * ($porcentaje / 100), 2);
+                            } elseif ($tipoDesc === 'precio_fijo') {
+                                $precioFijoEscala = (float) $escala['valor'] * $cantidad;
+                                $valor = max(0, $monto - $precioFijoEscala);
                             } else {
                                 $valor = min((float) $escala['valor'], $monto);
                             }
@@ -564,12 +584,18 @@ class PrecioService
 
         $promociones = $query->with('condiciones', 'escalas')->get();
 
-        return $promociones->filter(function ($promocion) use ($diaSemana, $hora, $contexto) {
+        $clienteId = $contexto['cliente_id'] ?? null;
+
+        return $promociones->filter(function ($promocion) use ($diaSemana, $hora, $contexto, $clienteId) {
             if (! $promocion->aplicaEnDiaSemana($diaSemana)) {
                 return false;
             }
 
             if (! $promocion->aplicaEnHorario($hora)) {
+                return false;
+            }
+
+            if (! $promocion->tieneUsosDisponiblesParaCliente($clienteId)) {
                 return false;
             }
 

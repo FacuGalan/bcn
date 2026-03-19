@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -53,7 +52,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int $usos_actuales Contador de usos actuales
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Sucursal $sucursal
  * @property-read \Illuminate\Database\Eloquent\Collection|PromocionCondicion[] $condiciones
  * @property-read \Illuminate\Database\Eloquent\Collection|PromocionEscala[] $escalas
@@ -63,6 +61,7 @@ class Promocion extends Model
     use SoftDeletes;
 
     protected $connection = 'pymes_tenant';
+
     protected $table = 'promociones';
 
     protected $fillable = [
@@ -143,10 +142,10 @@ class Promocion extends Model
 
         return $query->where(function ($q) use ($fecha) {
             $q->whereNull('vigencia_desde')
-              ->orWhere('vigencia_desde', '<=', $fecha);
+                ->orWhere('vigencia_desde', '<=', $fecha);
         })->where(function ($q) use ($fecha) {
             $q->whereNull('vigencia_hasta')
-              ->orWhere('vigencia_hasta', '>=', $fecha);
+                ->orWhere('vigencia_hasta', '>=', $fecha);
         });
     }
 
@@ -221,7 +220,7 @@ class Promocion extends Model
     {
         return $query->where(function ($q) {
             $q->whereNull('usos_maximos')
-              ->orWhereRaw('usos_actuales < usos_maximos');
+                ->orWhereRaw('usos_actuales < usos_maximos');
         });
     }
 
@@ -248,26 +247,27 @@ class Promocion extends Model
     /**
      * Verifica si aplica en un día de la semana específico
      *
-     * @param int|null $diaSemana 0=Domingo, 1=Lunes, ... 6=Sábado
+     * @param  int|null  $diaSemana  0=Domingo, 1=Lunes, ... 6=Sábado
      */
     public function aplicaEnDiaSemana(?int $diaSemana = null): bool
     {
-        if (!$this->dias_semana || empty($this->dias_semana)) {
+        if (! $this->dias_semana || empty($this->dias_semana)) {
             return true; // Aplica todos los días
         }
 
         $dia = $diaSemana ?? (int) now()->dayOfWeek;
+
         return in_array($dia, $this->dias_semana);
     }
 
     /**
      * Verifica si aplica en un horario específico
      *
-     * @param string|null $hora Formato HH:MM:SS
+     * @param  string|null  $hora  Formato HH:MM:SS
      */
     public function aplicaEnHorario(?string $hora = null): bool
     {
-        if (!$this->hora_desde && !$this->hora_hasta) {
+        if (! $this->hora_desde && ! $this->hora_hasta) {
             return true; // Aplica todo el día
         }
 
@@ -297,28 +297,49 @@ class Promocion extends Model
     }
 
     /**
+     * Verifica si un cliente específico tiene usos disponibles para esta promoción.
+     * Cuenta las ventas activas (no canceladas) que usaron esta promoción.
+     */
+    public function tieneUsosDisponiblesParaCliente(?int $clienteId): bool
+    {
+        if ($this->usos_por_cliente === null || $clienteId === null) {
+            return true;
+        }
+
+        $usosCliente = \Illuminate\Support\Facades\DB::connection('pymes_tenant')
+            ->table('venta_promociones')
+            ->join('ventas', 'ventas.id', '=', 'venta_promociones.venta_id')
+            ->where('venta_promociones.promocion_id', $this->id)
+            ->where('ventas.cliente_id', $clienteId)
+            ->where('ventas.estado', '!=', 'cancelada')
+            ->count();
+
+        return $usosCliente < $this->usos_por_cliente;
+    }
+
+    /**
      * Verifica si la promoción está completamente vigente
      * (fecha, día de semana, horario, usos)
      */
     public function estaVigente(?\DateTime $fecha = null, ?int $diaSemana = null, ?string $hora = null): bool
     {
-        if (!$this->activo) {
+        if (! $this->activo) {
             return false;
         }
 
-        if (!$this->estaVigentePorFecha($fecha)) {
+        if (! $this->estaVigentePorFecha($fecha)) {
             return false;
         }
 
-        if (!$this->aplicaEnDiaSemana($diaSemana)) {
+        if (! $this->aplicaEnDiaSemana($diaSemana)) {
             return false;
         }
 
-        if (!$this->aplicaEnHorario($hora)) {
+        if (! $this->aplicaEnHorario($hora)) {
             return false;
         }
 
-        if (!$this->tieneUsosDisponibles()) {
+        if (! $this->tieneUsosDisponibles()) {
             return false;
         }
 
@@ -330,7 +351,7 @@ class Promocion extends Model
      */
     public function requiereCupon(): bool
     {
-        return !empty($this->codigo_cupon);
+        return ! empty($this->codigo_cupon);
     }
 
     // ==================== Métodos de Cálculo ====================
@@ -338,8 +359,8 @@ class Promocion extends Model
     /**
      * Calcula el descuento/recargo para un monto dado
      *
-     * @param float $monto Monto sobre el cual calcular
-     * @param int|null $cantidad Cantidad (solo para descuentos escalonados)
+     * @param  float  $monto  Monto sobre el cual calcular
+     * @param  int|null  $cantidad  Cantidad (solo para descuentos escalonados)
      * @return array ['tipo' => 'descuento'|'recargo', 'valor' => float, 'porcentaje' => float|null]
      */
     public function calcularAjuste(float $monto, ?int $cantidad = null): array
@@ -384,6 +405,7 @@ class Promocion extends Model
                 if ($cantidad === null) {
                     return ['tipo' => 'descuento', 'porcentaje' => 0, 'valor' => 0];
                 }
+
                 return $this->calcularDescuentoEscalonado($monto, $cantidad);
 
             default:
@@ -393,27 +415,43 @@ class Promocion extends Model
 
     /**
      * Calcula descuento escalonado según cantidad
-     *
-     * @param float $monto
-     * @param int $cantidad
-     * @return array
      */
     protected function calcularDescuentoEscalonado(float $monto, int $cantidad): array
     {
         $escala = $this->escalas()
-                       ->where('cantidad_desde', '<=', $cantidad)
-                       ->orderBy('cantidad_desde', 'desc')
-                       ->first();
+            ->where('cantidad_desde', '<=', $cantidad)
+            ->orderBy('cantidad_desde', 'desc')
+            ->first();
 
-        if (!$escala) {
+        if (! $escala) {
             return ['tipo' => 'descuento', 'porcentaje' => 0, 'valor' => 0];
         }
 
-        return [
-            'tipo' => 'descuento',
-            'porcentaje' => $escala->descuento_porcentaje,
-            'valor' => round($monto * ($escala->descuento_porcentaje / 100), 2),
-        ];
+        $tipoDesc = $escala->tipo_descuento ?? 'porcentaje';
+        $valorEscala = (float) $escala->valor;
+
+        if ($tipoDesc === 'porcentaje') {
+            return [
+                'tipo' => 'descuento',
+                'porcentaje' => $valorEscala,
+                'valor' => round($monto * ($valorEscala / 100), 2),
+            ];
+        } elseif ($tipoDesc === 'precio_fijo') {
+            $precioFijoTotal = $valorEscala * $cantidad;
+
+            return [
+                'tipo' => 'descuento',
+                'porcentaje' => 0,
+                'valor' => max(0, $monto - $precioFijoTotal),
+            ];
+        } else {
+            // monto fijo
+            return [
+                'tipo' => 'descuento',
+                'porcentaje' => 0,
+                'valor' => min($valorEscala, $monto),
+            ];
+        }
     }
 
     /**
@@ -422,6 +460,7 @@ class Promocion extends Model
     public function incrementarUso(): bool
     {
         $this->increment('usos_actuales');
+
         return true;
     }
 
@@ -442,9 +481,9 @@ class Promocion extends Model
             }
         }
 
-        if ($this->dias_semana && !empty($this->dias_semana)) {
+        if ($this->dias_semana && ! empty($this->dias_semana)) {
             $nombresDias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-            $dias = array_map(fn($d) => $nombresDias[$d] ?? $d, $this->dias_semana);
+            $dias = array_map(fn ($d) => $nombresDias[$d] ?? $d, $this->dias_semana);
             $partes[] = implode(', ', $dias);
         }
 

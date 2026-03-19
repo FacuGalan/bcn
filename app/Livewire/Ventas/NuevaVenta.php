@@ -2627,6 +2627,15 @@ class NuevaVenta extends Component
             ];
         }
 
+        // Validar límite máximo de descuento (70% del subtotal)
+        if ($resultado['subtotal'] > 0) {
+            $maxDescuento = $resultado['subtotal'] * 0.70;
+            if ($resultado['total_descuentos'] > $maxDescuento) {
+                Log::warning("Descuento total {$resultado['total_descuentos']} excede 70% del subtotal {$resultado['subtotal']}");
+                $resultado['total_descuentos'] = $maxDescuento;
+            }
+        }
+
         // Calcular total final
         $resultado['total_final'] = max(0, $resultado['subtotal'] - $resultado['total_descuentos']);
 
@@ -3503,34 +3512,45 @@ class NuevaVenta extends Component
             return ['monto_final' => $montoInicial, 'promociones' => []];
         }
 
-        $mejorResultado = [
-            'monto_final' => $montoInicial,
-            'promociones' => [],
-        ];
+        // Separar excluyentes de combinables
+        $excluyentes = array_filter($promociones, fn ($p) => ! $p['combinable']);
+        $combinables = array_values(array_filter($promociones, fn ($p) => $p['combinable']));
 
-        $n = count($promociones);
-        $totalCombinaciones = pow(2, $n);
+        $mejorResultado = ['monto_final' => $montoInicial, 'promociones' => []];
 
-        // Evaluar todas las combinaciones posibles
-        for ($i = 1; $i < $totalCombinaciones; $i++) {
-            $combinacion = [];
-            for ($j = 0; $j < $n; $j++) {
-                if ($i & (1 << $j)) {
-                    $combinacion[] = $promociones[$j];
-                }
-            }
-
-            // Verificar si la combinación es válida (respeta reglas de combinabilidad)
-            if (! $this->esCombinacionValida($combinacion)) {
-                continue;
-            }
-
-            // Calcular resultado de esta combinación
-            $resultado = $this->calcularCombinacion($combinacion, $montoInicial, $cantidad);
-
-            // Si es mejor (menor monto final), guardarla
+        // 1. Evaluar cada excluyente por separado — O(n)
+        foreach ($excluyentes as $promo) {
+            $resultado = $this->calcularCombinacion([$promo], $montoInicial, $cantidad);
             if ($resultado['monto_final'] < $mejorResultado['monto_final']) {
                 $mejorResultado = $resultado;
+            }
+        }
+
+        // 2. Evaluar combinables
+        if (! empty($combinables)) {
+            $n = count($combinables);
+
+            if ($n <= 15) {
+                // Exhaustiva para sets pequeños — O(2^n)
+                $totalCombinaciones = pow(2, $n);
+                for ($i = 1; $i < $totalCombinaciones; $i++) {
+                    $combinacion = [];
+                    for ($j = 0; $j < $n; $j++) {
+                        if ($i & (1 << $j)) {
+                            $combinacion[] = $combinables[$j];
+                        }
+                    }
+                    $resultado = $this->calcularCombinacion($combinacion, $montoInicial, $cantidad);
+                    if ($resultado['monto_final'] < $mejorResultado['monto_final']) {
+                        $mejorResultado = $resultado;
+                    }
+                }
+            } else {
+                // Greedy para sets grandes — O(n log n)
+                $resultado = $this->calcularCombinacionGreedy($combinables, $montoInicial, $cantidad);
+                if ($resultado['monto_final'] < $mejorResultado['monto_final']) {
+                    $mejorResultado = $resultado;
+                }
             }
         }
 
@@ -3538,22 +3558,20 @@ class NuevaVenta extends Component
     }
 
     /**
-     * Verifica si una combinación de promociones es válida
+     * Fallback greedy para sets grandes de promociones combinables.
      */
-    protected function esCombinacionValida(array $combinacion): bool
+    protected function calcularCombinacionGreedy(array $combinables, float $montoInicial, int $cantidad): array
     {
-        if (count($combinacion) <= 1) {
-            return true;
+        $conDescuento = [];
+        foreach ($combinables as $promo) {
+            $ajuste = $this->calcularAjustePromocion($promo, $montoInicial, $cantidad);
+            $conDescuento[] = ['promo' => $promo, 'descuento_estimado' => $ajuste['valor']];
         }
 
-        // Si hay más de una promoción, todas deben ser combinables
-        foreach ($combinacion as $promo) {
-            if (! $promo['combinable']) {
-                return false;
-            }
-        }
+        usort($conDescuento, fn ($a, $b) => $b['descuento_estimado'] <=> $a['descuento_estimado']);
+        $ordenadas = array_map(fn ($item) => $item['promo'], $conDescuento);
 
-        return true;
+        return $this->calcularCombinacion($ordenadas, $montoInicial, $cantidad);
     }
 
     /**
@@ -3634,6 +3652,10 @@ class NuevaVenta extends Component
                                 $porcentaje = (float) $escala['valor'];
                                 $valor = round($monto * ($porcentaje / 100), 2);
                                 $descripcion = "{$porcentaje}% dto escalonado";
+                            } elseif ($tipoDesc === 'precio_fijo') {
+                                $precioFijoTotal = (float) $escala['valor'] * $cantidad;
+                                $valor = max(0, $monto - $precioFijoTotal);
+                                $descripcion = 'Precio fijo escalonado $'.number_format($escala['valor'], 0, ',', '.');
                             } else {
                                 $valor = min((float) $escala['valor'], $monto);
                                 $descripcion = 'Monto fijo escalonado';
