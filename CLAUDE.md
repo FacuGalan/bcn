@@ -135,6 +135,7 @@ Ejemplos:
 - `refactor(auth): extraer lógica de permisos a PermissionService`
 
 ### Workflow de branches
+- **Al iniciar sesión**: verificar en qué rama estamos. Si no estamos trabajando sobre una rama específica en curso, hacer `git checkout master && git pull` antes de crear la nueva rama. Esto evita trabajar sobre código desactualizado.
 - **Nunca push directo a master** — todo vía Pull Request
 - Cada PR ejecuta automáticamente: Lint (Pint) + Tests (PHPUnit)
 - Si algo falla, el PR queda bloqueado

@@ -65,6 +65,9 @@ trait WithTenant
         'articulo_grupo_opcional',
         'articulo_grupo_opcional_opcion',
         'forma_pago_conceptos',
+        'formas_pago_sucursales',
+        'venta_promociones',
+        'venta_detalle_promociones',
     ];
 
     protected function setUpTenant(): void
@@ -107,6 +110,7 @@ trait WithTenant
         foreach (static::$testTables as $table) {
             try {
                 DB::connection('pymes')->statement("DELETE FROM `{$prefix}{$table}`");
+                DB::connection('pymes')->statement("ALTER TABLE `{$prefix}{$table}` AUTO_INCREMENT = 1");
             } catch (\Exception $e) {
                 // Tabla podría no existir si es nueva
             }

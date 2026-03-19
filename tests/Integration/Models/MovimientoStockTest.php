@@ -30,8 +30,7 @@ class MovimientoStockTest extends TestCase
         parent::tearDown();
     }
 
-    /** @test */
-    public function crear_movimiento_venta_registra_salida(): void
+    public function test_crear_movimiento_venta_registra_salida(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100);
         $venta = $this->crearVentaBasica(['_articulo' => $articulo]);
@@ -55,8 +54,7 @@ class MovimientoStockTest extends TestCase
         $this->assertEquals($ventaDetalle->id, $movimiento->venta_detalle_id);
     }
 
-    /** @test */
-    public function crear_movimiento_anulacion_venta_registra_entrada(): void
+    public function test_crear_movimiento_anulacion_venta_registra_entrada(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100);
         $venta = $this->crearVentaBasica(['_articulo' => $articulo]);
@@ -78,8 +76,7 @@ class MovimientoStockTest extends TestCase
         $this->assertEquals('activo', $movimiento->estado);
     }
 
-    /** @test */
-    public function crear_movimiento_ajuste_positivo(): void
+    public function test_crear_movimiento_ajuste_positivo(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100);
 
@@ -96,8 +93,7 @@ class MovimientoStockTest extends TestCase
         $this->assertEquals(MovimientoStock::TIPO_AJUSTE_MANUAL, $movimiento->tipo);
     }
 
-    /** @test */
-    public function crear_movimiento_ajuste_negativo(): void
+    public function test_crear_movimiento_ajuste_negativo(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100);
 
@@ -114,8 +110,7 @@ class MovimientoStockTest extends TestCase
         $this->assertEquals(MovimientoStock::TIPO_AJUSTE_MANUAL, $movimiento->tipo);
     }
 
-    /** @test */
-    public function calcular_stock_suma_entradas_menos_salidas(): void
+    public function test_calcular_stock_suma_entradas_menos_salidas(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100);
 
@@ -148,8 +143,7 @@ class MovimientoStockTest extends TestCase
         $this->assertEquals(7, $stockCalculado);
     }
 
-    /** @test */
-    public function calcular_stock_a_fecha(): void
+    public function test_calcular_stock_a_fecha(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100);
 
@@ -189,8 +183,7 @@ class MovimientoStockTest extends TestCase
         $this->assertEquals(15, $stockHoy);
     }
 
-    /** @test */
-    public function crear_contraasiento_invierte_montos(): void
+    public function test_crear_contraasiento_invierte_montos(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100);
         $venta = $this->crearVentaBasica(['_articulo' => $articulo]);
@@ -227,8 +220,7 @@ class MovimientoStockTest extends TestCase
         $this->assertEquals($contraasiento->id, $movOriginal->anulado_por_movimiento_id);
     }
 
-    /** @test */
-    public function scope_activos_excluye_anulados(): void
+    public function test_scope_activos_excluye_anulados(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100);
 

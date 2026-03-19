@@ -55,8 +55,7 @@ class CobroTest extends TestCase
         ], $overrides));
     }
 
-    /** @test */
-    public function scope_activos(): void
+    public function test_scope_activos(): void
     {
         $this->crearCobro(['estado' => 'activo']);
         $this->crearCobro(['estado' => 'activo']);
@@ -67,8 +66,7 @@ class CobroTest extends TestCase
         $this->assertEquals(2, $activos);
     }
 
-    /** @test */
-    public function scope_cobros(): void
+    public function test_scope_cobros(): void
     {
         $this->crearCobro(['tipo' => 'cobro']);
         $this->crearCobro(['tipo' => 'cobro']);
@@ -79,8 +77,7 @@ class CobroTest extends TestCase
         $this->assertEquals(2, $cobros);
     }
 
-    /** @test */
-    public function scope_anticipos(): void
+    public function test_scope_anticipos(): void
     {
         $this->crearCobro(['tipo' => 'anticipo']);
         $this->crearCobro(['tipo' => 'cobro']);
@@ -91,24 +88,21 @@ class CobroTest extends TestCase
         $this->assertEquals(1, $anticipos);
     }
 
-    /** @test */
-    public function es_anticipo_true(): void
+    public function test_es_anticipo_true(): void
     {
         $cobro = $this->crearCobro(['tipo' => 'anticipo']);
 
         $this->assertTrue($cobro->esAnticipo());
     }
 
-    /** @test */
-    public function esta_anulado_true(): void
+    public function test_esta_anulado_true(): void
     {
         $cobro = $this->crearCobro(['estado' => 'anulado']);
 
         $this->assertTrue($cobro->estaAnulado());
     }
 
-    /** @test */
-    public function relacion_cobro_ventas(): void
+    public function test_relacion_cobro_ventas(): void
     {
         $cobro = $this->crearCobro();
         $venta1 = $this->crearVentaBasica();

@@ -48,8 +48,7 @@ class ListaPrecioTest extends TestCase
         ], $overrides));
     }
 
-    /** @test */
-    public function obtener_precio_por_articulo_especifico(): void
+    public function test_obtener_precio_por_articulo_especifico(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10, 'unitario', [
             'precio_base' => 1000,
@@ -72,8 +71,7 @@ class ListaPrecioTest extends TestCase
         $this->assertStringContainsString('articulo', $resultado['origen']);
     }
 
-    /** @test */
-    public function obtener_precio_por_categoria(): void
+    public function test_obtener_precio_por_categoria(): void
     {
         $categoria = Categoria::create([
             'nombre' => 'Categoria Test',
@@ -103,8 +101,7 @@ class ListaPrecioTest extends TestCase
         $this->assertStringContainsString('categoria', $resultado['origen']);
     }
 
-    /** @test */
-    public function obtener_precio_ajuste_encabezado(): void
+    public function test_obtener_precio_ajuste_encabezado(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10, 'unitario', [
             'precio_base' => 1000,
@@ -123,32 +120,28 @@ class ListaPrecioTest extends TestCase
         $this->assertEquals(10, $resultado['ajuste_porcentaje']);
     }
 
-    /** @test */
-    public function redondeo_entero(): void
+    public function test_redondeo_entero(): void
     {
         $lista = $this->crearLista(['redondeo' => 'entero']);
 
         $this->assertEquals(1056, $lista->aplicarRedondeo(1055.67));
     }
 
-    /** @test */
-    public function redondeo_decena(): void
+    public function test_redondeo_decena(): void
     {
         $lista = $this->crearLista(['redondeo' => 'decena']);
 
         $this->assertEquals(1060, $lista->aplicarRedondeo(1055.67));
     }
 
-    /** @test */
-    public function redondeo_centena(): void
+    public function test_redondeo_centena(): void
     {
         $lista = $this->crearLista(['redondeo' => 'centena']);
 
         $this->assertEquals(1100, $lista->aplicarRedondeo(1055.67));
     }
 
-    /** @test */
-    public function buscar_lista_manual_tiene_prioridad(): void
+    public function test_buscar_lista_manual_tiene_prioridad(): void
     {
         $listaBase = ListaPrecio::crearListaBase($this->sucursalId);
         $listaManual = $this->crearLista(['nombre' => 'Lista Manual']);
@@ -164,8 +157,7 @@ class ListaPrecioTest extends TestCase
         $this->assertEquals($listaManual->id, $resultado->id);
     }
 
-    /** @test */
-    public function buscar_lista_cliente(): void
+    public function test_buscar_lista_cliente(): void
     {
         $listaBase = ListaPrecio::crearListaBase($this->sucursalId);
         $listaCliente = $this->crearLista(['nombre' => 'Lista Cliente']);
@@ -184,8 +176,7 @@ class ListaPrecioTest extends TestCase
         $this->assertEquals($listaCliente->id, $resultado->id);
     }
 
-    /** @test */
-    public function buscar_lista_base_como_fallback(): void
+    public function test_buscar_lista_base_como_fallback(): void
     {
         $listaBase = ListaPrecio::crearListaBase($this->sucursalId);
 
@@ -201,8 +192,7 @@ class ListaPrecioTest extends TestCase
         $this->assertTrue($resultado->es_lista_base);
     }
 
-    /** @test */
-    public function buscar_lista_sin_resultado(): void
+    public function test_buscar_lista_sin_resultado(): void
     {
         // Sin listas creadas, debe retornar null (no hay lista base)
         $resultado = ListaPrecio::buscarListaAplicable(
@@ -215,8 +205,7 @@ class ListaPrecioTest extends TestCase
         $this->assertNull($resultado);
     }
 
-    /** @test */
-    public function validar_condiciones_sin_condiciones_true(): void
+    public function test_validar_condiciones_sin_condiciones_true(): void
     {
         $lista = $this->crearLista();
 
@@ -226,8 +215,7 @@ class ListaPrecioTest extends TestCase
         $this->assertTrue($lista->validarCondiciones([]));
     }
 
-    /** @test */
-    public function obtener_precio_detalle_ajuste_porcentaje(): void
+    public function test_obtener_precio_detalle_ajuste_porcentaje(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10, 'unitario', [
             'precio_base' => 1000,
