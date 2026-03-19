@@ -299,178 +299,133 @@
 
     {{-- Modal Ajuste de Stock --}}
     @if($showAjusteModal && $stockAjuste)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-ajuste" role="dialog" aria-modal="true">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="cerrarModal('showAjusteModal')"></div>
-            <div class="flex min-h-full items-center justify-center p-4">
-                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
-                    <!-- Header -->
-                    <div class="bg-bcn-primary px-4 py-4 sm:px-6">
-                        <h3 class="text-lg font-semibold text-white">{{ __('Ajustar Stock') }}</h3>
+        <x-bcn-modal title="{{ __('Ajustar Stock') }}" color="bg-bcn-primary" maxWidth="lg" onClose="cancelAjuste">
+            <x-slot:body>
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $stockAjuste->articulo->nombre }}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Código:') }} {{ $stockAjuste->articulo->codigo }}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Stock actual:') }} <span class="font-semibold">@cantidad($stockAjuste->cantidad)</span></p>
                     </div>
-                    <!-- Body -->
-                    <div class="px-4 py-5 sm:p-6 space-y-4">
-                        <div>
-                            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $stockAjuste->articulo->nombre }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Código:') }} {{ $stockAjuste->articulo->codigo }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Stock actual:') }} <span class="font-semibold">@cantidad($stockAjuste->cantidad)</span></p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad de Ajuste') }}</label>
-                            <input
-                                wire:model="cantidadAjuste"
-                                type="number"
-                                step="0.01"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                                placeholder="{{ __('Positivo aumenta, negativo disminuye') }}"
-                            />
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Ingrese un valor positivo para aumentar o negativo para disminuir') }}</p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo') }}</label>
-                            <textarea
-                                wire:model="motivoAjuste"
-                                rows="3"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                                placeholder="{{ __('Describa el motivo del ajuste...') }}"
-                            ></textarea>
-                        </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad de Ajuste') }}</label>
+                        <input
+                            wire:model="cantidadAjuste"
+                            type="number"
+                            step="0.01"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                            placeholder="{{ __('Positivo aumenta, negativo disminuye') }}"
+                        />
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Ingrese un valor positivo para aumentar o negativo para disminuir') }}</p>
                     </div>
-                    <!-- Footer -->
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
-                        <button
-                            wire:click="procesarAjuste"
-                            class="inline-flex w-full justify-center rounded-md bg-bcn-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-opacity-90 sm:w-auto transition-colors"
-                        >
-                            {{ __('Procesar Ajuste') }}
-                        </button>
-                        <button
-                            wire:click="cerrarModal('showAjusteModal')"
-                            class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-600 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-200 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:w-auto transition-colors"
-                        >
-                            {{ __('Cancelar') }}
-                        </button>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo') }}</label>
+                        <textarea
+                            wire:model="motivoAjuste"
+                            rows="3"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                            placeholder="{{ __('Describa el motivo del ajuste...') }}"
+                        ></textarea>
                     </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button wire:click="procesarAjuste" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                    {{ __('Procesar Ajuste') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal Inventario Físico --}}
     @if($showInventarioModal && $stockInventario)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-inventario" role="dialog" aria-modal="true">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="cerrarModal('showInventarioModal')"></div>
-            <div class="flex min-h-full items-center justify-center p-4">
-                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
-                    <!-- Header -->
-                    <div class="bg-purple-600 px-4 py-4 sm:px-6">
-                        <h3 class="text-lg font-semibold text-white">{{ __('Inventario Físico') }}</h3>
+        <x-bcn-modal title="{{ __('Inventario Físico') }}" color="bg-purple-600" maxWidth="lg" onClose="cancelInventario">
+            <x-slot:body>
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $stockInventario->articulo->nombre }}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Código:') }} {{ $stockInventario->articulo->codigo }}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Stock en sistema:') }} <span class="font-semibold">@cantidad($stockInventario->cantidad)</span></p>
                     </div>
-                    <!-- Body -->
-                    <div class="px-4 py-5 sm:p-6 space-y-4">
-                        <div>
-                            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $stockInventario->articulo->nombre }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Código:') }} {{ $stockInventario->articulo->codigo }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Stock en sistema:') }} <span class="font-semibold">@cantidad($stockInventario->cantidad)</span></p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad Física Contada') }}</label>
-                            <input
-                                wire:model="cantidadFisica"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm"
-                            />
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Observaciones') }}</label>
-                            <textarea
-                                wire:model="observacionesInventario"
-                                rows="3"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm"
-                                placeholder="{{ __('Observaciones del conteo...') }}"
-                            ></textarea>
-                        </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad Física Contada') }}</label>
+                        <input
+                            wire:model="cantidadFisica"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm"
+                        />
                     </div>
-                    <!-- Footer -->
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
-                        <button
-                            wire:click="procesarInventario"
-                            class="inline-flex w-full justify-center rounded-md bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-purple-500 sm:w-auto transition-colors"
-                        >
-                            {{ __('Registrar') }}
-                        </button>
-                        <button
-                            wire:click="cerrarModal('showInventarioModal')"
-                            class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-600 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-200 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:w-auto transition-colors"
-                        >
-                            {{ __('Cancelar') }}
-                        </button>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Observaciones') }}</label>
+                        <textarea
+                            wire:model="observacionesInventario"
+                            rows="3"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm"
+                            placeholder="{{ __('Observaciones del conteo...') }}"
+                        ></textarea>
                     </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button wire:click="procesarInventario" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-purple-600 text-base font-medium text-white hover:bg-purple-500 sm:w-auto sm:text-sm">
+                    {{ __('Registrar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal Umbrales --}}
     @if($showUmbralesModal && $stockUmbrales)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-umbrales" role="dialog" aria-modal="true">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="cerrarModal('showUmbralesModal')"></div>
-            <div class="flex min-h-full items-center justify-center p-4">
-                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
-                    <!-- Header -->
-                    <div class="bg-gray-600 px-4 py-4 sm:px-6">
-                        <h3 class="text-lg font-semibold text-white">{{ __('Configurar Umbrales') }}</h3>
+        <x-bcn-modal title="{{ __('Configurar Umbrales') }}" color="bg-gray-600" maxWidth="lg" onClose="cancelUmbrales">
+            <x-slot:body>
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $stockUmbrales->articulo->nombre }}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Código:') }} {{ $stockUmbrales->articulo->codigo }}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Stock actual:') }} <span class="font-semibold">@cantidad($stockUmbrales->cantidad)</span></p>
                     </div>
-                    <!-- Body -->
-                    <div class="px-4 py-5 sm:p-6 space-y-4">
-                        <div>
-                            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $stockUmbrales->articulo->nombre }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Código:') }} {{ $stockUmbrales->articulo->codigo }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Stock actual:') }} <span class="font-semibold">@cantidad($stockUmbrales->cantidad)</span></p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad Mínima') }}</label>
-                            <input
-                                wire:model="cantidadMinima"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                                placeholder="{{ __('Sin mínimo') }}"
-                            />
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Se alertará cuando el stock baje de este valor') }}</p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad Máxima') }}</label>
-                            <input
-                                wire:model="cantidadMaxima"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                                placeholder="{{ __('Sin máximo') }}"
-                            />
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Se alertará cuando el stock supere este valor') }}</p>
-                        </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad Mínima') }}</label>
+                        <input
+                            wire:model="cantidadMinima"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                            placeholder="{{ __('Sin mínimo') }}"
+                        />
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Se alertará cuando el stock baje de este valor') }}</p>
                     </div>
-                    <!-- Footer -->
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
-                        <button
-                            wire:click="actualizarUmbrales"
-                            class="inline-flex w-full justify-center rounded-md bg-bcn-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-opacity-90 sm:w-auto transition-colors"
-                        >
-                            {{ __('Guardar') }}
-                        </button>
-                        <button
-                            wire:click="cerrarModal('showUmbralesModal')"
-                            class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-600 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-200 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:w-auto transition-colors"
-                        >
-                            {{ __('Cancelar') }}
-                        </button>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad Máxima') }}</label>
+                        <input
+                            wire:model="cantidadMaxima"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                            placeholder="{{ __('Sin máximo') }}"
+                        />
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Se alertará cuando el stock supere este valor') }}</p>
                     </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button wire:click="actualizarUmbrales" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-gray-600 text-base font-medium text-white hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Guardar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 </div>

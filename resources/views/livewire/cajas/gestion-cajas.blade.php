@@ -69,107 +69,116 @@
 
     {{-- Modal Abrir Caja --}}
     @if($showAbrirModal && $cajaAbrir)
-        <div class="fixed inset-0 z-50 overflow-y-auto">
-            <div class="flex items-center justify-center min-h-screen px-4">
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75" wire:click="$set('showAbrirModal', false)"></div>
-                <div class="inline-block w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-xl">
-                    <div class="bg-green-600 px-6 py-4"><h3 class="text-lg font-medium text-white">{{ __('Abrir Caja') }}: {{ $cajaAbrir->nombre }}</h3></div>
-                    <div class="px-6 py-4">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Saldo Inicial') }}</label>
-                        <input wire:model="saldoInicial" type="number" step="0.01" min="0" class="block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
-                    </div>
-                    <div class="bg-gray-50 dark:bg-gray-700 px-6 py-3 border-t dark:border-gray-600 flex justify-end gap-3">
-                        <button wire:click="$set('showAbrirModal', false)" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">{{ __('Cancelar') }}</button>
-                        <button wire:click="procesarApertura" class="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-green-600 hover:bg-green-700">{{ __('Abrir Caja') }}</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <x-bcn-modal
+            title="{{ __('Abrir Caja') }}: {{ $cajaAbrir->nombre }}"
+            color="bg-green-600"
+            maxWidth="md"
+            onClose="cancelarApertura"
+            submit="procesarApertura"
+        >
+            <x-slot:body>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Saldo Inicial') }}</label>
+                <input wire:model="saldoInicial" type="number" step="0.01" min="0" class="block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button" @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">{{ __('Cancelar') }}</button>
+                <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-500 sm:w-auto sm:text-sm">{{ __('Abrir Caja') }}</button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal Cerrar Caja --}}
     @if($showCerrarModal && $cajaCerrar && $arqueo)
-        <div class="fixed inset-0 z-50 overflow-y-auto">
-            <div class="flex items-center justify-center min-h-screen px-4">
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75" wire:click="$set('showCerrarModal', false)"></div>
-                <div class="inline-block w-full max-w-2xl bg-white dark:bg-gray-800 rounded-lg shadow-xl">
-                    <div class="bg-red-600 px-6 py-4"><h3 class="text-lg font-medium text-white">{{ __('Cerrar Caja') }}: {{ $cajaCerrar->nombre }}</h3></div>
-                    <div class="px-6 py-4 space-y-4">
-                        <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                            <h4 class="font-semibold text-blue-900 dark:text-blue-300 mb-3">{{ __('Resumen de Arqueo') }}</h4>
-                            <div class="grid grid-cols-2 gap-3 text-sm">
-                                <div class="flex justify-between"><span class="text-gray-600 dark:text-gray-300">{{ __('Saldo Inicial') }}:</span><span class="font-medium dark:text-white">$@precio($arqueo['saldo_inicial'])</span></div>
-                                <div class="flex justify-between"><span class="text-gray-600 dark:text-gray-300">{{ __('Total Ingresos') }}:</span><span class="font-medium text-green-600">$@precio($arqueo['total_ingresos'])</span></div>
-                                <div class="flex justify-between"><span class="text-gray-600 dark:text-gray-300">{{ __('Total Egresos') }}:</span><span class="font-medium text-red-600">$@precio($arqueo['total_egresos'])</span></div>
-                                <div class="flex justify-between"><span class="text-gray-600 dark:text-gray-300">{{ __('Movimientos') }}:</span><span class="font-medium dark:text-white">{{ $arqueo['cantidad_movimientos'] }}</span></div>
+        <x-bcn-modal
+            title="{{ __('Cerrar Caja') }}: {{ $cajaCerrar->nombre }}"
+            color="bg-red-600"
+            maxWidth="2xl"
+            onClose="cancelarCierre"
+            submit="procesarCierre"
+        >
+            <x-slot:body>
+                <div class="space-y-4">
+                    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                        <h4 class="font-semibold text-blue-900 dark:text-blue-300 mb-3">{{ __('Resumen de Arqueo') }}</h4>
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div class="flex justify-between"><span class="text-gray-600 dark:text-gray-300">{{ __('Saldo Inicial') }}:</span><span class="font-medium dark:text-white">$@precio($arqueo['saldo_inicial'])</span></div>
+                            <div class="flex justify-between"><span class="text-gray-600 dark:text-gray-300">{{ __('Total Ingresos') }}:</span><span class="font-medium text-green-600">$@precio($arqueo['total_ingresos'])</span></div>
+                            <div class="flex justify-between"><span class="text-gray-600 dark:text-gray-300">{{ __('Total Egresos') }}:</span><span class="font-medium text-red-600">$@precio($arqueo['total_egresos'])</span></div>
+                            <div class="flex justify-between"><span class="text-gray-600 dark:text-gray-300">{{ __('Movimientos') }}:</span><span class="font-medium dark:text-white">{{ $arqueo['cantidad_movimientos'] }}</span></div>
+                        </div>
+                        <div class="mt-4 pt-3 border-t border-blue-300 dark:border-blue-700">
+                            <div class="flex justify-between items-center">
+                                <span class="text-lg font-bold text-gray-900 dark:text-white">{{ __('Saldo Calculado') }}:</span>
+                                <span class="text-2xl font-bold text-blue-900 dark:text-blue-400">$@precio($arqueo['saldo_calculado'])</span>
                             </div>
-                            <div class="mt-4 pt-3 border-t border-blue-300 dark:border-blue-700">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-lg font-bold text-gray-900 dark:text-white">{{ __('Saldo Calculado') }}:</span>
-                                    <span class="text-2xl font-bold text-blue-900 dark:text-blue-400">$@precio($arqueo['saldo_calculado'])</span>
+                            @if($arqueo['tiene_diferencia'])
+                                <div class="mt-2 p-2 bg-yellow-100 dark:bg-yellow-900/20 rounded">
+                                    <p class="text-sm text-yellow-800 dark:text-yellow-300">{{ __('Diferencia detectada') }}: $@precio($arqueo['diferencia']) ({{ $arqueo['tipo_diferencia'] }})</p>
                                 </div>
-                                @if($arqueo['tiene_diferencia'])
-                                    <div class="mt-2 p-2 bg-yellow-100 dark:bg-yellow-900/20 rounded">
-                                        <p class="text-sm text-yellow-800 dark:text-yellow-300">{{ __('Diferencia detectada') }}: $@precio($arqueo['diferencia']) ({{ $arqueo['tipo_diferencia'] }})</p>
-                                    </div>
-                                @endif
-                            </div>
+                            @endif
                         </div>
                     </div>
-                    <div class="bg-gray-50 dark:bg-gray-700 px-6 py-3 border-t dark:border-gray-600 flex justify-end gap-3">
-                        <button wire:click="$set('showCerrarModal', false)" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">{{ __('Cancelar') }}</button>
-                        <button wire:click="procesarCierre" class="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700">{{ __('Confirmar Cierre') }}</button>
-                    </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button" @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">{{ __('Cancelar') }}</button>
+                <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-500 sm:w-auto sm:text-sm">{{ __('Confirmar Cierre') }}</button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal Movimiento Manual --}}
     @if($showMovimientoModal && $cajaMovimiento)
-        <div class="fixed inset-0 z-50 overflow-y-auto">
-            <div class="flex items-center justify-center min-h-screen px-4">
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75" wire:click="$set('showMovimientoModal', false)"></div>
-                <div class="inline-block w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-xl">
-                    <div class="bg-blue-600 px-6 py-4"><h3 class="text-lg font-medium text-white">{{ __('Registrar Movimiento') }}</h3></div>
-                    <div class="px-6 py-4 space-y-4">
-                        <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Tipo de Movimiento') }}</label><select wire:model="tipoMovimiento" class="mt-1 block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"><option value="ingreso">{{ __('Ingreso') }}</option><option value="egreso">{{ __('Egreso') }}</option></select></div>
-                        <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Monto') }}</label><input wire:model="montoMovimiento" type="number" step="0.01" class="mt-1 block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"></div>
-                        <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Concepto') }}</label><input wire:model="conceptoMovimiento" type="text" class="mt-1 block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"></div>
-                        <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Forma de Pago') }}</label><select wire:model="formaPagoMovimiento" class="mt-1 block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"><option value="efectivo">{{ __('Efectivo') }}</option><option value="debito">{{ __('Débito') }}</option><option value="credito">{{ __('Crédito') }}</option></select></div>
-                    </div>
-                    <div class="bg-gray-50 dark:bg-gray-700 px-6 py-3 border-t dark:border-gray-600 flex justify-end gap-3">
-                        <button wire:click="$set('showMovimientoModal', false)" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">{{ __('Cancelar') }}</button>
-                        <button wire:click="procesarMovimiento" class="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">{{ __('Registrar') }}</button>
-                    </div>
+        <x-bcn-modal
+            title="{{ __('Registrar Movimiento') }}"
+            color="bg-blue-600"
+            maxWidth="md"
+            onClose="cancelarMovimiento"
+            submit="procesarMovimiento"
+        >
+            <x-slot:body>
+                <div class="space-y-4">
+                    <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Tipo de Movimiento') }}</label><select wire:model="tipoMovimiento" class="mt-1 block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"><option value="ingreso">{{ __('Ingreso') }}</option><option value="egreso">{{ __('Egreso') }}</option></select></div>
+                    <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Monto') }}</label><input wire:model="montoMovimiento" type="number" step="0.01" class="mt-1 block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Concepto') }}</label><input wire:model="conceptoMovimiento" type="text" class="mt-1 block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Forma de Pago') }}</label><select wire:model="formaPagoMovimiento" class="mt-1 block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"><option value="efectivo">{{ __('Efectivo') }}</option><option value="debito">{{ __('Débito') }}</option><option value="credito">{{ __('Crédito') }}</option></select></div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button" @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">{{ __('Cancelar') }}</button>
+                <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-500 sm:w-auto sm:text-sm">{{ __('Registrar') }}</button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- Modal Ver Movimientos --}}
     @if($showMovimientosModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto">
-            <div class="flex items-center justify-center min-h-screen px-4">
-                <div class="fixed inset-0 bg-gray-500 bg-opacity-75" wire:click="cerrarMovimientos"></div>
-                <div class="inline-block w-full max-w-4xl bg-white dark:bg-gray-800 rounded-lg shadow-xl">
-                    <div class="bg-gray-600 px-6 py-4"><h3 class="text-lg font-medium text-white">{{ __('Movimientos de Caja') }}</h3></div>
-                    <div class="px-6 py-4">
-                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                            <thead><tr><th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Fecha') }}</th><th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Tipo') }}</th><th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Concepto') }}</th><th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Monto') }}</th></tr></thead>
-                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                                @forelse($movimientos as $mov)
-                                    <tr><td class="px-3 py-2 text-sm dark:text-gray-300">{{ $mov->created_at->format('d/m/Y H:i') }}</td><td class="px-3 py-2"><span class="inline-flex px-2 py-1 text-xs rounded-full {{ $mov->tipo_movimiento === 'ingreso' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">{{ ucfirst($mov->tipo_movimiento) }}</span></td><td class="px-3 py-2 text-sm dark:text-gray-300">{{ $mov->concepto }}</td><td class="px-3 py-2 text-sm text-right font-medium dark:text-white">$@precio($mov->monto)</td></tr>
-                                @empty
-                                    <tr><td colspan="4" class="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-400">{{ __('No hay movimientos') }}</td></tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                        @if($movimientos->hasPages())<div class="mt-4">{{ $movimientos->links() }}</div>@endif
-                    </div>
-                    <div class="bg-gray-50 dark:bg-gray-700 px-6 py-3 border-t dark:border-gray-600 flex justify-end"><button wire:click="cerrarMovimientos" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">{{ __('Cerrar') }}</button></div>
-                </div>
-            </div>
-        </div>
+        <x-bcn-modal
+            title="{{ __('Movimientos de Caja') }}"
+            color="bg-gray-600"
+            maxWidth="4xl"
+            onClose="cerrarMovimientos"
+        >
+            <x-slot:body>
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead><tr><th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Fecha') }}</th><th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Tipo') }}</th><th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Concepto') }}</th><th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Monto') }}</th></tr></thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        @forelse($movimientos as $mov)
+                            <tr><td class="px-3 py-2 text-sm dark:text-gray-300">{{ $mov->created_at->format('d/m/Y H:i') }}</td><td class="px-3 py-2"><span class="inline-flex px-2 py-1 text-xs rounded-full {{ $mov->tipo_movimiento === 'ingreso' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">{{ ucfirst($mov->tipo_movimiento) }}</span></td><td class="px-3 py-2 text-sm dark:text-gray-300">{{ $mov->concepto }}</td><td class="px-3 py-2 text-sm text-right font-medium dark:text-white">$@precio($mov->monto)</td></tr>
+                        @empty
+                            <tr><td colspan="4" class="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-400">{{ __('No hay movimientos') }}</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+                @if($movimientos->hasPages())<div class="mt-4">{{ $movimientos->links() }}</div>@endif
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button" @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">{{ __('Cerrar') }}</button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 </div>

@@ -17,6 +17,11 @@ class ResumenCuentas extends Component
 
     public bool $showConciliacionModal = false;
 
+    public function cancelConciliacion()
+    {
+        $this->showConciliacionModal = false;
+    }
+
     public function render()
     {
         $sucursalId = sucursal_activa();

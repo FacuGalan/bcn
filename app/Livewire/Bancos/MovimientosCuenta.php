@@ -62,6 +62,18 @@ class MovimientosCuenta extends Component
         $this->resetPage();
     }
 
+    public function cancelNuevoMovimiento()
+    {
+        $this->showNuevoMovimiento = false;
+    }
+
+    public function cancelAnular()
+    {
+        $this->showAnularModal = false;
+        $this->anularMovimientoId = null;
+        $this->motivoAnulacion = '';
+    }
+
     public function abrirNuevoMovimiento()
     {
         if (!$this->cuentaSeleccionada) {

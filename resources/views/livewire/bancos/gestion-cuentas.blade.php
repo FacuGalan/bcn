@@ -214,124 +214,116 @@
 
         {{-- Modal crear/editar --}}
         @if($showModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
-                <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity" wire:click="$set('showModal', false)"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
-                    <form wire:submit="guardar">
-                        <div class="bg-bcn-primary px-4 py-4 sm:px-6">
-                            <h3 class="text-lg font-semibold text-white">
-                                {{ $cuentaId ? __('Editar Cuenta') : __('Nueva Cuenta') }}
-                            </h3>
+        <x-bcn-modal
+            :title="$cuentaId ? __('Editar Cuenta') : __('Nueva Cuenta')"
+            color="bg-bcn-primary"
+            maxWidth="2xl"
+            onClose="cancel"
+            submit="guardar"
+        >
+            <x-slot:body>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {{-- Nombre --}}
+                    <div class="sm:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
+                        <input wire:model="nombre" type="text" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
+                        @error('nombre') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                    </div>
+
+                    {{-- Tipo --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Tipo') }} *</label>
+                        <select wire:model.live="tipo" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
+                            <option value="banco">{{ __('Banco') }}</option>
+                            <option value="billetera_digital">{{ __('Billetera Digital') }}</option>
+                        </select>
+                    </div>
+
+                    {{-- Subtipo --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Subtipo') }}</label>
+                        <select wire:model="subtipo" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
+                            <option value="">{{ __('Seleccionar...') }}</option>
+                            @foreach(\App\Models\CuentaEmpresa::SUBTIPOS as $key => $label)
+                            <option value="{{ $key }}">{{ __($label) }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    {{-- Campos banco --}}
+                    @if($tipo === 'banco')
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Banco') }}</label>
+                        <input wire:model="banco" type="text" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Número de Cuenta') }}</label>
+                        <input wire:model="numero_cuenta" type="text" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('CBU') }}</label>
+                        <input wire:model="cbu" type="text" maxlength="22" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm font-mono">
+                    </div>
+                    @endif
+
+                    {{-- Alias --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Alias') }}</label>
+                        <input wire:model="alias" type="text" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
+                    </div>
+
+                    {{-- Titular --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Titular') }}</label>
+                        <input wire:model="titular" type="text" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
+                    </div>
+
+                    {{-- Moneda --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Moneda') }} *</label>
+                        <select wire:model="moneda_id" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
+                            <option value="">{{ __('Seleccionar...') }}</option>
+                            @foreach($this->monedas as $moneda)
+                            <option value="{{ $moneda->id }}">{{ $moneda->codigo }} - {{ $moneda->nombre }}</option>
+                            @endforeach
+                        </select>
+                        @error('moneda_id') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                    </div>
+
+                    {{-- Color --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Color') }}</label>
+                        <input wire:model="color" type="color" class="mt-1 block h-10 w-20 rounded-md border-gray-300 dark:border-gray-600 cursor-pointer">
+                    </div>
+
+                    {{-- Sucursales --}}
+                    <div class="sm:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Sucursales') }}</label>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ __('Si no selecciona ninguna, estará disponible en todas las sucursales') }}</p>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            @foreach($this->sucursales as $sucursal)
+                            <label class="flex items-center space-x-2 p-2 rounded-md border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                                <input type="checkbox" wire:model="sucursales_seleccionadas" value="{{ $sucursal->id }}"
+                                    class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">{{ $sucursal->nombre }}</span>
+                            </label>
+                            @endforeach
                         </div>
-
-                        <div class="px-4 py-5 sm:p-6">
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {{-- Nombre --}}
-                                <div class="sm:col-span-2">
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
-                                    <input wire:model="nombre" type="text" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                    @error('nombre') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                                </div>
-
-                                {{-- Tipo --}}
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Tipo') }} *</label>
-                                    <select wire:model.live="tipo" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                        <option value="banco">{{ __('Banco') }}</option>
-                                        <option value="billetera_digital">{{ __('Billetera Digital') }}</option>
-                                    </select>
-                                </div>
-
-                                {{-- Subtipo --}}
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Subtipo') }}</label>
-                                    <select wire:model="subtipo" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                        <option value="">{{ __('Seleccionar...') }}</option>
-                                        @foreach(\App\Models\CuentaEmpresa::SUBTIPOS as $key => $label)
-                                        <option value="{{ $key }}">{{ __($label) }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-
-                                {{-- Campos banco --}}
-                                @if($tipo === 'banco')
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Banco') }}</label>
-                                    <input wire:model="banco" type="text" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Número de Cuenta') }}</label>
-                                    <input wire:model="numero_cuenta" type="text" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('CBU') }}</label>
-                                    <input wire:model="cbu" type="text" maxlength="22" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm font-mono">
-                                </div>
-                                @endif
-
-                                {{-- Alias --}}
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Alias') }}</label>
-                                    <input wire:model="alias" type="text" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                </div>
-
-                                {{-- Titular --}}
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Titular') }}</label>
-                                    <input wire:model="titular" type="text" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                </div>
-
-                                {{-- Moneda --}}
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Moneda') }} *</label>
-                                    <select wire:model="moneda_id" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                        <option value="">{{ __('Seleccionar...') }}</option>
-                                        @foreach($this->monedas as $moneda)
-                                        <option value="{{ $moneda->id }}">{{ $moneda->codigo }} - {{ $moneda->nombre }}</option>
-                                        @endforeach
-                                    </select>
-                                    @error('moneda_id') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
-                                </div>
-
-                                {{-- Color --}}
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Color') }}</label>
-                                    <input wire:model="color" type="color" class="mt-1 block h-10 w-20 rounded-md border-gray-300 dark:border-gray-600 cursor-pointer">
-                                </div>
-
-                                {{-- Sucursales --}}
-                                <div class="sm:col-span-2">
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Sucursales') }}</label>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ __('Si no selecciona ninguna, estará disponible en todas las sucursales') }}</p>
-                                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                        @foreach($this->sucursales as $sucursal)
-                                        <label class="flex items-center space-x-2 p-2 rounded-md border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-                                            <input type="checkbox" wire:model="sucursales_seleccionadas" value="{{ $sucursal->id }}"
-                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary">
-                                            <span class="text-sm text-gray-700 dark:text-gray-300">{{ $sucursal->nombre }}</span>
-                                        </label>
-                                        @endforeach
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                            <button type="submit"
-                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:ml-3 sm:w-auto sm:text-sm transition">
-                                {{ $cuentaId ? __('Actualizar') : __('Crear') }}
-                            </button>
-                            <button type="button" wire:click="$set('showModal', false)"
-                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition">
-                                {{ __('Cancelar') }}
-                            </button>
-                        </div>
-                    </form>
+                    </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button" @click="close()"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="submit"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                    {{ $cuentaId ? __('Actualizar') : __('Crear') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
         @endif
 
         {{-- Modal confirmar eliminación --}}

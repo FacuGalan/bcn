@@ -116,6 +116,12 @@ class GestionCajas extends Component
         $this->showAbrirModal = true;
     }
 
+    public function cancelarApertura(): void
+    {
+        $this->showAbrirModal = false;
+        $this->resetAperturaForm();
+    }
+
     public function procesarApertura()
     {
         try {
@@ -152,6 +158,13 @@ class GestionCajas extends Component
         }
     }
 
+    public function cancelarCierre(): void
+    {
+        $this->showCerrarModal = false;
+        $this->cajaCerrarId = null;
+        $this->arqueo = null;
+    }
+
     public function procesarCierre()
     {
         try {
@@ -177,6 +190,12 @@ class GestionCajas extends Component
         $this->referenciaMovimiento = '';
         $this->observacionesMovimiento = '';
         $this->showMovimientoModal = true;
+    }
+
+    public function cancelarMovimiento(): void
+    {
+        $this->showMovimientoModal = false;
+        $this->resetMovimientoForm();
     }
 
     public function procesarMovimiento()

@@ -220,27 +220,28 @@
 
         {{-- Modal Conciliación Bancaria (placeholder) --}}
         @if($showConciliacionModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
-                <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity" wire:click="$set('showConciliacionModal', false)"></div>
-                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all w-full sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                    <div class="px-4 pt-5 pb-4 sm:p-6 text-center">
-                        <svg class="mx-auto h-16 w-16 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        <h3 class="mt-4 text-lg font-medium text-gray-900 dark:text-white">{{ __('Conciliación Bancaria') }}</h3>
-                        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                            {{ __('La funcionalidad de conciliación bancaria estará disponible próximamente. Permitirá importar extractos bancarios y conciliar automáticamente con los movimientos registrados.') }}
-                        </p>
-                    </div>
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6">
-                        <button type="button" wire:click="$set('showConciliacionModal', false)"
-                            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 sm:text-sm transition">
-                            {{ __('Entendido') }}
-                        </button>
-                    </div>
+        <x-bcn-modal
+            :title="__('Conciliación Bancaria')"
+            color="bg-bcn-primary"
+            maxWidth="lg"
+            onClose="cancelConciliacion"
+        >
+            <x-slot:body>
+                <div class="text-center">
+                    <svg class="mx-auto h-16 w-16 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                        {{ __('La funcionalidad de conciliación bancaria estará disponible próximamente. Permitirá importar extractos bancarios y conciliar automáticamente con los movimientos registrados.') }}
+                    </p>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button" @click="close()"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                    {{ __('Entendido') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
         @endif
     </div>
 </div>

@@ -255,6 +255,24 @@ class StockInventario extends Component
         $this->cantidadMaxima = null;
     }
 
+    public function cancelAjuste()
+    {
+        $this->showAjusteModal = false;
+        $this->resetAjusteForm();
+    }
+
+    public function cancelInventario()
+    {
+        $this->showInventarioModal = false;
+        $this->resetInventarioForm();
+    }
+
+    public function cancelUmbrales()
+    {
+        $this->showUmbralesModal = false;
+        $this->resetUmbralesForm();
+    }
+
     public function cerrarModal($modal)
     {
         $this->{$modal} = false;

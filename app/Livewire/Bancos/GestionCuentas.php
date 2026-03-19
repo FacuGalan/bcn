@@ -164,6 +164,11 @@ class GestionCuentas extends Component
         $this->dispatch('toast-success', message: __('Cuenta eliminada correctamente'));
     }
 
+    public function cancel()
+    {
+        $this->showModal = false;
+    }
+
     public function cancelarEliminar()
     {
         $this->showConfirmDelete = false;

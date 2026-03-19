@@ -392,6 +392,26 @@ class MovimientosStock extends Component
         $this->inventarioStockActual = 0;
     }
 
+    // ==================== Cancelar modales ====================
+
+    public function cancelCarga()
+    {
+        $this->showCargaModal = false;
+        $this->resetCargaForm();
+    }
+
+    public function cancelDescarga()
+    {
+        $this->showDescargaModal = false;
+        $this->resetDescargaForm();
+    }
+
+    public function cancelInventario()
+    {
+        $this->showInventarioModal = false;
+        $this->resetInventarioForm();
+    }
+
     // ==================== Filtro por artículo ====================
 
     public function filtrarPorArticulo($articuloId)

@@ -281,166 +281,148 @@
 
     {{-- ==================== MODAL: Carga de Stock ==================== --}}
     @if($showCargaModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="$set('showCargaModal', false)"></div>
-            <div class="flex min-h-full items-center justify-center p-4">
-                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md">
-                    <div class="bg-green-600 px-4 py-4 sm:px-6">
-                        <h3 class="text-lg font-semibold text-white">{{ __('Carga de Stock') }}</h3>
+        <x-bcn-modal title="{{ __('Carga de Stock') }}" color="bg-green-600" maxWidth="md" onClose="cancelCarga">
+            <x-slot:body>
+                <div class="space-y-4">
+                    <!-- Buscar artículo -->
+                    <div class="relative">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Artículo') }}</label>
+                        <input wire:model.live.debounce.300ms="cargaSearchArticulo" type="text" placeholder="{{ __('Buscar artículo...') }}" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                        @if($this->articulosCarga->count() > 0 && !$cargaArticuloId)
+                            <div class="absolute z-20 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                                @foreach($this->articulosCarga as $art)
+                                    <button wire:click="seleccionarArticuloCarga({{ $art->id }})" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-900 dark:text-white">
+                                        <span class="font-medium">{{ $art->codigo }}</span> - {{ $art->nombre }}
+                                    </button>
+                                @endforeach
+                            </div>
+                        @endif
+                        @error('cargaArticuloId') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
-                    <div class="px-4 py-5 sm:p-6 space-y-4">
-                        <!-- Buscar artículo -->
-                        <div class="relative">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Artículo') }}</label>
-                            <input wire:model.live.debounce.300ms="cargaSearchArticulo" type="text" placeholder="{{ __('Buscar artículo...') }}" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                            @if($this->articulosCarga->count() > 0 && !$cargaArticuloId)
-                                <div class="absolute z-20 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                                    @foreach($this->articulosCarga as $art)
-                                        <button wire:click="seleccionarArticuloCarga({{ $art->id }})" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-900 dark:text-white">
-                                            <span class="font-medium">{{ $art->codigo }}</span> - {{ $art->nombre }}
-                                        </button>
-                                    @endforeach
-                                </div>
-                            @endif
-                            @error('cargaArticuloId') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad') }}</label>
-                            <input wire:model="cargaCantidad" type="number" step="0.01" min="0.01" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                            @error('cargaCantidad') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo') }}</label>
-                            <input wire:model="cargaConcepto" type="text" placeholder="{{ __('Motivo de la carga...') }}" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                            @error('cargaConcepto') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                        </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad') }}</label>
+                        <input wire:model="cargaCantidad" type="number" step="0.01" min="0.01" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                        @error('cargaCantidad') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
-                        <button wire:click="procesarCarga" class="inline-flex w-full justify-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 sm:w-auto transition-colors">
-                            {{ __('Registrar Carga') }}
-                        </button>
-                        <button wire:click="$set('showCargaModal', false)" class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-600 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-200 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:w-auto transition-colors">
-                            {{ __('Cancelar') }}
-                        </button>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo') }}</label>
+                        <input wire:model="cargaConcepto" type="text" placeholder="{{ __('Motivo de la carga...') }}" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                        @error('cargaConcepto') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button wire:click="procesarCarga" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-500 sm:w-auto sm:text-sm">
+                    {{ __('Registrar Carga') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- ==================== MODAL: Descarga de Stock ==================== --}}
     @if($showDescargaModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="$set('showDescargaModal', false)"></div>
-            <div class="flex min-h-full items-center justify-center p-4">
-                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md">
-                    <div class="bg-red-600 px-4 py-4 sm:px-6">
-                        <h3 class="text-lg font-semibold text-white">{{ __('Descarga de Stock') }}</h3>
+        <x-bcn-modal title="{{ __('Descarga de Stock') }}" color="bg-red-600" maxWidth="md" onClose="cancelDescarga">
+            <x-slot:body>
+                <div class="space-y-4">
+                    <!-- Buscar artículo -->
+                    <div class="relative">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Artículo') }}</label>
+                        <input wire:model.live.debounce.300ms="descargaSearchArticulo" type="text" placeholder="{{ __('Buscar artículo...') }}" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                        @if($this->articulosDescarga->count() > 0 && !$descargaArticuloId)
+                            <div class="absolute z-20 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                                @foreach($this->articulosDescarga as $art)
+                                    <button wire:click="seleccionarArticuloDescarga({{ $art->id }})" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-900 dark:text-white">
+                                        <span class="font-medium">{{ $art->codigo }}</span> - {{ $art->nombre }}
+                                    </button>
+                                @endforeach
+                            </div>
+                        @endif
+                        @error('descargaArticuloId') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
-                    <div class="px-4 py-5 sm:p-6 space-y-4">
-                        <!-- Buscar artículo -->
-                        <div class="relative">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Artículo') }}</label>
-                            <input wire:model.live.debounce.300ms="descargaSearchArticulo" type="text" placeholder="{{ __('Buscar artículo...') }}" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                            @if($this->articulosDescarga->count() > 0 && !$descargaArticuloId)
-                                <div class="absolute z-20 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                                    @foreach($this->articulosDescarga as $art)
-                                        <button wire:click="seleccionarArticuloDescarga({{ $art->id }})" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-900 dark:text-white">
-                                            <span class="font-medium">{{ $art->codigo }}</span> - {{ $art->nombre }}
-                                        </button>
-                                    @endforeach
-                                </div>
-                            @endif
-                            @error('descargaArticuloId') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad') }}</label>
-                            <input wire:model="descargaCantidad" type="number" step="0.01" min="0.01" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                            @error('descargaCantidad') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo') }}</label>
-                            <input wire:model="descargaConcepto" type="text" placeholder="{{ __('Motivo de la descarga...') }}" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                            @error('descargaConcepto') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                        </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad') }}</label>
+                        <input wire:model="descargaCantidad" type="number" step="0.01" min="0.01" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                        @error('descargaCantidad') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
-                        <button wire:click="procesarDescarga" class="inline-flex w-full justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:w-auto transition-colors">
-                            {{ __('Registrar Descarga') }}
-                        </button>
-                        <button wire:click="$set('showDescargaModal', false)" class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-600 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-200 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:w-auto transition-colors">
-                            {{ __('Cancelar') }}
-                        </button>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo') }}</label>
+                        <input wire:model="descargaConcepto" type="text" placeholder="{{ __('Motivo de la descarga...') }}" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                        @error('descargaConcepto') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button wire:click="procesarDescarga" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-500 sm:w-auto sm:text-sm">
+                    {{ __('Registrar Descarga') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 
     {{-- ==================== MODAL: Inventario Físico ==================== --}}
     @if($showInventarioModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" wire:click="$set('showInventarioModal', false)"></div>
-            <div class="flex min-h-full items-center justify-center p-4">
-                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md">
-                    <div class="bg-purple-600 px-4 py-4 sm:px-6">
-                        <h3 class="text-lg font-semibold text-white">{{ __('Inventario Físico') }}</h3>
-                    </div>
-                    <div class="px-4 py-5 sm:p-6 space-y-4">
-                        <!-- Buscar artículo -->
-                        <div class="relative">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Artículo') }}</label>
-                            <input wire:model.live.debounce.300ms="inventarioSearchArticulo" type="text" placeholder="{{ __('Buscar artículo...') }}" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                            @if($this->articulosInventario->count() > 0 && !$inventarioArticuloId)
-                                <div class="absolute z-20 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                                    @foreach($this->articulosInventario as $art)
-                                        <button wire:click="seleccionarArticuloInventario({{ $art->id }})" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-900 dark:text-white">
-                                            <span class="font-medium">{{ $art->codigo }}</span> - {{ $art->nombre }}
-                                        </button>
-                                    @endforeach
-                                </div>
-                            @endif
-                            @error('inventarioArticuloId') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                        </div>
-
-                        @if($inventarioArticuloId)
-                            <div class="bg-gray-50 dark:bg-gray-700/50 rounded-md p-3">
-                                <p class="text-sm text-gray-700 dark:text-gray-300">
-                                    {{ __('Stock actual en sistema') }}: <strong class="text-gray-900 dark:text-white">{{ number_format($inventarioStockActual, 2) }}</strong>
-                                </p>
+        <x-bcn-modal title="{{ __('Inventario Físico') }}" color="bg-purple-600" maxWidth="md" onClose="cancelInventario">
+            <x-slot:body>
+                <div class="space-y-4">
+                    <!-- Buscar artículo -->
+                    <div class="relative">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Artículo') }}</label>
+                        <input wire:model.live.debounce.300ms="inventarioSearchArticulo" type="text" placeholder="{{ __('Buscar artículo...') }}" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                        @if($this->articulosInventario->count() > 0 && !$inventarioArticuloId)
+                            <div class="absolute z-20 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                                @foreach($this->articulosInventario as $art)
+                                    <button wire:click="seleccionarArticuloInventario({{ $art->id }})" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-900 dark:text-white">
+                                        <span class="font-medium">{{ $art->codigo }}</span> - {{ $art->nombre }}
+                                    </button>
+                                @endforeach
                             </div>
                         @endif
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad Física Contada') }}</label>
-                            <input wire:model="inventarioCantidadFisica" type="number" step="0.01" min="0" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm" />
-                            @error('inventarioCantidadFisica') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-
-                            @if($inventarioArticuloId)
-                                @php $diferencia = $inventarioCantidadFisica - $inventarioStockActual; @endphp
-                                @if($diferencia != 0)
-                                    <p class="text-xs mt-1 {{ $diferencia > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                                        {{ __('Diferencia') }}: {{ $diferencia > 0 ? '+' : '' }}{{ number_format($diferencia, 2) }}
-                                        ({{ $diferencia > 0 ? __('Sobrante') : __('Faltante') }})
-                                    </p>
-                                @endif
-                            @endif
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Observaciones') }}</label>
-                            <textarea wire:model="inventarioObservaciones" rows="2" placeholder="{{ __('Observaciones del conteo...') }}" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm"></textarea>
-                        </div>
+                        @error('inventarioArticuloId') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
-                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
-                        <button wire:click="procesarInventario" class="inline-flex w-full justify-center rounded-md bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-purple-500 sm:w-auto transition-colors">
-                            {{ __('Registrar Inventario') }}
-                        </button>
-                        <button wire:click="$set('showInventarioModal', false)" class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-600 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-200 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:w-auto transition-colors">
-                            {{ __('Cancelar') }}
-                        </button>
+
+                    @if($inventarioArticuloId)
+                        <div class="bg-gray-50 dark:bg-gray-700/50 rounded-md p-3">
+                            <p class="text-sm text-gray-700 dark:text-gray-300">
+                                {{ __('Stock actual en sistema') }}: <strong class="text-gray-900 dark:text-white">{{ number_format($inventarioStockActual, 2) }}</strong>
+                            </p>
+                        </div>
+                    @endif
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad Física Contada') }}</label>
+                        <input wire:model="inventarioCantidadFisica" type="number" step="0.01" min="0" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm" />
+                        @error('inventarioCantidadFisica') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+
+                        @if($inventarioArticuloId)
+                            @php $diferencia = $inventarioCantidadFisica - $inventarioStockActual; @endphp
+                            @if($diferencia != 0)
+                                <p class="text-xs mt-1 {{ $diferencia > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
+                                    {{ __('Diferencia') }}: {{ $diferencia > 0 ? '+' : '' }}{{ number_format($diferencia, 2) }}
+                                    ({{ $diferencia > 0 ? __('Sobrante') : __('Faltante') }})
+                                </p>
+                            @endif
+                        @endif
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Observaciones') }}</label>
+                        <textarea wire:model="inventarioObservaciones" rows="2" placeholder="{{ __('Observaciones del conteo...') }}" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm"></textarea>
                     </div>
                 </div>
-            </div>
-        </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button wire:click="procesarInventario" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-purple-600 text-base font-medium text-white hover:bg-purple-500 sm:w-auto sm:text-sm">
+                    {{ __('Registrar Inventario') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
     @endif
 </div>
