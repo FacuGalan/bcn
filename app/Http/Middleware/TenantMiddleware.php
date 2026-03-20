@@ -75,17 +75,15 @@ class TenantMiddleware
 
         $comercio = $this->tenantService->getComercio();
 
-        // Verificar que el usuario tenga acceso al comercio activo
-        if (!$user->hasAccessToComercio($comercio->id)) {
-            // Si no tiene acceso, limpiar comercio y redirigir al selector
-            $this->tenantService->clearComercio();
-            return redirect()->route('comercio.selector')
-                ->with('error', 'No tienes acceso al comercio seleccionado.');
+        // Verificar acceso al comercio (cachear resultado en el request)
+        if (!$request->attributes->get('tenant_access_verified', false)) {
+            if (!$user->hasAccessToComercio($comercio->id)) {
+                $this->tenantService->clearComercio();
+                return redirect()->route('comercio.selector')
+                    ->with('error', 'No tienes acceso al comercio seleccionado.');
+            }
+            $request->attributes->set('tenant_access_verified', true);
         }
-
-        // La conexión ya está configurada por TenantService::setComercio()
-        // pero la reconfiguramos por si se perdió en el request
-        $this->tenantService->setComercio($comercio);
 
         return $next($request);
     }
