@@ -170,8 +170,8 @@ class TurnoActual extends Component
 
             $ventasPagosPorCaja = $todosVentasPagos->groupBy(fn ($p) => $p->venta->caja_id);
 
-            // Una sola query para counts de cobros
-            $cobrosCountPorCaja = CobroPago::whereHas('cobro', function ($q) use ($abiertasData) {
+            // Una sola query para counts de cobros (usando Eloquent para respetar prefijo tenant)
+            $todosCobroPagos = CobroPago::whereHas('cobro', function ($q) use ($abiertasData) {
                     $q->where('estado', 'activo')
                       ->where(function ($q2) use ($abiertasData) {
                           foreach ($abiertasData as $cajaId => $fecha) {
@@ -179,10 +179,10 @@ class TurnoActual extends Component
                           }
                       });
                 })
-                ->selectRaw('cobros.caja_id, count(*) as total')
-                ->join('cobros', 'cobro_pagos.cobro_id', '=', 'cobros.id')
-                ->groupBy('cobros.caja_id')
-                ->pluck('total', 'caja_id');
+                ->with('cobro:id,caja_id')
+                ->get();
+
+            $cobrosCountPorCaja = $todosCobroPagos->groupBy(fn ($p) => $p->cobro->caja_id)->map->count();
 
             foreach ($abiertasData as $cajaId => $fecha) {
                 $ventasCount = ($ventasPagosPorCaja[$cajaId] ?? collect())->count();

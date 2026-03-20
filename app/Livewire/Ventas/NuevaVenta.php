@@ -39,6 +39,7 @@ use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -183,14 +184,26 @@ class NuevaVenta extends Component
     /** @var array Listas de precios disponibles */
     public $listasPreciosDisponibles = [];
 
-    /** @var array Formas de venta disponibles */
-    public $formasVenta = [];
+    /** Formas de venta disponibles (computed: no viaja en payload Livewire) */
+    #[Computed]
+    public function formasVenta(): array
+    {
+        return CatalogoCache::formasVenta()->toArray();
+    }
 
-    /** @var array Canales de venta disponibles */
-    public $canalesVenta = [];
+    /** Canales de venta disponibles (computed: no viaja en payload Livewire) */
+    #[Computed]
+    public function canalesVenta(): array
+    {
+        return CatalogoCache::canalesVenta()->toArray();
+    }
 
-    /** @var array Formas de pago disponibles */
-    public $formasPago = [];
+    /** Formas de pago disponibles (computed: no viaja en payload Livewire) */
+    #[Computed]
+    public function formasPago(): array
+    {
+        return CatalogoCache::formasPago()->toArray();
+    }
 
     // =========================================
     // PROPIEDADES DEL RESULTADO
@@ -396,11 +409,6 @@ class NuevaVenta extends Component
 
         // Validar estado de la caja
         $this->actualizarEstadoCaja();
-
-        // Cargar colecciones
-        $this->formasVenta = CatalogoCache::formasVenta()->toArray();
-        $this->canalesVenta = CatalogoCache::canalesVenta()->toArray();
-        $this->formasPago = CatalogoCache::formasPago()->toArray();
 
         // Cargar configuración de facturación fiscal de la sucursal
         $this->cargarConfiguracionFiscalSucursal();
