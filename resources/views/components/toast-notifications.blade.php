@@ -1,4 +1,14 @@
 {{-- Sistema de notificaciones toast --}}
+{{-- Safelist Tailwind (clases dinámicas usadas en JS):
+    bg-emerald-600 bg-emerald-500 bg-emerald-300
+    bg-red-600 bg-red-500 bg-red-300
+    bg-amber-500 bg-amber-200 bg-amber-300
+    bg-blue-600 bg-blue-500 bg-blue-300
+    dark:bg-emerald-500 dark:bg-emerald-300
+    dark:bg-red-500 dark:bg-red-300
+    dark:bg-amber-500 dark:bg-amber-300
+    dark:bg-blue-500 dark:bg-blue-300
+--}}
 <div
     x-data="{
         notifications: [],
