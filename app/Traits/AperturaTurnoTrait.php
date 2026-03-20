@@ -3,8 +3,8 @@
 namespace App\Traits;
 
 use App\Models\Caja;
-use App\Models\GrupoCierre;
 use App\Models\CierreTurnoCaja;
+use App\Models\GrupoCierre;
 use App\Services\CajaService;
 use App\Services\SucursalService;
 use App\Services\TesoreriaService;
@@ -37,12 +37,19 @@ trait AperturaTurnoTrait
 {
     // Modal de apertura de turno
     public bool $showAperturaModal = false;
+
     public ?int $cajaAperturaId = null;
+
     public ?int $grupoAperturaId = null;
+
     public array $cajasAAbrir = [];
+
     public array $fondosIniciales = [];
+
     public bool $esAperturaGrupal = false;
+
     public bool $grupoUsaFondoComun = false;
+
     public $fondoComunTotal = '';
 
     /**
@@ -58,7 +65,7 @@ trait AperturaTurnoTrait
         }
 
         // Si es una caja individual, verificar si pertenece a un grupo
-        if ($cajaId && !$grupoId) {
+        if ($cajaId && ! $grupoId) {
             $caja = Caja::find($cajaId);
             if ($caja && $caja->grupo_cierre_id) {
                 // La caja pertenece a un grupo, abrir todo el grupo
@@ -70,8 +77,9 @@ trait AperturaTurnoTrait
         if ($grupoId) {
             // Apertura grupal
             $grupo = GrupoCierre::with('cajas')->find($grupoId);
-            if (!$grupo) {
+            if (! $grupo) {
                 $this->dispatch('toast-error', message: 'Grupo no encontrado');
+
                 return;
             }
 
@@ -83,7 +91,7 @@ trait AperturaTurnoTrait
             $this->grupoUsaFondoComun = $grupo->usaFondoComun();
             $this->fondoComunTotal = '';
 
-            if (!$this->grupoUsaFondoComun) {
+            if (! $this->grupoUsaFondoComun) {
                 // Fondo individual por caja
                 foreach ($grupo->cajas->where('activo', true) as $caja) {
                     $this->fondosIniciales[$caja->id] = $this->calcularFondoInicialParaInput($caja);
@@ -92,8 +100,9 @@ trait AperturaTurnoTrait
         } elseif ($cajaId) {
             // Apertura individual
             $caja = Caja::find($cajaId);
-            if (!$caja) {
+            if (! $caja) {
                 $this->dispatch('toast-error', message: 'Caja no encontrada');
+
                 return;
             }
 
@@ -117,6 +126,7 @@ trait AperturaTurnoTrait
                 $ultimoCierre = CierreTurnoCaja::where('caja_id', $caja->id)
                     ->orderBy('created_at', 'desc')
                     ->first();
+
                 return $ultimoCierre?->saldo_final ?? '';
 
             case 'monto_fijo':
@@ -144,11 +154,11 @@ trait AperturaTurnoTrait
             // Si es apertura grupal con fondo común
             if ($this->esAperturaGrupal && $this->grupoUsaFondoComun) {
                 $grupo = GrupoCierre::with('cajas')->find($this->grupoAperturaId);
-                if (!$grupo) {
+                if (! $grupo) {
                     throw new \Exception('Grupo no encontrado');
                 }
 
-                $fondoComun = $this->fondoComunTotal !== '' ? (float)$this->fondoComunTotal : 0;
+                $fondoComun = $this->fondoComunTotal !== '' ? (float) $this->fondoComunTotal : 0;
 
                 // Si hay tesorería ACTIVA y fondo > 0, hacer provisión desde tesorería
                 if ($tesoreria && $tesoreria->activo && $fondoComun > 0) {
@@ -168,7 +178,9 @@ trait AperturaTurnoTrait
                 // Las cajas se abren con saldo 0, el fondo real está en el grupo
                 foreach ($this->cajasAAbrir as $cajaId) {
                     $caja = Caja::find($cajaId);
-                    if (!$caja) continue;
+                    if (! $caja) {
+                        continue;
+                    }
 
                     $caja->update([
                         'estado' => 'abierta',
@@ -183,10 +195,12 @@ trait AperturaTurnoTrait
                 // Apertura normal (individual o grupal sin fondo común)
                 foreach ($this->cajasAAbrir as $cajaId) {
                     $caja = Caja::find($cajaId);
-                    if (!$caja) continue;
+                    if (! $caja) {
+                        continue;
+                    }
 
                     $fondoInicialRaw = $this->fondosIniciales[$cajaId] ?? '';
-                    $fondoInicial = $fondoInicialRaw !== '' ? (float)$fondoInicialRaw : 0;
+                    $fondoInicial = $fondoInicialRaw !== '' ? (float) $fondoInicialRaw : 0;
 
                     // Usar el servicio integrado con tesorería
                     $resultado = CajaService::abrirCajaConTesoreria(
@@ -196,7 +210,7 @@ trait AperturaTurnoTrait
                         $tesoreria
                     );
 
-                    if (!$resultado['success']) {
+                    if (! $resultado['success']) {
                         throw new \Exception($resultado['message']);
                     }
                 }
@@ -217,7 +231,7 @@ trait AperturaTurnoTrait
                 : 'Turno de caja abierto exitosamente';
 
             if ($this->grupoUsaFondoComun && $this->fondoComunTotal !== '') {
-                $mensaje .= ' (Fondo común: $' . number_format((float)$this->fondoComunTotal, 2, ',', '.') . ')';
+                $mensaje .= ' (Fondo común: $'.number_format((float) $this->fondoComunTotal, 2, ',', '.').')';
             }
 
             $this->dispatch('toast-success', message: $mensaje);
@@ -228,7 +242,7 @@ trait AperturaTurnoTrait
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error al abrir turno', ['error' => $e->getMessage()]);
-            $this->dispatch('toast-error', message: 'Error al abrir el turno: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: 'Error al abrir el turno: '.$e->getMessage());
         }
     }
 
@@ -261,7 +275,9 @@ trait AperturaTurnoTrait
     public function getCajaParaApertura(int $cajaId): ?array
     {
         $caja = Caja::find($cajaId);
-        if (!$caja) return null;
+        if (! $caja) {
+            return null;
+        }
 
         return [
             'id' => $caja->id,
@@ -277,10 +293,14 @@ trait AperturaTurnoTrait
      */
     public function getGrupoParaApertura(): ?array
     {
-        if (!$this->grupoAperturaId) return null;
+        if (! $this->grupoAperturaId) {
+            return null;
+        }
 
         $grupo = GrupoCierre::with('cajas')->find($this->grupoAperturaId);
-        if (!$grupo) return null;
+        if (! $grupo) {
+            return null;
+        }
 
         $cajasInfo = [];
         foreach ($grupo->cajas->where('activo', true) as $caja) {

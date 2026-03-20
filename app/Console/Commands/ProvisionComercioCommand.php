@@ -4,8 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\Comercio;
 use App\Models\MenuItem;
-use App\Models\Permission;
 use App\Models\PermisoFuncional;
+use App\Models\Permission;
 use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Config;
@@ -21,6 +21,7 @@ class ProvisionComercioCommand extends Command
     protected $description = 'Provisiona un comercio completo: tablas tenant, usuario admin, sucursal, caja, tipos IVA, formas de pago, roles y permisos';
 
     protected string $prefix;
+
     protected string $database;
 
     public function handle(): int
@@ -30,18 +31,21 @@ class ProvisionComercioCommand extends Command
         $this->database = $this->option('database');
 
         // ── Paso 1: Validar parámetros ──
-        if (!$nombre || !$mail) {
+        if (! $nombre || ! $mail) {
             $this->error('Los parámetros --nombre y --mail son obligatorios.');
+
             return self::FAILURE;
         }
 
         if (Comercio::where('email', $mail)->exists()) {
             $this->error("Ya existe un comercio con el email '{$mail}'.");
+
             return self::FAILURE;
         }
 
         if (User::where('email', $mail)->exists()) {
             $this->error("Ya existe un usuario con el email '{$mail}'.");
+
             return self::FAILURE;
         }
 
@@ -57,7 +61,7 @@ class ProvisionComercioCommand extends Command
             $comercioId = DB::connection('config')->table('comercios')->insertGetId([
                 'nombre' => $nombre,
                 'email' => $mail,
-                'cuit' => 'PROV-' . time(), // placeholder único
+                'cuit' => 'PROV-'.time(), // placeholder único
                 'database_name' => $this->database,
                 'max_usuarios' => 5,
                 'activo' => true,
@@ -69,7 +73,7 @@ class ProvisionComercioCommand extends Command
                 ->where('id', $comercioId)
                 ->update(['prefijo' => $prefijo]);
             $comercio = Comercio::find($comercioId);
-            $this->prefix = $prefijo . '_';
+            $this->prefix = $prefijo.'_';
             $this->info("    Comercio #{$comercioId} — Prefijo: {$this->prefix}");
 
             // ── Paso 3: Crear usuario admin ──
@@ -95,7 +99,8 @@ class ProvisionComercioCommand extends Command
             DB::connection('config')->commit();
         } catch (\Exception $e) {
             DB::connection('config')->rollBack();
-            $this->error('Error creando comercio/usuario: ' . $e->getMessage());
+            $this->error('Error creando comercio/usuario: '.$e->getMessage());
+
             return self::FAILURE;
         }
 
@@ -145,8 +150,9 @@ class ProvisionComercioCommand extends Command
             $this->markMigrationsAsRun();
 
         } catch (\Exception $e) {
-            $this->error('Error en provisioning tenant: ' . $e->getMessage());
+            $this->error('Error en provisioning tenant: '.$e->getMessage());
             $this->error($e->getTraceAsString());
+
             return self::FAILURE;
         }
 
@@ -185,7 +191,7 @@ class ProvisionComercioCommand extends Command
     {
         $sqlPath = database_path('sql/tenant_tables.sql');
 
-        if (!file_exists($sqlPath)) {
+        if (! file_exists($sqlPath)) {
             throw new \RuntimeException("No se encontró el archivo SQL: {$sqlPath}");
         }
 
@@ -197,15 +203,15 @@ class ProvisionComercioCommand extends Command
         // Prefixar constraint names que no tienen el prefijo (evita colisiones entre tenants)
         $prefix = preg_quote($this->prefix, '/');
         $sql = preg_replace(
-            '/CONSTRAINT `(?!' . $prefix . ')/',
-            'CONSTRAINT `' . $this->prefix,
+            '/CONSTRAINT `(?!'.$prefix.')/',
+            'CONSTRAINT `'.$this->prefix,
             $sql
         );
 
         // Prefixar UNIQUE KEY / KEY names que no tienen el prefijo
         $sql = preg_replace(
-            '/UNIQUE KEY `(?!' . $prefix . ')/',
-            'UNIQUE KEY `' . $this->prefix,
+            '/UNIQUE KEY `(?!'.$prefix.')/',
+            'UNIQUE KEY `'.$this->prefix,
             $sql
         );
 
@@ -342,7 +348,7 @@ class ProvisionComercioCommand extends Command
         $conceptos = [
             ['codigo' => 'efectivo',         'nombre' => 'Efectivo',          'permite_cuotas' => false, 'permite_vuelto' => true,  'orden' => 1],
             ['codigo' => 'tarjeta_debito',   'nombre' => 'Tarjeta de Débito', 'permite_cuotas' => false, 'permite_vuelto' => false, 'orden' => 2],
-            ['codigo' => 'tarjeta_credito',  'nombre' => 'Tarjeta de Crédito','permite_cuotas' => true,  'permite_vuelto' => false, 'orden' => 3],
+            ['codigo' => 'tarjeta_credito',  'nombre' => 'Tarjeta de Crédito', 'permite_cuotas' => true,  'permite_vuelto' => false, 'orden' => 3],
             ['codigo' => 'transferencia',    'nombre' => 'Transferencia',     'permite_cuotas' => false, 'permite_vuelto' => false, 'orden' => 4],
             ['codigo' => 'wallet',           'nombre' => 'Billetera Virtual', 'permite_cuotas' => false, 'permite_vuelto' => false, 'orden' => 5],
             ['codigo' => 'cheque',           'nombre' => 'Cheque',            'permite_cuotas' => false, 'permite_vuelto' => false, 'orden' => 6],
@@ -499,7 +505,7 @@ class ProvisionComercioCommand extends Command
 
         // ── Permisos funcionales (sincronizar con Spatie) ──
         PermisoFuncional::syncAllToSpatie();
-        $funcPermissions = Permission::where('name', 'like', PermisoFuncional::PERMISSION_PREFIX . '%')
+        $funcPermissions = Permission::where('name', 'like', PermisoFuncional::PERMISSION_PREFIX.'%')
             ->pluck('id', 'name')
             ->toArray();
 
@@ -510,7 +516,7 @@ class ProvisionComercioCommand extends Command
 
         // Super Administrador y Administrador: todos los permisos
         foreach (['Super Administrador', 'Administrador'] as $roleName) {
-            $inserts = array_map(fn($pid) => [
+            $inserts = array_map(fn ($pid) => [
                 'permission_id' => $pid,
                 'role_id' => $roleIds[$roleName],
             ], $allPermIds);
@@ -550,7 +556,7 @@ class ProvisionComercioCommand extends Command
         });
         if ($gerentePerms->isNotEmpty()) {
             $db->table('role_has_permissions')->insert(
-                $gerentePerms->map(fn($pid) => [
+                $gerentePerms->map(fn ($pid) => [
                     'permission_id' => $pid,
                     'role_id' => $roleIds['Gerente'],
                 ])->values()->toArray()
@@ -569,7 +575,7 @@ class ProvisionComercioCommand extends Command
         });
         if ($vendedorPerms->isNotEmpty()) {
             $db->table('role_has_permissions')->insert(
-                $vendedorPerms->map(fn($pid) => [
+                $vendedorPerms->map(fn ($pid) => [
                     'permission_id' => $pid,
                     'role_id' => $roleIds['Vendedor'],
                 ])->values()->toArray()
@@ -583,7 +589,7 @@ class ProvisionComercioCommand extends Command
         });
         if ($visualizadorPerms->isNotEmpty()) {
             $db->table('role_has_permissions')->insert(
-                $visualizadorPerms->map(fn($pid) => [
+                $visualizadorPerms->map(fn ($pid) => [
                     'permission_id' => $pid,
                     'role_id' => $roleIds['Visualizador'],
                 ])->values()->toArray()
@@ -606,8 +612,8 @@ class ProvisionComercioCommand extends Command
             ],
         ]);
 
-        $this->info("    Roles: " . implode(', ', array_keys($roleIds)));
-        $this->info("    Permisos asignados: " . count($allPermIds) . " permisos × roles correspondientes");
+        $this->info('    Roles: '.implode(', ', array_keys($roleIds)));
+        $this->info('    Permisos asignados: '.count($allPermIds).' permisos × roles correspondientes');
         $this->info("    Usuario {$user->email} + Usuario #2 → Super Administrador");
     }
 
@@ -633,7 +639,7 @@ class ProvisionComercioCommand extends Command
             ]));
         }
 
-        $this->info("    Monedas creadas: " . count($monedas));
+        $this->info('    Monedas creadas: '.count($monedas));
     }
 
     /**
@@ -666,7 +672,7 @@ class ProvisionComercioCommand extends Command
             ]));
         }
 
-        $this->info("    Conceptos de movimiento creados: " . count($conceptos));
+        $this->info('    Conceptos de movimiento creados: '.count($conceptos));
     }
 
     /**
@@ -676,8 +682,8 @@ class ProvisionComercioCommand extends Command
     protected function markMigrationsAsRun(): void
     {
         $migrationFiles = collect(scandir(database_path('migrations')))
-            ->filter(fn($f) => str_ends_with($f, '.php'))
-            ->map(fn($f) => str_replace('.php', '', $f))
+            ->filter(fn ($f) => str_ends_with($f, '.php'))
+            ->map(fn ($f) => str_replace('.php', '', $f))
             ->values();
 
         $db = DB::connection('pymes_tenant');

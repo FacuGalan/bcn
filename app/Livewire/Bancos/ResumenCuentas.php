@@ -2,13 +2,12 @@
 
 namespace App\Livewire\Bancos;
 
-use App\Models\CuentaEmpresa;
-use App\Models\MovimientoCuentaEmpresa;
 use App\Models\Moneda;
+use App\Models\MovimientoCuentaEmpresa;
 use App\Services\CuentaEmpresaService;
-use Livewire\Component;
-use Livewire\Attributes\Layout;
 use App\Traits\SucursalAware;
+use Livewire\Attributes\Layout;
+use Livewire\Component;
 
 #[Layout('layouts.app')]
 class ResumenCuentas extends Component
@@ -31,6 +30,7 @@ class ResumenCuentas extends Component
         // Totales por moneda
         $totalesPorMoneda = $cuentas->groupBy('moneda_id')->map(function ($grupo) {
             $moneda = $grupo->first()->moneda;
+
             return [
                 'moneda' => $moneda,
                 'total' => $grupo->sum('saldo_actual'),

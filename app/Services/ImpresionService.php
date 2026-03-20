@@ -2,28 +2,27 @@
 
 namespace App\Services;
 
-use App\Models\Impresora;
-use App\Models\ImpresoraSucursalCaja;
-use App\Models\ImpresoraTipoDocumento;
-use App\Models\ConfiguracionImpresion;
-use App\Models\Venta;
-use App\Models\ComprobanteFiscal;
 use App\Models\CierreTurno;
 use App\Models\Cobro;
+use App\Models\ComprobanteFiscal;
+use App\Models\ConfiguracionImpresion;
+use App\Models\Impresora;
+use App\Models\ImpresoraSucursalCaja;
+use App\Models\Venta;
 use App\Services\Impresion\GeneradorESCPOS;
 use App\Services\Impresion\GeneradorHTML;
-use Illuminate\Support\Facades\Log;
 use Exception;
 
 class ImpresionService
 {
     protected GeneradorESCPOS $escpos;
+
     protected GeneradorHTML $html;
 
     public function __construct()
     {
-        $this->escpos = new GeneradorESCPOS();
-        $this->html = new GeneradorHTML();
+        $this->escpos = new GeneradorESCPOS;
+        $this->html = new GeneradorHTML;
     }
 
     /**
@@ -36,7 +35,7 @@ class ImpresionService
             $asignacion = ImpresoraSucursalCaja::with(['impresora', 'tiposDocumento'])
                 ->where('sucursal_id', $sucursalId)
                 ->where('caja_id', $cajaId)
-                ->whereHas('tiposDocumento', fn($q) => $q->where('tipo_documento', $tipoDocumento)->where('activo', true))
+                ->whereHas('tiposDocumento', fn ($q) => $q->where('tipo_documento', $tipoDocumento)->where('activo', true))
                 ->first();
 
             if ($asignacion && $asignacion->impresora?->activa) {
@@ -48,7 +47,7 @@ class ImpresionService
         $asignacion = ImpresoraSucursalCaja::with(['impresora', 'tiposDocumento'])
             ->where('sucursal_id', $sucursalId)
             ->whereNull('caja_id')
-            ->whereHas('tiposDocumento', fn($q) => $q->where('tipo_documento', $tipoDocumento)->where('activo', true))
+            ->whereHas('tiposDocumento', fn ($q) => $q->where('tipo_documento', $tipoDocumento)->where('activo', true))
             ->first();
 
         if ($asignacion && $asignacion->impresora?->activa) {
@@ -71,7 +70,7 @@ class ImpresionService
     {
         $impresora = $this->obtenerImpresora($venta->sucursal_id, $venta->caja_id, 'ticket_venta');
 
-        if (!$impresora) {
+        if (! $impresora) {
             throw new Exception('No hay impresora configurada para tickets de venta en esta sucursal/caja');
         }
 
@@ -96,7 +95,7 @@ class ImpresionService
                     'formato' => $impresora->formato_papel,
                     'cortar' => $config?->cortar_papel_automatico ?? true,
                     'abrir_cajon' => $this->debeAbrirCajon($venta, $config),
-                ]
+                ],
             ];
         }
 
@@ -106,7 +105,7 @@ class ImpresionService
             'datos' => $this->html->generarTicketVenta($venta, $impresora, $config),
             'opciones' => [
                 'formato' => $impresora->formato_papel,
-            ]
+            ],
         ];
     }
 
@@ -134,7 +133,7 @@ class ImpresionService
         $sucursalId = $comprobante->sucursal_id;
         $cajaId = $venta?->caja_id;
 
-        $tipoDoc = match($comprobante->letra) {
+        $tipoDoc = match ($comprobante->letra) {
             'A' => 'factura_a',
             'B' => 'factura_b',
             'C' => 'factura_c',
@@ -143,12 +142,12 @@ class ImpresionService
 
         $impresora = $this->obtenerImpresora($sucursalId, $cajaId, $tipoDoc);
 
-        if (!$impresora) {
+        if (! $impresora) {
             // Si no hay impresora específica para facturas, usar la de tickets
             $impresora = $this->obtenerImpresora($sucursalId, $cajaId, 'ticket_venta');
         }
 
-        if (!$impresora) {
+        if (! $impresora) {
             throw new Exception('No hay impresora configurada para facturas en esta sucursal/caja');
         }
 
@@ -164,7 +163,7 @@ class ImpresionService
                 'opciones' => [
                     'formato' => $impresora->formato_papel,
                     'cortar' => $config?->cortar_papel_automatico ?? true,
-                ]
+                ],
             ];
         }
 
@@ -174,7 +173,7 @@ class ImpresionService
             'datos' => $this->html->generarFactura($comprobante, $impresora, $config),
             'opciones' => [
                 'formato' => $impresora->formato_papel,
-            ]
+            ],
         ];
     }
 
@@ -190,7 +189,7 @@ class ImpresionService
                 'datos' => $this->escpos->generarPrueba($impresora),
                 'opciones' => [
                     'cortar' => true,
-                ]
+                ],
             ];
         }
 
@@ -200,7 +199,7 @@ class ImpresionService
             'datos' => $this->html->generarPrueba($impresora),
             'opciones' => [
                 'formato' => $impresora->formato_papel,
-            ]
+            ],
         ];
     }
 
@@ -209,7 +208,7 @@ class ImpresionService
      */
     protected function debeAbrirCajon(Venta $venta, ?ConfiguracionImpresion $config): bool
     {
-        if (!$config?->abrir_cajon_efectivo) {
+        if (! $config?->abrir_cajon_efectivo) {
             return false;
         }
 
@@ -241,7 +240,7 @@ class ImpresionService
     {
         return ImpresoraSucursalCaja::with(['impresora', 'caja', 'tiposDocumento'])
             ->where('sucursal_id', $sucursalId)
-            ->whereHas('impresora', fn($q) => $q->where('activa', true))
+            ->whereHas('impresora', fn ($q) => $q->where('activa', true))
             ->get()
             ->toArray();
     }
@@ -282,12 +281,12 @@ class ImpresionService
 
         $impresora = $this->obtenerImpresora($cierre->sucursal_id, $cajaId, 'cierre_turno');
 
-        if (!$impresora) {
+        if (! $impresora) {
             // Fallback a impresora de tickets
             $impresora = $this->obtenerImpresora($cierre->sucursal_id, $cajaId, 'ticket_venta');
         }
 
-        if (!$impresora) {
+        if (! $impresora) {
             throw new Exception('No hay impresora configurada para cierres de turno en esta sucursal/caja');
         }
 
@@ -303,7 +302,7 @@ class ImpresionService
             'opciones' => [
                 'formato' => $impresora->formato_papel,
                 'cortar' => $config?->cortar_papel_automatico ?? true,
-            ]
+            ],
         ];
     }
 
@@ -387,14 +386,14 @@ class ImpresionService
         // Pagos de ventas
         foreach ($cierre->ventaPagos as $pago) {
             $forma = $pago->formaPago?->nombre ?? 'Otro';
-            if (!isset($formasPago[$forma])) {
+            if (! isset($formasPago[$forma])) {
                 $formasPago[$forma] = ['cantidad' => 0, 'total' => 0];
             }
             $formasPago[$forma]['cantidad']++;
             $formasPago[$forma]['total'] += $pago->monto_final;
 
             $concepto = $pago->conceptoPago?->nombre ?? 'Ventas';
-            if (!isset($conceptos[$concepto])) {
+            if (! isset($conceptos[$concepto])) {
                 $conceptos[$concepto] = ['cantidad' => 0, 'total' => 0];
             }
             $conceptos[$concepto]['cantidad']++;
@@ -404,14 +403,14 @@ class ImpresionService
         // Pagos de cobros
         foreach ($cierre->cobroPagos as $pago) {
             $forma = $pago->formaPago?->nombre ?? 'Otro';
-            if (!isset($formasPago[$forma])) {
+            if (! isset($formasPago[$forma])) {
                 $formasPago[$forma] = ['cantidad' => 0, 'total' => 0];
             }
             $formasPago[$forma]['cantidad']++;
             $formasPago[$forma]['total'] += $pago->monto_final;
 
             $concepto = $pago->conceptoPago?->nombre ?? 'Cobros Cta. Cte.';
-            if (!isset($conceptos[$concepto])) {
+            if (! isset($conceptos[$concepto])) {
                 $conceptos[$concepto] = ['cantidad' => 0, 'total' => 0];
             }
             $conceptos[$concepto]['cantidad']++;
@@ -419,18 +418,18 @@ class ImpresionService
         }
 
         // Ordenar por total descendente
-        uasort($formasPago, fn($a, $b) => $b['total'] <=> $a['total']);
-        uasort($conceptos, fn($a, $b) => $b['total'] <=> $a['total']);
+        uasort($formasPago, fn ($a, $b) => $b['total'] <=> $a['total']);
+        uasort($conceptos, fn ($a, $b) => $b['total'] <=> $a['total']);
 
         // Comprobantes emitidos
         $comprobantes = [];
-        $ventasConComprobante = $cierre->ventas->filter(fn($v) => $v->comprobante_fiscal_id);
+        $ventasConComprobante = $cierre->ventas->filter(fn ($v) => $v->comprobante_fiscal_id);
         foreach ($ventasConComprobante as $venta) {
             $tipo = 'Ticket';
             if ($venta->comprobanteFiscal) {
-                $tipo = 'Factura ' . ($venta->comprobanteFiscal->letra ?? '');
+                $tipo = 'Factura '.($venta->comprobanteFiscal->letra ?? '');
             }
-            if (!isset($comprobantes[$tipo])) {
+            if (! isset($comprobantes[$tipo])) {
                 $comprobantes[$tipo] = ['cantidad' => 0, 'total' => 0];
             }
             $comprobantes[$tipo]['cantidad']++;
@@ -438,7 +437,7 @@ class ImpresionService
         }
 
         // Tickets (ventas sin comprobante fiscal)
-        $ticketsSinFactura = $cierre->ventas->filter(fn($v) => !$v->comprobante_fiscal_id);
+        $ticketsSinFactura = $cierre->ventas->filter(fn ($v) => ! $v->comprobante_fiscal_id);
         if ($ticketsSinFactura->count() > 0) {
             $comprobantes['Tickets'] = [
                 'cantidad' => $ticketsSinFactura->count(),
@@ -482,7 +481,8 @@ class ImpresionService
         if (strlen($concepto) <= $maxLen) {
             return $concepto;
         }
-        return substr($concepto, 0, $maxLen - 3) . '...';
+
+        return substr($concepto, 0, $maxLen - 3).'...';
     }
 
     /**
@@ -501,12 +501,12 @@ class ImpresionService
 
         $impresora = $this->obtenerImpresora($cobro->sucursal_id, $cobro->caja_id, 'recibo_cobro');
 
-        if (!$impresora) {
+        if (! $impresora) {
             // Fallback a impresora de tickets
             $impresora = $this->obtenerImpresora($cobro->sucursal_id, $cobro->caja_id, 'ticket_venta');
         }
 
-        if (!$impresora) {
+        if (! $impresora) {
             throw new Exception('No hay impresora configurada para recibos de cobro en esta sucursal/caja');
         }
 
@@ -526,7 +526,7 @@ class ImpresionService
             'opciones' => [
                 'formato' => $impresora->formato_papel,
                 'cortar' => $config?->cortar_papel_automatico ?? true,
-            ]
+            ],
         ];
     }
 }

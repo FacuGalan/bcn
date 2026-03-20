@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Middleware\TenantMiddleware;
-use App\Http\Middleware\EnsureSucursalSelected;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;

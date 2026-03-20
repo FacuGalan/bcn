@@ -10,7 +10,7 @@ return new class extends Migration
         $comercios = DB::connection('config')->table('comercios')->get();
 
         foreach ($comercios as $comercio) {
-            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT) . '_';
+            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT).'_';
 
             try {
                 DB::connection('pymes')->statement("
@@ -30,7 +30,7 @@ return new class extends Migration
         $comercios = DB::connection('config')->table('comercios')->get();
 
         foreach ($comercios as $comercio) {
-            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT) . '_';
+            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT).'_';
 
             try {
                 DB::connection('pymes')->statement("

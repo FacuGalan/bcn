@@ -54,6 +54,6 @@ class ProvinciasSeeder extends Seeder
 
         DB::connection('config')->table('provincias')->insert($provincias);
 
-        $this->command->info('Provincias creadas: ' . count($provincias));
+        $this->command->info('Provincias creadas: '.count($provincias));
     }
 }

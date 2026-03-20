@@ -23,13 +23,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property bool $activo
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Articulo $articulo
  * @property-read Sucursal $sucursal
  */
 class Precio extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'precios';
 
     protected $fillable = [
@@ -73,14 +73,14 @@ class Precio extends Model
         $fecha = $fecha ?? now();
 
         return $query->where('activo', true)
-                     ->where(function ($q) use ($fecha) {
-                         $q->whereNull('fecha_inicio')
-                           ->orWhere('fecha_inicio', '<=', $fecha);
-                     })
-                     ->where(function ($q) use ($fecha) {
-                         $q->whereNull('fecha_fin')
-                           ->orWhere('fecha_fin', '>=', $fecha);
-                     });
+            ->where(function ($q) use ($fecha) {
+                $q->whereNull('fecha_inicio')
+                    ->orWhere('fecha_inicio', '<=', $fecha);
+            })
+            ->where(function ($q) use ($fecha) {
+                $q->whereNull('fecha_fin')
+                    ->orWhere('fecha_fin', '>=', $fecha);
+            });
     }
 
     public function scopePorTipo($query, string $tipo)
@@ -115,7 +115,7 @@ class Precio extends Model
      */
     public function estaVigente(?\DateTime $fecha = null): bool
     {
-        if (!$this->activo) {
+        if (! $this->activo) {
             return false;
         }
 
@@ -144,6 +144,7 @@ class Precio extends Model
         }
 
         $descuento = $this->precio * ($this->descuento_porcentaje / 100);
+
         return round($this->precio - $descuento, 2);
     }
 

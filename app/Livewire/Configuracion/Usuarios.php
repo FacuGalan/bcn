@@ -2,26 +2,24 @@
 
 namespace App\Livewire\Configuracion;
 
-use App\Models\User;
-use App\Models\Role;
-use App\Models\Comercio;
-use App\Models\Sucursal;
 use App\Models\Caja;
-use App\Services\SucursalService;
+use App\Models\Comercio;
+use App\Models\Role;
+use App\Models\Sucursal;
+use App\Models\User;
 use App\Services\CajaService;
+use App\Services\SucursalService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
 
 /**
  * Componente Livewire para gestión de usuarios
  *
  * Permite crear, editar, listar y gestionar el estado de los usuarios del comercio activo.
  * Incluye asignación de roles y permisos por usuario.
- *
- * @package App\Livewire\Configuracion
  */
 #[Layout('layouts.app')]
 class Usuarios extends Component
@@ -30,29 +28,44 @@ class Usuarios extends Component
 
     // Propiedades de filtros
     public string $search = '';
+
     public string $filterStatus = 'all'; // all, active, inactive
+
     public string $filterRole = 'all';
+
     public bool $showFilters = false;
 
     // Propiedades del modal
     public bool $showModal = false;
+
     public bool $editMode = false;
+
     public ?int $userId = null;
 
     // Propiedades del formulario
     public string $name = '';
+
     public string $username = '';
+
     public string $email = '';
+
     public string $telefono = '';
+
     public string $password = '';
+
     public string $password_confirmation = '';
+
     public bool $activo = true;
+
     public ?int $roleId = null;
+
     public ?string $passwordVisible = null;
+
     public bool $currentUserIsSuperAdmin = false;
 
     // Sucursales
     public array $selectedSucursales = [];
+
     public $sucursales;
 
     // Cajas (por sucursal)
@@ -118,10 +131,11 @@ class Usuarios extends Component
      */
     protected function isSuperAdminRole(?int $roleId): bool
     {
-        if (!$roleId) {
+        if (! $roleId) {
             return false;
         }
         $role = Role::find($roleId);
+
         return $role && $role->name === 'Super Administrador';
     }
 
@@ -131,7 +145,7 @@ class Usuarios extends Component
     protected function countSuperAdmins(): int
     {
         $superAdminRole = Role::where('name', 'Super Administrador')->first();
-        if (!$superAdminRole) {
+        if (! $superAdminRole) {
             return 0;
         }
 
@@ -171,12 +185,12 @@ class Usuarios extends Component
     public function updatedSelectedSucursales(): void
     {
         // Si hay sucursales seleccionadas, limpiar cajas de sucursales no seleccionadas
-        if (!empty($this->selectedSucursales)) {
+        if (! empty($this->selectedSucursales)) {
             // Convertir a strings para consistencia con claves de selectedCajas
             $sucursalesIds = array_map('strval', $this->selectedSucursales);
             $this->selectedCajas = array_filter(
                 $this->selectedCajas,
-                fn($key) => in_array((string)$key, $sucursalesIds),
+                fn ($key) => in_array((string) $key, $sucursalesIds),
                 ARRAY_FILTER_USE_KEY
             );
         }
@@ -188,10 +202,10 @@ class Usuarios extends Component
     public function toggleCaja(int $sucursalId, int $cajaId): void
     {
         // Usar string como clave para consistencia con Livewire (JSON usa strings)
-        $sucursalIdKey = (string)$sucursalId;
+        $sucursalIdKey = (string) $sucursalId;
 
         // Inicializar el array de la sucursal si no existe
-        if (!isset($this->selectedCajas[$sucursalIdKey]) || !is_array($this->selectedCajas[$sucursalIdKey])) {
+        if (! isset($this->selectedCajas[$sucursalIdKey]) || ! is_array($this->selectedCajas[$sucursalIdKey])) {
             $this->selectedCajas[$sucursalIdKey] = [];
         }
 
@@ -219,7 +233,7 @@ class Usuarios extends Component
      */
     public function toggleFilters(): void
     {
-        $this->showFilters = !$this->showFilters;
+        $this->showFilters = ! $this->showFilters;
     }
 
     /**
@@ -236,9 +250,9 @@ class Usuarios extends Component
         // Filtro de búsqueda
         if ($this->search) {
             $query->where(function ($q) {
-                $q->where('name', 'like', '%' . $this->search . '%')
-                  ->orWhere('username', 'like', '%' . $this->search . '%')
-                  ->orWhere('email', 'like', '%' . $this->search . '%');
+                $q->where('name', 'like', '%'.$this->search.'%')
+                    ->orWhere('username', 'like', '%'.$this->search.'%')
+                    ->orWhere('email', 'like', '%'.$this->search.'%');
             });
         }
 
@@ -271,7 +285,7 @@ class Usuarios extends Component
     /**
      * Carga los roles de los usuarios de forma eficiente
      *
-     * @param \Illuminate\Pagination\LengthAwarePaginator $users
+     * @param  \Illuminate\Pagination\LengthAwarePaginator  $users
      */
     protected function loadUserRoles($users): void
     {
@@ -314,6 +328,7 @@ class Usuarios extends Component
 
         // Obtener roles del usuario
         $roles = $user->roles();
+
         return $roles->isNotEmpty() ? $roles->first()->name : null;
     }
 
@@ -323,11 +338,12 @@ class Usuarios extends Component
     public function create(): void
     {
         // Validar que no se exceda el límite de usuarios
-        if (!$this->comercio->canAddMoreUsers()) {
+        if (! $this->comercio->canAddMoreUsers()) {
             $this->dispatch('notify',
                 message: __('No se pueden agregar más usuarios. Límite alcanzado: :max usuarios.', ['max' => $this->comercio->max_usuarios]),
                 type: 'error'
             );
+
             return;
         }
 
@@ -377,8 +393,8 @@ class Usuarios extends Component
             // Agrupar cajas por sucursal (usar strings como claves para consistencia con Livewire)
             $this->selectedCajas = [];
             foreach ($cajasAsignadas as $asignacion) {
-                $sucursalIdKey = (string)$asignacion->sucursal_id;
-                if (!isset($this->selectedCajas[$sucursalIdKey])) {
+                $sucursalIdKey = (string) $asignacion->sucursal_id;
+                if (! isset($this->selectedCajas[$sucursalIdKey])) {
                     $this->selectedCajas[$sucursalIdKey] = [];
                 }
                 $this->selectedCajas[$sucursalIdKey][] = $asignacion->caja_id;
@@ -397,11 +413,12 @@ class Usuarios extends Component
     public function save(): void
     {
         // Validar límite de usuarios al crear
-        if (!$this->editMode && !$this->comercio->canAddMoreUsers()) {
+        if (! $this->editMode && ! $this->comercio->canAddMoreUsers()) {
             $this->dispatch('notify',
                 message: __('No se pueden agregar más usuarios. Límite alcanzado: :max usuarios.', ['max' => $this->comercio->max_usuarios]),
                 type: 'error'
             );
+
             return;
         }
 
@@ -413,12 +430,13 @@ class Usuarios extends Component
             $newIsSuperAdmin = $this->isSuperAdminRole($this->roleId);
 
             // Si estaba como super admin y ya no lo es, validar que no sea el último
-            if ($currentIsSuperAdmin && !$newIsSuperAdmin) {
+            if ($currentIsSuperAdmin && ! $newIsSuperAdmin) {
                 if ($this->countSuperAdmins() <= 1) {
                     $this->dispatch('notify',
                         message: __('No se puede cambiar el rol. Debe existir al menos un Super Administrador en el comercio.'),
                         type: 'error'
                     );
+
                     return;
                 }
             }
@@ -426,14 +444,14 @@ class Usuarios extends Component
 
         $rules = [
             'name' => 'required|string|max:191',
-            'username' => 'required|string|max:191|unique:config.users,username,' . $this->userId,
-            'email' => 'required|email|max:191|unique:config.users,email,' . $this->userId,
+            'username' => 'required|string|max:191|unique:config.users,username,'.$this->userId,
+            'email' => 'required|email|max:191|unique:config.users,email,'.$this->userId,
             'telefono' => 'nullable|string|max:50',
             'activo' => 'boolean',
             'roleId' => 'nullable|exists:pymes_tenant.roles,id',
         ];
 
-        if (!$this->editMode) {
+        if (! $this->editMode) {
             $rules['password'] = 'required|string|min:6|confirmed';
         } elseif ($this->password) {
             $rules['password'] = 'nullable|string|min:6|confirmed';
@@ -492,7 +510,7 @@ class Usuarios extends Component
                 // Determinar sucursales a asignar
                 $sucursalesToAssign = [];
 
-                if ($this->currentUserIsSuperAdmin && !empty($this->selectedSucursales)) {
+                if ($this->currentUserIsSuperAdmin && ! empty($this->selectedSucursales)) {
                     // Si es Super Admin editando, usar las sucursales seleccionadas
                     $sucursalesToAssign = $this->selectedSucursales;
                 } else {
@@ -528,14 +546,14 @@ class Usuarios extends Component
                 // - Sin cajas seleccionadas en una sucursal = acceso a todas las cajas de esa sucursal
                 // - Pero se pueden restringir cajas específicas aunque tenga acceso a todas las sucursales
                 foreach ($this->selectedCajas as $sucursalIdKey => $cajas) {
-                    if (is_array($cajas) && !empty($cajas)) {
+                    if (is_array($cajas) && ! empty($cajas)) {
                         foreach ($cajas as $cajaId) {
                             DB::connection('pymes_tenant')
                                 ->table('user_cajas')
                                 ->insert([
                                     'user_id' => $user->id,
-                                    'caja_id' => (int)$cajaId,
-                                    'sucursal_id' => (int)$sucursalIdKey,
+                                    'caja_id' => (int) $cajaId,
+                                    'sucursal_id' => (int) $sucursalIdKey,
                                     'created_at' => now(),
                                     'updated_at' => now(),
                                 ]);
@@ -577,10 +595,11 @@ class Usuarios extends Component
         // Validar que no se desactive a sí mismo
         if ($user->id === auth()->id()) {
             $this->dispatch('notify', message: __('No puedes desactivarte a ti mismo'), type: 'error');
+
             return;
         }
 
-        $user->activo = !$user->activo;
+        $user->activo = ! $user->activo;
         $user->save();
 
         $status = $user->activo ? __('activado') : __('desactivado');

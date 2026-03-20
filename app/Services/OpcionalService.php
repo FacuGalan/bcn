@@ -19,7 +19,7 @@ class OpcionalService
      */
     public function asignarGrupoAArticulo(int $articuloId, int $grupoId): int
     {
-        $grupo = GrupoOpcional::with(['opcionales' => fn($q) => $q->where('activo', true)->orderBy('orden')])->findOrFail($grupoId);
+        $grupo = GrupoOpcional::with(['opcionales' => fn ($q) => $q->where('activo', true)->orderBy('orden')])->findOrFail($grupoId);
         $sucursales = Sucursal::activas()->pluck('id');
 
         $count = 0;
@@ -94,7 +94,7 @@ class OpcionalService
     public function marcarAgotado(int $opcionalId, int $sucursalId): void
     {
         ArticuloGrupoOpcionalOpcion::where('opcional_id', $opcionalId)
-            ->whereHas('articuloGrupoOpcional', fn($q) => $q->where('sucursal_id', $sucursalId))
+            ->whereHas('articuloGrupoOpcional', fn ($q) => $q->where('sucursal_id', $sucursalId))
             ->update(['disponible' => false]);
     }
 
@@ -104,7 +104,7 @@ class OpcionalService
     public function marcarDisponible(int $opcionalId, int $sucursalId): void
     {
         ArticuloGrupoOpcionalOpcion::where('opcional_id', $opcionalId)
-            ->whereHas('articuloGrupoOpcional', fn($q) => $q->where('sucursal_id', $sucursalId))
+            ->whereHas('articuloGrupoOpcional', fn ($q) => $q->where('sucursal_id', $sucursalId))
             ->update(['disponible' => true]);
     }
 
@@ -115,22 +115,23 @@ class OpcionalService
     public function obtenerOpcionalesParaVenta(int $articuloId, int $sucursalId): array
     {
         $asignaciones = ArticuloGrupoOpcional::with([
-                'grupoOpcional',
-                // Incluir activas (disponibles + agotadas) pero NO inactivas
-                'opciones' => fn($q) => $q->where('activo', true)
-                    ->whereHas('opcional', fn($q2) => $q2->where('activo', true))
-                    ->with('opcional')
-                    ->orderBy('orden'),
-            ])
+            'grupoOpcional',
+            // Incluir activas (disponibles + agotadas) pero NO inactivas
+            'opciones' => fn ($q) => $q->where('activo', true)
+                ->whereHas('opcional', fn ($q2) => $q2->where('activo', true))
+                ->with('opcional')
+                ->orderBy('orden'),
+        ])
             ->where('articulo_id', $articuloId)
             ->where('sucursal_id', $sucursalId)
             ->where('activo', true)
-            ->whereHas('grupoOpcional', fn($q) => $q->where('activo', true))
+            ->whereHas('grupoOpcional', fn ($q) => $q->where('activo', true))
             ->orderBy('orden')
             ->get();
 
         return $asignaciones->map(function ($asig) {
             $grupo = $asig->grupoOpcional;
+
             return [
                 'grupo_id' => $grupo->id,
                 'nombre' => $grupo->nombre,
@@ -138,7 +139,7 @@ class OpcionalService
                 'obligatorio' => $grupo->obligatorio,
                 'min_seleccion' => $grupo->min_seleccion,
                 'max_seleccion' => $grupo->max_seleccion,
-                'opciones' => $asig->opciones->map(fn($op) => [
+                'opciones' => $asig->opciones->map(fn ($op) => [
                     'opcional_id' => $op->opcional_id,
                     'nombre' => $op->opcional->nombre,
                     'precio_extra' => $op->precio_extra,

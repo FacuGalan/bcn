@@ -22,7 +22,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $observaciones
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Tesoreria $tesoreria
  * @property-read CuentaBancaria $cuentaBancaria
  * @property-read User $usuario
@@ -30,6 +29,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class DepositoBancario extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'depositos_bancarios';
 
     protected $fillable = [
@@ -54,7 +54,9 @@ class DepositoBancario extends Model
 
     // Estados
     public const ESTADO_PENDIENTE = 'pendiente';
+
     public const ESTADO_CONFIRMADO = 'confirmado';
+
     public const ESTADO_CANCELADO = 'cancelado';
 
     public const ESTADOS = [
@@ -136,7 +138,7 @@ class DepositoBancario extends Model
      */
     public function confirmar(): bool
     {
-        if (!$this->esta_pendiente) {
+        if (! $this->esta_pendiente) {
             return false;
         }
 
@@ -145,7 +147,7 @@ class DepositoBancario extends Model
         $this->save();
 
         // Actualizar saldo de la cuenta bancaria (solo si no usa CuentaEmpresa)
-        if ($this->cuenta_bancaria_id && !$this->cuenta_empresa_id) {
+        if ($this->cuenta_bancaria_id && ! $this->cuenta_empresa_id) {
             $this->cuentaBancaria->registrarDeposito($this->monto);
         }
 
@@ -157,7 +159,7 @@ class DepositoBancario extends Model
      */
     public function cancelar(): bool
     {
-        if (!$this->esta_pendiente) {
+        if (! $this->esta_pendiente) {
             return false;
         }
 

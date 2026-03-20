@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class HistorialPrecio extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'historial_precios';
 
     const UPDATED_AT = null;

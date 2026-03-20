@@ -2,8 +2,8 @@
 
 namespace App\Services\ARCA;
 
-use App\Models\Cuit;
 use App\Models\CondicionIva;
+use App\Models\Cuit;
 use Exception;
 use Illuminate\Support\Facades\Log;
 use SoapClient;
@@ -18,6 +18,7 @@ use SoapFault;
 class PadronARCAService extends ARCAService
 {
     protected const PADRON_WSDL_TESTING = 'https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA5?WSDL';
+
     protected const PADRON_WSDL_PRODUCCION = 'https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA5?WSDL';
 
     protected const SERVICIO_PADRON = 'ws_sr_constancia_inscripcion';
@@ -33,7 +34,7 @@ class PadronARCAService extends ARCAService
             ->whereNotNull('clave_path')
             ->where(function ($q) {
                 $q->whereNull('fecha_vencimiento_certificado')
-                  ->orWhere('fecha_vencimiento_certificado', '>', now());
+                    ->orWhere('fecha_vencimiento_certificado', '>', now());
             })
             ->exists();
     }
@@ -48,7 +49,7 @@ class PadronARCAService extends ARCAService
             ->whereNotNull('clave_path')
             ->where(function ($q) {
                 $q->whereNull('fecha_vencimiento_certificado')
-                  ->orWhere('fecha_vencimiento_certificado', '>', now());
+                    ->orWhere('fecha_vencimiento_certificado', '>', now());
             })
             ->first();
     }
@@ -63,7 +64,7 @@ class PadronARCAService extends ARCAService
         // Limpiar CUIT (solo números)
         $cuitConsulta = preg_replace('/\D/', '', $cuitConsulta);
 
-        if (!Cuit::validarCuit($cuitConsulta)) {
+        if (! Cuit::validarCuit($cuitConsulta)) {
             throw new Exception(__('El CUIT ingresado no es válido'));
         }
 
@@ -93,7 +94,7 @@ class PadronARCAService extends ARCAService
             }
 
             $datosGenerales = $result->personaReturn->datosGenerales ?? null;
-            if (!$datosGenerales) {
+            if (! $datosGenerales) {
                 throw new Exception(__('No se encontraron datos para el CUIT :cuit', ['cuit' => $cuitConsulta]));
             }
 
@@ -128,7 +129,7 @@ class PadronARCAService extends ARCAService
         if (isset($datosGenerales->razonSocial)) {
             $denominacion = $datosGenerales->razonSocial;
         } elseif (isset($datosGenerales->apellido)) {
-            $denominacion = trim($datosGenerales->apellido . ' ' . ($datosGenerales->nombre ?? ''));
+            $denominacion = trim($datosGenerales->apellido.' '.($datosGenerales->nombre ?? ''));
         }
 
         // Domicilio fiscal
@@ -137,17 +138,17 @@ class PadronARCAService extends ARCAService
             $dom = $datosGenerales->domicilioFiscal;
             $partes = [];
 
-            if (!empty($dom->direccion)) {
+            if (! empty($dom->direccion)) {
                 $partes[] = $dom->direccion;
             }
-            if (!empty($dom->localidad)) {
+            if (! empty($dom->localidad)) {
                 $partes[] = $dom->localidad;
             }
-            if (!empty($dom->descripcionProvincia)) {
+            if (! empty($dom->descripcionProvincia)) {
                 $partes[] = $dom->descripcionProvincia;
             }
-            if (!empty($dom->codPostal)) {
-                $partes[] = 'CP ' . $dom->codPostal;
+            if (! empty($dom->codPostal)) {
+                $partes[] = 'CP '.$dom->codPostal;
             }
 
             $direccion = implode(', ', $partes);
@@ -184,7 +185,7 @@ class PadronARCAService extends ARCAService
 
         if (isset($personaReturn->datosRegimenGeneral->impuesto)) {
             $listaImpuestos = $personaReturn->datosRegimenGeneral->impuesto;
-            if (!is_array($listaImpuestos)) {
+            if (! is_array($listaImpuestos)) {
                 $listaImpuestos = [$listaImpuestos];
             }
             foreach ($listaImpuestos as $imp) {
@@ -195,23 +196,27 @@ class PadronARCAService extends ARCAService
         if (isset($personaReturn->datosMonotributo)) {
             // Si tiene datos de monotributo, es monotributista
             $condicion = CondicionIva::porCodigo(CondicionIva::RESPONSABLE_MONOTRIBUTO)->first();
+
             return $condicion?->id;
         }
 
         if (in_array(30, $impuestos)) {
             // Inscripto en IVA
             $condicion = CondicionIva::porCodigo(CondicionIva::RESPONSABLE_INSCRIPTO)->first();
+
             return $condicion?->id;
         }
 
         if (in_array(32, $impuestos)) {
             // IVA Exento
             $condicion = CondicionIva::porCodigo(CondicionIva::SUJETO_EXENTO)->first();
+
             return $condicion?->id;
         }
 
         // Default: Consumidor Final
         $condicion = CondicionIva::porCodigo(CondicionIva::CONSUMIDOR_FINAL)->first();
+
         return $condicion?->id;
     }
 

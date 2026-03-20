@@ -2,20 +2,23 @@
 
 namespace App\Livewire\Configuracion\FormasPago;
 
-use Livewire\Component;
 use App\Models\FormaPago;
 use App\Models\FormaPagoCuota;
 use App\Models\FormaPagoSucursal;
 use App\Models\Sucursal;
+use Livewire\Component;
 
 class ListarFormasPago extends Component
 {
     public $formasPago = [];
+
     public $sucursales = [];
+
     public $sucursalSeleccionada = null;
 
     // Modal de edición de cuotas
     public $formaPagoEditando = null;
+
     public $nuevaCuota = [
         'cantidad_cuotas' => null,
         'interes_porcentaje' => 0,
@@ -30,7 +33,7 @@ class ListarFormasPago extends Component
 
     public function cargarFormasPago()
     {
-        $this->formasPago = FormaPago::with(['cuotas' => function($q) {
+        $this->formasPago = FormaPago::with(['cuotas' => function ($q) {
             $q->orderBy('cantidad_cuotas');
         }])->orderBy('nombre')->get();
     }
@@ -39,7 +42,7 @@ class ListarFormasPago extends Component
     {
         $formaPago = FormaPago::find($formaPagoId);
         if ($formaPago) {
-            $formaPago->activo = !$formaPago->activo;
+            $formaPago->activo = ! $formaPago->activo;
             $formaPago->save();
             $this->cargarFormasPago();
             session()->flash('message', __('Estado actualizado correctamente'));
@@ -71,8 +74,9 @@ class ListarFormasPago extends Component
 
     public function agregarCuota()
     {
-        if (!$this->nuevaCuota['cantidad_cuotas']) {
+        if (! $this->nuevaCuota['cantidad_cuotas']) {
             session()->flash('error', __('Debes ingresar la cantidad de cuotas'));
+
             return;
         }
 

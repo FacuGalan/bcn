@@ -43,7 +43,6 @@ namespace App\Traits;
  * - Ejemplos: Ventas (POS), Movimientos de Caja, Compras, Cierre de Caja
  * - Componentes como Stock o Configuración NO necesitan este trait
  *
- * @package App\Traits
  * @version 1.0.0
  */
 trait CajaAware
@@ -73,7 +72,7 @@ trait CajaAware
         return array_merge(
             $parentListeners,
             [
-                'caja-changed' => 'handleCajaChanged'
+                'caja-changed' => 'handleCajaChanged',
             ]
         );
     }
@@ -89,8 +88,8 @@ trait CajaAware
      * Puede ser sobrescrito en el componente si necesitas
      * comportamiento completamente personalizado.
      *
-     * @param int|null $cajaId ID de la nueva caja
-     * @param string|null $cajaNombre Nombre de la nueva caja
+     * @param  int|null  $cajaId  ID de la nueva caja
+     * @param  string|null  $cajaNombre  Nombre de la nueva caja
      * @return void
      */
     public function handleCajaChanged($cajaId = null, $cajaNombre = null)
@@ -129,8 +128,6 @@ trait CajaAware
 
     /**
      * Obtiene el ID de la caja actual
-     *
-     * @return int|null
      */
     protected function cajaActual(): ?int
     {
@@ -139,9 +136,6 @@ trait CajaAware
 
     /**
      * Verifica si el usuario tiene acceso a una caja específica
-     *
-     * @param int $cajaId
-     * @return bool
      */
     protected function tieneAccesoACaja(int $cajaId): bool
     {

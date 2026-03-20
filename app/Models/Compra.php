@@ -30,7 +30,6 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string|null $observaciones
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Sucursal $sucursal
  * @property-read Proveedor $proveedor
  * @property-read Caja|null $caja
@@ -41,6 +40,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Compra extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'compras';
 
     protected $fillable = [
@@ -223,7 +223,7 @@ class Compra extends Model
         $this->total_iva = $totales['total_iva'];
         $this->total = $totales['total'];
 
-        if (!$this->esCtaCte()) {
+        if (! $this->esCtaCte()) {
             $this->saldo_pendiente = 0;
         } else {
             $this->saldo_pendiente = $this->total;
@@ -260,6 +260,7 @@ class Compra extends Model
         }
 
         $this->estado = 'cancelada';
+
         return $this->save();
     }
 

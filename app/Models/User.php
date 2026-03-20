@@ -10,10 +10,6 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Models\Comercio;
-use App\Models\MenuItem;
-use App\Models\Permission;
-use App\Models\Role;
 
 /**
  * Modelo User
@@ -21,8 +17,8 @@ use App\Models\Role;
  * Representa un usuario del sistema. Los usuarios están centralizados en la base CONFIG
  * y pueden tener acceso a múltiples comercios con roles/permisos independientes en cada uno.
  *
- * @package App\Models
  * @author BCN Pymes
+ *
  * @version 1.0.0
  *
  * @property int $id ID único del usuario
@@ -39,7 +35,6 @@ use App\Models\Role;
  * @property string|null $remember_token Token para recordar sesión
  * @property \Illuminate\Support\Carbon $created_at Fecha de creación
  * @property \Illuminate\Support\Carbon $updated_at Fecha de última actualización
- *
  * @property-read \Illuminate\Database\Eloquent\Collection|\App\Models\Comercio[] $comercios Comercios asociados
  * @property-read int $comercios_count Cantidad de comercios asociados
  * @property-read \App\Models\Comercio|null $ultimoComercio Último comercio usado
@@ -115,8 +110,6 @@ class User extends Authenticatable
      *
      * Un usuario puede tener acceso a múltiples comercios y cada comercio
      * puede tener múltiples usuarios.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
      */
     public function comercios(): BelongsToMany
     {
@@ -126,8 +119,6 @@ class User extends Authenticatable
 
     /**
      * Relación con el último comercio usado
-     *
-     * @return BelongsTo
      */
     public function ultimoComercio(): BelongsTo
     {
@@ -139,8 +130,7 @@ class User extends Authenticatable
      *
      * Los administradores de sistema tienen acceso a todos los comercios.
      *
-     * @param int|Comercio $comercio Comercio o ID del comercio
-     * @return bool
+     * @param  int|Comercio  $comercio  Comercio o ID del comercio
      */
     public function hasAccessToComercio($comercio): bool
     {
@@ -150,13 +140,12 @@ class User extends Authenticatable
         }
 
         $comercioId = $comercio instanceof Comercio ? $comercio->id : $comercio;
+
         return $this->comercios()->where('comercio_id', $comercioId)->exists();
     }
 
     /**
      * Verifica si el usuario es administrador de sistema
-     *
-     * @return bool
      */
     public function isSystemAdmin(): bool
     {
@@ -166,8 +155,7 @@ class User extends Authenticatable
     /**
      * Guarda el último comercio usado por el usuario
      *
-     * @param int|Comercio $comercio
-     * @return void
+     * @param  int|Comercio  $comercio
      */
     public function setUltimoComercio($comercio): void
     {
@@ -179,8 +167,6 @@ class User extends Authenticatable
      * Obtiene el primer comercio asociado al usuario
      *
      * Útil para redireccionar después del login si el usuario solo tiene un comercio
-     *
-     * @return Comercio|null
      */
     public function getFirstComercio(): ?Comercio
     {
@@ -190,14 +176,13 @@ class User extends Authenticatable
     /**
      * Asocia el usuario a un comercio
      *
-     * @param int|Comercio $comercio Comercio o ID del comercio
-     * @return void
+     * @param  int|Comercio  $comercio  Comercio o ID del comercio
      */
     public function attachToComercio($comercio): void
     {
         $comercioId = $comercio instanceof Comercio ? $comercio->id : $comercio;
 
-        if (!$this->hasAccessToComercio($comercioId)) {
+        if (! $this->hasAccessToComercio($comercioId)) {
             $this->comercios()->attach($comercioId);
         }
     }
@@ -205,8 +190,7 @@ class User extends Authenticatable
     /**
      * Desasocia el usuario de un comercio
      *
-     * @param int|Comercio $comercio Comercio o ID del comercio
-     * @return void
+     * @param  int|Comercio  $comercio  Comercio o ID del comercio
      */
     public function detachFromComercio($comercio): void
     {
@@ -222,8 +206,7 @@ class User extends Authenticatable
      *
      * NOTA DE SEGURIDAD: Solo usar cuando sea absolutamente necesario.
      *
-     * @param string $plainPassword Contraseña en texto plano
-     * @return void
+     * @param  string  $plainPassword  Contraseña en texto plano
      */
     public function setPasswordVisible(string $plainPassword): void
     {
@@ -245,7 +228,7 @@ class User extends Authenticatable
      */
     public function getPasswordVisible(): ?string
     {
-        if (!$this->password_visible) {
+        if (! $this->password_visible) {
             return null;
         }
 
@@ -264,7 +247,7 @@ class User extends Authenticatable
      */
     public function hasPasswordVisible(): bool
     {
-        return !empty($this->password_visible);
+        return ! empty($this->password_visible);
     }
 
     /**
@@ -272,8 +255,6 @@ class User extends Authenticatable
      *
      * Filtra los items del menú basándose en los permisos del usuario
      * en el comercio activo. Solo retorna items raíz.
-     *
-     * @return \Illuminate\Support\Collection
      */
     public function getAllowedMenuItems(): \Illuminate\Support\Collection
     {
@@ -286,6 +267,7 @@ class User extends Authenticatable
         // Filtrar por permisos usando la lista cargada
         return $rootItems->filter(function ($item) use ($userPermissions) {
             $permissionName = $item->getPermissionName();
+
             return in_array($permissionName, $userPermissions);
         });
     }
@@ -293,8 +275,7 @@ class User extends Authenticatable
     /**
      * Obtiene los items hijos del menú permitidos para un item padre
      *
-     * @param MenuItem $parentItem Item padre
-     * @return \Illuminate\Support\Collection
+     * @param  MenuItem  $parentItem  Item padre
      */
     public function getAllowedChildrenMenuItems(MenuItem $parentItem): \Illuminate\Support\Collection
     {
@@ -303,6 +284,7 @@ class User extends Authenticatable
 
         return $parentItem->children->filter(function ($item) use ($userPermissions) {
             $permissionName = $item->getPermissionName();
+
             return in_array($permissionName, $userPermissions);
         });
     }
@@ -315,7 +297,7 @@ class User extends Authenticatable
      */
     protected function loadAllPermissions(): array
     {
-        $cacheKey = 'user_permissions_' . $this->id . '_' . session('comercio_activo_id');
+        $cacheKey = 'user_permissions_'.$this->id.'_'.session('comercio_activo_id');
 
         return cache()->remember($cacheKey, 300, function () {
             // System Admin tiene TODOS los permisos
@@ -323,7 +305,7 @@ class User extends Authenticatable
                 return Permission::pluck('name')->toArray();
             }
 
-            if (!session()->has('comercio_activo_id')) {
+            if (! session()->has('comercio_activo_id')) {
                 return [];
             }
 
@@ -358,7 +340,8 @@ class User extends Authenticatable
                     ->pluck('name')
                     ->toArray();
             } catch (\Illuminate\Database\QueryException $e) {
-                Log::error('User::loadAllPermissions() - Error de base de datos: ' . $e->getMessage());
+                Log::error('User::loadAllPermissions() - Error de base de datos: '.$e->getMessage());
+
                 return [];
             }
         });
@@ -367,12 +350,12 @@ class User extends Authenticatable
     /**
      * Verifica si el usuario puede acceder a un item del menú
      *
-     * @param MenuItem $item Item del menú
-     * @return bool
+     * @param  MenuItem  $item  Item del menú
      */
     public function canAccessMenuItem(MenuItem $item): bool
     {
         $permissionName = $item->getPermissionName();
+
         return $this->hasPermissionTo($permissionName);
     }
 
@@ -381,9 +364,8 @@ class User extends Authenticatable
      *
      * Sobrescribe el método de Spatie para asegurar que use la conexión correcta
      *
-     * @param string|\Spatie\Permission\Contracts\Permission $permission Nombre del permiso o instancia
-     * @param string|null $guardName Guard name (por defecto 'web')
-     * @return bool
+     * @param  string|\Spatie\Permission\Contracts\Permission  $permission  Nombre del permiso o instancia
+     * @param  string|null  $guardName  Guard name (por defecto 'web')
      */
     public function hasPermissionTo($permission, $guardName = null): bool
     {
@@ -393,7 +375,7 @@ class User extends Authenticatable
         }
 
         // Si no hay comercio activo, no hay permisos
-        if (!session()->has('comercio_activo_id')) {
+        if (! session()->has('comercio_activo_id')) {
             return false;
         }
 
@@ -407,7 +389,7 @@ class User extends Authenticatable
                     ->where('guard_name', $guardName ?? $this->guard_name ?? 'web')
                     ->first();
 
-                if (!$permissionModel) {
+                if (! $permissionModel) {
                     return false;
                 }
 
@@ -423,7 +405,8 @@ class User extends Authenticatable
             return false;
         } catch (\Exception $e) {
             // En caso de error, devolver false por seguridad
-            Log::error('Error checking permission: ' . $e->getMessage());
+            Log::error('Error checking permission: '.$e->getMessage());
+
             return false;
         }
     }
@@ -440,7 +423,7 @@ class User extends Authenticatable
     public function roles()
     {
         // Verificar que hay un comercio activo
-        if (!session()->has('comercio_activo_id')) {
+        if (! session()->has('comercio_activo_id')) {
             return collect();
         }
 
@@ -461,13 +444,15 @@ class User extends Authenticatable
                 if (empty($prefix)) {
                     Log::warning('User::roles() - Tenant no configurado, retornando colección vacía', [
                         'user_id' => $this->id,
-                        'comercio_id' => $comercioId ?? null
+                        'comercio_id' => $comercioId ?? null,
                     ]);
+
                     return collect();
                 }
             }
         } catch (\Exception $e) {
-            Log::error('User::roles() - Error verificando configuración de tenant: ' . $e->getMessage());
+            Log::error('User::roles() - Error verificando configuración de tenant: '.$e->getMessage());
+
             return collect();
         }
 
@@ -483,7 +468,7 @@ class User extends Authenticatable
 
             // Si hay sucursal activa, filtrar por sucursal
             if ($sucursalActiva) {
-                $query->where(function($subQuery) use ($sucursalActiva) {
+                $query->where(function ($subQuery) use ($sucursalActiva) {
                     // Incluir roles con sucursal_id = 0 (acceso a todas las sucursales)
                     $subQuery->where('sucursal_id', 0)
                         // O roles específicos de la sucursal activa
@@ -503,11 +488,12 @@ class User extends Authenticatable
             return Role::whereIn('id', $roleIds)->get();
         } catch (\Illuminate\Database\QueryException $e) {
             // Capturar errores de base de datos (tabla no existe, etc.)
-            Log::error('User::roles() - Error de base de datos: ' . $e->getMessage(), [
+            Log::error('User::roles() - Error de base de datos: '.$e->getMessage(), [
                 'user_id' => $this->id,
                 'comercio_id' => session('comercio_activo_id'),
-                'prefix' => config('database.connections.pymes_tenant.prefix', '')
+                'prefix' => config('database.connections.pymes_tenant.prefix', ''),
             ]);
+
             return collect();
         }
     }
@@ -515,8 +501,7 @@ class User extends Authenticatable
     /**
      * Asigna un rol al usuario en el comercio activo
      *
-     * @param Role|string $role Instancia de Role o nombre del rol
-     * @return void
+     * @param  Role|string  $role  Instancia de Role o nombre del rol
      */
     public function assignRole($role): void
     {
@@ -532,7 +517,7 @@ class User extends Authenticatable
             ->where('model_type', static::class)
             ->exists();
 
-        if (!$exists) {
+        if (! $exists) {
             DB::connection('pymes_tenant')
                 ->table('model_has_roles')
                 ->insert([
@@ -546,8 +531,7 @@ class User extends Authenticatable
     /**
      * Verifica si el usuario tiene un rol específico
      *
-     * @param string|Role $role
-     * @return bool
+     * @param  string|Role  $role
      */
     public function hasRole($role): bool
     {
@@ -562,9 +546,6 @@ class User extends Authenticatable
 
     /**
      * Verifica si el usuario tiene alguno de los roles especificados
-     *
-     * @param array $roles
-     * @return bool
      */
     public function hasAnyRole(array $roles): bool
     {

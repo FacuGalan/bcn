@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class VentaDetallePromocion extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'venta_detalle_promociones';
 
     public $timestamps = false;
@@ -64,10 +65,10 @@ class VentaDetallePromocion extends Model
      */
     public function getDescripcionBeneficioAttribute(): string
     {
-        return match($this->tipo_beneficio) {
+        return match ($this->tipo_beneficio) {
             'porcentaje' => "-{$this->valor_beneficio}%",
             'monto_fijo' => "-\${$this->valor_beneficio}",
-            'precio_especial' => "Precio esp.",
+            'precio_especial' => 'Precio esp.',
             'nx1' => "{$this->cantidad_requerida}x{$this->cantidad_bonificada}",
             default => '',
         };

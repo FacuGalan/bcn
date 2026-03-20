@@ -2,16 +2,15 @@
 
 namespace App\Livewire\Stock;
 
-use Livewire\Component;
-use Livewire\WithPagination;
+use App\Models\Articulo;
 use App\Models\MovimientoStock;
 use App\Models\Stock;
-use App\Models\Articulo;
-use App\Models\Sucursal;
 use App\Services\StockService;
+use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Exception;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 class MovimientosStock extends Component
 {
@@ -19,36 +18,55 @@ class MovimientosStock extends Component
 
     // Filtros
     public $search = '';
+
     public $filterTipo = '';
+
     public $filterFechaDesde = '';
+
     public $filterFechaHasta = '';
+
     public $articuloSeleccionado = null;
+
     public bool $showFilters = false;
 
     // Modales
     public $showCargaModal = false;
+
     public $showDescargaModal = false;
+
     public $showInventarioModal = false;
 
     // Carga de stock
     public $cargaArticuloId = null;
+
     public $cargaCantidad = 0;
+
     public $cargaConcepto = '';
+
     public $cargaObservaciones = '';
+
     public $cargaSearchArticulo = '';
 
     // Descarga de stock
     public $descargaArticuloId = null;
+
     public $descargaCantidad = 0;
+
     public $descargaConcepto = '';
+
     public $descargaObservaciones = '';
+
     public $descargaSearchArticulo = '';
 
     // Inventario físico
     public $inventarioArticuloId = null;
+
     public $inventarioCantidadFisica = 0;
+
     public $inventarioObservaciones = '';
+
     public $inventarioSearchArticulo = '';
+
     public $inventarioStockActual = 0;
 
     protected $stockService;
@@ -76,7 +94,7 @@ class MovimientosStock extends Component
 
     public function toggleFilters(): void
     {
-        $this->showFilters = !$this->showFilters;
+        $this->showFilters = ! $this->showFilters;
     }
 
     public function render()
@@ -114,7 +132,7 @@ class MovimientosStock extends Component
         if ($this->search) {
             $query->whereHas('articulo', function ($q) {
                 $q->where('nombre', 'like', "%{$this->search}%")
-                  ->orWhere('codigo', 'like', "%{$this->search}%");
+                    ->orWhere('codigo', 'like', "%{$this->search}%");
             });
         }
 
@@ -157,33 +175,42 @@ class MovimientosStock extends Component
 
     public function getArticulosCargaProperty()
     {
-        if (strlen($this->cargaSearchArticulo) < 2) return collect();
+        if (strlen($this->cargaSearchArticulo) < 2) {
+            return collect();
+        }
+
         return Articulo::activos()->conStock()
             ->where(function ($q) {
                 $q->where('nombre', 'like', "%{$this->cargaSearchArticulo}%")
-                  ->orWhere('codigo', 'like', "%{$this->cargaSearchArticulo}%");
+                    ->orWhere('codigo', 'like', "%{$this->cargaSearchArticulo}%");
             })
             ->limit(10)->get();
     }
 
     public function getArticulosDescargaProperty()
     {
-        if (strlen($this->descargaSearchArticulo) < 2) return collect();
+        if (strlen($this->descargaSearchArticulo) < 2) {
+            return collect();
+        }
+
         return Articulo::activos()->conStock()
             ->where(function ($q) {
                 $q->where('nombre', 'like', "%{$this->descargaSearchArticulo}%")
-                  ->orWhere('codigo', 'like', "%{$this->descargaSearchArticulo}%");
+                    ->orWhere('codigo', 'like', "%{$this->descargaSearchArticulo}%");
             })
             ->limit(10)->get();
     }
 
     public function getArticulosInventarioProperty()
     {
-        if (strlen($this->inventarioSearchArticulo) < 2) return collect();
+        if (strlen($this->inventarioSearchArticulo) < 2) {
+            return collect();
+        }
+
         return Articulo::activos()->conStock()
             ->where(function ($q) {
                 $q->where('nombre', 'like', "%{$this->inventarioSearchArticulo}%")
-                  ->orWhere('codigo', 'like', "%{$this->inventarioSearchArticulo}%");
+                    ->orWhere('codigo', 'like', "%{$this->inventarioSearchArticulo}%");
             })
             ->limit(10)->get();
     }
@@ -289,7 +316,7 @@ class MovimientosStock extends Component
                 ->where('sucursal_id', $sucursalId)
                 ->first();
 
-            if (!$stock) {
+            if (! $stock) {
                 throw new Exception(__('El artículo no tiene stock en esta sucursal'));
             }
 

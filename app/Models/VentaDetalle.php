@@ -24,7 +24,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property float $subtotal
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Venta $venta
  * @property-read Articulo $articulo
  * @property-read TipoIva $tipoIva
@@ -32,6 +31,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class VentaDetalle extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'ventas_detalle';
 
     protected $fillable = [
@@ -112,6 +112,7 @@ class VentaDetalle extends Model
     public function getNombrePromocionAttribute(): ?string
     {
         $promo = $this->promocionesAplicadas->first();
+
         return $promo?->descripcion_promocion;
     }
 

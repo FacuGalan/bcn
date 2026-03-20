@@ -17,8 +17,8 @@ use Illuminate\Support\Facades\Session;
  * - Obtener información del comercio activo
  * - Reconectar a la base de datos con el prefijo correcto
  *
- * @package App\Services
  * @author BCN Pymes
+ *
  * @version 1.0.0
  */
 class TenantService
@@ -39,8 +39,6 @@ class TenantService
 
     /**
      * Caché en memoria del comercio activo para evitar consultas repetidas
-     *
-     * @var Comercio|null
      */
     protected ?Comercio $comercioCache = null;
 
@@ -50,8 +48,8 @@ class TenantService
      * Guarda el ID del comercio en la sesión y configura la conexión
      * de base de datos con el prefijo correspondiente.
      *
-     * @param int|Comercio $comercio ID del comercio o instancia de Comercio
-     * @return void
+     * @param  int|Comercio  $comercio  ID del comercio o instancia de Comercio
+     *
      * @throws \Exception Si el comercio no existe
      */
     public function setComercio($comercio): void
@@ -65,7 +63,7 @@ class TenantService
             $comercioId = $comercio;
             $comercioModel = Comercio::find($comercioId);
 
-            if (!$comercioModel) {
+            if (! $comercioModel) {
                 throw new \Exception("Comercio con ID {$comercioId} no encontrado");
             }
         }
@@ -110,7 +108,7 @@ class TenantService
 
         $comercioId = $this->getComercioId();
 
-        if (!$comercioId) {
+        if (! $comercioId) {
             return null;
         }
 
@@ -137,8 +135,6 @@ class TenantService
 
     /**
      * Limpia el comercio activo de la sesión
-     *
-     * @return void
      */
     public function clearComercio(): void
     {
@@ -156,8 +152,7 @@ class TenantService
      *
      * OPTIMIZACIÓN: Solo purga/reconecta si la configuración cambió
      *
-     * @param Comercio $comercio Instancia del comercio
-     * @return void
+     * @param  Comercio  $comercio  Instancia del comercio
      */
     protected function configureConnection(Comercio $comercio): void
     {
@@ -165,8 +160,8 @@ class TenantService
         $databaseName = $comercio->database_name ?? 'pymes';
 
         // Obtener la configuración actual
-        $currentPrefix = Config::get('database.connections.' . self::TENANT_CONNECTION . '.prefix', '');
-        $currentDatabase = Config::get('database.connections.' . self::TENANT_CONNECTION . '.database', '');
+        $currentPrefix = Config::get('database.connections.'.self::TENANT_CONNECTION.'.prefix', '');
+        $currentDatabase = Config::get('database.connections.'.self::TENANT_CONNECTION.'.database', '');
 
         // OPTIMIZACIÓN: Solo reconfigurar si cambió el prefijo o la base de datos
         if ($currentPrefix === $prefix && $currentDatabase === $databaseName) {
@@ -175,8 +170,8 @@ class TenantService
         }
 
         // Configurar el prefijo y la base de datos en la conexión pymes_tenant
-        Config::set('database.connections.' . self::TENANT_CONNECTION . '.prefix', $prefix);
-        Config::set('database.connections.' . self::TENANT_CONNECTION . '.database', $databaseName);
+        Config::set('database.connections.'.self::TENANT_CONNECTION.'.prefix', $prefix);
+        Config::set('database.connections.'.self::TENANT_CONNECTION.'.database', $databaseName);
 
         // Purgar la conexión para que se reconfigure con el nuevo prefijo y BD
         DB::purge(self::TENANT_CONNECTION);
@@ -192,13 +187,11 @@ class TenantService
 
     /**
      * Resetea la conexión de tenant a su estado inicial (sin prefijo)
-     *
-     * @return void
      */
     protected function resetConnection(): void
     {
-        Config::set('database.connections.' . self::TENANT_CONNECTION . '.prefix', '');
-        Config::set('database.connections.' . self::TENANT_CONNECTION . '.database', env('DB_DATABASE', 'pymes'));
+        Config::set('database.connections.'.self::TENANT_CONNECTION.'.prefix', '');
+        Config::set('database.connections.'.self::TENANT_CONNECTION.'.database', env('DB_DATABASE', 'pymes'));
         DB::purge(self::TENANT_CONNECTION);
     }
 
@@ -210,6 +203,7 @@ class TenantService
     public function getTablePrefix(): ?string
     {
         $comercio = $this->getComercio();
+
         return $comercio ? $comercio->getTablePrefix() : null;
     }
 
@@ -218,8 +212,8 @@ class TenantService
      *
      * Similar a setComercio pero con validaciones adicionales para cambio de comercio
      *
-     * @param int|Comercio $comercio ID del comercio o instancia de Comercio
-     * @param int|null $userId ID del usuario (opcional, para validar acceso)
+     * @param  int|Comercio  $comercio  ID del comercio o instancia de Comercio
+     * @param  int|null  $userId  ID del usuario (opcional, para validar acceso)
      * @return bool True si el cambio fue exitoso, false en caso contrario
      */
     public function switchComercio($comercio, ?int $userId = null): bool
@@ -228,18 +222,19 @@ class TenantService
             $comercioId = $comercio instanceof Comercio ? $comercio->id : $comercio;
             $comercioModel = Comercio::find($comercioId);
 
-            if (!$comercioModel) {
+            if (! $comercioModel) {
                 return false;
             }
 
             // Si se proporciona userId, validar acceso
             if ($userId !== null) {
-                if (!$comercioModel->users()->where('user_id', $userId)->exists()) {
+                if (! $comercioModel->users()->where('user_id', $userId)->exists()) {
                     return false;
                 }
             }
 
             $this->setComercio($comercioModel);
+
             return true;
         } catch (\Exception $e) {
             return false;

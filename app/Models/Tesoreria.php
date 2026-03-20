@@ -21,7 +21,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $activo
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Sucursal $sucursal
  * @property-read \Illuminate\Database\Eloquent\Collection|MovimientoTesoreria[] $movimientos
  * @property-read \Illuminate\Database\Eloquent\Collection|ProvisionFondo[] $provisiones
@@ -32,6 +31,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Tesoreria extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'tesorerias';
 
     protected $fillable = [
@@ -168,6 +168,7 @@ class Tesoreria extends Model
         if ($this->saldo_minimo === null) {
             return false;
         }
+
         return $this->saldo_actual < $this->saldo_minimo;
     }
 
@@ -179,6 +180,7 @@ class Tesoreria extends Model
         if ($this->saldo_maximo === null) {
             return false;
         }
+
         return $this->saldo_actual > $this->saldo_maximo;
     }
 

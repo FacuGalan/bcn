@@ -38,7 +38,7 @@ return new class extends Migration
             // Limpiar role_has_permissions en todos los tenants
             $comercios = DB::connection('config')->table('comercios')->get();
             foreach ($comercios as $comercio) {
-                $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT) . '_';
+                $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT).'_';
                 try {
                     DB::connection('pymes')->statement("
                         DELETE FROM `{$prefix}role_has_permissions`

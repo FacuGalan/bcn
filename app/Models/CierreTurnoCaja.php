@@ -27,13 +27,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $observaciones
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read CierreTurno $cierreTurno
  * @property-read Caja $caja
  */
 class CierreTurnoCaja extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'cierre_turno_cajas';
 
     protected $fillable = [
@@ -145,6 +145,7 @@ class CierreTurnoCaja extends Model
         if ($this->tieneSobrante()) {
             return 'sobrante';
         }
+
         return null;
     }
 
@@ -162,6 +163,7 @@ class CierreTurnoCaja extends Model
     public function getMontoFormaPago(string $formaPago): float
     {
         $desglose = $this->desglose_formas_pago ?? [];
+
         return $desglose[$formaPago] ?? 0;
     }
 
@@ -171,13 +173,14 @@ class CierreTurnoCaja extends Model
     public function getMontoConcepto(string $concepto): float
     {
         $desglose = $this->desglose_conceptos ?? [];
+
         return $desglose[$concepto] ?? 0;
     }
 
     /**
      * Genera el snapshot de una caja para el cierre
      */
-    public static function crearDesdeCAja(Caja $caja, float $saldoDeclarado = null): array
+    public static function crearDesdeCAja(Caja $caja, ?float $saldoDeclarado = null): array
     {
         $saldoSistema = $caja->saldo_actual;
         $saldoDeclarado = $saldoDeclarado ?? $saldoSistema;

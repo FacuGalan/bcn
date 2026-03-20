@@ -2,14 +2,14 @@
 
 namespace App\Services;
 
-use App\Models\TransferenciaStock;
-use App\Models\Stock;
 use App\Models\Articulo;
-use App\Models\Sucursal;
 use App\Models\MovimientoStock;
+use App\Models\Stock;
+use App\Models\Sucursal;
+use App\Models\TransferenciaStock;
+use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Exception;
 
 /**
  * Servicio de Transferencias de Stock
@@ -26,6 +26,7 @@ use Exception;
 class TransferenciaStockService
 {
     protected $ventaService;
+
     protected $compraService;
 
     public function __construct(VentaService $ventaService, CompraService $compraService)
@@ -37,8 +38,8 @@ class TransferenciaStockService
     /**
      * Solicita una transferencia de stock entre sucursales
      *
-     * @param array $data Datos de la transferencia
-     * @return TransferenciaStock
+     * @param  array  $data  Datos de la transferencia
+     *
      * @throws Exception
      */
     public function solicitarTransferencia(array $data): TransferenciaStock
@@ -54,16 +55,16 @@ class TransferenciaStockService
             // Validar que el artículo existe
             $articulo = Articulo::findOrFail($data['articulo_id']);
 
-            if (!$articulo->controlaStock($data['sucursal_origen_id'])) {
+            if (! $articulo->controlaStock($data['sucursal_origen_id'])) {
                 throw new Exception('Este artículo no controla stock en la sucursal origen y no puede ser transferido');
             }
 
             // Validar stock disponible en sucursal origen
             $stock = Stock::where('sucursal_id', $data['sucursal_origen_id'])
-                         ->where('articulo_id', $data['articulo_id'])
-                         ->first();
+                ->where('articulo_id', $data['articulo_id'])
+                ->first();
 
-            if (!$stock) {
+            if (! $stock) {
                 throw new Exception('El artículo no tiene stock en la sucursal origen');
             }
 
@@ -102,7 +103,7 @@ class TransferenciaStockService
             DB::connection('pymes_tenant')->rollBack();
             Log::error('Error al solicitar transferencia', [
                 'data' => $data,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -111,9 +112,6 @@ class TransferenciaStockService
     /**
      * Aprueba y procesa una transferencia de stock
      *
-     * @param int $transferenciaId
-     * @param int $usuarioId
-     * @return TransferenciaStock
      * @throws Exception
      */
     public function aprobarTransferencia(int $transferenciaId, int $usuarioId): TransferenciaStock
@@ -123,16 +121,16 @@ class TransferenciaStockService
         try {
             $transferencia = TransferenciaStock::findOrFail($transferenciaId);
 
-            if (!$transferencia->estaPendiente()) {
+            if (! $transferencia->estaPendiente()) {
                 throw new Exception('Solo se pueden aprobar transferencias pendientes');
             }
 
             // Validar stock nuevamente
             $stock = Stock::where('sucursal_id', $transferencia->sucursal_origen_id)
-                         ->where('articulo_id', $transferencia->articulo_id)
-                         ->first();
+                ->where('articulo_id', $transferencia->articulo_id)
+                ->first();
 
-            if (!$stock || $stock->cantidad < $transferencia->cantidad) {
+            if (! $stock || $stock->cantidad < $transferencia->cantidad) {
                 throw new Exception('Stock insuficiente para aprobar la transferencia');
             }
 
@@ -171,7 +169,7 @@ class TransferenciaStockService
             DB::connection('pymes_tenant')->rollBack();
             Log::error('Error al aprobar transferencia', [
                 'transferencia_id' => $transferenciaId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -180,9 +178,6 @@ class TransferenciaStockService
     /**
      * Recibe y completa una transferencia de stock
      *
-     * @param int $transferenciaId
-     * @param int $usuarioId
-     * @return TransferenciaStock
      * @throws Exception
      */
     public function recibirTransferencia(int $transferenciaId, int $usuarioId): TransferenciaStock
@@ -192,7 +187,7 @@ class TransferenciaStockService
         try {
             $transferencia = TransferenciaStock::findOrFail($transferenciaId);
 
-            if (!$transferencia->estaEnTransito()) {
+            if (! $transferencia->estaEnTransito()) {
                 throw new Exception('Solo se pueden recibir transferencias en tránsito');
             }
 
@@ -240,7 +235,7 @@ class TransferenciaStockService
             DB::connection('pymes_tenant')->rollBack();
             Log::error('Error al recibir transferencia', [
                 'transferencia_id' => $transferenciaId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -249,8 +244,6 @@ class TransferenciaStockService
     /**
      * Cancela una transferencia y revierte el stock si ya fue aprobada
      *
-     * @param int $transferenciaId
-     * @return TransferenciaStock
      * @throws Exception
      */
     public function cancelarTransferencia(int $transferenciaId): TransferenciaStock
@@ -267,8 +260,8 @@ class TransferenciaStockService
             // Si estaba en tránsito, devolver stock a origen
             if ($transferencia->estaEnTransito()) {
                 $stock = Stock::where('sucursal_id', $transferencia->sucursal_origen_id)
-                             ->where('articulo_id', $transferencia->articulo_id)
-                             ->first();
+                    ->where('articulo_id', $transferencia->articulo_id)
+                    ->first();
 
                 if ($stock) {
                     $stock->aumentar($transferencia->cantidad);
@@ -304,7 +297,7 @@ class TransferenciaStockService
             DB::connection('pymes_tenant')->rollBack();
             Log::error('Error al cancelar transferencia', [
                 'transferencia_id' => $transferenciaId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -313,8 +306,6 @@ class TransferenciaStockService
     /**
      * Crea los documentos fiscales para una transferencia (venta y compra)
      *
-     * @param TransferenciaStock $transferencia
-     * @param int $usuarioId
      * @throws Exception
      */
     protected function crearDocumentosFiscales(TransferenciaStock $transferencia, int $usuarioId): void

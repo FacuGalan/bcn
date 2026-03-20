@@ -4,40 +4,54 @@ namespace App\Livewire\Bancos;
 
 use App\Models\CuentaEmpresa;
 use App\Models\Moneda;
-use App\Models\Sucursal;
 use App\Services\CatalogoCache;
+use App\Traits\SucursalAware;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
-use App\Traits\SucursalAware;
 
 #[Layout('layouts.app')]
 class GestionCuentas extends Component
 {
-    use WithPagination, SucursalAware;
+    use SucursalAware, WithPagination;
 
     // Filtros
     public string $search = '';
+
     public string $filtroTipo = '';
+
     public string $filtroActivo = '1';
 
     // Modal
     public bool $showModal = false;
+
     public ?int $cuentaId = null;
+
     public string $nombre = '';
+
     public string $tipo = 'banco';
+
     public ?string $subtipo = null;
+
     public ?string $banco = null;
+
     public ?string $numero_cuenta = null;
+
     public ?string $cbu = null;
+
     public ?string $alias = null;
+
     public ?string $titular = null;
+
     public ?int $moneda_id = null;
+
     public ?string $color = null;
+
     public array $sucursales_seleccionadas = [];
 
     // Confirmación eliminar
     public bool $showConfirmDelete = false;
+
     public ?int $deleteId = null;
 
     protected function rules()
@@ -124,7 +138,7 @@ class GestionCuentas extends Component
 
         // Sync sucursales
         $cuenta->sucursales()->sync(
-            collect($this->sucursales_seleccionadas)->mapWithKeys(fn($id) => [$id => ['activo' => true]])->toArray()
+            collect($this->sucursales_seleccionadas)->mapWithKeys(fn ($id) => [$id => ['activo' => true]])->toArray()
         );
 
         $this->showModal = false;
@@ -134,7 +148,7 @@ class GestionCuentas extends Component
     public function toggleStatus(int $id)
     {
         $cuenta = CuentaEmpresa::findOrFail($id);
-        $cuenta->update(['activo' => !$cuenta->activo]);
+        $cuenta->update(['activo' => ! $cuenta->activo]);
         $this->dispatch('toast-success', message: $cuenta->activo ? __('Cuenta activada') : __('Cuenta desactivada'));
     }
 
@@ -146,7 +160,9 @@ class GestionCuentas extends Component
 
     public function eliminar()
     {
-        if (!$this->deleteId) return;
+        if (! $this->deleteId) {
+            return;
+        }
 
         $cuenta = CuentaEmpresa::findOrFail($this->deleteId);
 
@@ -154,6 +170,7 @@ class GestionCuentas extends Component
         if ($cuenta->movimientos()->count() > 0) {
             $this->dispatch('toast-error', message: __('No se puede eliminar una cuenta con movimientos. Desactívela en su lugar.'));
             $this->showConfirmDelete = false;
+
             return;
         }
 
@@ -193,9 +210,9 @@ class GestionCuentas extends Component
         if ($this->search) {
             $query->where(function ($q) {
                 $q->where('nombre', 'like', "%{$this->search}%")
-                  ->orWhere('banco', 'like', "%{$this->search}%")
-                  ->orWhere('cbu', 'like', "%{$this->search}%")
-                  ->orWhere('alias', 'like', "%{$this->search}%");
+                    ->orWhere('banco', 'like', "%{$this->search}%")
+                    ->orWhere('cbu', 'like', "%{$this->search}%")
+                    ->orWhere('alias', 'like', "%{$this->search}%");
             });
         }
 

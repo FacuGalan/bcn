@@ -23,7 +23,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property float $subtotal
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Compra $compra
  * @property-read Articulo $articulo
  * @property-read TipoIva $tipoIva
@@ -31,6 +30,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class CompraDetalle extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'compras_detalle';
 
     protected $fillable = [

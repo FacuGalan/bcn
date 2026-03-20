@@ -3,8 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\MenuItem;
-use App\Models\Permission;
 use App\Models\PermisoFuncional;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -28,7 +28,6 @@ use Illuminate\Database\Seeder;
  * - Requiere TenantService configurado (comercio activo)
  * - Los permisos son compartidos, los roles son por comercio
  *
- * @package Database\Seeders
  * @version 2.0.0
  */
 class RolePermissionSeeder extends Seeder
@@ -62,8 +61,6 @@ class RolePermissionSeeder extends Seeder
      *
      * Los permisos son compartidos entre todos los comercios, por lo que
      * solo se crean si no existen. Retorna todos los permisos existentes.
-     *
-     * @return \Illuminate\Support\Collection
      */
     protected function ensurePermissionsFromMenu(): \Illuminate\Support\Collection
     {
@@ -87,8 +84,6 @@ class RolePermissionSeeder extends Seeder
 
     /**
      * Crea roles predeterminados del sistema
-     *
-     * @return \Illuminate\Support\Collection
      */
     protected function createDefaultRoles(): \Illuminate\Support\Collection
     {
@@ -130,14 +125,13 @@ class RolePermissionSeeder extends Seeder
     /**
      * Asigna permisos a cada rol según su nivel de acceso
      *
-     * @param \Illuminate\Support\Collection $roles
-     * @param \Illuminate\Support\Collection $permissions
-     * @return void
+     * @param  \Illuminate\Support\Collection  $roles
+     * @param  \Illuminate\Support\Collection  $permissions
      */
     protected function assignPermissionsToRoles($roles, $permissions): void
     {
         // Obtener todos los permisos funcionales
-        $funcPermissions = Permission::where('name', 'like', PermisoFuncional::PERMISSION_PREFIX . '%')
+        $funcPermissions = Permission::where('name', 'like', PermisoFuncional::PERMISSION_PREFIX.'%')
             ->pluck('name')
             ->toArray();
 
@@ -202,8 +196,7 @@ class RolePermissionSeeder extends Seeder
     /**
      * Asigna roles a usuarios existentes (opcional, para testing)
      *
-     * @param \Illuminate\Support\Collection $roles
-     * @return void
+     * @param  \Illuminate\Support\Collection  $roles
      */
     protected function assignRolesToUsers($roles): void
     {

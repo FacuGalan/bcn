@@ -2,15 +2,15 @@
 
 namespace App\Livewire\Stock;
 
-use Livewire\Component;
-use Livewire\WithPagination;
 use App\Models\Articulo;
+use App\Models\Produccion as ProduccionModel;
 use App\Models\Receta;
 use App\Models\Stock;
-use App\Models\Produccion as ProduccionModel;
 use App\Services\ProduccionService;
-use Illuminate\Support\Facades\Auth;
 use Exception;
+use Illuminate\Support\Facades\Auth;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 class Produccion extends Component
 {
@@ -24,31 +24,45 @@ class Produccion extends Component
 
     // Modal producir artículo individual
     public bool $showProducirModal = false;
+
     public ?int $producirArticuloId = null;
+
     public string $producirArticuloNombre = '';
+
     public string $producirCantidad = '1';
+
     public array $producirIngredientes = [];
+
     public ?int $producirRecetaId = null;
+
     public string $producirCantidadReceta = '1';
 
     // Modal confirmar lote
     public bool $showConfirmarLoteModal = false;
+
     public array $resumenIngredientes = [];
+
     public string $loteObservaciones = '';
 
     // Modal historial
     public bool $showHistorialModal = false;
+
     public string $filterFechaDesde = '';
+
     public string $filterFechaHasta = '';
+
     public array $historial = [];
 
     // Modal anulación
     public bool $showAnularModal = false;
+
     public ?int $anularProduccionId = null;
+
     public string $motivoAnulacion = '';
 
     // Modal detalle producción
     public bool $showDetalleModal = false;
+
     public ?array $detalleProduccion = null;
 
     public function updatingSearch()
@@ -76,16 +90,16 @@ class Produccion extends Component
             ->where('recetable_type', 'Articulo')
             ->where(function ($q) use ($sucursalId) {
                 $q->where('sucursal_id', $sucursalId)
-                  ->orWhere(function ($q2) use ($sucursalId) {
-                      $q2->whereNull('sucursal_id')
-                         ->whereNotExists(function ($sub) use ($sucursalId) {
-                             $sub->selectRaw(1)
-                                 ->from('recetas as r2')
-                                 ->whereColumn('r2.recetable_type', 'recetas.recetable_type')
-                                 ->whereColumn('r2.recetable_id', 'recetas.recetable_id')
-                                 ->where('r2.sucursal_id', $sucursalId);
-                         });
-                  });
+                    ->orWhere(function ($q2) use ($sucursalId) {
+                        $q2->whereNull('sucursal_id')
+                            ->whereNotExists(function ($sub) use ($sucursalId) {
+                                $sub->selectRaw(1)
+                                    ->from('recetas as r2')
+                                    ->whereColumn('r2.recetable_type', 'recetas.recetable_type')
+                                    ->whereColumn('r2.recetable_id', 'recetas.recetable_id')
+                                    ->where('r2.sucursal_id', $sucursalId);
+                            });
+                    });
             })
             ->pluck('recetable_id');
 
@@ -94,9 +108,9 @@ class Produccion extends Component
 
         if ($this->search) {
             $query->where(function ($q) {
-                $q->where('nombre', 'like', '%' . $this->search . '%')
-                  ->orWhere('codigo', 'like', '%' . $this->search . '%')
-                  ->orWhere('codigo_barras', 'like', '%' . $this->search . '%');
+                $q->where('nombre', 'like', '%'.$this->search.'%')
+                    ->orWhere('codigo', 'like', '%'.$this->search.'%')
+                    ->orWhere('codigo_barras', 'like', '%'.$this->search.'%');
             });
         }
 
@@ -114,8 +128,9 @@ class Produccion extends Component
         $articulo = Articulo::findOrFail($articuloId);
         $receta = Receta::resolver('Articulo', $articuloId, $sucursalId);
 
-        if (!$receta) {
+        if (! $receta) {
             $this->dispatch('notify', message: __('Este artículo no tiene una receta activa.'), type: 'error');
+
             return;
         }
 
@@ -169,6 +184,7 @@ class Produccion extends Component
         $cantidad = (float) $this->producirCantidad;
         if ($cantidad <= 0) {
             $this->dispatch('notify', message: __('La cantidad debe ser mayor a 0.'), type: 'error');
+
             return;
         }
 
@@ -205,6 +221,7 @@ class Produccion extends Component
         $cantidad = (float) $this->producirCantidad;
         if ($cantidad <= 0) {
             $this->dispatch('notify', message: __('La cantidad debe ser mayor a 0.'), type: 'error');
+
             return;
         }
 
@@ -226,7 +243,7 @@ class Produccion extends Component
         ]];
 
         try {
-            $service = new ProduccionService();
+            $service = new ProduccionService;
             $resultado = $service->confirmarProduccion(
                 $cola,
                 sucursal_activa(),
@@ -236,8 +253,8 @@ class Produccion extends Component
             $this->cerrarProducirModal();
 
             $msg = __('Producción confirmada correctamente.');
-            if (!empty($resultado['advertencias'])) {
-                $msg .= ' ' . __('Advertencia: algunos ingredientes tenían stock insuficiente.');
+            if (! empty($resultado['advertencias'])) {
+                $msg .= ' '.__('Advertencia: algunos ingredientes tenían stock insuficiente.');
             }
             $this->dispatch('notify', message: $msg, type: 'success');
 
@@ -270,6 +287,7 @@ class Produccion extends Component
     {
         if (empty($this->colaProduccion)) {
             $this->dispatch('notify', message: __('La cola de producción está vacía.'), type: 'error');
+
             return;
         }
 
@@ -278,7 +296,7 @@ class Produccion extends Component
         foreach ($this->colaProduccion as $item) {
             foreach ($item['ingredientes'] as $ing) {
                 $artId = $ing['articulo_id'];
-                if (!isset($consolidado[$artId])) {
+                if (! isset($consolidado[$artId])) {
                     $consolidado[$artId] = [
                         'articulo_id' => $artId,
                         'nombre' => $ing['nombre'],
@@ -332,7 +350,7 @@ class Produccion extends Component
         }
 
         try {
-            $service = new ProduccionService();
+            $service = new ProduccionService;
             $resultado = $service->confirmarProduccion(
                 $cola,
                 sucursal_activa(),
@@ -344,8 +362,8 @@ class Produccion extends Component
             $this->showConfirmarLoteModal = false;
 
             $msg = __('Producción de lote confirmada correctamente.');
-            if (!empty($resultado['advertencias'])) {
-                $msg .= ' ' . __('Advertencia: algunos ingredientes tenían stock insuficiente.');
+            if (! empty($resultado['advertencias'])) {
+                $msg .= ' '.__('Advertencia: algunos ingredientes tenían stock insuficiente.');
             }
             $this->dispatch('notify', message: $msg, type: 'success');
 
@@ -393,7 +411,7 @@ class Produccion extends Component
                 'anulado_por' => $p->anuladoPorUsuario->name ?? null,
                 'fecha_anulacion' => $p->fecha_anulacion ? $p->fecha_anulacion->format('d/m/Y H:i') : null,
                 'motivo_anulacion' => $p->motivo_anulacion,
-                'articulos' => $p->detalles->map(fn($d) => [
+                'articulos' => $p->detalles->map(fn ($d) => [
                     'nombre' => $d->articulo->nombre ?? 'N/A',
                     'cantidad' => (float) $d->cantidad_producida,
                 ])->toArray(),
@@ -418,10 +436,10 @@ class Produccion extends Component
             'usuario' => $produccion->usuario->name ?? 'N/A',
             'anulado_por' => $produccion->anuladoPorUsuario->name ?? null,
             'motivo_anulacion' => $produccion->motivo_anulacion,
-            'detalles' => $produccion->detalles->map(fn($d) => [
+            'detalles' => $produccion->detalles->map(fn ($d) => [
                 'articulo' => $d->articulo->nombre ?? 'N/A',
                 'cantidad_producida' => (float) $d->cantidad_producida,
-                'ingredientes' => $d->ingredientes->map(fn($i) => [
+                'ingredientes' => $d->ingredientes->map(fn ($i) => [
                     'articulo' => $i->articulo->nombre ?? 'N/A',
                     'cantidad_receta' => (float) $i->cantidad_receta,
                     'cantidad_real' => (float) $i->cantidad_real,
@@ -456,11 +474,12 @@ class Produccion extends Component
     {
         if (empty($this->motivoAnulacion)) {
             $this->dispatch('notify', message: __('Debe ingresar un motivo de anulación.'), type: 'error');
+
             return;
         }
 
         try {
-            $service = new ProduccionService();
+            $service = new ProduccionService;
             $service->anularProduccion(
                 $this->anularProduccionId,
                 Auth::id(),

@@ -25,8 +25,8 @@ class CambioPrecioProgramadoService
             // Construir detalle del cambio masivo
             $tipoAjusteLabel = $cambio->tipo_ajuste === 'recargo' ? __('Recargo') : __('Descuento');
             $tipoValorLabel = $cambio->tipo_valor === 'porcentual' ? '%' : '$';
-            $redondeoLabel = $cambio->tipo_redondeo !== 'sin_redondeo' ? ', ' . __('redondeo') . ' ' . $cambio->tipo_redondeo : '';
-            $detalleMasivo = "{$tipoAjusteLabel} {$cambio->valor_ajuste}{$tipoValorLabel}{$redondeoLabel} (" . __('programado') . ")";
+            $redondeoLabel = $cambio->tipo_redondeo !== 'sin_redondeo' ? ', '.__('redondeo').' '.$cambio->tipo_redondeo : '';
+            $detalleMasivo = "{$tipoAjusteLabel} {$cambio->valor_ajuste}{$tipoValorLabel}{$redondeoLabel} (".__('programado').')';
 
             if ($cambio->alcance_precio === 'sucursal_actual' && $cambio->sucursal_id) {
                 $articulosActualizados = $this->aplicarCambioSucursal($cambio, $articulosData, $detalleMasivo);
@@ -36,7 +36,7 @@ class CambioPrecioProgramadoService
 
             $mensaje = __('Se actualizaron :count artículos', ['count' => $articulosActualizados]);
             if ($listasActualizadas > 0) {
-                $mensaje .= ' ' . __('y :count precios en listas', ['count' => $listasActualizadas]);
+                $mensaje .= ' '.__('y :count precios en listas', ['count' => $listasActualizadas]);
             }
 
             $cambio->update([
@@ -126,7 +126,7 @@ class CambioPrecioProgramadoService
         foreach ($articulosData as $articuloData) {
             $articulo = Articulo::find($articuloData['id']);
 
-            if (!$articulo) {
+            if (! $articulo) {
                 continue;
             }
 
@@ -193,7 +193,7 @@ class CambioPrecioProgramadoService
                 'precio_nuevo' => $precioGenericoNuevo,
                 'usuario_id' => $cambio->usuario_id,
                 'origen' => 'masivo_global',
-                'detalle' => __('Override eliminado por cambio masivo global') . ' (' . __('programado') . ')',
+                'detalle' => __('Override eliminado por cambio masivo global').' ('.__('programado').')',
             ]);
         }
 

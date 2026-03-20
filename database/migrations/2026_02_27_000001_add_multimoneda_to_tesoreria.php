@@ -10,7 +10,7 @@ return new class extends Migration
         $comercios = DB::connection('config')->table('comercios')->get();
 
         foreach ($comercios as $comercio) {
-            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT) . '_';
+            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT).'_';
 
             // 1. Crear tabla tesoreria_saldos_moneda
             try {
@@ -69,11 +69,12 @@ return new class extends Migration
         $comercios = DB::connection('config')->table('comercios')->get();
 
         foreach ($comercios as $comercio) {
-            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT) . '_';
+            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT).'_';
 
             try {
                 DB::connection('pymes')->statement("DROP TABLE IF EXISTS `{$prefix}tesoreria_saldos_moneda`");
-            } catch (\Exception $e) {}
+            } catch (\Exception $e) {
+            }
 
             try {
                 DB::connection('pymes')->statement("
@@ -81,14 +82,16 @@ return new class extends Migration
                     DROP COLUMN `monto_moneda_original`,
                     DROP COLUMN `moneda_id`
                 ");
-            } catch (\Exception $e) {}
+            } catch (\Exception $e) {
+            }
 
             try {
                 DB::connection('pymes')->statement("
                     ALTER TABLE `{$prefix}rendicion_fondos`
                     DROP COLUMN `desglose_monedas`
                 ");
-            } catch (\Exception $e) {}
+            } catch (\Exception $e) {
+            }
 
             try {
                 DB::connection('pymes')->statement("
@@ -96,7 +99,8 @@ return new class extends Migration
                     DROP COLUMN `monto_moneda_original`,
                     DROP COLUMN `moneda_id`
                 ");
-            } catch (\Exception $e) {}
+            } catch (\Exception $e) {
+            }
         }
     }
 };

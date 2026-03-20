@@ -3,9 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Route;
 
 /**
@@ -29,14 +28,12 @@ use Illuminate\Support\Facades\Route;
  * @property bool $activo
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read MenuItem|null $parent
  * @property-read \Illuminate\Database\Eloquent\Collection|MenuItem[] $children
  * @property-read int $children_count
  * @property-read int $nivel
  * @property-read bool $is_parent
  *
- * @package App\Models
  * @version 1.0.0
  */
 class MenuItem extends Model
@@ -78,8 +75,6 @@ class MenuItem extends Model
 
     /**
      * Relación: Item padre
-     *
-     * @return BelongsTo
      */
     public function parent(): BelongsTo
     {
@@ -88,8 +83,6 @@ class MenuItem extends Model
 
     /**
      * Relación: Items hijos
-     *
-     * @return HasMany
      */
     public function children(): HasMany
     {
@@ -100,8 +93,6 @@ class MenuItem extends Model
 
     /**
      * Relación: Todos los items hijos (incluyendo inactivos)
-     *
-     * @return HasMany
      */
     public function allChildren(): HasMany
     {
@@ -112,7 +103,7 @@ class MenuItem extends Model
     /**
      * Scope: Solo items raíz (sin padre)
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
      * @return \Illuminate\Database\Eloquent\Builder
      */
     public function scopeRoots($query)
@@ -125,7 +116,7 @@ class MenuItem extends Model
     /**
      * Scope: Solo items activos
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
      * @return \Illuminate\Database\Eloquent\Builder
      */
     public function scopeActive($query)
@@ -135,8 +126,6 @@ class MenuItem extends Model
 
     /**
      * Verifica si el item es un padre (tiene hijos)
-     *
-     * @return bool
      */
     public function isParent(): bool
     {
@@ -145,18 +134,14 @@ class MenuItem extends Model
 
     /**
      * Verifica si el item es una hoja (no tiene hijos)
-     *
-     * @return bool
      */
     public function isLeaf(): bool
     {
-        return !$this->isParent();
+        return ! $this->isParent();
     }
 
     /**
      * Verifica si el item es raíz (no tiene padre)
-     *
-     * @return bool
      */
     public function isRoot(): bool
     {
@@ -166,8 +151,6 @@ class MenuItem extends Model
     /**
      * Obtiene el nivel de profundidad del item en el árbol
      * Nivel 0 = raíz, Nivel 1 = hijo de raíz, etc.
-     *
-     * @return int
      */
     public function getNivel(): int
     {
@@ -185,8 +168,6 @@ class MenuItem extends Model
     /**
      * Obtiene la ruta completa del slug (incluyendo ancestros)
      * Ejemplo: "ventas" → "ventas", "nueva-venta" → "ventas.nueva-venta"
-     *
-     * @return string
      */
     public function getFullSlug(): string
     {
@@ -203,8 +184,6 @@ class MenuItem extends Model
 
     /**
      * Obtiene todos los ancestros del item (padres, abuelos, etc.)
-     *
-     * @return \Illuminate\Support\Collection
      */
     public function getAncestors(): \Illuminate\Support\Collection
     {
@@ -222,8 +201,6 @@ class MenuItem extends Model
     /**
      * Obtiene todos los descendientes del item (hijos, nietos, etc.)
      * Usa recursión para obtener toda la rama
-     *
-     * @return \Illuminate\Support\Collection
      */
     public function getDescendants(): \Illuminate\Support\Collection
     {
@@ -240,19 +217,15 @@ class MenuItem extends Model
     /**
      * Genera el permiso asociado a este item del menú
      * Formato: menu.{slug}
-     *
-     * @return string
      */
     public function getPermissionName(): string
     {
-        return 'menu.' . $this->slug;
+        return 'menu.'.$this->slug;
     }
 
     /**
      * Obtiene la URL final según el tipo de ruta
      * Si la ruta no existe, retorna '#' para mantener el menú funcional
-     *
-     * @return string|null
      */
     public function getUrl(): ?string
     {
@@ -260,7 +233,7 @@ class MenuItem extends Model
             'route' => $this->route_value
                 ? (Route::has($this->route_value) ? route($this->route_value) : '#')
                 : null,
-            'component' => $this->route_value ? url('/') . '?component=' . $this->route_value : null,
+            'component' => $this->route_value ? url('/').'?component='.$this->route_value : null,
             'none' => null,
             default => null,
         };
@@ -269,17 +242,15 @@ class MenuItem extends Model
     /**
      * Verifica si el item actual coincide con la ruta actual
      * Solo verifica si la ruta existe para evitar errores
-     *
-     * @return bool
      */
     public function isCurrentRoute(): bool
     {
-        if ($this->route_type !== 'route' || !$this->route_value) {
+        if ($this->route_type !== 'route' || ! $this->route_value) {
             return false;
         }
 
         // Verificar que la ruta exista antes de compararla
-        if (!Route::has($this->route_value)) {
+        if (! Route::has($this->route_value)) {
             return false;
         }
 
@@ -291,7 +262,7 @@ class MenuItem extends Model
         // Verificar coincidencia con subrutas (ej: promociones.nueva, promociones.editar)
         // Usamos un punto como separador para evitar falsos positivos
         // Esto evita que "promociones" coincida con "promociones-especiales"
-        if (request()->routeIs($this->route_value . '.*')) {
+        if (request()->routeIs($this->route_value.'.*')) {
             return true;
         }
 
@@ -315,7 +286,7 @@ class MenuItem extends Model
         // Si esta ruta tiene rutas relacionadas, verificar si estamos en alguna de ellas
         if (isset($relatedRoutes[$this->route_value])) {
             foreach ($relatedRoutes[$this->route_value] as $relatedRoute) {
-                if (request()->routeIs($relatedRoute) || request()->routeIs($relatedRoute . '.*')) {
+                if (request()->routeIs($relatedRoute) || request()->routeIs($relatedRoute.'.*')) {
                     return true;
                 }
             }

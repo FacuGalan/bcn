@@ -52,7 +52,7 @@ class EmpresaConfig extends Model
     {
         $config = static::first();
 
-        if (!$config) {
+        if (! $config) {
             $config = static::create([
                 'nombre' => 'Mi Empresa',
             ]);
@@ -66,7 +66,7 @@ class EmpresaConfig extends Model
      */
     public function getLogoUrlAttribute(): ?string
     {
-        if (!$this->logo_path) {
+        if (! $this->logo_path) {
             return null;
         }
 
@@ -108,6 +108,6 @@ class EmpresaConfig extends Model
      */
     public function hasLogo(): bool
     {
-        return !empty($this->logo_path) && Storage::disk('public')->exists($this->logo_path);
+        return ! empty($this->logo_path) && Storage::disk('public')->exists($this->logo_path);
     }
 }

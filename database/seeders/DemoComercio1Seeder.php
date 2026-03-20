@@ -2,21 +2,20 @@
 
 namespace Database\Seeders;
 
+use App\Models\Articulo;
+use App\Models\Caja;
+use App\Models\Cliente;
+use App\Models\Comercio;
+use App\Models\MovimientoCaja;
+use App\Models\Stock;
+use App\Models\Sucursal;
+use App\Models\TipoIva;
+use App\Models\User;
+use App\Models\Venta;
+use App\Models\VentaDetalle;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use App\Models\User;
-use App\Models\Comercio;
-use App\Models\Sucursal;
-use App\Models\Articulo;
-use App\Models\Stock;
-use App\Models\Cliente;
-use App\Models\Caja;
-use App\Models\MovimientoCaja;
-use App\Models\Venta;
-use App\Models\VentaDetalle;
-use App\Models\TipoIva;
-use Carbon\Carbon;
 
 /**
  * Seeder: Demo Comercio 1
@@ -32,10 +31,15 @@ use Carbon\Carbon;
 class DemoComercio1Seeder extends Seeder
 {
     private $comercioId = 1;
+
     private $sucursales = [];
+
     private $articulos = [];
+
     private $clientes = [];
+
     private $cajas = [];
+
     private $tiposIva = [];
 
     public function run(): void
@@ -74,10 +78,10 @@ class DemoComercio1Seeder extends Seeder
 
         echo "\n✅ Seeder completado exitosamente!\n";
         echo "📊 Resumen:\n";
-        echo "   - Sucursales creadas: " . count($this->sucursales) . "\n";
-        echo "   - Artículos creados: " . count($this->articulos) . "\n";
-        echo "   - Clientes creados: " . count($this->clientes) . "\n";
-        echo "   - Cajas creadas: " . count($this->cajas) . "\n";
+        echo '   - Sucursales creadas: '.count($this->sucursales)."\n";
+        echo '   - Artículos creados: '.count($this->articulos)."\n";
+        echo '   - Clientes creados: '.count($this->clientes)."\n";
+        echo '   - Cajas creadas: '.count($this->cajas)."\n";
         echo "\n";
         echo "🔑 Credenciales de acceso:\n";
         echo "   Email comercio: comercio1@test.com\n";
@@ -90,11 +94,11 @@ class DemoComercio1Seeder extends Seeder
         echo "⚙️  Configurando tenant para comercio 1...\n";
 
         $comercio = Comercio::find($this->comercioId);
-        $prefix = str_pad($this->comercioId, 6, '0', STR_PAD_LEFT) . '_';
+        $prefix = str_pad($this->comercioId, 6, '0', STR_PAD_LEFT).'_';
 
         config([
             'database.connections.pymes_tenant.prefix' => $prefix,
-            'database.connections.pymes_tenant.database' => $comercio->database_name ?? 'pymes'
+            'database.connections.pymes_tenant.database' => $comercio->database_name ?? 'pymes',
         ]);
 
         DB::purge('pymes_tenant');
@@ -107,7 +111,7 @@ class DemoComercio1Seeder extends Seeder
         // Obtener Casa Central (ya existe)
         $this->sucursales['central'] = Sucursal::where('codigo', 'CENTRAL')->first();
 
-        if (!$this->sucursales['central']) {
+        if (! $this->sucursales['central']) {
             $this->sucursales['central'] = Sucursal::create([
                 'nombre' => 'Casa Central',
                 'codigo' => 'CENTRAL',
@@ -121,7 +125,7 @@ class DemoComercio1Seeder extends Seeder
 
         // Sucursal Norte
         $this->sucursales['norte'] = Sucursal::where('codigo', 'NORTE')->first();
-        if (!$this->sucursales['norte']) {
+        if (! $this->sucursales['norte']) {
             $this->sucursales['norte'] = Sucursal::create([
                 'nombre' => 'Sucursal Norte',
                 'codigo' => 'NORTE',
@@ -135,7 +139,7 @@ class DemoComercio1Seeder extends Seeder
 
         // Sucursal Sur
         $this->sucursales['sur'] = Sucursal::where('codigo', 'SUR')->first();
-        if (!$this->sucursales['sur']) {
+        if (! $this->sucursales['sur']) {
             $this->sucursales['sur'] = Sucursal::create([
                 'nombre' => 'Sucursal Sur',
                 'codigo' => 'SUR',
@@ -233,6 +237,7 @@ class DemoComercio1Seeder extends Seeder
             $existing = Articulo::where('codigo', $art['codigo'])->first();
             if ($existing) {
                 $this->articulos[$art['codigo']] = $existing;
+
                 continue;
             }
 
@@ -267,7 +272,7 @@ class DemoComercio1Seeder extends Seeder
                     ->where('sucursal_id', $sucursal->id)
                     ->exists();
 
-                if (!$existeAsignacion) {
+                if (! $existeAsignacion) {
                     // Asignar artículo a sucursal
                     DB::connection('pymes_tenant')->table('articulos_sucursales')->insert([
                         'articulo_id' => $articulo->id,
@@ -283,7 +288,7 @@ class DemoComercio1Seeder extends Seeder
                     ->where('sucursal_id', $sucursal->id)
                     ->exists();
 
-                if (!$existeStock) {
+                if (! $existeStock) {
                     // Crear stock con cantidades variables según sucursal
                     $cantidad = $this->generarCantidadStock($key);
 
@@ -304,7 +309,7 @@ class DemoComercio1Seeder extends Seeder
     private function generarCantidadStock(string $sucursalKey): float
     {
         // Central tiene más stock, Norte medio, Sur menos
-        return match($sucursalKey) {
+        return match ($sucursalKey) {
             'central' => rand(50, 100),
             'norte' => rand(30, 60),
             'sur' => rand(20, 40),
@@ -371,8 +376,8 @@ class DemoComercio1Seeder extends Seeder
         foreach ($this->sucursales as $key => $sucursal) {
             $caja = Caja::create([
                 'sucursal_id' => $sucursal->id,
-                'nombre' => 'Caja Principal ' . $sucursal->nombre,
-                'codigo' => 'CAJA-' . $sucursal->codigo,
+                'nombre' => 'Caja Principal '.$sucursal->nombre,
+                'codigo' => 'CAJA-'.$sucursal->codigo,
                 'saldo_inicial' => 5000,
                 'saldo_actual' => 5000,
                 'estado' => 'abierta',
@@ -407,7 +412,7 @@ class DemoComercio1Seeder extends Seeder
                     'caja_id' => $caja->id,
                     'tipo' => 'ingreso',
                     'monto' => $monto,
-                    'concepto' => 'Ingreso varios - ' . ($i + 1),
+                    'concepto' => 'Ingreso varios - '.($i + 1),
                     'usuario_id' => 1,
                 ]);
 
@@ -422,7 +427,7 @@ class DemoComercio1Seeder extends Seeder
                     'caja_id' => $caja->id,
                     'tipo' => 'egreso',
                     'monto' => $monto,
-                    'concepto' => 'Gasto varios - ' . ($i + 1),
+                    'concepto' => 'Gasto varios - '.($i + 1),
                     'usuario_id' => 1,
                 ]);
 
@@ -505,8 +510,8 @@ class DemoComercio1Seeder extends Seeder
 
                     // Descontar del stock
                     $stock = Stock::where('articulo_id', $articulo->id)
-                                  ->where('sucursal_id', $sucursal->id)
-                                  ->first();
+                        ->where('sucursal_id', $sucursal->id)
+                        ->first();
                     if ($stock) {
                         $stock->cantidad -= $cantidad;
                         $stock->save();
@@ -525,7 +530,7 @@ class DemoComercio1Seeder extends Seeder
                         'caja_id' => $this->cajas[$key]->id,
                         'tipo' => 'ingreso',
                         'monto' => $venta->total,
-                        'concepto' => 'Venta ' . $venta->numero,
+                        'concepto' => 'Venta '.$venta->numero,
                         'usuario_id' => 1,
                         'referencia_tipo' => 'App\\Models\\Venta',
                         'referencia_id' => $venta->id,
@@ -568,7 +573,7 @@ class DemoComercio1Seeder extends Seeder
             ->where('user_id', $user->id)
             ->first();
 
-        if (!$comercioUser) {
+        if (! $comercioUser) {
             // Asignar al comercio
             DB::connection('config')->table('comercio_user')->insert([
                 'comercio_id' => $this->comercioId,
@@ -593,7 +598,7 @@ class DemoComercio1Seeder extends Seeder
                     ->where('sucursal_id', $sucursal->id)
                     ->first();
 
-                if (!$existingRole) {
+                if (! $existingRole) {
                     DB::connection('pymes_tenant')->table('model_has_roles')->insert([
                         'role_id' => $rolAdmin->id,
                         'model_type' => 'App\\Models\\User',

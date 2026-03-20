@@ -8,9 +8,9 @@ use App\Models\CobroVenta;
 use App\Models\MovimientoCuentaCorriente;
 use App\Models\Venta;
 use App\Models\VentaPago;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 
 /**
  * Servicio de Cuenta Corriente Unificada
@@ -35,21 +35,19 @@ class CuentaCorrienteService
     /**
      * Registra el movimiento de CC cuando se crea una venta con pago a cuenta corriente
      *
-     * @param VentaPago $ventaPago El pago de tipo cuenta corriente
-     * @param int $usuarioId
-     * @return MovimientoCuentaCorriente|null
+     * @param  VentaPago  $ventaPago  El pago de tipo cuenta corriente
      */
     public function registrarMovimientoVenta(VentaPago $ventaPago, int $usuarioId): ?MovimientoCuentaCorriente
     {
         $venta = $ventaPago->venta;
 
         // Solo registrar si tiene cliente
-        if (!$venta->cliente_id) {
+        if (! $venta->cliente_id) {
             return null;
         }
 
         // Solo registrar si es cuenta corriente
-        if (!$ventaPago->es_cuenta_corriente) {
+        if (! $ventaPago->es_cuenta_corriente) {
             return null;
         }
 
@@ -70,9 +68,7 @@ class CuentaCorrienteService
     /**
      * Registra los movimientos de CC cuando se procesa un cobro
      *
-     * @param Cobro $cobro
-     * @param array $cobroVentas Array de CobroVenta creados
-     * @param int $usuarioId
+     * @param  array  $cobroVentas  Array de CobroVenta creados
      * @return array Array de MovimientoCuentaCorriente creados
      */
     public function registrarMovimientosCobro(Cobro $cobro, array $cobroVentas, int $usuarioId): array
@@ -116,10 +112,6 @@ class CuentaCorrienteService
 
     /**
      * Registra movimiento de anticipo puro (sin aplicar a deuda)
-     *
-     * @param Cobro $cobro
-     * @param int $usuarioId
-     * @return MovimientoCuentaCorriente
      */
     public function registrarMovimientoAnticipo(Cobro $cobro, int $usuarioId): MovimientoCuentaCorriente
     {
@@ -140,9 +132,6 @@ class CuentaCorrienteService
     /**
      * Anula los movimientos de una venta (cuando se cancela la venta)
      *
-     * @param Venta $venta
-     * @param string $motivo
-     * @param int $usuarioId
      * @return array Contraasientos creados
      */
     public function anularMovimientosVenta(Venta $venta, string $motivo, int $usuarioId): array
@@ -178,9 +167,6 @@ class CuentaCorrienteService
      *    el saldo usado se convierte en deuda del cliente
      * 2. Se crean contraasientos para todos los movimientos del cobro
      *
-     * @param Cobro $cobro
-     * @param string $motivo
-     * @param int $usuarioId
      * @return array ['contraasientos' => [], 'deuda_generada' => float]
      */
     public function anularMovimientosCobro(Cobro $cobro, string $motivo, int $usuarioId): array
@@ -218,7 +204,7 @@ class CuentaCorrienteService
                     'documento_tipo' => MovimientoCuentaCorriente::DOC_COBRO,
                     'documento_id' => $cobro->id,
                     'cobro_id' => $cobro->id,
-                    'concepto' => "Deuda por anulación de anticipo - Recibo {$cobro->numero_recibo} (saldo usado: $" . number_format($saldoUsadoDelAnticipo, 2) . ")",
+                    'concepto' => "Deuda por anulación de anticipo - Recibo {$cobro->numero_recibo} (saldo usado: $".number_format($saldoUsadoDelAnticipo, 2).')',
                     'observaciones' => $motivo,
                     'usuario_id' => $usuarioId,
                 ]);
@@ -247,13 +233,6 @@ class CuentaCorrienteService
 
     /**
      * Obtiene el extracto de cuenta corriente de un cliente en una sucursal
-     *
-     * @param int $clienteId
-     * @param int $sucursalId
-     * @param int $limite
-     * @param Carbon|null $desde
-     * @param Carbon|null $hasta
-     * @return Collection
      */
     public function obtenerExtracto(
         int $clienteId,
@@ -315,11 +294,6 @@ class CuentaCorrienteService
     /**
      * Obtiene el extracto de cuenta corriente (versión simplificada para mostrar)
      * Retorna los movimientos en orden de más reciente a más antiguo
-     *
-     * @param int $clienteId
-     * @param int $sucursalId
-     * @param int $limite
-     * @return Collection
      */
     public function obtenerExtractoResumido(int $clienteId, int $sucursalId, int $limite = 50): Collection
     {
@@ -382,10 +356,6 @@ class CuentaCorrienteService
     /**
      * Obtiene las ventas pendientes de pago de un cliente en una sucursal
      * (agrupadas por VentaPago de cuenta corriente)
-     *
-     * @param int $clienteId
-     * @param int $sucursalId
-     * @return Collection
      */
     public function obtenerVentasPendientes(int $clienteId, int $sucursalId): Collection
     {
@@ -420,10 +390,6 @@ class CuentaCorrienteService
 
     /**
      * Obtiene los saldos actuales de un cliente en una sucursal
-     *
-     * @param int $clienteId
-     * @param int $sucursalId
-     * @return array
      */
     public function obtenerSaldos(int $clienteId, int $sucursalId): array
     {
@@ -432,9 +398,6 @@ class CuentaCorrienteService
 
     /**
      * Obtiene los saldos globales de un cliente (todas las sucursales)
-     *
-     * @param int $clienteId
-     * @return array
      */
     public function obtenerSaldosGlobales(int $clienteId): array
     {
@@ -446,9 +409,6 @@ class CuentaCorrienteService
     /**
      * Actualiza el cache de saldos del cliente
      * Usa lock para evitar race conditions
-     *
-     * @param int $clienteId
-     * @param int|null $sucursalId
      */
     public function actualizarCacheCliente(int $clienteId, ?int $sucursalId = null): void
     {
@@ -456,7 +416,7 @@ class CuentaCorrienteService
             // Lock en el cliente
             $cliente = Cliente::lockForUpdate()->find($clienteId);
 
-            if (!$cliente) {
+            if (! $cliente) {
                 return;
             }
 
@@ -487,9 +447,6 @@ class CuentaCorrienteService
 
     /**
      * Calcula los días de mora máxima de un cliente
-     *
-     * @param int $clienteId
-     * @return int
      */
     protected function calcularDiasMoraMax(int $clienteId): int
     {
@@ -507,7 +464,7 @@ class CuentaCorrienteService
             ->select('venta_pagos.*', 'ventas.fecha_vencimiento')
             ->first();
 
-        if (!$ventaPagoMasAntigua || !$ventaPagoMasAntigua->fecha_vencimiento) {
+        if (! $ventaPagoMasAntigua || ! $ventaPagoMasAntigua->fecha_vencimiento) {
             return 0;
         }
 
@@ -518,9 +475,6 @@ class CuentaCorrienteService
 
     /**
      * Genera reporte de antigüedad de deuda
-     *
-     * @param int $sucursalId
-     * @return array
      */
     public function generarReporteAntiguedad(int $sucursalId): array
     {
@@ -552,11 +506,11 @@ class CuentaCorrienteService
             $venta = $pago->venta;
             $clienteId = $venta->cliente_id;
 
-            if (!$clienteId) {
+            if (! $clienteId) {
                 continue;
             }
 
-            if (!isset($reporte['clientes'][$clienteId])) {
+            if (! isset($reporte['clientes'][$clienteId])) {
                 $reporte['clientes'][$clienteId] = [
                     'cliente' => $venta->cliente,
                     '0_30' => 0,
@@ -600,16 +554,12 @@ class CuentaCorrienteService
 
     /**
      * Calcula interés por mora para un pago pendiente
-     *
-     * @param VentaPago $ventaPago
-     * @param float|null $tasaMensual
-     * @return float
      */
     public function calcularInteresMora(VentaPago $ventaPago, ?float $tasaMensual = null): float
     {
         $venta = $ventaPago->venta;
 
-        if (!$venta->fecha_vencimiento) {
+        if (! $venta->fecha_vencimiento) {
             return 0;
         }
 
@@ -638,11 +588,6 @@ class CuentaCorrienteService
 
     /**
      * Distribuye un monto entre pagos pendientes usando FIFO
-     *
-     * @param float $monto
-     * @param Collection $ventasPendientes
-     * @param float|null $tasaInteresMensual
-     * @return array
      */
     public function distribuirMontoFIFO(float $monto, Collection $ventasPendientes, ?float $tasaInteresMensual = null): array
     {

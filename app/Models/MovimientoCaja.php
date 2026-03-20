@@ -5,11 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
-use App\Models\User;
-use App\Models\Venta;
-use App\Models\Caja;
-use App\Models\Moneda;
-use App\Models\TipoCambio;
 
 /**
  * Modelo MovimientoCaja
@@ -32,7 +27,6 @@ use App\Models\TipoCambio;
  * @property int|null $cierre_turno_id ID del cierre de turno (si ya fue cerrado)
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Caja $caja
  * @property-read User $usuario
  * @property-read CierreTurno|null $cierreTurno
@@ -41,6 +35,7 @@ use App\Models\TipoCambio;
 class MovimientoCaja extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'movimientos_caja';
 
     protected $fillable = [
@@ -65,21 +60,35 @@ class MovimientoCaja extends Model
     // ==================== Constantes ====================
 
     public const TIPO_INGRESO = 'ingreso';
+
     public const TIPO_EGRESO = 'egreso';
 
     public const REF_VENTA = 'venta';
+
     public const REF_COMPRA = 'compra';
+
     public const REF_COBRO = 'cobro';
+
     public const REF_PAGO_PROVEEDOR = 'pago_proveedor';
+
     public const REF_AJUSTE = 'ajuste';
+
     public const REF_APERTURA = 'apertura';
+
     public const REF_RETIRO = 'retiro';
+
     public const REF_TRANSFERENCIA = 'transferencia';
+
     public const REF_INGRESO_MANUAL = 'ingreso_manual';
+
     public const REF_EGRESO_MANUAL = 'egreso_manual';
+
     public const REF_VUELTO_VENTA = 'vuelto_venta';
+
     public const REF_VUELTO_COBRO = 'vuelto_cobro';
+
     public const REF_ANULACION_VENTA = 'anulacion_venta';
+
     public const REF_ANULACION_COBRO = 'anulacion_cobro';
 
     // ==================== Relaciones ====================
@@ -153,6 +162,7 @@ class MovimientoCaja extends Model
         if ($id !== null) {
             $query->where('referencia_id', $id);
         }
+
         return $query;
     }
 
@@ -306,7 +316,7 @@ class MovimientoCaja extends Model
         return static::create([
             'caja_id' => $caja->id,
             'tipo' => self::TIPO_INGRESO,
-            'concepto' => "Apertura de caja - Fondo inicial",
+            'concepto' => 'Apertura de caja - Fondo inicial',
             'monto' => $fondoInicial,
             'usuario_id' => $usuarioId,
             'referencia_tipo' => self::REF_APERTURA,
@@ -354,6 +364,7 @@ class MovimientoCaja extends Model
     public function marcarComoCerrado(int $cierreTurnoId): bool
     {
         $this->cierre_turno_id = $cierreTurnoId;
+
         return $this->save();
     }
 }

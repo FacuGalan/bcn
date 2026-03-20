@@ -20,7 +20,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $orden
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Articulo $articulo
  * @property-read GrupoOpcional $grupoOpcional
  * @property-read Sucursal $sucursal
@@ -29,6 +28,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class ArticuloGrupoOpcional extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'articulo_grupo_opcional';
 
     protected $fillable = [
@@ -67,7 +67,7 @@ class ArticuloGrupoOpcional extends Model
     public function opciones(): HasMany
     {
         return $this->hasMany(ArticuloGrupoOpcionalOpcion::class, 'articulo_grupo_opcional_id')
-                    ->orderBy('orden');
+            ->orderBy('orden');
     }
 
     // ==================== Scopes ====================
@@ -95,9 +95,9 @@ class ArticuloGrupoOpcional extends Model
     public function opcionesDisponibles()
     {
         return $this->opciones()
-                    ->where('activo', true)
-                    ->where('disponible', true)
-                    ->whereHas('opcional', fn($q) => $q->where('activo', true));
+            ->where('activo', true)
+            ->where('disponible', true)
+            ->whereHas('opcional', fn ($q) => $q->where('activo', true));
     }
 
     /**
@@ -122,7 +122,7 @@ class ArticuloGrupoOpcional extends Model
         // Agregar opciones que faltan
         $opcionesExistentes = $this->opciones->pluck('opcional_id');
         foreach ($opcionalesDelGrupo as $opcional) {
-            if (!$opcionesExistentes->contains($opcional->id)) {
+            if (! $opcionesExistentes->contains($opcional->id)) {
                 $this->opciones()->create([
                     'opcional_id' => $opcional->id,
                     'precio_extra' => $opcional->precio_extra,

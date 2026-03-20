@@ -10,6 +10,7 @@ class PromocionEspecialEscala extends Model
     use HasFactory;
 
     protected $connection = 'pymes_tenant';
+
     protected $table = 'promocion_especial_escalas';
 
     protected $fillable = [
@@ -85,11 +86,12 @@ class PromocionEspecialEscala extends Model
      */
     public function calcularUnidadesBonificadas(int $cantidad): int
     {
-        if (!$this->aplicaParaCantidad($cantidad)) {
+        if (! $this->aplicaParaCantidad($cantidad)) {
             return 0;
         }
 
         $packsCompletos = intdiv($cantidad, $this->lleva);
+
         return $packsCompletos * $this->bonifica;
     }
 
@@ -100,7 +102,7 @@ class PromocionEspecialEscala extends Model
      */
     public function calcularUnidadesAPagar(int $cantidad): int
     {
-        if (!$this->aplicaParaCantidad($cantidad)) {
+        if (! $this->aplicaParaCantidad($cantidad)) {
             return $cantidad;
         }
 

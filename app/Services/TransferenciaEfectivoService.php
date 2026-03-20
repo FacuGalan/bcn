@@ -2,12 +2,12 @@
 
 namespace App\Services;
 
-use App\Models\TransferenciaEfectivo;
 use App\Models\Caja;
 use App\Models\MovimientoCaja;
+use App\Models\TransferenciaEfectivo;
+use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Exception;
 
 /**
  * Servicio de Transferencias de Efectivo
@@ -26,8 +26,8 @@ class TransferenciaEfectivoService
     /**
      * Solicita una transferencia de efectivo entre cajas
      *
-     * @param array $data Datos de la transferencia
-     * @return TransferenciaEfectivo
+     * @param  array  $data  Datos de la transferencia
+     *
      * @throws Exception
      */
     public function solicitarTransferencia(array $data): TransferenciaEfectivo
@@ -47,22 +47,22 @@ class TransferenciaEfectivoService
             // Validar caja origen
             $cajaOrigen = Caja::findOrFail($data['caja_origen_id']);
 
-            if (!$cajaOrigen->estaAbierta()) {
+            if (! $cajaOrigen->estaAbierta()) {
                 throw new Exception('La caja origen debe estar abierta');
             }
 
             // Validar saldo disponible
-            if (!$cajaOrigen->tieneSaldoSuficiente($data['monto'])) {
+            if (! $cajaOrigen->tieneSaldoSuficiente($data['monto'])) {
                 throw new Exception(
-                    "Saldo insuficiente en caja origen. Disponible: $" . number_format($cajaOrigen->saldo_actual, 2) .
-                    ", Solicitado: $" . number_format($data['monto'], 2)
+                    'Saldo insuficiente en caja origen. Disponible: $'.number_format($cajaOrigen->saldo_actual, 2).
+                    ', Solicitado: $'.number_format($data['monto'], 2)
                 );
             }
 
             // Validar caja destino
             $cajaDestino = Caja::findOrFail($data['caja_destino_id']);
 
-            if (!$cajaDestino->estaAbierta()) {
+            if (! $cajaDestino->estaAbierta()) {
                 throw new Exception('La caja destino debe estar abierta');
             }
 
@@ -93,7 +93,7 @@ class TransferenciaEfectivoService
             DB::connection('pymes_tenant')->rollBack();
             Log::error('Error al solicitar transferencia de efectivo', [
                 'data' => $data,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -102,10 +102,6 @@ class TransferenciaEfectivoService
     /**
      * Autoriza y completa una transferencia de efectivo
      *
-     * @param int $transferenciaId
-     * @param int $usuarioAutorizaId
-     * @param int $usuarioRecibeId
-     * @return TransferenciaEfectivo
      * @throws Exception
      */
     public function autorizarYCompletar(int $transferenciaId, int $usuarioAutorizaId, int $usuarioRecibeId): TransferenciaEfectivo
@@ -115,7 +111,7 @@ class TransferenciaEfectivoService
         try {
             $transferencia = TransferenciaEfectivo::findOrFail($transferenciaId);
 
-            if (!$transferencia->estaPendiente()) {
+            if (! $transferencia->estaPendiente()) {
                 throw new Exception('Solo se pueden autorizar transferencias pendientes');
             }
 
@@ -123,20 +119,20 @@ class TransferenciaEfectivoService
             $cajaOrigen = $transferencia->cajaOrigen;
             $cajaDestino = $transferencia->cajaDestino;
 
-            if (!$cajaOrigen->estaAbierta()) {
+            if (! $cajaOrigen->estaAbierta()) {
                 throw new Exception('La caja origen ya no está abierta');
             }
 
-            if (!$cajaDestino->estaAbierta()) {
+            if (! $cajaDestino->estaAbierta()) {
                 throw new Exception('La caja destino ya no está abierta');
             }
 
-            if (!$cajaOrigen->tieneSaldoSuficiente($transferencia->monto)) {
+            if (! $cajaOrigen->tieneSaldoSuficiente($transferencia->monto)) {
                 throw new Exception('Saldo insuficiente en caja origen');
             }
 
             // Crear movimiento de egreso en caja origen
-            $movimientoOrigen = new MovimientoCaja();
+            $movimientoOrigen = new MovimientoCaja;
             $movimientoOrigen->caja_id = $cajaOrigen->id;
             $movimientoOrigen->tipo_movimiento = 'egreso';
             $movimientoOrigen->concepto = "Transferencia a caja #{$cajaDestino->id} - {$transferencia->concepto}";
@@ -152,7 +148,7 @@ class TransferenciaEfectivoService
             $cajaOrigen->disminuirSaldo($transferencia->monto);
 
             // Crear movimiento de ingreso en caja destino
-            $movimientoDestino = new MovimientoCaja();
+            $movimientoDestino = new MovimientoCaja;
             $movimientoDestino->caja_id = $cajaDestino->id;
             $movimientoDestino->tipo_movimiento = 'ingreso';
             $movimientoDestino->concepto = "Transferencia desde caja #{$cajaOrigen->id} - {$transferencia->concepto}";
@@ -183,7 +179,7 @@ class TransferenciaEfectivoService
             DB::connection('pymes_tenant')->rollBack();
             Log::error('Error al autorizar transferencia de efectivo', [
                 'transferencia_id' => $transferenciaId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -192,8 +188,6 @@ class TransferenciaEfectivoService
     /**
      * Cancela una transferencia de efectivo
      *
-     * @param int $transferenciaId
-     * @return TransferenciaEfectivo
      * @throws Exception
      */
     public function cancelarTransferencia(int $transferenciaId): TransferenciaEfectivo
@@ -203,7 +197,7 @@ class TransferenciaEfectivoService
         try {
             $transferencia = TransferenciaEfectivo::findOrFail($transferenciaId);
 
-            if (!$transferencia->estaPendiente()) {
+            if (! $transferencia->estaPendiente()) {
                 throw new Exception('Solo se pueden cancelar transferencias pendientes');
             }
 
@@ -222,7 +216,7 @@ class TransferenciaEfectivoService
             DB::connection('pymes_tenant')->rollBack();
             Log::error('Error al cancelar transferencia de efectivo', [
                 'transferencia_id' => $transferenciaId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -234,8 +228,6 @@ class TransferenciaEfectivoService
      * Útil para transferencias rápidas entre cajas de la misma sucursal
      * cuando el mismo usuario opera ambas cajas.
      *
-     * @param array $data
-     * @return TransferenciaEfectivo
      * @throws Exception
      */
     public function transferirDirecto(array $data): TransferenciaEfectivo
@@ -265,7 +257,7 @@ class TransferenciaEfectivoService
             DB::connection('pymes_tenant')->rollBack();
             Log::error('Error en transferencia directa', [
                 'data' => $data,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -274,9 +266,8 @@ class TransferenciaEfectivoService
     /**
      * Obtiene el historial de transferencias para una caja
      *
-     * @param int $cajaId
-     * @param bool $soloSalientes Si true, solo muestra transferencias donde la caja es origen
-     * @param bool $soloEntrantes Si true, solo muestra transferencias donde la caja es destino
+     * @param  bool  $soloSalientes  Si true, solo muestra transferencias donde la caja es origen
+     * @param  bool  $soloEntrantes  Si true, solo muestra transferencias donde la caja es destino
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function obtenerHistorialCaja(int $cajaId, bool $soloSalientes = false, bool $soloEntrantes = false)
@@ -290,7 +281,7 @@ class TransferenciaEfectivoService
         } else {
             $query->where(function ($q) use ($cajaId) {
                 $q->where('caja_origen_id', $cajaId)
-                  ->orWhere('caja_destino_id', $cajaId);
+                    ->orWhere('caja_destino_id', $cajaId);
             });
         }
 

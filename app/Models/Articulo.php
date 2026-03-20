@@ -38,7 +38,6 @@ use Illuminate\Support\Collection;
  * @property bool $precio_iva_incluido
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read TipoIva $tipoIva
  * @property-read Categoria|null $categoriaModel
  * @property-read \Illuminate\Database\Eloquent\Collection|Sucursal[] $sucursales
@@ -56,6 +55,7 @@ class Articulo extends Model
     use SoftDeletes;
 
     protected $connection = 'pymes_tenant';
+
     protected $table = 'articulos';
 
     protected $fillable = [
@@ -98,8 +98,8 @@ class Articulo extends Model
     public function sucursales(): BelongsToMany
     {
         return $this->belongsToMany(Sucursal::class, 'articulos_sucursales', 'articulo_id', 'sucursal_id')
-                    ->withPivot('activo', 'modo_stock')
-                    ->withTimestamps();
+            ->withPivot('activo', 'modo_stock')
+            ->withTimestamps();
     }
 
     public function stocks(): HasMany
@@ -129,7 +129,7 @@ class Articulo extends Model
     public function etiquetas(): BelongsToMany
     {
         return $this->belongsToMany(Etiqueta::class, 'articulo_etiqueta', 'articulo_id', 'etiqueta_id')
-                    ->withTimestamps();
+            ->withTimestamps();
     }
 
     public function ventasDetalle(): HasMany
@@ -188,7 +188,7 @@ class Articulo extends Model
     {
         return $query->whereHas('sucursales', function ($q) use ($sucursalId) {
             $q->where('sucursal_id', $sucursalId)
-              ->where('modo_stock', '!=', 'ninguno');
+                ->where('modo_stock', '!=', 'ninguno');
         });
     }
 
@@ -205,9 +205,9 @@ class Articulo extends Model
     public function estaDisponibleEnSucursal(int $sucursalId): bool
     {
         return $this->sucursales()
-                    ->where('sucursal_id', $sucursalId)
-                    ->wherePivot('activo', true)
-                    ->exists();
+            ->where('sucursal_id', $sucursalId)
+            ->wherePivot('activo', true)
+            ->exists();
     }
 
     /**
@@ -216,17 +216,17 @@ class Articulo extends Model
     public function obtenerPrecio(int $sucursalId, string $tipoPrecio = 'publico', bool $aplicarDescuento = true): ?Precio
     {
         $query = $this->precios()
-                      ->where('sucursal_id', $sucursalId)
-                      ->where('tipo_precio', $tipoPrecio)
-                      ->where('activo', true)
-                      ->where(function ($q) {
-                          $q->whereNull('fecha_inicio')
-                            ->orWhere('fecha_inicio', '<=', now());
-                      })
-                      ->where(function ($q) {
-                          $q->whereNull('fecha_fin')
-                            ->orWhere('fecha_fin', '>=', now());
-                      });
+            ->where('sucursal_id', $sucursalId)
+            ->where('tipo_precio', $tipoPrecio)
+            ->where('activo', true)
+            ->where(function ($q) {
+                $q->whereNull('fecha_inicio')
+                    ->orWhere('fecha_inicio', '<=', now());
+            })
+            ->where(function ($q) {
+                $q->whereNull('fecha_fin')
+                    ->orWhere('fecha_fin', '>=', now());
+            });
 
         return $query->first();
     }
@@ -288,12 +288,13 @@ class Articulo extends Model
 
         if ($modoStock === 'unitario') {
             $stock = $this->getStockEnSucursal($sucursalId);
+
             return $stock && $stock->cantidad >= $cantidad;
         }
 
         // modo 'receta': verificar stock de cada ingrediente
         $receta = Receta::resolver('Articulo', $this->id, $sucursalId);
-        if (!$receta) {
+        if (! $receta) {
             return true; // Sin receta definida, no se puede verificar
         }
 
@@ -303,7 +304,7 @@ class Articulo extends Model
                 ->where('sucursal_id', $sucursalId)
                 ->first();
             $necesario = (float) $ingrediente->cantidad * $cantidadMultiplier;
-            if (!$stockIngrediente || $stockIngrediente->cantidad < $necesario) {
+            if (! $stockIngrediente || $stockIngrediente->cantidad < $necesario) {
                 return false;
             }
         }
@@ -330,7 +331,7 @@ class Articulo extends Model
     /**
      * Obtiene el precio del artículo según una lista de precios
      *
-     * @param ListaPrecio $listaPrecio Lista de precios a aplicar
+     * @param  ListaPrecio  $listaPrecio  Lista de precios a aplicar
      * @return array ['precio' => float, 'ajuste_porcentaje' => float, 'origen' => string, 'precio_base' => float]
      */
     public function obtenerPrecioConLista(ListaPrecio $listaPrecio): array
@@ -341,10 +342,10 @@ class Articulo extends Model
     /**
      * Obtiene el precio del artículo para una sucursal y contexto específicos
      *
-     * @param int $sucursalId ID de la sucursal
-     * @param array $contexto Contexto de venta (forma_pago_id, forma_venta_id, canal_venta_id, etc.)
-     * @param int|null $listaPrecioIdManual ID de lista seleccionada manualmente
-     * @param int|null $clienteId ID del cliente
+     * @param  int  $sucursalId  ID de la sucursal
+     * @param  array  $contexto  Contexto de venta (forma_pago_id, forma_venta_id, canal_venta_id, etc.)
+     * @param  int|null  $listaPrecioIdManual  ID de lista seleccionada manualmente
+     * @param  int|null  $clienteId  ID del cliente
      * @return array ['precio' => float, 'lista_precio' => ListaPrecio|null, 'ajuste_porcentaje' => float, 'origen' => string]
      */
     public function obtenerPrecioParaSucursal(
@@ -366,6 +367,7 @@ class Articulo extends Model
         if ($listaPrecio) {
             $resultado = $listaPrecio->obtenerPrecioArticulo($this, $precioBaseEfectivo);
             $resultado['lista_precio'] = $listaPrecio;
+
             return $resultado;
         }
 
@@ -383,28 +385,28 @@ class Articulo extends Model
     /**
      * Obtiene todas las promociones activas que aplican a este artículo
      *
-     * @param int $sucursalId ID de la sucursal
+     * @param  int  $sucursalId  ID de la sucursal
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function obtenerPromocionesActivas(int $sucursalId)
     {
         return $this->promocionesCondiciones()
-                    ->whereHas('promocion', function ($query) use ($sucursalId) {
-                        $query->where('sucursal_id', $sucursalId)
-                              ->where('activo', true)
-                              ->where(function ($q) {
-                                  $q->whereNull('vigencia_desde')
-                                    ->orWhere('vigencia_desde', '<=', now());
-                              })
-                              ->where(function ($q) {
-                                  $q->whereNull('vigencia_hasta')
-                                    ->orWhere('vigencia_hasta', '>=', now());
-                              });
+            ->whereHas('promocion', function ($query) use ($sucursalId) {
+                $query->where('sucursal_id', $sucursalId)
+                    ->where('activo', true)
+                    ->where(function ($q) {
+                        $q->whereNull('vigencia_desde')
+                            ->orWhere('vigencia_desde', '<=', now());
                     })
-                    ->with('promocion')
-                    ->get()
-                    ->pluck('promocion')
-                    ->unique('id');
+                    ->where(function ($q) {
+                        $q->whereNull('vigencia_hasta')
+                            ->orWhere('vigencia_hasta', '>=', now());
+                    });
+            })
+            ->with('promocion')
+            ->get()
+            ->pluck('promocion')
+            ->unique('id');
     }
 
     /**
@@ -467,9 +469,9 @@ class Articulo extends Model
     public function etiquetasAgrupadasPorGrupo(): Collection
     {
         return $this->etiquetas()
-                    ->with('grupo')
-                    ->get()
-                    ->groupBy('grupo_etiqueta_id');
+            ->with('grupo')
+            ->get()
+            ->groupBy('grupo_etiqueta_id');
     }
 
     /**
@@ -553,10 +555,10 @@ class Articulo extends Model
     public function gruposOpcionalesEnSucursal(int $sucursalId)
     {
         return $this->gruposOpcionales()
-                    ->where('sucursal_id', $sucursalId)
-                    ->where('activo', true)
-                    ->with(['grupoOpcional', 'opciones.opcional'])
-                    ->orderBy('orden')
-                    ->get();
+            ->where('sucursal_id', $sucursalId)
+            ->where('activo', true)
+            ->with(['grupoOpcional', 'opciones.opcional'])
+            ->orderBy('orden')
+            ->get();
     }
 }

@@ -3,16 +3,14 @@
 namespace App\Livewire\Articulos;
 
 use App\Models\Categoria;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
 
 /**
  * Componente Livewire para gestión de categorías
  *
  * Permite crear, editar, listar y gestionar el estado de las categorías de artículos.
- *
- * @package App\Livewire\Articulos
  */
 #[Layout('layouts.app')]
 class GestionarCategorias extends Component
@@ -21,24 +19,34 @@ class GestionarCategorias extends Component
 
     // Propiedades de filtros
     public string $search = '';
+
     public string $filterStatus = 'all'; // all, active, inactive
+
     public bool $showFilters = false;
 
     // Propiedades del modal
     public bool $showModal = false;
+
     public bool $editMode = false;
+
     public ?int $categoriaId = null;
 
     // Modal de confirmación de eliminación
     public bool $showDeleteModal = false;
+
     public ?int $categoriaAEliminar = null;
+
     public ?string $nombreCategoriaAEliminar = null;
 
     // Propiedades del formulario
     public string $nombre = '';
+
     public string $prefijo = '';
+
     public string $color = '#3B82F6'; // Color azul por defecto
+
     public string $icono = '';
+
     public bool $activo = true;
 
     /**
@@ -62,7 +70,7 @@ class GestionarCategorias extends Component
      */
     public function toggleFilters(): void
     {
-        $this->showFilters = !$this->showFilters;
+        $this->showFilters = ! $this->showFilters;
     }
 
     /**
@@ -75,7 +83,7 @@ class GestionarCategorias extends Component
         // Filtro de búsqueda
         if ($this->search) {
             $query->where(function ($q) {
-                $q->where('nombre', 'like', '%' . $this->search . '%');
+                $q->where('nombre', 'like', '%'.$this->search.'%');
             });
         }
 
@@ -123,7 +131,7 @@ class GestionarCategorias extends Component
     public function save(): void
     {
         $rules = [
-            'nombre' => 'required|string|max:100|unique:pymes_tenant.categorias,nombre,' . $this->categoriaId,
+            'nombre' => 'required|string|max:100|unique:pymes_tenant.categorias,nombre,'.$this->categoriaId,
             'prefijo' => 'nullable|string|max:10',
             'color' => 'required|string|max:7',
             'icono' => 'nullable|string|max:50',
@@ -178,7 +186,7 @@ class GestionarCategorias extends Component
     public function toggleStatus(int $categoriaId): void
     {
         $categoria = Categoria::findOrFail($categoriaId);
-        $categoria->activo = !$categoria->activo;
+        $categoria->activo = ! $categoria->activo;
         $categoria->save();
 
         $status = $categoria->activo ? __('activada') : __('desactivada');
@@ -213,14 +221,14 @@ class GestionarCategorias extends Component
      */
     public function eliminar(): void
     {
-        if (!$this->categoriaAEliminar) {
+        if (! $this->categoriaAEliminar) {
             return;
         }
 
         $categoria = Categoria::find($this->categoriaAEliminar);
         if ($categoria) {
             $categoria->delete(); // Soft delete
-            $this->js("window.notify('" . __('Categoría eliminada correctamente') . "', 'success')");
+            $this->js("window.notify('".__('Categoría eliminada correctamente')."', 'success')");
         }
 
         $this->cancelarEliminar();

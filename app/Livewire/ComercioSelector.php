@@ -23,37 +23,29 @@ use Livewire\Component;
  * - Establece el comercio activo en la sesión
  * - Redirecciona al dashboard
  *
- * @package App\Livewire
  * @author BCN Pymes
+ *
  * @version 2.0.0
  */
 class ComercioSelector extends Component
 {
     /**
      * Servicio de gestión de tenants
-     *
-     * @var TenantService
      */
     protected TenantService $tenantService;
 
     /**
      * Término de búsqueda para System Admin
-     *
-     * @var string
      */
     public string $search = '';
 
     /**
      * Resultados de búsqueda
-     *
-     * @var array
      */
     public array $searchResults = [];
 
     /**
      * Inicializa el componente
-     *
-     * @return void
      */
     public function boot(TenantService $tenantService): void
     {
@@ -62,19 +54,18 @@ class ComercioSelector extends Component
 
     /**
      * Busca comercios por ID o nombre (solo System Admin)
-     *
-     * @return void
      */
     public function updatedSearch(): void
     {
         $user = Auth::user();
 
-        if (!$user->isSystemAdmin()) {
+        if (! $user->isSystemAdmin()) {
             return;
         }
 
         if (strlen($this->search) < 1) {
             $this->searchResults = [];
+
             return;
         }
 
@@ -83,14 +74,14 @@ class ComercioSelector extends Component
         $searchNumeric = ltrim($searchTerm, '0'); // Quitar ceros a la izquierda para buscar ID
 
         $this->searchResults = Comercio::where(function ($query) use ($searchTerm, $searchNumeric) {
-                $query->where('nombre', 'like', '%' . $searchTerm . '%')
-                    ->orWhere('email', 'like', '%' . $searchTerm . '%');
+            $query->where('nombre', 'like', '%'.$searchTerm.'%')
+                ->orWhere('email', 'like', '%'.$searchTerm.'%');
 
-                // Si es numérico, buscar también por ID exacto
-                if (is_numeric($searchNumeric)) {
-                    $query->orWhere('id', '=', (int) $searchNumeric);
-                }
-            })
+            // Si es numérico, buscar también por ID exacto
+            if (is_numeric($searchNumeric)) {
+                $query->orWhere('id', '=', (int) $searchNumeric);
+            }
+        })
             ->orderBy('nombre')
             ->limit(10)
             ->get()
@@ -100,16 +91,16 @@ class ComercioSelector extends Component
     /**
      * Selecciona un comercio y lo establece como activo en la sesión
      *
-     * @param int $comercioId ID del comercio a seleccionar
-     * @return void
+     * @param  int  $comercioId  ID del comercio a seleccionar
      */
     public function selectComercio(int $comercioId): void
     {
         $user = Auth::user();
 
         // Verificar que el usuario tenga acceso al comercio
-        if (!$user->hasAccessToComercio($comercioId)) {
+        if (! $user->hasAccessToComercio($comercioId)) {
             session()->flash('error', __('No tienes acceso a este comercio.'));
+
             return;
         }
 

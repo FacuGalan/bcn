@@ -2,12 +2,12 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
+use App\Models\Comercio;
+use App\Models\ConceptoPago;
 use App\Models\FormaPago;
 use App\Models\FormaPagoCuota;
-use App\Models\ConceptoPago;
-use App\Models\Comercio;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Seeder: Formas de Pago
@@ -20,7 +20,9 @@ use App\Models\Comercio;
 class FormasPagoSeeder extends Seeder
 {
     private $comercioId = 1;
+
     private $formasPago = [];
+
     private $conceptos = [];
 
     public function run(): void
@@ -39,7 +41,7 @@ class FormasPagoSeeder extends Seeder
 
         echo "\n✅ Seeder completado exitosamente!\n";
         echo "📊 Resumen:\n";
-        echo "   - Formas de pago creadas: " . count($this->formasPago) . "\n\n";
+        echo '   - Formas de pago creadas: '.count($this->formasPago)."\n\n";
     }
 
     private function configurarTenant(): void
@@ -47,11 +49,11 @@ class FormasPagoSeeder extends Seeder
         echo "⚙️  Configurando tenant para comercio {$this->comercioId}...\n";
 
         $comercio = Comercio::find($this->comercioId);
-        $prefix = str_pad($this->comercioId, 6, '0', STR_PAD_LEFT) . '_';
+        $prefix = str_pad($this->comercioId, 6, '0', STR_PAD_LEFT).'_';
 
         config([
             'database.connections.pymes_tenant.prefix' => $prefix,
-            'database.connections.pymes_tenant.database' => $comercio->database_name ?? 'pymes'
+            'database.connections.pymes_tenant.database' => $comercio->database_name ?? 'pymes',
         ]);
 
         DB::purge('pymes_tenant');
@@ -193,7 +195,7 @@ class FormasPagoSeeder extends Seeder
             $existing = FormaPago::where('codigo', $data['codigo'])->first();
             if ($existing) {
                 // Actualizar con el concepto_pago_id si no lo tiene
-                if (!$existing->concepto_pago_id && $concepto) {
+                if (! $existing->concepto_pago_id && $concepto) {
                     $existing->update([
                         'concepto_pago_id' => $concepto->id,
                         'es_mixta' => false,
@@ -203,6 +205,7 @@ class FormasPagoSeeder extends Seeder
                     echo "   ⚠️  {$data['nombre']} ya existe\n";
                 }
                 $this->formasPago[$data['nombre']] = $existing;
+
                 continue;
             }
 
@@ -212,12 +215,12 @@ class FormasPagoSeeder extends Seeder
             echo "   ✓ {$data['nombre']}";
 
             if ($data['permite_cuotas']) {
-                echo " [Permite Cuotas]";
+                echo ' [Permite Cuotas]';
             }
 
             if ($data['ajuste_porcentaje'] != 0) {
                 $tipo = $data['ajuste_porcentaje'] > 0 ? 'recargo' : 'descuento';
-                echo " [{$tipo}: " . abs($data['ajuste_porcentaje']) . "%]";
+                echo " [{$tipo}: ".abs($data['ajuste_porcentaje']).'%]';
             }
 
             echo "\n";
@@ -230,8 +233,9 @@ class FormasPagoSeeder extends Seeder
     {
         echo "🔢 Creando planes de cuotas para Tarjeta de Crédito...\n";
 
-        if (!isset($this->formasPago['Tarjeta de Crédito'])) {
+        if (! isset($this->formasPago['Tarjeta de Crédito'])) {
             echo "   ⚠️  Tarjeta de Crédito no encontrada, saltando cuotas\n";
+
             return;
         }
 
@@ -261,10 +265,11 @@ class FormasPagoSeeder extends Seeder
         foreach ($cuotasData as $data) {
             // Verificar si ya existe
             $existing = FormaPagoCuota::where('forma_pago_id', $tarjetaCredito->id)
-                                      ->where('cantidad_cuotas', $data['cantidad_cuotas'])
-                                      ->first();
+                ->where('cantidad_cuotas', $data['cantidad_cuotas'])
+                ->first();
             if ($existing) {
                 echo "   ⚠️  Plan {$data['cantidad_cuotas']} cuotas ya existe\n";
+
                 continue;
             }
 
@@ -278,11 +283,11 @@ class FormasPagoSeeder extends Seeder
             if ($data['recargo_porcentaje'] > 0) {
                 echo " - {$data['recargo_porcentaje']}% recargo";
             } else {
-                echo " - sin interés";
+                echo ' - sin interés';
             }
 
-            if (!$data['activo']) {
-                echo " [INACTIVO]";
+            if (! $data['activo']) {
+                echo ' [INACTIVO]';
             }
 
             echo "\n";
@@ -299,6 +304,7 @@ class FormasPagoSeeder extends Seeder
         $existing = FormaPago::where('codigo', 'MIXTA')->first();
         if ($existing) {
             echo "   ⚠️  Forma de pago Mixta ya existe\n";
+
             return;
         }
 
@@ -336,6 +342,6 @@ class FormasPagoSeeder extends Seeder
         $this->formasPago['Pago Mixto'] = $mixta;
 
         echo "   ✓ Pago Mixto [MIXTA]\n";
-        echo "     Conceptos permitidos: " . implode(', ', $conceptosPermitidos) . "\n";
+        echo '     Conceptos permitidos: '.implode(', ', $conceptosPermitidos)."\n";
     }
 }

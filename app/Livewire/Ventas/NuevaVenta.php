@@ -4,7 +4,6 @@ namespace App\Livewire\Ventas;
 
 use App\Models\Articulo;
 use App\Models\Caja;
-use App\Models\CanalVenta;
 use App\Models\Categoria;
 use App\Models\Cliente;
 use App\Models\ConceptoPago;
@@ -14,7 +13,6 @@ use App\Models\FormaPago;
 use App\Models\FormaPagoCuota;
 use App\Models\FormaPagoCuotaSucursal;
 use App\Models\FormaPagoSucursal;
-use App\Models\FormaVenta;
 use App\Models\ListaPrecio;
 use App\Models\ListaPrecioArticulo;
 use App\Models\Moneda;

@@ -5,7 +5,6 @@ namespace App\Console\Commands;
 use App\Models\Comercio;
 use App\Services\TenantService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -16,8 +15,8 @@ use Illuminate\Support\Facades\Schema;
  *
  * Uso: php artisan comercio:init {comercio_id}
  *
- * @package App\Console\Commands
  * @author BCN Pymes
+ *
  * @version 1.0.0
  */
 class InitComercioCommand extends Command
@@ -38,15 +37,13 @@ class InitComercioCommand extends Command
 
     /**
      * Servicio de gestión de tenants
-     *
-     * @var TenantService
      */
     protected TenantService $tenantService;
 
     /**
      * Constructor del comando
      *
-     * @param TenantService $tenantService Servicio de tenant
+     * @param  TenantService  $tenantService  Servicio de tenant
      */
     public function __construct(TenantService $tenantService)
     {
@@ -67,8 +64,9 @@ class InitComercioCommand extends Command
 
         // Verificar que el comercio existe
         $comercio = Comercio::find($comercioId);
-        if (!$comercio) {
+        if (! $comercio) {
             $this->error("Comercio con ID {$comercioId} no encontrado.");
+
             return 1;
         }
 
@@ -98,9 +96,11 @@ class InitComercioCommand extends Command
             $this->createVentasEncabezadoTable($connection, $prefix);
 
             $this->info("✓ Tablas creadas exitosamente para el comercio {$comercio->nombre}");
+
             return 0;
         } catch (\Exception $e) {
-            $this->error("Error al crear tablas: " . $e->getMessage());
+            $this->error('Error al crear tablas: '.$e->getMessage());
+
             return 1;
         }
     }
@@ -108,17 +108,17 @@ class InitComercioCommand extends Command
     /**
      * Crea la tabla de roles con prefijo
      *
-     * @param string $connection Nombre de la conexión
-     * @param string $prefix Prefijo del comercio
-     * @return void
+     * @param  string  $connection  Nombre de la conexión
+     * @param  string  $prefix  Prefijo del comercio
      */
     protected function createRolesTable(string $connection, string $prefix): void
     {
         $tableName = 'roles'; // Sin prefijo, la conexión lo aplica automáticamente
-        $fullTableName = $prefix . $tableName;
+        $fullTableName = $prefix.$tableName;
 
         if (Schema::connection($connection)->hasTable($tableName)) {
             $this->warn("  - Tabla {$fullTableName} ya existe, omitiendo...");
+
             return;
         }
 
@@ -137,17 +137,17 @@ class InitComercioCommand extends Command
     /**
      * Crea la tabla de permisos con prefijo
      *
-     * @param string $connection Nombre de la conexión
-     * @param string $prefix Prefijo del comercio
-     * @return void
+     * @param  string  $connection  Nombre de la conexión
+     * @param  string  $prefix  Prefijo del comercio
      */
     protected function createPermissionsTable(string $connection, string $prefix): void
     {
         $tableName = 'permissions'; // Sin prefijo, la conexión lo aplica automáticamente
-        $fullTableName = $prefix . $tableName;
+        $fullTableName = $prefix.$tableName;
 
         if (Schema::connection($connection)->hasTable($tableName)) {
             $this->warn("  - Tabla {$fullTableName} ya existe, omitiendo...");
+
             return;
         }
 
@@ -166,17 +166,17 @@ class InitComercioCommand extends Command
     /**
      * Crea la tabla pivot model_has_permissions con prefijo
      *
-     * @param string $connection Nombre de la conexión
-     * @param string $prefix Prefijo del comercio
-     * @return void
+     * @param  string  $connection  Nombre de la conexión
+     * @param  string  $prefix  Prefijo del comercio
      */
     protected function createModelHasPermissionsTable(string $connection, string $prefix): void
     {
         $tableName = 'model_has_permissions'; // Sin prefijo, la conexión lo aplica automáticamente
-        $fullTableName = $prefix . $tableName;
+        $fullTableName = $prefix.$tableName;
 
         if (Schema::connection($connection)->hasTable($tableName)) {
             $this->warn("  - Tabla {$fullTableName} ya existe, omitiendo...");
+
             return;
         }
 
@@ -200,17 +200,17 @@ class InitComercioCommand extends Command
     /**
      * Crea la tabla pivot model_has_roles con prefijo
      *
-     * @param string $connection Nombre de la conexión
-     * @param string $prefix Prefijo del comercio
-     * @return void
+     * @param  string  $connection  Nombre de la conexión
+     * @param  string  $prefix  Prefijo del comercio
      */
     protected function createModelHasRolesTable(string $connection, string $prefix): void
     {
         $tableName = 'model_has_roles'; // Sin prefijo, la conexión lo aplica automáticamente
-        $fullTableName = $prefix . $tableName;
+        $fullTableName = $prefix.$tableName;
 
         if (Schema::connection($connection)->hasTable($tableName)) {
             $this->warn("  - Tabla {$fullTableName} ya existe, omitiendo...");
+
             return;
         }
 
@@ -234,17 +234,17 @@ class InitComercioCommand extends Command
     /**
      * Crea la tabla pivot role_has_permissions con prefijo
      *
-     * @param string $connection Nombre de la conexión
-     * @param string $prefix Prefijo del comercio
-     * @return void
+     * @param  string  $connection  Nombre de la conexión
+     * @param  string  $prefix  Prefijo del comercio
      */
     protected function createRoleHasPermissionsTable(string $connection, string $prefix): void
     {
         $tableName = 'role_has_permissions'; // Sin prefijo, la conexión lo aplica automáticamente
-        $fullTableName = $prefix . $tableName;
+        $fullTableName = $prefix.$tableName;
 
         if (Schema::connection($connection)->hasTable($tableName)) {
             $this->warn("  - Tabla {$fullTableName} ya existe, omitiendo...");
+
             return;
         }
 
@@ -271,17 +271,17 @@ class InitComercioCommand extends Command
     /**
      * Crea la tabla de items del menú con prefijo
      *
-     * @param string $connection Nombre de la conexión
-     * @param string $prefix Prefijo del comercio
-     * @return void
+     * @param  string  $connection  Nombre de la conexión
+     * @param  string  $prefix  Prefijo del comercio
      */
     protected function createMenuItemsTable(string $connection, string $prefix): void
     {
         $tableName = 'menu_items'; // Sin prefijo, la conexión lo aplica automáticamente
-        $fullTableName = $prefix . $tableName;
+        $fullTableName = $prefix.$tableName;
 
         if (Schema::connection($connection)->hasTable($tableName)) {
             $this->warn("  - Tabla {$fullTableName} ya existe, omitiendo...");
+
             return;
         }
 
@@ -326,17 +326,17 @@ class InitComercioCommand extends Command
     /**
      * Crea la tabla de artículos con prefijo
      *
-     * @param string $connection Nombre de la conexión
-     * @param string $prefix Prefijo del comercio
-     * @return void
+     * @param  string  $connection  Nombre de la conexión
+     * @param  string  $prefix  Prefijo del comercio
      */
     protected function createArticulosTable(string $connection, string $prefix): void
     {
         $tableName = 'articulos'; // Sin prefijo, la conexión lo aplica automáticamente
-        $fullTableName = $prefix . $tableName;
+        $fullTableName = $prefix.$tableName;
 
         if (Schema::connection($connection)->hasTable($tableName)) {
             $this->warn("  - Tabla {$fullTableName} ya existe, omitiendo...");
+
             return;
         }
 
@@ -357,17 +357,17 @@ class InitComercioCommand extends Command
     /**
      * Crea la tabla de ventas_encabezado con prefijo
      *
-     * @param string $connection Nombre de la conexión
-     * @param string $prefix Prefijo del comercio
-     * @return void
+     * @param  string  $connection  Nombre de la conexión
+     * @param  string  $prefix  Prefijo del comercio
      */
     protected function createVentasEncabezadoTable(string $connection, string $prefix): void
     {
         $tableName = 'ventas_encabezado'; // Sin prefijo, la conexión lo aplica automáticamente
-        $fullTableName = $prefix . $tableName;
+        $fullTableName = $prefix.$tableName;
 
         if (Schema::connection($connection)->hasTable($tableName)) {
             $this->warn("  - Tabla {$fullTableName} ya existe, omitiendo...");
+
             return;
         }
 

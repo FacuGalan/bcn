@@ -2,10 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\SucursalService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Services\SucursalService;
 use Symfony\Component\HttpFoundation\Response;
 
 /**

@@ -8,12 +8,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class MovimientoCuentaEmpresa extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'movimientos_cuenta_empresa';
 
     const ORIGEN_VENTA_PAGO = 'VentaPago';
+
     const ORIGEN_COBRO_PAGO = 'CobroPago';
+
     const ORIGEN_TRANSFERENCIA = 'TransferenciaCuentaEmpresa';
+
     const ORIGEN_DEPOSITO = 'DepositoBancario';
+
     const ORIGEN_MANUAL = 'Manual';
 
     protected $fillable = [
@@ -109,6 +114,7 @@ class MovimientoCuentaEmpresa extends Model
         if ($hasta) {
             $query->where('created_at', '<=', $hasta);
         }
+
         return $query;
     }
 
@@ -123,6 +129,7 @@ class MovimientoCuentaEmpresa extends Model
         if ($id !== null) {
             $query->where('origen_id', $id);
         }
+
         return $query;
     }
 

@@ -2,17 +2,17 @@
 
 namespace App\Livewire\Configuracion;
 
+use App\Models\ConceptoPago;
+use App\Models\CuentaEmpresa;
 use App\Models\FormaPago;
 use App\Models\FormaPagoCuota;
 use App\Models\FormaPagoSucursal;
-use App\Models\ConceptoPago;
-use App\Models\CuentaEmpresa;
 use App\Models\Moneda;
 use App\Models\Sucursal;
 use App\Services\CatalogoCache;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
 
 #[Layout('layouts.app')]
 class GestionarFormasPago extends Component
@@ -21,20 +21,29 @@ class GestionarFormasPago extends Component
 
     // Propiedades del formulario principal
     public $formaPagoId = null;
+
     public $nombre = '';
+
     public $concepto_pago_id = null;
+
     public $descripcion = '';
+
     public $permite_cuotas = false;
+
     public $ajuste_porcentaje = 0; // positivo=recargo, negativo=descuento
+
     public $factura_fiscal = false; // si genera factura fiscal por defecto
+
     public $activo = true;
 
     // Forma de pago mixta
     public $es_mixta = false;
+
     public array $conceptos_permitidos = []; // IDs de conceptos permitidos para mixtas
 
     // Cuenta empresa y moneda
     public $cuenta_empresa_id = null;
+
     public $moneda_id = null;
 
     // Sucursales seleccionadas
@@ -42,20 +51,25 @@ class GestionarFormasPago extends Component
 
     // Propiedades para gestión de cuotas
     public $gestionandoCuotas = false;
+
     public $formaPagoCuotasId = null;
+
     public $cuotas = [];
+
     public $nuevaCuota = [
         'cantidad_cuotas' => 1,
         'recargo_porcentaje' => 0,
-        'descripcion' => ''
+        'descripcion' => '',
     ];
 
     // Modal
     public $mostrarModal = false;
+
     public $modoEdicion = false;
 
     // Búsqueda y filtros
     public $busqueda = '';
+
     public $filtroActivo = 'todos';
 
     protected $queryString = [
@@ -166,7 +180,7 @@ class GestionarFormasPago extends Component
             ->toArray();
 
         // Si no tiene configuración de sucursales, seleccionar todas por defecto
-        if (empty($this->sucursales_seleccionadas) && !FormaPagoSucursal::where('forma_pago_id', $id)->exists()) {
+        if (empty($this->sucursales_seleccionadas) && ! FormaPagoSucursal::where('forma_pago_id', $id)->exists()) {
             $this->sucursales_seleccionadas = Sucursal::pluck('id')->toArray();
         }
 
@@ -181,7 +195,7 @@ class GestionarFormasPago extends Component
         try {
             // Obtener el concepto para el campo legacy 'concepto'
             $conceptoLegacy = 'otro';
-            if (!$this->es_mixta && $this->concepto_pago_id) {
+            if (! $this->es_mixta && $this->concepto_pago_id) {
                 $concepto = ConceptoPago::find($this->concepto_pago_id);
                 $conceptoLegacy = $concepto?->codigo ?? 'otro';
             }
@@ -222,7 +236,7 @@ class GestionarFormasPago extends Component
             $syncData = [];
             foreach ($todasSucursales as $sucursalId) {
                 $syncData[$sucursalId] = [
-                    'activo' => in_array($sucursalId, $this->sucursales_seleccionadas)
+                    'activo' => in_array($sucursalId, $this->sucursales_seleccionadas),
                 ];
             }
             $formaPago->sucursales()->sync($syncData);
@@ -231,7 +245,7 @@ class GestionarFormasPago extends Component
             $this->cerrarModal();
             $this->resetPage();
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: __('Error al guardar: ') . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error al guardar: ').$e->getMessage(), type: 'error');
         }
     }
 
@@ -243,7 +257,7 @@ class GestionarFormasPago extends Component
             $this->dispatch('notify', message: __('Forma de pago eliminada exitosamente'), type: 'success');
             $this->resetPage();
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: __('No se puede eliminar: ') . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('No se puede eliminar: ').$e->getMessage(), type: 'error');
         }
     }
 
@@ -251,12 +265,12 @@ class GestionarFormasPago extends Component
     {
         try {
             $formaPago = FormaPago::findOrFail($id);
-            $formaPago->activo = !$formaPago->activo;
+            $formaPago->activo = ! $formaPago->activo;
             $formaPago->save();
 
             $this->dispatch('notify', message: $formaPago->activo ? __('Forma de pago activada') : __('Forma de pago desactivada'), type: 'success');
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: __('Error al cambiar estado: ') . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error al cambiar estado: ').$e->getMessage(), type: 'error');
         }
     }
 
@@ -266,13 +280,14 @@ class GestionarFormasPago extends Component
     {
         $formaPago = FormaPago::with('cuotas')->findOrFail($id);
 
-        if (!$formaPago->permite_cuotas) {
+        if (! $formaPago->permite_cuotas) {
             session()->flash('error', __('Esta forma de pago no permite cuotas'));
+
             return;
         }
 
         $this->formaPagoCuotasId = $id;
-        $this->cuotas = $formaPago->cuotas->map(function($cuota) {
+        $this->cuotas = $formaPago->cuotas->map(function ($cuota) {
             return [
                 'id' => $cuota->id,
                 'cantidad_cuotas' => $cuota->cantidad_cuotas,
@@ -312,7 +327,7 @@ class GestionarFormasPago extends Component
             $this->gestionarCuotas($this->formaPagoCuotasId);
             $this->dispatch('notify', message: __('Plan de cuotas agregado exitosamente'), type: 'success');
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: __('Error al agregar cuota: ') . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error al agregar cuota: ').$e->getMessage(), type: 'error');
         }
     }
 
@@ -326,7 +341,7 @@ class GestionarFormasPago extends Component
             $this->gestionarCuotas($this->formaPagoCuotasId);
             $this->dispatch('notify', message: __('Plan de cuotas eliminado exitosamente'), type: 'success');
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: __('Error al eliminar cuota: ') . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error al eliminar cuota: ').$e->getMessage(), type: 'error');
         }
     }
 
@@ -343,7 +358,7 @@ class GestionarFormasPago extends Component
         $this->nuevaCuota = [
             'cantidad_cuotas' => 1,
             'recargo_porcentaje' => 0,
-            'descripcion' => ''
+            'descripcion' => '',
         ];
     }
 
@@ -375,16 +390,16 @@ class GestionarFormasPago extends Component
 
     public function render()
     {
-        $query = FormaPago::with(['sucursales' => function($query) {
+        $query = FormaPago::with(['sucursales' => function ($query) {
             $query->wherePivot('activo', true);
         }, 'conceptoPago', 'conceptosPermitidos']);
 
         // Aplicar búsqueda
         if ($this->busqueda) {
-            $query->where(function($q) {
-                $q->where('nombre', 'like', '%' . $this->busqueda . '%')
-                  ->orWhere('concepto', 'like', '%' . $this->busqueda . '%')
-                  ->orWhere('descripcion', 'like', '%' . $this->busqueda . '%');
+            $query->where(function ($q) {
+                $q->where('nombre', 'like', '%'.$this->busqueda.'%')
+                    ->orWhere('concepto', 'like', '%'.$this->busqueda.'%')
+                    ->orWhere('descripcion', 'like', '%'.$this->busqueda.'%');
             });
         }
 

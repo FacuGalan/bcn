@@ -10,10 +10,10 @@ use App\Models\Sucursal;
 use App\Models\Venta;
 use App\Services\CobroService;
 use App\Traits\SucursalAware;
+use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Componente Livewire para gestión de cobranzas
@@ -24,31 +24,46 @@ use Illuminate\Support\Facades\DB;
 #[Layout('layouts.app')]
 class GestionarCobranzas extends Component
 {
-    use WithPagination;
     use SucursalAware;
+    use WithPagination;
 
     // ==================== Propiedades de Filtros ====================
     public string $search = '';
+
     public string $filterEstado = 'con_deuda'; // all, con_deuda, sin_deuda
+
     public string $filterAntiguedad = 'all'; // all, 0_30, 31_60, 61_90, 90_mas
+
     public bool $showFilters = false;
 
     // ==================== Modal de Cobro ====================
     public bool $showCobroModal = false;
+
     public ?int $clienteIdCobro = null;
+
     public ?Cliente $clienteCobro = null;
+
     public array $ventasPendientes = [];
+
     public array $ventasSeleccionadas = [];
+
     public string $modoSeleccion = 'fifo'; // fifo, manual
+
     public float $montoACobrar = 0;
+
     public float $interesTotal = 0;
+
     public float $descuentoAplicado = 0;
+
     public string $observaciones = '';
 
     // ==================== Desglose de Pagos ====================
     public array $desglosePagos = [];
+
     public array $formasPagoSucursal = [];
+
     public float $montoPendienteDesglose = 0;
+
     public array $nuevoPago = [
         'forma_pago_id' => '',
         'monto' => '',
@@ -56,30 +71,43 @@ class GestionarCobranzas extends Component
         'cuota_id' => null,
         'aplicar_ajuste' => true, // Por defecto aplica el ajuste de la forma de pago
     ];
+
     public float $totalAjustesFP = 0; // Total de ajustes de formas de pago
 
     // ==================== Selector de Cuotas ====================
     public bool $cuotasSelectorAbierto = false;
+
     public ?int $cuotaSeleccionadaId = null;
+
     public array $cuotasFormaPagoDisponibles = [];
+
     public bool $formaPagoPermiteCuotas = false;
 
     // ==================== Saldo a Favor y Anticipos ====================
     public float $saldoFavorDisponible = 0;
+
     public float $saldoFavorAUsar = 0; // Cuánto del saldo a favor se usará para pagar
+
     public bool $esAnticipo = false;
+
     public float $montoExcedente = 0; // Monto que irá a saldo a favor
+
     public float $saldoDeudorSucursal = 0; // Saldo deudor del cliente en la sucursal actual
 
     // ==================== Modal Cuenta Corriente ====================
     public bool $showCuentaCorrienteModal = false;
+
     public ?int $clienteIdCC = null;
+
     public ?Cliente $clienteCC = null;
+
     public array $movimientosCC = [];
+
     public float $saldoDeudorSucursalCC = 0; // Saldo deudor en sucursal para modal CC
 
     // ==================== Modal Reporte Antigüedad ====================
     public bool $showReporteAntiguedad = false;
+
     public array $reporteAntiguedad = [];
 
     // ==================== Servicio ====================
@@ -105,7 +133,7 @@ class GestionarCobranzas extends Component
         }
 
         // Para cobros normales, requerir ventas seleccionadas
-        if (!$this->esAnticipo) {
+        if (! $this->esAnticipo) {
             $rules['ventasSeleccionadas'] = 'required|array|min:1';
         }
 
@@ -145,7 +173,7 @@ class GestionarCobranzas extends Component
     {
         $this->montoACobrar = (float) $value;
 
-        if (!$this->esAnticipo && $this->modoSeleccion === 'fifo') {
+        if (! $this->esAnticipo && $this->modoSeleccion === 'fifo') {
             $this->calcularDistribucionFIFO();
         }
 
@@ -187,21 +215,21 @@ class GestionarCobranzas extends Component
 
         $fpId = $formaPagoId ?? $this->nuevoPago['forma_pago_id'] ?? null;
 
-        if (!$fpId) {
+        if (! $fpId) {
             return;
         }
 
         $fp = collect($this->formasPagoSucursal)->firstWhere('id', (int) $fpId);
-        if (!$fp) {
+        if (! $fp) {
             return;
         }
 
         // Verificar si la forma de pago permite cuotas
-        if ($fp['permite_cuotas'] && !empty($fp['cuotas'])) {
+        if ($fp['permite_cuotas'] && ! empty($fp['cuotas'])) {
             $this->formaPagoPermiteCuotas = true;
 
             // Calcular el monto base para las cuotas
-            $montoBase = !empty($this->nuevoPago['monto']) ? (float) $this->nuevoPago['monto'] : $this->montoPendienteDesglose;
+            $montoBase = ! empty($this->nuevoPago['monto']) ? (float) $this->nuevoPago['monto'] : $this->montoPendienteDesglose;
 
             // Usar un monto mínimo para mostrar las cuotas (aunque sea con valores de ejemplo)
             if ($montoBase <= 0) {
@@ -210,7 +238,7 @@ class GestionarCobranzas extends Component
 
             if ($montoBase > 0) {
                 $this->cuotasFormaPagoDisponibles = collect($fp['cuotas'])
-                    ->filter(fn($cuota) => ($cuota['cantidad'] ?? 0) > 0)
+                    ->filter(fn ($cuota) => ($cuota['cantidad'] ?? 0) > 0)
                     ->map(function ($cuota) use ($montoBase) {
                         $cantidad = (int) $cuota['cantidad'];
                         $recargo = (float) ($cuota['recargo'] ?? 0);
@@ -245,7 +273,7 @@ class GestionarCobranzas extends Component
      */
     public function toggleCuotasSelector(): void
     {
-        $this->cuotasSelectorAbierto = !$this->cuotasSelectorAbierto;
+        $this->cuotasSelectorAbierto = ! $this->cuotasSelectorAbierto;
     }
 
     /**
@@ -255,7 +283,7 @@ class GestionarCobranzas extends Component
     {
         $this->cuotasSelectorAbierto = false;
 
-        if (!$value) {
+        if (! $value) {
             $this->nuevoPago['cuotas'] = 1;
             $this->nuevoPago['cuota_id'] = null;
         } else {
@@ -289,11 +317,13 @@ class GestionarCobranzas extends Component
     {
         if ($this->saldoFavorDisponible <= 0) {
             $this->dispatch('toast-error', message: __('No hay saldo a favor disponible'));
+
             return;
         }
 
         if ($this->esAnticipo) {
             $this->dispatch('toast-error', message: __('No se puede usar saldo a favor en un anticipo'));
+
             return;
         }
 
@@ -304,6 +334,7 @@ class GestionarCobranzas extends Component
 
         if ($deudaPendiente <= 0) {
             $this->dispatch('toast-error', message: __('No hay deuda pendiente para aplicar'));
+
             return;
         }
 
@@ -318,7 +349,7 @@ class GestionarCobranzas extends Component
         $this->saldoFavorAUsar = round($montoAAplicar, 2);
         $this->recalcularMontoPendiente();
 
-        $this->dispatch('toast-success', message: __('Saldo a favor aplicado: $') . number_format($montoAAplicar, 2, ',', '.'));
+        $this->dispatch('toast-success', message: __('Saldo a favor aplicado: $').number_format($montoAAplicar, 2, ',', '.'));
     }
 
     /**
@@ -334,7 +365,7 @@ class GestionarCobranzas extends Component
 
     public function toggleFilters(): void
     {
-        $this->showFilters = !$this->showFilters;
+        $this->showFilters = ! $this->showFilters;
     }
 
     /**
@@ -351,10 +382,10 @@ class GestionarCobranzas extends Component
         // Búsqueda
         if ($this->search) {
             $query->where(function ($q) {
-                $q->where('nombre', 'like', '%' . $this->search . '%')
-                    ->orWhere('razon_social', 'like', '%' . $this->search . '%')
-                    ->orWhere('cuit', 'like', '%' . $this->search . '%')
-                    ->orWhere('telefono', 'like', '%' . $this->search . '%');
+                $q->where('nombre', 'like', '%'.$this->search.'%')
+                    ->orWhere('razon_social', 'like', '%'.$this->search.'%')
+                    ->orWhere('cuit', 'like', '%'.$this->search.'%')
+                    ->orWhere('telefono', 'like', '%'.$this->search.'%');
             });
         }
 
@@ -414,7 +445,7 @@ class GestionarCobranzas extends Component
 
         // Agregar el saldo calculado a cada cliente
         $clienteIds = $clientes->pluck('id')->toArray();
-        if (!empty($clienteIds)) {
+        if (! empty($clienteIds)) {
             $saldos = MovimientoCuentaCorriente::select('cliente_id')
                 ->selectRaw('COALESCE(SUM(debe), 0) - COALESCE(SUM(haber), 0) as saldo_deudor')
                 ->where('sucursal_id', $sucursalId)
@@ -536,7 +567,7 @@ class GestionarCobranzas extends Component
                 'permite_vuelto' => $fp->permite_vuelto ?? false,
                 'permite_cuotas' => $fp->permite_cuotas ?? false,
                 'afecta_caja' => $fp->afecta_caja ?? false,
-                'cuotas' => $fp->cuotas->filter(fn($c) => $c->activo)->map(fn($c) => [
+                'cuotas' => $fp->cuotas->filter(fn ($c) => $c->activo)->map(fn ($c) => [
                     'id' => $c->id,
                     'cantidad' => $c->cantidad_cuotas,
                     'recargo' => (float) $c->recargo_porcentaje,
@@ -662,7 +693,7 @@ class GestionarCobranzas extends Component
             return;
         }
 
-        $this->ventasPendientes[$index]['seleccionada'] = !$this->ventasPendientes[$index]['seleccionada'];
+        $this->ventasPendientes[$index]['seleccionada'] = ! $this->ventasPendientes[$index]['seleccionada'];
 
         if ($this->ventasPendientes[$index]['seleccionada']) {
             // Al seleccionar, aplicar el saldo completo
@@ -734,8 +765,9 @@ class GestionarCobranzas extends Component
      */
     public function agregarAlDesglose(): void
     {
-        if (!$this->nuevoPago['forma_pago_id']) {
+        if (! $this->nuevoPago['forma_pago_id']) {
             $this->dispatch('toast-error', message: __('Seleccione una forma de pago'));
+
             return;
         }
 
@@ -749,13 +781,15 @@ class GestionarCobranzas extends Component
 
         if ($monto <= 0) {
             $this->dispatch('toast-error', message: __('Ingrese un monto válido'));
+
             return;
         }
 
         $fp = collect($this->formasPagoSucursal)->firstWhere('id', (int) $this->nuevoPago['forma_pago_id']);
 
-        if (!$fp) {
+        if (! $fp) {
             $this->dispatch('toast-error', message: __('Forma de pago no válida'));
+
             return;
         }
 
@@ -786,6 +820,7 @@ class GestionarCobranzas extends Component
             $this->totalAjustesFP = 0;
             $this->montoPendienteDesglose = round($this->montoACobrar - collect($this->desglosePagos)->sum('monto_base'), 2);
             $this->resetNuevoPago();
+
             return;
         }
 
@@ -831,7 +866,7 @@ class GestionarCobranzas extends Component
             if ($cuotaId) {
                 $cuotaConfig = collect($fp['cuotas'])->firstWhere('id', $cuotaId);
             }
-            if (!$cuotaConfig) {
+            if (! $cuotaConfig) {
                 $cuotaConfig = collect($fp['cuotas'])->firstWhere('cantidad', $cuotas);
             }
 
@@ -950,7 +985,7 @@ class GestionarCobranzas extends Component
      */
     public function quitarDelDesglose(int $index): void
     {
-        if (!isset($this->desglosePagos[$index])) {
+        if (! isset($this->desglosePagos[$index])) {
             return;
         }
 
@@ -1005,25 +1040,29 @@ class GestionarCobranzas extends Component
     public function procesarCobro(): void
     {
         // Validaciones básicas
-        if (!$this->esAnticipo && empty($this->ventasSeleccionadas)) {
+        if (! $this->esAnticipo && empty($this->ventasSeleccionadas)) {
             $this->dispatch('toast-error', message: __('Seleccione al menos una venta'));
+
             return;
         }
 
         // Validar que haya al menos una forma de pago O saldo a favor aplicado
         if (empty($this->desglosePagos) && $this->saldoFavorAUsar <= 0) {
             $this->dispatch('toast-error', message: __('Agregue al menos una forma de pago o aplique saldo a favor'));
+
             return;
         }
 
         if ($this->montoPendienteDesglose > 0.01) {
             $this->dispatch('toast-error', message: __('Falta completar el monto del cobro'));
+
             return;
         }
 
         // Para anticipos, el monto debe ser mayor a 0
         if ($this->esAnticipo && $this->montoACobrar <= 0) {
             $this->dispatch('toast-error', message: __('Ingrese el monto del anticipo'));
+
             return;
         }
 
@@ -1058,7 +1097,7 @@ class GestionarCobranzas extends Component
             $this->cerrarModalCobro();
 
         } catch (\Exception $e) {
-            $this->dispatch('toast-error', message: __('Error al registrar cobro: ') . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error al registrar cobro: ').$e->getMessage());
         }
     }
 
@@ -1096,7 +1135,7 @@ class GestionarCobranzas extends Component
                 'cobro_numero' => $mov['cobro_numero'] ?? null,
                 'es_anulacion' => $mov['es_anulacion'] ?? false,
                 'movimiento_anulado_id' => $mov['movimiento_anulado_id'] ?? null,
-                'anulado' => !empty($mov['anulado_por_movimiento_id']),
+                'anulado' => ! empty($mov['anulado_por_movimiento_id']),
             ];
         })->toArray();
 
@@ -1152,13 +1191,15 @@ class GestionarCobranzas extends Component
         try {
             $cobro = Cobro::find($cobroId);
 
-            if (!$cobro) {
+            if (! $cobro) {
                 $this->dispatch('toast-error', message: __('Cobro no encontrado'));
+
                 return;
             }
 
             if ($cobro->estado === 'anulado') {
                 $this->dispatch('toast-error', message: __('Este cobro ya está anulado'));
+
                 return;
             }
 
@@ -1173,7 +1214,7 @@ class GestionarCobranzas extends Component
             }
 
         } catch (\Exception $e) {
-            $this->dispatch('toast-error', message: __('Error al anular recibo: ') . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error al anular recibo: ').$e->getMessage());
         }
     }
 

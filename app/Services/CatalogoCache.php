@@ -26,7 +26,7 @@ class CatalogoCache
 
     protected static function key(string $name): string
     {
-        return "cat:{$name}:" . session('comercio_activo_id', 0);
+        return "cat:{$name}:".session('comercio_activo_id', 0);
     }
 
     public static function formasVenta(): Collection

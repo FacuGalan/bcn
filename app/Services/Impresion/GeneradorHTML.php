@@ -2,10 +2,10 @@
 
 namespace App\Services\Impresion;
 
-use App\Models\Venta;
 use App\Models\ComprobanteFiscal;
-use App\Models\Impresora;
 use App\Models\ConfiguracionImpresion;
+use App\Models\Impresora;
+use App\Models\Venta;
 use Illuminate\Support\Facades\View;
 
 /**

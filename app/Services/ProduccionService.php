@@ -2,15 +2,15 @@
 
 namespace App\Services;
 
+use App\Models\MovimientoStock;
 use App\Models\Produccion;
 use App\Models\ProduccionDetalle;
 use App\Models\ProduccionIngrediente;
 use App\Models\Stock;
-use App\Models\MovimientoStock;
 use App\Models\Sucursal;
+use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Exception;
 
 class ProduccionService
 {
@@ -18,8 +18,7 @@ class ProduccionService
      * Valida stock de ingredientes según control_stock_produccion de la sucursal.
      * Consolida ingredientes de toda la cola.
      *
-     * @param array $cola [{articulo_id, cantidad, ingredientes: [{articulo_id, cantidad_real}]}]
-     * @param int $sucursalId
+     * @param  array  $cola  [{articulo_id, cantidad, ingredientes: [{articulo_id, cantidad_real}]}]
      * @return array ['ok' => bool, 'faltantes' => [...], 'modo' => string]
      */
     public function validarStock(array $cola, int $sucursalId): array
@@ -36,7 +35,7 @@ class ProduccionService
         foreach ($cola as $item) {
             foreach ($item['ingredientes'] as $ing) {
                 $artId = $ing['articulo_id'];
-                if (!isset($ingredientesTotales[$artId])) {
+                if (! isset($ingredientesTotales[$artId])) {
                     $ingredientesTotales[$artId] = 0;
                 }
                 $ingredientesTotales[$artId] += (float) $ing['cantidad_real'];
@@ -74,11 +73,9 @@ class ProduccionService
     /**
      * Confirma una producción (lote o individual).
      *
-     * @param array $cola [{articulo_id, cantidad, receta_id, cantidad_receta, ingredientes: [{articulo_id, cantidad_receta, cantidad_real}]}]
-     * @param int $sucursalId
-     * @param int $usuarioId
-     * @param string|null $observaciones
+     * @param  array  $cola  [{articulo_id, cantidad, receta_id, cantidad_receta, ingredientes: [{articulo_id, cantidad_receta, cantidad_real}]}]
      * @return array ['produccion' => Produccion, 'advertencias' => [...]]
+     *
      * @throws Exception
      */
     public function confirmarProduccion(array $cola, int $sucursalId, int $usuarioId, ?string $observaciones = null): array
@@ -86,12 +83,12 @@ class ProduccionService
         // Validar stock
         $validacion = $this->validarStock($cola, $sucursalId);
 
-        if (!$validacion['ok']) {
+        if (! $validacion['ok']) {
             throw new Exception('Stock insuficiente de ingredientes para producir.');
         }
 
         $advertencias = [];
-        if (!empty($validacion['faltantes']) && $validacion['modo'] === 'advierte') {
+        if (! empty($validacion['faltantes']) && $validacion['modo'] === 'advierte') {
             $advertencias = $validacion['faltantes'];
         }
 
@@ -191,10 +188,6 @@ class ProduccionService
     /**
      * Anula una producción con contraasiento.
      *
-     * @param int $produccionId
-     * @param int $usuarioId
-     * @param string $motivo
-     * @return Produccion
      * @throws Exception
      */
     public function anularProduccion(int $produccionId, int $usuarioId, string $motivo): Produccion

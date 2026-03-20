@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Services\TenantService;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Seeder para datos iniciales de un comercio (tenant)
@@ -21,6 +20,7 @@ class TenantDataSeeder extends Seeder
         $prefix = TenantService::getTablePrefix();
         if (empty($prefix)) {
             $this->command->error('No hay comercio activo. Use tenant:migrate {comercio_id}');
+
             return;
         }
 

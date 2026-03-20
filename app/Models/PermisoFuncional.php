@@ -58,7 +58,7 @@ class PermisoFuncional extends Model
      */
     public function getPermissionName(): string
     {
-        return self::PERMISSION_PREFIX . $this->codigo;
+        return self::PERMISSION_PREFIX.$this->codigo;
     }
 
     /**
@@ -89,7 +89,7 @@ class PermisoFuncional extends Model
             ->where('guard_name', 'web')
             ->exists();
 
-        if (!$exists) {
+        if (! $exists) {
             DB::connection('pymes')
                 ->table('permissions')
                 ->insert([
@@ -116,12 +116,12 @@ class PermisoFuncional extends Model
     /**
      * Obtiene los IDs de permisos Spatie para los códigos dados
      *
-     * @param array $codigos Array de códigos (sin prefijo)
+     * @param  array  $codigos  Array de códigos (sin prefijo)
      * @return array Array de permission IDs
      */
     public static function getPermissionIds(array $codigos): array
     {
-        $names = array_map(fn($codigo) => self::PERMISSION_PREFIX . $codigo, $codigos);
+        $names = array_map(fn ($codigo) => self::PERMISSION_PREFIX.$codigo, $codigos);
 
         return DB::connection('pymes')
             ->table('permissions')
@@ -133,9 +133,6 @@ class PermisoFuncional extends Model
 
     /**
      * Obtiene los códigos de permisos funcionales asignados a un rol
-     *
-     * @param int $roleId
-     * @return array
      */
     public static function getCodigosForRole(int $roleId): array
     {
@@ -154,13 +151,13 @@ class PermisoFuncional extends Model
         $permissions = DB::connection('pymes')
             ->table('permissions')
             ->whereIn('id', $permissionIds)
-            ->where('name', 'like', self::PERMISSION_PREFIX . '%')
+            ->where('name', 'like', self::PERMISSION_PREFIX.'%')
             ->pluck('name')
             ->toArray();
 
         // Quitar el prefijo para devolver solo los códigos
         return array_map(
-            fn($name) => str_replace(self::PERMISSION_PREFIX, '', $name),
+            fn ($name) => str_replace(self::PERMISSION_PREFIX, '', $name),
             $permissions
         );
     }

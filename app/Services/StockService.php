@@ -2,14 +2,14 @@
 
 namespace App\Services;
 
-use App\Models\Stock;
 use App\Models\Articulo;
-use App\Models\Sucursal;
 use App\Models\MovimientoStock;
+use App\Models\Stock;
+use App\Models\Sucursal;
+use Exception;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Collection;
-use Exception;
 
 /**
  * Servicio de Stock
@@ -27,11 +27,8 @@ class StockService
     /**
      * Realiza un ajuste manual de stock
      *
-     * @param int $stockId
-     * @param float $cantidad Positivo aumenta, negativo disminuye
-     * @param int $usuarioId
-     * @param string|null $motivo
-     * @return Stock
+     * @param  float  $cantidad  Positivo aumenta, negativo disminuye
+     *
      * @throws Exception
      */
     public function ajustarStock(int $stockId, float $cantidad, int $usuarioId, ?string $motivo = null): Stock
@@ -45,13 +42,13 @@ class StockService
             $nuevoStock = $stock->cantidad + $cantidad;
             if ($nuevoStock < 0) {
                 throw new Exception(
-                    "El ajuste dejaría el stock en negativo. Stock actual: {$stock->cantidad}, " .
+                    "El ajuste dejaría el stock en negativo. Stock actual: {$stock->cantidad}, ".
                     "Ajuste: {$cantidad}, Resultado: {$nuevoStock}"
                 );
             }
 
             // Realizar el ajuste
-            if (!$stock->ajustarStock($cantidad)) {
+            if (! $stock->ajustarStock($cantidad)) {
                 throw new Exception('No se pudo realizar el ajuste de stock');
             }
 
@@ -85,7 +82,7 @@ class StockService
             Log::error('Error al ajustar stock', [
                 'stock_id' => $stockId,
                 'cantidad' => $cantidad,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -93,10 +90,6 @@ class StockService
 
     /**
      * Inicializa el stock para un artículo en todas las sucursales activas
-     *
-     * @param int $articuloId
-     * @param float $cantidadInicial
-     * @return Collection
      */
     public function inicializarStockEnSucursales(int $articuloId, float $cantidadInicial = 0): Collection
     {
@@ -107,7 +100,7 @@ class StockService
 
         foreach ($sucursales as $sucursal) {
             // Solo inicializar stock en sucursales donde el artículo controla stock
-            if (!$articulo->controlaStock($sucursal->id)) {
+            if (! $articulo->controlaStock($sucursal->id)) {
                 continue;
             }
 
@@ -138,13 +131,6 @@ class StockService
 
     /**
      * Inicializa stock para un artículo en una sucursal específica
-     *
-     * @param int $articuloId
-     * @param int $sucursalId
-     * @param float $cantidadInicial
-     * @param float|null $cantidadMinima
-     * @param float|null $cantidadMaxima
-     * @return Stock
      */
     public function inicializarStockEnSucursal(
         int $articuloId,
@@ -155,7 +141,7 @@ class StockService
     ): Stock {
         $articulo = Articulo::findOrFail($articuloId);
 
-        if (!$articulo->controlaStock($sucursalId)) {
+        if (! $articulo->controlaStock($sucursalId)) {
             throw new Exception('Este artículo no controla stock en esta sucursal');
         }
 
@@ -183,11 +169,6 @@ class StockService
 
     /**
      * Actualiza los umbrales de stock (mínimo y máximo)
-     *
-     * @param int $stockId
-     * @param float|null $cantidadMinima
-     * @param float|null $cantidadMaxima
-     * @return Stock
      */
     public function actualizarUmbrales(int $stockId, ?float $cantidadMinima, ?float $cantidadMaxima): Stock
     {
@@ -208,77 +189,62 @@ class StockService
 
     /**
      * Obtiene artículos con stock bajo el mínimo en una sucursal
-     *
-     * @param int $sucursalId
-     * @return Collection
      */
     public function obtenerStockBajoMinimo(int $sucursalId): Collection
     {
         return Stock::with(['articulo', 'sucursal'])
-                   ->porSucursal($sucursalId)
-                   ->bajoMinimo()
-                   ->get();
+            ->porSucursal($sucursalId)
+            ->bajoMinimo()
+            ->get();
     }
 
     /**
      * Obtiene artículos con stock sobre el máximo en una sucursal
-     *
-     * @param int $sucursalId
-     * @return Collection
      */
     public function obtenerStockSobreMaximo(int $sucursalId): Collection
     {
         return Stock::with(['articulo', 'sucursal'])
-                   ->porSucursal($sucursalId)
-                   ->sobreMaximo()
-                   ->get();
+            ->porSucursal($sucursalId)
+            ->sobreMaximo()
+            ->get();
     }
 
     /**
      * Obtiene artículos sin stock en una sucursal
-     *
-     * @param int $sucursalId
-     * @return Collection
      */
     public function obtenerArticulosSinStock(int $sucursalId): Collection
     {
         return Stock::with(['articulo', 'sucursal'])
-                   ->porSucursal($sucursalId)
-                   ->where('cantidad', '<=', 0)
-                   ->get();
+            ->porSucursal($sucursalId)
+            ->where('cantidad', '<=', 0)
+            ->get();
     }
 
     /**
      * Obtiene el reporte consolidado de stock de todas las sucursales para un artículo
-     *
-     * @param int $articuloId
-     * @return Collection
      */
     public function obtenerStockPorArticulo(int $articuloId): Collection
     {
         return Stock::with(['sucursal'])
-                   ->porArticulo($articuloId)
-                   ->get()
-                   ->map(function ($stock) {
-                       return [
-                           'sucursal_id' => $stock->sucursal_id,
-                           'sucursal_nombre' => $stock->sucursal->nombre,
-                           'cantidad' => $stock->cantidad,
-                           'cantidad_minima' => $stock->cantidad_minima,
-                           'cantidad_maxima' => $stock->cantidad_maxima,
-                           'necesita_reposicion' => $stock->necesitaReposicion(),
-                           'esta_bajo_minimo' => $stock->estaBajoMinimo(),
-                           'esta_sobre_maximo' => $stock->estaSobreMaximo(),
-                           'ultima_actualizacion' => $stock->ultima_actualizacion,
-                       ];
-                   });
+            ->porArticulo($articuloId)
+            ->get()
+            ->map(function ($stock) {
+                return [
+                    'sucursal_id' => $stock->sucursal_id,
+                    'sucursal_nombre' => $stock->sucursal->nombre,
+                    'cantidad' => $stock->cantidad,
+                    'cantidad_minima' => $stock->cantidad_minima,
+                    'cantidad_maxima' => $stock->cantidad_maxima,
+                    'necesita_reposicion' => $stock->necesitaReposicion(),
+                    'esta_bajo_minimo' => $stock->estaBajoMinimo(),
+                    'esta_sobre_maximo' => $stock->estaSobreMaximo(),
+                    'ultima_actualizacion' => $stock->ultima_actualizacion,
+                ];
+            });
     }
 
     /**
      * Obtiene el stock total de un artículo (sumando todas las sucursales)
-     *
-     * @param int $articuloId
-     * @return float
      */
     public function obtenerStockTotal(int $articuloId): float
     {
@@ -287,17 +253,13 @@ class StockService
 
     /**
      * Verifica disponibilidad de un artículo en múltiples sucursales
-     *
-     * @param int $articuloId
-     * @param float $cantidadNecesaria
-     * @return array
      */
     public function verificarDisponibilidadEnSucursales(int $articuloId, float $cantidadNecesaria): array
     {
         $stocks = Stock::with('sucursal')
-                     ->porArticulo($articuloId)
-                     ->conExistencia()
-                     ->get();
+            ->porArticulo($articuloId)
+            ->conExistencia()
+            ->get();
 
         $sucursalesDisponibles = [];
         $totalDisponible = 0;
@@ -328,11 +290,6 @@ class StockService
     /**
      * Realiza un inventario físico (ajuste total del stock)
      *
-     * @param int $stockId
-     * @param float $cantidadFisica
-     * @param int $usuarioId
-     * @param string|null $observaciones
-     * @return array
      * @throws Exception
      */
     public function registrarInventarioFisico(
@@ -356,7 +313,7 @@ class StockService
             DB::connection('pymes_tenant')->rollBack();
             Log::error('Error al registrar inventario físico', [
                 'stock_id' => $stockId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -365,12 +322,6 @@ class StockService
     /**
      * Lógica interna de inventario físico SIN manejo de transacción.
      * Permite ser llamado desde una transacción externa (ej: inventario general bulk).
-     *
-     * @param int $stockId
-     * @param float $cantidadFisica
-     * @param int $usuarioId
-     * @param string|null $observaciones
-     * @return array
      */
     public function registrarInventarioFisicoInterno(
         int $stockId,
@@ -417,33 +368,30 @@ class StockService
 
     /**
      * Obtiene artículos que necesitan reposición en una sucursal
-     *
-     * @param int $sucursalId
-     * @return Collection
      */
     public function obtenerArticulosParaReposicion(int $sucursalId): Collection
     {
         return Stock::with(['articulo', 'sucursal'])
-                   ->porSucursal($sucursalId)
-                   ->bajoMinimo()
-                   ->get()
-                   ->map(function ($stock) {
-                       $cantidadSugerida = $stock->cantidad_maxima
-                           ? $stock->cantidad_maxima - $stock->cantidad
-                           : ($stock->cantidad_minima * 2) - $stock->cantidad;
+            ->porSucursal($sucursalId)
+            ->bajoMinimo()
+            ->get()
+            ->map(function ($stock) {
+                $cantidadSugerida = $stock->cantidad_maxima
+                    ? $stock->cantidad_maxima - $stock->cantidad
+                    : ($stock->cantidad_minima * 2) - $stock->cantidad;
 
-                       return [
-                           'stock_id' => $stock->id,
-                           'articulo_id' => $stock->articulo_id,
-                           'articulo_nombre' => $stock->articulo->nombre,
-                           'articulo_codigo' => $stock->articulo->codigo,
-                           'cantidad_actual' => $stock->cantidad,
-                           'cantidad_minima' => $stock->cantidad_minima,
-                           'cantidad_maxima' => $stock->cantidad_maxima,
-                           'cantidad_faltante' => $stock->cantidad_minima - $stock->cantidad,
-                           'cantidad_sugerida_reposicion' => max(0, $cantidadSugerida),
-                       ];
-                   });
+                return [
+                    'stock_id' => $stock->id,
+                    'articulo_id' => $stock->articulo_id,
+                    'articulo_nombre' => $stock->articulo->nombre,
+                    'articulo_codigo' => $stock->articulo->codigo,
+                    'cantidad_actual' => $stock->cantidad,
+                    'cantidad_minima' => $stock->cantidad_minima,
+                    'cantidad_maxima' => $stock->cantidad_maxima,
+                    'cantidad_faltante' => $stock->cantidad_minima - $stock->cantidad,
+                    'cantidad_sugerida_reposicion' => max(0, $cantidadSugerida),
+                ];
+            });
     }
 
     // ==================== Métodos de consulta de movimientos ====================

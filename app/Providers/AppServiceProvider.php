@@ -7,9 +7,9 @@ use App\Observers\MenuItemObserver;
 use App\Services\SessionManagerService;
 use App\Services\TenantService;
 use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\ServiceProvider;
 
 /**
  * Proveedor de servicios de la aplicación
@@ -17,8 +17,8 @@ use Illuminate\Support\Facades\Blade;
  * Registra y configura los servicios principales de la aplicación,
  * incluyendo el servicio de gestión multi-tenant.
  *
- * @package App\Providers
  * @author BCN Pymes
+ *
  * @version 1.0.0
  */
 class AppServiceProvider extends ServiceProvider
@@ -28,26 +28,22 @@ class AppServiceProvider extends ServiceProvider
      *
      * Aquí se registran los servicios como singletons para que estén
      * disponibles en toda la aplicación.
-     *
-     * @return void
      */
     public function register(): void
     {
         // Registrar TenantService como singleton
         $this->app->singleton(TenantService::class, function ($app) {
-            return new TenantService();
+            return new TenantService;
         });
 
         // Registrar SessionManagerService como singleton
         $this->app->singleton(SessionManagerService::class, function ($app) {
-            return new SessionManagerService();
+            return new SessionManagerService;
         });
     }
 
     /**
      * Inicializa los servicios de la aplicación
-     *
-     * @return void
      */
     public function boot(): void
     {
@@ -69,8 +65,6 @@ class AppServiceProvider extends ServiceProvider
 
     /**
      * Registra las directivas Blade para formateo de números y precios
-     *
-     * @return void
      */
     private function registrarDirectivasFormateo(): void
     {

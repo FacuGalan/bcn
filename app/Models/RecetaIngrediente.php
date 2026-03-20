@@ -17,13 +17,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property float $cantidad Cantidad necesaria del ingrediente
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Receta $receta
  * @property-read Articulo $articulo
  */
 class RecetaIngrediente extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'receta_ingredientes';
 
     protected $fillable = [

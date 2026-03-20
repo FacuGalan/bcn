@@ -29,7 +29,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property float|null $monto_maximo
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read ListaPrecio $listaPrecio
  * @property-read FormaPago|null $formaPago
  * @property-read FormaVenta|null $formaVenta
@@ -38,6 +37,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ListaPrecioCondicion extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'lista_precio_condiciones';
 
     protected $fillable = [
@@ -112,8 +112,7 @@ class ListaPrecioCondicion extends Model
     /**
      * Evalúa si la condición se cumple dado un contexto de venta
      *
-     * @param array $contexto Array con claves: forma_pago_id, forma_venta_id, canal_venta_id, total_compra
-     * @return bool
+     * @param  array  $contexto  Array con claves: forma_pago_id, forma_venta_id, canal_venta_id, total_compra
      */
     public function evaluar(array $contexto): bool
     {

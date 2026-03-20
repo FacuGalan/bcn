@@ -5,9 +5,9 @@ namespace App\Livewire\Articulos;
 use App\Models\Articulo;
 use App\Models\Etiqueta;
 use App\Models\GrupoEtiqueta;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
 
 /**
  * Componente para asignar etiquetas a artículos de forma masiva
@@ -26,20 +26,26 @@ class AsignarEtiquetas extends Component
 
     // Búsqueda
     public string $busquedaArticulo = '';
+
     public string $busquedaEtiqueta = '';
 
     // Modo: Etiqueta a Artículos
     public ?int $etiquetaSeleccionada = null;
+
     public array $articulosSeleccionados = [];
 
     // Modo: Artículo a Etiquetas
     public ?int $articuloSeleccionado = null;
+
     public array $etiquetasSeleccionadas = [];
 
     // Para mostrar info
     public ?string $nombreEtiquetaSeleccionada = null;
+
     public ?string $grupoEtiquetaSeleccionada = null;
+
     public ?string $colorEtiquetaSeleccionada = null;
+
     public ?string $nombreArticuloSeleccionado = null;
 
     public function updatingBusquedaArticulo()
@@ -63,7 +69,7 @@ class AsignarEtiquetas extends Component
             'articuloSeleccionado', 'etiquetasSeleccionadas',
             'nombreEtiquetaSeleccionada', 'grupoEtiquetaSeleccionada',
             'colorEtiquetaSeleccionada', 'nombreArticuloSeleccionado',
-            'busquedaArticulo', 'busquedaEtiqueta'
+            'busquedaArticulo', 'busquedaEtiqueta',
         ]);
     }
 
@@ -140,13 +146,14 @@ class AsignarEtiquetas extends Component
      */
     public function guardarEtiquetaArticulos(): void
     {
-        if (!$this->etiquetaSeleccionada) {
-            $this->js("window.notify('" . __('Selecciona una etiqueta primero') . "', 'error')");
+        if (! $this->etiquetaSeleccionada) {
+            $this->js("window.notify('".__('Selecciona una etiqueta primero')."', 'error')");
+
             return;
         }
 
         $etiqueta = Etiqueta::find($this->etiquetaSeleccionada);
-        if (!$etiqueta) {
+        if (! $etiqueta) {
             return;
         }
 
@@ -154,7 +161,7 @@ class AsignarEtiquetas extends Component
         $etiqueta->articulos()->sync($this->articulosSeleccionados);
 
         $count = count($this->articulosSeleccionados);
-        $this->js("window.notify('" . __('Etiqueta asignada a :count artículo(s)', ['count' => $count]) . "', 'success')");
+        $this->js("window.notify('".__('Etiqueta asignada a :count artículo(s)', ['count' => $count])."', 'success')");
     }
 
     // ==================== Modo: Artículo a Etiquetas ====================
@@ -201,13 +208,14 @@ class AsignarEtiquetas extends Component
      */
     public function guardarArticuloEtiquetas(): void
     {
-        if (!$this->articuloSeleccionado) {
-            $this->js("window.notify('" . __('Selecciona un artículo primero') . "', 'error')");
+        if (! $this->articuloSeleccionado) {
+            $this->js("window.notify('".__('Selecciona un artículo primero')."', 'error')");
+
             return;
         }
 
         $articulo = Articulo::find($this->articuloSeleccionado);
-        if (!$articulo) {
+        if (! $articulo) {
             return;
         }
 
@@ -215,7 +223,7 @@ class AsignarEtiquetas extends Component
         $articulo->etiquetas()->sync($this->etiquetasSeleccionadas);
 
         $count = count($this->etiquetasSeleccionadas);
-        $this->js("window.notify('" . __(':count etiqueta(s) asignada(s) al artículo', ['count' => $count]) . "', 'success')");
+        $this->js("window.notify('".__(':count etiqueta(s) asignada(s) al artículo', ['count' => $count])."', 'success')");
     }
 
     // ==================== Queries ====================
@@ -229,8 +237,8 @@ class AsignarEtiquetas extends Component
 
         if ($this->busquedaArticulo) {
             $query->where(function ($q) {
-                $q->where('codigo', 'like', '%' . $this->busquedaArticulo . '%')
-                  ->orWhere('nombre', 'like', '%' . $this->busquedaArticulo . '%');
+                $q->where('codigo', 'like', '%'.$this->busquedaArticulo.'%')
+                    ->orWhere('nombre', 'like', '%'.$this->busquedaArticulo.'%');
             });
         }
 
@@ -246,17 +254,17 @@ class AsignarEtiquetas extends Component
             $q->where('activo', true)->orderBy('orden')->orderBy('nombre');
 
             if ($this->busquedaEtiqueta) {
-                $q->where('nombre', 'like', '%' . $this->busquedaEtiqueta . '%');
+                $q->where('nombre', 'like', '%'.$this->busquedaEtiqueta.'%');
             }
         }])
-        ->where('activo', true)
-        ->orderBy('orden')
-        ->orderBy('nombre');
+            ->where('activo', true)
+            ->orderBy('orden')
+            ->orderBy('nombre');
 
         if ($this->busquedaEtiqueta) {
             $query->whereHas('etiquetas', function ($q) {
                 $q->where('activo', true)
-                  ->where('nombre', 'like', '%' . $this->busquedaEtiqueta . '%');
+                    ->where('nombre', 'like', '%'.$this->busquedaEtiqueta.'%');
             });
         }
 

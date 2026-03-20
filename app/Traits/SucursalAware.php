@@ -36,7 +36,6 @@ namespace App\Traits;
  * - Cierra modales comunes automáticamente
  * - Proporciona método sucursalActual() para obtener la sucursal
  *
- * @package App\Traits
  * @version 1.0.0
  */
 trait SucursalAware
@@ -67,7 +66,7 @@ trait SucursalAware
             $parentListeners,
             [
                 'sucursal-changed' => 'handleSucursalChanged',
-                'sucursal-cambiada' => 'handleSucursalChanged'
+                'sucursal-cambiada' => 'handleSucursalChanged',
             ]
         );
     }
@@ -83,8 +82,8 @@ trait SucursalAware
      * Puede ser sobrescrito en el componente si necesitas
      * comportamiento completamente personalizado.
      *
-     * @param int|null $sucursalId ID de la nueva sucursal
-     * @param string|null $sucursalNombre Nombre de la nueva sucursal
+     * @param  int|null  $sucursalId  ID de la nueva sucursal
+     * @param  string|null  $sucursalNombre  Nombre de la nueva sucursal
      * @return void
      */
     public function handleSucursalChanged($sucursalId = null, $sucursalNombre = null)
@@ -120,8 +119,6 @@ trait SucursalAware
 
     /**
      * Obtiene el ID de la sucursal actual
-     *
-     * @return int
      */
     protected function sucursalActual(): int
     {
@@ -130,9 +127,6 @@ trait SucursalAware
 
     /**
      * Verifica si el usuario tiene acceso a una sucursal específica
-     *
-     * @param int $sucursalId
-     * @return bool
      */
     protected function tieneAccesoASucursal(int $sucursalId): bool
     {

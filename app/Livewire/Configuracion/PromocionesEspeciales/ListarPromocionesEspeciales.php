@@ -2,23 +2,27 @@
 
 namespace App\Livewire\Configuracion\PromocionesEspeciales;
 
-use Livewire\Component;
-use Livewire\WithPagination;
 use App\Models\PromocionEspecial;
 use App\Traits\SucursalAware;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 class ListarPromocionesEspeciales extends Component
 {
-    use WithPagination, SucursalAware;
+    use SucursalAware, WithPagination;
 
     // Filtros
     public $busqueda = '';
+
     public $tipoFiltro = ''; // nxm, combo
+
     public $activoFiltro = 'todos';
+
     public $vigenteFiltro = 'todos';
 
     // Ordenamiento
     public $ordenarPor = 'prioridad';
+
     public $ordenDireccion = 'asc';
 
     // Toggle de filtros móvil
@@ -61,11 +65,11 @@ class ListarPromocionesEspeciales extends Component
     {
         $promocion = PromocionEspecial::find($promocionId);
         if ($promocion) {
-            $promocion->activo = !$promocion->activo;
+            $promocion->activo = ! $promocion->activo;
             $promocion->save();
 
             $mensaje = $promocion->activo ? __('Promoción activada') : __('Promoción desactivada');
-            $this->js("window.notify('" . addslashes($mensaje) . "', 'success')");
+            $this->js("window.notify('".addslashes($mensaje)."', 'success')");
         }
     }
 
@@ -74,7 +78,7 @@ class ListarPromocionesEspeciales extends Component
         $promocion = PromocionEspecial::find($promocionId);
         if ($promocion) {
             $promocion->delete();
-            $this->js("window.notify('" . __('Promoción eliminada correctamente') . "', 'success')");
+            $this->js("window.notify('".__('Promoción eliminada correctamente')."', 'success')");
         }
     }
 
@@ -84,7 +88,7 @@ class ListarPromocionesEspeciales extends Component
 
         if ($original) {
             $copia = $original->replicate();
-            $copia->nombre = $original->nombre . ' (copia)';
+            $copia->nombre = $original->nombre.' (copia)';
             $copia->activo = false;
             $copia->usos_actuales = 0;
             $copia->save();
@@ -112,7 +116,7 @@ class ListarPromocionesEspeciales extends Component
                 ]);
             }
 
-            $this->js("window.notify('" . __('Promoción duplicada correctamente') . "', 'success')");
+            $this->js("window.notify('".__('Promoción duplicada correctamente')."', 'success')");
         }
     }
 
@@ -127,8 +131,8 @@ class ListarPromocionesEspeciales extends Component
         // Búsqueda
         if ($this->busqueda) {
             $query->where(function ($q) {
-                $q->where('nombre', 'like', '%' . $this->busqueda . '%')
-                  ->orWhere('descripcion', 'like', '%' . $this->busqueda . '%');
+                $q->where('nombre', 'like', '%'.$this->busqueda.'%')
+                    ->orWhere('descripcion', 'like', '%'.$this->busqueda.'%');
             });
         }
 
@@ -148,7 +152,7 @@ class ListarPromocionesEspeciales extends Component
         } elseif ($this->vigenteFiltro === 'vencidas') {
             $query->where(function ($q) {
                 $q->whereNotNull('vigencia_hasta')
-                  ->where('vigencia_hasta', '<', now());
+                    ->where('vigencia_hasta', '<', now());
             });
         }
 

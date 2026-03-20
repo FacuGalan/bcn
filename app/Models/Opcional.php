@@ -24,7 +24,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int $orden
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read GrupoOpcional $grupoOpcional
  * @property-read \Illuminate\Database\Eloquent\Collection|Receta[] $recetas
  * @property-read \Illuminate\Database\Eloquent\Collection|ArticuloGrupoOpcionalOpcion[] $asignaciones
@@ -34,6 +33,7 @@ class Opcional extends Model
     use SoftDeletes;
 
     protected $connection = 'pymes_tenant';
+
     protected $table = 'opcionales';
 
     protected $fillable = [

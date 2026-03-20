@@ -2,26 +2,24 @@
 
 namespace App\Livewire\Tesoreria;
 
-use Livewire\Component;
-use Livewire\WithPagination;
-use App\Models\Tesoreria;
+use App\Models\ArqueoTesoreria;
+use App\Models\Caja;
+use App\Models\CierreTurno;
+use App\Models\CuentaEmpresa;
+use App\Models\DepositoBancario;
+use App\Models\Moneda;
+use App\Models\MovimientoCaja;
 use App\Models\MovimientoTesoreria;
 use App\Models\ProvisionFondo;
 use App\Models\RendicionFondo;
-use App\Models\DepositoBancario;
-use App\Models\ArqueoTesoreria;
-use App\Models\CuentaEmpresa;
-use App\Models\Caja;
-use App\Models\CierreTurno;
-use App\Models\Moneda;
-use App\Models\MovimientoCaja;
+use App\Models\Tesoreria;
 use App\Models\TesoreriaSaldoMoneda;
-use App\Services\TesoreriaService;
 use App\Services\SucursalService;
+use App\Services\TesoreriaService;
 use App\Traits\SucursalAware;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 /**
  * Componente Livewire: Gestión de Tesorería
@@ -36,43 +34,61 @@ use Carbon\Carbon;
  */
 class GestionTesoreria extends Component
 {
-    use WithPagination;
     use SucursalAware;
+    use WithPagination;
 
     // Tesorería activa
     public ?Tesoreria $tesoreria = null;
 
     // Filtros de movimientos
     public string $filtroTipo = '';
+
     public string $filtroFechaDesde = '';
+
     public string $filtroFechaHasta = '';
+
     public string $filtroConcepto = '';
 
     // Modal de provisión
     public bool $showProvisionModal = false;
+
     public ?int $cajaProvisionId = null;
+
     public float $montoProvision = 0;
+
     public string $observacionesProvision = '';
+
     public ?int $monedaProvisionId = null; // null = moneda principal (ARS)
+
     public float $montoProvisionMoneda = 0;
 
     // Modal de rendición
     public bool $showRendicionModal = false;
+
     public array $rendicionesPendientes = [];
+
     public ?int $rendicionSeleccionada = null;
 
     // Modal de depósito
     public bool $showDepositoModal = false;
+
     public ?int $cuentaEmpresaId = null;
+
     public float $montoDeposito = 0;
+
     public string $fechaDeposito = '';
+
     public string $numeroComprobante = '';
+
     public string $observacionesDeposito = '';
 
     // Modal de arqueo
     public bool $showArqueoModal = false;
+
     public float $saldoContado = 0;
+
     public string $observacionesArqueo = '';
+
     public ?int $monedaArqueoId = null;
 
     // Datos cargados
@@ -83,11 +99,14 @@ class GestionTesoreria extends Component
 
     // Modal de detalle de arqueo
     public bool $showArqueoDetalleModal = false;
+
     public ?ArqueoTesoreria $arqueoDetalle = null;
 
     // Modal de rechazo de rendición
     public bool $showRechazoModal = false;
+
     public ?int $rendicionARechazar = null;
+
     public string $motivoRechazo = '';
 
     protected $listeners = ['tesoreria-actualizada' => 'cargarDatos'];
@@ -120,7 +139,7 @@ class GestionTesoreria extends Component
     {
         $sucursalId = SucursalService::getSucursalActiva();
 
-        if (!$sucursalId) {
+        if (! $sucursalId) {
             return;
         }
 
@@ -153,7 +172,10 @@ class GestionTesoreria extends Component
      */
     public function getSaldosMonedasProperty(): array
     {
-        if (!$this->tesoreria) return [];
+        if (! $this->tesoreria) {
+            return [];
+        }
+
         return $this->tesoreria->getSaldosTodasMonedas();
     }
 
@@ -162,12 +184,15 @@ class GestionTesoreria extends Component
      */
     public function getMonedasExtranjeras(): array
     {
-        if (!$this->tesoreria) return [];
+        if (! $this->tesoreria) {
+            return [];
+        }
+
         return $this->tesoreria->saldosMoneda()
             ->where('saldo_actual', '>', 0)
             ->with('moneda')
             ->get()
-            ->map(fn($s) => [
+            ->map(fn ($s) => [
                 'id' => $s->moneda_id,
                 'codigo' => $s->moneda->codigo,
                 'simbolo' => $s->moneda->simbolo,
@@ -183,13 +208,17 @@ class GestionTesoreria extends Component
     public function getResumenMonedasCajasProperty(): array
     {
         $sucursalId = SucursalService::getSucursalActiva();
-        if (!$sucursalId) return [];
+        if (! $sucursalId) {
+            return [];
+        }
 
         $cajasAbiertas = Caja::where('sucursal_id', $sucursalId)
             ->where('estado', 'abierta')
             ->pluck('id');
 
-        if ($cajasAbiertas->isEmpty()) return [];
+        if ($cajasAbiertas->isEmpty()) {
+            return [];
+        }
 
         $tiposExcluidos = ['apertura', 'provision_fondo', 'rendicion_fondo'];
         $monedaPrincipal = Moneda::obtenerPrincipal();
@@ -215,12 +244,12 @@ class GestionTesoreria extends Component
         }
 
         foreach ($movimientos as $mov) {
-            $esExtranjera = $mov->moneda_id && $mov->monto_moneda_original > 0 && $mov->moneda && !$mov->moneda->es_principal;
+            $esExtranjera = $mov->moneda_id && $mov->monto_moneda_original > 0 && $mov->moneda && ! $mov->moneda->es_principal;
 
             if ($esExtranjera) {
                 $moneda = $mov->moneda;
                 $key = $moneda->codigo;
-                if (!isset($resumen[$key])) {
+                if (! isset($resumen[$key])) {
                     $resumen[$key] = [
                         'codigo' => $moneda->codigo,
                         'simbolo' => $moneda->simbolo,
@@ -246,7 +275,7 @@ class GestionTesoreria extends Component
      */
     public function getMovimientosProperty()
     {
-        if (!$this->tesoreria) {
+        if (! $this->tesoreria) {
             return collect();
         }
 
@@ -281,7 +310,7 @@ class GestionTesoreria extends Component
     {
         $sucursalId = SucursalService::getSucursalActiva();
 
-        if (!$sucursalId) {
+        if (! $sucursalId) {
             return collect();
         }
 
@@ -298,7 +327,7 @@ class GestionTesoreria extends Component
     {
         $sucursalId = SucursalService::getSucursalActiva();
 
-        if (!$sucursalId) {
+        if (! $sucursalId) {
             return collect();
         }
 
@@ -306,7 +335,7 @@ class GestionTesoreria extends Component
             ->with('moneda')
             ->orderBy('orden')
             ->get()
-            ->filter(fn($cuenta) => $cuenta->estaDisponibleEnSucursal($sucursalId))
+            ->filter(fn ($cuenta) => $cuenta->estaDisponibleEnSucursal($sucursalId))
             ->values();
     }
 
@@ -317,7 +346,7 @@ class GestionTesoreria extends Component
     {
         $sucursalId = SucursalService::getSucursalActiva();
 
-        if (!$sucursalId) {
+        if (! $sucursalId) {
             return collect();
         }
 
@@ -347,7 +376,7 @@ class GestionTesoreria extends Component
      */
     public function getDepositosPendientesProperty()
     {
-        if (!$this->tesoreria) {
+        if (! $this->tesoreria) {
             return collect();
         }
 
@@ -364,7 +393,7 @@ class GestionTesoreria extends Component
      */
     public function getArqueosProperty()
     {
-        if (!$this->tesoreria) {
+        if (! $this->tesoreria) {
             return collect();
         }
 
@@ -380,7 +409,7 @@ class GestionTesoreria extends Component
      */
     public function getProvisionesRecientesProperty()
     {
-        if (!$this->tesoreria) {
+        if (! $this->tesoreria) {
             return collect();
         }
 
@@ -396,7 +425,7 @@ class GestionTesoreria extends Component
      */
     public function getRendicionesRecientesProperty()
     {
-        if (!$this->tesoreria) {
+        if (! $this->tesoreria) {
             return collect();
         }
 
@@ -423,7 +452,7 @@ class GestionTesoreria extends Component
 
     public function procesarProvision(): void
     {
-        $esMonedaExtranjera = !empty($this->monedaProvisionId);
+        $esMonedaExtranjera = ! empty($this->monedaProvisionId);
 
         if ($esMonedaExtranjera) {
             $this->validate([
@@ -464,12 +493,12 @@ class GestionTesoreria extends Component
             if ($esMonedaExtranjera) {
                 $moneda = Moneda::find($this->monedaProvisionId);
                 $this->dispatch('toast-success', message: __('Provision de :monto realizada a :caja', [
-                    'monto' => ($moneda->simbolo ?? '') . ' ' . $this->montoProvisionMoneda,
+                    'monto' => ($moneda->simbolo ?? '').' '.$this->montoProvisionMoneda,
                     'caja' => $caja->nombre,
                 ]));
             } else {
                 $this->dispatch('toast-success', message: __('Provision de :monto realizada a :caja', [
-                    'monto' => '$' . $this->montoProvision,
+                    'monto' => '$'.$this->montoProvision,
                     'caja' => $caja->nombre,
                 ]));
             }
@@ -493,7 +522,7 @@ class GestionTesoreria extends Component
         try {
             $rendicion = RendicionFondo::find($rendicionId);
 
-            if (!$rendicion) {
+            if (! $rendicion) {
                 throw new \Exception(__('Rendicion no encontrada'));
             }
 
@@ -522,7 +551,7 @@ class GestionTesoreria extends Component
         try {
             $rendicion = RendicionFondo::find($this->rendicionARechazar);
 
-            if (!$rendicion) {
+            if (! $rendicion) {
                 throw new \Exception(__('Rendicion no encontrada'));
             }
 
@@ -552,7 +581,7 @@ class GestionTesoreria extends Component
     protected function evaluarRevertibilidad(RendicionFondo $rendicion): bool
     {
         $cierre = $rendicion->cierreTurno;
-        if (!$cierre || $cierre->estaRevertido()) {
+        if (! $cierre || $cierre->estaRevertido()) {
             return false;
         }
 
@@ -567,14 +596,14 @@ class GestionTesoreria extends Component
         // Verificar que sea el último cierre para esa caja/grupo
         if ($cierre->esIndividual()) {
             $detalleCaja = $cierre->detalleCajas->first();
-            if (!$detalleCaja) {
+            if (! $detalleCaja) {
                 return false;
             }
             $ultimoCierre = CierreTurno::noRevertidos()
-                ->whereHas('detalleCajas', fn($q) => $q->where('caja_id', $detalleCaja->caja_id))
+                ->whereHas('detalleCajas', fn ($q) => $q->where('caja_id', $detalleCaja->caja_id))
                 ->orderBy('fecha_cierre', 'desc')
                 ->first();
-            if (!$ultimoCierre || $ultimoCierre->id !== $cierre->id) {
+            if (! $ultimoCierre || $ultimoCierre->id !== $cierre->id) {
                 return false;
             }
         } else {
@@ -582,13 +611,13 @@ class GestionTesoreria extends Component
                 ->where('grupo_cierre_id', $cierre->grupo_cierre_id)
                 ->orderBy('fecha_cierre', 'desc')
                 ->first();
-            if (!$ultimoCierreGrupo || $ultimoCierreGrupo->id !== $cierre->id) {
+            if (! $ultimoCierreGrupo || $ultimoCierreGrupo->id !== $cierre->id) {
                 return false;
             }
 
             // Para grupo sin fondo común: verificar que todas las rendiciones estén pendientes
             $esGrupalConFondoComun = $cierre->grupoCierre && $cierre->grupoCierre->usaFondoComun();
-            if (!$esGrupalConFondoComun) {
+            if (! $esGrupalConFondoComun) {
                 $tieneNoPendientes = RendicionFondo::where('cierre_turno_id', $cierre->id)
                     ->where('estado', '!=', RendicionFondo::ESTADO_PENDIENTE)
                     ->exists();
@@ -608,9 +637,11 @@ class GestionTesoreria extends Component
     {
         $monedas = [];
         foreach ($this->rendicionesPendientes as $rendicion) {
-            if (empty($rendicion['desglose_monedas'])) continue;
+            if (empty($rendicion['desglose_monedas'])) {
+                continue;
+            }
             foreach ($rendicion['desglose_monedas'] as $codigo => $data) {
-                if (!isset($monedas[$codigo])) {
+                if (! isset($monedas[$codigo])) {
                     $monedas[$codigo] = [
                         'codigo' => $data['codigo'] ?? $codigo,
                         'simbolo' => $data['simbolo'] ?? '',
@@ -623,6 +654,7 @@ class GestionTesoreria extends Component
                 $monedas[$codigo]['saldo_convertido'] += $data['saldo_convertido'] ?? 0;
             }
         }
+
         return $monedas;
     }
 
@@ -633,7 +665,7 @@ class GestionTesoreria extends Component
     protected function consolidarDesgloseMonedas(RendicionFondo $rendicion): array
     {
         $cierre = $rendicion->cierreTurno;
-        if (!$cierre || !$cierre->detalleCajas) {
+        if (! $cierre || ! $cierre->detalleCajas) {
             return [];
         }
 
@@ -641,13 +673,17 @@ class GestionTesoreria extends Component
         $monedas = [];
 
         foreach ($cierre->detalleCajas as $detalleCaja) {
-            if (!$detalleCaja->desglose_monedas) continue;
+            if (! $detalleCaja->desglose_monedas) {
+                continue;
+            }
 
             foreach ($detalleCaja->desglose_monedas as $codigo => $data) {
                 // Solo incluir monedas extranjeras (la principal ya está en monto_entregado)
-                if ($data['es_principal'] ?? false) continue;
+                if ($data['es_principal'] ?? false) {
+                    continue;
+                }
 
-                if (!isset($monedas[$codigo])) {
+                if (! isset($monedas[$codigo])) {
                     $monedas[$codigo] = [
                         'codigo' => $data['codigo'] ?? $codigo,
                         'simbolo' => $data['simbolo'] ?? '',
@@ -712,9 +748,9 @@ class GestionTesoreria extends Component
             $this->showDepositoModal = false;
             $this->cargarDatos();
 
-            $simbolo = ($cuenta->moneda && !$cuenta->moneda->es_principal) ? $cuenta->moneda->simbolo : '$';
+            $simbolo = ($cuenta->moneda && ! $cuenta->moneda->es_principal) ? $cuenta->moneda->simbolo : '$';
             $this->dispatch('toast-success', message: __('Deposito de :monto registrado en :cuenta', [
-                'monto' => $simbolo . ' ' . number_format($this->montoDeposito, 2, ',', '.'),
+                'monto' => $simbolo.' '.number_format($this->montoDeposito, 2, ',', '.'),
                 'cuenta' => $cuenta->nombre_completo,
             ]));
 
@@ -772,9 +808,9 @@ class GestionTesoreria extends Component
             if ($diferencia == 0) {
                 $this->dispatch('toast-success', message: __('Arqueo realizado - Caja cuadrada'));
             } elseif ($diferencia > 0) {
-                $this->dispatch('toast-success', message: __('Arqueo realizado - Sobrante:') . " {$simbolo}" . number_format($diferencia, 2));
+                $this->dispatch('toast-success', message: __('Arqueo realizado - Sobrante:')." {$simbolo}".number_format($diferencia, 2));
             } else {
-                $this->dispatch('toast-error', message: __('Arqueo realizado - Faltante:') . " {$simbolo}" . number_format(abs($diferencia), 2));
+                $this->dispatch('toast-error', message: __('Arqueo realizado - Faltante:')." {$simbolo}".number_format(abs($diferencia), 2));
             }
 
         } catch (\Exception $e) {
@@ -789,15 +825,15 @@ class GestionTesoreria extends Component
         try {
             $deposito = DepositoBancario::with(['moneda', 'cuentaEmpresa.moneda'])->find($depositoId);
 
-            if (!$deposito) {
+            if (! $deposito) {
                 throw new \Exception(__('Deposito no encontrado'));
             }
 
             TesoreriaService::confirmarDeposito($deposito);
 
             $monedaDep = $deposito->moneda ?? $deposito->cuentaEmpresa?->moneda;
-            $simbolo = ($monedaDep && !$monedaDep->es_principal) ? $monedaDep->simbolo : '$';
-            $this->dispatch('toast-success', message: __('Deposito de :monto confirmado', ['monto' => $simbolo . ' ' . number_format($deposito->monto, 2, ',', '.')]));
+            $simbolo = ($monedaDep && ! $monedaDep->es_principal) ? $monedaDep->simbolo : '$';
+            $this->dispatch('toast-success', message: __('Deposito de :monto confirmado', ['monto' => $simbolo.' '.number_format($deposito->monto, 2, ',', '.')]));
 
         } catch (\Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
@@ -809,7 +845,7 @@ class GestionTesoreria extends Component
         try {
             $deposito = DepositoBancario::find($depositoId);
 
-            if (!$deposito) {
+            if (! $deposito) {
                 throw new \Exception(__('Deposito no encontrado'));
             }
 
@@ -843,7 +879,7 @@ class GestionTesoreria extends Component
         try {
             $arqueo = ArqueoTesoreria::find($arqueoId);
 
-            if (!$arqueo) {
+            if (! $arqueo) {
                 throw new \Exception(__('Arqueo no encontrado'));
             }
 

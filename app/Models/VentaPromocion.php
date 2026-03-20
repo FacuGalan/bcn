@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class VentaPromocion extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'venta_promociones';
 
     public $timestamps = false;

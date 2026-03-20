@@ -22,7 +22,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  * @property \Carbon\Carbon|null $deleted_at
- *
  * @property-read \Illuminate\Database\Eloquent\Collection|Etiqueta[] $etiquetas
  */
 class GrupoEtiqueta extends Model
@@ -30,6 +29,7 @@ class GrupoEtiqueta extends Model
     use SoftDeletes;
 
     protected $connection = 'pymes_tenant';
+
     protected $table = 'grupos_etiquetas';
 
     protected $fillable = [

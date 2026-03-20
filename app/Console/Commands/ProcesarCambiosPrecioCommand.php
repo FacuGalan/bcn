@@ -11,9 +11,11 @@ use Illuminate\Console\Command;
 class ProcesarCambiosPrecioCommand extends Command
 {
     protected $signature = 'precios:procesar-programados';
+
     protected $description = 'Procesa los cambios de precio programados cuya fecha ya pasó';
 
     protected TenantService $tenantService;
+
     protected CambioPrecioProgramadoService $service;
 
     public function __construct(TenantService $tenantService, CambioPrecioProgramadoService $service)
@@ -58,6 +60,7 @@ class ProcesarCambiosPrecioCommand extends Command
                 }
             } catch (\Exception $e) {
                 $this->error("Error en comercio {$comercio->id}: {$e->getMessage()}");
+
                 continue;
             }
         }

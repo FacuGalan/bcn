@@ -2,18 +2,17 @@
 
 namespace App\Livewire\Tesoreria;
 
-use Livewire\Component;
-use App\Models\Tesoreria;
+use App\Models\ArqueoTesoreria;
+use App\Models\Caja;
+use App\Models\DepositoBancario;
 use App\Models\MovimientoTesoreria;
 use App\Models\ProvisionFondo;
 use App\Models\RendicionFondo;
-use App\Models\DepositoBancario;
-use App\Models\ArqueoTesoreria;
-use App\Models\Caja;
-use App\Services\TesoreriaService;
+use App\Models\Tesoreria;
 use App\Services\SucursalService;
+use App\Services\TesoreriaService;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
+use Livewire\Component;
 
 /**
  * Componente Livewire: Reportes de Tesorería
@@ -34,12 +33,16 @@ class ReportesTesoreria extends Component
 
     // Filtros
     public string $fechaDesde = '';
+
     public string $fechaHasta = '';
+
     public ?int $cajaId = null;
+
     public string $concepto = '';
 
     // Datos del reporte
     public array $datosReporte = [];
+
     public array $resumen = [];
 
     public function mount(): void
@@ -54,7 +57,7 @@ class ReportesTesoreria extends Component
     {
         $sucursalId = SucursalService::getSucursalActiva();
 
-        if (!$sucursalId) {
+        if (! $sucursalId) {
             return;
         }
 
@@ -66,7 +69,7 @@ class ReportesTesoreria extends Component
      */
     public function generarReporte(): void
     {
-        if (!$this->tesoreria) {
+        if (! $this->tesoreria) {
             return;
         }
 
@@ -351,7 +354,7 @@ class ReportesTesoreria extends Component
     {
         $sucursalId = SucursalService::getSucursalActiva();
 
-        if (!$sucursalId) {
+        if (! $sucursalId) {
             return collect();
         }
 

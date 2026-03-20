@@ -24,13 +24,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $activo
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Sucursal $sucursal
  * @property-read \Illuminate\Database\Eloquent\Collection|DepositoBancario[] $depositos
  */
 class CuentaBancaria extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'cuentas_bancarias';
 
     protected $fillable = [
@@ -53,7 +53,9 @@ class CuentaBancaria extends Model
 
     // Tipos de cuenta
     public const TIPO_CORRIENTE = 'corriente';
+
     public const TIPO_AHORRO = 'ahorro';
+
     public const TIPO_CAJA_AHORRO = 'caja_ahorro';
 
     public const TIPOS_CUENTA = [
@@ -96,14 +98,16 @@ class CuentaBancaria extends Model
     public function getNombreCompletoAttribute(): string
     {
         $tipo = self::TIPOS_CUENTA[$this->tipo_cuenta] ?? $this->tipo_cuenta;
+
         return "{$this->banco} - {$tipo} {$this->numero_cuenta}";
     }
 
     public function getCbuFormateadoAttribute(): ?string
     {
-        if (!$this->cbu) {
+        if (! $this->cbu) {
             return null;
         }
+
         // Formatear CBU: XXXX XXXX XXXX XXXX XXXX XX
         return implode(' ', str_split($this->cbu, 4));
     }

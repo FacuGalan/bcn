@@ -16,7 +16,7 @@ return new class extends Migration
 
         // 1. Obtener los slugs de todos los menu_items bajo "Stock" + el padre
         $stockParent = $pymes->table('menu_items')->where('slug', 'stock')->whereNull('parent_id')->first();
-        if (!$stockParent) {
+        if (! $stockParent) {
             return;
         }
 
@@ -29,14 +29,14 @@ return new class extends Migration
         // 2. Crear permisos en tabla compartida permissions (si no existen)
         $permissionIds = [];
         foreach ($slugs as $slug) {
-            $permName = 'menu.' . $slug;
+            $permName = 'menu.'.$slug;
 
             $perm = $pymes->table('permissions')
                 ->where('name', $permName)
                 ->where('guard_name', 'web')
                 ->first();
 
-            if (!$perm) {
+            if (! $perm) {
                 $permId = $pymes->table('permissions')->insertGetId([
                     'name' => $permName,
                     'guard_name' => 'web',
@@ -54,7 +54,7 @@ return new class extends Migration
         $comercios = DB::connection('config')->table('comercios')->get();
 
         foreach ($comercios as $comercio) {
-            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT) . '_';
+            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT).'_';
 
             try {
                 $tenant = DB::connection('pymes');
@@ -73,7 +73,7 @@ return new class extends Migration
                             ->where('role_id', $roleId)
                             ->exists();
 
-                        if (!$exists) {
+                        if (! $exists) {
                             $tenant->table("{$prefix}role_has_permissions")->insert([
                                 'permission_id' => $permId,
                                 'role_id' => $roleId,
@@ -112,7 +112,7 @@ return new class extends Migration
         $comercios = DB::connection('config')->table('comercios')->get();
 
         foreach ($comercios as $comercio) {
-            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT) . '_';
+            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT).'_';
 
             try {
                 DB::connection('pymes')

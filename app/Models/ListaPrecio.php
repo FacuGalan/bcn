@@ -56,7 +56,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  * @property \Carbon\Carbon|null $deleted_at
- *
  * @property-read Sucursal $sucursal
  * @property-read \Illuminate\Database\Eloquent\Collection|ListaPrecioCondicion[] $condiciones
  * @property-read \Illuminate\Database\Eloquent\Collection|ListaPrecioArticulo[] $articulos
@@ -67,6 +66,7 @@ class ListaPrecio extends Model
     use SoftDeletes;
 
     protected $connection = 'pymes_tenant';
+
     protected $table = 'listas_precios';
 
     protected $fillable = [
@@ -156,10 +156,10 @@ class ListaPrecio extends Model
 
         return $query->where(function ($q) use ($fecha) {
             $q->whereNull('vigencia_desde')
-              ->orWhere('vigencia_desde', '<=', $fecha);
+                ->orWhere('vigencia_desde', '<=', $fecha);
         })->where(function ($q) use ($fecha) {
             $q->whereNull('vigencia_hasta')
-              ->orWhere('vigencia_hasta', '>=', $fecha);
+                ->orWhere('vigencia_hasta', '>=', $fecha);
         });
     }
 
@@ -234,26 +234,27 @@ class ListaPrecio extends Model
     /**
      * Verifica si aplica en un día de la semana específico
      *
-     * @param int|null $diaSemana 0=Domingo, 1=Lunes, ... 6=Sábado
+     * @param  int|null  $diaSemana  0=Domingo, 1=Lunes, ... 6=Sábado
      */
     public function aplicaEnDiaSemana(?int $diaSemana = null): bool
     {
-        if (!$this->dias_semana || empty($this->dias_semana)) {
+        if (! $this->dias_semana || empty($this->dias_semana)) {
             return true; // Aplica todos los días
         }
 
         $dia = $diaSemana ?? (int) now()->dayOfWeek;
+
         return in_array($dia, $this->dias_semana);
     }
 
     /**
      * Verifica si aplica en un horario específico
      *
-     * @param string|null $hora Formato HH:MM:SS
+     * @param  string|null  $hora  Formato HH:MM:SS
      */
     public function aplicaEnHorario(?string $hora = null): bool
     {
-        if (!$this->hora_desde && !$this->hora_hasta) {
+        if (! $this->hora_desde && ! $this->hora_hasta) {
             return true; // Aplica todo el día
         }
 
@@ -292,19 +293,19 @@ class ListaPrecio extends Model
      */
     public function estaVigente(?\DateTime $fecha = null, ?int $diaSemana = null, ?string $hora = null): bool
     {
-        if (!$this->activo) {
+        if (! $this->activo) {
             return false;
         }
 
-        if (!$this->estaVigentePorFecha($fecha)) {
+        if (! $this->estaVigentePorFecha($fecha)) {
             return false;
         }
 
-        if (!$this->aplicaEnDiaSemana($diaSemana)) {
+        if (! $this->aplicaEnDiaSemana($diaSemana)) {
             return false;
         }
 
-        if (!$this->aplicaEnHorario($hora)) {
+        if (! $this->aplicaEnHorario($hora)) {
             return false;
         }
 
@@ -314,8 +315,7 @@ class ListaPrecio extends Model
     /**
      * Valida todas las condiciones de la lista contra un contexto de venta
      *
-     * @param array $contexto Array con claves: forma_pago_id, forma_venta_id, canal_venta_id, total_compra
-     * @return bool
+     * @param  array  $contexto  Array con claves: forma_pago_id, forma_venta_id, canal_venta_id, total_compra
      */
     public function validarCondiciones(array $contexto): bool
     {
@@ -326,7 +326,7 @@ class ListaPrecio extends Model
 
         // Todas las condiciones deben cumplirse (AND)
         foreach ($this->condiciones as $condicion) {
-            if (!$condicion->evaluar($contexto)) {
+            if (! $condicion->evaluar($contexto)) {
                 return false;
             }
         }
@@ -339,7 +339,6 @@ class ListaPrecio extends Model
     /**
      * Obtiene el precio para un artículo según esta lista
      *
-     * @param Articulo $articulo
      * @return array ['precio' => float, 'ajuste_porcentaje' => float, 'origen' => string]
      */
     public function obtenerPrecioArticulo(Articulo $articulo, ?float $precioBaseOverride = null): array
@@ -394,7 +393,7 @@ class ListaPrecio extends Model
                 'precio' => $this->aplicarRedondeo((float) $detalle->precio_fijo),
                 'precio_sin_redondeo' => (float) $detalle->precio_fijo,
                 'ajuste_porcentaje' => round($ajusteCalculado, 2),
-                'origen' => $origen . '_precio_fijo',
+                'origen' => $origen.'_precio_fijo',
                 'precio_base' => $precioBase,
             ];
         }
@@ -407,7 +406,7 @@ class ListaPrecio extends Model
             'precio' => $this->aplicarRedondeo($precioAjustado),
             'precio_sin_redondeo' => $precioAjustado,
             'ajuste_porcentaje' => $ajuste,
-            'origen' => $origen . '_ajuste',
+            'origen' => $origen.'_ajuste',
             'precio_base' => $precioBase,
         ];
     }
@@ -440,7 +439,7 @@ class ListaPrecio extends Model
      */
     public function puedeEliminarse(): bool
     {
-        return !$this->es_lista_base;
+        return ! $this->es_lista_base;
     }
 
     /**
@@ -476,9 +475,9 @@ class ListaPrecio extends Model
             }
         }
 
-        if ($this->dias_semana && !empty($this->dias_semana)) {
+        if ($this->dias_semana && ! empty($this->dias_semana)) {
             $nombresDias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-            $dias = array_map(fn($d) => $nombresDias[$d] ?? $d, $this->dias_semana);
+            $dias = array_map(fn ($d) => $nombresDias[$d] ?? $d, $this->dias_semana);
             $partes[] = implode(', ', $dias);
         }
 
@@ -507,7 +506,8 @@ class ListaPrecio extends Model
         }
 
         $tipo = $ajuste > 0 ? 'Recargo' : 'Descuento';
-        return "{$tipo} " . abs($ajuste) . '%';
+
+        return "{$tipo} ".abs($ajuste).'%';
     }
 
     // ==================== Métodos Estáticos ====================
@@ -545,11 +545,9 @@ class ListaPrecio extends Model
     /**
      * Busca la lista más específica que aplique para un contexto de venta
      *
-     * @param int $sucursalId
-     * @param array $contexto Array con: forma_pago_id, forma_venta_id, canal_venta_id, total_compra, cantidad, fecha, hora, dia_semana
-     * @param int|null $listaPrecioIdManual ID de lista seleccionada manualmente
-     * @param int|null $clienteId ID del cliente (para buscar su lista asignada)
-     * @return self|null
+     * @param  array  $contexto  Array con: forma_pago_id, forma_venta_id, canal_venta_id, total_compra, cantidad, fecha, hora, dia_semana
+     * @param  int|null  $listaPrecioIdManual  ID de lista seleccionada manualmente
+     * @param  int|null  $clienteId  ID del cliente (para buscar su lista asignada)
      */
     public static function buscarListaAplicable(
         int $sucursalId,
@@ -592,13 +590,13 @@ class ListaPrecio extends Model
 
         foreach ($listas as $lista) {
             // Validar día de semana y horario
-            if (!$lista->aplicaEnDiaSemana($diaSemana)) {
+            if (! $lista->aplicaEnDiaSemana($diaSemana)) {
                 continue;
             }
-            if (!$lista->aplicaEnHorario($hora)) {
+            if (! $lista->aplicaEnHorario($hora)) {
                 continue;
             }
-            if (!$lista->aplicaParaCantidad($cantidad)) {
+            if (! $lista->aplicaParaCantidad($cantidad)) {
                 continue;
             }
 
@@ -666,10 +664,10 @@ class ListaPrecio extends Model
     protected function tieneVigenciaSuperpuesta(self $otra): bool
     {
         // Si alguna no tiene vigencia, potencialmente se superponen
-        if (!$this->vigencia_desde && !$this->vigencia_hasta) {
+        if (! $this->vigencia_desde && ! $this->vigencia_hasta) {
             return true;
         }
-        if (!$otra->vigencia_desde && !$otra->vigencia_hasta) {
+        if (! $otra->vigencia_desde && ! $otra->vigencia_hasta) {
             return true;
         }
 

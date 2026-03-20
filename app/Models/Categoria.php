@@ -25,7 +25,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int|null $tipo_iva_id Tipo de IVA por defecto para conceptos de esta categoría
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read TipoIva|null $tipoIva
  * @property-read \Illuminate\Database\Eloquent\Collection|Articulo[] $articulos
  * @property-read \Illuminate\Database\Eloquent\Collection|PromocionCondicion[] $promocionesCondiciones
@@ -35,6 +34,7 @@ class Categoria extends Model
     use SoftDeletes;
 
     protected $connection = 'pymes_tenant';
+
     protected $table = 'categorias';
 
     protected $fillable = [
@@ -160,20 +160,20 @@ class Categoria extends Model
     public function obtenerPromocionesActivas()
     {
         return $this->promocionesCondiciones()
-                    ->whereHas('promocion', function ($query) {
-                        $query->where('activo', true)
-                              ->where(function ($q) {
-                                  $q->whereNull('vigencia_desde')
-                                    ->orWhere('vigencia_desde', '<=', now());
-                              })
-                              ->where(function ($q) {
-                                  $q->whereNull('vigencia_hasta')
-                                    ->orWhere('vigencia_hasta', '>=', now());
-                              });
+            ->whereHas('promocion', function ($query) {
+                $query->where('activo', true)
+                    ->where(function ($q) {
+                        $q->whereNull('vigencia_desde')
+                            ->orWhere('vigencia_desde', '<=', now());
                     })
-                    ->with('promocion')
-                    ->get()
-                    ->pluck('promocion')
-                    ->unique('id');
+                    ->where(function ($q) {
+                        $q->whereNull('vigencia_hasta')
+                            ->orWhere('vigencia_hasta', '>=', now());
+                    });
+            })
+            ->with('promocion')
+            ->get()
+            ->pluck('promocion')
+            ->unique('id');
     }
 }

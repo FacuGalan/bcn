@@ -23,13 +23,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $orden
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read ArticuloGrupoOpcional $articuloGrupoOpcional
  * @property-read Opcional $opcional
  */
 class ArticuloGrupoOpcionalOpcion extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'articulo_grupo_opcional_opcion';
 
     protected $fillable = [
@@ -78,7 +78,7 @@ class ArticuloGrupoOpcionalOpcion extends Model
     public function scopeParaVenta($query)
     {
         return $query->where('activo', true)
-                     ->where('disponible', true)
-                     ->whereHas('opcional', fn($q) => $q->where('activo', true));
+            ->where('disponible', true)
+            ->whereHas('opcional', fn ($q) => $q->where('activo', true));
     }
 }

@@ -2,10 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Caja;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use App\Models\Caja;
-use App\Models\Venta;
 
 class CleanupCajas extends Command
 {

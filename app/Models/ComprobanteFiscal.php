@@ -4,8 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -18,6 +18,7 @@ class ComprobanteFiscal extends Model
     use SoftDeletes;
 
     protected $connection = 'pymes_tenant';
+
     protected $table = 'comprobantes_fiscales';
 
     protected $fillable = [
@@ -151,14 +152,14 @@ class ComprobanteFiscal extends Model
     public function scopeFacturas($query)
     {
         return $query->whereIn('tipo', [
-            'factura_a', 'factura_b', 'factura_c', 'factura_e', 'factura_m'
+            'factura_a', 'factura_b', 'factura_c', 'factura_e', 'factura_m',
         ]);
     }
 
     public function scopeNotasCredito($query)
     {
         return $query->whereIn('tipo', [
-            'nota_credito_a', 'nota_credito_b', 'nota_credito_c', 'nota_credito_e', 'nota_credito_m'
+            'nota_credito_a', 'nota_credito_b', 'nota_credito_c', 'nota_credito_e', 'nota_credito_m',
         ]);
     }
 

@@ -5,11 +5,10 @@ namespace App\Livewire\Articulos;
 use App\Models\Articulo;
 use App\Models\Opcional;
 use App\Models\Receta;
-use App\Models\RecetaIngrediente;
+use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Componente Livewire para gestión de recetas.
@@ -24,23 +23,35 @@ class GestionarRecetas extends Component
 
     // Filtros
     public string $search = '';
+
     public string $filterTipo = 'all'; // all, Articulo, Opcional
+
     public string $filterEstado = 'all'; // all, con_receta, sin_receta
 
     // Modal editor de receta
     public bool $showRecetaModal = false;
+
     public ?int $recetableId = null;
+
     public string $recetableType = '';
+
     public string $recetableNombre = '';
+
     public ?int $recetaId = null;
 
     // Propiedades para el partial _receta-editor
     public array $recetaIngredientes = [];
+
     public string $busquedaIngrediente = '';
+
     public array $resultadosBusqueda = [];
+
     public string $recetaCantidadProducida = '1.000';
+
     public string $recetaNotas = '';
+
     public bool $recetaEsOverride = false;
+
     public ?string $recetaSucursalNombre = null;
 
     // Modal eliminar receta
@@ -48,22 +59,36 @@ class GestionarRecetas extends Component
 
     // Modal copiar receta
     public bool $showCopiarModal = false;
+
     public ?int $copiarDesdeRecetaId = null;
+
     public string $copiarDesdeNombre = '';
+
     public string $copiarDesdeType = '';
+
     public string $busquedaDestino = '';
+
     public array $destinosSeleccionados = [];
 
     // Modal nueva receta (crear + asignar)
     public bool $showNuevaRecetaModal = false;
+
     public string $nuevaRecetaTipo = 'Articulo'; // Articulo o Opcional
+
     public int $nuevaRecetaPaso = 1; // 1=armar receta, 2=asignar destinos
+
     public array $nuevaRecetaIngredientes = [];
+
     public string $nuevaRecetaBusquedaIng = '';
+
     public array $nuevaRecetaResultadosIng = [];
+
     public string $nuevaRecetaCantProducida = '1.000';
+
     public string $nuevaRecetaNotas = '';
+
     public string $nuevaRecetaBusquedaDest = '';
+
     public array $nuevaRecetaDestinos = [];
 
     public function updatingSearch(): void
@@ -84,10 +109,10 @@ class GestionarRecetas extends Component
     protected function getRecetas()
     {
         $query = Receta::with(['recetable' => function ($morphTo) {
-                $morphTo->morphWith([
-                    Opcional::class => ['grupoOpcional'],
-                ]);
-            }, 'ingredientes.articulo'])
+            $morphTo->morphWith([
+                Opcional::class => ['grupoOpcional'],
+            ]);
+        }, 'ingredientes.articulo'])
             ->whereNull('sucursal_id')
             ->where('activo', true);
 
@@ -128,7 +153,7 @@ class GestionarRecetas extends Component
 
         $nombre = $receta->recetable?->nombre ?? __('Eliminado');
         if ($receta->recetable_type === 'Opcional' && $receta->recetable?->grupoOpcional) {
-            $nombre .= ' (' . $receta->recetable->grupoOpcional->nombre . ')';
+            $nombre .= ' ('.$receta->recetable->grupoOpcional->nombre.')';
         }
         $this->recetableNombre = $nombre;
         $this->recetaCantidadProducida = (string) $receta->cantidad_producida;
@@ -136,7 +161,7 @@ class GestionarRecetas extends Component
         $this->recetaEsOverride = false;
         $this->recetaSucursalNombre = null;
 
-        $this->recetaIngredientes = $receta->ingredientes->map(fn($ing) => [
+        $this->recetaIngredientes = $receta->ingredientes->map(fn ($ing) => [
             'articulo_id' => $ing->articulo_id,
             'codigo' => $ing->articulo->codigo ?? '',
             'nombre' => $ing->articulo->nombre ?? __('Artículo eliminado'),
@@ -153,6 +178,7 @@ class GestionarRecetas extends Component
     {
         if (strlen($this->busquedaIngrediente) < 2) {
             $this->resultadosBusqueda = [];
+
             return;
         }
 
@@ -166,13 +192,13 @@ class GestionarRecetas extends Component
         $this->resultadosBusqueda = Articulo::where('activo', true)
             ->whereNotIn('id', $excluirIds)
             ->where(function ($q) {
-                $q->where('codigo', 'like', '%' . $this->busquedaIngrediente . '%')
-                  ->orWhere('nombre', 'like', '%' . $this->busquedaIngrediente . '%');
+                $q->where('codigo', 'like', '%'.$this->busquedaIngrediente.'%')
+                    ->orWhere('nombre', 'like', '%'.$this->busquedaIngrediente.'%');
             })
             ->orderBy('nombre')
             ->limit(10)
             ->get(['id', 'codigo', 'nombre', 'unidad_medida'])
-            ->map(fn($a) => [
+            ->map(fn ($a) => [
                 'id' => $a->id,
                 'codigo' => $a->codigo,
                 'nombre' => $a->nombre,
@@ -191,10 +217,14 @@ class GestionarRecetas extends Component
     public function agregarIngrediente(int $articuloId): void
     {
         $articulo = Articulo::find($articuloId);
-        if (!$articulo) return;
+        if (! $articulo) {
+            return;
+        }
 
         foreach ($this->recetaIngredientes as $ing) {
-            if ($ing['articulo_id'] == $articuloId) return;
+            if ($ing['articulo_id'] == $articuloId) {
+                return;
+            }
         }
 
         $this->recetaIngredientes[] = [
@@ -217,16 +247,20 @@ class GestionarRecetas extends Component
 
     public function guardarReceta(): void
     {
-        if (!$this->recetaId) return;
+        if (! $this->recetaId) {
+            return;
+        }
 
         if (empty($this->recetaIngredientes)) {
             $this->dispatch('notify', message: __('La receta debe tener al menos un ingrediente'), type: 'error');
+
             return;
         }
 
         foreach ($this->recetaIngredientes as $ing) {
-            if (!isset($ing['cantidad']) || (float) $ing['cantidad'] <= 0) {
+            if (! isset($ing['cantidad']) || (float) $ing['cantidad'] <= 0) {
                 $this->dispatch('notify', message: __('Todas las cantidades deben ser mayores a 0'), type: 'error');
+
                 return;
             }
         }
@@ -261,7 +295,9 @@ class GestionarRecetas extends Component
 
     public function eliminarReceta(): void
     {
-        if (!$this->recetaId) return;
+        if (! $this->recetaId) {
+            return;
+        }
 
         $receta = Receta::find($this->recetaId);
         if ($receta) {
@@ -299,7 +335,7 @@ class GestionarRecetas extends Component
         $this->copiarDesdeRecetaId = $receta->id;
         $nombre = $receta->recetable?->nombre ?? __('Eliminado');
         if ($receta->recetable_type === 'Opcional' && $receta->recetable?->grupoOpcional) {
-            $nombre .= ' (' . $receta->recetable->grupoOpcional->nombre . ')';
+            $nombre .= ' ('.$receta->recetable->grupoOpcional->nombre.')';
         }
         $this->copiarDesdeNombre = $nombre;
         $this->copiarDesdeType = $receta->recetable_type;
@@ -310,7 +346,7 @@ class GestionarRecetas extends Component
 
     public function getDestinosCopiaProperty(): array
     {
-        if (!$this->copiarDesdeRecetaId) {
+        if (! $this->copiarDesdeRecetaId) {
             return [];
         }
 
@@ -333,17 +369,17 @@ class GestionarRecetas extends Component
 
             if ($search) {
                 $query->where(function ($q) use ($search) {
-                    $q->where('nombre', 'like', '%' . $search . '%')
-                      ->orWhere('codigo', 'like', '%' . $search . '%');
+                    $q->where('nombre', 'like', '%'.$search.'%')
+                        ->orWhere('codigo', 'like', '%'.$search.'%');
                 });
             }
 
             return $query->orderBy('nombre')
                 ->limit(50)
                 ->get(['id', 'codigo', 'nombre'])
-                ->map(fn($a) => [
+                ->map(fn ($a) => [
                     'id' => $a->id,
-                    'label' => $a->codigo . ' - ' . $a->nombre,
+                    'label' => $a->codigo.' - '.$a->nombre,
                 ])
                 ->toArray();
         } else {
@@ -353,17 +389,17 @@ class GestionarRecetas extends Component
 
             if ($search) {
                 $query->where(function ($q) use ($search) {
-                    $q->where('nombre', 'like', '%' . $search . '%')
-                      ->orWhereHas('grupoOpcional', fn($g) => $g->where('nombre', 'like', '%' . $search . '%'));
+                    $q->where('nombre', 'like', '%'.$search.'%')
+                        ->orWhereHas('grupoOpcional', fn ($g) => $g->where('nombre', 'like', '%'.$search.'%'));
                 });
             }
 
             return $query->orderBy('nombre')
                 ->limit(50)
                 ->get(['id', 'nombre', 'grupo_opcional_id'])
-                ->map(fn($o) => [
+                ->map(fn ($o) => [
                     'id' => $o->id,
-                    'label' => $o->nombre . ($o->grupoOpcional ? ' (' . $o->grupoOpcional->nombre . ')' : ''),
+                    'label' => $o->nombre.($o->grupoOpcional ? ' ('.$o->grupoOpcional->nombre.')' : ''),
                 ])
                 ->toArray();
         }
@@ -380,12 +416,14 @@ class GestionarRecetas extends Component
 
     public function ejecutarCopia(): void
     {
-        if (empty($this->destinosSeleccionados) || !$this->copiarDesdeRecetaId) {
+        if (empty($this->destinosSeleccionados) || ! $this->copiarDesdeRecetaId) {
             return;
         }
 
         $recetaOrigen = Receta::with('ingredientes')->find($this->copiarDesdeRecetaId);
-        if (!$recetaOrigen) return;
+        if (! $recetaOrigen) {
+            return;
+        }
 
         $count = 0;
 
@@ -398,7 +436,9 @@ class GestionarRecetas extends Component
                     ->where('activo', true)
                     ->exists();
 
-                if ($existe) continue;
+                if ($existe) {
+                    continue;
+                }
 
                 $nuevaReceta = Receta::create([
                     'recetable_type' => $this->copiarDesdeType,
@@ -454,6 +494,7 @@ class GestionarRecetas extends Component
     {
         if (strlen($this->nuevaRecetaBusquedaIng) < 2) {
             $this->nuevaRecetaResultadosIng = [];
+
             return;
         }
 
@@ -462,13 +503,13 @@ class GestionarRecetas extends Component
         $this->nuevaRecetaResultadosIng = Articulo::where('activo', true)
             ->whereNotIn('id', $excluirIds)
             ->where(function ($q) {
-                $q->where('codigo', 'like', '%' . $this->nuevaRecetaBusquedaIng . '%')
-                  ->orWhere('nombre', 'like', '%' . $this->nuevaRecetaBusquedaIng . '%');
+                $q->where('codigo', 'like', '%'.$this->nuevaRecetaBusquedaIng.'%')
+                    ->orWhere('nombre', 'like', '%'.$this->nuevaRecetaBusquedaIng.'%');
             })
             ->orderBy('nombre')
             ->limit(10)
             ->get(['id', 'codigo', 'nombre', 'unidad_medida'])
-            ->map(fn($a) => [
+            ->map(fn ($a) => [
                 'id' => $a->id,
                 'codigo' => $a->codigo,
                 'nombre' => $a->nombre,
@@ -487,10 +528,14 @@ class GestionarRecetas extends Component
     public function nuevaRecetaAgregarIng(int $articuloId): void
     {
         $articulo = Articulo::find($articuloId);
-        if (!$articulo) return;
+        if (! $articulo) {
+            return;
+        }
 
         foreach ($this->nuevaRecetaIngredientes as $ing) {
-            if ($ing['articulo_id'] == $articuloId) return;
+            if ($ing['articulo_id'] == $articuloId) {
+                return;
+            }
         }
 
         $this->nuevaRecetaIngredientes[] = [
@@ -515,12 +560,14 @@ class GestionarRecetas extends Component
     {
         if (empty($this->nuevaRecetaIngredientes)) {
             $this->dispatch('notify', message: __('La receta debe tener al menos un ingrediente'), type: 'error');
+
             return;
         }
 
         foreach ($this->nuevaRecetaIngredientes as $ing) {
-            if (!isset($ing['cantidad']) || (float) $ing['cantidad'] <= 0) {
+            if (! isset($ing['cantidad']) || (float) $ing['cantidad'] <= 0) {
                 $this->dispatch('notify', message: __('Todas las cantidades deben ser mayores a 0'), type: 'error');
+
                 return;
             }
         }
@@ -572,7 +619,9 @@ class GestionarRecetas extends Component
                     ->where('activo', true)
                     ->exists();
 
-                if ($existe) continue;
+                if ($existe) {
+                    continue;
+                }
 
                 $receta = Receta::create([
                     'recetable_type' => $this->nuevaRecetaTipo,

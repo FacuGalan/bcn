@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class CobroVenta extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'cobro_ventas';
 
     public $timestamps = false;

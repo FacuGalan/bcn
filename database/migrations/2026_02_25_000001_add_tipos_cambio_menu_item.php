@@ -12,7 +12,7 @@ return new class extends Migration
             ->where('slug', 'configuracion')
             ->first();
 
-        if (!$configuracion) {
+        if (! $configuracion) {
             return;
         }
 
@@ -33,7 +33,7 @@ return new class extends Migration
         // Create permission
         $permName = 'menu.tipos-cambio';
         $exists = DB::connection('pymes')->table('permissions')->where('name', $permName)->exists();
-        if (!$exists) {
+        if (! $exists) {
             DB::connection('pymes')->table('permissions')->insert([
                 'name' => $permName,
                 'guard_name' => 'web',
@@ -46,14 +46,16 @@ return new class extends Migration
         $comercios = DB::connection('config')->table('comercios')->get();
 
         foreach ($comercios as $comercio) {
-            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT) . '_';
+            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT).'_';
 
             try {
                 $permId = DB::connection('pymes')->table('permissions')
                     ->where('name', $permName)
                     ->value('id');
 
-                if (!$permId) continue;
+                if (! $permId) {
+                    continue;
+                }
 
                 $roles = DB::connection('pymes')->select("SELECT id, name FROM `{$prefix}roles`");
 
@@ -88,10 +90,11 @@ return new class extends Migration
 
         if ($permId) {
             foreach ($comercios as $comercio) {
-                $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT) . '_';
+                $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT).'_';
                 try {
                     DB::connection('pymes')->statement("DELETE FROM `{$prefix}role_has_permissions` WHERE permission_id = ?", [$permId]);
-                } catch (\Exception $e) {}
+                } catch (\Exception $e) {
+                }
             }
         }
 

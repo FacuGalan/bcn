@@ -3,12 +3,11 @@
 namespace App\Livewire\Configuracion;
 
 use App\Models\FormaPago;
-use App\Models\FormaPagoCuota;
 use App\Models\FormaPagoCuotaSucursal;
 use App\Models\FormaPagoSucursal;
 use App\Models\Sucursal;
-use Livewire\Component;
 use Livewire\Attributes\Layout;
+use Livewire\Component;
 
 /**
  * Componente Livewire para configurar formas de pago por sucursal
@@ -26,15 +25,22 @@ class FormasPagoSucursal extends Component
 
     // Modal de configuración de forma de pago
     public bool $mostrarModalConfig = false;
+
     public ?int $formaPagoConfigId = null;
+
     public ?float $ajuste_porcentaje_sucursal = null;
+
     public bool $usar_ajuste_general = true;
+
     public bool $factura_fiscal_sucursal = false;
+
     public bool $usar_factura_fiscal_general = true;
 
     // Modal de configuración de cuotas
     public bool $mostrarModalCuotas = false;
+
     public ?int $formaPagoCuotasId = null;
+
     public array $cuotasConfig = [];
 
     /**
@@ -61,7 +67,7 @@ class FormasPagoSucursal extends Component
      */
     public function estaActiva(int $formaPagoId): bool
     {
-        if (!$this->sucursal_id) {
+        if (! $this->sucursal_id) {
             return false;
         }
 
@@ -78,7 +84,7 @@ class FormasPagoSucursal extends Component
      */
     public function getConfiguracion(int $formaPagoId): ?FormaPagoSucursal
     {
-        if (!$this->sucursal_id) {
+        if (! $this->sucursal_id) {
             return null;
         }
 
@@ -92,7 +98,7 @@ class FormasPagoSucursal extends Component
      */
     public function toggleFormaPago(int $formaPagoId): void
     {
-        if (!$this->sucursal_id) {
+        if (! $this->sucursal_id) {
             return;
         }
 
@@ -102,7 +108,7 @@ class FormasPagoSucursal extends Component
         ]);
 
         // Si es nuevo, el default es activo, así que lo ponemos inactivo
-        $config->activo = $config->exists ? !$config->activo : false;
+        $config->activo = $config->exists ? ! $config->activo : false;
         $config->save();
 
         $estado = $config->activo ? __('activada') : __('desactivada');
@@ -119,6 +125,7 @@ class FormasPagoSucursal extends Component
         // No permitir configurar ajuste en formas de pago mixtas
         if ($formaPago && $formaPago->es_mixta) {
             $this->dispatch('notify', message: __('Las formas de pago mixtas no tienen ajuste propio. El ajuste se aplica por cada forma de pago usada en el desglose.'), type: 'warning');
+
             return;
         }
 
@@ -151,7 +158,7 @@ class FormasPagoSucursal extends Component
      */
     public function guardarAjuste(): void
     {
-        if (!$this->sucursal_id || !$this->formaPagoConfigId) {
+        if (! $this->sucursal_id || ! $this->formaPagoConfigId) {
             return;
         }
 
@@ -174,7 +181,7 @@ class FormasPagoSucursal extends Component
             $config->factura_fiscal = $this->factura_fiscal_sucursal;
         }
 
-        if (!$config->exists) {
+        if (! $config->exists) {
             $config->activo = true;
         }
 
@@ -207,11 +214,13 @@ class FormasPagoSucursal extends Component
         // No permitir configurar cuotas en formas de pago mixtas
         if ($formaPago && $formaPago->es_mixta) {
             $this->dispatch('notify', message: __('Las formas de pago mixtas no tienen cuotas propias. Las cuotas se configuran en las formas de pago individuales.'), type: 'warning');
+
             return;
         }
 
-        if (!$formaPago || !$formaPago->permite_cuotas) {
+        if (! $formaPago || ! $formaPago->permite_cuotas) {
             $this->dispatch('notify', message: __('Esta forma de pago no permite cuotas'), type: 'error');
+
             return;
         }
 
@@ -243,7 +252,7 @@ class FormasPagoSucursal extends Component
      */
     public function guardarCuotas(): void
     {
-        if (!$this->sucursal_id) {
+        if (! $this->sucursal_id) {
             return;
         }
 
@@ -277,7 +286,7 @@ class FormasPagoSucursal extends Component
      */
     public function activarTodas(): void
     {
-        if (!$this->sucursal_id) {
+        if (! $this->sucursal_id) {
             return;
         }
 
@@ -300,7 +309,7 @@ class FormasPagoSucursal extends Component
      */
     public function desactivarTodas(): void
     {
-        if (!$this->sucursal_id) {
+        if (! $this->sucursal_id) {
             return;
         }
 

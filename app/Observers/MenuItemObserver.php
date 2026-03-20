@@ -67,8 +67,8 @@ class MenuItemObserver
                 $oldSlug = $menuItem->getOriginal('slug');
                 $newSlug = $menuItem->slug;
 
-                $oldPermissionName = 'menu.' . $oldSlug;
-                $newPermissionName = 'menu.' . $newSlug;
+                $oldPermissionName = 'menu.'.$oldSlug;
+                $newPermissionName = 'menu.'.$newSlug;
 
                 // Actualizar el permiso existente
                 $permission = Permission::where('name', $oldPermissionName)->first();
@@ -76,7 +76,7 @@ class MenuItemObserver
                 if ($permission) {
                     $permission->update(['name' => $newPermissionName]);
 
-                    Log::info("MenuItem updated: Permission renamed", [
+                    Log::info('MenuItem updated: Permission renamed', [
                         'menu_item_id' => $menuItem->id,
                         'old_permission' => $oldPermissionName,
                         'new_permission' => $newPermissionName,
@@ -112,7 +112,7 @@ class MenuItemObserver
                 // Eliminar el permiso
                 $permission->delete();
 
-                Log::info("MenuItem deleted: Permission removed", [
+                Log::info('MenuItem deleted: Permission removed', [
                     'menu_item_id' => $menuItem->id,
                     'permission' => $permissionName,
                 ]);
@@ -148,8 +148,7 @@ class MenuItemObserver
     /**
      * Asigna un permiso a los roles de administrador en todos los tenants
      *
-     * @param int $permissionId ID del permiso a asignar
-     * @return void
+     * @param  int  $permissionId  ID del permiso a asignar
      */
     protected function assignToAdminRoles(int $permissionId): void
     {
@@ -178,7 +177,7 @@ class MenuItemObserver
                         ->where('role_id', $roleId)
                         ->exists();
 
-                    if (!$exists) {
+                    if (! $exists) {
                         $records[] = [
                             'permission_id' => $permissionId,
                             'role_id' => $roleId,
@@ -187,7 +186,7 @@ class MenuItemObserver
                 }
 
                 // Insertar en batch
-                if (!empty($records)) {
+                if (! empty($records)) {
                     DB::connection('pymes_tenant')
                         ->table("{$tenantPrefix}role_has_permissions")
                         ->insert($records);
@@ -206,8 +205,7 @@ class MenuItemObserver
     /**
      * Elimina un permiso de todos los tenants
      *
-     * @param int $permissionId ID del permiso a eliminar
-     * @return void
+     * @param  int  $permissionId  ID del permiso a eliminar
      */
     protected function removeFromAllTenants(int $permissionId): void
     {
@@ -254,6 +252,7 @@ class MenuItemObserver
             return array_unique($tenants);
         } catch (\Exception $e) {
             Log::error("Error getting tenants: {$e->getMessage()}");
+
             return [];
         }
     }

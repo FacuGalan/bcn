@@ -13,8 +13,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * en la base de datos PYMES con prefijo basado en su ID (formato: 000001_*).
  * Los comercios pueden tener múltiples usuarios asociados y viceversa.
  *
- * @package App\Models
  * @author BCN Pymes
+ *
  * @version 1.0.0
  *
  * @property int $id ID único del comercio
@@ -23,7 +23,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property string $database_name Base de datos donde se almacenan las tablas del comercio
  * @property \Illuminate\Support\Carbon $created_at Fecha de creación
  * @property \Illuminate\Support\Carbon $updated_at Fecha de última actualización
- *
  * @property-read \Illuminate\Database\Eloquent\Collection|\App\Models\User[] $users Usuarios asociados
  * @property-read int $users_count Cantidad de usuarios asociados
  */
@@ -73,8 +72,6 @@ class Comercio extends Model
      *
      * Un comercio puede tener múltiples usuarios y un usuario puede
      * pertenecer a múltiples comercios.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
      */
     public function users(): BelongsToMany
     {
@@ -92,7 +89,8 @@ class Comercio extends Model
     public function getTablePrefix(): string
     {
         $prefijo = $this->prefijo ?? str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
-        return $prefijo . '_';
+
+        return $prefijo.'_';
     }
 
     /**
@@ -108,19 +106,17 @@ class Comercio extends Model
     /**
      * Verifica si un usuario tiene acceso a este comercio
      *
-     * @param int|User $user Usuario o ID del usuario
-     * @return bool
+     * @param  int|User  $user  Usuario o ID del usuario
      */
     public function hasUser($user): bool
     {
         $userId = $user instanceof User ? $user->id : $user;
+
         return $this->users()->where('user_id', $userId)->exists();
     }
 
     /**
      * Obtiene la cantidad actual de usuarios asociados al comercio
-     *
-     * @return int
      */
     public function getCurrentUsersCount(): int
     {
@@ -129,8 +125,6 @@ class Comercio extends Model
 
     /**
      * Verifica si el comercio puede agregar más usuarios
-     *
-     * @return bool
      */
     public function canAddMoreUsers(): bool
     {
@@ -139,8 +133,6 @@ class Comercio extends Model
 
     /**
      * Obtiene la cantidad de usuarios disponibles que se pueden agregar
-     *
-     * @return int
      */
     public function getRemainingUsersSlots(): int
     {

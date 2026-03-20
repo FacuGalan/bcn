@@ -2,16 +2,14 @@
 
 namespace App\Livewire\Stock;
 
-use Livewire\Component;
-use Livewire\WithPagination;
-use App\Services\StockService;
 use App\Models\Stock;
-use App\Models\Articulo;
-use App\Models\Sucursal;
+use App\Services\StockService;
+use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Exception;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 class StockInventario extends Component
 {
@@ -19,29 +17,41 @@ class StockInventario extends Component
 
     // Filtros
     public string $search = '';
+
     public string $filterAlerta = 'all';
+
     public string $filterModoStock = 'all';
+
     public string $filterTipo = 'all';
+
     public bool $showFilters = false;
 
     // Modales
     public bool $showAjusteModal = false;
+
     public bool $showInventarioModal = false;
+
     public bool $showUmbralesModal = false;
 
     // Ajuste
     public $stockAjusteId = null;
+
     public $cantidadAjuste = 0;
+
     public string $motivoAjuste = '';
 
     // Inventario físico
     public $stockInventarioId = null;
+
     public $cantidadFisica = 0;
+
     public string $observacionesInventario = '';
 
     // Umbrales
     public $stockUmbralesId = null;
+
     public $cantidadMinima = null;
+
     public $cantidadMaxima = null;
 
     protected $stockService;
@@ -83,7 +93,7 @@ class StockInventario extends Component
 
     public function toggleFilters(): void
     {
-        $this->showFilters = !$this->showFilters;
+        $this->showFilters = ! $this->showFilters;
     }
 
     public function render()
@@ -108,12 +118,12 @@ class StockInventario extends Component
     protected function obtenerStocks($sucursalId)
     {
         $query = Stock::with(['articulo'])
-                     ->porSucursal($sucursalId);
+            ->porSucursal($sucursalId);
 
         if ($this->search) {
             $query->whereHas('articulo', function ($q) {
                 $q->where('nombre', 'like', "%{$this->search}%")
-                  ->orWhere('codigo', 'like', "%{$this->search}%");
+                    ->orWhere('codigo', 'like', "%{$this->search}%");
             });
         }
 
@@ -157,6 +167,7 @@ class StockInventario extends Component
         try {
             if ($this->cantidadAjuste == 0) {
                 $this->dispatch('toast-error', message: __('La cantidad de ajuste debe ser diferente de cero'));
+
                 return;
             }
 

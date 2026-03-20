@@ -6,74 +6,98 @@ use App\Models\Cliente;
 use App\Models\CondicionIva;
 use App\Models\Cuit;
 use App\Models\ListaPrecio;
-use App\Models\Proveedor;
 use App\Models\MovimientoCuentaCorriente;
+use App\Models\Proveedor;
 use App\Models\Sucursal;
 use App\Services\ARCA\PadronARCAService;
 use App\Services\CatalogoCache;
 use App\Traits\SucursalAware;
-use Livewire\Component;
-use Livewire\WithPagination;
-use Livewire\WithFileUploads;
-use Livewire\Attributes\Layout;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Layout;
+use Livewire\Component;
+use Livewire\WithFileUploads;
+use Livewire\WithPagination;
 
 /**
  * Componente Livewire para gestión de clientes
  *
  * Permite crear, editar, listar y gestionar el estado de los clientes.
  * Incluye funcionalidad de vinculación con proveedores.
- *
- * @package App\Livewire\Clientes
  */
 #[Layout('layouts.app')]
 class GestionarClientes extends Component
 {
-    use WithPagination, WithFileUploads, SucursalAware;
+    use SucursalAware, WithFileUploads, WithPagination;
 
     // Propiedades de filtros
     public string $search = '';
+
     public string $filterStatus = 'all'; // all, active, inactive, deleted
+
     public string $filterSucursal = 'all';
+
     public string $filterCondicionIva = 'all';
+
     public string $filterCuentaCorriente = 'all'; // all, con_cc, sin_cc, con_deuda
+
     public string $filterVinculacion = 'all'; // all, con_proveedor, sin_proveedor
+
     public bool $showFilters = false;
 
     // Propiedades del modal
     public bool $showModal = false;
+
     public bool $editMode = false;
+
     public ?int $clienteId = null;
 
     // Modal de confirmación de eliminación
     public bool $showDeleteModal = false;
+
     public ?int $clienteAEliminar = null;
+
     public ?string $nombreClienteAEliminar = null;
 
     // Modal de historial de ventas
     public bool $showHistorialModal = false;
+
     public ?int $clienteHistorialId = null;
+
     public ?string $nombreClienteHistorial = null;
 
     // Propiedades del formulario
     public string $nombre = '';
+
     public string $razon_social = '';
+
     public string $cuit = '';
+
     public string $email = '';
+
     public string $telefono = '';
+
     public string $direccion = '';
+
     public ?int $condicion_iva_id = null;
+
     public ?int $lista_precio_id = null;
+
     public bool $tiene_cuenta_corriente = false;
+
     public float $limite_credito = 0;
+
     public int $dias_credito = 30;
+
     public float $tasa_interes_mensual = 0;
+
     public bool $activo = true;
 
     // Vinculación con proveedor
     public bool $tambien_es_proveedor = false;
+
     public ?int $proveedor_vinculado_id = null;
+
     public string $proveedor_opcion = 'crear_nuevo'; // 'crear_nuevo' o ID del proveedor existente
 
     // Sucursales
@@ -81,25 +105,39 @@ class GestionarClientes extends Component
 
     // Modal de configuración de sucursales (listas de precios)
     public bool $showSucursalesModal = false;
+
     public ?int $clienteConfigId = null;
+
     public ?string $clienteConfigNombre = null;
+
     public array $sucursalesConfig = []; // ['sucursal_id' => ['lista_precio_id' => X, 'activo' => bool]]
 
     // Modal de importación
     public bool $showImportModal = false;
+
     public $archivoImportacion = null;
+
     public array $sucursales_importacion = [];
+
     public array $importacionResultado = [];
+
     public bool $importacionProcesada = false;
 
     // Alta por CUIT (consulta ARCA)
     public string $modoAlta = 'manual'; // 'manual' o 'cuit'
+
     public bool $consultaArcaDisponible = false;
+
     public bool $consultandoCuit = false;
+
     public string $errorConsultaCuit = '';
+
     public string $exitoConsultaCuit = '';
+
     public bool $datosDesdeArca = false; // true = CUIT y condición IVA bloqueados
+
     public string $validacionCuitMsg = ''; // mensaje de validación en modo manual
+
     public string $validacionCuitTipo = ''; // 'success', 'error', 'info', ''
 
     /**
@@ -125,8 +163,8 @@ class GestionarClientes extends Component
 
         // Validar CUIT único si se está editando otro cliente
         if ($this->cuit) {
-            $rules['cuit'] = 'nullable|string|max:20|unique:pymes_tenant.clientes,cuit' .
-                ($this->clienteId ? ',' . $this->clienteId : '');
+            $rules['cuit'] = 'nullable|string|max:20|unique:pymes_tenant.clientes,cuit'.
+                ($this->clienteId ? ','.$this->clienteId : '');
         }
 
         return $rules;
@@ -187,7 +225,7 @@ class GestionarClientes extends Component
      */
     public function toggleFilters(): void
     {
-        $this->showFilters = !$this->showFilters;
+        $this->showFilters = ! $this->showFilters;
     }
 
     /**
@@ -197,11 +235,11 @@ class GestionarClientes extends Component
     {
         // Si el filtro es "deleted", buscar solo los eliminados
         if ($this->filterStatus === 'deleted') {
-            $query = Cliente::onlyTrashed()->with(['condicionIva', 'listaPrecio', 'proveedor', 'sucursales' => function($query) {
+            $query = Cliente::onlyTrashed()->with(['condicionIva', 'listaPrecio', 'proveedor', 'sucursales' => function ($query) {
                 $query->wherePivot('activo', true);
             }]);
         } else {
-            $query = Cliente::with(['condicionIva', 'listaPrecio', 'proveedor', 'sucursales' => function($query) {
+            $query = Cliente::with(['condicionIva', 'listaPrecio', 'proveedor', 'sucursales' => function ($query) {
                 $query->wherePivot('activo', true);
             }]);
         }
@@ -209,11 +247,11 @@ class GestionarClientes extends Component
         // Filtro de búsqueda
         if ($this->search) {
             $query->where(function ($q) {
-                $q->where('nombre', 'like', '%' . $this->search . '%')
-                  ->orWhere('razon_social', 'like', '%' . $this->search . '%')
-                  ->orWhere('cuit', 'like', '%' . $this->search . '%')
-                  ->orWhere('email', 'like', '%' . $this->search . '%')
-                  ->orWhere('telefono', 'like', '%' . $this->search . '%');
+                $q->where('nombre', 'like', '%'.$this->search.'%')
+                    ->orWhere('razon_social', 'like', '%'.$this->search.'%')
+                    ->orWhere('cuit', 'like', '%'.$this->search.'%')
+                    ->orWhere('email', 'like', '%'.$this->search.'%')
+                    ->orWhere('telefono', 'like', '%'.$this->search.'%');
             });
         }
 
@@ -224,9 +262,9 @@ class GestionarClientes extends Component
 
         // Filtro de sucursal
         if ($this->filterSucursal !== 'all') {
-            $query->whereHas('sucursales', function($q) {
+            $query->whereHas('sucursales', function ($q) {
                 $q->where('sucursal_id', $this->filterSucursal)
-                  ->where('clientes_sucursales.activo', true);
+                    ->where('clientes_sucursales.activo', true);
             });
         }
 
@@ -247,15 +285,15 @@ class GestionarClientes extends Component
                 case 'con_deuda':
                     $sucId = session('sucursal_id');
                     $query->where('tiene_cuenta_corriente', true)
-                          ->whereExists(function ($q) use ($sucId) {
-                              $q->select(DB::raw(1))
+                        ->whereExists(function ($q) use ($sucId) {
+                            $q->select(DB::raw(1))
                                 ->from('movimientos_cuenta_corriente')
                                 ->whereColumn('movimientos_cuenta_corriente.cliente_id', 'clientes.id')
                                 ->where('movimientos_cuenta_corriente.sucursal_id', $sucId)
                                 ->where('movimientos_cuenta_corriente.estado', 'activo')
                                 ->groupBy('movimientos_cuenta_corriente.cliente_id')
                                 ->havingRaw('COALESCE(SUM(debe), 0) - COALESCE(SUM(haber), 0) > 0');
-                          });
+                        });
                     break;
             }
         }
@@ -275,7 +313,7 @@ class GestionarClientes extends Component
         $sucursalId = session('sucursal_id');
         if ($sucursalId) {
             $clienteIds = $clientes->pluck('id')->toArray();
-            if (!empty($clienteIds)) {
+            if (! empty($clienteIds)) {
                 $saldos = MovimientoCuentaCorriente::select('cliente_id')
                     ->selectRaw('COALESCE(SUM(debe), 0) - COALESCE(SUM(haber), 0) as saldo_deudor')
                     ->where('sucursal_id', $sucursalId)
@@ -374,13 +412,15 @@ class GestionarClientes extends Component
         if (strlen($cuitLimpio) > 11) {
             $this->validacionCuitMsg = __('El CUIT debe tener 11 dígitos');
             $this->validacionCuitTipo = 'error';
+
             return;
         }
 
         // Validar dígito verificador
-        if (!Cuit::validarCuit($cuitLimpio)) {
+        if (! Cuit::validarCuit($cuitLimpio)) {
             $this->validacionCuitMsg = __('CUIT inválido (dígito verificador incorrecto)');
             $this->validacionCuitTipo = 'error';
+
             return;
         }
 
@@ -396,6 +436,7 @@ class GestionarClientes extends Component
                 $this->validacionCuitMsg = __('Ya existe un cliente con este CUIT: :nombre', ['nombre' => $existente->nombre]);
                 $this->validacionCuitTipo = 'error';
             }
+
             return;
         }
 
@@ -414,6 +455,7 @@ class GestionarClientes extends Component
                         $this->validacionCuitMsg = __('CUIT válido — :condicion (según ARCA)', ['condicion' => $condicion->nombre ?? '']);
                         $this->validacionCuitTipo = 'success';
                     }
+
                     return;
                 }
             } catch (\Exception $e) {
@@ -441,13 +483,15 @@ class GestionarClientes extends Component
         // Validar que haya un CUIT ingresado
         if (empty($this->cuit)) {
             $this->errorConsultaCuit = __('Ingrese un CUIT para consultar');
+
             return;
         }
 
         // Validar formato
         $cuitLimpio = preg_replace('/\D/', '', $this->cuit);
-        if (!Cuit::validarCuit($cuitLimpio)) {
+        if (! Cuit::validarCuit($cuitLimpio)) {
             $this->errorConsultaCuit = __('El CUIT ingresado no es válido. Verifique el número.');
+
             return;
         }
 
@@ -464,6 +508,7 @@ class GestionarClientes extends Component
                     'nombre' => $existente->nombre,
                 ]);
             }
+
             return;
         }
 
@@ -471,9 +516,10 @@ class GestionarClientes extends Component
 
         try {
             $cuitComercio = PadronARCAService::obtenerCuitDisponible();
-            if (!$cuitComercio) {
+            if (! $cuitComercio) {
                 $this->errorConsultaCuit = __('No hay certificados ARCA configurados para realizar la consulta');
                 $this->consultandoCuit = false;
+
                 return;
             }
 
@@ -495,8 +541,8 @@ class GestionarClientes extends Component
             $estadoTexto = $datos['estado_activo'] ? __('Activo') : __('Inactivo');
             $this->exitoConsultaCuit = __('Datos obtenidos correctamente. Estado del contribuyente: :estado', ['estado' => $estadoTexto]);
 
-            if (!$datos['estado_activo']) {
-                $this->exitoConsultaCuit .= '. ' . __('Atención: el contribuyente figura como INACTIVO en ARCA.');
+            if (! $datos['estado_activo']) {
+                $this->exitoConsultaCuit .= '. '.__('Atención: el contribuyente figura como INACTIVO en ARCA.');
             }
 
             Log::info('Consulta padrón ARCA exitosa', [
@@ -588,9 +634,9 @@ class GestionarClientes extends Component
         if ($this->tambien_es_proveedor) {
             if ($this->proveedor_opcion === 'crear_nuevo') {
                 // Crear nuevo proveedor con datos del cliente
-                if (!$proveedorActual) {
+                if (! $proveedorActual) {
                     Proveedor::create([
-                        'codigo' => 'CLI-' . str_pad($cliente->id, 4, '0', STR_PAD_LEFT),
+                        'codigo' => 'CLI-'.str_pad($cliente->id, 4, '0', STR_PAD_LEFT),
                         'nombre' => $cliente->nombre,
                         'razon_social' => $cliente->razon_social,
                         'nombre_fiscal' => $cliente->razon_social,
@@ -630,10 +676,10 @@ class GestionarClientes extends Component
     public function toggleStatus(int $id): void
     {
         $cliente = Cliente::findOrFail($id);
-        $cliente->update(['activo' => !$cliente->activo]);
+        $cliente->update(['activo' => ! $cliente->activo]);
 
         $status = $cliente->activo ? __('activado') : __('desactivado');
-        $this->dispatch('notify', type: 'success', message: __('Cliente') . ' ' . $status);
+        $this->dispatch('notify', type: 'success', message: __('Cliente').' '.$status);
     }
 
     /**
@@ -734,7 +780,7 @@ class GestionarClientes extends Component
      */
     public function toggleSucursalConfig(int $sucursalId): void
     {
-        if (!isset($this->sucursalesConfig[$sucursalId])) {
+        if (! isset($this->sucursalesConfig[$sucursalId])) {
             // Obtener lista base de la sucursal
             $listaBase = ListaPrecio::where('sucursal_id', $sucursalId)
                 ->where('es_lista_base', true)
@@ -745,7 +791,7 @@ class GestionarClientes extends Component
                 'lista_precio_id' => $listaBase,
             ];
         } else {
-            $this->sucursalesConfig[$sucursalId]['activo'] = !$this->sucursalesConfig[$sucursalId]['activo'];
+            $this->sucursalesConfig[$sucursalId]['activo'] = ! $this->sucursalesConfig[$sucursalId]['activo'];
         }
     }
 
@@ -787,7 +833,7 @@ class GestionarClientes extends Component
      */
     public function getVentasHistorial()
     {
-        if (!$this->clienteHistorialId) {
+        if (! $this->clienteHistorialId) {
             return collect();
         }
 
@@ -804,22 +850,22 @@ class GestionarClientes extends Component
     public function exportarExcel()
     {
         $clientes = Cliente::with(['condicionIva', 'sucursales'])
-            ->when($this->filterStatus !== 'all', function($q) {
+            ->when($this->filterStatus !== 'all', function ($q) {
                 $q->where('activo', $this->filterStatus === 'active');
             })
-            ->when($this->filterCondicionIva !== 'all', function($q) {
+            ->when($this->filterCondicionIva !== 'all', function ($q) {
                 $q->where('condicion_iva_id', $this->filterCondicionIva);
             })
             ->orderBy('nombre')
             ->get();
 
-        $filename = 'clientes_' . date('Y-m-d_H-i-s') . '.csv';
+        $filename = 'clientes_'.date('Y-m-d_H-i-s').'.csv';
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
         ];
 
-        $callback = function() use ($clientes) {
+        $callback = function () use ($clientes) {
             $file = fopen('php://output', 'w');
             // BOM para UTF-8
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
@@ -937,7 +983,7 @@ class GestionarClientes extends Component
             $header[0] = preg_replace("/^$bom/", '', $header[0]);
 
             // Mapear condiciones IVA por nombre
-            $condicionesIva = CondicionIva::all()->keyBy(function($item) {
+            $condicionesIva = CondicionIva::all()->keyBy(function ($item) {
                 return mb_strtolower(trim($item->nombre));
             });
 
@@ -975,15 +1021,17 @@ class GestionarClientes extends Component
                     $nombre = $data['nombre'] ?? $data[__('nombre')] ?? '';
                     if (empty($nombre)) {
                         $resultado['errores'][] = __('Línea :line: El nombre es obligatorio', ['line' => $lineNumber]);
+
                         continue;
                     }
 
                     // Verificar si ya existe por CUIT (si tiene), incluyendo eliminados
                     $cuit = $data['cuit'] ?? $data[__('cuit')] ?? '';
-                    if (!empty($cuit)) {
+                    if (! empty($cuit)) {
                         $existente = Cliente::withTrashed()->where('cuit', $cuit)->first();
                         if ($existente) {
                             $resultado['omitidos']++;
+
                             continue;
                         }
                     }
@@ -991,7 +1039,7 @@ class GestionarClientes extends Component
                     // Buscar condición IVA
                     $condicionIvaNombre = mb_strtolower($data['condición iva'] ?? $data['condicion iva'] ?? $data[__('condición iva')] ?? '');
                     $condicionIvaId = $consumidorFinal?->id;
-                    if (!empty($condicionIvaNombre) && isset($condicionesIva[$condicionIvaNombre])) {
+                    if (! empty($condicionIvaNombre) && isset($condicionesIva[$condicionIvaNombre])) {
                         $condicionIvaId = $condicionesIva[$condicionIvaNombre]->id;
                     }
 
@@ -1005,7 +1053,7 @@ class GestionarClientes extends Component
 
                     // Determinar estado
                     $estado = mb_strtolower($data['estado'] ?? $data[__('estado')] ?? 'activo');
-                    $activo = !in_array($estado, ['inactivo', 'inactive', '0', 'false']);
+                    $activo = ! in_array($estado, ['inactivo', 'inactive', '0', 'false']);
 
                     // Crear cliente
                     $cliente = Cliente::create([
@@ -1112,9 +1160,9 @@ class GestionarClientes extends Component
     {
         // Obtener proveedores sin cliente vinculado (disponibles para vincular)
         $proveedoresDisponibles = Proveedor::where('activo', true)
-            ->where(function($q) {
+            ->where(function ($q) {
                 $q->whereNull('cliente_id')
-                  ->orWhere('cliente_id', $this->clienteId); // Incluir el actual si está editando
+                    ->orWhere('cliente_id', $this->clienteId); // Incluir el actual si está editando
             })
             ->orderBy('nombre')
             ->get();

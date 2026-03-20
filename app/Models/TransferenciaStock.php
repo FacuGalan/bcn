@@ -29,7 +29,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $observaciones
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Sucursal $sucursalOrigen
  * @property-read Sucursal $sucursalDestino
  * @property-read Articulo $articulo
@@ -42,6 +41,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class TransferenciaStock extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'transferencias_stock';
 
     protected $fillable = [
@@ -206,7 +206,7 @@ class TransferenciaStock extends Model
      */
     public function aprobar(int $usuarioId): bool
     {
-        if (!$this->estaPendiente()) {
+        if (! $this->estaPendiente()) {
             return false;
         }
 
@@ -222,7 +222,7 @@ class TransferenciaStock extends Model
      */
     public function recibir(int $usuarioId): bool
     {
-        if (!$this->estaEnTransito()) {
+        if (! $this->estaEnTransito()) {
             return false;
         }
 
@@ -243,6 +243,7 @@ class TransferenciaStock extends Model
         }
 
         $this->estado = 'cancelada';
+
         return $this->save();
     }
 }

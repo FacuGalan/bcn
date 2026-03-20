@@ -9,23 +9,19 @@ use App\Models\GrupoEtiqueta;
 use App\Models\GrupoOpcional;
 use App\Models\HistorialPrecio;
 use App\Models\Receta;
-use App\Models\RecetaIngrediente;
 use App\Models\Stock;
 use App\Models\Sucursal;
-use App\Models\TipoIva;
 use App\Services\CatalogoCache;
 use App\Services\OpcionalService;
+use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Componente Livewire para gestión de artículos
  *
  * Permite crear, editar, listar y gestionar el estado de los artículos.
- *
- * @package App\Livewire\Articulos
  */
 #[Layout('layouts.app')]
 class GestionarArticulos extends Component
@@ -34,52 +30,81 @@ class GestionarArticulos extends Component
 
     // Propiedades de filtros
     public string $search = '';
+
     public string $filterStatus = 'all'; // all, active, inactive
+
     public string $filterTipo = 'all'; // all, articulo, materia_prima
+
     public array $categoriasSeleccionadas = [];
+
     public array $etiquetasSeleccionadasFiltro = [];
+
     public string $busquedaCategoriaFiltro = '';
+
     public string $busquedaEtiquetaFiltro = '';
+
     public bool $showFilters = false;
 
     // Propiedades del modal
     public bool $showModal = false;
+
     public bool $editMode = false;
+
     public ?int $articuloId = null;
 
     // Modal de confirmación de eliminación
     public bool $showDeleteModal = false;
+
     public ?int $articuloAEliminar = null;
+
     public ?string $nombreArticuloAEliminar = null;
 
     // Modal de opcionales
     public bool $showOpcionalesModal = false;
+
     public ?int $opcionalesArticuloId = null;
+
     public string $opcionalesArticuloNombre = '';
+
     public array $gruposAsignados = [];
+
     public bool $mostrandoAgregarGrupo = false;
+
     public string $busquedaGrupo = '';
 
     // Submodal confirmar desasignación
     public bool $showDesasignarModal = false;
+
     public ?int $grupoADesasignar = null;
+
     public ?string $nombreGrupoADesasignar = null;
 
     // Modal de receta
     public bool $showRecetaModal = false;
+
     public ?int $recetaArticuloId = null;
+
     public string $recetaArticuloNombre = '';
+
     public ?int $recetaId = null;
+
     public array $recetaIngredientes = [];
+
     public string $busquedaIngrediente = '';
+
     public array $resultadosBusqueda = [];
+
     public string $recetaCantidadProducida = '1.000';
+
     public string $recetaNotas = '';
+
     public bool $recetaEsOverride = false;
+
     public ?string $recetaSucursalNombre = null;
 
     // Modal de historial de precios
     public bool $showHistorialModal = false;
+
     public ?int $historialArticuloId = null;
 
     // Submodal confirmar eliminar receta
@@ -87,16 +112,27 @@ class GestionarArticulos extends Component
 
     // Propiedades del formulario
     public string $codigo = '';
+
     public string $codigo_barras = '';
+
     public string $nombre = '';
+
     public string $descripcion = '';
+
     public ?int $categoria_id = null;
+
     public string $unidad_medida = 'unidad';
+
     public bool $es_materia_prima = false;
+
     public ?int $tipo_iva_id = null;
+
     public bool $precio_iva_incluido = true;
+
     public ?float $precio_base = null;
+
     public bool $activo = true;
+
     public string $modo_stock = 'ninguno';
 
     // Sucursales
@@ -104,6 +140,7 @@ class GestionarArticulos extends Component
 
     // Etiquetas
     public array $etiquetas_seleccionadas = [];
+
     public string $busquedaEtiqueta = '';
 
     /**
@@ -148,19 +185,23 @@ class GestionarArticulos extends Component
      */
     public function updatedCategoriaId($value): void
     {
-        if (!$value) return;
+        if (! $value) {
+            return;
+        }
 
         $categoria = Categoria::find($value);
-        if (!$categoria || !$categoria->prefijo) return;
+        if (! $categoria || ! $categoria->prefijo) {
+            return;
+        }
 
         // Solo proponer si el código está vacío o ya es un código autogenerado de alguna categoría
         $debeProponerCodigo = empty($this->codigo);
 
-        if (!$debeProponerCodigo) {
+        if (! $debeProponerCodigo) {
             // Verificar si el código actual matchea patrón de alguna categoría con prefijo
             $prefijos = Categoria::whereNotNull('prefijo')->pluck('prefijo')->toArray();
             foreach ($prefijos as $pref) {
-                if (preg_match('/^' . preg_quote($pref, '/') . '\d+$/', $this->codigo)) {
+                if (preg_match('/^'.preg_quote($pref, '/').'\d+$/', $this->codigo)) {
                     $debeProponerCodigo = true;
                     break;
                 }
@@ -180,15 +221,16 @@ class GestionarArticulos extends Component
         $prefijo = strtoupper(trim($prefijo));
 
         // Buscar artículos cuyo código empiece con el prefijo
-        $ultimoNumero = Articulo::where('codigo', 'LIKE', $prefijo . '%')
+        $ultimoNumero = Articulo::where('codigo', 'LIKE', $prefijo.'%')
             ->get(['codigo'])
             ->map(function ($articulo) use ($prefijo) {
                 $sufijo = substr($articulo->codigo, strlen($prefijo));
+
                 return ctype_digit($sufijo) ? (int) $sufijo : 0;
             })
             ->max() ?? 0;
 
-        return $prefijo . str_pad($ultimoNumero + 1, 4, '0', STR_PAD_LEFT);
+        return $prefijo.str_pad($ultimoNumero + 1, 4, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -196,7 +238,7 @@ class GestionarArticulos extends Component
      */
     public function toggleFilters(): void
     {
-        $this->showFilters = !$this->showFilters;
+        $this->showFilters = ! $this->showFilters;
     }
 
     /**
@@ -206,22 +248,22 @@ class GestionarArticulos extends Component
     {
         $sucursalId = sucursal_activa();
 
-        $query = Articulo::with(['categoriaModel', 'tipoIva', 'sucursales' => function($query) {
+        $query = Articulo::with(['categoriaModel', 'tipoIva', 'sucursales' => function ($query) {
             $query->wherePivot('activo', true);
         }])
-        ->withCount(['gruposOpcionales as grupos_opcionales_count' => function ($q) use ($sucursalId) {
-            if ($sucursalId) {
-                $q->where('sucursal_id', $sucursalId);
-            }
-        }])
-        ->withCount(['recetas as tiene_receta' => fn($q) => $q->whereNull('sucursal_id')->where('activo', true)]);
+            ->withCount(['gruposOpcionales as grupos_opcionales_count' => function ($q) use ($sucursalId) {
+                if ($sucursalId) {
+                    $q->where('sucursal_id', $sucursalId);
+                }
+            }])
+            ->withCount(['recetas as tiene_receta' => fn ($q) => $q->whereNull('sucursal_id')->where('activo', true)]);
 
         // Filtro de búsqueda
         if ($this->search) {
             $query->where(function ($q) {
-                $q->where('codigo', 'like', '%' . $this->search . '%')
-                  ->orWhere('nombre', 'like', '%' . $this->search . '%')
-                  ->orWhere('descripcion', 'like', '%' . $this->search . '%');
+                $q->where('codigo', 'like', '%'.$this->search.'%')
+                    ->orWhere('nombre', 'like', '%'.$this->search.'%')
+                    ->orWhere('descripcion', 'like', '%'.$this->search.'%');
             });
         }
 
@@ -236,12 +278,12 @@ class GestionarArticulos extends Component
         }
 
         // Filtro de categorías (checkboxes múltiples)
-        if (!empty($this->categoriasSeleccionadas)) {
+        if (! empty($this->categoriasSeleccionadas)) {
             $query->whereIn('categoria_id', $this->categoriasSeleccionadas);
         }
 
         // Filtro de etiquetas (checkboxes múltiples)
-        if (!empty($this->etiquetasSeleccionadasFiltro)) {
+        if (! empty($this->etiquetasSeleccionadasFiltro)) {
             $query->whereHas('etiquetas', function ($q) {
                 $q->whereIn('etiquetas.id', $this->etiquetasSeleccionadasFiltro);
             });
@@ -259,7 +301,7 @@ class GestionarArticulos extends Component
             'codigo', 'codigo_barras', 'nombre', 'descripcion', 'categoria_id',
             'unidad_medida', 'es_materia_prima', 'tipo_iva_id',
             'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
-            'etiquetas_seleccionadas', 'busquedaEtiqueta', 'modo_stock'
+            'etiquetas_seleccionadas', 'busquedaEtiqueta', 'modo_stock',
         ]);
         $this->editMode = false;
         $this->activo = true;
@@ -318,7 +360,7 @@ class GestionarArticulos extends Component
     public function save(): void
     {
         $rules = [
-            'codigo' => 'required|string|max:50|unique:pymes_tenant.articulos,codigo,' . $this->articuloId,
+            'codigo' => 'required|string|max:50|unique:pymes_tenant.articulos,codigo,'.$this->articuloId,
             'codigo_barras' => 'nullable|string|max:50',
             'nombre' => 'required|string|max:200',
             'descripcion' => 'nullable|string|max:1000',
@@ -387,7 +429,7 @@ class GestionarArticulos extends Component
             $syncDataCompleto = [];
             foreach ($todasSucursales as $sucursalId) {
                 $esSeleccionada = in_array($sucursalId, $this->sucursales_seleccionadas);
-                $esNueva = !in_array($sucursalId, $sucursalesExistentes);
+                $esNueva = ! in_array($sucursalId, $sucursalesExistentes);
                 $syncDataCompleto[$sucursalId] = [
                     'activo' => $esSeleccionada,
                     'modo_stock' => $esNueva ? $this->modo_stock : DB::connection('pymes_tenant')
@@ -423,14 +465,14 @@ class GestionarArticulos extends Component
         // Sincronizar etiquetas
         $articulo->etiquetas()->sync($this->etiquetas_seleccionadas);
 
-        $this->js("window.notify('" . addslashes($message) . "', 'success')");
+        $this->js("window.notify('".addslashes($message)."', 'success')");
         $this->showModal = false;
         $this->reset([
             'codigo', 'codigo_barras', 'nombre', 'descripcion', 'categoria_id',
             'unidad_medida', 'es_materia_prima', 'tipo_iva_id',
             'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
             'sucursales_seleccionadas', 'etiquetas_seleccionadas', 'busquedaEtiqueta',
-            'modo_stock'
+            'modo_stock',
         ]);
     }
 
@@ -445,7 +487,7 @@ class GestionarArticulos extends Component
             'unidad_medida', 'es_materia_prima', 'tipo_iva_id',
             'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
             'sucursales_seleccionadas', 'etiquetas_seleccionadas', 'busquedaEtiqueta',
-            'modo_stock'
+            'modo_stock',
         ]);
     }
 
@@ -467,11 +509,11 @@ class GestionarArticulos extends Component
     public function toggleStatus(int $articuloId): void
     {
         $articulo = Articulo::findOrFail($articuloId);
-        $articulo->activo = !$articulo->activo;
+        $articulo->activo = ! $articulo->activo;
         $articulo->save();
 
         $status = $articulo->activo ? __('activado') : __('desactivado');
-        $this->js("window.notify('" . __('Artículo :status correctamente', ['status' => $status]) . "', 'success')");
+        $this->js("window.notify('".__('Artículo :status correctamente', ['status' => $status])."', 'success')");
     }
 
     /**
@@ -502,14 +544,14 @@ class GestionarArticulos extends Component
      */
     public function eliminar(): void
     {
-        if (!$this->articuloAEliminar) {
+        if (! $this->articuloAEliminar) {
             return;
         }
 
         $articulo = Articulo::find($this->articuloAEliminar);
         if ($articulo) {
             $articulo->delete(); // Soft delete
-            $this->js("window.notify('" . __('Artículo eliminado correctamente') . "', 'success')");
+            $this->js("window.notify('".__('Artículo eliminado correctamente')."', 'success')");
         }
 
         $this->cancelarEliminar();
@@ -529,13 +571,15 @@ class GestionarArticulos extends Component
 
     protected function cargarGruposAsignados(): void
     {
-        if (!$this->opcionalesArticuloId) return;
+        if (! $this->opcionalesArticuloId) {
+            return;
+        }
 
         $sucursalId = sucursal_activa();
 
         $asignaciones = ArticuloGrupoOpcional::with([
-                'grupoOpcional.opcionales' => fn($q) => $q->where('activo', true)->orderBy('orden'),
-            ])
+            'grupoOpcional.opcionales' => fn ($q) => $q->where('activo', true)->orderBy('orden'),
+        ])
             ->where('articulo_id', $this->opcionalesArticuloId)
             ->where('sucursal_id', $sucursalId)
             ->orderBy('orden')
@@ -550,7 +594,7 @@ class GestionarArticulos extends Component
                 'obligatorio' => $asig->grupoOpcional->obligatorio,
                 'activo' => $asig->activo,
                 'orden' => $asig->orden,
-                'opciones' => $asig->grupoOpcional->opcionales->map(fn($op) => [
+                'opciones' => $asig->grupoOpcional->opcionales->map(fn ($op) => [
                     'id' => $op->id,
                     'nombre' => $op->nombre,
                     'precio_extra' => $op->precio_extra,
@@ -577,16 +621,16 @@ class GestionarArticulos extends Component
 
         $query = GrupoOpcional::where('activo', true)
             ->whereNotIn('id', $gruposYaAsignados)
-            ->withCount(['opcionales' => fn($q) => $q->where('activo', true)]);
+            ->withCount(['opcionales' => fn ($q) => $q->where('activo', true)]);
 
         if ($this->busquedaGrupo) {
             $query->where(function ($q) {
-                $q->where('nombre', 'like', '%' . $this->busquedaGrupo . '%')
-                  ->orWhere('descripcion', 'like', '%' . $this->busquedaGrupo . '%');
+                $q->where('nombre', 'like', '%'.$this->busquedaGrupo.'%')
+                    ->orWhere('descripcion', 'like', '%'.$this->busquedaGrupo.'%');
             });
         }
 
-        return $query->orderBy('nombre')->limit(20)->get()->map(fn($g) => [
+        return $query->orderBy('nombre')->limit(20)->get()->map(fn ($g) => [
             'id' => $g->id,
             'nombre' => $g->nombre,
             'tipo' => $g->tipo,
@@ -597,7 +641,9 @@ class GestionarArticulos extends Component
 
     public function asignarGrupo(int $grupoId): void
     {
-        if (!$this->opcionalesArticuloId) return;
+        if (! $this->opcionalesArticuloId) {
+            return;
+        }
 
         $service = app(OpcionalService::class);
         $count = $service->asignarGrupoAArticulo($this->opcionalesArticuloId, $grupoId);
@@ -605,7 +651,7 @@ class GestionarArticulos extends Component
         $grupo = GrupoOpcional::find($grupoId);
         $nombre = $grupo ? $grupo->nombre : '';
 
-        $this->js("window.notify('" . addslashes(__('Grupo ":nombre" asignado en :count sucursales', ['nombre' => $nombre, 'count' => $count])) . "', 'success')");
+        $this->js("window.notify('".addslashes(__('Grupo ":nombre" asignado en :count sucursales', ['nombre' => $nombre, 'count' => $count]))."', 'success')");
 
         $this->mostrandoAgregarGrupo = false;
         $this->cargarGruposAsignados();
@@ -613,7 +659,9 @@ class GestionarArticulos extends Component
 
     public function moverGrupoArriba(int $index): void
     {
-        if ($index <= 0 || !$this->opcionalesArticuloId) return;
+        if ($index <= 0 || ! $this->opcionalesArticuloId) {
+            return;
+        }
 
         $grupoActual = $this->gruposAsignados[$index];
         $grupoAnterior = $this->gruposAsignados[$index - 1];
@@ -624,7 +672,9 @@ class GestionarArticulos extends Component
 
     public function moverGrupoAbajo(int $index): void
     {
-        if ($index >= count($this->gruposAsignados) - 1 || !$this->opcionalesArticuloId) return;
+        if ($index >= count($this->gruposAsignados) - 1 || ! $this->opcionalesArticuloId) {
+            return;
+        }
 
         $grupoActual = $this->gruposAsignados[$index];
         $grupoSiguiente = $this->gruposAsignados[$index + 1];
@@ -677,12 +727,14 @@ class GestionarArticulos extends Component
 
     public function desasignarGrupo(): void
     {
-        if (!$this->opcionalesArticuloId || !$this->grupoADesasignar) return;
+        if (! $this->opcionalesArticuloId || ! $this->grupoADesasignar) {
+            return;
+        }
 
         $service = app(OpcionalService::class);
         $service->desasignarGrupoDeArticulo($this->opcionalesArticuloId, $this->grupoADesasignar);
 
-        $this->js("window.notify('" . addslashes(__('Grupo desasignado correctamente')) . "', 'success')");
+        $this->js("window.notify('".addslashes(__('Grupo desasignado correctamente'))."', 'success')");
         $this->showDesasignarModal = false;
         $this->grupoADesasignar = null;
         $this->nombreGrupoADesasignar = null;
@@ -726,7 +778,7 @@ class GestionarArticulos extends Component
             $this->recetaId = $receta->id;
             $this->recetaCantidadProducida = (string) $receta->cantidad_producida;
             $this->recetaNotas = $receta->notas ?? '';
-            $this->recetaIngredientes = $receta->ingredientes->map(fn($ing) => [
+            $this->recetaIngredientes = $receta->ingredientes->map(fn ($ing) => [
                 'articulo_id' => $ing->articulo_id,
                 'codigo' => $ing->articulo->codigo ?? '',
                 'nombre' => $ing->articulo->nombre ?? __('Artículo eliminado'),
@@ -749,6 +801,7 @@ class GestionarArticulos extends Component
     {
         if (strlen($this->busquedaIngrediente) < 2) {
             $this->resultadosBusqueda = [];
+
             return;
         }
 
@@ -760,13 +813,13 @@ class GestionarArticulos extends Component
         $this->resultadosBusqueda = Articulo::where('activo', true)
             ->whereNotIn('id', $excluirIds)
             ->where(function ($q) {
-                $q->where('codigo', 'like', '%' . $this->busquedaIngrediente . '%')
-                  ->orWhere('nombre', 'like', '%' . $this->busquedaIngrediente . '%');
+                $q->where('codigo', 'like', '%'.$this->busquedaIngrediente.'%')
+                    ->orWhere('nombre', 'like', '%'.$this->busquedaIngrediente.'%');
             })
             ->orderBy('nombre')
             ->limit(10)
             ->get(['id', 'codigo', 'nombre', 'unidad_medida'])
-            ->map(fn($a) => [
+            ->map(fn ($a) => [
                 'id' => $a->id,
                 'codigo' => $a->codigo,
                 'nombre' => $a->nombre,
@@ -785,10 +838,14 @@ class GestionarArticulos extends Component
     public function agregarIngrediente(int $articuloId): void
     {
         $articulo = Articulo::find($articuloId);
-        if (!$articulo) return;
+        if (! $articulo) {
+            return;
+        }
 
         foreach ($this->recetaIngredientes as $ing) {
-            if ($ing['articulo_id'] == $articuloId) return;
+            if ($ing['articulo_id'] == $articuloId) {
+                return;
+            }
         }
 
         $this->recetaIngredientes[] = [
@@ -811,16 +868,20 @@ class GestionarArticulos extends Component
 
     public function guardarReceta(): void
     {
-        if (!$this->recetaArticuloId) return;
+        if (! $this->recetaArticuloId) {
+            return;
+        }
 
         if (empty($this->recetaIngredientes)) {
-            $this->js("window.notify('" . addslashes(__('La receta debe tener al menos un ingrediente')) . "', 'error')");
+            $this->js("window.notify('".addslashes(__('La receta debe tener al menos un ingrediente'))."', 'error')");
+
             return;
         }
 
         foreach ($this->recetaIngredientes as $ing) {
-            if (!isset($ing['cantidad']) || (float) $ing['cantidad'] <= 0) {
-                $this->js("window.notify('" . addslashes(__('Todas las cantidades deben ser mayores a 0')) . "', 'error')");
+            if (! isset($ing['cantidad']) || (float) $ing['cantidad'] <= 0) {
+                $this->js("window.notify('".addslashes(__('Todas las cantidades deben ser mayores a 0'))."', 'error')");
+
                 return;
             }
         }
@@ -852,7 +913,7 @@ class GestionarArticulos extends Component
             }
         });
 
-        $this->js("window.notify('" . addslashes(__('Receta guardada correctamente')) . "', 'success')");
+        $this->js("window.notify('".addslashes(__('Receta guardada correctamente'))."', 'success')");
         $this->showRecetaModal = false;
         $this->resetReceta();
     }
@@ -866,7 +927,9 @@ class GestionarArticulos extends Component
 
     public function eliminarReceta(): void
     {
-        if (!$this->recetaId) return;
+        if (! $this->recetaId) {
+            return;
+        }
 
         $receta = Receta::find($this->recetaId);
         if ($receta) {
@@ -874,7 +937,7 @@ class GestionarArticulos extends Component
             $receta->delete();
         }
 
-        $this->js("window.notify('" . addslashes(__('Receta eliminada correctamente')) . "', 'success')");
+        $this->js("window.notify('".addslashes(__('Receta eliminada correctamente'))."', 'success')");
         $this->showDeleteRecetaModal = false;
         $this->showRecetaModal = false;
         $this->resetReceta();
@@ -921,7 +984,9 @@ class GestionarArticulos extends Component
 
     public function getHistorial(): array
     {
-        if (!$this->historialArticuloId) return [];
+        if (! $this->historialArticuloId) {
+            return [];
+        }
 
         $registros = HistorialPrecio::where('articulo_id', $this->historialArticuloId)
             ->with('sucursal')
@@ -932,7 +997,7 @@ class GestionarArticulos extends Component
         // Obtener nombres de usuario desde config (cross-connection)
         $userIds = $registros->pluck('usuario_id')->filter()->unique()->values()->toArray();
         $usuarios = [];
-        if (!empty($userIds)) {
+        if (! empty($userIds)) {
             $usuarios = DB::connection('config')->table('users')
                 ->whereIn('id', $userIds)
                 ->pluck('name', 'id')
@@ -974,11 +1039,11 @@ class GestionarArticulos extends Component
 
             if ($busquedaModal) {
                 $gruposEtiquetasQuery->where(function ($query) use ($busquedaModal) {
-                    $query->where('nombre', 'like', '%' . $busquedaModal . '%')
-                          ->orWhereHas('etiquetas', function ($q) use ($busquedaModal) {
-                              $q->where('activo', true)
-                                ->where('nombre', 'like', '%' . $busquedaModal . '%');
-                          });
+                    $query->where('nombre', 'like', '%'.$busquedaModal.'%')
+                        ->orWhereHas('etiquetas', function ($q) use ($busquedaModal) {
+                            $q->where('activo', true)
+                                ->where('nombre', 'like', '%'.$busquedaModal.'%');
+                        });
                 });
             }
 
@@ -987,8 +1052,8 @@ class GestionarArticulos extends Component
             foreach ($gruposEtiquetas as $grupo) {
                 $etiquetasQuery = $grupo->etiquetas()->where('activo', true);
 
-                if ($busquedaModal && !str_contains(strtolower($grupo->nombre), strtolower($busquedaModal))) {
-                    $etiquetasQuery->where('nombre', 'like', '%' . $busquedaModal . '%');
+                if ($busquedaModal && ! str_contains(strtolower($grupo->nombre), strtolower($busquedaModal))) {
+                    $etiquetasQuery->where('nombre', 'like', '%'.$busquedaModal.'%');
                 }
 
                 $grupo->setRelation('etiquetas', $etiquetasQuery->orderBy('orden')->orderBy('nombre')->get());
@@ -1002,7 +1067,7 @@ class GestionarArticulos extends Component
         if ($this->showFilters) {
             $categoriasFiltroQuery = Categoria::where('activo', true);
             if ($this->busquedaCategoriaFiltro) {
-                $categoriasFiltroQuery->where('nombre', 'like', '%' . $this->busquedaCategoriaFiltro . '%');
+                $categoriasFiltroQuery->where('nombre', 'like', '%'.$this->busquedaCategoriaFiltro.'%');
             }
             $categoriasFiltro = $categoriasFiltroQuery->orderBy('nombre')->get();
 
@@ -1011,11 +1076,11 @@ class GestionarArticulos extends Component
 
             if ($busquedaFiltro) {
                 $gruposEtiquetasFiltroQuery->where(function ($query) use ($busquedaFiltro) {
-                    $query->where('nombre', 'like', '%' . $busquedaFiltro . '%')
-                          ->orWhereHas('etiquetas', function ($q) use ($busquedaFiltro) {
-                              $q->where('activo', true)
-                                ->where('nombre', 'like', '%' . $busquedaFiltro . '%');
-                          });
+                    $query->where('nombre', 'like', '%'.$busquedaFiltro.'%')
+                        ->orWhereHas('etiquetas', function ($q) use ($busquedaFiltro) {
+                            $q->where('activo', true)
+                                ->where('nombre', 'like', '%'.$busquedaFiltro.'%');
+                        });
                 });
             }
 
@@ -1024,8 +1089,8 @@ class GestionarArticulos extends Component
             foreach ($gruposEtiquetasFiltro as $grupo) {
                 $etiquetasQuery = $grupo->etiquetas()->where('activo', true);
 
-                if ($busquedaFiltro && !str_contains(strtolower($grupo->nombre), strtolower($busquedaFiltro))) {
-                    $etiquetasQuery->where('nombre', 'like', '%' . $busquedaFiltro . '%');
+                if ($busquedaFiltro && ! str_contains(strtolower($grupo->nombre), strtolower($busquedaFiltro))) {
+                    $etiquetasQuery->where('nombre', 'like', '%'.$busquedaFiltro.'%');
                 }
 
                 $grupo->setRelation('etiquetas', $etiquetasQuery->orderBy('orden')->orderBy('nombre')->get());

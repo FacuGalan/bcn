@@ -20,23 +20,21 @@ use Symfony\Component\HttpFoundation\Response;
  * - Configurar la conexión dinámica con el prefijo del comercio
  * - Redireccionar al selector de comercio si no hay comercio activo
  *
- * @package App\Http\Middleware
  * @author BCN Pymes
+ *
  * @version 1.0.0
  */
 class TenantMiddleware
 {
     /**
      * Servicio de gestión de tenants
-     *
-     * @var TenantService
      */
     protected TenantService $tenantService;
 
     /**
      * Constructor del middleware
      *
-     * @param TenantService $tenantService Servicio de tenant
+     * @param  TenantService  $tenantService  Servicio de tenant
      */
     public function __construct(TenantService $tenantService)
     {
@@ -52,23 +50,22 @@ class TenantMiddleware
      * 3. Tenga acceso al comercio activo
      * 4. Configura la conexión con el prefijo del comercio
      *
-     * @param \Illuminate\Http\Request $request Request actual
-     * @param \Closure $next Siguiente middleware
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @param  \Illuminate\Http\Request  $request  Request actual
+     * @param  \Closure  $next  Siguiente middleware
      */
     public function handle(Request $request, Closure $next): Response
     {
         // Verificar que el usuario esté autenticado
-        if (!Auth::check()) {
+        if (! Auth::check()) {
             return redirect()->route('login');
         }
 
         $user = Auth::user();
 
         // Verificar si hay un comercio activo en sesión
-        if (!$this->tenantService->hasComercio()) {
+        if (! $this->tenantService->hasComercio()) {
             // Intentar auto-restaurar el comercio desde ultimo_comercio_id o comercio único
-            if (!$this->tryAutoRestoreComercio($user)) {
+            if (! $this->tryAutoRestoreComercio($user)) {
                 return redirect()->route('comercio.selector');
             }
         }
@@ -76,9 +73,10 @@ class TenantMiddleware
         $comercio = $this->tenantService->getComercio();
 
         // Verificar acceso al comercio (cachear resultado en el request)
-        if (!$request->attributes->get('tenant_access_verified', false)) {
-            if (!$user->hasAccessToComercio($comercio->id)) {
+        if (! $request->attributes->get('tenant_access_verified', false)) {
+            if (! $user->hasAccessToComercio($comercio->id)) {
                 $this->tenantService->clearComercio();
+
                 return redirect()->route('comercio.selector')
                     ->with('error', 'No tienes acceso al comercio seleccionado.');
             }
@@ -96,7 +94,7 @@ class TenantMiddleware
      * 1. ultimo_comercio_id del usuario (si tiene acceso)
      * 2. Comercio único (si el usuario solo tiene uno)
      *
-     * @param \App\Models\User $user Usuario autenticado
+     * @param  \App\Models\User  $user  Usuario autenticado
      * @return bool True si se restauró exitosamente
      */
     protected function tryAutoRestoreComercio($user): bool
@@ -121,12 +119,12 @@ class TenantMiddleware
         }
 
         // Prioridad 2: si solo tiene un comercio, usarlo directamente
-        if (!$comercio && $comercios->count() === 1) {
+        if (! $comercio && $comercios->count() === 1) {
             $comercio = $comercios->first();
         }
 
         // Si tiene múltiples comercios y no hay ultimo_comercio_id → selector
-        if (!$comercio) {
+        if (! $comercio) {
             return false;
         }
 

@@ -3,12 +3,10 @@
 namespace App\Services\ARCA;
 
 use App\Models\Cuit;
-use App\Models\PuntoVenta;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use SoapClient;
 use SoapFault;
 
@@ -23,16 +21,21 @@ class ARCAService
 {
     // URLs de los servicios
     protected const WSAA_WSDL_TESTING = 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms?WSDL';
+
     protected const WSAA_WSDL_PRODUCCION = 'https://wsaa.afip.gov.ar/ws/services/LoginCms?WSDL';
 
     protected const WSFE_WSDL_TESTING = 'https://wswhomo.afip.gov.ar/wsfev1/service.asmx?WSDL';
+
     protected const WSFE_WSDL_PRODUCCION = 'https://servicios1.afip.gov.ar/wsfev1/service.asmx?WSDL';
 
     protected const SERVICIO_WSFE = 'wsfe';
 
     protected Cuit $cuit;
+
     protected bool $modoTesting;
+
     protected ?string $token = null;
+
     protected ?string $sign = null;
 
     public function __construct(Cuit $cuit)
@@ -71,14 +74,14 @@ class ARCAService
                 'error' => $e->getMessage(),
                 'cuit' => $this->cuit->numero_cuit,
             ]);
-            throw new Exception('Error de comunicación con AFIP: ' . $e->getMessage());
+            throw new Exception('Error de comunicación con AFIP: '.$e->getMessage());
         }
     }
 
     /**
      * Solicita CAE para un comprobante
      *
-     * @param array $comprobante Datos del comprobante
+     * @param  array  $comprobante  Datos del comprobante
      * @return array ['cae' => string, 'vencimiento' => string, 'numero' => int]
      */
     public function solicitarCAE(array $comprobante): array
@@ -146,7 +149,7 @@ class ARCAService
                         $observaciones[] = "{$o->Code}: {$o->Msg}";
                     }
                 }
-                throw new Exception('Comprobante rechazado: ' . implode(', ', $observaciones));
+                throw new Exception('Comprobante rechazado: '.implode(', ', $observaciones));
             }
 
             return [
@@ -163,7 +166,7 @@ class ARCAService
                 'cuit' => $this->cuit->numero_cuit,
                 'comprobante' => $comprobante,
             ]);
-            throw new Exception('Error de comunicación con AFIP: ' . $e->getMessage());
+            throw new Exception('Error de comunicación con AFIP: '.$e->getMessage());
         }
     }
 
@@ -200,17 +203,17 @@ class ARCAService
         // Agregar IVA si corresponde (no para comprobantes tipo C que no discriminan IVA)
         // Tipos C: Factura C (11), Nota de Débito C (12), Nota de Crédito C (13)
         $tiposSinIVA = [11, 12, 13];
-        if (!empty($comprobante['iva']) && !in_array($comprobante['tipo_comprobante'], $tiposSinIVA)) {
+        if (! empty($comprobante['iva']) && ! in_array($comprobante['tipo_comprobante'], $tiposSinIVA)) {
             $detalle['Iva'] = ['AlicIva' => $comprobante['iva']];
         }
 
         // Comprobantes asociados (para notas de crédito/débito)
-        if (!empty($comprobante['cbtes_asoc'])) {
+        if (! empty($comprobante['cbtes_asoc'])) {
             $detalle['CbtesAsoc'] = ['CbteAsoc' => $comprobante['cbtes_asoc']];
         }
 
         // Otros tributos
-        if (!empty($comprobante['tributos'])) {
+        if (! empty($comprobante['tributos'])) {
             $detalle['Tributos'] = ['Tributo' => $comprobante['tributos']];
         }
 
@@ -230,6 +233,7 @@ class ARCAService
         if ($cached) {
             $this->token = $cached['token'];
             $this->sign = $cached['sign'];
+
             return;
         }
 
@@ -294,7 +298,7 @@ XML;
         $certificado = $this->cuit->getCertificadoContenido();
         $clave = $this->cuit->getClaveContenido();
 
-        if (!$certificado || !$clave) {
+        if (! $certificado || ! $clave) {
             throw new Exception('Certificados no configurados para este CUIT');
         }
 
@@ -309,7 +313,7 @@ XML;
         $certResource = openssl_x509_read($certificado);
         $keyResource = openssl_pkey_get_private($clave);
 
-        if (!$certResource || !$keyResource) {
+        if (! $certResource || ! $keyResource) {
             @unlink($traFile);
             throw new Exception('Error al leer certificado o clave privada');
         }
@@ -325,9 +329,9 @@ XML;
 
         @unlink($traFile);
 
-        if (!$result) {
+        if (! $result) {
             @unlink($cmsFile);
-            throw new Exception('Error al firmar TRA: ' . openssl_error_string());
+            throw new Exception('Error al firmar TRA: '.openssl_error_string());
         }
 
         // Leer y procesar el archivo firmado
@@ -391,7 +395,7 @@ XML;
                 'error' => $mensaje,
                 'cuit' => $this->cuit->numero_cuit,
             ]);
-            throw new Exception('Error de autenticación AFIP: ' . $mensaje);
+            throw new Exception('Error de autenticación AFIP: '.$mensaje);
         }
     }
 

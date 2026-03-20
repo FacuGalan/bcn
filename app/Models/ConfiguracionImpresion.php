@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ConfiguracionImpresion extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'configuracion_impresion';
 
     protected $fillable = [
@@ -72,9 +73,10 @@ class ConfiguracionImpresion extends Model
 
     public function getLogoUrlAttribute(): ?string
     {
-        if (!$this->logo_ticket_path) {
+        if (! $this->logo_ticket_path) {
             return null;
         }
-        return asset('storage/' . $this->logo_ticket_path);
+
+        return asset('storage/'.$this->logo_ticket_path);
     }
 }

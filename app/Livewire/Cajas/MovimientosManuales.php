@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Cajas;
 
-use Livewire\Component;
 use App\Models\Caja;
 use App\Models\Moneda;
 use App\Models\MovimientoCaja;
@@ -12,10 +11,10 @@ use App\Models\TipoCambio;
 use App\Models\TransferenciaEfectivo;
 use App\Services\CajaService;
 use App\Services\SucursalService;
-use App\Services\TesoreriaService;
 use App\Traits\SucursalAware;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Livewire\Component;
 
 /**
  * Componente de Movimientos Manuales de Caja
@@ -28,20 +27,25 @@ use Illuminate\Support\Facades\Log;
 class MovimientosManuales extends Component
 {
     use SucursalAware;
+
     // Tab activo
     public string $tabActivo = 'transferencia';
 
     // Cajas disponibles
     public $cajasDisponibles = [];
+
     public $cajaActualId = null;
+
     public $cajaActual = null;
 
     // Tesorería
     public $tesoreria = null;
+
     public $tesoreriaActiva = false;
 
     // Multi-moneda
     public $monedasDisponibles = [];
+
     public $saldosMonedasCaja = [];
 
     // Formulario de Transferencia
@@ -70,11 +74,14 @@ class MovimientosManuales extends Component
 
     // Historial de movimientos
     public $movimientosRecientes = [];
+
     public $transferenciasRecientes = [];
 
     // Modal de confirmación
     public bool $showConfirmModal = false;
+
     public string $accionPendiente = '';
+
     public array $datosPendientes = [];
 
     protected $listeners = [
@@ -144,7 +151,7 @@ class MovimientosManuales extends Component
     {
         $this->saldosMonedasCaja = [];
 
-        if (!$this->cajaActualId || empty($this->monedasDisponibles)) {
+        if (! $this->cajaActualId || empty($this->monedasDisponibles)) {
             return;
         }
 
@@ -157,7 +164,7 @@ class MovimientosManuales extends Component
 
         $saldos = [];
         foreach ($movimientos as $mov) {
-            if (!isset($saldos[$mov->moneda_id])) {
+            if (! isset($saldos[$mov->moneda_id])) {
                 $saldos[$mov->moneda_id] = 0;
             }
             if ($mov->tipo === 'ingreso') {
@@ -206,12 +213,12 @@ class MovimientosManuales extends Component
     protected function obtenerEquivalenteARS(float $montoOriginal, int $monedaId): ?array
     {
         $monedaPrincipal = Moneda::obtenerPrincipal();
-        if (!$monedaPrincipal) {
+        if (! $monedaPrincipal) {
             return null;
         }
 
         $tasa = TipoCambio::obtenerTasaVenta($monedaId, $monedaPrincipal->id);
-        if (!$tasa || $tasa <= 0) {
+        if (! $tasa || $tasa <= 0) {
             return null;
         }
 
@@ -226,9 +233,10 @@ class MovimientosManuales extends Component
 
     protected function cargarHistorial()
     {
-        if (!$this->cajaActualId) {
+        if (! $this->cajaActualId) {
             $this->movimientosRecientes = [];
             $this->transferenciasRecientes = [];
+
             return;
         }
 
@@ -256,15 +264,16 @@ class MovimientosManuales extends Component
 
         // Últimas 5 transferencias
         $this->transferenciasRecientes = TransferenciaEfectivo::where(function ($q) {
-                $q->where('caja_origen_id', $this->cajaActualId)
-                  ->orWhere('caja_destino_id', $this->cajaActualId);
-            })
+            $q->where('caja_origen_id', $this->cajaActualId)
+                ->orWhere('caja_destino_id', $this->cajaActualId);
+        })
             ->with(['cajaOrigen', 'cajaDestino', 'usuario'])
             ->orderBy('created_at', 'desc')
             ->limit(5)
             ->get()
             ->map(function ($t) {
                 $esOrigen = $t->caja_origen_id == $this->cajaActualId;
+
                 return [
                     'id' => $t->id,
                     'tipo' => $esOrigen ? 'salida' : 'entrada',
@@ -326,6 +335,7 @@ class MovimientosManuales extends Component
         // Validaciones adicionales
         if ($this->transferencia['caja_destino_id'] == $this->cajaActualId) {
             $this->addError('transferencia.caja_destino_id', __('La caja destino debe ser diferente a la actual'));
+
             return;
         }
 
@@ -337,11 +347,13 @@ class MovimientosManuales extends Component
             $saldoMoneda = $this->getSaldoMonedaCaja($this->cajaActualId, $monedaId);
             if ($saldoMoneda < $monto) {
                 $this->addError('transferencia.monto', __('Saldo insuficiente en la moneda seleccionada'));
+
                 return;
             }
         } else {
-            if (!$this->cajaActual || $this->cajaActual->saldo_actual < $monto) {
+            if (! $this->cajaActual || $this->cajaActual->saldo_actual < $monto) {
                 $this->addError('transferencia.monto', __('Saldo insuficiente en la caja'));
+
                 return;
             }
         }
@@ -353,8 +365,9 @@ class MovimientosManuales extends Component
         $equivalenteARS = null;
         if ($monedaId) {
             $equivalenteARS = $this->obtenerEquivalenteARS($monto, $monedaId);
-            if (!$equivalenteARS) {
+            if (! $equivalenteARS) {
                 $this->addError('transferencia.monto', __('No hay cotización disponible para esta moneda'));
+
                 return;
             }
         }
@@ -390,7 +403,7 @@ class MovimientosManuales extends Component
             $tipoCambioId = null;
             if ($esMonedaExtranjera) {
                 $equiv = $this->obtenerEquivalenteARS($monto, $monedaId);
-                if (!$equiv) {
+                if (! $equiv) {
                     throw new \Exception(__('No hay cotización disponible para esta moneda'));
                 }
                 $montoARS = $equiv['monto_ars'];
@@ -456,7 +469,7 @@ class MovimientosManuales extends Component
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error en transferencia', ['error' => $e->getMessage()]);
-            $this->dispatch('toast-error', message: __('Error') . ': ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error').': '.$e->getMessage());
         }
     }
 
@@ -479,18 +492,21 @@ class MovimientosManuales extends Component
 
         // Si viene de tesorería, validar saldo
         if ($this->ingreso['origen'] === 'tesoreria') {
-            if (!$this->tesoreriaActiva) {
+            if (! $this->tesoreriaActiva) {
                 $this->addError('ingreso.origen', __('No hay tesorería activa en esta sucursal'));
+
                 return;
             }
             if ($monedaId) {
-                if (!$this->tesoreria->tieneSaldoSuficienteMoneda($monto, $monedaId)) {
+                if (! $this->tesoreria->tieneSaldoSuficienteMoneda($monto, $monedaId)) {
                     $this->addError('ingreso.monto', __('Saldo insuficiente en la moneda seleccionada'));
+
                     return;
                 }
             } else {
                 if ($this->tesoreria->saldo_actual < $monto) {
                     $this->addError('ingreso.monto', __('Saldo insuficiente en tesorería'));
+
                     return;
                 }
             }
@@ -502,8 +518,9 @@ class MovimientosManuales extends Component
         $equivalenteARS = null;
         if ($monedaId) {
             $equivalenteARS = $this->obtenerEquivalenteARS($monto, $monedaId);
-            if (!$equivalenteARS) {
+            if (! $equivalenteARS) {
                 $this->addError('ingreso.monto', __('No hay cotización disponible para esta moneda'));
+
                 return;
             }
         }
@@ -539,7 +556,7 @@ class MovimientosManuales extends Component
             $tipoCambioId = null;
             if ($esMonedaExtranjera) {
                 $equiv = $this->obtenerEquivalenteARS($monto, $monedaId);
-                if (!$equiv) {
+                if (! $equiv) {
                     throw new \Exception(__('No hay cotización disponible para esta moneda'));
                 }
                 $montoARS = $equiv['monto_ars'];
@@ -550,7 +567,7 @@ class MovimientosManuales extends Component
             $movimientoCaja = MovimientoCaja::create([
                 'caja_id' => $this->cajaActualId,
                 'tipo' => 'ingreso',
-                'concepto' => $motivo . ($esDesdeTesoreria ? ' (desde tesorería)' : ''),
+                'concepto' => $motivo.($esDesdeTesoreria ? ' (desde tesorería)' : ''),
                 'monto' => $montoARS,
                 'usuario_id' => $usuarioId,
                 'referencia_tipo' => 'ingreso_manual',
@@ -607,7 +624,7 @@ class MovimientosManuales extends Component
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error en ingreso manual', ['error' => $e->getMessage()]);
-            $this->dispatch('toast-error', message: __('Error') . ': ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error').': '.$e->getMessage());
         }
     }
 
@@ -633,18 +650,21 @@ class MovimientosManuales extends Component
             $saldoMoneda = $this->getSaldoMonedaCaja($this->cajaActualId, $monedaId);
             if ($saldoMoneda < $monto) {
                 $this->addError('egreso.monto', __('Saldo insuficiente en la moneda seleccionada'));
+
                 return;
             }
         } else {
-            if (!$this->cajaActual || $this->cajaActual->saldo_actual < $monto) {
+            if (! $this->cajaActual || $this->cajaActual->saldo_actual < $monto) {
                 $this->addError('egreso.monto', __('Saldo insuficiente en la caja'));
+
                 return;
             }
         }
 
         // Si va a tesorería, validar que exista
-        if ($this->egreso['destino'] === 'tesoreria' && !$this->tesoreriaActiva) {
+        if ($this->egreso['destino'] === 'tesoreria' && ! $this->tesoreriaActiva) {
             $this->addError('egreso.destino', __('No hay tesorería activa en esta sucursal'));
+
             return;
         }
 
@@ -654,8 +674,9 @@ class MovimientosManuales extends Component
         $equivalenteARS = null;
         if ($monedaId) {
             $equivalenteARS = $this->obtenerEquivalenteARS($monto, $monedaId);
-            if (!$equivalenteARS) {
+            if (! $equivalenteARS) {
                 $this->addError('egreso.monto', __('No hay cotización disponible para esta moneda'));
+
                 return;
             }
         }
@@ -691,7 +712,7 @@ class MovimientosManuales extends Component
             $tipoCambioId = null;
             if ($esMonedaExtranjera) {
                 $equiv = $this->obtenerEquivalenteARS($monto, $monedaId);
-                if (!$equiv) {
+                if (! $equiv) {
                     throw new \Exception(__('No hay cotización disponible para esta moneda'));
                 }
                 $montoARS = $equiv['monto_ars'];
@@ -702,7 +723,7 @@ class MovimientosManuales extends Component
             $movimientoCaja = MovimientoCaja::create([
                 'caja_id' => $this->cajaActualId,
                 'tipo' => 'egreso',
-                'concepto' => $motivo . ($esHaciaTesoreria ? ' (a tesorería)' : ''),
+                'concepto' => $motivo.($esHaciaTesoreria ? ' (a tesorería)' : ''),
                 'monto' => $montoARS,
                 'usuario_id' => $usuarioId,
                 'referencia_tipo' => 'egreso_manual',
@@ -759,7 +780,7 @@ class MovimientosManuales extends Component
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error en egreso manual', ['error' => $e->getMessage()]);
-            $this->dispatch('toast-error', message: __('Error') . ': ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error').': '.$e->getMessage());
         }
     }
 

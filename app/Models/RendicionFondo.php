@@ -29,7 +29,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $observaciones
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Caja $caja
  * @property-read Tesoreria $tesoreria
  * @property-read User $usuarioEntrega
@@ -41,6 +40,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class RendicionFondo extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'rendicion_fondos';
 
     protected $fillable = [
@@ -78,8 +78,11 @@ class RendicionFondo extends Model
 
     // Estados
     public const ESTADO_PENDIENTE = 'pendiente';
+
     public const ESTADO_CONFIRMADO = 'confirmado';
+
     public const ESTADO_CANCELADO = 'cancelado';
+
     public const ESTADO_RECHAZADO = 'rechazado';
 
     public const ESTADOS = [
@@ -227,8 +230,13 @@ class RendicionFondo extends Model
 
     public function getTipoDiferenciaAttribute(): string
     {
-        if ($this->diferencia > 0) return 'sobrante';
-        if ($this->diferencia < 0) return 'faltante';
+        if ($this->diferencia > 0) {
+            return 'sobrante';
+        }
+        if ($this->diferencia < 0) {
+            return 'faltante';
+        }
+
         return 'cuadrada';
     }
 
@@ -239,7 +247,7 @@ class RendicionFondo extends Model
      */
     public function confirmarRecepcion(int $usuarioRecibeId): bool
     {
-        if (!$this->esta_pendiente) {
+        if (! $this->esta_pendiente) {
             return false;
         }
 
@@ -277,7 +285,7 @@ class RendicionFondo extends Model
      */
     public function rechazar(int $usuarioId, ?string $motivo = null): bool
     {
-        if (!$this->esta_pendiente) {
+        if (! $this->esta_pendiente) {
             return false;
         }
 

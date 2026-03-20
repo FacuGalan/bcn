@@ -7,13 +7,13 @@ use App\Models\Categoria;
 use App\Models\GrupoEtiqueta;
 use App\Models\Stock;
 use App\Services\StockService;
+use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
-use Exception;
 
 #[Layout('layouts.app')]
 class InventarioGeneral extends Component
@@ -22,20 +22,29 @@ class InventarioGeneral extends Component
 
     // Filtros
     public string $search = '';
+
     public string $filtroTipo = ''; // '', 'articulo', 'materia_prima'
+
     public array $categoriasSeleccionadas = [];
+
     public array $etiquetasSeleccionadas = [];
+
     public string $busquedaCategoria = '';
+
     public string $busquedaEtiqueta = '';
+
     public bool $showFilters = false;
 
     // Datos de inventario
     public array $cantidadesFisicas = [];
+
     public string $observacionesGlobal = '';
 
     // Modales
     public bool $showConfirmModal = false;
+
     public bool $showResultModal = false;
+
     public array $resultado = [];
 
     protected $stockService;
@@ -75,7 +84,7 @@ class InventarioGeneral extends Component
 
     public function toggleFilters(): void
     {
-        $this->showFilters = !$this->showFilters;
+        $this->showFilters = ! $this->showFilters;
     }
 
     /**
@@ -104,7 +113,7 @@ class InventarioGeneral extends Component
      */
     public function getConteoIngresadosProperty(): int
     {
-        return count(array_filter($this->cantidadesFisicas, fn($v) => $v !== '' && $v !== null));
+        return count(array_filter($this->cantidadesFisicas, fn ($v) => $v !== '' && $v !== null));
     }
 
     /**
@@ -112,10 +121,11 @@ class InventarioGeneral extends Component
      */
     public function confirmarProcesar()
     {
-        $cantidades = array_filter($this->cantidadesFisicas, fn($v) => $v !== '' && $v !== null);
+        $cantidades = array_filter($this->cantidadesFisicas, fn ($v) => $v !== '' && $v !== null);
 
         if (empty($cantidades)) {
             $this->dispatch('toast-error', message: __('No hay artículos con conteo ingresado'));
+
             return;
         }
 
@@ -136,10 +146,11 @@ class InventarioGeneral extends Component
     public function procesarInventario()
     {
         // Filtrar entradas vacías
-        $cantidades = array_filter($this->cantidadesFisicas, fn($v) => $v !== '' && $v !== null);
+        $cantidades = array_filter($this->cantidadesFisicas, fn ($v) => $v !== '' && $v !== null);
 
         if (empty($cantidades)) {
             $this->dispatch('toast-error', message: __('No hay artículos con conteo ingresado'));
+
             return;
         }
 
@@ -247,12 +258,12 @@ class InventarioGeneral extends Component
             ->conStockEnSucursal($sucursalId);
 
         // Filtro de categorías
-        if (!empty($this->categoriasSeleccionadas)) {
+        if (! empty($this->categoriasSeleccionadas)) {
             $query->whereIn('categoria_id', $this->categoriasSeleccionadas);
         }
 
         // Filtro de etiquetas
-        if (!empty($this->etiquetasSeleccionadas)) {
+        if (! empty($this->etiquetasSeleccionadas)) {
             $query->whereHas('etiquetas', function ($q) {
                 $q->whereIn('etiquetas.id', $this->etiquetasSeleccionadas);
             });
@@ -270,12 +281,12 @@ class InventarioGeneral extends Component
             $palabras = preg_split('/\s+/', trim($this->search), -1, PREG_SPLIT_NO_EMPTY);
             foreach ($palabras as $palabra) {
                 $query->where(function ($q) use ($palabra) {
-                    $q->where('nombre', 'like', '%' . $palabra . '%')
-                      ->orWhere('codigo', 'like', '%' . $palabra . '%')
-                      ->orWhere('codigo_barras', 'like', '%' . $palabra . '%')
-                      ->orWhereHas('categoriaModel', function ($subQ) use ($palabra) {
-                          $subQ->where('nombre', 'like', '%' . $palabra . '%');
-                      });
+                    $q->where('nombre', 'like', '%'.$palabra.'%')
+                        ->orWhere('codigo', 'like', '%'.$palabra.'%')
+                        ->orWhere('codigo_barras', 'like', '%'.$palabra.'%')
+                        ->orWhereHas('categoriaModel', function ($subQ) use ($palabra) {
+                            $subQ->where('nombre', 'like', '%'.$palabra.'%');
+                        });
                 });
             }
         }
@@ -294,7 +305,7 @@ class InventarioGeneral extends Component
         // Categorías con filtrado
         $categoriasQuery = Categoria::where('activo', true);
         if ($this->busquedaCategoria) {
-            $categoriasQuery->where('nombre', 'like', '%' . $this->busquedaCategoria . '%');
+            $categoriasQuery->where('nombre', 'like', '%'.$this->busquedaCategoria.'%');
         }
         $categorias = $categoriasQuery->orderBy('nombre')->get();
 
@@ -304,11 +315,11 @@ class InventarioGeneral extends Component
 
         if ($busqueda) {
             $gruposEtiquetasQuery->where(function ($q) use ($busqueda) {
-                $q->where('nombre', 'like', '%' . $busqueda . '%')
-                  ->orWhereHas('etiquetas', function ($eq) use ($busqueda) {
-                      $eq->where('activo', true)
-                        ->where('nombre', 'like', '%' . $busqueda . '%');
-                  });
+                $q->where('nombre', 'like', '%'.$busqueda.'%')
+                    ->orWhereHas('etiquetas', function ($eq) use ($busqueda) {
+                        $eq->where('activo', true)
+                            ->where('nombre', 'like', '%'.$busqueda.'%');
+                    });
             });
         }
 
@@ -317,8 +328,8 @@ class InventarioGeneral extends Component
         foreach ($gruposEtiquetas as $grupo) {
             $etiquetasQuery = $grupo->etiquetas()->where('activo', true);
 
-            if ($busqueda && !str_contains(strtolower($grupo->nombre), strtolower($busqueda))) {
-                $etiquetasQuery->where('nombre', 'like', '%' . $busqueda . '%');
+            if ($busqueda && ! str_contains(strtolower($grupo->nombre), strtolower($busqueda))) {
+                $etiquetasQuery->where('nombre', 'like', '%'.$busqueda.'%');
             }
 
             $grupo->setRelation('etiquetas', $etiquetasQuery->orderBy('orden')->orderBy('nombre')->get());

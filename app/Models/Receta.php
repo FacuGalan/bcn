@@ -25,7 +25,6 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * @property bool $activo
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Model $recetable (Articulo o Opcional)
  * @property-read Sucursal|null $sucursal
  * @property-read \Illuminate\Database\Eloquent\Collection|RecetaIngrediente[] $ingredientes
@@ -33,6 +32,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 class Receta extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'recetas';
 
     protected $fillable = [
@@ -89,10 +89,9 @@ class Receta extends Model
      * Resuelve la receta para un artículo u opcional en una sucursal.
      * Prioriza override de sucursal sobre default.
      *
-     * @param string $type 'Articulo' o 'Opcional'
-     * @param int $id ID del artículo u opcional
-     * @param int $sucursalId ID de la sucursal
-     * @return self|null
+     * @param  string  $type  'Articulo' o 'Opcional'
+     * @param  int  $id  ID del artículo u opcional
+     * @param  int  $sucursalId  ID de la sucursal
      */
     public static function resolver(string $type, int $id, int $sucursalId): ?self
     {
@@ -104,9 +103,10 @@ class Receta extends Model
 
         if ($override) {
             // Override inactivo = receta anulada para esta sucursal
-            if (!$override->activo) {
+            if (! $override->activo) {
                 return null;
             }
+
             return $override->load('ingredientes.articulo');
         }
 

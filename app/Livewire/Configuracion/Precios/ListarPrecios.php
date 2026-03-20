@@ -2,10 +2,10 @@
 
 namespace App\Livewire\Configuracion\Precios;
 
-use Livewire\Component;
-use Livewire\WithPagination;
 use App\Models\ListaPrecio;
 use App\Traits\SucursalAware;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 /**
  * Componente Livewire para listar y gestionar listas de precios
@@ -14,15 +14,18 @@ use App\Traits\SucursalAware;
  */
 class ListarPrecios extends Component
 {
-    use WithPagination, SucursalAware;
+    use SucursalAware, WithPagination;
 
     // Filtros
     public $busqueda = '';
+
     public $activoFiltro = 'todos';
+
     public $esListaBaseFiltro = '';
 
     // Ordenamiento
     public $ordenarPor = 'prioridad';
+
     public $ordenDireccion = 'asc';
 
     // Toggle de filtros móvil
@@ -30,7 +33,9 @@ class ListarPrecios extends Component
 
     // Modal de confirmación de eliminación
     public bool $showDeleteModal = false;
+
     public ?int $listaAEliminar = null;
+
     public ?string $nombreListaAEliminar = null;
 
     protected $queryString = [
@@ -49,7 +54,7 @@ class ListarPrecios extends Component
         $this->reset([
             'busqueda',
             'activoFiltro',
-            'esListaBaseFiltro'
+            'esListaBaseFiltro',
         ]);
         $this->resetPage();
     }
@@ -70,15 +75,16 @@ class ListarPrecios extends Component
         if ($lista) {
             // No permitir desactivar la lista base
             if ($lista->es_lista_base && $lista->activo) {
-                $this->js("window.notify('" . __('No se puede desactivar la lista base') . "', 'error')");
+                $this->js("window.notify('".__('No se puede desactivar la lista base')."', 'error')");
+
                 return;
             }
 
-            $lista->activo = !$lista->activo;
+            $lista->activo = ! $lista->activo;
             $lista->save();
 
             $mensaje = $lista->activo ? __('Lista activada correctamente') : __('Lista desactivada correctamente');
-            $this->js("window.notify('" . addslashes($mensaje) . "', 'success')");
+            $this->js("window.notify('".addslashes($mensaje)."', 'success')");
         }
     }
 
@@ -91,7 +97,8 @@ class ListarPrecios extends Component
         if ($lista) {
             // No permitir eliminar la lista base
             if ($lista->es_lista_base) {
-                $this->js("window.notify('" . __('No se puede eliminar la lista base') . "', 'error')");
+                $this->js("window.notify('".__('No se puede eliminar la lista base')."', 'error')");
+
                 return;
             }
 
@@ -116,7 +123,7 @@ class ListarPrecios extends Component
      */
     public function eliminar()
     {
-        if (!$this->listaAEliminar) {
+        if (! $this->listaAEliminar) {
             return;
         }
 
@@ -124,14 +131,15 @@ class ListarPrecios extends Component
         if ($lista) {
             // Doble verificación: no permitir eliminar la lista base
             if ($lista->es_lista_base) {
-                $this->js("window.notify('" . __('No se puede eliminar la lista base') . "', 'error')");
+                $this->js("window.notify('".__('No se puede eliminar la lista base')."', 'error')");
                 $this->cancelarEliminar();
+
                 return;
             }
 
             $lista->delete(); // Soft delete
 
-            $this->js("window.notify('" . __('Lista eliminada correctamente') . "', 'success')");
+            $this->js("window.notify('".__('Lista eliminada correctamente')."', 'success')");
         }
 
         $this->cancelarEliminar();
@@ -140,14 +148,15 @@ class ListarPrecios extends Component
     public function duplicar($listaId)
     {
         $original = ListaPrecio::with(['condiciones', 'articulos'])->find($listaId);
-        if (!$original) {
-            $this->js("window.notify('" . __('Lista no encontrada') . "', 'error')");
+        if (! $original) {
+            $this->js("window.notify('".__('Lista no encontrada')."', 'error')");
+
             return;
         }
 
         // Crear copia de la lista
         $nueva = $original->replicate();
-        $nueva->nombre = $original->nombre . ' (Copia)';
+        $nueva->nombre = $original->nombre.' (Copia)';
         $nueva->codigo = null; // Se debe asignar un nuevo código
         $nueva->es_lista_base = false;
         $nueva->prioridad = $original->prioridad + 1;
@@ -167,7 +176,7 @@ class ListarPrecios extends Component
             $nuevoArticulo->save();
         }
 
-        $this->js("window.notify('" . __('Lista duplicada correctamente') . "', 'success')");
+        $this->js("window.notify('".__('Lista duplicada correctamente')."', 'success')");
     }
 
     public function render()
@@ -180,10 +189,10 @@ class ListarPrecios extends Component
 
         // Aplicar filtros
         if ($this->busqueda) {
-            $query->where(function($q) {
-                $q->where('nombre', 'like', '%' . $this->busqueda . '%')
-                  ->orWhere('codigo', 'like', '%' . $this->busqueda . '%')
-                  ->orWhere('descripcion', 'like', '%' . $this->busqueda . '%');
+            $query->where(function ($q) {
+                $q->where('nombre', 'like', '%'.$this->busqueda.'%')
+                    ->orWhere('codigo', 'like', '%'.$this->busqueda.'%')
+                    ->orWhere('descripcion', 'like', '%'.$this->busqueda.'%');
             });
         }
 

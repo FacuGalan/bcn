@@ -2,27 +2,26 @@
 
 namespace App\Services;
 
-use App\Models\Tesoreria;
-use App\Models\Caja;
-use App\Models\GrupoCierre;
-use App\Models\MovimientoTesoreria;
-use App\Models\MovimientoCaja;
-use App\Models\ProvisionFondo;
-use App\Models\RendicionFondo;
-use App\Models\DepositoBancario;
-use App\Models\CuentaBancaria;
-use App\Models\CuentaEmpresa;
 use App\Models\ArqueoTesoreria;
+use App\Models\Caja;
 use App\Models\CierreTurno;
 use App\Models\CierreTurnoCaja;
-use App\Models\Venta;
-use App\Models\VentaPago;
 use App\Models\Cobro;
 use App\Models\CobroPago;
-use App\Models\TesoreriaSaldoMoneda;
+use App\Models\CuentaBancaria;
+use App\Models\CuentaEmpresa;
+use App\Models\DepositoBancario;
+use App\Models\GrupoCierre;
+use App\Models\MovimientoCaja;
+use App\Models\MovimientoTesoreria;
+use App\Models\ProvisionFondo;
+use App\Models\RendicionFondo;
+use App\Models\Tesoreria;
+use App\Models\Venta;
+use App\Models\VentaPago;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
 
 /**
  * Servicio de Tesorería
@@ -54,14 +53,9 @@ class TesoreriaService
     /**
      * Provisiona fondo de tesorería a una caja (apertura de caja)
      *
-     * @param Tesoreria $tesoreria
-     * @param Caja $caja
-     * @param float $monto
-     * @param int $usuarioId
-     * @param string|null $observaciones
-     * @param int|null $monedaId Si es moneda extranjera
-     * @param float|null $montoOriginal Monto en moneda extranjera
-     * @return ProvisionFondo
+     * @param  int|null  $monedaId  Si es moneda extranjera
+     * @param  float|null  $montoOriginal  Monto en moneda extranjera
+     *
      * @throws \Exception
      */
     public static function provisionarFondo(
@@ -80,13 +74,13 @@ class TesoreriaService
         $esMonedaExtranjera = $monedaId !== null && $montoOriginal !== null && $montoOriginal > 0;
 
         if ($esMonedaExtranjera) {
-            if (!$tesoreria->tieneSaldoSuficienteMoneda($montoOriginal, $monedaId)) {
+            if (! $tesoreria->tieneSaldoSuficienteMoneda($montoOriginal, $monedaId)) {
                 $moneda = \App\Models\Moneda::find($monedaId);
                 $codigo = $moneda?->codigo ?? 'N/A';
                 throw new \Exception("Saldo insuficiente en tesorería para {$codigo}");
             }
         } else {
-            if (!$tesoreria->tieneSaldoSuficiente($monto)) {
+            if (! $tesoreria->tieneSaldoSuficiente($monto)) {
                 throw new \Exception('Saldo insuficiente en tesorería');
             }
         }
@@ -198,12 +192,6 @@ class TesoreriaService
     /**
      * Provisiona fondo de tesorería a un grupo con fondo común
      *
-     * @param Tesoreria $tesoreria
-     * @param GrupoCierre $grupo
-     * @param float $monto
-     * @param int $usuarioId
-     * @param string|null $observaciones
-     * @return ProvisionFondo
      * @throws \Exception
      */
     public static function provisionarFondoGrupo(
@@ -217,8 +205,8 @@ class TesoreriaService
             throw new \Exception('El monto debe ser mayor a cero');
         }
 
-        if (!$tesoreria->tieneSaldoSuficiente($monto)) {
-            throw new \Exception('Saldo insuficiente en tesorería. Disponible: $' . number_format($tesoreria->saldo_actual, 2));
+        if (! $tesoreria->tieneSaldoSuficiente($monto)) {
+            throw new \Exception('Saldo insuficiente en tesorería. Disponible: $'.number_format($tesoreria->saldo_actual, 2));
         }
 
         return DB::transaction(function () use ($tesoreria, $grupo, $monto, $usuarioId, $observaciones) {
@@ -266,15 +254,9 @@ class TesoreriaService
     /**
      * Rinde fondo de una caja a tesorería (cierre de caja)
      *
-     * @param Caja $caja
-     * @param Tesoreria $tesoreria
-     * @param float $montoDeclarado Monto declarado por el cajero (solo ARS)
-     * @param float $montoSistema Monto calculado por el sistema (solo ARS)
-     * @param int $usuarioId
-     * @param int|null $cierreTurnoId
-     * @param string|null $observaciones
-     * @param array|null $desgloseMonedas Array de monedas extranjeras: [monedaId => ['saldo' => float, 'codigo' => string, ...]]
-     * @return RendicionFondo
+     * @param  float  $montoDeclarado  Monto declarado por el cajero (solo ARS)
+     * @param  float  $montoSistema  Monto calculado por el sistema (solo ARS)
+     * @param  array|null  $desgloseMonedas  Array de monedas extranjeras: [monedaId => ['saldo' => float, 'codigo' => string, ...]]
      */
     public static function rendirFondo(
         Caja $caja,
@@ -327,7 +309,7 @@ class TesoreriaService
             );
 
             // 4. Registrar ingresos de monedas extranjeras en tesorería (saldos independientes)
-            if (!empty($desgloseMonedas)) {
+            if (! empty($desgloseMonedas)) {
                 foreach ($desgloseMonedas as $monedaId => $dataMon) {
                     $saldoMoneda = (float) ($dataMon['saldo'] ?? 0);
                     if ($saldoMoneda > 0) {
@@ -360,7 +342,7 @@ class TesoreriaService
                 'tesoreria_id' => $tesoreria->id,
                 'monto_entregado' => $montoEntregado,
                 'diferencia' => $diferencia,
-                'monedas_extranjeras' => !empty($desgloseMonedas) ? count($desgloseMonedas) : 0,
+                'monedas_extranjeras' => ! empty($desgloseMonedas) ? count($desgloseMonedas) : 0,
                 'usuario_id' => $usuarioId,
             ]);
 
@@ -371,15 +353,9 @@ class TesoreriaService
     /**
      * Rinde fondo común de un grupo a tesorería (cierre de grupo con fondo común)
      *
-     * @param GrupoCierre $grupo
-     * @param Tesoreria $tesoreria
-     * @param float $montoDeclarado Monto declarado por el cajero (solo ARS)
-     * @param float $montoSistema Monto calculado por el sistema (solo ARS)
-     * @param int $usuarioId
-     * @param int|null $cierreTurnoId
-     * @param string|null $observaciones
-     * @param array|null $desgloseMonedas Array de monedas extranjeras: [monedaId => ['saldo' => float, 'codigo' => string, ...]]
-     * @return RendicionFondo
+     * @param  float  $montoDeclarado  Monto declarado por el cajero (solo ARS)
+     * @param  float  $montoSistema  Monto calculado por el sistema (solo ARS)
+     * @param  array|null  $desgloseMonedas  Array de monedas extranjeras: [monedaId => ['saldo' => float, 'codigo' => string, ...]]
      */
     public static function rendirFondoGrupo(
         GrupoCierre $grupo,
@@ -425,7 +401,7 @@ class TesoreriaService
             );
 
             // 3. Registrar ingresos de monedas extranjeras en tesorería (saldos independientes)
-            if (!empty($desgloseMonedas)) {
+            if (! empty($desgloseMonedas)) {
                 foreach ($desgloseMonedas as $monedaId => $dataMon) {
                     $saldoMoneda = (float) ($dataMon['saldo'] ?? 0);
                     if ($saldoMoneda > 0) {
@@ -453,7 +429,7 @@ class TesoreriaService
                 'tesoreria_id' => $tesoreria->id,
                 'monto_entregado' => $montoEntregado,
                 'diferencia' => $diferencia,
-                'monedas_extranjeras' => !empty($desgloseMonedas) ? count($desgloseMonedas) : 0,
+                'monedas_extranjeras' => ! empty($desgloseMonedas) ? count($desgloseMonedas) : 0,
                 'usuario_id' => $usuarioId,
             ]);
 
@@ -466,7 +442,7 @@ class TesoreriaService
      */
     public static function confirmarRendicion(RendicionFondo $rendicion, int $usuarioRecibeId): bool
     {
-        if (!$rendicion->esta_pendiente) {
+        if (! $rendicion->esta_pendiente) {
             return false;
         }
 
@@ -490,12 +466,12 @@ class TesoreriaService
     ): bool {
         // ── Validaciones previas ──
 
-        if (!$rendicion->esta_pendiente) {
+        if (! $rendicion->esta_pendiente) {
             throw new \Exception('La rendición no está pendiente, no se puede rechazar');
         }
 
         $cierre = $rendicion->cierreTurno;
-        if (!$cierre) {
+        if (! $cierre) {
             throw new \Exception('La rendición no tiene un cierre de turno asociado');
         }
 
@@ -514,14 +490,14 @@ class TesoreriaService
         // Validar que sea el último cierre para esa caja/grupo
         if ($cierre->esIndividual()) {
             $detalleCaja = $cierre->detalleCajas->first();
-            if (!$detalleCaja) {
+            if (! $detalleCaja) {
                 throw new \Exception('No se encontró el detalle de caja del cierre');
             }
             $ultimoCierre = CierreTurno::noRevertidos()
-                ->whereHas('detalleCajas', fn($q) => $q->where('caja_id', $detalleCaja->caja_id))
+                ->whereHas('detalleCajas', fn ($q) => $q->where('caja_id', $detalleCaja->caja_id))
                 ->orderBy('fecha_cierre', 'desc')
                 ->first();
-            if (!$ultimoCierre || $ultimoCierre->id !== $cierre->id) {
+            if (! $ultimoCierre || $ultimoCierre->id !== $cierre->id) {
                 throw new \Exception('Solo se puede revertir el último cierre de esta caja');
             }
         } else {
@@ -530,7 +506,7 @@ class TesoreriaService
                 ->where('grupo_cierre_id', $cierre->grupo_cierre_id)
                 ->orderBy('fecha_cierre', 'desc')
                 ->first();
-            if (!$ultimoCierreGrupo || $ultimoCierreGrupo->id !== $cierre->id) {
+            if (! $ultimoCierreGrupo || $ultimoCierreGrupo->id !== $cierre->id) {
                 throw new \Exception('Solo se puede revertir el último cierre de este grupo');
             }
         }
@@ -541,9 +517,9 @@ class TesoreriaService
             && $cierre->grupoCierre->usaFondoComun();
 
         // Para grupo sin fondo común, verificar que TODAS las rendiciones estén pendientes
-        if ($cierre->esGrupal() && !$esGrupalConFondoComun) {
+        if ($cierre->esGrupal() && ! $esGrupalConFondoComun) {
             $rendicionesDelCierre = RendicionFondo::where('cierre_turno_id', $cierre->id)->get();
-            $noPendientes = $rendicionesDelCierre->filter(fn($r) => !$r->esta_pendiente);
+            $noPendientes = $rendicionesDelCierre->filter(fn ($r) => ! $r->esta_pendiente);
             if ($noPendientes->isNotEmpty()) {
                 throw new \Exception('No se puede revertir: hay rendiciones de este cierre que ya fueron confirmadas o procesadas');
             }
@@ -559,7 +535,7 @@ class TesoreriaService
                 // Una sola rendición consolidada, sin MovimientoCaja
 
                 // Verificar saldo suficiente en tesorería para el contra-movimiento
-                if (!$tesoreria->tieneSaldoSuficiente($rendicion->monto_entregado)) {
+                if (! $tesoreria->tieneSaldoSuficiente($rendicion->monto_entregado)) {
                     throw new \Exception('Saldo insuficiente en tesorería para revertir la rendición');
                 }
 
@@ -573,7 +549,7 @@ class TesoreriaService
                     $usuarioId,
                     MovimientoTesoreria::REFERENCIA_RENDICION,
                     $rendicion->id,
-                    'Contra-movimiento por rechazo: ' . ($motivo ?? 'Sin motivo')
+                    'Contra-movimiento por rechazo: '.($motivo ?? 'Sin motivo')
                 );
 
                 // 2b. Revertir monedas extranjeras de la rendición
@@ -609,7 +585,7 @@ class TesoreriaService
 
                 // Verificar saldo total necesario
                 $montoTotalARevertir = $rendicionesDelCierre->sum('monto_entregado');
-                if (!$tesoreria->tieneSaldoSuficiente($montoTotalARevertir)) {
+                if (! $tesoreria->tieneSaldoSuficiente($montoTotalARevertir)) {
                     throw new \Exception('Saldo insuficiente en tesorería para revertir todas las rendiciones');
                 }
 
@@ -625,7 +601,7 @@ class TesoreriaService
                         $usuarioId,
                         MovimientoTesoreria::REFERENCIA_RENDICION,
                         $rend->id,
-                        'Contra-movimiento por rechazo: ' . ($motivo ?? 'Sin motivo')
+                        'Contra-movimiento por rechazo: '.($motivo ?? 'Sin motivo')
                     );
 
                     // 2b. Revertir monedas extranjeras
@@ -665,7 +641,7 @@ class TesoreriaService
                 // ── Escenario A: Caja individual ──
 
                 // Verificar saldo suficiente
-                if (!$tesoreria->tieneSaldoSuficiente($rendicion->monto_entregado)) {
+                if (! $tesoreria->tieneSaldoSuficiente($rendicion->monto_entregado)) {
                     throw new \Exception('Saldo insuficiente en tesorería para revertir la rendición');
                 }
 
@@ -679,7 +655,7 @@ class TesoreriaService
                     $usuarioId,
                     MovimientoTesoreria::REFERENCIA_RENDICION,
                     $rendicion->id,
-                    'Contra-movimiento por rechazo: ' . ($motivo ?? 'Sin motivo')
+                    'Contra-movimiento por rechazo: '.($motivo ?? 'Sin motivo')
                 );
 
                 // 2b. Revertir monedas extranjeras
@@ -741,14 +717,6 @@ class TesoreriaService
     /**
      * Registra un depósito bancario
      *
-     * @param Tesoreria $tesoreria
-     * @param CuentaBancaria $cuenta
-     * @param float $monto
-     * @param Carbon $fechaDeposito
-     * @param int $usuarioId
-     * @param string|null $numeroComprobante
-     * @param string|null $observaciones
-     * @return DepositoBancario
      * @throws \Exception
      */
     public static function registrarDeposito(
@@ -764,7 +732,7 @@ class TesoreriaService
             throw new \Exception('El monto debe ser mayor a cero');
         }
 
-        if (!$tesoreria->tieneSaldoSuficiente($monto)) {
+        if (! $tesoreria->tieneSaldoSuficiente($monto)) {
             throw new \Exception('Saldo insuficiente en tesorería');
         }
 
@@ -789,7 +757,7 @@ class TesoreriaService
             $cuentaEmpresa = CuentaEmpresa::where('cbu', $cuenta->cbu)
                 ->orWhere(function ($q) use ($cuenta) {
                     $q->where('banco', $cuenta->banco)
-                      ->where('numero_cuenta', $cuenta->numero_cuenta);
+                        ->where('numero_cuenta', $cuenta->numero_cuenta);
                 })
                 ->activas()
                 ->first();
@@ -837,14 +805,14 @@ class TesoreriaService
 
         // Determinar si la cuenta es en moneda extranjera
         $moneda = $cuenta->moneda;
-        $esMonedaExtranjera = $moneda && !$moneda->es_principal;
+        $esMonedaExtranjera = $moneda && ! $moneda->es_principal;
 
         if ($esMonedaExtranjera) {
-            if (!$tesoreria->tieneSaldoSuficienteMoneda($monto, $moneda->id)) {
+            if (! $tesoreria->tieneSaldoSuficienteMoneda($monto, $moneda->id)) {
                 throw new \Exception(__('Saldo insuficiente en la moneda seleccionada'));
             }
         } else {
-            if (!$tesoreria->tieneSaldoSuficiente($monto)) {
+            if (! $tesoreria->tieneSaldoSuficiente($monto)) {
                 throw new \Exception('Saldo insuficiente en tesorería');
             }
         }
@@ -884,7 +852,7 @@ class TesoreriaService
                     $cuenta,
                     'ingreso', $monto, 'deposito_tesoreria',
                     'DepositoBancario', $deposito->id,
-                    "Depósito desde tesorería",
+                    'Depósito desde tesorería',
                     $usuarioId
                 );
             } catch (\Exception $e) {
@@ -913,12 +881,6 @@ class TesoreriaService
 
     /**
      * Realiza un arqueo de tesorería
-     *
-     * @param Tesoreria $tesoreria
-     * @param float $saldoContado
-     * @param int $usuarioId
-     * @param string|null $observaciones
-     * @return ArqueoTesoreria
      */
     public static function realizarArqueo(
         Tesoreria $tesoreria,
@@ -963,7 +925,7 @@ class TesoreriaService
             throw new \Exception('El monto debe ser mayor a cero');
         }
 
-        if (!$origen->tieneSaldoSuficiente($monto)) {
+        if (! $origen->tieneSaldoSuficiente($monto)) {
             throw new \Exception('Saldo insuficiente en tesorería origen');
         }
 
@@ -1020,7 +982,7 @@ class TesoreriaService
                     (int) $monedaId,
                     MovimientoTesoreria::REFERENCIA_RENDICION,
                     $rendicion->id,
-                    'Contra-movimiento por rechazo: ' . ($motivo ?? 'Sin motivo')
+                    'Contra-movimiento por rechazo: '.($motivo ?? 'Sin motivo')
                 );
             }
         }

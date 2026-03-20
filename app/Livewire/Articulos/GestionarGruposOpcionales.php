@@ -10,10 +10,10 @@ use App\Models\Opcional;
 use App\Models\Receta;
 use App\Models\Sucursal;
 use App\Services\OpcionalService;
+use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Componente Livewire para gestión de grupos opcionales y sus opciones.
@@ -29,47 +29,71 @@ class GestionarGruposOpcionales extends Component
 
     // Filtros
     public string $search = '';
+
     public string $filterStatus = 'all';
+
     public string $filterTipo = 'all';
 
     // Modal grupo
     public bool $showModal = false;
+
     public bool $editMode = false;
+
     public ?int $grupoId = null;
 
     // Formulario grupo
     public string $nombre = '';
+
     public string $descripcion = '';
+
     public bool $obligatorio = false;
+
     public string $tipo = 'seleccionable';
+
     public int $min_seleccion = 0;
+
     public ?int $max_seleccion = null;
+
     public bool $activo = true;
+
     public int $orden = 0;
 
     // Opciones del grupo (inline en el modal)
     public array $opciones = [];
+
     public string $nuevaOpcionNombre = '';
+
     public string $nuevaOpcionPrecio = '0.00';
 
     // Eliminar grupo
     public bool $showDeleteModal = false;
+
     public ?int $grupoAEliminar = null;
+
     public ?string $nombreGrupoAEliminar = null;
 
     // Modal receta de opcional
     public bool $showRecetaModal = false;
+
     public ?int $opcionalRecetaId = null;
+
     public string $opcionalRecetaNombre = '';
 
     // Editor de receta (propiedades usadas por el partial _receta-editor)
     public ?int $recetaId = null;
+
     public array $recetaIngredientes = [];
+
     public string $busquedaIngrediente = '';
+
     public array $resultadosBusqueda = [];
+
     public string $recetaCantidadProducida = '1.000';
+
     public string $recetaNotas = '';
+
     public bool $recetaEsOverride = false;
+
     public ?string $recetaSucursalNombre = null;
 
     // Modal eliminar receta
@@ -77,16 +101,24 @@ class GestionarGruposOpcionales extends Component
 
     // Modal disponibilidad por sucursal
     public bool $showDisponibilidadModal = false;
+
     public ?int $disponibilidadGrupoId = null;
+
     public string $disponibilidadGrupoNombre = '';
+
     public array $disponibilidadSucursales = [];
+
     public array $disponibilidadOpciones = [];
 
     // Modal asignación masiva
     public bool $showAsignacionModal = false;
+
     public ?int $asignacionGrupoId = null;
+
     public string $asignacionGrupoNombre = '';
+
     public string $busquedaArticuloAsignacion = '';
+
     public array $articulosSeleccionados = [];
 
     public function updatingSearch(): void
@@ -106,7 +138,7 @@ class GestionarGruposOpcionales extends Component
 
     protected function getGrupos()
     {
-        $query = GrupoOpcional::withCount(['opcionales' => fn($q) => $q->where('activo', true)]);
+        $query = GrupoOpcional::withCount(['opcionales' => fn ($q) => $q->where('activo', true)]);
 
         // Mostrar eliminados si se filtra por ellos
         if ($this->filterStatus === 'deleted') {
@@ -115,8 +147,8 @@ class GestionarGruposOpcionales extends Component
 
         if ($this->search) {
             $query->where(function ($q) {
-                $q->where('nombre', 'like', '%' . $this->search . '%')
-                  ->orWhere('descripcion', 'like', '%' . $this->search . '%');
+                $q->where('nombre', 'like', '%'.$this->search.'%')
+                    ->orWhere('descripcion', 'like', '%'.$this->search.'%');
             });
         }
 
@@ -142,7 +174,7 @@ class GestionarGruposOpcionales extends Component
 
     public function edit(int $id): void
     {
-        $grupo = GrupoOpcional::with(['opcionales' => fn($q) => $q->orderBy('orden')])->findOrFail($id);
+        $grupo = GrupoOpcional::with(['opcionales' => fn ($q) => $q->orderBy('orden')])->findOrFail($id);
 
         $this->grupoId = $grupo->id;
         $this->nombre = $grupo->nombre;
@@ -154,7 +186,7 @@ class GestionarGruposOpcionales extends Component
         $this->activo = $grupo->activo;
         $this->orden = $grupo->orden;
 
-        $this->opciones = $grupo->opcionales->map(fn($op) => [
+        $this->opciones = $grupo->opcionales->map(fn ($op) => [
             'id' => $op->id,
             'nombre' => $op->nombre,
             'descripcion' => $op->descripcion ?? '',
@@ -253,7 +285,7 @@ class GestionarGruposOpcionales extends Component
             foreach ($asignaciones as $asignacion) {
                 $existentes = $asignacion->opciones->pluck('opcional_id');
                 foreach ($opcionalesActivos as $opcional) {
-                    if (!$existentes->contains($opcional->id)) {
+                    if (! $existentes->contains($opcional->id)) {
                         $asignacion->opciones()->create([
                             'opcional_id' => $opcional->id,
                             'precio_extra' => $opcional->precio_extra,
@@ -319,7 +351,7 @@ class GestionarGruposOpcionales extends Component
     public function toggleStatus(int $id): void
     {
         $grupo = GrupoOpcional::findOrFail($id);
-        $grupo->activo = !$grupo->activo;
+        $grupo->activo = ! $grupo->activo;
         $grupo->save();
 
         $status = $grupo->activo ? __('activado') : __('desactivado');
@@ -345,7 +377,7 @@ class GestionarGruposOpcionales extends Component
 
     public function eliminar(): void
     {
-        if (!$this->grupoAEliminar) {
+        if (! $this->grupoAEliminar) {
             return;
         }
 
@@ -382,6 +414,7 @@ class GestionarGruposOpcionales extends Component
     {
         if (strlen($this->busquedaIngrediente) < 2) {
             $this->resultadosBusqueda = [];
+
             return;
         }
 
@@ -390,13 +423,13 @@ class GestionarGruposOpcionales extends Component
         $this->resultadosBusqueda = Articulo::where('activo', true)
             ->whereNotIn('id', $excluirIds)
             ->where(function ($q) {
-                $q->where('codigo', 'like', '%' . $this->busquedaIngrediente . '%')
-                  ->orWhere('nombre', 'like', '%' . $this->busquedaIngrediente . '%');
+                $q->where('codigo', 'like', '%'.$this->busquedaIngrediente.'%')
+                    ->orWhere('nombre', 'like', '%'.$this->busquedaIngrediente.'%');
             })
             ->orderBy('nombre')
             ->limit(10)
             ->get(['id', 'codigo', 'nombre', 'unidad_medida'])
-            ->map(fn($a) => [
+            ->map(fn ($a) => [
                 'id' => $a->id,
                 'codigo' => $a->codigo,
                 'nombre' => $a->nombre,
@@ -415,10 +448,14 @@ class GestionarGruposOpcionales extends Component
     public function agregarIngrediente(int $articuloId): void
     {
         $articulo = Articulo::find($articuloId);
-        if (!$articulo) return;
+        if (! $articulo) {
+            return;
+        }
 
         foreach ($this->recetaIngredientes as $ing) {
-            if ($ing['articulo_id'] == $articuloId) return;
+            if ($ing['articulo_id'] == $articuloId) {
+                return;
+            }
         }
 
         $this->recetaIngredientes[] = [
@@ -459,7 +496,7 @@ class GestionarGruposOpcionales extends Component
             $this->recetaId = $receta->id;
             $this->recetaCantidadProducida = (string) $receta->cantidad_producida;
             $this->recetaNotas = $receta->notas ?? '';
-            $this->recetaIngredientes = $receta->ingredientes->map(fn($ing) => [
+            $this->recetaIngredientes = $receta->ingredientes->map(fn ($ing) => [
                 'articulo_id' => $ing->articulo_id,
                 'codigo' => $ing->articulo->codigo ?? '',
                 'nombre' => $ing->articulo->nombre ?? __('Artículo eliminado'),
@@ -480,16 +517,20 @@ class GestionarGruposOpcionales extends Component
 
     public function guardarRecetaOpcional(): void
     {
-        if (!$this->opcionalRecetaId) return;
+        if (! $this->opcionalRecetaId) {
+            return;
+        }
 
         if (empty($this->recetaIngredientes)) {
             $this->dispatch('notify', message: __('La receta debe tener al menos un ingrediente'), type: 'error');
+
             return;
         }
 
         foreach ($this->recetaIngredientes as $ing) {
-            if (!isset($ing['cantidad']) || (float) $ing['cantidad'] <= 0) {
+            if (! isset($ing['cantidad']) || (float) $ing['cantidad'] <= 0) {
                 $this->dispatch('notify', message: __('Todas las cantidades deben ser mayores a 0'), type: 'error');
+
                 return;
             }
         }
@@ -535,7 +576,9 @@ class GestionarGruposOpcionales extends Component
 
     public function eliminarRecetaOpcional(): void
     {
-        if (!$this->recetaId) return;
+        if (! $this->recetaId) {
+            return;
+        }
 
         $receta = Receta::find($this->recetaId);
         if ($receta) {
@@ -578,7 +621,7 @@ class GestionarGruposOpcionales extends Component
 
     public function gestionarDisponibilidad(int $grupoId): void
     {
-        $grupo = GrupoOpcional::with(['opcionales' => fn($q) => $q->orderBy('orden')])->findOrFail($grupoId);
+        $grupo = GrupoOpcional::with(['opcionales' => fn ($q) => $q->orderBy('orden')])->findOrFail($grupoId);
 
         $this->disponibilidadGrupoId = $grupo->id;
         $this->disponibilidadGrupoNombre = $grupo->nombre;
@@ -597,7 +640,7 @@ class GestionarGruposOpcionales extends Component
 
             foreach ($sucursalIds as $sucursalId) {
                 $stats = ArticuloGrupoOpcionalOpcion::where('opcional_id', $opcional->id)
-                    ->whereHas('articuloGrupoOpcional', fn($q) => $q->where('sucursal_id', $sucursalId))
+                    ->whereHas('articuloGrupoOpcional', fn ($q) => $q->where('sucursal_id', $sucursalId))
                     ->selectRaw('COUNT(*) as total, SUM(disponible) as disponibles')
                     ->first();
 
@@ -634,7 +677,7 @@ class GestionarGruposOpcionales extends Component
                     $opcionalService->marcarDisponible($opcionalId, $sucursalId);
                 }
 
-                $opcion['por_sucursal'][$sucursalId]['disponible'] = !$estadoActual;
+                $opcion['por_sucursal'][$sucursalId]['disponible'] = ! $estadoActual;
                 break;
             }
         }
@@ -664,7 +707,7 @@ class GestionarGruposOpcionales extends Component
 
     public function getArticulosParaAsignacionProperty(): array
     {
-        if (!$this->asignacionGrupoId) {
+        if (! $this->asignacionGrupoId) {
             return [];
         }
 
@@ -673,8 +716,8 @@ class GestionarGruposOpcionales extends Component
 
         if ($this->busquedaArticuloAsignacion && strlen($this->busquedaArticuloAsignacion) >= 2) {
             $query->where(function ($q) {
-                $q->where('nombre', 'like', '%' . $this->busquedaArticuloAsignacion . '%')
-                  ->orWhere('codigo', 'like', '%' . $this->busquedaArticuloAsignacion . '%');
+                $q->where('nombre', 'like', '%'.$this->busquedaArticuloAsignacion.'%')
+                    ->orWhere('codigo', 'like', '%'.$this->busquedaArticuloAsignacion.'%');
             });
         }
 
@@ -687,7 +730,7 @@ class GestionarGruposOpcionales extends Component
         return $query->orderBy('nombre')
             ->limit(50)
             ->get(['id', 'codigo', 'nombre'])
-            ->map(fn($a) => [
+            ->map(fn ($a) => [
                 'id' => $a->id,
                 'codigo' => $a->codigo,
                 'nombre' => $a->nombre,
@@ -707,7 +750,7 @@ class GestionarGruposOpcionales extends Component
 
     public function asignarMasivo(): void
     {
-        if (empty($this->articulosSeleccionados) || !$this->asignacionGrupoId) {
+        if (empty($this->articulosSeleccionados) || ! $this->asignacionGrupoId) {
             return;
         }
 

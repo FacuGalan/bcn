@@ -2,40 +2,52 @@
 
 namespace App\Livewire\Bancos;
 
-use App\Models\CuentaEmpresa;
 use App\Models\ConceptoMovimientoCuenta;
+use App\Models\CuentaEmpresa;
 use App\Models\MovimientoCuentaEmpresa;
 use App\Services\CuentaEmpresaService;
-use Livewire\Component;
-use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
 use App\Traits\SucursalAware;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Layout;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 #[Layout('layouts.app')]
 class MovimientosCuenta extends Component
 {
-    use WithPagination, SucursalAware;
+    use SucursalAware, WithPagination;
 
     // Filtros
     public ?int $cuentaSeleccionada = null;
+
     public string $filtroTipo = '';
+
     public ?int $filtroConcepto = null;
+
     public string $filtroEstado = '';
+
     public ?string $fechaDesde = null;
+
     public ?string $fechaHasta = null;
 
     // Modal nuevo movimiento
     public bool $showNuevoMovimiento = false;
+
     public string $nuevoTipo = 'ingreso';
+
     public ?float $nuevoMonto = null;
+
     public ?int $nuevoConceptoId = null;
+
     public string $nuevoDescripcion = '';
+
     public ?string $nuevoObservaciones = null;
 
     // Modal anular
     public bool $showAnularModal = false;
+
     public ?int $anularMovimientoId = null;
+
     public string $motivoAnulacion = '';
 
     public function mount()
@@ -76,8 +88,9 @@ class MovimientosCuenta extends Component
 
     public function abrirNuevoMovimiento()
     {
-        if (!$this->cuentaSeleccionada) {
+        if (! $this->cuentaSeleccionada) {
             $this->dispatch('toast-error', message: __('Seleccione una cuenta primero'));
+
             return;
         }
         $this->reset(['nuevoTipo', 'nuevoMonto', 'nuevoConceptoId', 'nuevoDescripcion', 'nuevoObservaciones']);
@@ -143,6 +156,7 @@ class MovimientosCuenta extends Component
     public function getCuentasProperty()
     {
         $sucursalId = sucursal_activa();
+
         return CuentaEmpresaService::getCuentasDisponibles($sucursalId ?? 0);
     }
 
@@ -159,6 +173,7 @@ class MovimientosCuenta extends Component
         } else {
             $query->deEgreso();
         }
+
         return $query->orderBy('orden')->get();
     }
 
@@ -186,11 +201,11 @@ class MovimientosCuenta extends Component
             }
 
             if ($this->fechaDesde) {
-                $query->where('created_at', '>=', $this->fechaDesde . ' 00:00:00');
+                $query->where('created_at', '>=', $this->fechaDesde.' 00:00:00');
             }
 
             if ($this->fechaHasta) {
-                $query->where('created_at', '<=', $this->fechaHasta . ' 23:59:59');
+                $query->where('created_at', '<=', $this->fechaHasta.' 23:59:59');
             }
 
             $movimientos = $query->orderByDesc('created_at')->paginate(20);

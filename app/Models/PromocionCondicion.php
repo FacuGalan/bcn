@@ -34,7 +34,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property float|null $monto_minimo Monto mínimo requerido (si aplica)
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Promocion $promocion
  * @property-read Articulo|null $articulo
  * @property-read Categoria|null $categoria
@@ -45,6 +44,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class PromocionCondicion extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'promociones_condiciones';
 
     protected $fillable = [
@@ -169,15 +169,14 @@ class PromocionCondicion extends Model
     /**
      * Evalúa si esta condición se cumple para un contexto dado
      *
-     * @param array $contexto Contexto de evaluación con claves:
-     *   - articulo_id: int
-     *   - categoria_id: int
-     *   - forma_pago_id: int
-     *   - forma_venta_id: int
-     *   - canal_venta_id: int
-     *   - cantidad: int
-     *   - total: float
-     * @return bool
+     * @param  array  $contexto  Contexto de evaluación con claves:
+     *                           - articulo_id: int
+     *                           - categoria_id: int
+     *                           - forma_pago_id: int
+     *                           - forma_venta_id: int
+     *                           - canal_venta_id: int
+     *                           - cantidad: int
+     *                           - total: float
      */
     public function seCumple(array $contexto): bool
     {
@@ -222,28 +221,28 @@ class PromocionCondicion extends Model
     {
         switch ($this->tipo_condicion) {
             case 'por_articulo':
-                return "Artículo: " . ($this->articulo->nombre ?? "ID {$this->articulo_id}");
+                return 'Artículo: '.($this->articulo->nombre ?? "ID {$this->articulo_id}");
 
             case 'por_categoria':
-                return "Categoría: " . ($this->categoria->nombre ?? "ID {$this->categoria_id}");
+                return 'Categoría: '.($this->categoria->nombre ?? "ID {$this->categoria_id}");
 
             case 'por_forma_pago':
-                return "Forma de pago: " . ($this->formaPago->nombre ?? "ID {$this->forma_pago_id}");
+                return 'Forma de pago: '.($this->formaPago->nombre ?? "ID {$this->forma_pago_id}");
 
             case 'por_forma_venta':
-                return "Forma de venta: " . ($this->formaVenta->nombre ?? "ID {$this->forma_venta_id}");
+                return 'Forma de venta: '.($this->formaVenta->nombre ?? "ID {$this->forma_venta_id}");
 
             case 'por_canal':
-                return "Canal: " . ($this->canalVenta->nombre ?? "ID {$this->canal_venta_id}");
+                return 'Canal: '.($this->canalVenta->nombre ?? "ID {$this->canal_venta_id}");
 
             case 'por_cantidad':
                 return "Cantidad mínima: {$this->cantidad_minima}";
 
             case 'por_total_compra':
-                return "Total mínimo: $" . number_format($this->monto_minimo, 2);
+                return 'Total mínimo: $'.number_format($this->monto_minimo, 2);
 
             default:
-                return "Condición desconocida";
+                return 'Condición desconocida';
         }
     }
 
