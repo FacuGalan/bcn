@@ -1,19 +1,22 @@
 <?php
 
 use App\Livewire\Actions\Logout;
-use App\Models\MenuItem;
 use Illuminate\Support\Facades\App;
 use Livewire\Volt\Component;
 
 new class extends Component
 {
     public ?int $activeParentId = null;
+
     public bool $mobileMenuOpen = false;
+
     public ?int $mobileExpandedParentId = null;
+
     public ?string $lastUrl = null;
 
     // Propiedades para almacenar el menú pre-cargado
     public $parentItems = [];
+
     public $allChildrenItems = []; // Estructura: ['parent_id' => [hijos...]]
 
     protected $listeners = ['sucursal-changed' => 'handleSucursalChanged'];
@@ -29,7 +32,7 @@ new class extends Component
      */
     protected function loadMenuData(): void
     {
-        $cacheKey = 'menu_full_' . auth()->id() . '_' . session('sucursal_activa_id');
+        $cacheKey = 'menu_full_'.auth()->id().'_'.session('sucursal_activa_id');
 
         $menuData = cache()->remember($cacheKey, 3600, function () {
             $parents = auth()->user()->getAllowedMenuItems();
@@ -52,7 +55,7 @@ new class extends Component
 
         // Detectar qué padre debe estar activo según la ruta actual
         // Solo si NO estamos en el dashboard
-        if ($this->parentItems->isNotEmpty() && !request()->routeIs('dashboard')) {
+        if ($this->parentItems->isNotEmpty() && ! request()->routeIs('dashboard')) {
             $this->detectActiveParent();
         }
     }
@@ -68,12 +71,14 @@ new class extends Component
             foreach ($children as $child) {
                 if ($child->isCurrentRoute()) {
                     $this->activeParentId = $parent->id;
+
                     return;
                 }
             }
 
             if ($parent->isCurrentRoute()) {
                 $this->activeParentId = $parent->id;
+
                 return;
             }
         }
@@ -86,7 +91,7 @@ new class extends Component
     public function handleSucursalChanged($sucursalId, $sucursalNombre): void
     {
         // Limpiar caché del menú
-        $cacheKey = 'menu_full_' . auth()->id() . '_' . session('sucursal_activa_id');
+        $cacheKey = 'menu_full_'.auth()->id().'_'.session('sucursal_activa_id');
         cache()->forget($cacheKey);
 
         // Recargar todo el menú
@@ -108,7 +113,7 @@ new class extends Component
 
     public function toggleMobileMenu(): void
     {
-        $this->mobileMenuOpen = !$this->mobileMenuOpen;
+        $this->mobileMenuOpen = ! $this->mobileMenuOpen;
     }
 
     public function toggleMobileParent(int $parentId): void
@@ -127,7 +132,7 @@ new class extends Component
 
     public function changeLocale(string $locale): void
     {
-        if (!in_array($locale, ['es', 'en', 'pt'])) {
+        if (! in_array($locale, ['es', 'en', 'pt'])) {
             return;
         }
 
@@ -153,7 +158,7 @@ new class extends Component
         if ($currentUrl !== $this->lastUrl) {
             $this->lastUrl = $currentUrl;
             $this->activeParentId = null;
-            if (!request()->routeIs('dashboard') && $this->parentItems && count($this->parentItems) > 0) {
+            if (! request()->routeIs('dashboard') && $this->parentItems && count($this->parentItems) > 0) {
                 $this->detectActiveParent();
             }
         }
