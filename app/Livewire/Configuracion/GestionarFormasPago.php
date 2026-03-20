@@ -9,6 +9,7 @@ use App\Models\ConceptoPago;
 use App\Models\CuentaEmpresa;
 use App\Models\Moneda;
 use App\Models\Sucursal;
+use App\Services\CatalogoCache;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
@@ -395,14 +396,14 @@ class GestionarFormasPago extends Component
         $formasPago = $query->orderBy('nombre')->paginate(10);
 
         // Obtener todas las sucursales para el modal
-        $sucursales = Sucursal::orderBy('nombre')->get();
+        $sucursales = CatalogoCache::sucursalesTodas();
 
         // Obtener todos los conceptos de pago activos para el modal
         $conceptosPago = ConceptoPago::activos()->ordenados()->get();
 
         // Obtener cuentas empresa y monedas para el modal
         $cuentasEmpresa = CuentaEmpresa::activas()->orderBy('nombre')->get();
-        $monedas = Moneda::activas()->orderBy('orden')->get();
+        $monedas = CatalogoCache::monedas();
 
         return view('livewire.configuracion.gestionar-formas-pago', [
             'formasPago' => $formasPago,

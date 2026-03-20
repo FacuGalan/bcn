@@ -4,6 +4,7 @@ namespace App\Livewire\Configuracion;
 
 use App\Models\Moneda;
 use App\Models\TipoCambio;
+use App\Services\CatalogoCache;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -296,7 +297,7 @@ class GestionMonedas extends Component
         }
 
         $tiposCambio = $query->paginate(15);
-        $monedas = Moneda::orderBy('orden')->orderBy('nombre')->get();
+        $monedas = CatalogoCache::monedas();
         $monedasActivas = $monedas->where('activo', true);
 
         // Cotizaciones vigentes

@@ -12,6 +12,7 @@ use App\Models\FormaVenta;
 use App\Models\CanalVenta;
 use App\Models\FormaPago;
 use App\Models\ListaPrecio;
+use App\Services\CatalogoCache;
 
 class WizardPromocionEspecial extends Component
 {
@@ -109,10 +110,10 @@ class WizardPromocionEspecial extends Component
 
     public function mount($id = null)
     {
-        $this->categorias = Categoria::activas()->orderBy('nombre')->get();
-        $this->formasVenta = FormaVenta::activas()->get();
-        $this->canalesVenta = CanalVenta::activos()->get();
-        $this->formasPago = FormaPago::activas()->get();
+        $this->categorias = CatalogoCache::categorias();
+        $this->formasVenta = CatalogoCache::formasVenta();
+        $this->canalesVenta = CatalogoCache::canalesVenta();
+        $this->formasPago = CatalogoCache::formasPago();
 
         // Auto-asignar sucursal activa
         $this->sucursalesSeleccionadas = [sucursal_activa()];

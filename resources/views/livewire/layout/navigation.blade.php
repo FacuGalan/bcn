@@ -10,6 +10,7 @@ new class extends Component
     public ?int $activeParentId = null;
     public bool $mobileMenuOpen = false;
     public ?int $mobileExpandedParentId = null;
+    public ?string $lastUrl = null;
 
     // Propiedades para almacenar el menú pre-cargado
     public $parentItems = [];
@@ -147,11 +148,14 @@ new class extends Component
 
     public function with(): array
     {
-        // Recalcular el padre activo en cada render para detectar cambios de ruta (wire:navigate)
-        // Si estamos en el dashboard, ningún item debe estar seleccionado
-        $this->activeParentId = null;
-        if (!request()->routeIs('dashboard') && $this->parentItems && count($this->parentItems) > 0) {
-            $this->detectActiveParent();
+        // Solo recalcular el padre activo si la URL cambió (evita iterar padres×hijos en cada render)
+        $currentUrl = request()->url();
+        if ($currentUrl !== $this->lastUrl) {
+            $this->lastUrl = $currentUrl;
+            $this->activeParentId = null;
+            if (!request()->routeIs('dashboard') && $this->parentItems && count($this->parentItems) > 0) {
+                $this->detectActiveParent();
+            }
         }
 
         $childrenItems = $this->activeParentId

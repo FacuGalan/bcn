@@ -11,6 +11,7 @@ use App\Models\FormaVenta;
 use App\Models\CanalVenta;
 use App\Models\Articulo;
 use App\Models\Categoria;
+use App\Services\CatalogoCache;
 
 /**
  * Wizard para crear/editar Listas de Precios
@@ -147,22 +148,22 @@ class WizardListaPrecio extends Component
      */
     public function getFormasPagoProperty()
     {
-        return FormaPago::where('activo', true)->orderBy('nombre')->get();
+        return CatalogoCache::formasPago();
     }
 
     public function getFormasVentaProperty()
     {
-        return FormaVenta::activas()->get();
+        return CatalogoCache::formasVenta();
     }
 
     public function getCanalesVentaProperty()
     {
-        return CanalVenta::activos()->get();
+        return CatalogoCache::canalesVenta();
     }
 
     public function getCategoriasProperty()
     {
-        return Categoria::orderBy('nombre')->get();
+        return CatalogoCache::categorias();
     }
 
     protected function cargarListaParaEdicion($id)

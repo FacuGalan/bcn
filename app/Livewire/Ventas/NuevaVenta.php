@@ -29,6 +29,7 @@ use App\Models\TipoCambio;
 use App\Models\VentaPago;
 use App\Services\ARCA\ComprobanteFiscalService;
 use App\Services\CajaService;
+use App\Services\CatalogoCache;
 use App\Services\CuentaEmpresaService;
 use App\Services\OpcionalService;
 use App\Services\VentaService;
@@ -397,9 +398,9 @@ class NuevaVenta extends Component
         $this->actualizarEstadoCaja();
 
         // Cargar colecciones
-        $this->formasVenta = FormaVenta::activas()->get()->toArray();
-        $this->canalesVenta = CanalVenta::activos()->get()->toArray();
-        $this->formasPago = FormaPago::activas()->get()->toArray();
+        $this->formasVenta = CatalogoCache::formasVenta()->toArray();
+        $this->canalesVenta = CatalogoCache::canalesVenta()->toArray();
+        $this->formasPago = CatalogoCache::formasPago()->toArray();
 
         // Cargar configuración de facturación fiscal de la sucursal
         $this->cargarConfiguracionFiscalSucursal();

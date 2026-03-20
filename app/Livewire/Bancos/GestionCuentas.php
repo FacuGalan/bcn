@@ -5,6 +5,7 @@ namespace App\Livewire\Bancos;
 use App\Models\CuentaEmpresa;
 use App\Models\Moneda;
 use App\Models\Sucursal;
+use App\Services\CatalogoCache;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
@@ -177,12 +178,12 @@ class GestionCuentas extends Component
 
     public function getMonedasProperty()
     {
-        return Moneda::activas()->orderBy('orden')->get();
+        return CatalogoCache::monedas();
     }
 
     public function getSucursalesProperty()
     {
-        return Sucursal::where('activa', true)->orderBy('nombre')->get();
+        return CatalogoCache::sucursales();
     }
 
     public function render()

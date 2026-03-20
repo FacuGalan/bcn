@@ -8,6 +8,7 @@ use App\Models\Sucursal;
 use App\Models\Articulo;
 use App\Models\FormaVenta;
 use App\Models\CanalVenta;
+use App\Services\CatalogoCache;
 
 class WizardPrecio extends Component
 {
@@ -60,9 +61,9 @@ class WizardPrecio extends Component
     public function mount()
     {
         // Cargar colecciones iniciales
-        $this->sucursales = Sucursal::select('id', 'nombre')->orderBy('nombre')->get();
-        $this->formasVenta = FormaVenta::activas()->get();
-        $this->canalesVenta = CanalVenta::activos()->get();
+        $this->sucursales = CatalogoCache::sucursalesTodas();
+        $this->formasVenta = CatalogoCache::formasVenta();
+        $this->canalesVenta = CatalogoCache::canalesVenta();
     }
 
     public function updatedBusquedaArticulo($value)

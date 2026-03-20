@@ -13,6 +13,7 @@ use App\Models\Provincia;
 use App\Models\PuntoVenta;
 use App\Models\PuntoVentaCaja;
 use App\Models\Sucursal;
+use App\Services\CatalogoCache;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\Attributes\Layout;
@@ -153,7 +154,7 @@ class ConfiguracionEmpresa extends Component
 
     public function getSucursalesProperty()
     {
-        return Sucursal::orderBy('nombre')->get();
+        return CatalogoCache::sucursalesTodas();
     }
 
     public function getProvinciasProperty()

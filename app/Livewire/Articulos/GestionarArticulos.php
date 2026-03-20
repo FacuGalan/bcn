@@ -13,6 +13,7 @@ use App\Models\RecetaIngrediente;
 use App\Models\Stock;
 use App\Models\Sucursal;
 use App\Models\TipoIva;
+use App\Services\CatalogoCache;
 use App\Services\OpcionalService;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -964,9 +965,9 @@ class GestionarArticulos extends Component
         $gruposEtiquetas = collect();
 
         if ($this->showModal) {
-            $categorias = Categoria::where('activo', true)->orderBy('nombre')->get();
-            $tiposIva = TipoIva::orderBy('porcentaje')->get();
-            $sucursales = Sucursal::orderBy('nombre')->get();
+            $categorias = CatalogoCache::categorias();
+            $tiposIva = CatalogoCache::tiposIva();
+            $sucursales = CatalogoCache::sucursalesTodas();
 
             $busquedaModal = $this->busquedaEtiqueta;
             $gruposEtiquetasQuery = GrupoEtiqueta::where('activo', true);

@@ -355,6 +355,7 @@ class GestionTesoreria extends Component
             ->where('estado', DepositoBancario::ESTADO_PENDIENTE)
             ->with(['cuentaBancaria', 'cuentaEmpresa.moneda', 'moneda', 'usuario'])
             ->orderBy('fecha_deposito', 'desc')
+            ->limit(50)
             ->get();
     }
 

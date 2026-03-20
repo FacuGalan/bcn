@@ -10,6 +10,7 @@ use App\Models\Proveedor;
 use App\Models\MovimientoCuentaCorriente;
 use App\Models\Sucursal;
 use App\Services\ARCA\PadronARCAService;
+use App\Services\CatalogoCache;
 use App\Traits\SucursalAware;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -1120,8 +1121,8 @@ class GestionarClientes extends Component
 
         return view('livewire.clientes.gestionar-clientes', [
             'clientes' => $this->getClientes(),
-            'sucursales' => Sucursal::activas()->orderBy('nombre')->get(),
-            'condicionesIva' => CondicionIva::orderBy('nombre')->get(),
+            'sucursales' => CatalogoCache::sucursales(),
+            'condicionesIva' => CatalogoCache::condicionesIva(),
             'proveedoresDisponibles' => $proveedoresDisponibles,
             'ventasHistorial' => $this->getVentasHistorial(),
         ]);

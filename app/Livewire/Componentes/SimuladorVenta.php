@@ -10,6 +10,7 @@ use App\Models\Sucursal;
 use App\Models\FormaVenta;
 use App\Models\CanalVenta;
 use App\Models\FormaPago;
+use App\Services\CatalogoCache;
 
 /**
  * Componente reutilizable para simular ventas y calcular promociones
@@ -104,9 +105,9 @@ class SimuladorVenta extends Component
                 ->get();
         }
 
-        $this->formasVenta = FormaVenta::activas()->get();
-        $this->canalesVenta = CanalVenta::activos()->get();
-        $this->formasPago = FormaPago::activas()->get();
+        $this->formasVenta = CatalogoCache::formasVenta();
+        $this->canalesVenta = CatalogoCache::canalesVenta();
+        $this->formasPago = CatalogoCache::formasPago();
     }
 
     /**
