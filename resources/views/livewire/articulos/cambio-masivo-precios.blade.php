@@ -1,5 +1,5 @@
-<div class="py-4 h-[calc(100dvh-85px)] flex flex-col" x-data>
-    <div class="px-4 sm:px-6 lg:px-8 flex flex-col flex-1 min-h-0">
+<div class="py-4" x-data>
+    <div class="px-4 sm:px-6 lg:px-8">
         <!-- Header -->
         <div class="mb-4 sm:mb-6 flex-shrink-0">
             <div class="flex justify-between items-start gap-3 sm:gap-4">
@@ -24,14 +24,14 @@
                 <!-- Derecha: Botón programados -->
                 <button
                     wire:click="toggleProgramados"
-                    class="inline-flex items-center gap-1.5 px-3 py-2 border border-bcn-primary text-bcn-primary hover:bg-bcn-primary hover:text-white rounded-lg text-xs font-medium transition-colors"
+                    class="relative inline-flex items-center justify-center w-10 h-10 sm:w-auto sm:h-auto sm:gap-1.5 sm:px-3 sm:py-2 border border-bcn-primary text-bcn-primary hover:bg-bcn-primary hover:text-white rounded-lg text-xs font-medium transition-colors"
                 >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    {{ __('Programados') }}
+                    <span class="hidden sm:inline">{{ __('Programados') }}</span>
                     @if($this->pendientesCount > 0)
-                        <span class="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-amber-500 rounded-full">
+                        <span class="absolute -top-1 -right-1 sm:relative sm:top-auto sm:right-auto inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-amber-500 rounded-full">
                             {{ $this->pendientesCount }}
                         </span>
                     @endif
@@ -46,7 +46,7 @@
                     <!-- Header + Filtros -->
                     <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
                         <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Cambios programados') }}</h3>
-                        <div class="flex flex-wrap items-center gap-2">
+                        <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
                             <!-- Filtro estado -->
                             <select
                                 wire:model.live="filtroProgramadosEstado"
@@ -434,8 +434,8 @@
                 </div>
             </div>
 
-            <!-- Barra inferior sticky: Botón -->
-            <div class="sticky bottom-0 z-10 mt-3 bg-white dark:bg-gray-800 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] sm:rounded-lg border-t border-gray-200 dark:border-gray-700">
+            <!-- Barra inferior: Botón -->
+            <div class="mt-3 bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg border-t border-gray-200 dark:border-gray-700">
                 <div class="px-4 py-2.5 sm:px-5 flex justify-end">
                     <button
                         wire:click="siguientePaso"
@@ -450,11 +450,11 @@
             </div>
         @endif
 
-        <!-- Paso 2: Vista previa y confirmación (layout fijo, solo tabla scrolleable) -->
+        <!-- Paso 2: Vista previa y confirmación -->
         @if($paso === 2)
-            <div class="flex flex-col flex-1 min-h-0">
+            <div>
                 <!-- Resumen compacto de configuración -->
-                <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-3 flex-shrink-0">
+                <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-3">
                     <div class="p-3 sm:p-4">
                         <div class="flex flex-wrap items-center justify-between gap-2">
                             <div class="flex flex-wrap items-center gap-2">
@@ -510,10 +510,10 @@
                     </div>
                 </div>
 
-                <!-- Tabla de artículos (flex-1 para ocupar espacio restante) -->
-                <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg flex-1 flex flex-col min-h-0 overflow-hidden">
-                    <!-- Buscador (fijo) -->
-                    <div class="p-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                <!-- Tabla de artículos -->
+                <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg overflow-hidden">
+                    <!-- Buscador -->
+                    <div class="p-3 border-b border-gray-200 dark:border-gray-700">
                         <div class="flex items-center justify-between gap-3">
                             <div class="relative flex-1 max-w-md">
                                 <input
@@ -546,7 +546,7 @@
                     </div>
 
                     <!-- Mobile: cards -->
-                    <div class="sm:hidden flex-1 overflow-y-auto px-3 py-2 space-y-2">
+                    <div class="sm:hidden px-3 py-2 space-y-2">
                         @forelse($articulosPreviewFiltrados as $articulo)
                             <div wire:key="mobile-preview-{{ $articulo['id'] }}" class="bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-2.5">
                                 <div class="flex items-start justify-between gap-2">
@@ -593,8 +593,8 @@
                         @endforelse
                     </div>
 
-                    <!-- Desktop: tabla scrolleable -->
-                    <div class="hidden sm:block flex-1 overflow-y-auto overflow-x-auto">
+                    <!-- Desktop: tabla -->
+                    <div class="hidden sm:block overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                             <thead class="bg-bcn-light dark:bg-gray-700 sticky top-0 z-[1]">
                                 <tr>
@@ -683,7 +683,7 @@
                     <!-- Footer fijo con totales + botón -->
                     @if(count($articulosPreview) > 0)
                         @php $diferenciaTotales = $totalPrecioNuevo - $totalPrecioViejo; @endphp
-                        <div class="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 px-4 py-2.5 sm:px-5 flex-shrink-0">
+                        <div class="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 px-4 py-2.5 sm:px-5">
                             <!-- Mobile -->
                             <div class="sm:hidden">
                                 <div class="grid grid-cols-2 gap-x-4 gap-y-1 mb-2.5">
