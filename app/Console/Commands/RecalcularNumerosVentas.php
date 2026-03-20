@@ -47,13 +47,14 @@ class RecalcularNumerosVentas extends Command
 
         if ($cajas->isEmpty()) {
             $this->error('No se encontraron cajas. Asegúrate de ejecutar la migración primero.');
+
             return 1;
         }
 
         $this->info("Cajas encontradas: {$cajas->count()}");
         $this->table(
             ['ID', 'Sucursal', 'Número', 'Nombre'],
-            $cajas->map(fn($c) => [$c->id, $c->sucursal_id, $c->numero, $c->nombre])
+            $cajas->map(fn ($c) => [$c->id, $c->sucursal_id, $c->numero, $c->nombre])
         );
         $this->info('');
 
@@ -67,6 +68,7 @@ class RecalcularNumerosVentas extends Command
 
         if ($totalVentas === 0) {
             $this->info('No hay ventas para procesar.');
+
             return 0;
         }
 
@@ -84,9 +86,10 @@ class RecalcularNumerosVentas extends Command
         $this->info('');
 
         // Confirmar
-        if (!$force && !$dryRun) {
-            if (!$this->confirm('¿Deseas continuar con el recálculo?')) {
+        if (! $force && ! $dryRun) {
+            if (! $this->confirm('¿Deseas continuar con el recálculo?')) {
                 $this->info('Operación cancelada.');
+
                 return 0;
             }
         }
@@ -114,7 +117,7 @@ class RecalcularNumerosVentas extends Command
                 $nuevoNumero = sprintf('%04d-%08d', $caja->numero, $secuencial);
                 $numeroAnterior = $venta->numero;
 
-                if (!$dryRun) {
+                if (! $dryRun) {
                     try {
                         $venta->update(['numero' => $nuevoNumero]);
                         $actualizadas++;
@@ -135,7 +138,7 @@ class RecalcularNumerosVentas extends Command
                     }
                 } else {
                     $actualizadas++;
-                    $this->line(""); // Nueva línea para el log
+                    $this->line(''); // Nueva línea para el log
                     $this->line("  Venta #{$venta->id}: {$numeroAnterior} → {$nuevoNumero}");
                 }
 

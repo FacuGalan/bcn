@@ -4,8 +4,8 @@ namespace App\Models;
 
 use App\Services\TenantService;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -40,6 +40,7 @@ use Illuminate\Support\Facades\Storage;
 class Sucursal extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'sucursales';
 
     // Tipos de impresión en factura
@@ -103,15 +104,15 @@ class Sucursal extends Model
     public function articulos(): BelongsToMany
     {
         return $this->belongsToMany(Articulo::class, 'articulos_sucursales', 'sucursal_id', 'articulo_id')
-                    ->withPivot('activo')
-                    ->withTimestamps();
+            ->withPivot('activo')
+            ->withTimestamps();
     }
 
     public function clientes(): BelongsToMany
     {
         return $this->belongsToMany(Cliente::class, 'clientes_sucursales', 'sucursal_id', 'cliente_id')
-                    ->withPivot('lista_precio_id', 'descuento_porcentaje', 'limite_credito', 'saldo_actual', 'activo')
-                    ->withTimestamps();
+            ->withPivot('lista_precio_id', 'descuento_porcentaje', 'limite_credito', 'saldo_actual', 'activo')
+            ->withTimestamps();
     }
 
     // Scopes
@@ -139,6 +140,7 @@ class Sucursal extends Model
     public function tieneStockDisponible(int $articuloId, float $cantidad): bool
     {
         $stock = $this->getStock($articuloId);
+
         return $stock && $stock->cantidad >= $cantidad;
     }
 
@@ -157,7 +159,7 @@ class Sucursal extends Model
      */
     public function getLogoUrlAttribute(): ?string
     {
-        if (!$this->logo_path) {
+        if (! $this->logo_path) {
             return null;
         }
 
@@ -199,6 +201,6 @@ class Sucursal extends Model
      */
     public function hasLogo(): bool
     {
-        return !empty($this->logo_path) && Storage::disk('public')->exists($this->logo_path);
+        return ! empty($this->logo_path) && Storage::disk('public')->exists($this->logo_path);
     }
 }

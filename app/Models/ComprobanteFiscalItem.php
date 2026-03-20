@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ComprobanteFiscalItem extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'comprobante_fiscal_items';
 
     public $timestamps = false;

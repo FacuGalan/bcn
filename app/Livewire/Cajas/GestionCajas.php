@@ -2,15 +2,15 @@
 
 namespace App\Livewire\Cajas;
 
-use Livewire\Component;
-use Livewire\WithPagination;
-use App\Services\CajaService;
 use App\Models\Caja;
 use App\Models\MovimientoCaja;
 use App\Models\Sucursal;
+use App\Services\CajaService;
+use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Exception;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 /**
  * Componente Livewire: Gestión de Cajas
@@ -26,6 +26,7 @@ use Exception;
  *
  * PROPIEDADES:
  * ===========
+ *
  * @property Collection $cajas - Lista de cajas
  * @property bool $showAbrirModal - Modal para abrir caja
  * @property bool $showCerrarModal - Modal para cerrar caja
@@ -39,7 +40,6 @@ use Exception;
  *
  * FASE 4 - Sistema Multi-Sucursal (Componentes Livewire)
  *
- * @package App\Livewire\Cajas
  * @version 1.0.0
  */
 class GestionCajas extends Component
@@ -50,26 +50,38 @@ class GestionCajas extends Component
 
     // Modales
     public $showAbrirModal = false;
+
     public $showCerrarModal = false;
+
     public $showMovimientoModal = false;
+
     public $showMovimientosModal = false;
+
     public $showArqueoModal = false;
 
     // Propiedades apertura
     public $cajaAbrirId = null;
+
     public $saldoInicial = 0;
 
     // Propiedades cierre
     public $cajaCerrarId = null;
+
     public $arqueo = null;
 
     // Propiedades movimiento manual
     public $cajaMovimientoId = null;
+
     public $tipoMovimiento = 'ingreso';
+
     public $montoMovimiento = 0;
+
     public $conceptoMovimiento = '';
+
     public $formaPagoMovimiento = 'efectivo';
+
     public $referenciaMovimiento = '';
+
     public $observacionesMovimiento = '';
 
     // Ver movimientos
@@ -89,9 +101,11 @@ class GestionCajas extends Component
 
     public function render()
     {
-        $cajas = Caja::with(['movimientos' => function($q) { $q->latest()->limit(5); }])
-                    ->porSucursal($this->sucursalSeleccionada)
-                    ->get();
+        $cajas = Caja::with(['movimientos' => function ($q) {
+            $q->latest()->limit(5);
+        }])
+            ->porSucursal($this->sucursalSeleccionada)
+            ->get();
 
         $movimientos = $this->cajaMovimientosId
             ? MovimientoCaja::with('usuario')
@@ -127,6 +141,7 @@ class GestionCajas extends Component
         try {
             if ($this->saldoInicial < 0) {
                 $this->dispatch('toast-error', message: __('El saldo inicial no puede ser negativo'));
+
                 return;
             }
 
@@ -137,7 +152,7 @@ class GestionCajas extends Component
 
         } catch (Exception $e) {
             Log::error('Error al abrir caja', ['error' => $e->getMessage()]);
-            $this->dispatch('toast-error', message: __('Error') . ': ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error').': '.$e->getMessage());
         }
     }
 
@@ -154,7 +169,7 @@ class GestionCajas extends Component
             $this->arqueo = $this->cajaService->realizarArqueo($cajaId);
             $this->showCerrarModal = true;
         } catch (Exception $e) {
-            $this->dispatch('toast-error', message: __('Error al realizar arqueo') . ': ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error al realizar arqueo').': '.$e->getMessage());
         }
     }
 
@@ -176,7 +191,7 @@ class GestionCajas extends Component
 
         } catch (Exception $e) {
             Log::error('Error al cerrar caja', ['error' => $e->getMessage()]);
-            $this->dispatch('toast-error', message: __('Error') . ': ' . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error').': '.$e->getMessage());
         }
     }
 
@@ -203,11 +218,13 @@ class GestionCajas extends Component
         try {
             if ($this->montoMovimiento <= 0) {
                 $this->dispatch('toast-error', message: __('El monto debe ser mayor a cero'));
+
                 return;
             }
 
             if (empty($this->conceptoMovimiento)) {
                 $this->dispatch('toast-error', message: __('Debe ingresar un concepto'));
+
                 return;
             }
 
@@ -233,13 +250,13 @@ class GestionCajas extends Component
                 );
             }
 
-            $this->dispatch('toast-success', message: ucfirst($this->tipoMovimiento) . ' registrado exitosamente');
+            $this->dispatch('toast-success', message: ucfirst($this->tipoMovimiento).' registrado exitosamente');
             $this->showMovimientoModal = false;
             $this->resetMovimientoForm();
 
         } catch (Exception $e) {
             Log::error('Error al registrar movimiento', ['error' => $e->getMessage()]);
-            $this->dispatch('toast-error', message: 'Error: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: 'Error: '.$e->getMessage());
         }
     }
 

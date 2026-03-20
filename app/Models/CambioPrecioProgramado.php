@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class CambioPrecioProgramado extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'cambios_precio_programados';
 
     protected $fillable = [
@@ -50,7 +51,7 @@ class CambioPrecioProgramado extends Model
     public function scopeListos($query)
     {
         return $query->where('estado', 'pendiente')
-                     ->where('fecha_programada', '<=', now());
+            ->where('fecha_programada', '<=', now());
     }
 
     /**

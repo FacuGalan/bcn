@@ -15,8 +15,8 @@ use Illuminate\Support\Facades\Session;
  * - Limpieza automática de sesiones antiguas
  * - Cierre forzado de sesiones cuando se excede el límite
  *
- * @package App\Services
  * @author BCN Pymes
+ *
  * @version 1.0.0
  */
 class SessionManagerService
@@ -24,8 +24,6 @@ class SessionManagerService
     /**
      * Tiempo en segundos para considerar una sesión como expirada
      * Por defecto: 7200 segundos (2 horas) - debe coincidir con SESSION_LIFETIME en .env
-     *
-     * @var int
      */
     protected int $sessionLifetime;
 
@@ -41,19 +39,20 @@ class SessionManagerService
     /**
      * Verifica si el usuario ha alcanzado el límite de sesiones concurrentes
      *
-     * @param User $user Usuario a verificar
+     * @param  User  $user  Usuario a verificar
      * @return bool True si ha alcanzado el límite, false si aún tiene espacio
      */
     public function hasReachedSessionLimit(User $user): bool
     {
         $activeSessions = $this->getActiveSessionsCount($user);
+
         return $activeSessions >= $user->max_concurrent_sessions;
     }
 
     /**
      * Obtiene el número de sesiones activas del usuario
      *
-     * @param User $user Usuario a verificar
+     * @param  User  $user  Usuario a verificar
      * @return int Número de sesiones activas
      */
     public function getActiveSessionsCount(User $user): int
@@ -69,7 +68,7 @@ class SessionManagerService
     /**
      * Obtiene todas las sesiones activas de un usuario
      *
-     * @param User $user Usuario
+     * @param  User  $user  Usuario
      * @return \Illuminate\Support\Collection Colección de sesiones
      */
     public function getActiveSessions(User $user): \Illuminate\Support\Collection
@@ -89,7 +88,7 @@ class SessionManagerService
      * Cuando un usuario intenta iniciar sesión y ya tiene el máximo de sesiones,
      * este método cierra las sesiones más antiguas para dar espacio a la nueva.
      *
-     * @param User $user Usuario que intenta iniciar sesión
+     * @param  User  $user  Usuario que intenta iniciar sesión
      * @return int Número de sesiones cerradas
      */
     public function freeSessionSpace(User $user): int
@@ -121,7 +120,7 @@ class SessionManagerService
     /**
      * Destruye una sesión específica por su ID
      *
-     * @param string $sessionId ID de la sesión a destruir
+     * @param  string  $sessionId  ID de la sesión a destruir
      * @return bool True si se destruyó correctamente
      */
     public function destroySession(string $sessionId): bool
@@ -138,7 +137,7 @@ class SessionManagerService
      * Útil cuando el usuario selecciona manualmente qué sesiones cerrar
      * en el modal de confirmación de login.
      *
-     * @param array $sessionIds Array de IDs de sesiones a cerrar
+     * @param  array  $sessionIds  Array de IDs de sesiones a cerrar
      * @return int Número de sesiones cerradas
      */
     public function closeSpecificSessions(array $sessionIds): int
@@ -158,8 +157,8 @@ class SessionManagerService
      *
      * Útil para implementar "cerrar sesión en otros dispositivos"
      *
-     * @param User $user Usuario
-     * @param string|null $exceptSessionId ID de sesión a mantener (opcional)
+     * @param  User  $user  Usuario
+     * @param  string|null  $exceptSessionId  ID de sesión a mantener (opcional)
      * @return int Número de sesiones cerradas
      */
     public function destroyOtherSessions(User $user, ?string $exceptSessionId = null): int
@@ -198,7 +197,7 @@ class SessionManagerService
      *
      * Incluye información como IP, user agent, última actividad, etc.
      *
-     * @param User $user Usuario
+     * @param  User  $user  Usuario
      * @return array Array con información de cada sesión
      */
     public function getSessionsInfo(User $user): array
@@ -224,7 +223,7 @@ class SessionManagerService
      * IMPORTANTE: El orden de detección es crítico porque algunos navegadores
      * incluyen palabras clave de otros (ej: Edge incluye "Chrome" en su UA)
      *
-     * @param string $userAgent User agent string
+     * @param  string  $userAgent  User agent string
      * @return array Array con información del navegador y dispositivo
      */
     protected function parseUserAgent(string $userAgent): array
@@ -243,7 +242,7 @@ class SessionManagerService
             $browser = 'Opera';
         }
         // Chrome (después de Edge y Opera)
-        elseif (str_contains($userAgent, 'Chrome/') && !str_contains($userAgent, 'Edg/')) {
+        elseif (str_contains($userAgent, 'Chrome/') && ! str_contains($userAgent, 'Edg/')) {
             $browser = 'Chrome';
         }
         // Firefox
@@ -251,7 +250,7 @@ class SessionManagerService
             $browser = 'Firefox';
         }
         // Safari (debe ir después de Chrome porque Chrome también contiene "Safari")
-        elseif (str_contains($userAgent, 'Safari/') && !str_contains($userAgent, 'Chrome/')) {
+        elseif (str_contains($userAgent, 'Safari/') && ! str_contains($userAgent, 'Chrome/')) {
             $browser = 'Safari';
         }
         // Internet Explorer
@@ -311,8 +310,8 @@ class SessionManagerService
      * Si el nuevo límite es menor al actual y el usuario tiene más sesiones activas,
      * se cierran las sesiones más antiguas.
      *
-     * @param User $user Usuario
-     * @param int $newLimit Nuevo límite de sesiones
+     * @param  User  $user  Usuario
+     * @param  int  $newLimit  Nuevo límite de sesiones
      * @return bool True si se actualizó correctamente
      */
     public function updateSessionLimit(User $user, int $newLimit): bool

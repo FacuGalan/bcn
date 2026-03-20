@@ -4,6 +4,7 @@ namespace App\Livewire\Configuracion;
 
 use App\Models\Moneda;
 use App\Models\TipoCambio;
+use App\Services\CatalogoCache;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -13,29 +14,44 @@ class GestionMonedas extends Component
 
     // ==================== Monedas ====================
     public ?int $monedaEditId = null;
+
     public string $monedaCodigo = '';
+
     public string $monedaNombre = '';
+
     public string $monedaSimbolo = '';
+
     public int $monedaDecimales = 2;
+
     public bool $monedaActivo = true;
+
     public bool $monedaEsPrincipal = false;
+
     public int $monedaOrden = 0;
+
     public bool $mostrarFormMoneda = false;
 
     // ==================== Tipos de Cambio - Filtros ====================
     public $filtroMonedaOrigen = '';
+
     public $filtroMonedaDestino = '';
 
     // ==================== Tipos de Cambio - Modal ====================
     public bool $mostrarModalTC = false;
+
     public bool $modoEdicionTC = false;
+
     public ?int $tipoCambioId = null;
 
     // ==================== Tipos de Cambio - Campos ====================
     public $moneda_origen_id = '';
+
     public $moneda_destino_id = '';
+
     public $tasa_compra = '';
+
     public $tasa_venta = '';
+
     public $fecha = '';
 
     // ==================== Reglas Tipo de Cambio ====================
@@ -135,7 +151,7 @@ class GestionMonedas extends Component
             $this->mostrarFormMoneda = false;
             $this->resetFormMoneda();
         } catch (\Exception $e) {
-            $this->dispatch('notify', message: __('Error al guardar moneda: ') . $e->getMessage(), type: 'error');
+            $this->dispatch('notify', message: __('Error al guardar moneda: ').$e->getMessage(), type: 'error');
         }
     }
 
@@ -145,10 +161,11 @@ class GestionMonedas extends Component
 
         if ($moneda->es_principal && $moneda->activo) {
             $this->dispatch('notify', message: __('No se puede desactivar la moneda principal'), type: 'error');
+
             return;
         }
 
-        $moneda->update(['activo' => !$moneda->activo]);
+        $moneda->update(['activo' => ! $moneda->activo]);
         $this->dispatch('notify', message: $moneda->activo ? __('Moneda activada') : __('Moneda desactivada'), type: 'success');
     }
 
@@ -156,8 +173,9 @@ class GestionMonedas extends Component
     {
         $moneda = Moneda::findOrFail($id);
 
-        if (!$moneda->activo) {
+        if (! $moneda->activo) {
             $this->dispatch('notify', message: __('Active la moneda primero'), type: 'error');
+
             return;
         }
 
@@ -296,7 +314,7 @@ class GestionMonedas extends Component
         }
 
         $tiposCambio = $query->paginate(15);
-        $monedas = Moneda::orderBy('orden')->orderBy('nombre')->get();
+        $monedas = CatalogoCache::monedas();
         $monedasActivas = $monedas->where('activo', true);
 
         // Cotizaciones vigentes

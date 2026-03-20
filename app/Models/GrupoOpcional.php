@@ -24,7 +24,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int $orden
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read \Illuminate\Database\Eloquent\Collection|Opcional[] $opcionales
  * @property-read \Illuminate\Database\Eloquent\Collection|ArticuloGrupoOpcional[] $articuloGrupoOpcionales
  */
@@ -33,6 +32,7 @@ class GrupoOpcional extends Model
     use SoftDeletes;
 
     protected $connection = 'pymes_tenant';
+
     protected $table = 'grupos_opcionales';
 
     protected $fillable = [
@@ -56,6 +56,7 @@ class GrupoOpcional extends Model
 
     // Tipos
     public const TIPO_SELECCIONABLE = 'seleccionable';
+
     public const TIPO_CUANTITATIVO = 'cuantitativo';
 
     // ==================== Relaciones ====================

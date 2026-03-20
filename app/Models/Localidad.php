@@ -84,7 +84,7 @@ class Localidad extends Model
      */
     public function getNombreCompletoAttribute(): string
     {
-        return $this->nombre . ', ' . $this->provincia->nombre;
+        return $this->nombre.', '.$this->provincia->nombre;
     }
 
     /**
@@ -100,6 +100,7 @@ class Localidad extends Model
                 if ($loc->codigo_postal) {
                     $label .= " ({$loc->codigo_postal})";
                 }
+
                 return [$loc->id => $label];
             })
             ->toArray();

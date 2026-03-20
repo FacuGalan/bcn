@@ -2,21 +2,26 @@
 
 namespace App\Livewire\Configuracion\Promociones;
 
-use Livewire\Component;
-use Livewire\WithPagination;
 use App\Models\Promocion;
 use App\Traits\SucursalAware;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 class ListarPromociones extends Component
 {
-    use WithPagination, SucursalAware;
+    use SucursalAware, WithPagination;
 
     // Filtros
     public $busqueda = '';
+
     public $tipoFiltro = '';
+
     public $activoFiltro = 'todos';
+
     public $vigenteFiltro = 'todos'; // todos, vigentes, vencidas
+
     public $cuponFiltro = 'todos'; // todos, con_cupon, sin_cupon
+
     public $combinableFiltro = 'todos';
 
     // Tipos de promoci�n disponibles
@@ -36,6 +41,7 @@ class ListarPromociones extends Component
 
     // Ordenamiento
     public $ordenarPor = 'prioridad';
+
     public $ordenDireccion = 'asc';
 
     // Toggle de filtros m�vil
@@ -80,11 +86,11 @@ class ListarPromociones extends Component
     {
         $promocion = Promocion::find($promocionId);
         if ($promocion) {
-            $promocion->activo = !$promocion->activo;
+            $promocion->activo = ! $promocion->activo;
             $promocion->save();
 
             $mensaje = $promocion->activo ? __('Promoción activada correctamente') : __('Promoción desactivada correctamente');
-            $this->js("window.notify('" . addslashes($mensaje) . "', 'success')");
+            $this->js("window.notify('".addslashes($mensaje)."', 'success')");
         }
     }
 
@@ -95,7 +101,7 @@ class ListarPromociones extends Component
             // Soft delete - mantiene el registro con deleted_at para estadisticas
             $promocion->delete();
 
-            $this->js("window.notify('" . __('Promoción eliminada correctamente') . "', 'success')");
+            $this->js("window.notify('".__('Promoción eliminada correctamente')."', 'success')");
         }
     }
 
@@ -106,7 +112,7 @@ class ListarPromociones extends Component
         if ($promocionOriginal) {
             // Crear una copia de la promocion
             $nuevaPromocion = $promocionOriginal->replicate();
-            $nuevaPromocion->nombre = $promocionOriginal->nombre . ' (Copia)';
+            $nuevaPromocion->nombre = $promocionOriginal->nombre.' (Copia)';
             $nuevaPromocion->codigo_cupon = null; // Los cupones deben ser unicos
             $nuevaPromocion->activo = false; // Crear inactiva por defecto
             $nuevaPromocion->usos_actuales = 0;
@@ -126,7 +132,7 @@ class ListarPromociones extends Component
                 $nuevaEscala->save();
             }
 
-            $this->js("window.notify('" . __('Promoción duplicada correctamente') . "', 'success')");
+            $this->js("window.notify('".__('Promoción duplicada correctamente')."', 'success')");
         }
     }
 
@@ -137,16 +143,16 @@ class ListarPromociones extends Component
         $query = Promocion::query()
             ->with([
                 'condiciones',
-                'escalas'
+                'escalas',
             ])
             ->where('sucursal_id', $sucursalId);
 
         // Aplicar filtros
         if ($this->busqueda) {
-            $query->where(function($q) {
-                $q->where('nombre', 'like', '%' . $this->busqueda . '%')
-                  ->orWhere('descripcion', 'like', '%' . $this->busqueda . '%')
-                  ->orWhere('codigo_cupon', 'like', '%' . $this->busqueda . '%');
+            $query->where(function ($q) {
+                $q->where('nombre', 'like', '%'.$this->busqueda.'%')
+                    ->orWhere('descripcion', 'like', '%'.$this->busqueda.'%')
+                    ->orWhere('codigo_cupon', 'like', '%'.$this->busqueda.'%');
             });
         }
 
@@ -202,7 +208,7 @@ class ListarPromociones extends Component
      */
     public function getColorTipo($tipo)
     {
-        return match($tipo) {
+        return match ($tipo) {
             'descuento_porcentaje' => 'bg-green-100 text-green-800',
             'descuento_monto' => 'bg-blue-100 text-blue-800',
             'precio_fijo' => 'bg-purple-100 text-purple-800',
@@ -218,7 +224,7 @@ class ListarPromociones extends Component
      */
     public function getIconoTipo($tipo)
     {
-        return match($tipo) {
+        return match ($tipo) {
             'descuento_porcentaje' => 'heroicon-o-percent-badge',
             'descuento_monto' => 'heroicon-o-banknotes',
             'precio_fijo' => 'heroicon-o-tag',

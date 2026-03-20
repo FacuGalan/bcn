@@ -40,7 +40,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $activo Si la forma de pago está activa a nivel comercio
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read ConceptoPago|null $conceptoPago
  * @property-read \Illuminate\Database\Eloquent\Collection|ConceptoPago[] $conceptosPermitidos
  * @property-read \Illuminate\Database\Eloquent\Collection|Sucursal[] $sucursales
@@ -51,6 +50,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class FormaPago extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'formas_pago';
 
     protected $fillable = [
@@ -107,8 +107,8 @@ class FormaPago extends Model
     public function sucursales(): BelongsToMany
     {
         return $this->belongsToMany(Sucursal::class, 'formas_pago_sucursales', 'forma_pago_id', 'sucursal_id')
-                    ->withPivot('activo')
-                    ->withTimestamps();
+            ->withPivot('activo')
+            ->withTimestamps();
     }
 
     /**
@@ -233,9 +233,9 @@ class FormaPago extends Model
     public function estaHabilitadaEnSucursal(int $sucursalId): bool
     {
         return $this->sucursales()
-                    ->where('sucursal_id', $sucursalId)
-                    ->wherePivot('activo', true)
-                    ->exists();
+            ->where('sucursal_id', $sucursalId)
+            ->wherePivot('activo', true)
+            ->exists();
     }
 
     /**
@@ -243,20 +243,19 @@ class FormaPago extends Model
      */
     public function obtenerCuotasDisponibles()
     {
-        if (!$this->permite_cuotas) {
+        if (! $this->permite_cuotas) {
             return collect([]);
         }
 
         return $this->cuotas()
-                    ->where('activo', true)
-                    ->orderBy('cantidad_cuotas')
-                    ->get();
+            ->where('activo', true)
+            ->orderBy('cantidad_cuotas')
+            ->get();
     }
 
     /**
      * Calcula el recargo/descuento para un monto dado
      *
-     * @param float $monto
      * @return array ['tipo' => 'recargo'|'descuento'|'ninguno', 'porcentaje' => float, 'monto' => float]
      */
     public function calcularAjuste(float $monto): array
@@ -306,6 +305,7 @@ class FormaPago extends Model
         if ($this->concepto_pago_id && $this->conceptoPago) {
             return $this->conceptoPago->esEfectivo();
         }
+
         // Fallback al campo legacy
         return $this->concepto === 'efectivo';
     }
@@ -323,7 +323,7 @@ class FormaPago extends Model
      */
     public function esSimple(): bool
     {
-        return !$this->esMixta();
+        return ! $this->esMixta();
     }
 
     /**
@@ -336,6 +336,7 @@ class FormaPago extends Model
         if ($this->esMixta()) {
             return null;
         }
+
         return $this->conceptoPago;
     }
 
@@ -352,6 +353,7 @@ class FormaPago extends Model
 
         // Para simples, retornar el concepto único como colección
         $concepto = $this->conceptoPago;
+
         return $concepto ? collect([$concepto]) : collect([]);
     }
 
@@ -363,6 +365,7 @@ class FormaPago extends Model
         if ($this->esMixta()) {
             return $this->conceptosPermitidos()->where('conceptos_pago.id', $conceptoPagoId)->exists();
         }
+
         return $this->concepto_pago_id === $conceptoPagoId;
     }
 
@@ -372,9 +375,10 @@ class FormaPago extends Model
      */
     public function requiereDesglose(): bool
     {
-        if (!$this->esMixta()) {
+        if (! $this->esMixta()) {
             return false;
         }
+
         return $this->conceptosPermitidos()->count() > 1;
     }
 
@@ -382,12 +386,12 @@ class FormaPago extends Model
      * Obtiene las formas de pago simples activas que pueden usarse
      * en el desglose de esta forma de pago mixta
      *
-     * @param int|null $conceptoPagoId Filtrar por concepto específico
+     * @param  int|null  $conceptoPagoId  Filtrar por concepto específico
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function obtenerFormasPagoParaDesglose(?int $conceptoPagoId = null)
     {
-        if (!$this->esMixta()) {
+        if (! $this->esMixta()) {
             return collect([]);
         }
 

@@ -2,19 +2,17 @@
 
 namespace App\Livewire\Dashboard;
 
-use Livewire\Component;
+use App\Models\Caja;
+use App\Models\Cobro;
+use App\Models\Compra;
+use App\Models\ComprobanteFiscal;
+use App\Models\Stock;
+use App\Models\Sucursal;
 use App\Models\Venta;
 use App\Models\VentaPago;
 use App\Models\VentaPromocion;
-use App\Models\Compra;
-use App\Models\Cobro;
-use App\Models\Caja;
-use App\Models\Stock;
-use App\Models\Sucursal;
-use App\Models\ComprobanteFiscal;
-use App\Models\FormaPago;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
+use Livewire\Component;
 
 /**
  * Componente Livewire: Dashboard de Sucursal
@@ -31,6 +29,7 @@ use Illuminate\Support\Facades\DB;
 class DashboardSucursal extends Component
 {
     public $sucursalSeleccionada = null;
+
     public $periodoSeleccionado = 'hoy'; // hoy, semana, mes
 
     protected $listeners = ['sucursal-changed' => 'handleSucursalChanged'];
@@ -122,16 +121,17 @@ class DashboardSucursal extends Component
 
     private function getVentasPorFormaPago($rango): array
     {
-        $pagos = VentaPago::whereHas('venta', function($q) use ($rango) {
-                $q->where('sucursal_id', $this->sucursalSeleccionada)
-                    ->whereBetween('fecha', [$rango['desde'], $rango['hasta']])
-                    ->where('estado', '!=', 'cancelada');
-            })
+        $pagos = VentaPago::whereHas('venta', function ($q) use ($rango) {
+            $q->where('sucursal_id', $this->sucursalSeleccionada)
+                ->whereBetween('fecha', [$rango['desde'], $rango['hasta']])
+                ->where('estado', '!=', 'cancelada');
+        })
             ->with('formaPago')
             ->get();
 
-        $porFormaPago = $pagos->groupBy('forma_pago_id')->map(function($grupo) {
+        $porFormaPago = $pagos->groupBy('forma_pago_id')->map(function ($grupo) {
             $formaPago = $grupo->first()->formaPago;
+
             return [
                 'nombre' => $formaPago->nombre ?? __('Sin especificar'),
                 'total' => $grupo->sum('monto_final'),
@@ -158,11 +158,11 @@ class DashboardSucursal extends Component
             ->where('estado', 'autorizado')
             ->get();
 
-        $facturas = $comprobantes->filter(fn($c) => $c->esFactura());
-        $notasCredito = $comprobantes->filter(fn($c) => $c->esNotaCredito());
+        $facturas = $comprobantes->filter(fn ($c) => $c->esFactura());
+        $notasCredito = $comprobantes->filter(fn ($c) => $c->esNotaCredito());
 
         // Agrupar por tipo
-        $porTipo = $comprobantes->groupBy('tipo')->map(function($grupo) {
+        $porTipo = $comprobantes->groupBy('tipo')->map(function ($grupo) {
             return [
                 'tipo' => $grupo->first()->tipo_legible,
                 'cantidad' => $grupo->count(),
@@ -186,14 +186,14 @@ class DashboardSucursal extends Component
 
     private function getPromocionesAplicadas($rango): array
     {
-        $promociones = VentaPromocion::whereHas('venta', function($q) use ($rango) {
-                $q->where('sucursal_id', $this->sucursalSeleccionada)
-                    ->whereBetween('fecha', [$rango['desde'], $rango['hasta']])
-                    ->where('estado', '!=', 'cancelada');
-            })
+        $promociones = VentaPromocion::whereHas('venta', function ($q) use ($rango) {
+            $q->where('sucursal_id', $this->sucursalSeleccionada)
+                ->whereBetween('fecha', [$rango['desde'], $rango['hasta']])
+                ->where('estado', '!=', 'cancelada');
+        })
             ->get();
 
-        $porTipo = $promociones->groupBy('tipo_promocion')->map(function($grupo, $tipo) {
+        $porTipo = $promociones->groupBy('tipo_promocion')->map(function ($grupo, $tipo) {
             return [
                 'tipo' => $tipo === 'promocion_especial' ? __('Promociones Especiales') : __('Promociones'),
                 'cantidad' => $grupo->count(),
@@ -203,7 +203,7 @@ class DashboardSucursal extends Component
 
         // Top promociones por uso
         $topPromociones = $promociones->groupBy('descripcion_promocion')
-            ->map(function($grupo, $nombre) {
+            ->map(function ($grupo, $nombre) {
                 return [
                     'nombre' => $nombre ?: __('Sin nombre'),
                     'veces_usada' => $grupo->count(),
@@ -263,7 +263,7 @@ class DashboardSucursal extends Component
             'abiertas' => $cajasAbiertas->count(),
             'cerradas' => $cajas->count() - $cajasAbiertas->count(),
             'saldo_total' => $cajasAbiertas->sum('saldo_actual'),
-            'detalle' => $cajas->map(function($caja) {
+            'detalle' => $cajas->map(function ($caja) {
                 return [
                     'nombre' => $caja->nombre,
                     'estado' => $caja->estaAbierta() ? 'abierta' : 'cerrada',
@@ -290,14 +290,14 @@ class DashboardSucursal extends Component
         return [
             'bajo_minimo_count' => Stock::porSucursal($this->sucursalSeleccionada)->bajoMinimo()->count(),
             'sin_existencia_count' => Stock::porSucursal($this->sucursalSeleccionada)->where('cantidad', '<=', 0)->count(),
-            'bajo_minimo' => $stockBajoMinimo->map(function($s) {
+            'bajo_minimo' => $stockBajoMinimo->map(function ($s) {
                 return [
                     'articulo' => $s->articulo->nombre ?? 'N/A',
                     'cantidad' => $s->cantidad,
                     'minimo' => $s->stock_minimo,
                 ];
             })->toArray(),
-            'sin_existencia' => $stockSinExistencia->map(function($s) {
+            'sin_existencia' => $stockSinExistencia->map(function ($s) {
                 return [
                     'articulo' => $s->articulo->nombre ?? 'N/A',
                 ];
@@ -312,7 +312,7 @@ class DashboardSucursal extends Component
             ->orderBy('created_at', 'desc')
             ->limit(5)
             ->get()
-            ->map(function($venta) {
+            ->map(function ($venta) {
                 return [
                     'id' => $venta->id,
                     'numero' => $venta->numero,
@@ -338,12 +338,12 @@ class DashboardSucursal extends Component
             ->whereBetween('fecha', [$rango['desde'], $rango['hasta']])
             ->where('estado', '!=', 'cancelada')
             ->get()
-            ->groupBy(function($venta) {
+            ->groupBy(function ($venta) {
                 return $venta->created_at->format('H');
             })
-            ->map(function($grupo, $hora) {
+            ->map(function ($grupo, $hora) {
                 return [
-                    'hora' => $hora . ':00',
+                    'hora' => $hora.':00',
                     'cantidad' => $grupo->count(),
                     'total' => $grupo->sum('total_final'),
                 ];

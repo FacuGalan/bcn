@@ -33,7 +33,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property float|null $precio_base_original
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read ListaPrecio $listaPrecio
  * @property-read Articulo|null $articulo
  * @property-read Categoria|null $categoria
@@ -41,6 +40,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ListaPrecioArticulo extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'lista_precio_articulos';
 
     protected $fillable = [
@@ -219,7 +219,8 @@ class ListaPrecioArticulo extends Model
 
         if ($this->ajuste_porcentaje !== null) {
             $tipo = $this->ajuste_porcentaje >= 0 ? 'Recargo' : 'Descuento';
-            return "{$tipo}: " . abs($this->ajuste_porcentaje) . '%';
+
+            return "{$tipo}: ".abs($this->ajuste_porcentaje).'%';
         }
 
         return 'Usa ajuste del encabezado';
@@ -228,8 +229,8 @@ class ListaPrecioArticulo extends Model
     /**
      * Calcula el precio final para un artículo usando este registro
      *
-     * @param float $precioBase Precio base del artículo
-     * @param float $ajusteEncabezado Ajuste porcentaje del encabezado de la lista
+     * @param  float  $precioBase  Precio base del artículo
+     * @param  float  $ajusteEncabezado  Ajuste porcentaje del encabezado de la lista
      * @return array ['precio' => float, 'ajuste_porcentaje' => float, 'tipo' => string]
      */
     public function calcularPrecio(float $precioBase, float $ajusteEncabezado = 0): array
@@ -314,11 +315,12 @@ class ListaPrecioArticulo extends Model
      */
     public function sincronizarPrecioBaseOriginal(): bool
     {
-        if (!$this->articulo_id || !$this->articulo) {
+        if (! $this->articulo_id || ! $this->articulo) {
             return false;
         }
 
         $this->precio_base_original = $this->articulo->precio_base;
+
         return $this->save();
     }
 
@@ -366,10 +368,7 @@ class ListaPrecioArticulo extends Model
     /**
      * Busca el registro más específico para un artículo en una lista
      *
-     * @param int $listaPrecioId
-     * @param int $articuloId
-     * @param int|null $categoriaId Categoría del artículo
-     * @return self|null
+     * @param  int|null  $categoriaId  Categoría del artículo
      */
     public static function buscarParaArticulo(int $listaPrecioId, int $articuloId, ?int $categoriaId = null): ?self
     {

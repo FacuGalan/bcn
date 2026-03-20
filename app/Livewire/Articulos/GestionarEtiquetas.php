@@ -4,9 +4,9 @@ namespace App\Livewire\Articulos;
 
 use App\Models\Etiqueta;
 use App\Models\GrupoEtiqueta;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
 
 /**
  * Componente Livewire para gestión de grupos de etiquetas y etiquetas
@@ -21,7 +21,9 @@ class GestionarEtiquetas extends Component
 
     // Propiedades de filtros
     public string $search = '';
+
     public string $filterStatus = 'all';
+
     public bool $showFilters = false;
 
     // Control de acordeón - grupos expandidos
@@ -29,32 +31,47 @@ class GestionarEtiquetas extends Component
 
     // Modal de grupo
     public bool $showGrupoModal = false;
+
     public bool $editModeGrupo = false;
+
     public ?int $grupoId = null;
 
     // Propiedades del formulario de grupo
     public string $grupoNombre = '';
+
     public string $grupoCodigo = '';
+
     public string $grupoDescripcion = '';
+
     public string $grupoColor = '#3B82F6';
+
     public bool $grupoActivo = true;
 
     // Modal de etiqueta
     public bool $showEtiquetaModal = false;
+
     public bool $editModeEtiqueta = false;
+
     public ?int $etiquetaId = null;
+
     public ?int $etiquetaGrupoId = null;
 
     // Propiedades del formulario de etiqueta
     public string $etiquetaNombre = '';
+
     public string $etiquetaCodigo = '';
+
     public ?string $etiquetaColor = null;
+
     public bool $etiquetaActivo = true;
 
     // Modal de confirmación de eliminación
     public bool $showDeleteModal = false;
+
     public string $deleteType = ''; // 'grupo' o 'etiqueta'
+
     public ?int $itemAEliminar = null;
+
     public ?string $nombreItemAEliminar = null;
 
     public function mount()
@@ -76,7 +93,7 @@ class GestionarEtiquetas extends Component
 
     public function toggleFilters(): void
     {
-        $this->showFilters = !$this->showFilters;
+        $this->showFilters = ! $this->showFilters;
     }
 
     /**
@@ -118,11 +135,11 @@ class GestionarEtiquetas extends Component
 
         if ($this->search) {
             $query->where(function ($q) {
-                $q->where('nombre', 'like', '%' . $this->search . '%')
-                  ->orWhere('codigo', 'like', '%' . $this->search . '%')
-                  ->orWhereHas('etiquetas', function ($eq) {
-                      $eq->where('nombre', 'like', '%' . $this->search . '%');
-                  });
+                $q->where('nombre', 'like', '%'.$this->search.'%')
+                    ->orWhere('codigo', 'like', '%'.$this->search.'%')
+                    ->orWhereHas('etiquetas', function ($eq) {
+                        $eq->where('nombre', 'like', '%'.$this->search.'%');
+                    });
             });
         }
 
@@ -169,8 +186,8 @@ class GestionarEtiquetas extends Component
     public function saveGrupo(): void
     {
         $rules = [
-            'grupoNombre' => 'required|string|max:100|unique:pymes_tenant.grupos_etiquetas,nombre,' . $this->grupoId,
-            'grupoCodigo' => 'nullable|string|max:50|unique:pymes_tenant.grupos_etiquetas,codigo,' . $this->grupoId,
+            'grupoNombre' => 'required|string|max:100|unique:pymes_tenant.grupos_etiquetas,nombre,'.$this->grupoId,
+            'grupoCodigo' => 'nullable|string|max:50|unique:pymes_tenant.grupos_etiquetas,codigo,'.$this->grupoId,
             'grupoDescripcion' => 'nullable|string|max:500',
             'grupoColor' => 'required|string|max:7',
             'grupoActivo' => 'boolean',
@@ -199,7 +216,7 @@ class GestionarEtiquetas extends Component
             $message = __('Grupo creado correctamente');
         }
 
-        $this->js("window.notify('" . addslashes($message) . "', 'success')");
+        $this->js("window.notify('".addslashes($message)."', 'success')");
         $this->showGrupoModal = false;
         $this->resetGrupoForm();
     }
@@ -232,11 +249,11 @@ class GestionarEtiquetas extends Component
     public function toggleGrupoStatus(int $grupoId): void
     {
         $grupo = GrupoEtiqueta::findOrFail($grupoId);
-        $grupo->activo = !$grupo->activo;
+        $grupo->activo = ! $grupo->activo;
         $grupo->save();
 
         $status = $grupo->activo ? __('activado') : __('desactivado');
-        $this->js("window.notify('" . __('Grupo :status correctamente', ['status' => $status]) . "', 'success')");
+        $this->js("window.notify('".__('Grupo :status correctamente', ['status' => $status])."', 'success')");
     }
 
     // ==================== Métodos de Etiqueta ====================
@@ -295,6 +312,7 @@ class GestionarEtiquetas extends Component
 
         if ($this->etiquetaCodigo && $existeQuery->exists()) {
             $this->addError('etiquetaCodigo', __('Ya existe una etiqueta con este código en el grupo.'));
+
             return;
         }
 
@@ -317,7 +335,7 @@ class GestionarEtiquetas extends Component
             $message = __('Etiqueta creada correctamente');
         }
 
-        $this->js("window.notify('" . addslashes($message) . "', 'success')");
+        $this->js("window.notify('".addslashes($message)."', 'success')");
         $this->showEtiquetaModal = false;
         $this->resetEtiquetaForm();
     }
@@ -350,11 +368,11 @@ class GestionarEtiquetas extends Component
     public function toggleEtiquetaStatus(int $etiquetaId): void
     {
         $etiqueta = Etiqueta::findOrFail($etiquetaId);
-        $etiqueta->activo = !$etiqueta->activo;
+        $etiqueta->activo = ! $etiqueta->activo;
         $etiqueta->save();
 
         $status = $etiqueta->activo ? __('activada') : __('desactivada');
-        $this->js("window.notify('" . __('Etiqueta :status correctamente', ['status' => $status]) . "', 'success')");
+        $this->js("window.notify('".__('Etiqueta :status correctamente', ['status' => $status])."', 'success')");
     }
 
     // ==================== Métodos de Eliminación ====================
@@ -403,7 +421,7 @@ class GestionarEtiquetas extends Component
      */
     public function eliminar(): void
     {
-        if (!$this->itemAEliminar) {
+        if (! $this->itemAEliminar) {
             return;
         }
 
@@ -413,13 +431,13 @@ class GestionarEtiquetas extends Component
                 // Eliminar etiquetas del grupo primero
                 $grupo->etiquetas()->delete();
                 $grupo->delete();
-                $this->js("window.notify('" . __('Grupo eliminado correctamente') . "', 'success')");
+                $this->js("window.notify('".__('Grupo eliminado correctamente')."', 'success')");
             }
         } elseif ($this->deleteType === 'etiqueta') {
             $etiqueta = Etiqueta::find($this->itemAEliminar);
             if ($etiqueta) {
                 $etiqueta->delete();
-                $this->js("window.notify('" . __('Etiqueta eliminada correctamente') . "', 'success')");
+                $this->js("window.notify('".__('Etiqueta eliminada correctamente')."', 'success')");
             }
         }
 

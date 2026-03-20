@@ -4,7 +4,6 @@ namespace App\Livewire\Ventas;
 
 use App\Models\Articulo;
 use App\Models\Caja;
-use App\Models\CanalVenta;
 use App\Models\Categoria;
 use App\Models\Cliente;
 use App\Models\ConceptoPago;
@@ -14,7 +13,6 @@ use App\Models\FormaPago;
 use App\Models\FormaPagoCuota;
 use App\Models\FormaPagoCuotaSucursal;
 use App\Models\FormaPagoSucursal;
-use App\Models\FormaVenta;
 use App\Models\ListaPrecio;
 use App\Models\ListaPrecioArticulo;
 use App\Models\Moneda;
@@ -29,6 +27,7 @@ use App\Models\TipoCambio;
 use App\Models\VentaPago;
 use App\Services\ARCA\ComprobanteFiscalService;
 use App\Services\CajaService;
+use App\Services\CatalogoCache;
 use App\Services\CuentaEmpresaService;
 use App\Services\OpcionalService;
 use App\Services\VentaService;
@@ -38,6 +37,7 @@ use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -182,14 +182,26 @@ class NuevaVenta extends Component
     /** @var array Listas de precios disponibles */
     public $listasPreciosDisponibles = [];
 
-    /** @var array Formas de venta disponibles */
-    public $formasVenta = [];
+    /** Formas de venta disponibles (computed: no viaja en payload Livewire) */
+    #[Computed]
+    public function formasVenta(): array
+    {
+        return CatalogoCache::formasVenta()->toArray();
+    }
 
-    /** @var array Canales de venta disponibles */
-    public $canalesVenta = [];
+    /** Canales de venta disponibles (computed: no viaja en payload Livewire) */
+    #[Computed]
+    public function canalesVenta(): array
+    {
+        return CatalogoCache::canalesVenta()->toArray();
+    }
 
-    /** @var array Formas de pago disponibles */
-    public $formasPago = [];
+    /** Formas de pago disponibles (computed: no viaja en payload Livewire) */
+    #[Computed]
+    public function formasPago(): array
+    {
+        return CatalogoCache::formasPago()->toArray();
+    }
 
     // =========================================
     // PROPIEDADES DEL RESULTADO
@@ -395,11 +407,6 @@ class NuevaVenta extends Component
 
         // Validar estado de la caja
         $this->actualizarEstadoCaja();
-
-        // Cargar colecciones
-        $this->formasVenta = FormaVenta::activas()->get()->toArray();
-        $this->canalesVenta = CanalVenta::activos()->get()->toArray();
-        $this->formasPago = FormaPago::activas()->get()->toArray();
 
         // Cargar configuración de facturación fiscal de la sucursal
         $this->cargarConfiguracionFiscalSucursal();

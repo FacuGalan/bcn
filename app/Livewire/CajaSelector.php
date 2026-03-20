@@ -2,10 +2,9 @@
 
 namespace App\Livewire;
 
-use Livewire\Component;
 use App\Models\Caja;
 use App\Services\CajaService;
-use Illuminate\Support\Facades\Auth;
+use Livewire\Component;
 
 /**
  * Componente Livewire: Selector de Caja (Botón Flotante)
@@ -35,7 +34,9 @@ use Illuminate\Support\Facades\Auth;
 class CajaSelector extends Component
 {
     public $cajaActual;
+
     public $cajasDisponibles;
+
     public $mostrarDropdown = false;
 
     /**
@@ -86,7 +87,7 @@ class CajaSelector extends Component
         \Log::info('CajaSelector::handleSucursalChanged llamado', [
             'sucursalId' => $sucursalId,
             'sucursalNombre' => $sucursalNombre,
-            'session_sucursal_id' => session('sucursal_id')
+            'session_sucursal_id' => session('sucursal_id'),
         ]);
 
         // Cerrar dropdown si está abierto
@@ -103,7 +104,7 @@ class CajaSelector extends Component
         $this->cargarCajas();
         \Log::info('Cajas recargadas', [
             'count' => $this->cajasDisponibles->count(),
-            'cajaActual' => $this->cajaActual ? $this->cajaActual->nombre : 'null'
+            'cajaActual' => $this->cajaActual ? $this->cajaActual->nombre : 'null',
         ]);
 
         // Notificar a otros componentes sobre la caja actualizada
@@ -136,7 +137,7 @@ class CajaSelector extends Component
         }
 
         // Si no hay caja en sesión, usar la primera disponible (preferir operativa)
-        if (!$this->cajaActual && $this->cajasDisponibles->isNotEmpty()) {
+        if (! $this->cajaActual && $this->cajasDisponibles->isNotEmpty()) {
             // Intentar encontrar una caja operativa primero
             $cajaOperativa = $this->cajasDisponibles->firstWhere('estado_operativo', 'operativa');
             $this->cajaActual = $cajaOperativa ?? $this->cajasDisponibles->first();
@@ -146,7 +147,7 @@ class CajaSelector extends Component
 
     public function toggleDropdown()
     {
-        $this->mostrarDropdown = !$this->mostrarDropdown;
+        $this->mostrarDropdown = ! $this->mostrarDropdown;
     }
 
     public function cambiarCaja($cajaId)
@@ -166,7 +167,7 @@ class CajaSelector extends Component
             CajaService::clearCache();
 
             // Asegurar que tiene el estado_operativo calculado
-            if (!isset($caja->estado_operativo)) {
+            if (! isset($caja->estado_operativo)) {
                 $validacion = CajaService::validarCajaOperativa($caja->id);
                 $caja->estado_operativo = $validacion['estado'];
             }
@@ -185,14 +186,14 @@ class CajaSelector extends Component
             );
 
             // Mostrar notificación con estado
-            $estadoTexto = match($caja->estado_operativo) {
+            $estadoTexto = match ($caja->estado_operativo) {
                 'operativa' => '',
-                'pausada' => ' (' . __('Pausada') . ')',
-                'sin_turno' => ' (' . __('Sin turno') . ')',
+                'pausada' => ' ('.__('Pausada').')',
+                'sin_turno' => ' ('.__('Sin turno').')',
                 default => '',
             };
             $this->dispatch('notify',
-                message: __('Cambiado a caja: :nombre', ['nombre' => $caja->nombre]) . $estadoTexto,
+                message: __('Cambiado a caja: :nombre', ['nombre' => $caja->nombre]).$estadoTexto,
                 type: 'success'
             );
 

@@ -5,21 +5,24 @@ namespace App\Livewire\Bancos;
 use App\Models\CuentaEmpresa;
 use App\Models\TransferenciaCuentaEmpresa;
 use App\Services\CuentaEmpresaService;
-use Livewire\Component;
-use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
 use App\Traits\SucursalAware;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Layout;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 #[Layout('layouts.app')]
 class TransferenciasCuenta extends Component
 {
-    use WithPagination, SucursalAware;
+    use SucursalAware, WithPagination;
 
     // Formulario
     public ?int $cuentaOrigenId = null;
+
     public ?int $cuentaDestinoId = null;
+
     public ?float $monto = null;
+
     public string $concepto = '';
 
     public function transferir()
@@ -52,17 +55,18 @@ class TransferenciasCuenta extends Component
     public function getCuentasProperty()
     {
         $sucursalId = sucursal_activa();
+
         return CuentaEmpresaService::getCuentasDisponibles($sucursalId ?? 0);
     }
 
     public function getCuentasDestinoProperty()
     {
-        if (!$this->cuentaOrigenId) {
+        if (! $this->cuentaOrigenId) {
             return collect();
         }
 
         $origen = CuentaEmpresa::find($this->cuentaOrigenId);
-        if (!$origen) {
+        if (! $origen) {
             return collect();
         }
 
@@ -75,8 +79,8 @@ class TransferenciasCuenta extends Component
     public function render()
     {
         $transferencias = TransferenciaCuentaEmpresa::with([
-                'cuentaOrigen.moneda', 'cuentaDestino.moneda', 'usuario'
-            ])
+            'cuentaOrigen.moneda', 'cuentaDestino.moneda', 'usuario',
+        ])
             ->orderByDesc('created_at')
             ->paginate(15);
 

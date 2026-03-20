@@ -5,14 +5,13 @@ namespace App\Livewire\Articulos;
 use App\Models\Articulo;
 use App\Models\CambioPrecioProgramado;
 use App\Models\Categoria;
-use App\Models\Etiqueta;
 use App\Models\GrupoEtiqueta;
 use App\Models\HistorialPrecio;
 use App\Models\ListaPrecioArticulo;
 use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
 
 #[Layout('layouts.app')]
 class CambioMasivoPrecios extends Component
@@ -24,24 +23,34 @@ class CambioMasivoPrecios extends Component
 
     // Filtros
     public array $categoriasSeleccionadas = [];
+
     public array $etiquetasSeleccionadas = [];
+
     public string $busquedaCategoria = '';
+
     public string $busquedaEtiqueta = '';
+
     public string $busquedaArticuloPreview = '';
 
     // Configuración del ajuste
     public string $tipoAjuste = 'descuento'; // descuento, recargo
+
     public string $tipoValor = 'porcentual'; // porcentual, fijo
+
     public ?float $valorAjuste = null;
+
     public string $tipoRedondeo = 'sin_redondeo'; // sin_redondeo, entero, decena, centena
 
     // Preview de artículos
     public array $articulosPreview = [];
+
     public array $preciosEditados = [];
 
     // Para mostrar totales
     public int $totalArticulos = 0;
+
     public float $totalPrecioViejo = 0;
+
     public float $totalPrecioNuevo = 0;
 
     // Modal de confirmación
@@ -49,6 +58,7 @@ class CambioMasivoPrecios extends Component
 
     // Modal para agregar artículo
     public bool $showModalAgregarArticulo = false;
+
     public string $busquedaArticuloAgregar = '';
 
     // Alcance del cambio
@@ -56,13 +66,18 @@ class CambioMasivoPrecios extends Component
 
     // Programación
     public string $modoAplicacion = 'ahora'; // 'ahora' o 'programar'
+
     public ?string $fechaProgramada = null;
+
     public ?string $horaProgramada = null;
+
     public bool $showProgramados = false;
 
     // Filtros de cambios programados
     public string $filtroProgramadosEstado = 'pendiente';
+
     public ?string $filtroProgramadosFechaDesde = null;
+
     public ?string $filtroProgramadosFechaHasta = null;
 
     public function mount()
@@ -92,13 +107,15 @@ class CambioMasivoPrecios extends Component
         if ($this->paso === 1) {
             // Validar que haya un ajuste válido
             if ($this->valorAjuste === null || $this->valorAjuste <= 0) {
-                $this->js("window.notify('" . __('Ingresa un valor de ajuste válido') . "', 'error')");
+                $this->js("window.notify('".__('Ingresa un valor de ajuste válido')."', 'error')");
+
                 return;
             }
 
             // Validar que haya sucursal activa si el alcance es sucursal actual
-            if ($this->alcancePrecio === 'sucursal_actual' && !sucursal_activa()) {
-                $this->js("window.notify('" . __('Selecciona una sucursal primero') . "', 'error')");
+            if ($this->alcancePrecio === 'sucursal_actual' && ! sucursal_activa()) {
+                $this->js("window.notify('".__('Selecciona una sucursal primero')."', 'error')");
+
                 return;
             }
 
@@ -134,12 +151,12 @@ class CambioMasivoPrecios extends Component
             ->where('activo', true);
 
         // Filtro de categorías
-        if (!empty($this->categoriasSeleccionadas)) {
+        if (! empty($this->categoriasSeleccionadas)) {
             $query->whereIn('categoria_id', $this->categoriasSeleccionadas);
         }
 
         // Filtro de etiquetas
-        if (!empty($this->etiquetasSeleccionadas)) {
+        if (! empty($this->etiquetasSeleccionadas)) {
             $query->whereHas('etiquetas', function ($q) {
                 $q->whereIn('etiquetas.id', $this->etiquetasSeleccionadas);
             });
@@ -282,7 +299,7 @@ class CambioMasivoPrecios extends Component
     {
         $this->preciosEditados = [];
         $this->procesarPreview();
-        $this->js("window.notify('" . __('Precios recalculados') . "', 'success')");
+        $this->js("window.notify('".__('Precios recalculados')."', 'success')");
     }
 
     /**
@@ -291,7 +308,8 @@ class CambioMasivoPrecios extends Component
     public function confirmarCambios()
     {
         if (empty($this->articulosPreview)) {
-            $this->js("window.notify('" . __('No hay artículos para actualizar') . "', 'error')");
+            $this->js("window.notify('".__('No hay artículos para actualizar')."', 'error')");
+
             return;
         }
 
@@ -312,7 +330,8 @@ class CambioMasivoPrecios extends Component
     public function aplicarCambios()
     {
         if (empty($this->articulosPreview)) {
-            $this->js("window.notify('" . __('No hay artículos para actualizar') . "', 'error')");
+            $this->js("window.notify('".__('No hay artículos para actualizar')."', 'error')");
+
             return;
         }
 
@@ -325,7 +344,7 @@ class CambioMasivoPrecios extends Component
             // Construir detalle del cambio masivo
             $tipoAjusteLabel = $this->tipoAjuste === 'recargo' ? __('Recargo') : __('Descuento');
             $tipoValorLabel = $this->tipoValor === 'porcentual' ? '%' : '$';
-            $redondeoLabel = $this->tipoRedondeo !== 'sin_redondeo' ? ', ' . __('redondeo') . ' ' . $this->tipoRedondeo : '';
+            $redondeoLabel = $this->tipoRedondeo !== 'sin_redondeo' ? ', '.__('redondeo').' '.$this->tipoRedondeo : '';
             $detalleMasivo = "{$tipoAjusteLabel} {$this->valorAjuste}{$tipoValorLabel}{$redondeoLabel}";
 
             if ($this->alcancePrecio === 'sucursal_actual' && sucursal_activa()) {
@@ -381,7 +400,7 @@ class CambioMasivoPrecios extends Component
                 foreach ($this->articulosPreview as $articuloData) {
                     $articulo = Articulo::find($articuloData['id']);
 
-                    if (!$articulo) {
+                    if (! $articulo) {
                         continue;
                     }
 
@@ -455,17 +474,17 @@ class CambioMasivoPrecios extends Component
 
             $mensaje = __('Se actualizaron :count artículos', ['count' => $articulosActualizados]);
             if ($listasActualizadas > 0) {
-                $mensaje .= ' ' . __('y :count precios en listas', ['count' => $listasActualizadas]);
+                $mensaje .= ' '.__('y :count precios en listas', ['count' => $listasActualizadas]);
             }
 
-            $this->js("window.notify('" . addslashes($mensaje) . "', 'success')");
+            $this->js("window.notify('".addslashes($mensaje)."', 'success')");
             $this->showConfirmModal = false;
 
             return redirect()->route('articulos.gestionar');
 
         } catch (\Exception $e) {
             DB::connection('pymes_tenant')->rollBack();
-            $this->js("window.notify('" . __('Error al aplicar cambios') . ": " . addslashes($e->getMessage()) . "', 'error')");
+            $this->js("window.notify('".__('Error al aplicar cambios').': '.addslashes($e->getMessage())."', 'error')");
         }
     }
 
@@ -517,8 +536,8 @@ class CambioMasivoPrecios extends Component
             ->where('activo', true)
             ->whereNotIn('id', $idsExistentes)
             ->where(function ($query) {
-                $query->where('codigo', 'like', '%' . $this->busquedaArticuloAgregar . '%')
-                      ->orWhere('nombre', 'like', '%' . $this->busquedaArticuloAgregar . '%');
+                $query->where('codigo', 'like', '%'.$this->busquedaArticuloAgregar.'%')
+                    ->orWhere('nombre', 'like', '%'.$this->busquedaArticuloAgregar.'%');
             })
             ->limit(10)
             ->get();
@@ -539,14 +558,16 @@ class CambioMasivoPrecios extends Component
     {
         // Verificar que no esté ya en la lista
         if (isset($this->articulosPreview[$articuloId])) {
-            $this->js("window.notify('" . __('Este artículo ya está en la lista') . "', 'warning')");
+            $this->js("window.notify('".__('Este artículo ya está en la lista')."', 'warning')");
+
             return;
         }
 
         $articulo = Articulo::with('categoriaModel')->find($articuloId);
 
-        if (!$articulo) {
-            $this->js("window.notify('" . __('Artículo no encontrado') . "', 'error')");
+        if (! $articulo) {
+            $this->js("window.notify('".__('Artículo no encontrado')."', 'error')");
+
             return;
         }
 
@@ -574,7 +595,7 @@ class CambioMasivoPrecios extends Component
         $this->totalPrecioNuevo += $precioNuevo;
 
         $this->busquedaArticuloAgregar = '';
-        $this->js("window.notify('" . __('Artículo agregado a la lista') . "', 'success')");
+        $this->js("window.notify('".__('Artículo agregado a la lista')."', 'success')");
     }
 
     /**
@@ -583,19 +604,22 @@ class CambioMasivoPrecios extends Component
     public function programarCambios()
     {
         if (empty($this->articulosPreview)) {
-            $this->js("window.notify('" . __('No hay artículos para actualizar') . "', 'error')");
+            $this->js("window.notify('".__('No hay artículos para actualizar')."', 'error')");
+
             return;
         }
 
-        if (!$this->fechaProgramada || !$this->horaProgramada) {
-            $this->js("window.notify('" . __('Selecciona fecha y hora para programar') . "', 'error')");
+        if (! $this->fechaProgramada || ! $this->horaProgramada) {
+            $this->js("window.notify('".__('Selecciona fecha y hora para programar')."', 'error')");
+
             return;
         }
 
         $fechaHora = \Carbon\Carbon::parse("{$this->fechaProgramada} {$this->horaProgramada}");
 
         if ($fechaHora->isPast()) {
-            $this->js("window.notify('" . __('La fecha programada debe ser futura') . "', 'error')");
+            $this->js("window.notify('".__('La fecha programada debe ser futura')."', 'error')");
+
             return;
         }
 
@@ -619,11 +643,11 @@ class CambioMasivoPrecios extends Component
             $this->fechaProgramada = null;
             $this->horaProgramada = null;
 
-            $this->js("window.notify('" . addslashes(__('Cambio de precios programado correctamente para :fecha', ['fecha' => $fechaHora->format('d/m/Y H:i')])) . "', 'success')");
+            $this->js("window.notify('".addslashes(__('Cambio de precios programado correctamente para :fecha', ['fecha' => $fechaHora->format('d/m/Y H:i')]))."', 'success')");
 
             return redirect()->route('articulos.cambio-masivo-precios');
         } catch (\Exception $e) {
-            $this->js("window.notify('" . __('Error al programar cambio') . ": " . addslashes($e->getMessage()) . "', 'error')");
+            $this->js("window.notify('".__('Error al programar cambio').': '.addslashes($e->getMessage())."', 'error')");
         }
     }
 
@@ -636,13 +660,14 @@ class CambioMasivoPrecios extends Component
             ->where('estado', 'pendiente')
             ->first();
 
-        if (!$cambio) {
-            $this->js("window.notify('" . __('Cambio programado no encontrado o ya procesado') . "', 'error')");
+        if (! $cambio) {
+            $this->js("window.notify('".__('Cambio programado no encontrado o ya procesado')."', 'error')");
+
             return;
         }
 
         $cambio->update(['estado' => 'cancelado']);
-        $this->js("window.notify('" . __('Cambio programado cancelado') . "', 'success')");
+        $this->js("window.notify('".__('Cambio programado cancelado')."', 'success')");
     }
 
     /**
@@ -677,7 +702,7 @@ class CambioMasivoPrecios extends Component
 
     public function toggleProgramados()
     {
-        $this->showProgramados = !$this->showProgramados;
+        $this->showProgramados = ! $this->showProgramados;
     }
 
     public function render()
@@ -685,7 +710,7 @@ class CambioMasivoPrecios extends Component
         // Categorías con filtrado
         $categoriasQuery = Categoria::where('activo', true);
         if ($this->busquedaCategoria) {
-            $categoriasQuery->where('nombre', 'like', '%' . $this->busquedaCategoria . '%');
+            $categoriasQuery->where('nombre', 'like', '%'.$this->busquedaCategoria.'%');
         }
         $categorias = $categoriasQuery->orderBy('nombre')->get();
 
@@ -696,11 +721,11 @@ class CambioMasivoPrecios extends Component
 
         if ($busqueda) {
             $gruposEtiquetasQuery->where(function ($query) use ($busqueda) {
-                $query->where('nombre', 'like', '%' . $busqueda . '%')
-                      ->orWhereHas('etiquetas', function ($q) use ($busqueda) {
-                          $q->where('activo', true)
-                            ->where('nombre', 'like', '%' . $busqueda . '%');
-                      });
+                $query->where('nombre', 'like', '%'.$busqueda.'%')
+                    ->orWhereHas('etiquetas', function ($q) use ($busqueda) {
+                        $q->where('activo', true)
+                            ->where('nombre', 'like', '%'.$busqueda.'%');
+                    });
             });
         }
 
@@ -711,8 +736,8 @@ class CambioMasivoPrecios extends Component
             $etiquetasQuery = $grupo->etiquetas()->where('activo', true);
 
             // Si hay búsqueda y el grupo NO coincide, filtrar etiquetas
-            if ($busqueda && !str_contains(strtolower($grupo->nombre), strtolower($busqueda))) {
-                $etiquetasQuery->where('nombre', 'like', '%' . $busqueda . '%');
+            if ($busqueda && ! str_contains(strtolower($grupo->nombre), strtolower($busqueda))) {
+                $etiquetasQuery->where('nombre', 'like', '%'.$busqueda.'%');
             }
 
             $grupo->setRelation('etiquetas', $etiquetasQuery->orderBy('orden')->orderBy('nombre')->get());

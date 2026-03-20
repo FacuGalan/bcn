@@ -2,16 +2,14 @@
 
 namespace App\Livewire\Cajas;
 
-use Livewire\Component;
-use Livewire\WithPagination;
-use App\Models\CierreTurno;
-use App\Models\CierreTurnoCaja;
 use App\Models\Caja;
-use App\Models\GrupoCierre;
+use App\Models\CierreTurno;
 use App\Models\MovimientoCaja;
 use App\Services\SucursalService;
 use App\Traits\SucursalAware;
 use Carbon\Carbon;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 /**
  * Componente de Historial de Turnos
@@ -23,24 +21,32 @@ use Carbon\Carbon;
  */
 class HistorialTurnos extends Component
 {
-    use WithPagination;
     use SucursalAware;
+    use WithPagination;
 
     // Filtros
     public string $filtroFechaDesde = '';
+
     public string $filtroFechaHasta = '';
+
     public ?int $filtroCajaId = null;
+
     public ?int $filtroUsuarioId = null;
+
     public string $filtroTipo = ''; // individual, grupo, ''
+
     public string $filtroEstado = 'activos'; // activos, revertidos, todos
 
     // Datos para filtros
     public $cajasDisponibles = [];
+
     public $usuariosDisponibles = [];
 
     // Modal de detalle
     public bool $showDetalleModal = false;
+
     public ?int $cierreSeleccionadoId = null;
+
     public $cierreDetalle = null;
 
     protected $queryString = [
@@ -188,8 +194,9 @@ class HistorialTurnos extends Component
     {
         // Verificar que el cierre existe
         $cierre = CierreTurno::find($cierreId);
-        if (!$cierre) {
+        if (! $cierre) {
             $this->dispatch('toast-error', message: 'Cierre de turno no encontrado');
+
             return;
         }
 
@@ -237,10 +244,10 @@ class HistorialTurnos extends Component
         foreach ($cierre->detalleCajas as $detalle) {
             $desglose = $detalle->desglose_monedas ?? [];
             foreach ($desglose as $codigo => $datos) {
-                if (!empty($datos['es_principal'])) {
+                if (! empty($datos['es_principal'])) {
                     continue;
                 }
-                if (!isset($resumen[$codigo])) {
+                if (! isset($resumen[$codigo])) {
                     $resumen[$codigo] = [
                         'simbolo' => $datos['simbolo'] ?? $codigo,
                         'ingresos' => 0,
@@ -259,11 +266,11 @@ class HistorialTurnos extends Component
             ->get();
 
         foreach ($movimientos as $mov) {
-            if (!$mov->moneda) {
+            if (! $mov->moneda) {
                 continue;
             }
             $codigo = $mov->moneda->codigo;
-            if (!isset($resumen[$codigo])) {
+            if (! isset($resumen[$codigo])) {
                 $resumen[$codigo] = [
                     'simbolo' => $mov->moneda->simbolo ?? $codigo,
                     'ingresos' => 0,

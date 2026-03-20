@@ -6,9 +6,9 @@ use App\Models\Articulo;
 use App\Models\ArticuloGrupoOpcional;
 use App\Models\GrupoOpcional;
 use App\Services\OpcionalService;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
 
 /**
  * Componente Livewire para asignar grupos opcionales a artículos.
@@ -26,21 +26,28 @@ class AsignarOpcionales extends Component
 
     // Filtros
     public string $search = '';
+
     public string $filterAsignacion = 'all'; // all, con_grupos, sin_grupos
 
     // Modal asignación
     public bool $showModal = false;
+
     public ?int $articuloId = null;
+
     public string $articuloNombre = '';
+
     public array $gruposAsignados = [];
 
     // Panel inline agregar grupo (dentro del modal principal)
     public bool $mostrandoAgregarGrupo = false;
+
     public string $busquedaGrupo = '';
 
     // Submodal confirmar desasignación
     public bool $showDesasignarModal = false;
+
     public ?int $grupoADesasignar = null;
+
     public ?string $nombreGrupoADesasignar = null;
 
     public function updatingSearch(): void
@@ -67,8 +74,8 @@ class AsignarOpcionales extends Component
 
         if ($this->search) {
             $query->where(function ($q) {
-                $q->where('codigo', 'like', '%' . $this->search . '%')
-                  ->orWhere('nombre', 'like', '%' . $this->search . '%');
+                $q->where('codigo', 'like', '%'.$this->search.'%')
+                    ->orWhere('nombre', 'like', '%'.$this->search.'%');
             });
         }
 
@@ -101,14 +108,16 @@ class AsignarOpcionales extends Component
 
     protected function cargarGruposAsignados(): void
     {
-        if (!$this->articuloId) return;
+        if (! $this->articuloId) {
+            return;
+        }
 
         $sucursalId = sucursal_activa();
 
         // Obtener grupos asignados con opcionales del catálogo global (no de la sucursal)
         $asignaciones = ArticuloGrupoOpcional::with([
-                'grupoOpcional.opcionales' => fn($q) => $q->where('activo', true)->orderBy('orden'),
-            ])
+            'grupoOpcional.opcionales' => fn ($q) => $q->where('activo', true)->orderBy('orden'),
+        ])
             ->where('articulo_id', $this->articuloId)
             ->where('sucursal_id', $sucursalId)
             ->orderBy('orden')
@@ -123,7 +132,7 @@ class AsignarOpcionales extends Component
                 'obligatorio' => $asig->grupoOpcional->obligatorio,
                 'activo' => $asig->activo,
                 'orden' => $asig->orden,
-                'opciones' => $asig->grupoOpcional->opcionales->map(fn($op) => [
+                'opciones' => $asig->grupoOpcional->opcionales->map(fn ($op) => [
                     'id' => $op->id,
                     'nombre' => $op->nombre,
                     'precio_extra' => $op->precio_extra,
@@ -144,16 +153,16 @@ class AsignarOpcionales extends Component
 
         $query = GrupoOpcional::where('activo', true)
             ->whereNotIn('id', $gruposYaAsignados)
-            ->withCount(['opcionales' => fn($q) => $q->where('activo', true)]);
+            ->withCount(['opcionales' => fn ($q) => $q->where('activo', true)]);
 
         if ($this->busquedaGrupo) {
             $query->where(function ($q) {
-                $q->where('nombre', 'like', '%' . $this->busquedaGrupo . '%')
-                  ->orWhere('descripcion', 'like', '%' . $this->busquedaGrupo . '%');
+                $q->where('nombre', 'like', '%'.$this->busquedaGrupo.'%')
+                    ->orWhere('descripcion', 'like', '%'.$this->busquedaGrupo.'%');
             });
         }
 
-        return $query->orderBy('nombre')->limit(20)->get()->map(fn($g) => [
+        return $query->orderBy('nombre')->limit(20)->get()->map(fn ($g) => [
             'id' => $g->id,
             'nombre' => $g->nombre,
             'tipo' => $g->tipo,
@@ -164,7 +173,9 @@ class AsignarOpcionales extends Component
 
     public function asignarGrupo(int $grupoId): void
     {
-        if (!$this->articuloId) return;
+        if (! $this->articuloId) {
+            return;
+        }
 
         $service = app(OpcionalService::class);
         $count = $service->asignarGrupoAArticulo($this->articuloId, $grupoId);
@@ -187,7 +198,9 @@ class AsignarOpcionales extends Component
      */
     public function moverGrupoArriba(int $index): void
     {
-        if ($index <= 0 || !$this->articuloId) return;
+        if ($index <= 0 || ! $this->articuloId) {
+            return;
+        }
 
         $grupoActual = $this->gruposAsignados[$index];
         $grupoAnterior = $this->gruposAsignados[$index - 1];
@@ -202,7 +215,9 @@ class AsignarOpcionales extends Component
      */
     public function moverGrupoAbajo(int $index): void
     {
-        if ($index >= count($this->gruposAsignados) - 1 || !$this->articuloId) return;
+        if ($index >= count($this->gruposAsignados) - 1 || ! $this->articuloId) {
+            return;
+        }
 
         $grupoActual = $this->gruposAsignados[$index];
         $grupoSiguiente = $this->gruposAsignados[$index + 1];
@@ -261,7 +276,9 @@ class AsignarOpcionales extends Component
 
     public function desasignarGrupo(): void
     {
-        if (!$this->articuloId || !$this->grupoADesasignar) return;
+        if (! $this->articuloId || ! $this->grupoADesasignar) {
+            return;
+        }
 
         $service = app(OpcionalService::class);
         $service->desasignarGrupoDeArticulo($this->articuloId, $this->grupoADesasignar);

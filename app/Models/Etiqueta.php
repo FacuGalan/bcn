@@ -23,7 +23,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  * @property \Carbon\Carbon|null $deleted_at
- *
  * @property-read GrupoEtiqueta $grupo
  * @property-read \Illuminate\Database\Eloquent\Collection|Articulo[] $articulos
  */
@@ -32,6 +31,7 @@ class Etiqueta extends Model
     use SoftDeletes;
 
     protected $connection = 'pymes_tenant';
+
     protected $table = 'etiquetas';
 
     protected $fillable = [
@@ -64,7 +64,7 @@ class Etiqueta extends Model
     public function articulos(): BelongsToMany
     {
         return $this->belongsToMany(Articulo::class, 'articulo_etiqueta', 'etiqueta_id', 'articulo_id')
-                    ->withTimestamps();
+            ->withTimestamps();
     }
 
     // ==================== Scopes ====================
@@ -116,7 +116,7 @@ class Etiqueta extends Model
      */
     public function getNombreCompleto(): string
     {
-        return $this->grupo->nombre . ': ' . $this->nombre;
+        return $this->grupo->nombre.': '.$this->nombre;
     }
 
     /**

@@ -21,7 +21,6 @@ use Spatie\Permission\Models\Role as SpatieRole;
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  *
- * @package App\Models
  * @version 1.0.0
  */
 class Role extends SpatieRole
@@ -46,8 +45,6 @@ class Role extends SpatieRole
 
     /**
      * Verifica si el rol es protegido (no se puede modificar ni eliminar)
-     *
-     * @return bool
      */
     public function isProtected(): bool
     {
@@ -56,26 +53,26 @@ class Role extends SpatieRole
 
     /**
      * Verifica si el tenant está correctamente configurado
-     *
-     * @return bool
      */
     protected static function isTenantConfigured(): bool
     {
         $prefix = config('database.connections.pymes_tenant.prefix', '');
-        return !empty($prefix);
+
+        return ! empty($prefix);
     }
 
     /**
      * Da permisos al rol
      * Sobrescribe el método de Spatie para usar la conexión correcta
      *
-     * @param mixed ...$permissions
+     * @param  mixed  ...$permissions
      * @return $this
      */
     public function givePermissionTo(...$permissions)
     {
-        if (!static::isTenantConfigured()) {
+        if (! static::isTenantConfigured()) {
             Log::warning('Role::givePermissionTo() - Tenant no configurado');
+
             return $this;
         }
 
@@ -85,6 +82,7 @@ class Role extends SpatieRole
                 if (is_string($permission)) {
                     return Permission::where('name', $permission)->firstOrFail();
                 }
+
                 return $permission;
             })
             ->map(function ($permission) {
@@ -100,7 +98,7 @@ class Role extends SpatieRole
                 ->table('role_has_permissions')
                 ->insert($permissions);
         } catch (\Illuminate\Database\QueryException $e) {
-            Log::error('Role::givePermissionTo() - Error de base de datos: ' . $e->getMessage());
+            Log::error('Role::givePermissionTo() - Error de base de datos: '.$e->getMessage());
         }
 
         return $this;
@@ -109,13 +107,11 @@ class Role extends SpatieRole
     /**
      * Verifica si el rol tiene un permiso específico
      *
-     * @param mixed $permission
-     * @param string|null $guardName
-     * @return bool
+     * @param  mixed  $permission
      */
     public function hasPermissionTo($permission, ?string $guardName = null): bool
     {
-        if (!static::isTenantConfigured()) {
+        if (! static::isTenantConfigured()) {
             return false;
         }
 
@@ -123,7 +119,7 @@ class Role extends SpatieRole
             $permission = Permission::where('name', $permission)->first();
         }
 
-        if (!$permission) {
+        if (! $permission) {
             return false;
         }
 
@@ -134,15 +130,14 @@ class Role extends SpatieRole
                 ->where('permission_id', $permission->id)
                 ->exists();
         } catch (\Illuminate\Database\QueryException $e) {
-            Log::error('Role::hasPermissionTo() - Error de base de datos: ' . $e->getMessage());
+            Log::error('Role::hasPermissionTo() - Error de base de datos: '.$e->getMessage());
+
             return false;
         }
     }
 
     /**
      * Verifica si este rol es Super Administrador
-     *
-     * @return bool
      */
     public function isSuperAdmin(): bool
     {

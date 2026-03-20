@@ -2,12 +2,12 @@
 
 namespace Database\Seeders;
 
+use App\Models\Comercio;
+use App\Models\FormaPago;
+use App\Models\FormaPagoSucursal;
+use App\Models\Sucursal;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use App\Models\FormaPago;
-use App\Models\Sucursal;
-use App\Models\FormaPagoSucursal;
-use App\Models\Comercio;
 
 /**
  * Seeder: Formas de Pago por Sucursal
@@ -20,7 +20,9 @@ use App\Models\Comercio;
 class FormasPagoSucursalesSeeder extends Seeder
 {
     private $comercioId = 1;
+
     private $sucursales = [];
+
     private $formasPago = [];
 
     public function run(): void
@@ -40,11 +42,11 @@ class FormasPagoSucursalesSeeder extends Seeder
         echo "⚙️  Configurando tenant para comercio {$this->comercioId}...\n";
 
         $comercio = Comercio::find($this->comercioId);
-        $prefix = str_pad($this->comercioId, 6, '0', STR_PAD_LEFT) . '_';
+        $prefix = str_pad($this->comercioId, 6, '0', STR_PAD_LEFT).'_';
 
         config([
             'database.connections.pymes_tenant.prefix' => $prefix,
-            'database.connections.pymes_tenant.database' => $comercio->database_name ?? 'pymes'
+            'database.connections.pymes_tenant.database' => $comercio->database_name ?? 'pymes',
         ]);
 
         DB::purge('pymes_tenant');
@@ -81,11 +83,13 @@ class FormasPagoSucursalesSeeder extends Seeder
 
         if ($this->sucursales->isEmpty()) {
             echo "   ⚠️  No hay sucursales disponibles\n";
+
             return;
         }
 
         if ($this->formasPago->isEmpty()) {
             echo "   ⚠️  No hay formas de pago disponibles\n";
+
             return;
         }
 
@@ -98,8 +102,8 @@ class FormasPagoSucursalesSeeder extends Seeder
             foreach ($this->formasPago as $formaPago) {
                 // Verificar si ya existe la asignación
                 $existing = FormaPagoSucursal::where('forma_pago_id', $formaPago->id)
-                                             ->where('sucursal_id', $sucursal->id)
-                                             ->first();
+                    ->where('sucursal_id', $sucursal->id)
+                    ->first();
 
                 if ($existing) {
                     continue;
@@ -145,7 +149,7 @@ class FormasPagoSucursalesSeeder extends Seeder
 
         // Sucursal Norte - todas excepto Cheque y Cuenta Corriente
         if (str_contains(strtolower($sucursal->nombre), 'norte')) {
-            return !in_array($formaPago->concepto, ['cheque', 'otro']);
+            return ! in_array($formaPago->concepto, ['cheque', 'otro']);
         }
 
         // Sucursal Sur - solo efectivo y tarjetas

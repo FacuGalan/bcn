@@ -55,18 +55,20 @@ class CreateMenuItem extends Command
         // Verificar si ya existe
         if (MenuItem::where('slug', $slug)->exists()) {
             $this->error("Ya existe un item de menú con el slug '{$slug}'");
+
             return 1;
         }
 
         // Preguntar si es un submenú
         $parentId = $this->option('parent');
-        if (!$parentId && $this->confirm('¿Es un submenú (tiene un item padre)?', false)) {
+        if (! $parentId && $this->confirm('¿Es un submenú (tiene un item padre)?', false)) {
             $this->showParentMenuItems();
             $parentId = $this->ask('ID del item padre');
 
             // Validar que existe el padre
-            if ($parentId && !MenuItem::find($parentId)) {
+            if ($parentId && ! MenuItem::find($parentId)) {
                 $this->error("No existe un item de menú con ID {$parentId}");
+
                 return 1;
             }
         }
@@ -93,7 +95,7 @@ class CreateMenuItem extends Command
 
         // Icono
         $icono = $this->option('icono');
-        if (!$icono && $this->confirm('¿Desea asignar un icono?', true)) {
+        if (! $icono && $this->confirm('¿Desea asignar un icono?', true)) {
             $this->showIconExamples();
             $icono = $this->ask('Nombre del icono (ej: icon.shopping-cart)');
         }
@@ -137,7 +139,8 @@ class CreateMenuItem extends Command
 
             return 0;
         } catch (\Exception $e) {
-            $this->error('Error al crear el item de menú: ' . $e->getMessage());
+            $this->error('Error al crear el item de menú: '.$e->getMessage());
+
             return 1;
         }
     }
@@ -153,13 +156,14 @@ class CreateMenuItem extends Command
 
         if ($parents->isEmpty()) {
             $this->warn('No hay items padre disponibles');
+
             return;
         }
 
         $this->info('Items padre disponibles:');
         $this->table(
             ['ID', 'Nombre', 'Slug'],
-            $parents->map(fn($item) => [$item->id, $item->nombre, $item->slug])->toArray()
+            $parents->map(fn ($item) => [$item->id, $item->nombre, $item->slug])->toArray()
         );
     }
 

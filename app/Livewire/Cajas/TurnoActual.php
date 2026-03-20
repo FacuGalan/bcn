@@ -2,27 +2,24 @@
 
 namespace App\Livewire\Cajas;
 
-use Livewire\Component;
 use App\Models\Caja;
 use App\Models\CierreTurno;
 use App\Models\CierreTurnoCaja;
-use App\Models\MovimientoCaja;
-use App\Models\GrupoCierre;
-use App\Models\ConceptoPago;
-use App\Models\Venta;
-use App\Models\VentaPago;
 use App\Models\Cobro;
 use App\Models\CobroPago;
+use App\Models\GrupoCierre;
+use App\Models\Moneda;
+use App\Models\MovimientoCaja;
+use App\Models\Venta;
+use App\Models\VentaPago;
 use App\Services\CajaService;
 use App\Services\SucursalService;
 use App\Services\TesoreriaService;
-use App\Models\Tesoreria;
-use App\Models\Moneda;
 use App\Traits\SucursalAware;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Livewire\Component;
 
 /**
  * Componente Livewire: Turno Actual
@@ -46,45 +43,73 @@ class TurnoActual extends Component
 
     // Filtros y opciones de visualización
     public string $vistaMovimientos = 'agrupado';
+
     public ?int $cajaExpandida = null;
+
     public array $conceptosExpandidos = [];
 
     // Modal de cierre de turno
     public bool $showCierreModal = false;
+
     public ?int $cajaCierreId = null;
+
     public ?int $grupoCierreId = null;
+
     public array $cajasACerrar = [];
+
     public array $saldosDeclarados = [];
+
     public string $observacionesCierre = '';
+
     public bool $esCierreGrupal = false;
+
     public bool $cierreUsaFondoComun = false;
+
     public float $saldoFondoComunCierre = 0;
+
     public $saldoDeclaradoFondoComun = '';
+
     public array $declaradosMoneda = []; // cajaId => [código => valor], key 0 para fondo común
 
     // Modal de apertura de turno
     public bool $showAperturaModal = false;
+
     public ?int $cajaAperturaId = null;
+
     public ?int $grupoAperturaId = null;
+
     public array $cajasAAbrir = [];
+
     public array $fondosIniciales = [];
+
     public bool $esAperturaGrupal = false;
+
     public bool $grupoUsaFondoComun = false;
+
     public $fondoComunTotal = ''; // String para permitir input vacío
 
     // Modal de detalle de movimientos
     public bool $showDetalleModal = false;
+
     public ?int $cajaDetalleId = null;
+
     public array $detalleMovimientos = [];
+
     public array $detalleOtrosConceptos = [];
+
     public array $detalleInfo = [];
 
     // Datos calculados
     public Collection $cajas;
+
     public array $totalesGenerales = [];
+
     public array $cajasTotalesPorConcepto = [];
+
     public array $cajasTotalesPorFormaPago = [];
+
     public array $cajasResumenMovimientos = [];
+
     public array $cajasOperaciones = [];
 
     protected $listeners = ['caja-actualizada' => 'cargarCajas'];
@@ -117,8 +142,9 @@ class TurnoActual extends Component
     {
         $sucursalId = SucursalService::getSucursalActiva();
 
-        if (!$sucursalId) {
+        if (! $sucursalId) {
             $this->cajas = collect();
+
             return;
         }
 
@@ -129,8 +155,8 @@ class TurnoActual extends Component
             ->where('activo', true)
             ->with(['grupoCierre', 'movimientos' => function ($q) {
                 $q->whereNull('cierre_turno_id')
-                  ->with(['moneda', 'tipoCambio'])
-                  ->orderBy('created_at', 'desc');
+                    ->with(['moneda', 'tipoCambio'])
+                    ->orderBy('created_at', 'desc');
             }]);
 
         if ($cajaIdsPermitidas !== null) {
@@ -147,13 +173,57 @@ class TurnoActual extends Component
         $this->cajasResumenMovimientos = [];
         $this->cajasOperaciones = [];
 
-        // Calcular totales por caja
+        // Precargar ventasPagos y counts para TODAS las cajas en 2 queries (evita N+1)
+        $cajaIds = $this->cajas->pluck('id');
+        $cajasAbiertas = $this->cajas->reject(fn ($c) => $this->esTurnoCerrado($c));
+        $ventasPagosPorCaja = collect();
+        $operacionesPorCaja = collect();
+
+        if ($cajasAbiertas->isNotEmpty()) {
+            $abiertasData = $cajasAbiertas->mapWithKeys(fn ($c) => [$c->id => $c->fecha_apertura ?? today()]);
+
+            // Una sola query para todos los VentaPago de todas las cajas abiertas
+            $todosVentasPagos = VentaPago::whereHas('venta', function ($q) use ($abiertasData) {
+                $q->where('estado', 'completada')
+                    ->where(function ($q2) use ($abiertasData) {
+                        foreach ($abiertasData as $cajaId => $fecha) {
+                            $q2->orWhere(fn ($q3) => $q3->where('caja_id', $cajaId)->where('created_at', '>=', $fecha));
+                        }
+                    });
+            })
+                ->with(['conceptoPago', 'formaPago', 'venta:id,caja_id'])
+                ->get();
+
+            $ventasPagosPorCaja = $todosVentasPagos->groupBy(fn ($p) => $p->venta->caja_id);
+
+            // Una sola query para counts de cobros (usando Eloquent para respetar prefijo tenant)
+            $todosCobroPagos = CobroPago::whereHas('cobro', function ($q) use ($abiertasData) {
+                $q->where('estado', 'activo')
+                    ->where(function ($q2) use ($abiertasData) {
+                        foreach ($abiertasData as $cajaId => $fecha) {
+                            $q2->orWhere(fn ($q3) => $q3->where('caja_id', $cajaId)->where('created_at', '>=', $fecha));
+                        }
+                    });
+            })
+                ->with('cobro:id,caja_id')
+                ->get();
+
+            $cobrosCountPorCaja = $todosCobroPagos->groupBy(fn ($p) => $p->cobro->caja_id)->map->count();
+
+            foreach ($abiertasData as $cajaId => $fecha) {
+                $ventasCount = ($ventasPagosPorCaja[$cajaId] ?? collect())->count();
+                $cobrosCount = $cobrosCountPorCaja[$cajaId] ?? 0;
+                $operacionesPorCaja[$cajaId] = $ventasCount + $cobrosCount;
+            }
+        }
+
+        // Calcular totales por caja (sin queries adicionales)
         foreach ($this->cajas as $caja) {
-            $ventasPagos = $this->esTurnoCerrado($caja) ? collect() : $this->getVentasPagosCaja($caja);
+            $ventasPagos = $ventasPagosPorCaja[$caja->id] ?? collect();
             $totalesPorConcepto = $this->calcularTotalesPorConcepto($caja, $ventasPagos);
             $totalesPorFormaPago = $this->calcularTotalesPorFormaPago($caja, $ventasPagos);
             $resumenMovimientos = $this->calcularResumenMovimientos($caja);
-            $cantidadOperaciones = $this->contarOperaciones($caja);
+            $cantidadOperaciones = $operacionesPorCaja[$caja->id] ?? 0;
 
             // Guardar en arrays separados para persistir entre re-renders
             $this->cajasTotalesPorConcepto[$caja->id] = $totalesPorConcepto;
@@ -211,14 +281,14 @@ class TurnoActual extends Component
 
         $ventasCount = VentaPago::whereHas('venta', function ($q) use ($caja) {
             $q->where('caja_id', $caja->id)
-              ->where('estado', 'completada')
-              ->where('created_at', '>=', $caja->fecha_apertura ?? today());
+                ->where('estado', 'completada')
+                ->where('created_at', '>=', $caja->fecha_apertura ?? today());
         })->count();
 
         $cobrosCount = CobroPago::whereHas('cobro', function ($q) use ($caja) {
             $q->where('caja_id', $caja->id)
-              ->where('estado', 'activo')
-              ->where('created_at', '>=', $caja->fecha_apertura ?? today());
+                ->where('estado', 'activo')
+                ->where('created_at', '>=', $caja->fecha_apertura ?? today());
         })->count();
 
         return $ventasCount + $cobrosCount;
@@ -245,7 +315,7 @@ class TurnoActual extends Component
         // Si está cerrada, verificar si tiene movimientos pendientes
         // Si tiene movimientos pendientes = está pausada (turno aún abierto)
         $movimientos = $caja->movimientos ?? collect();
-        if (!$movimientos->isEmpty()) {
+        if (! $movimientos->isEmpty()) {
             return false;
         }
 
@@ -265,14 +335,14 @@ class TurnoActual extends Component
     protected function verificarTurnoGrupoActivo(Caja $caja): bool
     {
         // Si no tiene grupo, no aplica
-        if (!$caja->grupo_cierre_id || !$caja->grupoCierre) {
+        if (! $caja->grupo_cierre_id || ! $caja->grupoCierre) {
             return false;
         }
 
         $grupo = $caja->grupoCierre;
 
         // Solo aplica a grupos con fondo común
-        if (!$grupo->fondo_comun) {
+        if (! $grupo->fondo_comun) {
             return false;
         }
 
@@ -326,7 +396,7 @@ class TurnoActual extends Component
             $conceptoCodigo = $pago->conceptoPago?->codigo ?? 'otros';
             $conceptoNombre = $pago->conceptoPago?->nombre ?? 'Otros';
 
-            if (!isset($totales[$conceptoCodigo])) {
+            if (! isset($totales[$conceptoCodigo])) {
                 $totales[$conceptoCodigo] = [
                     'codigo' => $conceptoCodigo,
                     'nombre' => $conceptoNombre,
@@ -348,10 +418,10 @@ class TurnoActual extends Component
     protected function getVentasPagosCaja(Caja $caja)
     {
         return VentaPago::whereHas('venta', function ($q) use ($caja) {
-                $q->where('caja_id', $caja->id)
-                  ->where('estado', 'completada')
-                  ->where('created_at', '>=', $caja->fecha_apertura ?? today());
-            })
+            $q->where('caja_id', $caja->id)
+                ->where('estado', 'completada')
+                ->where('created_at', '>=', $caja->fecha_apertura ?? today());
+        })
             ->with(['conceptoPago', 'formaPago'])
             ->get();
     }
@@ -372,7 +442,7 @@ class TurnoActual extends Component
             $fpNombre = $pago->formaPago?->nombre ?? 'Otros';
             $fpId = $pago->forma_pago_id ?? 0;
 
-            if (!isset($totales[$fpId])) {
+            if (! isset($totales[$fpId])) {
                 $totales[$fpId] = [
                     'nombre' => $fpNombre,
                     'monto' => 0,
@@ -411,7 +481,7 @@ class TurnoActual extends Component
         // Filtrar movimientos operativos (excluir apertura y provisiones de fondo)
         $tiposExcluidos = ['apertura', 'provision_fondo', 'rendicion_fondo'];
         $movimientosOperativos = $movimientos->filter(function ($m) use ($tiposExcluidos) {
-            return !in_array($m->referencia_tipo, $tiposExcluidos);
+            return ! in_array($m->referencia_tipo, $tiposExcluidos);
         });
 
         $ingresos = $movimientosOperativos->where('tipo', 'ingreso')->sum('monto');
@@ -435,12 +505,12 @@ class TurnoActual extends Component
         }
 
         foreach ($movimientosOperativos as $mov) {
-            $esExtranjera = $mov->moneda_id && $mov->monto_moneda_original > 0 && $mov->moneda && !$mov->moneda->es_principal;
+            $esExtranjera = $mov->moneda_id && $mov->monto_moneda_original > 0 && $mov->moneda && ! $mov->moneda->es_principal;
 
             if ($esExtranjera) {
                 $moneda = $mov->moneda;
                 $key = $moneda->codigo;
-                if (!isset($porMoneda[$key])) {
+                if (! isset($porMoneda[$key])) {
                     $porMoneda[$key] = [
                         'codigo' => $moneda->codigo,
                         'simbolo' => $moneda->simbolo,
@@ -513,7 +583,7 @@ class TurnoActual extends Component
     {
         // Incluir cajas abiertas Y cajas pausadas con turno activo (movimientos pendientes)
         $cajasConTurnoActivo = $this->cajas->filter(function ($caja) {
-            return !$this->esTurnoCerrado($caja);
+            return ! $this->esTurnoCerrado($caja);
         });
 
         // Calcular saldo inicial considerando fondos comunes de grupos
@@ -523,7 +593,7 @@ class TurnoActual extends Component
         foreach ($cajasConTurnoActivo as $caja) {
             if ($caja->grupo_cierre_id && $caja->grupoCierre && $caja->grupoCierre->fondo_comun) {
                 // Caja con fondo común: sumar el fondo del grupo (solo una vez)
-                if (!in_array($caja->grupo_cierre_id, $gruposContados)) {
+                if (! in_array($caja->grupo_cierre_id, $gruposContados)) {
                     $saldoInicial += $caja->grupoCierre->saldo_fondo_comun ?? 0;
                     $gruposContados[] = $caja->grupo_cierre_id;
                 }
@@ -563,7 +633,7 @@ class TurnoActual extends Component
 
             // Saldo actual: para fondo común, es fondo_grupo + ingresos - egresos de todas las cajas
             if ($caja->grupo_cierre_id && $caja->grupoCierre && $caja->grupoCierre->fondo_comun) {
-                if (!in_array($caja->grupo_cierre_id, $gruposContados)) {
+                if (! in_array($caja->grupo_cierre_id, $gruposContados)) {
                     // Sumar el fondo común del grupo
                     $this->totalesGenerales['saldoActual'] += $caja->grupoCierre->saldo_fondo_comun ?? 0;
                     $gruposContados[] = $caja->grupo_cierre_id;
@@ -576,7 +646,7 @@ class TurnoActual extends Component
             }
 
             foreach ($caja->totalesPorConcepto ?? [] as $codigo => $concepto) {
-                if (!isset($this->totalesGenerales['porConcepto'][$codigo])) {
+                if (! isset($this->totalesGenerales['porConcepto'][$codigo])) {
                     $this->totalesGenerales['porConcepto'][$codigo] = [
                         'codigo' => $concepto['codigo'],
                         'nombre' => $concepto['nombre'],
@@ -589,7 +659,7 @@ class TurnoActual extends Component
             }
 
             foreach ($caja->totalesPorFormaPago ?? [] as $fpId => $fp) {
-                if (!isset($this->totalesGenerales['porFormaPago'][$fpId])) {
+                if (! isset($this->totalesGenerales['porFormaPago'][$fpId])) {
                     $this->totalesGenerales['porFormaPago'][$fpId] = [
                         'nombre' => $fp['nombre'],
                         'monto' => 0,
@@ -602,14 +672,14 @@ class TurnoActual extends Component
 
             // Acumular desglose por moneda
             foreach ($caja->resumenMovimientos['porMoneda'] ?? [] as $codigo => $monedaData) {
-                if (!isset($this->totalesGenerales['porMoneda'][$codigo])) {
+                if (! isset($this->totalesGenerales['porMoneda'][$codigo])) {
                     $this->totalesGenerales['porMoneda'][$codigo] = $monedaData;
                 } else {
                     $this->totalesGenerales['porMoneda'][$codigo]['ingresos'] += $monedaData['ingresos'];
                     $this->totalesGenerales['porMoneda'][$codigo]['egresos'] += $monedaData['egresos'];
                     $this->totalesGenerales['porMoneda'][$codigo]['saldo'] += $monedaData['saldo'];
                     $this->totalesGenerales['porMoneda'][$codigo]['operaciones'] += $monedaData['operaciones'];
-                    if (!($monedaData['es_principal'] ?? true)) {
+                    if (! ($monedaData['es_principal'] ?? true)) {
                         $this->totalesGenerales['porMoneda'][$codigo]['ingresos_convertido'] = ($this->totalesGenerales['porMoneda'][$codigo]['ingresos_convertido'] ?? 0) + ($monedaData['ingresos_convertido'] ?? 0);
                         $this->totalesGenerales['porMoneda'][$codigo]['egresos_convertido'] = ($this->totalesGenerales['porMoneda'][$codigo]['egresos_convertido'] ?? 0) + ($monedaData['egresos_convertido'] ?? 0);
                         $this->totalesGenerales['porMoneda'][$codigo]['saldo_convertido'] = ($this->totalesGenerales['porMoneda'][$codigo]['saldo_convertido'] ?? 0) + ($monedaData['saldo_convertido'] ?? 0);
@@ -627,14 +697,16 @@ class TurnoActual extends Component
         try {
             $caja = Caja::find($cajaId);
 
-            if (!$caja) {
+            if (! $caja) {
                 $this->dispatch('toast-error', message: 'Caja no encontrada');
+
                 return;
             }
 
             // Si la caja nunca fue abierta, necesita apertura de turno
-            if (!$caja->fecha_apertura) {
+            if (! $caja->fecha_apertura) {
                 $this->abrirModalApertura($cajaId);
+
                 return;
             }
 
@@ -662,8 +734,9 @@ class TurnoActual extends Component
         try {
             $caja = Caja::find($cajaId);
 
-            if (!$caja) {
+            if (! $caja) {
                 $this->dispatch('toast-error', message: 'Caja no encontrada');
+
                 return;
             }
 
@@ -696,8 +769,9 @@ class TurnoActual extends Component
         if ($grupoId) {
             // Apertura grupal
             $grupo = GrupoCierre::with('cajas')->find($grupoId);
-            if (!$grupo) {
+            if (! $grupo) {
                 $this->dispatch('toast-error', message: 'Grupo no encontrado');
+
                 return;
             }
 
@@ -709,7 +783,7 @@ class TurnoActual extends Component
             $this->grupoUsaFondoComun = $grupo->usaFondoComun();
             $this->fondoComunTotal = ''; // Vacío para que el usuario ingrese el monto
 
-            if (!$this->grupoUsaFondoComun) {
+            if (! $this->grupoUsaFondoComun) {
                 // Fondo individual por caja
                 foreach ($grupo->cajas->where('activo', true) as $caja) {
                     $this->fondosIniciales[$caja->id] = $this->calcularFondoInicialParaInput($caja);
@@ -718,8 +792,9 @@ class TurnoActual extends Component
         } elseif ($cajaId) {
             // Apertura individual
             $caja = Caja::find($cajaId);
-            if (!$caja) {
+            if (! $caja) {
                 $this->dispatch('toast-error', message: 'Caja no encontrada');
+
                 return;
             }
 
@@ -744,6 +819,7 @@ class TurnoActual extends Component
                 $ultimoCierre = CierreTurnoCaja::where('caja_id', $caja->id)
                     ->orderBy('created_at', 'desc')
                     ->first();
+
                 return $ultimoCierre?->saldo_final ?? 0;
 
             case 'monto_fijo':
@@ -765,6 +841,7 @@ class TurnoActual extends Component
                 $ultimoCierre = CierreTurnoCaja::where('caja_id', $caja->id)
                     ->orderBy('created_at', 'desc')
                     ->first();
+
                 return $ultimoCierre?->saldo_final ?? '';
 
             case 'monto_fijo':
@@ -793,12 +870,12 @@ class TurnoActual extends Component
             // Si es apertura grupal con fondo común
             if ($this->esAperturaGrupal && $this->grupoUsaFondoComun) {
                 $grupo = GrupoCierre::with('cajas')->find($this->grupoAperturaId);
-                if (!$grupo) {
+                if (! $grupo) {
                     throw new \Exception('Grupo no encontrado');
                 }
 
                 // Convertir a float (puede venir vacío)
-                $fondoComun = $this->fondoComunTotal !== '' ? (float)$this->fondoComunTotal : 0;
+                $fondoComun = $this->fondoComunTotal !== '' ? (float) $this->fondoComunTotal : 0;
 
                 // Si hay tesorería ACTIVA y fondo > 0, hacer provisión desde tesorería
                 if ($tesoreria && $tesoreria->activo && $fondoComun > 0) {
@@ -818,7 +895,9 @@ class TurnoActual extends Component
                 // Las cajas se abren con saldo 0, el fondo real está en el grupo
                 foreach ($this->cajasAAbrir as $cajaId) {
                     $caja = Caja::find($cajaId);
-                    if (!$caja) continue;
+                    if (! $caja) {
+                        continue;
+                    }
 
                     $caja->update([
                         'estado' => 'abierta',
@@ -834,10 +913,12 @@ class TurnoActual extends Component
                 // Usar CajaService con integración de tesorería
                 foreach ($this->cajasAAbrir as $cajaId) {
                     $caja = Caja::find($cajaId);
-                    if (!$caja) continue;
+                    if (! $caja) {
+                        continue;
+                    }
 
                     $fondoInicialRaw = $this->fondosIniciales[$cajaId] ?? '';
-                    $fondoInicial = $fondoInicialRaw !== '' ? (float)$fondoInicialRaw : 0;
+                    $fondoInicial = $fondoInicialRaw !== '' ? (float) $fondoInicialRaw : 0;
 
                     // Usar el servicio integrado con tesorería
                     $resultado = CajaService::abrirCajaConTesoreria(
@@ -847,7 +928,7 @@ class TurnoActual extends Component
                         $tesoreria
                     );
 
-                    if (!$resultado['success']) {
+                    if (! $resultado['success']) {
                         throw new \Exception($resultado['message']);
                     }
                 }
@@ -867,7 +948,7 @@ class TurnoActual extends Component
                 : 'Turno de caja abierto exitosamente';
 
             if ($this->grupoUsaFondoComun && $this->fondoComunTotal !== '') {
-                $mensaje .= ' (Fondo común: $' . number_format((float)$this->fondoComunTotal, 2, ',', '.') . ')';
+                $mensaje .= ' (Fondo común: $'.number_format((float) $this->fondoComunTotal, 2, ',', '.').')';
             }
 
             $this->dispatch('toast-success', message: $mensaje);
@@ -875,7 +956,7 @@ class TurnoActual extends Component
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error al abrir turno', ['error' => $e->getMessage()]);
-            $this->dispatch('toast-error', message: 'Error al abrir el turno: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: 'Error al abrir el turno: '.$e->getMessage());
         }
     }
 
@@ -909,8 +990,9 @@ class TurnoActual extends Component
         if ($grupoId) {
             // Cierre grupal
             $grupo = GrupoCierre::with('cajas')->find($grupoId);
-            if (!$grupo) {
+            if (! $grupo) {
                 $this->dispatch('toast-error', message: 'Grupo no encontrado');
+
                 return;
             }
 
@@ -931,12 +1013,12 @@ class TurnoActual extends Component
                 $monedasConsolidadas = [];
                 foreach ($this->cajasACerrar as $cId) {
                     foreach ($this->getMonedasExtranjeras($cId) as $codigo => $info) {
-                        if (!isset($monedasConsolidadas[$codigo])) {
+                        if (! isset($monedasConsolidadas[$codigo])) {
                             $monedasConsolidadas[$codigo] = '';
                         }
                     }
                 }
-                if (!empty($monedasConsolidadas)) {
+                if (! empty($monedasConsolidadas)) {
                     $this->declaradosMoneda[0] = $monedasConsolidadas;
                 }
             } else {
@@ -944,23 +1026,25 @@ class TurnoActual extends Component
                 foreach ($cajasGrupo as $caja) {
                     $this->saldosDeclarados[$caja->id] = '';
                     $monedasCaja = $this->getMonedasExtranjeras($caja->id);
-                    if (!empty($monedasCaja)) {
-                        $this->declaradosMoneda[$caja->id] = array_map(fn() => '', $monedasCaja);
+                    if (! empty($monedasCaja)) {
+                        $this->declaradosMoneda[$caja->id] = array_map(fn () => '', $monedasCaja);
                     }
                 }
             }
         } elseif ($cajaId) {
             $caja = $this->cajas->firstWhere('id', $cajaId);
 
-            if (!$caja) {
+            if (! $caja) {
                 $this->dispatch('toast-error', message: 'Caja no encontrada');
+
                 return;
             }
 
             // Verificar si es parte de un grupo
-            if ($caja->grupo_cierre_id && !auth()->user()->can('func.cerrar_caja_individual')) {
+            if ($caja->grupo_cierre_id && ! auth()->user()->can('func.cerrar_caja_individual')) {
                 // Debe cerrar todo el grupo
                 $this->abrirModalCierre(null, $caja->grupo_cierre_id);
+
                 return;
             }
 
@@ -971,8 +1055,8 @@ class TurnoActual extends Component
             $this->saldosDeclarados[$cajaId] = '';
             // Pre-crear entries para monedas extranjeras
             $monedasCaja = $this->getMonedasExtranjeras($cajaId);
-            if (!empty($monedasCaja)) {
-                $this->declaradosMoneda[$cajaId] = array_map(fn() => '', $monedasCaja);
+            if (! empty($monedasCaja)) {
+                $this->declaradosMoneda[$cajaId] = array_map(fn () => '', $monedasCaja);
             }
         }
 
@@ -1051,13 +1135,13 @@ class TurnoActual extends Component
                 $saldoSistemaTotal = $datosConsolidados['saldo_sistema'];
 
                 // Si hay monedas extranjeras, usar saldo ARS puro para sistema/declarado/diferencia
-                $hayExtranjeras = !empty($datosConsolidados['monedasConsolidadas']);
+                $hayExtranjeras = ! empty($datosConsolidados['monedasConsolidadas']);
                 $saldoSistema = $hayExtranjeras
                     ? $datosConsolidados['saldo_sistema_principal']
                     : $saldoSistemaTotal;
 
                 $saldoDeclarado = $this->saldoDeclaradoFondoComun !== ''
-                    ? (float)$this->saldoDeclaradoFondoComun
+                    ? (float) $this->saldoDeclaradoFondoComun
                     : $saldoSistema;
 
                 $totalDiferencia = $saldoDeclarado - $saldoSistema;
@@ -1066,7 +1150,9 @@ class TurnoActual extends Component
                 // Cerrar cada caja del grupo (sin saldo individual)
                 foreach ($this->cajasACerrar as $cajaId) {
                     $caja = Caja::find($cajaId);
-                    if (!$caja) continue;
+                    if (! $caja) {
+                        continue;
+                    }
 
                     // Calcular ingresos/egresos de esta caja específica
                     $ingCaja = MovimientoCaja::where('caja_id', $cajaId)
@@ -1084,14 +1170,14 @@ class TurnoActual extends Component
                     $desgloses = $this->calcularDesglosesCaja($cajaId);
 
                     // Enriquecer desglose monedas con declarados y diferencia (fondo común usa key 0)
-                    if (!empty($desgloses['monedas'])) {
+                    if (! empty($desgloses['monedas'])) {
                         foreach ($desgloses['monedas'] as $codMon => &$dataMon) {
                             if ($dataMon['es_principal'] ?? false) {
                                 $dataMon['declarado'] = $saldoDeclarado;
                                 $dataMon['diferencia'] = $totalDiferencia;
                             } else {
                                 $decMon = isset($this->declaradosMoneda[0][$codMon]) && $this->declaradosMoneda[0][$codMon] !== ''
-                                    ? (float)$this->declaradosMoneda[0][$codMon] : null;
+                                    ? (float) $this->declaradosMoneda[0][$codMon] : null;
                                 $saldoSistMon = $dataMon['saldo'] ?? 0;
                                 $dataMon['declarado'] = $decMon;
                                 $dataMon['diferencia'] = $decMon !== null ? round($decMon - $saldoSistMon, 2) : null;
@@ -1138,12 +1224,18 @@ class TurnoActual extends Component
                 // Primero sumar saldo_sistema de cada caja, luego usar el declarado del fondo común
                 $monedasExtGrupo = [];
                 foreach ($cierreTurno->detalleCajas as $detalleCaja) {
-                    if (!$detalleCaja->desglose_monedas) continue;
+                    if (! $detalleCaja->desglose_monedas) {
+                        continue;
+                    }
                     foreach ($detalleCaja->desglose_monedas as $codMon => $dataMon) {
-                        if ($dataMon['es_principal'] ?? false) continue;
-                        if (!isset($dataMon['moneda_id'])) continue;
+                        if ($dataMon['es_principal'] ?? false) {
+                            continue;
+                        }
+                        if (! isset($dataMon['moneda_id'])) {
+                            continue;
+                        }
                         $mId = $dataMon['moneda_id'];
-                        if (!isset($monedasExtGrupo[$mId])) {
+                        if (! isset($monedasExtGrupo[$mId])) {
                             $monedasExtGrupo[$mId] = [
                                 'codigo' => $dataMon['codigo'] ?? $codMon,
                                 'simbolo' => $dataMon['simbolo'] ?? '',
@@ -1166,10 +1258,10 @@ class TurnoActual extends Component
                 }
                 unset($dataMon);
                 // Filtrar monedas con saldo > 0
-                $monedasExtGrupo = array_filter($monedasExtGrupo, fn($d) => round($d['saldo'], 2) > 0);
+                $monedasExtGrupo = array_filter($monedasExtGrupo, fn ($d) => round($d['saldo'], 2) > 0);
 
                 // Rendir el fondo común a tesorería (solo si está activa)
-                if ($tesoreria && $tesoreria->activo && ($saldoDeclarado > 0 || !empty($monedasExtGrupo))) {
+                if ($tesoreria && $tesoreria->activo && ($saldoDeclarado > 0 || ! empty($monedasExtGrupo))) {
                     TesoreriaService::rendirFondoGrupo(
                         $grupo,
                         $tesoreria,
@@ -1178,7 +1270,7 @@ class TurnoActual extends Component
                         $usuarioId,
                         $cierreTurno->id,
                         'Cierre de turno grupal con fondo común',
-                        !empty($monedasExtGrupo) ? $monedasExtGrupo : null
+                        ! empty($monedasExtGrupo) ? $monedasExtGrupo : null
                     );
                 }
 
@@ -1189,7 +1281,9 @@ class TurnoActual extends Component
                 // Cierre normal (individual o grupal sin fondo común)
                 foreach ($this->cajasACerrar as $cajaId) {
                     $caja = Caja::find($cajaId);
-                    if (!$caja) continue;
+                    if (! $caja) {
+                        continue;
+                    }
 
                     // Calcular totales EXCLUYENDO movimientos de apertura
                     $ingresos = MovimientoCaja::where('caja_id', $cajaId)
@@ -1205,7 +1299,7 @@ class TurnoActual extends Component
 
                     // Determinar si hay monedas extranjeras para esta caja
                     $monedasExtCaja = $this->getMonedasExtranjeras($cajaId);
-                    $hayExtranjerasCaja = !empty($monedasExtCaja);
+                    $hayExtranjerasCaja = ! empty($monedasExtCaja);
 
                     // Saldo sistema: ARS puro si hay extranjeras, total si no
                     if ($hayExtranjerasCaja) {
@@ -1217,7 +1311,7 @@ class TurnoActual extends Component
 
                     // saldosDeclarados contiene solo ARS cuando hay extranjeras
                     $saldoDeclarado = isset($this->saldosDeclarados[$cajaId]) && $this->saldosDeclarados[$cajaId] !== ''
-                        ? (float)$this->saldosDeclarados[$cajaId]
+                        ? (float) $this->saldosDeclarados[$cajaId]
                         : $saldoSistema;
                     $diferencia = $saldoDeclarado - $saldoSistema;
 
@@ -1225,14 +1319,14 @@ class TurnoActual extends Component
                     $desgloses = $this->calcularDesglosesCaja($cajaId);
 
                     // Enriquecer desglose monedas con declarados y diferencia
-                    if (!empty($desgloses['monedas'])) {
+                    if (! empty($desgloses['monedas'])) {
                         foreach ($desgloses['monedas'] as $codMon => &$dataMon) {
                             if ($dataMon['es_principal'] ?? false) {
                                 $dataMon['declarado'] = $saldoDeclarado;
                                 $dataMon['diferencia'] = $diferencia;
                             } else {
                                 $decMon = isset($this->declaradosMoneda[$cajaId][$codMon]) && $this->declaradosMoneda[$cajaId][$codMon] !== ''
-                                    ? (float)$this->declaradosMoneda[$cajaId][$codMon] : null;
+                                    ? (float) $this->declaradosMoneda[$cajaId][$codMon] : null;
                                 $saldoSistMon = $dataMon['saldo'] ?? 0;
                                 $dataMon['declarado'] = $decMon;
                                 $dataMon['diferencia'] = $decMon !== null ? round($decMon - $saldoSistMon, 2) : null;
@@ -1264,10 +1358,14 @@ class TurnoActual extends Component
                     // Extraer monedas extranjeras del desglose para pasar a tesorería
                     // Usar el declarado del cajero (si existe), no el saldo sistema
                     $monedasExtCierre = [];
-                    if (!empty($desgloses['monedas'])) {
+                    if (! empty($desgloses['monedas'])) {
                         foreach ($desgloses['monedas'] as $codMon => $dataMon) {
-                            if ($dataMon['es_principal'] ?? false) continue;
-                            if (!isset($dataMon['moneda_id'])) continue;
+                            if ($dataMon['es_principal'] ?? false) {
+                                continue;
+                            }
+                            if (! isset($dataMon['moneda_id'])) {
+                                continue;
+                            }
                             $saldoSistemaMon = (float) ($dataMon['saldo'] ?? 0);
                             $declaradoMon = $dataMon['declarado'] ?? null;
                             // Si el cajero declaró, usar ese monto; si no, fallback al sistema
@@ -1291,10 +1389,10 @@ class TurnoActual extends Component
                         $cierreTurno,
                         $tesoreria,
                         $this->observacionesCierre,
-                        !empty($monedasExtCierre) ? $monedasExtCierre : null
+                        ! empty($monedasExtCierre) ? $monedasExtCierre : null
                     );
 
-                    if (!$resultado['success']) {
+                    if (! $resultado['success']) {
                         throw new \Exception($resultado['message']);
                     }
 
@@ -1330,7 +1428,7 @@ class TurnoActual extends Component
 
             if ($totalDiferencia != 0) {
                 $tipoDif = $totalDiferencia > 0 ? 'sobrante' : 'faltante';
-                $mensaje .= ' - ' . ucfirst($tipoDif) . ': $' . number_format(abs($totalDiferencia), 2, ',', '.');
+                $mensaje .= ' - '.ucfirst($tipoDif).': $'.number_format(abs($totalDiferencia), 2, ',', '.');
             }
 
             // Indicar que se rindió a tesorería
@@ -1346,7 +1444,7 @@ class TurnoActual extends Component
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error al cerrar turno', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            $this->dispatch('toast-error', message: 'Error al cerrar el turno: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: 'Error al cerrar el turno: '.$e->getMessage());
         }
     }
 
@@ -1370,17 +1468,19 @@ class TurnoActual extends Component
         // Procesar pagos de ventas
         foreach ($ventas as $venta) {
             foreach ($venta->pagos as $pago) {
-                if ($pago->estado !== 'activo') continue;
+                if ($pago->estado !== 'activo') {
+                    continue;
+                }
 
                 $formaPagoNombre = $pago->formaPago?->nombre ?? 'Sin forma de pago';
                 $conceptoNombre = $pago->conceptoPago?->nombre ?? $pago->formaPago?->conceptoPago?->nombre ?? 'Ventas';
 
-                if (!isset($desgloseFormasPago[$formaPagoNombre])) {
+                if (! isset($desgloseFormasPago[$formaPagoNombre])) {
                     $desgloseFormasPago[$formaPagoNombre] = 0;
                 }
                 $desgloseFormasPago[$formaPagoNombre] += (float) $pago->monto_final;
 
-                if (!isset($desgloseConceptos[$conceptoNombre])) {
+                if (! isset($desgloseConceptos[$conceptoNombre])) {
                     $desgloseConceptos[$conceptoNombre] = 0;
                 }
                 $desgloseConceptos[$conceptoNombre] += (float) $pago->monto_final;
@@ -1397,17 +1497,19 @@ class TurnoActual extends Component
         // Procesar pagos de cobros
         foreach ($cobros as $cobro) {
             foreach ($cobro->pagos as $pago) {
-                if ($pago->estado !== 'activo') continue;
+                if ($pago->estado !== 'activo') {
+                    continue;
+                }
 
                 $formaPagoNombre = $pago->formaPago?->nombre ?? 'Sin forma de pago';
                 $conceptoNombre = $pago->conceptoPago?->nombre ?? 'Cobros Cta. Cte.';
 
-                if (!isset($desgloseFormasPago[$formaPagoNombre])) {
+                if (! isset($desgloseFormasPago[$formaPagoNombre])) {
                     $desgloseFormasPago[$formaPagoNombre] = 0;
                 }
                 $desgloseFormasPago[$formaPagoNombre] += (float) $pago->monto_final;
 
-                if (!isset($desgloseConceptos[$conceptoNombre])) {
+                if (! isset($desgloseConceptos[$conceptoNombre])) {
                     $desgloseConceptos[$conceptoNombre] = 0;
                 }
                 $desgloseConceptos[$conceptoNombre] += (float) $pago->monto_final;
@@ -1465,12 +1567,12 @@ class TurnoActual extends Component
         }
 
         foreach ($movimientos as $mov) {
-            $esExtranjera = $mov->moneda_id && $mov->monto_moneda_original > 0 && $mov->moneda && !$mov->moneda->es_principal;
+            $esExtranjera = $mov->moneda_id && $mov->monto_moneda_original > 0 && $mov->moneda && ! $mov->moneda->es_principal;
 
             if ($esExtranjera) {
                 $moneda = $mov->moneda;
                 $key = $moneda->codigo;
-                if (!isset($desgloseMonedas[$key])) {
+                if (! isset($desgloseMonedas[$key])) {
                     $desgloseMonedas[$key] = [
                         'moneda_id' => $moneda->id,
                         'codigo' => $moneda->codigo,
@@ -1512,7 +1614,7 @@ class TurnoActual extends Component
             $data['ingresos'] = round($data['ingresos'], 2);
             $data['egresos'] = round($data['egresos'], 2);
             $data['saldo'] = round($data['ingresos'] - $data['egresos'], 2);
-            if (!($data['es_principal'] ?? true)) {
+            if (! ($data['es_principal'] ?? true)) {
                 $data['ingresos_convertido'] = round($data['ingresos_convertido'], 2);
                 $data['egresos_convertido'] = round($data['egresos_convertido'], 2);
                 $data['saldo_convertido'] = round($data['ingresos_convertido'] - $data['egresos_convertido'], 2);
@@ -1602,7 +1704,9 @@ class TurnoActual extends Component
     public function abrirModalDetalle(int $cajaId): void
     {
         $caja = Caja::with('grupoCierre')->find($cajaId);
-        if (!$caja) return;
+        if (! $caja) {
+            return;
+        }
 
         $this->cajaDetalleId = $cajaId;
 
@@ -1673,19 +1777,19 @@ class TurnoActual extends Component
 
         // VentaPago no-efectivo
         $ventaPagos = VentaPago::whereHas('venta', function ($q) use ($cajaId, $fechaDesde) {
-                $q->where('caja_id', $cajaId)
-                  ->where('estado', 'completada')
-                  ->where('created_at', '>=', $fechaDesde);
-            })
+            $q->where('caja_id', $cajaId)
+                ->where('estado', 'completada')
+                ->where('created_at', '>=', $fechaDesde);
+        })
             ->where('afecta_caja', false)
             ->with(['conceptoPago', 'venta:id,numero'])
             ->get();
 
         // CobroPago no-efectivo
         $cobroPagos = CobroPago::whereHas('cobro', function ($q) use ($cajaId, $fechaDesde) {
-                $q->where('caja_id', $cajaId)
-                  ->where('created_at', '>=', $fechaDesde);
-            })
+            $q->where('caja_id', $cajaId)
+                ->where('created_at', '>=', $fechaDesde);
+        })
             ->where('afecta_caja', false)
             ->with(['conceptoPago', 'cobro:id'])
             ->get();
@@ -1695,13 +1799,13 @@ class TurnoActual extends Component
         foreach ($ventaPagos as $pago) {
             $codigo = $pago->conceptoPago?->codigo ?? 'otros';
             $nombre = $pago->conceptoPago?->nombre ?? 'Otros';
-            if (!isset($conceptos[$codigo])) {
+            if (! isset($conceptos[$codigo])) {
                 $conceptos[$codigo] = ['nombre' => $nombre, 'monto_total' => 0, 'cantidad' => 0, 'detalle' => []];
             }
             $conceptos[$codigo]['monto_total'] += $pago->monto_final;
             $conceptos[$codigo]['cantidad']++;
             $conceptos[$codigo]['detalle'][] = [
-                'referencia' => 'Venta #' . ($pago->venta->numero ?? $pago->venta_id),
+                'referencia' => 'Venta #'.($pago->venta->numero ?? $pago->venta_id),
                 'monto' => $pago->monto_final,
             ];
         }
@@ -1709,13 +1813,13 @@ class TurnoActual extends Component
         foreach ($cobroPagos as $pago) {
             $codigo = $pago->conceptoPago?->codigo ?? 'otros';
             $nombre = $pago->conceptoPago?->nombre ?? 'Otros';
-            if (!isset($conceptos[$codigo])) {
+            if (! isset($conceptos[$codigo])) {
                 $conceptos[$codigo] = ['nombre' => $nombre, 'monto_total' => 0, 'cantidad' => 0, 'detalle' => []];
             }
             $conceptos[$codigo]['monto_total'] += $pago->monto_final;
             $conceptos[$codigo]['cantidad']++;
             $conceptos[$codigo]['detalle'][] = [
-                'referencia' => 'Cobro #' . ($pago->cobro->id ?? $pago->cobro_id),
+                'referencia' => 'Cobro #'.($pago->cobro->id ?? $pago->cobro_id),
                 'monto' => $pago->monto_final,
             ];
         }
@@ -1762,10 +1866,12 @@ class TurnoActual extends Component
         $resultado = [];
         foreach ($movimientos as $mov) {
             $moneda = $mov->moneda;
-            if (!$moneda || $moneda->es_principal) continue;
+            if (! $moneda || $moneda->es_principal) {
+                continue;
+            }
 
             $key = $moneda->codigo;
-            if (!isset($resultado[$key])) {
+            if (! isset($resultado[$key])) {
                 $resultado[$key] = [
                     'codigo' => $moneda->codigo,
                     'simbolo' => $moneda->simbolo,
@@ -1787,7 +1893,7 @@ class TurnoActual extends Component
         }
 
         // Solo devolver monedas con saldo distinto de cero
-        return array_filter($resultado, fn($d) => round($d['saldo_sistema'], 4) != 0);
+        return array_filter($resultado, fn ($d) => round($d['saldo_sistema'], 4) != 0);
     }
 
     /**
@@ -1803,11 +1909,13 @@ class TurnoActual extends Component
             $q->whereNull('cierre_turno_id');
         }])->find($cajaId);
 
-        if (!$caja) return null;
+        if (! $caja) {
+            return null;
+        }
 
         // Calcular ingresos/egresos excluyendo movimientos de apertura
         $movimientos = $caja->movimientos ?? collect();
-        $movimientosOperativos = $movimientos->filter(fn($m) => $m->referencia_tipo !== 'apertura');
+        $movimientosOperativos = $movimientos->filter(fn ($m) => $m->referencia_tipo !== 'apertura');
         $ingresos = $movimientosOperativos->where('tipo', 'ingreso')->sum('monto');
         $egresos = $movimientosOperativos->where('tipo', 'egreso')->sum('monto');
 
@@ -1816,7 +1924,7 @@ class TurnoActual extends Component
         // Calcular saldo solo en moneda principal (ARS puro)
         // saldo_actual incluye equivalente convertido de extranjeras → restarlo
         $saldoSistemaPrincipal = null;
-        if (!empty($monedasExtranjeras)) {
+        if (! empty($monedasExtranjeras)) {
             $foreignConvertidoNeto = array_sum(array_column($monedasExtranjeras, 'saldo_convertido'));
             $saldoSistemaPrincipal = round(($caja->saldo_actual ?? 0) - $foreignConvertidoNeto, 2);
         }
@@ -1841,12 +1949,14 @@ class TurnoActual extends Component
      */
     public function getDatosConsolidadosCierre(): ?array
     {
-        if (!$this->grupoCierreId || !$this->cierreUsaFondoComun) {
+        if (! $this->grupoCierreId || ! $this->cierreUsaFondoComun) {
             return null;
         }
 
         $grupo = GrupoCierre::with('cajas')->find($this->grupoCierreId);
-        if (!$grupo) return null;
+        if (! $grupo) {
+            return null;
+        }
 
         $cajasGrupo = $grupo->cajas->where('activo', true);
 
@@ -1860,7 +1970,7 @@ class TurnoActual extends Component
                 ->whereNull('cierre_turno_id')
                 ->get();
 
-            $movimientosOperativos = $movimientos->filter(fn($m) => $m->referencia_tipo !== 'apertura');
+            $movimientosOperativos = $movimientos->filter(fn ($m) => $m->referencia_tipo !== 'apertura');
             $ingresos = $movimientosOperativos->where('tipo', 'ingreso')->sum('monto');
             $egresos = $movimientosOperativos->where('tipo', 'egreso')->sum('monto');
 
@@ -1882,7 +1992,7 @@ class TurnoActual extends Component
         $monedasConsolidadas = [];
         foreach ($cajasGrupo as $caja) {
             foreach ($this->getMonedasExtranjeras($caja->id) as $codMon => $infoMon) {
-                if (!isset($monedasConsolidadas[$codMon])) {
+                if (! isset($monedasConsolidadas[$codMon])) {
                     $monedasConsolidadas[$codMon] = $infoMon;
                 } else {
                     $monedasConsolidadas[$codMon]['saldo_sistema'] += $infoMon['saldo_sistema'];
@@ -1892,7 +2002,7 @@ class TurnoActual extends Component
         }
 
         $saldoSistemaPrincipal = null;
-        if (!empty($monedasConsolidadas)) {
+        if (! empty($monedasConsolidadas)) {
             $foreignConvertidoNeto = array_sum(array_column($monedasConsolidadas, 'saldo_convertido'));
             $saldoSistemaPrincipal = round($saldoSistema - $foreignConvertidoNeto, 2);
         }
@@ -1917,7 +2027,9 @@ class TurnoActual extends Component
     public function getCajaParaApertura(int $cajaId): ?array
     {
         $caja = Caja::find($cajaId);
-        if (!$caja) return null;
+        if (! $caja) {
+            return null;
+        }
 
         return [
             'id' => $caja->id,
@@ -1933,10 +2045,14 @@ class TurnoActual extends Component
      */
     public function getGrupoParaApertura(): ?array
     {
-        if (!$this->grupoAperturaId) return null;
+        if (! $this->grupoAperturaId) {
+            return null;
+        }
 
         $grupo = GrupoCierre::with('cajas')->find($this->grupoAperturaId);
-        if (!$grupo) return null;
+        if (! $grupo) {
+            return null;
+        }
 
         return [
             'id' => $grupo->id,
@@ -1963,7 +2079,9 @@ class TurnoActual extends Component
     public function getGruposCierre(): Collection
     {
         $sucursalId = SucursalService::getSucursalActiva();
-        if (!$sucursalId) return collect();
+        if (! $sucursalId) {
+            return collect();
+        }
 
         return GrupoCierre::where('sucursal_id', $sucursalId)
             ->where('activo', true)
@@ -1978,7 +2096,7 @@ class TurnoActual extends Component
     public function getCajasAgrupadas(): Collection
     {
         return $this->cajas->groupBy(function ($caja) {
-            return $caja->grupo_cierre_id ?? 'individual_' . $caja->id;
+            return $caja->grupo_cierre_id ?? 'individual_'.$caja->id;
         });
     }
 

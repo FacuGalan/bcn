@@ -21,13 +21,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property bool|null $factura_fiscal Si genera factura fiscal (null = usar el de la forma de pago)
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read FormaPago $formaPago
  * @property-read Sucursal $sucursal
  */
 class FormaPagoSucursal extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'formas_pago_sucursales';
 
     protected $fillable = [
@@ -96,6 +96,7 @@ class FormaPagoSucursal extends Model
     public function activar(): bool
     {
         $this->activo = true;
+
         return $this->save();
     }
 
@@ -105,6 +106,7 @@ class FormaPagoSucursal extends Model
     public function desactivar(): bool
     {
         $this->activo = false;
+
         return $this->save();
     }
 
@@ -113,7 +115,8 @@ class FormaPagoSucursal extends Model
      */
     public function toggle(): bool
     {
-        $this->activo = !$this->activo;
+        $this->activo = ! $this->activo;
+
         return $this->save();
     }
 

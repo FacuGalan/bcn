@@ -24,13 +24,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $observaciones
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Tesoreria $tesoreria
  * @property-read User $usuario
  */
 class MovimientoTesoreria extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'movimientos_tesoreria';
 
     protected $fillable = [
@@ -61,9 +61,13 @@ class MovimientoTesoreria extends Model
 
     // Tipos de referencia comunes
     public const REFERENCIA_PROVISION = 'provision_fondo';
+
     public const REFERENCIA_RENDICION = 'rendicion_fondo';
+
     public const REFERENCIA_DEPOSITO = 'deposito_bancario';
+
     public const REFERENCIA_ARQUEO = 'arqueo';
+
     public const REFERENCIA_AJUSTE = 'ajuste';
 
     // ==================== RELACIONES ====================
@@ -106,6 +110,7 @@ class MovimientoTesoreria extends Model
         if ($referenciaId !== null) {
             $query->where('referencia_id', $referenciaId);
         }
+
         return $query;
     }
 
@@ -134,7 +139,8 @@ class MovimientoTesoreria extends Model
     public function getMontoFormateadoAttribute(): string
     {
         $signo = $this->es_ingreso ? '+' : '-';
-        return $signo . '$' . number_format($this->monto, 2, ',', '.');
+
+        return $signo.'$'.number_format($this->monto, 2, ',', '.');
     }
 
     // ==================== MÉTODOS DE FÁBRICA ====================

@@ -2,39 +2,51 @@
 
 namespace App\Livewire\Stock;
 
-use Livewire\Component;
 use App\Models\Articulo;
 use App\Models\Receta;
 use App\Models\Stock;
 use App\Models\Sucursal;
 use App\Services\ProduccionService;
-use Illuminate\Support\Facades\Auth;
 use Exception;
+use Illuminate\Support\Facades\Auth;
+use Livewire\Component;
 
 class ProduccionLote extends Component
 {
     // Búsqueda de artículos
     public string $busquedaArticulo = '';
+
     public array $articulosResultados = [];
 
     // Artículo seleccionado (preview)
     public ?int $selectedArticuloId = null;
+
     public string $selectedArticuloNombre = '';
+
     public string $selectedArticuloUnidad = 'u';
+
     public ?int $selectedRecetaId = null;
+
     public string $selectedCantidadReceta = '1';
+
     public string $cantidadAProducir = '1';
+
     public array $previewIngredientes = [];
 
     // Lote
     public array $loteArticulos = [];
+
     public array $loteIngredientesConsolidados = [];
+
     public array $stockCache = [];
 
     // Config y estado
     public string $observaciones = '';
+
     public string $modoControlStock = 'bloquea';
+
     public bool $hayStockInsuficiente = false;
+
     public bool $confirmando = false;
 
     public function mount()
@@ -58,6 +70,7 @@ class ProduccionLote extends Component
 
         if (strlen($value) < 3) {
             $this->articulosResultados = [];
+
             return;
         }
 
@@ -68,16 +81,16 @@ class ProduccionLote extends Component
             ->where('recetable_type', 'Articulo')
             ->where(function ($q) use ($sucursalId) {
                 $q->where('sucursal_id', $sucursalId)
-                  ->orWhere(function ($q2) use ($sucursalId) {
-                      $q2->whereNull('sucursal_id')
-                         ->whereNotExists(function ($sub) use ($sucursalId) {
-                             $sub->selectRaw(1)
-                                 ->from('recetas as r2')
-                                 ->whereColumn('r2.recetable_type', 'recetas.recetable_type')
-                                 ->whereColumn('r2.recetable_id', 'recetas.recetable_id')
-                                 ->where('r2.sucursal_id', $sucursalId);
-                         });
-                  });
+                    ->orWhere(function ($q2) use ($sucursalId) {
+                        $q2->whereNull('sucursal_id')
+                            ->whereNotExists(function ($sub) use ($sucursalId) {
+                                $sub->selectRaw(1)
+                                    ->from('recetas as r2')
+                                    ->whereColumn('r2.recetable_type', 'recetas.recetable_type')
+                                    ->whereColumn('r2.recetable_id', 'recetas.recetable_id')
+                                    ->where('r2.sucursal_id', $sucursalId);
+                            });
+                    });
             })
             ->pluck('recetable_id');
 
@@ -89,19 +102,19 @@ class ProduccionLote extends Component
         $palabras = preg_split('/\s+/', $value, -1, PREG_SPLIT_NO_EMPTY);
         foreach ($palabras as $palabra) {
             $query->where(function ($q) use ($palabra) {
-                $q->where('nombre', 'like', '%' . $palabra . '%')
-                  ->orWhere('codigo', 'like', '%' . $palabra . '%')
-                  ->orWhere('codigo_barras', 'like', '%' . $palabra . '%')
-                  ->orWhereHas('categoriaModel', function ($subQ) use ($palabra) {
-                      $subQ->where('nombre', 'like', '%' . $palabra . '%');
-                  });
+                $q->where('nombre', 'like', '%'.$palabra.'%')
+                    ->orWhere('codigo', 'like', '%'.$palabra.'%')
+                    ->orWhere('codigo_barras', 'like', '%'.$palabra.'%')
+                    ->orWhereHas('categoriaModel', function ($subQ) use ($palabra) {
+                        $subQ->where('nombre', 'like', '%'.$palabra.'%');
+                    });
             });
         }
 
         $this->articulosResultados = $query->orderBy('nombre')
             ->limit(15)
             ->get()
-            ->map(fn($a) => [
+            ->map(fn ($a) => [
                 'id' => $a->id,
                 'nombre' => $a->nombre,
                 'codigo' => $a->codigo,
@@ -120,8 +133,9 @@ class ProduccionLote extends Component
         $articulo = Articulo::findOrFail($id);
         $receta = Receta::resolver('Articulo', $id, $sucursalId);
 
-        if (!$receta) {
+        if (! $receta) {
             $this->dispatch('notify', message: __('Este artículo no tiene una receta activa.'), type: 'error');
+
             return;
         }
 
@@ -198,13 +212,14 @@ class ProduccionLote extends Component
      */
     public function agregarAlLote()
     {
-        if (!$this->selectedArticuloId) {
+        if (! $this->selectedArticuloId) {
             return;
         }
 
         $cantidad = (float) $this->cantidadAProducir;
         if ($cantidad <= 0) {
             $this->dispatch('notify', message: __('La cantidad debe ser mayor a 0.'), type: 'error');
+
             return;
         }
 
@@ -276,9 +291,9 @@ class ProduccionLote extends Component
         foreach ($this->loteArticulos as $item) {
             foreach ($item['ingredientes'] as $ing) {
                 $artId = $ing['articulo_id'];
-                if (!isset($consolidado[$artId])) {
+                if (! isset($consolidado[$artId])) {
                     // Consultar stock con caché
-                    if (!isset($this->stockCache[$artId])) {
+                    if (! isset($this->stockCache[$artId])) {
                         $stock = Stock::where('articulo_id', $artId)
                             ->where('sucursal_id', $sucursalId)
                             ->first();
@@ -320,12 +335,14 @@ class ProduccionLote extends Component
     {
         if (empty($this->loteArticulos)) {
             $this->dispatch('notify', message: __('El lote está vacío.'), type: 'error');
+
             return;
         }
 
         // Bloquear si hay stock insuficiente y modo es bloquea
         if ($this->hayStockInsuficiente && $this->modoControlStock === 'bloquea') {
             $this->dispatch('notify', message: __('No se puede confirmar: stock insuficiente de ingredientes.'), type: 'error');
+
             return;
         }
 
@@ -342,7 +359,7 @@ class ProduccionLote extends Component
         foreach ($this->loteArticulos as $item) {
             foreach ($item['ingredientes'] as $ing) {
                 $artId = $ing['articulo_id'];
-                if (!isset($totalesOriginales[$artId])) {
+                if (! isset($totalesOriginales[$artId])) {
                     $totalesOriginales[$artId] = 0;
                 }
                 $totalesOriginales[$artId] += (float) $ing['cantidad_real'];
@@ -377,7 +394,7 @@ class ProduccionLote extends Component
         }
 
         try {
-            $service = new ProduccionService();
+            $service = new ProduccionService;
             $resultado = $service->confirmarProduccion(
                 $cola,
                 sucursal_activa(),
@@ -386,8 +403,8 @@ class ProduccionLote extends Component
             );
 
             $msg = __('Lote de producción confirmado correctamente.');
-            if (!empty($resultado['advertencias'])) {
-                $msg .= ' ' . __('Advertencia: algunos ingredientes tenían stock insuficiente.');
+            if (! empty($resultado['advertencias'])) {
+                $msg .= ' '.__('Advertencia: algunos ingredientes tenían stock insuficiente.');
             }
 
             session()->flash('notify', ['message' => $msg, 'type' => 'success']);

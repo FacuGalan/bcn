@@ -10,6 +10,7 @@ class PromocionEspecialGrupo extends Model
     use HasFactory;
 
     protected $connection = 'pymes_tenant';
+
     protected $table = 'promocion_especial_grupos';
 
     protected $fillable = [
@@ -52,18 +53,22 @@ class PromocionEspecialGrupo extends Model
      */
     public function getDescripcionAttribute(): string
     {
-        $desc = $this->nombre ?: 'Grupo ' . $this->id;
+        $desc = $this->nombre ?: 'Grupo '.$this->id;
 
         if ($this->cantidad > 1) {
             $desc .= " (x{$this->cantidad})";
         }
 
         $roles = [];
-        if ($this->es_trigger) $roles[] = 'Trigger';
-        if ($this->es_reward) $roles[] = 'Reward';
+        if ($this->es_trigger) {
+            $roles[] = 'Trigger';
+        }
+        if ($this->es_reward) {
+            $roles[] = 'Reward';
+        }
 
-        if (!empty($roles)) {
-            $desc .= ' [' . implode(', ', $roles) . ']';
+        if (! empty($roles)) {
+            $desc .= ' ['.implode(', ', $roles).']';
         }
 
         return $desc;

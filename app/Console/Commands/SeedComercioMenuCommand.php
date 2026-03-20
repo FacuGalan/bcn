@@ -16,7 +16,6 @@ use Illuminate\Console\Command;
  *
  * Uso: php artisan comercio:seed-menu {comercio_id}
  *
- * @package App\Console\Commands
  * @version 1.0.0
  */
 class SeedComercioMenuCommand extends Command
@@ -37,15 +36,13 @@ class SeedComercioMenuCommand extends Command
 
     /**
      * Servicio de gestión de tenants
-     *
-     * @var TenantService
      */
     protected TenantService $tenantService;
 
     /**
      * Constructor del comando
      *
-     * @param TenantService $tenantService Servicio de tenant
+     * @param  TenantService  $tenantService  Servicio de tenant
      */
     public function __construct(TenantService $tenantService)
     {
@@ -62,14 +59,15 @@ class SeedComercioMenuCommand extends Command
     {
         $comercioId = $this->argument('comercio_id');
 
-        $this->info("┌─────────────────────────────────────────────────────┐");
+        $this->info('┌─────────────────────────────────────────────────────┐');
         $this->info("│ Poblando menú y permisos para comercio ID: {$comercioId}");
-        $this->info("└─────────────────────────────────────────────────────┘");
+        $this->info('└─────────────────────────────────────────────────────┘');
 
         // Verificar que el comercio existe
         $comercio = Comercio::find($comercioId);
-        if (!$comercio) {
+        if (! $comercio) {
             $this->error("✗ Comercio con ID {$comercioId} no encontrado.");
+
             return 1;
         }
 
@@ -82,22 +80,22 @@ class SeedComercioMenuCommand extends Command
         try {
             // 1. Ejecutar MenuItemSeeder
             $this->newLine();
-            $this->info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            $this->info(" PASO 1: Creando estructura del menú");
-            $this->info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            $this->info(' PASO 1: Creando estructura del menú');
+            $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             $this->call(MenuItemSeeder::class);
 
             // 2. Ejecutar RolePermissionSeeder
             $this->newLine();
-            $this->info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            $this->info(" PASO 2: Creando roles y permisos");
-            $this->info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            $this->info(' PASO 2: Creando roles y permisos');
+            $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             $this->call(RolePermissionSeeder::class);
 
             $this->newLine();
-            $this->info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            $this->info("✅ PROCESO COMPLETADO EXITOSAMENTE");
-            $this->info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            $this->info('✅ PROCESO COMPLETADO EXITOSAMENTE');
+            $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             $this->newLine();
 
             $this->table(
@@ -114,11 +112,12 @@ class SeedComercioMenuCommand extends Command
             return 0;
         } catch (\Exception $e) {
             $this->newLine();
-            $this->error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            $this->error("✗ ERROR AL EJECUTAR SEEDERS");
-            $this->error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            $this->error("Mensaje: " . $e->getMessage());
-            $this->error("Archivo: " . $e->getFile() . ':' . $e->getLine());
+            $this->error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            $this->error('✗ ERROR AL EJECUTAR SEEDERS');
+            $this->error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            $this->error('Mensaje: '.$e->getMessage());
+            $this->error('Archivo: '.$e->getFile().':'.$e->getLine());
+
             return 1;
         }
     }

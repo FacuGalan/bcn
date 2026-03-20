@@ -21,13 +21,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property \Carbon\Carbon|null $ultima_actualizacion
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Articulo $articulo
  * @property-read Sucursal $sucursal
  */
 class Stock extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'stock';
 
     protected $fillable = [
@@ -60,20 +60,20 @@ class Stock extends Model
     public function movimientos(): HasMany
     {
         return $this->hasMany(MovimientoStock::class, 'articulo_id', 'articulo_id')
-                     ->where('sucursal_id', $this->sucursal_id);
+            ->where('sucursal_id', $this->sucursal_id);
     }
 
     // Scopes
     public function scopeBajoMinimo($query)
     {
         return $query->whereNotNull('cantidad_minima')
-                     ->whereColumn('cantidad', '<', 'cantidad_minima');
+            ->whereColumn('cantidad', '<', 'cantidad_minima');
     }
 
     public function scopeSobreMaximo($query)
     {
         return $query->whereNotNull('cantidad_maxima')
-                     ->whereColumn('cantidad', '>', 'cantidad_maxima');
+            ->whereColumn('cantidad', '>', 'cantidad_maxima');
     }
 
     public function scopePorSucursal($query, int $sucursalId)
@@ -128,7 +128,7 @@ class Stock extends Model
     /**
      * Ajusta el stock (aumenta o disminuye)
      *
-     * @param float $cantidad Cantidad a ajustar (positivo aumenta, negativo disminuye)
+     * @param  float  $cantidad  Cantidad a ajustar (positivo aumenta, negativo disminuye)
      * @return bool True si el ajuste fue exitoso
      */
     public function ajustarStock(float $cantidad): bool
@@ -157,14 +157,15 @@ class Stock extends Model
     /**
      * Disminuye el stock
      *
-     * @param float $cantidad Cantidad a disminuir
-     * @param bool $permitirNegativo Si true, permite que el stock quede negativo
+     * @param  float  $cantidad  Cantidad a disminuir
+     * @param  bool  $permitirNegativo  Si true, permite que el stock quede negativo
      */
     public function disminuir(float $cantidad, bool $permitirNegativo = false): bool
     {
         if ($permitirNegativo) {
             $this->cantidad = $this->cantidad - abs($cantidad);
             $this->ultima_actualizacion = now();
+
             return $this->save();
         }
 

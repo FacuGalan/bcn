@@ -23,7 +23,6 @@ use Spatie\Permission\Models\Permission as SpatiePermission;
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  *
- * @package App\Models
  * @version 1.0.0
  */
 class Permission extends SpatiePermission
@@ -48,8 +47,6 @@ class Permission extends SpatiePermission
 
     /**
      * Verifica si el permiso es de tipo menú
-     *
-     * @return bool
      */
     public function isMenuPermission(): bool
     {
@@ -59,12 +56,10 @@ class Permission extends SpatiePermission
     /**
      * Obtiene el slug del item de menú asociado
      * Solo aplica si es un permiso de menú
-     *
-     * @return string|null
      */
     public function getMenuSlug(): ?string
     {
-        if (!$this->isMenuPermission()) {
+        if (! $this->isMenuPermission()) {
             return null;
         }
 

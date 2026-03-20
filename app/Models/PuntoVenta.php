@@ -114,6 +114,6 @@ class PuntoVenta extends Model
      */
     public function getIdentificacionCompletaAttribute(): string
     {
-        return $this->cuit->cuit_formateado . ' - PV ' . $this->numero_formateado;
+        return $this->cuit->cuit_formateado.' - PV '.$this->numero_formateado;
     }
 }

@@ -47,7 +47,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int $dias_mora_max Máximos días de mora actual
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read CondicionIva|null $condicionIva
  * @property-read ListaPrecio|null $listaPrecio
  * @property-read Proveedor|null $proveedor Proveedor vinculado
@@ -59,6 +58,7 @@ class Cliente extends Model
     use SoftDeletes;
 
     protected $connection = 'pymes_tenant';
+
     protected $table = 'clientes';
 
     protected $fillable = [
@@ -116,8 +116,8 @@ class Cliente extends Model
     public function sucursales(): BelongsToMany
     {
         return $this->belongsToMany(Sucursal::class, 'clientes_sucursales', 'cliente_id', 'sucursal_id')
-                    ->withPivot('lista_precio_id', 'descuento_porcentaje', 'limite_credito', 'saldo_actual', 'activo')
-                    ->withTimestamps();
+            ->withPivot('lista_precio_id', 'descuento_porcentaje', 'limite_credito', 'saldo_actual', 'activo')
+            ->withTimestamps();
     }
 
     public function ventas(): HasMany
@@ -164,13 +164,14 @@ class Cliente extends Model
     public function scopePorCodigoCondicionIva($query, int $codigoAfip)
     {
         $condicion = CondicionIva::where('codigo', $codigoAfip)->first();
+
         return $query->where('condicion_iva_id', $condicion?->id);
     }
 
     public function scopePorDocumento($query, string $tipo, string $numero)
     {
         return $query->where('tipo_doc', $tipo)
-                     ->where('numero_doc', $numero);
+            ->where('numero_doc', $numero);
     }
 
     public function scopePorCuit($query, string $cuit)
@@ -187,17 +188,17 @@ class Cliente extends Model
 
     public function scopeResponsablesInscriptos($query)
     {
-        return $query->whereHas('condicionIva', fn($q) => $q->where('codigo', CondicionIva::RESPONSABLE_INSCRIPTO));
+        return $query->whereHas('condicionIva', fn ($q) => $q->where('codigo', CondicionIva::RESPONSABLE_INSCRIPTO));
     }
 
     public function scopeConsumidoresFinales($query)
     {
-        return $query->whereHas('condicionIva', fn($q) => $q->where('codigo', CondicionIva::CONSUMIDOR_FINAL));
+        return $query->whereHas('condicionIva', fn ($q) => $q->where('codigo', CondicionIva::CONSUMIDOR_FINAL));
     }
 
     public function scopeMonotributistas($query)
     {
-        return $query->whereHas('condicionIva', fn($q) => $q->whereIn('codigo', [
+        return $query->whereHas('condicionIva', fn ($q) => $q->whereIn('codigo', [
             CondicionIva::RESPONSABLE_MONOTRIBUTO,
             CondicionIva::MONOTRIBUTISTA_SOCIAL,
         ]));
@@ -205,7 +206,7 @@ class Cliente extends Model
 
     public function scopeExentos($query)
     {
-        return $query->whereHas('condicionIva', fn($q) => $q->where('codigo', CondicionIva::SUJETO_EXENTO));
+        return $query->whereHas('condicionIva', fn ($q) => $q->where('codigo', CondicionIva::SUJETO_EXENTO));
     }
 
     // Métodos auxiliares
@@ -216,9 +217,9 @@ class Cliente extends Model
     public function estaActivoEnSucursal(int $sucursalId): bool
     {
         return $this->sucursales()
-                    ->where('sucursal_id', $sucursalId)
-                    ->wherePivot('activo', true)
-                    ->exists();
+            ->where('sucursal_id', $sucursalId)
+            ->wherePivot('activo', true)
+            ->exists();
     }
 
     /**
@@ -227,8 +228,8 @@ class Cliente extends Model
     public function obtenerSaldoEnSucursal(int $sucursalId): float
     {
         $pivot = $this->sucursales()
-                      ->where('sucursal_id', $sucursalId)
-                      ->first();
+            ->where('sucursal_id', $sucursalId)
+            ->first();
 
         return $pivot ? (float) $pivot->pivot->saldo_actual : 0;
     }
@@ -241,8 +242,8 @@ class Cliente extends Model
     public function obtenerLimiteCreditoEnSucursal(int $sucursalId): ?float
     {
         $pivot = $this->sucursales()
-                      ->where('sucursal_id', $sucursalId)
-                      ->first();
+            ->where('sucursal_id', $sucursalId)
+            ->first();
 
         // Primero intentar obtener límite específico de la sucursal
         $limiteSucursal = $pivot ? (float) $pivot->pivot->limite_credito : 0;
@@ -293,9 +294,7 @@ class Cliente extends Model
     /**
      * Ajusta el saldo del cliente en una sucursal
      *
-     * @param int $sucursalId
-     * @param float $monto Positivo aumenta deuda, negativo disminuye
-     * @return bool
+     * @param  float  $monto  Positivo aumenta deuda, negativo disminuye
      */
     public function ajustarSaldoEnSucursal(int $sucursalId, float $monto): bool
     {
@@ -303,10 +302,10 @@ class Cliente extends Model
         $nuevoSaldo = max(0, $saldoActual + $monto);
 
         return $this->sucursales()
-                    ->wherePivot('sucursal_id', $sucursalId)
-                    ->updateExistingPivot($sucursalId, [
-                        'saldo_actual' => $nuevoSaldo
-                    ]) > 0;
+            ->wherePivot('sucursal_id', $sucursalId)
+            ->updateExistingPivot($sucursalId, [
+                'saldo_actual' => $nuevoSaldo,
+            ]) > 0;
     }
 
     /**
@@ -315,8 +314,8 @@ class Cliente extends Model
     public function obtenerDescuentoEnSucursal(int $sucursalId): float
     {
         $pivot = $this->sucursales()
-                      ->where('sucursal_id', $sucursalId)
-                      ->first();
+            ->where('sucursal_id', $sucursalId)
+            ->first();
 
         return $pivot ? (float) $pivot->pivot->descuento_porcentaje : 0;
     }
@@ -327,8 +326,8 @@ class Cliente extends Model
     public function obtenerListaPrecioEnSucursal(int $sucursalId): ?int
     {
         $pivot = $this->sucursales()
-                      ->where('sucursal_id', $sucursalId)
-                      ->first();
+            ->where('sucursal_id', $sucursalId)
+            ->first();
 
         return $pivot && $pivot->pivot->lista_precio_id ? (int) $pivot->pivot->lista_precio_id : null;
     }
@@ -362,7 +361,7 @@ class Cliente extends Model
      */
     public function puedeOperarACredito(): bool
     {
-        return $this->tiene_cuenta_corriente && !$this->bloqueado_por_mora;
+        return $this->tiene_cuenta_corriente && ! $this->bloqueado_por_mora;
     }
 
     /**
@@ -370,7 +369,7 @@ class Cliente extends Model
      */
     public function obtenerCreditoDisponible(): ?float
     {
-        if (!$this->tiene_cuenta_corriente) {
+        if (! $this->tiene_cuenta_corriente) {
             return null;
         }
 
@@ -386,7 +385,7 @@ class Cliente extends Model
      */
     public function tieneDisponibilidadCreditoGlobal(float $monto): bool
     {
-        if (!$this->tiene_cuenta_corriente) {
+        if (! $this->tiene_cuenta_corriente) {
             return false;
         }
 

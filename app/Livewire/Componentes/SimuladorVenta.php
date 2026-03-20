@@ -2,14 +2,12 @@
 
 namespace App\Livewire\Componentes;
 
-use Livewire\Component;
 use App\Models\Articulo;
-use App\Models\Promocion;
 use App\Models\ListaPrecio;
+use App\Models\Promocion;
 use App\Models\Sucursal;
-use App\Models\FormaVenta;
-use App\Models\CanalVenta;
-use App\Models\FormaPago;
+use App\Services\CatalogoCache;
+use Livewire\Component;
 
 /**
  * Componente reutilizable para simular ventas y calcular promociones
@@ -30,23 +28,32 @@ class SimuladorVenta extends Component
 {
     // Configuración del componente
     public $promocionPreview = null; // Promoción en creación/edición para simular
+
     public $excluirPromocionId = null; // ID de promoción a excluir de la lista
+
     public $sucursalesPermitidas = []; // Sucursales disponibles para filtrar
 
     // Items del simulador
     public $itemsSimulador = [];
+
     public $resultadoSimulador = null;
 
     // Buscador de artículos
     public $busquedaArticuloSimulador = '';
+
     public $articulosSimuladorResultados = [];
+
     public $mostrarBuscadorArticulos = false;
 
     // Filtros del simulador
     public $simuladorSucursalId = null;
+
     public $simuladorFormaVentaId = null;
+
     public $simuladorCanalVentaId = null;
+
     public $simuladorFormaPagoId = null;
+
     public $simuladorListaPrecioId = null;
 
     // Listas de precios disponibles
@@ -54,8 +61,11 @@ class SimuladorVenta extends Component
 
     // Colecciones para selects
     public $sucursales = [];
+
     public $formasVenta = [];
+
     public $canalesVenta = [];
+
     public $formasPago = [];
 
     // Promociones competidoras
@@ -82,7 +92,7 @@ class SimuladorVenta extends Component
         $this->cargarColecciones();
 
         // Inicializar filtros si hay sucursales permitidas
-        if (!empty($this->sucursalesPermitidas)) {
+        if (! empty($this->sucursalesPermitidas)) {
             $this->simuladorSucursalId = $this->sucursalesPermitidas[0];
             $this->cargarListasPreciosSimulador();
             $this->simuladorListaPrecioId = $this->obtenerIdListaBaseSimulador();
@@ -93,7 +103,7 @@ class SimuladorVenta extends Component
     protected function cargarColecciones()
     {
         // Cargar sucursales según las permitidas
-        if (!empty($this->sucursalesPermitidas)) {
+        if (! empty($this->sucursalesPermitidas)) {
             $this->sucursales = Sucursal::whereIn('id', $this->sucursalesPermitidas)
                 ->select('id', 'nombre')
                 ->orderBy('nombre')
@@ -104,9 +114,9 @@ class SimuladorVenta extends Component
                 ->get();
         }
 
-        $this->formasVenta = FormaVenta::activas()->get();
-        $this->canalesVenta = CanalVenta::activos()->get();
-        $this->formasPago = FormaPago::activas()->get();
+        $this->formasVenta = CatalogoCache::formasVenta();
+        $this->canalesVenta = CatalogoCache::canalesVenta();
+        $this->formasPago = CatalogoCache::formasPago();
     }
 
     /**
@@ -127,7 +137,7 @@ class SimuladorVenta extends Component
         $this->cargarColecciones();
 
         // Si la sucursal actual no está en las permitidas, cambiar
-        if (!empty($sucursales) && !in_array($this->simuladorSucursalId, $sucursales)) {
+        if (! empty($sucursales) && ! in_array($this->simuladorSucursalId, $sucursales)) {
             $this->simuladorSucursalId = $sucursales[0];
             $this->cargarListasPreciosSimulador();
             $this->simuladorListaPrecioId = $this->obtenerIdListaBaseSimulador();
@@ -172,10 +182,10 @@ class SimuladorVenta extends Component
             ->where('activo', true);
 
         if (strlen($busqueda) >= 1) {
-            $query->where(function($q) use ($busqueda) {
-                $q->where('nombre', 'like', '%' . $busqueda . '%')
-                  ->orWhere('codigo', 'like', '%' . $busqueda . '%')
-                  ->orWhere('codigo_barras', 'like', '%' . $busqueda . '%');
+            $query->where(function ($q) use ($busqueda) {
+                $q->where('nombre', 'like', '%'.$busqueda.'%')
+                    ->orWhere('codigo', 'like', '%'.$busqueda.'%')
+                    ->orWhere('codigo_barras', 'like', '%'.$busqueda.'%');
             });
         }
 
@@ -183,7 +193,7 @@ class SimuladorVenta extends Component
             ->limit(15)
             ->get();
 
-        $this->articulosSimuladorResultados = $articulos->map(function($art) {
+        $this->articulosSimuladorResultados = $articulos->map(function ($art) {
             return [
                 'id' => $art->id,
                 'nombre' => $art->nombre,
@@ -221,21 +231,22 @@ class SimuladorVenta extends Component
 
     public function agregarPrimerArticulo()
     {
-        if (!empty($this->busquedaArticuloSimulador)) {
+        if (! empty($this->busquedaArticuloSimulador)) {
             $articuloPorBarras = Articulo::where('activo', true)
-                ->where(function($q) {
+                ->where(function ($q) {
                     $q->where('codigo_barras', $this->busquedaArticuloSimulador)
-                      ->orWhere('codigo', $this->busquedaArticuloSimulador);
+                        ->orWhere('codigo', $this->busquedaArticuloSimulador);
                 })
                 ->first();
 
             if ($articuloPorBarras) {
                 $this->agregarArticuloSimulador($articuloPorBarras->id);
+
                 return;
             }
         }
 
-        if (!empty($this->articulosSimuladorResultados)) {
+        if (! empty($this->articulosSimuladorResultados)) {
             $this->agregarArticuloSimulador($this->articulosSimuladorResultados[0]['id']);
         }
     }
@@ -295,8 +306,9 @@ class SimuladorVenta extends Component
 
     protected function cargarListasPreciosSimulador(): void
     {
-        if (!$this->simuladorSucursalId) {
+        if (! $this->simuladorSucursalId) {
             $this->listasPreciosSimulador = [];
+
             return;
         }
 
@@ -335,12 +347,12 @@ class SimuladorVenta extends Component
 
     protected function obtenerPrecioConLista(Articulo $articulo): float
     {
-        if (!$this->simuladorListaPrecioId) {
+        if (! $this->simuladorListaPrecioId) {
             return (float) $articulo->precio_base;
         }
 
         $listaPrecio = ListaPrecio::find($this->simuladorListaPrecioId);
-        if (!$listaPrecio) {
+        if (! $listaPrecio) {
             return (float) $articulo->precio_base;
         }
 
@@ -350,16 +362,19 @@ class SimuladorVenta extends Component
             'canal_venta_id' => $this->simuladorCanalVentaId,
         ];
 
-        if (!$listaPrecio->es_lista_base && !$listaPrecio->validarCondiciones($contexto)) {
+        if (! $listaPrecio->es_lista_base && ! $listaPrecio->validarCondiciones($contexto)) {
             $listaBase = ListaPrecio::obtenerListaBase($this->simuladorSucursalId);
             if ($listaBase) {
                 $precioInfo = $listaBase->obtenerPrecioArticulo($articulo);
+
                 return $precioInfo['precio'];
             }
+
             return (float) $articulo->precio_base;
         }
 
         $precioInfo = $listaPrecio->obtenerPrecioArticulo($articulo);
+
         return $precioInfo['precio'];
     }
 
@@ -381,6 +396,7 @@ class SimuladorVenta extends Component
 
         if (empty($sucursalId)) {
             $this->promocionesCompetidoras = collect();
+
             return;
         }
 
@@ -405,7 +421,7 @@ class SimuladorVenta extends Component
                 $query->where(function ($q) use ($articuloId) {
                     $q->whereHas('condiciones', function ($subQ) use ($articuloId) {
                         $subQ->where('tipo_condicion', 'por_articulo')
-                             ->where('articulo_id', $articuloId);
+                            ->where('articulo_id', $articuloId);
                     })->orWhereDoesntHave('condiciones', function ($subQ) {
                         $subQ->whereIn('tipo_condicion', ['por_articulo', 'por_categoria']);
                     });
@@ -414,7 +430,7 @@ class SimuladorVenta extends Component
                 $query->where(function ($q) use ($categoriaId) {
                     $q->whereHas('condiciones', function ($subQ) use ($categoriaId) {
                         $subQ->where('tipo_condicion', 'por_categoria')
-                             ->where('categoria_id', $categoriaId);
+                            ->where('categoria_id', $categoriaId);
                     })->orWhereDoesntHave('condiciones', function ($subQ) {
                         $subQ->whereIn('tipo_condicion', ['por_articulo', 'por_categoria']);
                     });
@@ -428,7 +444,7 @@ class SimuladorVenta extends Component
             $query->where(function ($q) use ($formaVentaFiltro) {
                 $q->whereHas('condiciones', function ($subQ) use ($formaVentaFiltro) {
                     $subQ->where('tipo_condicion', 'por_forma_venta')
-                         ->where('forma_venta_id', $formaVentaFiltro);
+                        ->where('forma_venta_id', $formaVentaFiltro);
                 })->orWhereDoesntHave('condiciones', function ($subQ) {
                     $subQ->where('tipo_condicion', 'por_forma_venta');
                 });
@@ -441,7 +457,7 @@ class SimuladorVenta extends Component
             $query->where(function ($q) use ($canalVentaFiltro) {
                 $q->whereHas('condiciones', function ($subQ) use ($canalVentaFiltro) {
                     $subQ->where('tipo_condicion', 'por_canal')
-                         ->where('canal_venta_id', $canalVentaFiltro);
+                        ->where('canal_venta_id', $canalVentaFiltro);
                 })->orWhereDoesntHave('condiciones', function ($subQ) {
                     $subQ->where('tipo_condicion', 'por_canal');
                 });
@@ -454,7 +470,7 @@ class SimuladorVenta extends Component
             $query->where(function ($q) use ($formaPagoFiltro) {
                 $q->whereHas('condiciones', function ($subQ) use ($formaPagoFiltro) {
                     $subQ->where('tipo_condicion', 'por_forma_pago')
-                         ->where('forma_pago_id', $formaPagoFiltro);
+                        ->where('forma_pago_id', $formaPagoFiltro);
                 })->orWhereDoesntHave('condiciones', function ($subQ) {
                     $subQ->where('tipo_condicion', 'por_forma_pago');
                 });
@@ -470,6 +486,7 @@ class SimuladorVenta extends Component
     {
         if (empty($this->itemsSimulador)) {
             $this->resultadoSimulador = null;
+
             return;
         }
 
@@ -511,18 +528,18 @@ class SimuladorVenta extends Component
         // Manejar combinabilidad
         $promocionNuevaNoCombinable = null;
         foreach ($todasPromociones as $promo) {
-            if ($promo['es_nueva'] && !$promo['combinable']) {
+            if ($promo['es_nueva'] && ! $promo['combinable']) {
                 $promocionNuevaNoCombinable = $promo;
                 break;
             }
         }
 
         if ($promocionNuevaNoCombinable) {
-            $promocionesArticulo = array_filter($promocionesArticulo, fn($p) => $p['es_nueva']);
-            $promocionesVenta = array_filter($promocionesVenta, fn($p) => $p['es_nueva']);
+            $promocionesArticulo = array_filter($promocionesArticulo, fn ($p) => $p['es_nueva']);
+            $promocionesVenta = array_filter($promocionesVenta, fn ($p) => $p['es_nueva']);
         } else {
-            $promocionesArticulo = array_filter($promocionesArticulo, fn($p) => $p['combinable'] || $p['es_nueva']);
-            $promocionesVenta = array_filter($promocionesVenta, fn($p) => $p['combinable'] || $p['es_nueva']);
+            $promocionesArticulo = array_filter($promocionesArticulo, fn ($p) => $p['combinable'] || $p['es_nueva']);
+            $promocionesVenta = array_filter($promocionesVenta, fn ($p) => $p['combinable'] || $p['es_nueva']);
         }
 
         // Contexto de la venta
@@ -550,7 +567,7 @@ class SimuladorVenta extends Component
         // Aplicar promociones a nivel de venta
         $descuentoVenta = 0;
         foreach ($promocionesVenta as $promo) {
-            if (!$this->promocionCumpleCondiciones($promo, $contextoVenta)) {
+            if (! $this->promocionCumpleCondiciones($promo, $contextoVenta)) {
                 continue;
             }
 
@@ -675,8 +692,8 @@ class SimuladorVenta extends Component
             return $itemResultado;
         }
 
-        $descuentos = array_filter($promocionesParaItem, fn($p) => $this->esDescuento($p['tipo']));
-        $recargos = array_filter($promocionesParaItem, fn($p) => !$this->esDescuento($p['tipo']));
+        $descuentos = array_filter($promocionesParaItem, fn ($p) => $this->esDescuento($p['tipo']));
+        $recargos = array_filter($promocionesParaItem, fn ($p) => ! $this->esDescuento($p['tipo']));
 
         $mejorDescuentos = $this->encontrarMejorCombinacionParaItem(
             array_values($descuentos),
@@ -724,20 +741,20 @@ class SimuladorVenta extends Component
 
     private function promocionCumpleCondiciones(array $promo, array $contextoVenta): bool
     {
-        if (!empty($promo['monto_minimo'])) {
+        if (! empty($promo['monto_minimo'])) {
             if ($contextoVenta['subtotal'] < (float) $promo['monto_minimo']) {
                 return false;
             }
         }
 
-        if (!empty($promo['cantidad_minima'])) {
+        if (! empty($promo['cantidad_minima'])) {
             if ($contextoVenta['cantidad_total'] < (int) $promo['cantidad_minima']) {
                 return false;
             }
         }
 
-        if (!empty($promo['forma_pago_id'])) {
-            if (!empty($contextoVenta['forma_pago_id'])) {
+        if (! empty($promo['forma_pago_id'])) {
+            if (! empty($contextoVenta['forma_pago_id'])) {
                 if ($promo['forma_pago_id'] != $contextoVenta['forma_pago_id']) {
                     return false;
                 }
@@ -746,8 +763,8 @@ class SimuladorVenta extends Component
             }
         }
 
-        if (!empty($promo['forma_venta_id'])) {
-            if (!empty($contextoVenta['forma_venta_id'])) {
+        if (! empty($promo['forma_venta_id'])) {
+            if (! empty($contextoVenta['forma_venta_id'])) {
                 if ($promo['forma_venta_id'] != $contextoVenta['forma_venta_id']) {
                     return false;
                 }
@@ -756,8 +773,8 @@ class SimuladorVenta extends Component
             }
         }
 
-        if (!empty($promo['canal_venta_id'])) {
-            if (!empty($contextoVenta['canal_venta_id'])) {
+        if (! empty($promo['canal_venta_id'])) {
+            if (! empty($contextoVenta['canal_venta_id'])) {
                 if ($promo['canal_venta_id'] != $contextoVenta['canal_venta_id']) {
                     return false;
                 }
@@ -797,7 +814,7 @@ class SimuladorVenta extends Component
                 }
             }
 
-            if (!$this->esCombinacionValida($combinacion)) {
+            if (! $this->esCombinacionValida($combinacion)) {
                 continue;
             }
 
@@ -835,7 +852,7 @@ class SimuladorVenta extends Component
 
     private function calcularCombinacionParaItem(array $combinacion, float $montoInicial, int $cantidad): array
     {
-        usort($combinacion, fn($a, $b) => $a['prioridad'] <=> $b['prioridad']);
+        usort($combinacion, fn ($a, $b) => $a['prioridad'] <=> $b['prioridad']);
 
         $montoActual = $montoInicial;
         $promocionesAplicadas = [];
@@ -925,17 +942,18 @@ class SimuladorVenta extends Component
 
             $promoResumen['aplicada'] = count($promoResumen['aplicada_en']) > 0;
 
-            if (!$promoResumen['aplicada']) {
+            if (! $promoResumen['aplicada']) {
                 $promoResumen['razon'] = $this->determinarRazonNoAplicada($promo, $items, $contextoVenta);
             }
 
             $resumen[] = $promoResumen;
         }
 
-        usort($resumen, function($a, $b) {
+        usort($resumen, function ($a, $b) {
             if ($a['aplicada'] !== $b['aplicada']) {
                 return $b['aplicada'] <=> $a['aplicada'];
             }
+
             return $a['prioridad'] <=> $b['prioridad'];
         });
 
@@ -944,7 +962,7 @@ class SimuladorVenta extends Component
 
     private function determinarRazonNoAplicada(array $promo, array $items, array $contextoVenta): string
     {
-        if (!empty($promo['forma_pago_id'])) {
+        if (! empty($promo['forma_pago_id'])) {
             if (empty($contextoVenta['forma_pago_id'])) {
                 return __('Requiere forma de pago específica');
             }
@@ -953,7 +971,7 @@ class SimuladorVenta extends Component
             }
         }
 
-        if (!empty($promo['forma_venta_id'])) {
+        if (! empty($promo['forma_venta_id'])) {
             if (empty($contextoVenta['forma_venta_id'])) {
                 return __('Requiere forma de venta específica');
             }
@@ -962,7 +980,7 @@ class SimuladorVenta extends Component
             }
         }
 
-        if (!empty($promo['canal_venta_id'])) {
+        if (! empty($promo['canal_venta_id'])) {
             if (empty($contextoVenta['canal_venta_id'])) {
                 return __('Requiere canal de venta específico');
             }
@@ -971,18 +989,20 @@ class SimuladorVenta extends Component
             }
         }
 
-        if (!empty($promo['monto_minimo'])) {
+        if (! empty($promo['monto_minimo'])) {
             $montoMinimo = (float) $promo['monto_minimo'];
             if ($contextoVenta['subtotal'] < $montoMinimo) {
                 $faltante = $montoMinimo - $contextoVenta['subtotal'];
+
                 return __('Monto mínimo no alcanzado (faltan $:monto)', ['monto' => number_format($faltante, 0, ',', '.')]);
             }
         }
 
-        if (!empty($promo['cantidad_minima'])) {
+        if (! empty($promo['cantidad_minima'])) {
             $cantidadMinima = (int) $promo['cantidad_minima'];
             if ($contextoVenta['cantidad_total'] < $cantidadMinima) {
                 $faltante = $cantidadMinima - $contextoVenta['cantidad_total'];
+
                 return __('Cantidad mínima no alcanzada (faltan :faltante unidades)', ['faltante' => $faltante]);
             }
         }
@@ -995,7 +1015,7 @@ class SimuladorVenta extends Component
             }
         }
 
-        if (!$aplicaAlguno) {
+        if (! $aplicaAlguno) {
             return __('No aplica a estos artículos');
         }
 
@@ -1015,7 +1035,7 @@ class SimuladorVenta extends Component
 
         $noCombinable = 0;
         foreach ($combinacion as $promo) {
-            if (!$promo['combinable']) {
+            if (! $promo['combinable']) {
                 $noCombinable++;
             }
         }
@@ -1046,6 +1066,7 @@ class SimuladorVenta extends Component
 
             case 'precio_fijo':
                 $precioFijoTotal = $promo['valor'] * $cantidad;
+
                 return [
                     'tipo' => 'descuento',
                     'porcentaje' => null,
@@ -1069,7 +1090,7 @@ class SimuladorVenta extends Component
 
             case 'descuento_escalonado':
                 $escalas = collect($promo['escalas'])
-                    ->filter(fn($e) => !empty($e['cantidad_desde']) && !empty($e['valor']))
+                    ->filter(fn ($e) => ! empty($e['cantidad_desde']) && ! empty($e['valor']))
                     ->sortByDesc('cantidad_desde');
 
                 foreach ($escalas as $escala) {
@@ -1096,6 +1117,7 @@ class SimuladorVenta extends Component
                         }
                     }
                 }
+
                 return ['tipo' => 'descuento', 'porcentaje' => 0, 'valor' => 0];
 
             default:

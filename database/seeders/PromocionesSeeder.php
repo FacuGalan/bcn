@@ -2,19 +2,18 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
+use App\Models\Articulo;
+use App\Models\CanalVenta;
+use App\Models\Categoria;
+use App\Models\Comercio;
+use App\Models\FormaPago;
+use App\Models\FormaVenta;
 use App\Models\Promocion;
 use App\Models\PromocionCondicion;
 use App\Models\PromocionEscala;
 use App\Models\Sucursal;
-use App\Models\Articulo;
-use App\Models\Categoria;
-use App\Models\FormaPago;
-use App\Models\FormaVenta;
-use App\Models\CanalVenta;
-use App\Models\Comercio;
-use Carbon\Carbon;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Seeder: Promociones
@@ -34,11 +33,17 @@ use Carbon\Carbon;
 class PromocionesSeeder extends Seeder
 {
     private $comercioId = 1;
+
     private $sucursales = [];
+
     private $articulos = [];
+
     private $categorias = [];
+
     private $formasPago = [];
+
     private $formasVenta = [];
+
     private $canalesVenta = [];
 
     public function run(): void
@@ -57,11 +62,11 @@ class PromocionesSeeder extends Seeder
         echo "⚙️  Configurando tenant para comercio {$this->comercioId}...\n";
 
         $comercio = Comercio::find($this->comercioId);
-        $prefix = str_pad($this->comercioId, 6, '0', STR_PAD_LEFT) . '_';
+        $prefix = str_pad($this->comercioId, 6, '0', STR_PAD_LEFT).'_';
 
         config([
             'database.connections.pymes_tenant.prefix' => $prefix,
-            'database.connections.pymes_tenant.database' => $comercio->database_name ?? 'pymes'
+            'database.connections.pymes_tenant.database' => $comercio->database_name ?? 'pymes',
         ]);
 
         DB::purge('pymes_tenant');
@@ -431,11 +436,12 @@ class PromocionesSeeder extends Seeder
     {
         // Verificar si ya existe
         $existing = Promocion::where('sucursal_id', $data['sucursal_id'])
-                             ->where('nombre', $data['nombre'])
-                             ->first();
+            ->where('nombre', $data['nombre'])
+            ->first();
 
         if ($existing) {
             echo "      ⚠️  Promoción ya existe\n";
+
             return null;
         }
 

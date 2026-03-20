@@ -2,10 +2,10 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 use App\Models\CanalVenta;
 use App\Models\Comercio;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Seeder: Canales de Venta
@@ -34,11 +34,11 @@ class CanalesVentaSeeder extends Seeder
         echo "⚙️  Configurando tenant para comercio {$this->comercioId}...\n";
 
         $comercio = Comercio::find($this->comercioId);
-        $prefix = str_pad($this->comercioId, 6, '0', STR_PAD_LEFT) . '_';
+        $prefix = str_pad($this->comercioId, 6, '0', STR_PAD_LEFT).'_';
 
         config([
             'database.connections.pymes_tenant.prefix' => $prefix,
-            'database.connections.pymes_tenant.database' => $comercio->database_name ?? 'pymes'
+            'database.connections.pymes_tenant.database' => $comercio->database_name ?? 'pymes',
         ]);
 
         DB::purge('pymes_tenant');
@@ -106,6 +106,7 @@ class CanalesVentaSeeder extends Seeder
             $existing = CanalVenta::where('codigo', $data['codigo'])->first();
             if ($existing) {
                 echo "   ⚠️  {$data['nombre']} ya existe\n";
+
                 continue;
             }
 

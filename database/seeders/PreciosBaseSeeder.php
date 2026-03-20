@@ -2,15 +2,14 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
-use App\Models\PrecioBase;
 use App\Models\Articulo;
-use App\Models\Sucursal;
-use App\Models\FormaVenta;
 use App\Models\CanalVenta;
 use App\Models\Comercio;
-use Carbon\Carbon;
+use App\Models\FormaVenta;
+use App\Models\PrecioBase;
+use App\Models\Sucursal;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Seeder: Precios Base
@@ -27,9 +26,13 @@ use Carbon\Carbon;
 class PreciosBaseSeeder extends Seeder
 {
     private $comercioId = 1;
+
     private $articulos = [];
+
     private $sucursales = [];
+
     private $formasVenta = [];
+
     private $canalesVenta = [];
 
     public function run(): void
@@ -48,11 +51,11 @@ class PreciosBaseSeeder extends Seeder
         echo "⚙️  Configurando tenant para comercio {$this->comercioId}...\n";
 
         $comercio = Comercio::find($this->comercioId);
-        $prefix = str_pad($this->comercioId, 6, '0', STR_PAD_LEFT) . '_';
+        $prefix = str_pad($this->comercioId, 6, '0', STR_PAD_LEFT).'_';
 
         config([
             'database.connections.pymes_tenant.prefix' => $prefix,
-            'database.connections.pymes_tenant.database' => $comercio->database_name ?? 'pymes'
+            'database.connections.pymes_tenant.database' => $comercio->database_name ?? 'pymes',
         ]);
 
         DB::purge('pymes_tenant');
@@ -268,17 +271,17 @@ class PreciosBaseSeeder extends Seeder
         echo "   📊 Creando precios base para resto de artículos...\n";
 
         $articulosSinPrecio = Articulo::whereNotIn('codigo', ['BEB001', 'BEB002', 'SNK001', 'ALM001'])
-                                      ->get();
+            ->get();
 
         foreach ($articulosSinPrecio as $articulo) {
             foreach ($this->sucursales as $sucursal) {
                 $existing = PrecioBase::where('articulo_id', $articulo->id)
-                                      ->where('sucursal_id', $sucursal->id)
-                                      ->whereNull('forma_venta_id')
-                                      ->whereNull('canal_venta_id')
-                                      ->exists();
+                    ->where('sucursal_id', $sucursal->id)
+                    ->whereNull('forma_venta_id')
+                    ->whereNull('canal_venta_id')
+                    ->exists();
 
-                if (!$existing) {
+                if (! $existing) {
                     PrecioBase::create([
                         'articulo_id' => $articulo->id,
                         'sucursal_id' => $sucursal->id,
@@ -299,9 +302,9 @@ class PreciosBaseSeeder extends Seeder
     {
         // Verificar si ya existe
         $existing = PrecioBase::where('articulo_id', $data['articulo_id'])
-                              ->where('sucursal_id', $data['sucursal_id'])
-                              ->where('forma_venta_id', $data['forma_venta_id'] ?? null)
-                              ->where('canal_venta_id', $data['canal_venta_id'] ?? null);
+            ->where('sucursal_id', $data['sucursal_id'])
+            ->where('forma_venta_id', $data['forma_venta_id'] ?? null)
+            ->where('canal_venta_id', $data['canal_venta_id'] ?? null);
 
         // Si tiene vigencias, agregar a la búsqueda
         if (isset($data['vigencia_desde'])) {
@@ -310,6 +313,7 @@ class PreciosBaseSeeder extends Seeder
 
         if ($existing->exists()) {
             echo "      ⚠️  {$data['descripcion']} ya existe\n";
+
             return;
         }
 

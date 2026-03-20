@@ -16,8 +16,6 @@ use Illuminate\Support\Facades\DB;
  * y ejecuta las migraciones pendientes en ese tenant.
  *
  * Uso: php artisan tenant:migrate {comercio_id} [--seed] [--fresh]
- *
- * @package App\Console\Commands
  */
 class MigrateTenantCommand extends Command
 {
@@ -63,8 +61,9 @@ class MigrateTenantCommand extends Command
 
         // Verificar que el comercio existe
         $comercio = Comercio::find($comercioId);
-        if (!$comercio) {
+        if (! $comercio) {
             $this->error("Comercio con ID {$comercioId} no encontrado.");
+
             return 1;
         }
 
@@ -81,7 +80,8 @@ class MigrateTenantCommand extends Command
         $comercios = Comercio::where('activo', true)->get();
 
         if ($comercios->isEmpty()) {
-            $this->warn("No hay comercios activos.");
+            $this->warn('No hay comercios activos.');
+
             return 0;
         }
 
@@ -101,10 +101,12 @@ class MigrateTenantCommand extends Command
         $this->newLine();
         if ($errores > 0) {
             $this->error("Completado con {$errores} errores.");
+
             return 1;
         }
 
-        $this->info("Todas las migraciones completadas exitosamente.");
+        $this->info('Todas las migraciones completadas exitosamente.');
+
         return 0;
     }
 
@@ -140,7 +142,7 @@ class MigrateTenantCommand extends Command
             ];
 
             if ($this->option('fresh')) {
-                $this->warn("  ⚠ Ejecutando migrate:fresh (esto eliminará todas las tablas del tenant)");
+                $this->warn('  ⚠ Ejecutando migrate:fresh (esto eliminará todas las tablas del tenant)');
                 Artisan::call('migrate:fresh', $migrateOptions);
             } else {
                 Artisan::call('migrate', $migrateOptions);
@@ -159,16 +161,18 @@ class MigrateTenantCommand extends Command
                     $seederOptions['--class'] = $seeder;
                 }
 
-                $this->info("  Ejecutando seeders...");
+                $this->info('  Ejecutando seeders...');
                 Artisan::call('db:seed', $seederOptions);
                 $this->info(Artisan::output());
             }
 
             $this->info("  ✓ Migración completada para {$comercio->nombre}");
+
             return 0;
 
         } catch (\Exception $e) {
-            $this->error("  ✗ Error: " . $e->getMessage());
+            $this->error('  ✗ Error: '.$e->getMessage());
+
             return 1;
         }
     }

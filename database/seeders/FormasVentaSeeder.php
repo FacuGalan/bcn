@@ -2,10 +2,10 @@
 
 namespace Database\Seeders;
 
+use App\Models\Comercio;
+use App\Models\FormaVenta;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use App\Models\FormaVenta;
-use App\Models\Comercio;
 
 /**
  * Seeder: Formas de Venta
@@ -34,11 +34,11 @@ class FormasVentaSeeder extends Seeder
         echo "⚙️  Configurando tenant para comercio {$this->comercioId}...\n";
 
         $comercio = Comercio::find($this->comercioId);
-        $prefix = str_pad($this->comercioId, 6, '0', STR_PAD_LEFT) . '_';
+        $prefix = str_pad($this->comercioId, 6, '0', STR_PAD_LEFT).'_';
 
         config([
             'database.connections.pymes_tenant.prefix' => $prefix,
-            'database.connections.pymes_tenant.database' => $comercio->database_name ?? 'pymes'
+            'database.connections.pymes_tenant.database' => $comercio->database_name ?? 'pymes',
         ]);
 
         DB::purge('pymes_tenant');
@@ -88,6 +88,7 @@ class FormasVentaSeeder extends Seeder
             $existing = FormaVenta::where('codigo', $data['codigo'])->first();
             if ($existing) {
                 echo "   ⚠️  {$data['nombre']} ya existe\n";
+
                 continue;
             }
 

@@ -3,14 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\ImpresionService;
-use App\Models\Venta;
-use App\Models\ComprobanteFiscal;
 use App\Models\CierreTurno;
 use App\Models\Cobro;
+use App\Models\ComprobanteFiscal;
 use App\Models\Impresora;
-use Illuminate\Http\Request;
+use App\Models\Venta;
+use App\Services\ImpresionService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class ImpresionController extends Controller
 {
@@ -35,7 +35,7 @@ class ImpresionController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'error' => true,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
@@ -54,7 +54,7 @@ class ImpresionController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'error' => true,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
@@ -73,7 +73,7 @@ class ImpresionController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'error' => true,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
@@ -85,12 +85,13 @@ class ImpresionController extends Controller
     {
         try {
             $impresoras = $this->impresionService->listarImpresoras();
+
             return response()->json($impresoras);
 
         } catch (\Exception $e) {
             return response()->json([
                 'error' => true,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
@@ -109,7 +110,7 @@ class ImpresionController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'error' => true,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
@@ -128,7 +129,7 @@ class ImpresionController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'error' => true,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
@@ -143,7 +144,7 @@ class ImpresionController extends Controller
         try {
             $privateKeyPath = storage_path('app/qz/private-key.pem');
 
-            if (!file_exists($privateKeyPath)) {
+            if (! file_exists($privateKeyPath)) {
                 // Si no hay clave, retornar firma vacía (modo desarrollo)
                 return response()->json(['signature' => '']);
             }
@@ -153,13 +154,13 @@ class ImpresionController extends Controller
             openssl_sign($request->input('request'), $signature, $privateKey, OPENSSL_ALGO_SHA512);
 
             return response()->json([
-                'signature' => base64_encode($signature)
+                'signature' => base64_encode($signature),
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'error' => true,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }

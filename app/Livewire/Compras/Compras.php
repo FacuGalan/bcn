@@ -2,17 +2,17 @@
 
 namespace App\Livewire\Compras;
 
-use Livewire\Component;
-use Livewire\WithPagination;
-use App\Services\CompraService;
-use App\Models\Compra;
-use App\Models\Proveedor;
 use App\Models\Articulo;
 use App\Models\Caja;
+use App\Models\Compra;
+use App\Models\Proveedor;
 use App\Models\Sucursal;
+use App\Services\CompraService;
+use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Exception;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 /**
  * Componente Livewire: Compras
@@ -32,6 +32,7 @@ use Exception;
  *
  * PROPIEDADES PRINCIPALES:
  * =======================
+ *
  * @property Collection $compras - Lista paginada de compras
  * @property array $carrito - Items en el carrito de compra actual
  * @property float $subtotal - Subtotal calculado del carrito (sin IVA)
@@ -117,8 +118,8 @@ use Exception;
  *
  * FASE 4 - Sistema Multi-Sucursal (Componentes Livewire)
  *
- * @package App\Livewire\Compras
  * @author BCN Pymes
+ *
  * @version 1.0.0
  */
 class Compras extends Component
@@ -131,6 +132,7 @@ class Compras extends Component
 
     /**
      * Búsqueda por número de comprobante o nombre de proveedor
+     *
      * @var string
      */
     public $search = '';
@@ -138,6 +140,7 @@ class Compras extends Component
     /**
      * Filtro por estado de compra
      * Valores: 'all', 'completada', 'pendiente', 'cancelada'
+     *
      * @var string
      */
     public $filterEstado = 'all';
@@ -145,24 +148,28 @@ class Compras extends Component
     /**
      * Filtro por forma de pago
      * Valores: 'all', 'efectivo', 'debito', 'credito', 'cta_cte'
+     *
      * @var string
      */
     public $filterFormaPago = 'all';
 
     /**
      * Filtro por fecha desde
+     *
      * @var string|null
      */
     public $filterFechaDesde = null;
 
     /**
      * Filtro por fecha hasta
+     *
      * @var string|null
      */
     public $filterFechaHasta = null;
 
     /**
      * Controla visibilidad de filtros en móvil
+     *
      * @var bool
      */
     public $showFilters = false;
@@ -182,18 +189,21 @@ class Compras extends Component
      *   'iva_monto' => float,
      *   'subtotal' => float (precio_sin_iva * cantidad + iva_monto)
      * ]
+     *
      * @var array
      */
     public $carrito = [];
 
     /**
      * ID del proveedor seleccionado
+     *
      * @var int|null
      */
     public $proveedorSeleccionado = null;
 
     /**
      * Búsqueda de artículos
+     *
      * @var string
      */
     public $buscarArticulo = '';
@@ -201,36 +211,42 @@ class Compras extends Component
     /**
      * Forma de pago seleccionada
      * Valores: 'efectivo', 'debito', 'credito', 'cta_cte'
+     *
      * @var string
      */
     public $formaPago = 'efectivo';
 
     /**
      * ID de la caja seleccionada
+     *
      * @var int|null
      */
     public $cajaSeleccionada = null;
 
     /**
      * Tipo de comprobante
+     *
      * @var string
      */
     public $tipoComprobante = 'factura_a';
 
     /**
      * Número de comprobante (ingreso manual)
+     *
      * @var string|null
      */
     public $numeroComprobante = null;
 
     /**
      * Fecha de la compra
+     *
      * @var string
      */
     public $fechaCompra = null;
 
     /**
      * Observaciones de la compra
+     *
      * @var string|null
      */
     public $observaciones = null;
@@ -241,18 +257,21 @@ class Compras extends Component
 
     /**
      * Subtotal del carrito (sin IVA)
+     *
      * @var float
      */
     public $subtotal = 0;
 
     /**
      * Total de IVA (crédito fiscal)
+     *
      * @var float
      */
     public $totalIva = 0;
 
     /**
      * Total final de la compra
+     *
      * @var float
      */
     public $total = 0;
@@ -263,42 +282,49 @@ class Compras extends Component
 
     /**
      * Controla visibilidad del modal de compra
+     *
      * @var bool
      */
     public $showCompraModal = false;
 
     /**
      * Controla visibilidad del modal de detalles
+     *
      * @var bool
      */
     public $showDetalleModal = false;
 
     /**
      * ID de la compra para ver detalles
+     *
      * @var int|null
      */
     public $compraDetalleId = null;
 
     /**
      * Controla visibilidad del modal de pago
+     *
      * @var bool
      */
     public $showPagoModal = false;
 
     /**
      * ID de la compra para registrar pago
+     *
      * @var int|null
      */
     public $compraPagoId = null;
 
     /**
      * Monto del pago a registrar
+     *
      * @var float
      */
     public $montoPago = 0;
 
     /**
      * Caja para registrar el pago
+     *
      * @var int|null
      */
     public $cajaPago = null;
@@ -309,6 +335,7 @@ class Compras extends Component
 
     /**
      * Servicio de compras
+     *
      * @var CompraService
      */
     protected $compraService;
@@ -343,11 +370,11 @@ class Compras extends Component
     {
         $compras = $this->obtenerCompras();
         $proveedores = Proveedor::activos()
-                                ->orderBy('nombre')
-                                ->get();
+            ->orderBy('nombre')
+            ->get();
         $cajas = Caja::porSucursal($this->obtenerSucursalActual())
-                    ->activas()
-                    ->get();
+            ->activas()
+            ->get();
 
         return view('livewire.compras.compras', [
             'compras' => $compras,
@@ -370,15 +397,15 @@ class Compras extends Component
     protected function obtenerCompras()
     {
         $query = Compra::with(['proveedor', 'caja', 'usuario'])
-                     ->where('sucursal_id', $this->obtenerSucursalActual());
+            ->where('sucursal_id', $this->obtenerSucursalActual());
 
         // Filtro de búsqueda
         if ($this->search) {
             $query->where(function ($q) {
                 $q->where('numero_comprobante', 'like', "%{$this->search}%")
-                  ->orWhereHas('proveedor', function ($q2) {
-                      $q2->where('nombre', 'like', "%{$this->search}%");
-                  });
+                    ->orWhereHas('proveedor', function ($q2) {
+                        $q2->where('nombre', 'like', "%{$this->search}%");
+                    });
             });
         }
 
@@ -402,7 +429,7 @@ class Compras extends Component
         }
 
         return $query->orderBy('created_at', 'desc')
-                    ->paginate(10);
+            ->paginate(10);
     }
 
     /**
@@ -422,7 +449,7 @@ class Compras extends Component
      */
     public function toggleFilters()
     {
-        $this->showFilters = !$this->showFilters;
+        $this->showFilters = ! $this->showFilters;
     }
 
     /**
@@ -472,7 +499,7 @@ class Compras extends Component
     /**
      * Agrega un artículo al carrito
      *
-     * @param int $articuloId
+     * @param  int  $articuloId
      */
     public function agregarAlCarrito($articuloId)
     {
@@ -508,7 +535,7 @@ class Compras extends Component
         } catch (Exception $e) {
             Log::error('Error al agregar artículo al carrito', [
                 'articulo_id' => $articuloId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             $this->dispatch('toast-error', message: __('Error al agregar artículo: :message', ['message' => $e->getMessage()]));
         }
@@ -517,7 +544,7 @@ class Compras extends Component
     /**
      * Busca un artículo en el carrito por su ID
      *
-     * @param int $articuloId
+     * @param  int  $articuloId
      * @return int|null Índice del artículo en el carrito, o null si no está
      */
     protected function buscarEnCarrito($articuloId)
@@ -527,13 +554,14 @@ class Compras extends Component
                 return $key;
             }
         }
+
         return null;
     }
 
     /**
      * Elimina un artículo del carrito
      *
-     * @param int $index Índice del item en el array carrito
+     * @param  int  $index  Índice del item en el array carrito
      */
     public function eliminarDelCarrito($index)
     {
@@ -548,8 +576,8 @@ class Compras extends Component
     /**
      * Actualiza la cantidad de un artículo en el carrito
      *
-     * @param int $index
-     * @param float $cantidad
+     * @param  int  $index
+     * @param  float  $cantidad
      */
     public function actualizarCantidad($index, $cantidad)
     {
@@ -558,6 +586,7 @@ class Compras extends Component
 
             if ($cantidad <= 0) {
                 $this->eliminarDelCarrito($index);
+
                 return;
             }
 
@@ -569,8 +598,8 @@ class Compras extends Component
     /**
      * Actualiza el precio sin IVA de un artículo
      *
-     * @param int $index
-     * @param float $precio
+     * @param  int  $index
+     * @param  float  $precio
      */
     public function actualizarPrecio($index, $precio)
     {
@@ -624,18 +653,21 @@ class Compras extends Component
             // Validar carrito no vacío
             if (empty($this->carrito)) {
                 $this->dispatch('toast-error', message: __('El carrito está vacío'));
+
                 return;
             }
 
             // Validar proveedor
-            if (!$this->proveedorSeleccionado) {
+            if (! $this->proveedorSeleccionado) {
                 $this->dispatch('toast-error', message: __('Debe seleccionar un proveedor'));
+
                 return;
             }
 
             // Validar caja si no es cuenta corriente
-            if ($this->formaPago !== 'cta_cte' && !$this->cajaSeleccionada) {
+            if ($this->formaPago !== 'cta_cte' && ! $this->cajaSeleccionada) {
                 $this->dispatch('toast-error', message: 'Debe seleccionar una caja');
+
                 return;
             }
 
@@ -675,9 +707,9 @@ class Compras extends Component
         } catch (Exception $e) {
             Log::error('Error al procesar compra', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
-            $this->dispatch('toast-error', message: 'Error al procesar compra: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: 'Error al procesar compra: '.$e->getMessage());
         }
     }
 
@@ -697,7 +729,7 @@ class Compras extends Component
     /**
      * Abre el modal de detalles de una compra
      *
-     * @param int $compraId
+     * @param  int  $compraId
      */
     public function verDetalle($compraId)
     {
@@ -717,7 +749,7 @@ class Compras extends Component
     /**
      * Cancela una compra
      *
-     * @param int $compraId
+     * @param  int  $compraId
      */
     public function cancelarCompra($compraId)
     {
@@ -732,16 +764,16 @@ class Compras extends Component
         } catch (Exception $e) {
             Log::error('Error al cancelar compra', [
                 'compra_id' => $compraId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            $this->dispatch('toast-error', message: 'Error al cancelar compra: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: 'Error al cancelar compra: '.$e->getMessage());
         }
     }
 
     /**
      * Abre el modal para registrar pago
      *
-     * @param int $compraId
+     * @param  int  $compraId
      */
     public function abrirModalPago($compraId)
     {
@@ -761,11 +793,13 @@ class Compras extends Component
             // Validaciones
             if ($this->montoPago <= 0) {
                 $this->dispatch('toast-error', message: 'El monto debe ser mayor a cero');
+
                 return;
             }
 
-            if (!$this->cajaPago) {
+            if (! $this->cajaPago) {
                 $this->dispatch('toast-error', message: 'Debe seleccionar una caja');
+
                 return;
             }
 
@@ -786,9 +820,9 @@ class Compras extends Component
         } catch (Exception $e) {
             Log::error('Error al registrar pago', [
                 'compra_id' => $this->compraPagoId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            $this->dispatch('toast-error', message: 'Error al registrar pago: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: 'Error al registrar pago: '.$e->getMessage());
         }
     }
 

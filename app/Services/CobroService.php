@@ -2,26 +2,24 @@
 
 namespace App\Services;
 
+use App\Models\Caja;
+use App\Models\Cliente;
 use App\Models\Cobro;
 use App\Models\CobroPago;
 use App\Models\CobroVenta;
-use App\Models\Cliente;
-use App\Models\Venta;
-use App\Models\VentaPago;
+use App\Models\CuentaEmpresa;
+use App\Models\FormaPago;
+use App\Models\Moneda;
 use App\Models\MovimientoCaja;
 use App\Models\MovimientoCuentaCorriente;
-use App\Models\Caja;
-use App\Models\FormaPago;
-use App\Models\CuentaEmpresa;
-use App\Models\Moneda;
 use App\Models\TipoCambio;
-use App\Services\CuentaCorrienteService;
-use App\Services\CuentaEmpresaService;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
+use App\Models\Venta;
+use App\Models\VentaPago;
 use Carbon\Carbon;
 use Exception;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Servicio de Cobranzas
@@ -38,10 +36,10 @@ class CobroService
     /**
      * Registra un cobro completo con aplicación a ventas y formas de pago
      *
-     * @param array $data Datos del cobro (sucursal_id, cliente_id, caja_id, observaciones, descuento_aplicado)
-     * @param array $ventasAAplicar Array de ['venta_pago_id' => X, 'venta_id' => Y, 'monto_aplicado' => Z, 'interes_aplicado' => W]
-     * @param array $pagos Array de pagos con estructura del desglose
-     * @return Cobro
+     * @param  array  $data  Datos del cobro (sucursal_id, cliente_id, caja_id, observaciones, descuento_aplicado)
+     * @param  array  $ventasAAplicar  Array de ['venta_pago_id' => X, 'venta_id' => Y, 'monto_aplicado' => Z, 'interes_aplicado' => W]
+     * @param  array  $pagos  Array de pagos con estructura del desglose
+     *
      * @throws Exception
      */
     public function registrarCobro(array $data, array $ventasAAplicar, array $pagos): Cobro
@@ -76,7 +74,7 @@ class CobroService
             if ($saldoFavorUsado > 0) {
                 $saldoFavorDisponible = MovimientoCuentaCorriente::calcularSaldoFavor($data['cliente_id']);
                 if ($saldoFavorUsado > $saldoFavorDisponible) {
-                    throw new Exception('El monto de saldo a favor a usar ($' . number_format($saldoFavorUsado, 2) . ') excede el saldo disponible ($' . number_format($saldoFavorDisponible, 2) . ')');
+                    throw new Exception('El monto de saldo a favor a usar ($'.number_format($saldoFavorUsado, 2).') excede el saldo disponible ($'.number_format($saldoFavorDisponible, 2).')');
                 }
             }
 
@@ -114,7 +112,7 @@ class CobroService
                 $interesAplicado = $ventaData['interes_aplicado'] ?? 0;
 
                 // Si no viene venta_pago_id, buscar el pago CC de esa venta (compatibilidad)
-                if (!$ventaPagoId) {
+                if (! $ventaPagoId) {
                     $ventaPago = VentaPago::where('venta_id', $ventaId)
                         ->where('es_cuenta_corriente', true)
                         ->where('saldo_pendiente', '>', 0)
@@ -201,7 +199,7 @@ class CobroService
                 // Si afecta caja, crear movimiento de caja
                 if ($afectaCaja) {
                     $vuelto = (float) ($pago['vuelto'] ?? 0);
-                    $esMonedaExtranjera = !empty($pago['es_moneda_extranjera']) && !empty($pago['tipo_cambio_tasa']);
+                    $esMonedaExtranjera = ! empty($pago['es_moneda_extranjera']) && ! empty($pago['tipo_cambio_tasa']);
                     $montoFinal = $pago['monto_final'] ?? $pago['monto_base'];
 
                     if ($esMonedaExtranjera && $vuelto > 0) {
@@ -268,7 +266,7 @@ class CobroService
             }
 
             // Registrar movimientos en cuenta corriente unificada
-            $ccService = new CuentaCorrienteService();
+            $ccService = new CuentaCorrienteService;
             $ccService->registrarMovimientosCobro($cobro, $cobroVentasCreados, $usuarioId);
 
             return $cobro;
@@ -278,9 +276,8 @@ class CobroService
     /**
      * Registra un anticipo (cobro sin aplicación a ventas)
      *
-     * @param array $data Datos del cobro
-     * @param array $pagos Array de pagos
-     * @return Cobro
+     * @param  array  $data  Datos del cobro
+     * @param  array  $pagos  Array de pagos
      */
     public function registrarAnticipo(array $data, array $pagos): Cobro
     {
@@ -290,15 +287,14 @@ class CobroService
     /**
      * Calcula el interés por mora de una venta
      *
-     * @param Venta|object $venta Modelo Venta o objeto con propiedades necesarias
-     * @param float|null $tasaMensual Tasa mensual (si null, usa la del cliente)
-     * @return float
+     * @param  Venta|object  $venta  Modelo Venta o objeto con propiedades necesarias
+     * @param  float|null  $tasaMensual  Tasa mensual (si null, usa la del cliente)
      */
     public function calcularInteresMora(object $venta, ?float $tasaMensual = null): float
     {
         // Si no tiene fecha de vencimiento, no hay mora
         $fechaVencimiento = $venta->fecha_vencimiento ?? null;
-        if (!$fechaVencimiento) {
+        if (! $fechaVencimiento) {
             return 0;
         }
 
@@ -337,10 +333,6 @@ class CobroService
     /**
      * Obtiene las ventas pendientes de un cliente ordenadas por antigüedad (FIFO)
      * Ahora trabaja con VentaPago para mayor precisión
-     *
-     * @param int $clienteId
-     * @param int|null $sucursalId
-     * @return Collection
      */
     public function obtenerVentasPendientesFIFO(int $clienteId, ?int $sucursalId = null): Collection
     {
@@ -371,16 +363,16 @@ class CobroService
                 $montoTicket = max(0, $venta->total_final - $totalFiscal);
 
                 // Solo mostrar ticket si NO hay factura por el total
-                if (!$tieneFacturaTotal) {
+                if (! $tieneFacturaTotal) {
                     $pv = str_pad($venta->punto_venta ?? 1, 4, '0', STR_PAD_LEFT);
                     $num = str_pad($venta->numero ?? 0, 8, '0', STR_PAD_LEFT);
-                    $montoFormateado = '$' . number_format($montoTicket, 2, ',', '.');
+                    $montoFormateado = '$'.number_format($montoTicket, 2, ',', '.');
                     $comprobantes[] = "Ticket {$pv}-{$num} ({$montoFormateado})";
                 }
 
                 // Agregar comprobantes fiscales
                 foreach ($venta->comprobantesFiscales as $cf) {
-                    $tipoAbrev = match($cf->tipo) {
+                    $tipoAbrev = match ($cf->tipo) {
                         'factura_a', 'factura_b', 'factura_c' => 'FA',
                         'nota_credito_a', 'nota_credito_b', 'nota_credito_c' => 'NC',
                         'nota_debito_a', 'nota_debito_b', 'nota_debito_c' => 'ND',
@@ -389,7 +381,7 @@ class CobroService
                     $letra = $cf->letra ?? '';
                     $pv = str_pad($cf->punto_venta_numero ?? 0, 4, '0', STR_PAD_LEFT);
                     $num = str_pad($cf->numero_comprobante ?? 0, 8, '0', STR_PAD_LEFT);
-                    $montoFormateado = '$' . number_format($cf->total, 2, ',', '.');
+                    $montoFormateado = '$'.number_format($cf->total, 2, ',', '.');
                     $comprobantes[] = "{$tipoAbrev} {$letra} {$pv}-{$num} ({$montoFormateado})";
                 }
 
@@ -412,8 +404,8 @@ class CobroService
     /**
      * Distribuye un monto entre las ventas usando FIFO (más antigua primero)
      *
-     * @param float $monto Monto total a distribuir
-     * @param Collection $ventas Ventas ordenadas por antigüedad (con venta_pago_id)
+     * @param  float  $monto  Monto total a distribuir
+     * @param  Collection  $ventas  Ventas ordenadas por antigüedad (con venta_pago_id)
      * @return array Array de ['venta_id' => X, 'venta_pago_id' => Y, 'monto_aplicado' => Z, 'interes_aplicado' => W]
      */
     public function distribuirMontoFIFO(float $monto, Collection $ventas): array
@@ -458,13 +450,11 @@ class CobroService
     /**
      * Genera el reporte de antigüedad de deuda
      * Usa el nuevo sistema basado en VentaPago
-     *
-     * @param int|null $sucursalId
-     * @return array
      */
     public function generarReporteAntiguedad(?int $sucursalId = null): array
     {
-        $ccService = new CuentaCorrienteService();
+        $ccService = new CuentaCorrienteService;
+
         return $ccService->generarReporteAntiguedad($sucursalId);
     }
 
@@ -474,9 +464,8 @@ class CobroService
      * Si el cobro generó saldo a favor que ya fue usado, ese saldo se convierte
      * en deuda del cliente (contraasiento de ajuste).
      *
-     * @param int $cobroId
-     * @param string $motivo
      * @return array ['cobro' => Cobro, 'deuda_generada' => float]
+     *
      * @throws Exception
      */
     public function anularCobro(int $cobroId, string $motivo): array
@@ -495,7 +484,7 @@ class CobroService
             }
 
             // Anular movimientos en cuenta corriente unificada (con contraasientos)
-            $ccService = new CuentaCorrienteService();
+            $ccService = new CuentaCorrienteService;
             $resultadoCC = $ccService->anularMovimientosCobro($cobro, $motivo, $usuarioId);
 
             // Revertir saldos en VentaPago
@@ -588,16 +577,13 @@ class CobroService
 
     /**
      * Genera un número de recibo único para la sucursal
-     *
-     * @param int $sucursalId
-     * @return string
      */
     public function generarNumeroRecibo(int $sucursalId): string
     {
-        $prefijo = 'RC-' . str_pad($sucursalId, 2, '0', STR_PAD_LEFT) . '-';
+        $prefijo = 'RC-'.str_pad($sucursalId, 2, '0', STR_PAD_LEFT).'-';
 
         $ultimoRecibo = Cobro::where('sucursal_id', $sucursalId)
-            ->where('numero_recibo', 'like', $prefijo . '%')
+            ->where('numero_recibo', 'like', $prefijo.'%')
             ->orderBy('id', 'desc')
             ->value('numero_recibo');
 
@@ -608,20 +594,16 @@ class CobroService
             $nuevoNumero = 1;
         }
 
-        return $prefijo . str_pad($nuevoNumero, 8, '0', STR_PAD_LEFT);
+        return $prefijo.str_pad($nuevoNumero, 8, '0', STR_PAD_LEFT);
     }
 
     /**
      * Actualiza el cache de saldo deudor del cliente
      * Usa el nuevo sistema de cuenta corriente unificada
-     *
-     * @param Cliente $cliente
-     * @param int|null $sucursalId
-     * @return void
      */
     public function actualizarCacheSaldoCliente(Cliente $cliente, ?int $sucursalId = null): void
     {
-        $ccService = new CuentaCorrienteService();
+        $ccService = new CuentaCorrienteService;
         $ccService->actualizarCacheCliente($cliente->id, $sucursalId);
     }
 
@@ -631,22 +613,17 @@ class CobroService
      */
     public function actualizarCacheSaldoClienteSucursal(Cliente $cliente, int $sucursalId): void
     {
-        $ccService = new CuentaCorrienteService();
+        $ccService = new CuentaCorrienteService;
         $ccService->actualizarCacheCliente($cliente->id, $sucursalId);
     }
 
     /**
      * Obtiene el historial de cuenta corriente de un cliente
      * Usa la nueva tabla unificada de movimientos_cuenta_corriente
-     *
-     * @param int $clienteId
-     * @param int|null $sucursalId
-     * @param int $limit
-     * @return Collection
      */
     public function obtenerMovimientosCuentaCorriente(int $clienteId, ?int $sucursalId = null, int $limit = 50): Collection
     {
-        $ccService = new CuentaCorrienteService();
+        $ccService = new CuentaCorrienteService;
 
         if ($sucursalId) {
             return $ccService->obtenerExtractoResumido($clienteId, $sucursalId, $limit);

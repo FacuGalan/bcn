@@ -84,6 +84,6 @@ class ConceptosPagoSeeder extends Seeder
             );
         }
 
-        $this->command->info('Conceptos de pago creados/actualizados: ' . count($conceptos));
+        $this->command->info('Conceptos de pago creados/actualizados: '.count($conceptos));
     }
 }

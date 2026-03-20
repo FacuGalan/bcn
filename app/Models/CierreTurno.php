@@ -27,7 +27,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $observaciones
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Sucursal $sucursal
  * @property-read GrupoCierre|null $grupoCierre
  * @property-read User $usuario
@@ -41,6 +40,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class CierreTurno extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'cierres_turno';
 
     protected $fillable = [
@@ -182,6 +182,7 @@ class CierreTurno extends Model
         if ($hasta) {
             $query->where('fecha_cierre', '<=', $hasta);
         }
+
         return $query;
     }
 
@@ -276,6 +277,7 @@ class CierreTurno extends Model
         }
 
         $primeraCaja = $this->detalleCajas()->first();
+
         return $primeraCaja ? $primeraCaja->caja_nombre : "Cierre #{$this->id}";
     }
 
@@ -284,7 +286,7 @@ class CierreTurno extends Model
      */
     public function getDuracionHorasAttribute(): ?float
     {
-        if (!$this->fecha_apertura) {
+        if (! $this->fecha_apertura) {
             return null;
         }
 

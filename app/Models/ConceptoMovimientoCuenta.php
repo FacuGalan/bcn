@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class ConceptoMovimientoCuenta extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'conceptos_movimiento_cuenta';
 
     protected $fillable = [

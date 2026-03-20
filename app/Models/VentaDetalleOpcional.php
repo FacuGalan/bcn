@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class VentaDetalleOpcional extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'venta_detalle_opcionales';
 
     public $timestamps = false;

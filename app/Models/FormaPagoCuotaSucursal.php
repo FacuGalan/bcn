@@ -18,13 +18,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property bool $activo Si este plan está activo en esta sucursal
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read FormaPagoCuota $cuota
  * @property-read Sucursal $sucursal
  */
 class FormaPagoCuotaSucursal extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'formas_pago_cuotas_sucursales';
 
     protected $fillable = [

@@ -25,13 +25,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $activo Si esta configuración está activa
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read FormaPago $formaPago
  * @property-read \Illuminate\Database\Eloquent\Collection|FormaPagoCuotaSucursal[] $sucursalesConfig
  */
 class FormaPagoCuota extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'formas_pago_cuotas';
 
     protected $fillable = [
@@ -135,7 +135,7 @@ class FormaPagoCuota extends Model
     /**
      * Calcula el recargo en monto para un total dado
      *
-     * @param float $total Total de la venta
+     * @param  float  $total  Total de la venta
      * @return float Monto del recargo
      */
     public function calcularRecargo(float $total): float
@@ -146,7 +146,7 @@ class FormaPagoCuota extends Model
     /**
      * Calcula el total con recargo
      *
-     * @param float $total Total de la venta
+     * @param  float  $total  Total de la venta
      * @return float Total incluyendo recargo
      */
     public function calcularTotalConRecargo(float $total): float
@@ -157,19 +157,20 @@ class FormaPagoCuota extends Model
     /**
      * Calcula el valor de cada cuota
      *
-     * @param float $total Total de la venta
+     * @param  float  $total  Total de la venta
      * @return float Valor de cada cuota
      */
     public function calcularValorCuota(float $total): float
     {
         $totalConRecargo = $this->calcularTotalConRecargo($total);
+
         return round($totalConRecargo / $this->cantidad_cuotas, 2);
     }
 
     /**
      * Obtiene información completa del plan de cuotas
      *
-     * @param float $total Total de la venta
+     * @param  float  $total  Total de la venta
      * @return array Información del plan
      */
     public function obtenerInformacionPlan(float $total): array
@@ -192,7 +193,7 @@ class FormaPagoCuota extends Model
     /**
      * Obtiene una descripción legible del plan
      *
-     * @param float|null $valorCuota Valor calculado de la cuota
+     * @param  float|null  $valorCuota  Valor calculado de la cuota
      * @return string Descripción del plan
      */
     public function obtenerDescripcion(?float $valorCuota = null): string
@@ -204,13 +205,13 @@ class FormaPagoCuota extends Model
         $desc = "{$this->cantidad_cuotas} cuotas";
 
         if ($valorCuota) {
-            $desc .= " de $" . number_format($valorCuota, 2);
+            $desc .= ' de $'.number_format($valorCuota, 2);
         }
 
         if ($this->recargo_porcentaje > 0) {
             $desc .= " ({$this->recargo_porcentaje}% recargo)";
         } else {
-            $desc .= " (sin interés)";
+            $desc .= ' (sin interés)';
         }
 
         return $desc;

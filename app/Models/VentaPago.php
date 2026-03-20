@@ -27,9 +27,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property float|null $monto_cuota
  * @property string|null $referencia
  * @property string|null $observaciones
- *
  * @property int|null $cierre_turno_id
- *
  * @property-read Venta $venta
  * @property-read FormaPago $formaPago
  * @property-read ConceptoPago|null $conceptoPago
@@ -38,6 +36,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class VentaPago extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'venta_pagos';
 
     protected $fillable = [
@@ -289,7 +288,8 @@ class VentaPago extends Model
         }
 
         $tipo = $this->esRecargo() ? 'Recargo' : 'Descuento';
-        return "{$tipo} " . abs($this->ajuste_porcentaje) . '%';
+
+        return "{$tipo} ".abs($this->ajuste_porcentaje).'%';
     }
 
     /**
@@ -297,11 +297,11 @@ class VentaPago extends Model
      */
     public function getDescripcionCuotasAttribute(): string
     {
-        if (!$this->tieneCuotas()) {
+        if (! $this->tieneCuotas()) {
             return '1 pago';
         }
 
-        $desc = "{$this->cuotas} cuotas de $" . number_format($this->monto_cuota, 2, ',', '.');
+        $desc = "{$this->cuotas} cuotas de $".number_format($this->monto_cuota, 2, ',', '.');
 
         if ($this->recargo_cuotas_porcentaje > 0) {
             $desc .= " (+{$this->recargo_cuotas_porcentaje}%)";
@@ -367,7 +367,6 @@ class VentaPago extends Model
     /**
      * Aplica un cobro a este pago, disminuyendo el saldo pendiente
      *
-     * @param float $monto
      * @return float Saldo restante después del cobro
      */
     public function aplicarCobro(float $monto): float
@@ -382,7 +381,6 @@ class VentaPago extends Model
     /**
      * Revierte un cobro, aumentando el saldo pendiente
      *
-     * @param float $monto
      * @return float Saldo después de revertir
      */
     public function revertirCobro(float $monto): float

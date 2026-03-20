@@ -2,22 +2,20 @@
 
 namespace App\Livewire\Configuracion;
 
-use App\Models\Role;
-use App\Models\Permission;
 use App\Models\MenuItem;
 use App\Models\PermisoFuncional;
+use App\Models\Permission;
+use App\Models\Role;
 use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
 
 /**
  * Componente Livewire para gestión de roles y permisos
  *
  * Permite crear, editar, eliminar y listar roles del comercio activo.
  * Incluye asignación de permisos basados en los items del menú y permisos funcionales.
- *
- * @package App\Livewire\Configuracion
  */
 #[Layout('layouts.app')]
 class RolesPermisos extends Component
@@ -29,13 +27,18 @@ class RolesPermisos extends Component
 
     // Propiedades del modal
     public bool $showModal = false;
+
     public bool $editMode = false;
+
     public ?int $roleId = null;
+
     public bool $isSuperAdmin = false;
 
     // Propiedades del formulario
     public string $name = '';
+
     public array $selectedPermissions = [];
+
     public array $selectedFuncPermissions = []; // Permisos funcionales seleccionados (códigos)
 
     // Colección de permisos agrupados (menú)
@@ -64,7 +67,7 @@ class RolesPermisos extends Component
         $this->loadPermisosFuncionales();
         $this->protectedPermissionIds = Permission::whereIn('name', $this->protectedPermissions)
             ->pluck('id')
-            ->map(fn($id) => (int) $id)
+            ->map(fn ($id) => (int) $id)
             ->toArray();
     }
 
@@ -75,7 +78,7 @@ class RolesPermisos extends Component
     {
         // Convertir a array para evitar problemas de serialización de Livewire
         $grouped = PermisoFuncional::getActivosAgrupados();
-        $this->permisosFuncionales = $grouped->map(fn($permisos) => $permisos->toArray())->toArray();
+        $this->permisosFuncionales = $grouped->map(fn ($permisos) => $permisos->toArray())->toArray();
     }
 
     /**
@@ -92,7 +95,7 @@ class RolesPermisos extends Component
             if ($parentPermission) {
                 $grouped[$parent->nombre] = [
                     'parent' => $parentPermission,
-                    'children' => []
+                    'children' => [],
                 ];
 
                 foreach ($parent->children as $child) {
@@ -123,7 +126,7 @@ class RolesPermisos extends Component
         $query = Role::query();
 
         if ($this->search) {
-            $query->where('name', 'like', '%' . $this->search . '%');
+            $query->where('name', 'like', '%'.$this->search.'%');
         }
 
         $roles = $query->orderBy('name')->paginate(10);
@@ -199,7 +202,7 @@ class RolesPermisos extends Component
             ->toArray();
 
         // Excluir IDs de permisos funcionales para que no queden "atrapados" en selectedPermissions
-        $funcPermissionIds = Permission::where('name', 'like', PermisoFuncional::PERMISSION_PREFIX . '%')
+        $funcPermissionIds = Permission::where('name', 'like', PermisoFuncional::PERMISSION_PREFIX.'%')
             ->pluck('id')
             ->toArray();
 
@@ -226,7 +229,7 @@ class RolesPermisos extends Component
             foreach ($this->groupedPermissions[$moduleName]['children'] as $child) {
                 $childId = (int) $child->id;
                 // No incluir hijos protegidos en la remoción
-                if (!$isCurrentlySelected || !($this->isSuperAdmin && in_array($child->name, $this->protectedPermissions))) {
+                if (! $isCurrentlySelected || ! ($this->isSuperAdmin && in_array($child->name, $this->protectedPermissions))) {
                     $childIds[] = $childId;
                 }
             }
@@ -241,7 +244,7 @@ class RolesPermisos extends Component
             }
             $this->selectedPermissions = array_values(array_filter(
                 $this->selectedPermissions,
-                fn($id) => !in_array((int) $id, $toRemove)
+                fn ($id) => ! in_array((int) $id, $toRemove)
             ));
         } else {
             // Marcar padre + todos los hijos
@@ -272,12 +275,12 @@ class RolesPermisos extends Component
             // Desmarcar hijo
             $this->selectedPermissions = array_values(array_filter(
                 $this->selectedPermissions,
-                fn($id) => (int) $id !== $childId
+                fn ($id) => (int) $id !== $childId
             ));
         } else {
             // Marcar hijo + asegurar que el padre esté marcado
             $this->selectedPermissions[] = $childId;
-            if (!in_array($parentId, $this->selectedPermissions)) {
+            if (! in_array($parentId, $this->selectedPermissions)) {
                 $this->selectedPermissions[] = $parentId;
             }
             $this->selectedPermissions = array_values(array_unique($this->selectedPermissions));
@@ -290,7 +293,7 @@ class RolesPermisos extends Component
     public function save(): void
     {
         $this->validate([
-            'name' => 'required|string|max:125|unique:pymes_tenant.roles,name,' . $this->roleId,
+            'name' => 'required|string|max:125|unique:pymes_tenant.roles,name,'.$this->roleId,
             'selectedPermissions' => 'nullable|array',
             'selectedPermissions.*' => 'exists:pymes.permissions,id',
             'selectedFuncPermissions' => 'nullable|array',
@@ -301,7 +304,7 @@ class RolesPermisos extends Component
                 $role = Role::findOrFail($this->roleId);
 
                 // Super Administrador: no se puede cambiar el nombre
-                if (!$this->isSuperAdmin) {
+                if (! $this->isSuperAdmin) {
                     $role->name = $this->name;
                     $role->save();
                 }
@@ -326,18 +329,18 @@ class RolesPermisos extends Component
             $allPermissionIds = $this->selectedPermissions;
 
             // Super Admin: forzar permisos protegidos
-            if ($this->isSuperAdmin && !empty($this->protectedPermissionIds)) {
+            if ($this->isSuperAdmin && ! empty($this->protectedPermissionIds)) {
                 $allPermissionIds = array_merge($allPermissionIds, $this->protectedPermissionIds);
             }
 
             // Obtener IDs de permisos funcionales seleccionados
-            if (!empty($this->selectedFuncPermissions)) {
+            if (! empty($this->selectedFuncPermissions)) {
                 $funcPermissionIds = PermisoFuncional::getPermissionIds($this->selectedFuncPermissions);
                 $allPermissionIds = array_merge($allPermissionIds, $funcPermissionIds);
             }
 
             // Insertar todos los permisos
-            if (!empty($allPermissionIds)) {
+            if (! empty($allPermissionIds)) {
                 $insertData = array_map(function ($permissionId) use ($role) {
                     return [
                         'permission_id' => (int) $permissionId,
@@ -377,6 +380,7 @@ class RolesPermisos extends Component
         // Validar que no sea Super Administrador
         if ($role->name === 'Super Administrador') {
             $this->dispatch('notify', message: 'El rol Super Administrador no puede ser eliminado', type: 'error');
+
             return;
         }
 
@@ -388,6 +392,7 @@ class RolesPermisos extends Component
 
         if ($usersCount > 0) {
             $this->dispatch('notify', message: "No se puede eliminar el rol porque tiene {$usersCount} usuario(s) asignado(s)", type: 'error');
+
             return;
         }
 

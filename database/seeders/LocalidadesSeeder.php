@@ -35,7 +35,7 @@ class LocalidadesSeeder extends Seeder
             $total += count($chunk);
         }
 
-        $this->command->info('Localidades creadas: ' . $total);
+        $this->command->info('Localidades creadas: '.$total);
     }
 
     /**

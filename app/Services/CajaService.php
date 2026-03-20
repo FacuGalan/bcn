@@ -3,9 +3,9 @@
 namespace App\Services;
 
 use App\Models\Caja;
-use App\Models\Tesoreria;
-use App\Models\MovimientoCaja;
 use App\Models\CierreTurno;
+use App\Models\MovimientoCaja;
+use App\Models\Tesoreria;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -13,7 +13,9 @@ use Illuminate\Support\Facades\Log;
 class CajaService
 {
     protected static ?Collection $cajasCache = null;
+
     protected static ?array $cajaIdsCache = null;
+
     protected static ?Caja $cajaActivaCache = null;
 
     /**
@@ -26,8 +28,6 @@ class CajaService
      * NOTA: Se muestran todas las cajas sin importar su estado (abierta/cerrada)
      * para que el usuario pueda ver y seleccionar cualquier caja a la que tenga acceso.
      * Use validarCajaOperativa() para verificar si puede realizar operaciones.
-     *
-     * @return Collection
      */
     public static function getCajasDisponibles(): Collection
     {
@@ -35,19 +35,19 @@ class CajaService
             return self::$cajasCache;
         }
 
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return collect();
         }
 
         // Verificar que hay un comercio activo antes de consultar el tenant
         $comercioActivoId = session('comercio_activo_id');
-        if (!$comercioActivoId) {
+        if (! $comercioActivoId) {
             return collect();
         }
 
         $sucursalId = SucursalService::getSucursalActiva();
 
-        if (!$sucursalId) {
+        if (! $sucursalId) {
             return collect();
         }
 
@@ -68,7 +68,7 @@ class CajaService
             ->where('activo', true);
 
         // Si el usuario tiene cajas específicas asignadas, filtrar por ellas
-        if (!empty($cajaIdsPermitidas)) {
+        if (! empty($cajaIdsPermitidas)) {
             $query->whereIn('id', $cajaIdsPermitidas);
         }
 
@@ -81,7 +81,7 @@ class CajaService
 
     public static function getCajaActiva(): ?int
     {
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return null;
         }
 
@@ -96,7 +96,7 @@ class CajaService
 
         $cajaId = self::getCajaActiva();
 
-        if (!$cajaId) {
+        if (! $cajaId) {
             return null;
         }
 
@@ -111,11 +111,11 @@ class CajaService
 
     public static function establecerCajaActiva(int $cajaId): bool
     {
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return false;
         }
 
-        if (!self::tieneAccesoACaja($cajaId)) {
+        if (! self::tieneAccesoACaja($cajaId)) {
             return false;
         }
 
@@ -132,6 +132,7 @@ class CajaService
 
         if ($cajas->isEmpty()) {
             session()->forget('caja_activa');
+
             return null;
         }
 
@@ -152,25 +153,22 @@ class CajaService
      * NOTA: No valida el estado de la caja (abierta/cerrada) para permitir
      * que el usuario pueda seleccionar cualquier caja a la que tenga acceso.
      * Use validarCajaOperativa() para verificar si puede realizar operaciones.
-     *
-     * @param int $cajaId
-     * @return bool
      */
     public static function tieneAccesoACaja(int $cajaId): bool
     {
-        if (!auth()->check()) {
+        if (! auth()->check()) {
             return false;
         }
 
         // Verificar que hay un comercio activo antes de consultar el tenant
         $comercioActivoId = session('comercio_activo_id');
-        if (!$comercioActivoId) {
+        if (! $comercioActivoId) {
             return false;
         }
 
         $sucursalId = SucursalService::getSucursalActiva();
 
-        if (!$sucursalId) {
+        if (! $sucursalId) {
             return false;
         }
 
@@ -180,7 +178,7 @@ class CajaService
             ->where('activo', true)
             ->first();
 
-        if (!$caja) {
+        if (! $caja) {
             return false;
         }
 
@@ -193,7 +191,7 @@ class CajaService
                 ->exists();
 
             // Si no tiene restricciones, puede acceder a todas las cajas
-            if (!$tieneRestriccion) {
+            if (! $tieneRestriccion) {
                 return true;
             }
 
@@ -233,7 +231,7 @@ class CajaService
      * - 'sin_turno': La caja está cerrada y no tiene movimientos pendientes (turno cerrado)
      * - 'sin_acceso': El usuario no tiene acceso a la caja
      *
-     * @param int|null $cajaId Si es null, usa la caja activa en sesión
+     * @param  int|null  $cajaId  Si es null, usa la caja activa en sesión
      * @return array ['operativa' => bool, 'estado' => string, 'mensaje' => string, 'caja' => ?Caja]
      */
     public static function validarCajaOperativa(?int $cajaId = null): array
@@ -244,7 +242,7 @@ class CajaService
         }
 
         // Si no hay caja
-        if (!$cajaId) {
+        if (! $cajaId) {
             return [
                 'operativa' => false,
                 'estado' => 'sin_caja',
@@ -254,7 +252,7 @@ class CajaService
         }
 
         // Verificar acceso
-        if (!self::tieneAccesoACaja($cajaId)) {
+        if (! self::tieneAccesoACaja($cajaId)) {
             return [
                 'operativa' => false,
                 'estado' => 'sin_acceso',
@@ -266,7 +264,7 @@ class CajaService
         // Obtener la caja
         $caja = Caja::find($cajaId);
 
-        if (!$caja) {
+        if (! $caja) {
             return [
                 'operativa' => false,
                 'estado' => 'sin_caja',
@@ -329,8 +327,6 @@ class CajaService
     /**
      * Verifica rápidamente si la caja activa puede aceptar operaciones
      * Wrapper simplificado de validarCajaOperativa()
-     *
-     * @return bool
      */
     public static function cajaActivaOperativa(): bool
     {
@@ -360,10 +356,7 @@ class CajaService
     /**
      * Abre una caja con provisión desde tesorería (si aplica)
      *
-     * @param Caja $caja
-     * @param float $fondoInicial
-     * @param int $usuarioId
-     * @param Tesoreria|null $tesoreria Si no se proporciona, busca la tesorería de la sucursal
+     * @param  Tesoreria|null  $tesoreria  Si no se proporciona, busca la tesorería de la sucursal
      * @return array ['success' => bool, 'message' => string, 'provision' => ?ProvisionFondo]
      */
     public static function abrirCajaConTesoreria(
@@ -395,10 +388,10 @@ class CajaService
                 // Si hay tesorería ACTIVA y fondo inicial > 0, hacer provisión
                 if ($tesoreria && $tesoreria->activo && $fondoInicial > 0) {
                     // Verificar saldo suficiente
-                    if (!$tesoreria->tieneSaldoSuficiente($fondoInicial)) {
+                    if (! $tesoreria->tieneSaldoSuficiente($fondoInicial)) {
                         return [
                             'success' => false,
-                            'message' => 'Saldo insuficiente en tesorería. Disponible: $' . number_format($tesoreria->saldo_actual, 2, ',', '.'),
+                            'message' => 'Saldo insuficiente en tesorería. Disponible: $'.number_format($tesoreria->saldo_actual, 2, ',', '.'),
                             'provision' => null,
                         ];
                     }
@@ -424,7 +417,7 @@ class CajaService
                 ]);
 
                 // Registrar movimiento de apertura si hay fondo y no hay tesorería
-                if ($fondoInicial > 0 && !$tesoreria) {
+                if ($fondoInicial > 0 && ! $tesoreria) {
                     MovimientoCaja::crearApertura($caja, $fondoInicial, $usuarioId);
                 }
 
@@ -451,7 +444,7 @@ class CajaService
 
             return [
                 'success' => false,
-                'message' => 'Error al abrir la caja: ' . $e->getMessage(),
+                'message' => 'Error al abrir la caja: '.$e->getMessage(),
                 'provision' => null,
             ];
         }
@@ -460,13 +453,7 @@ class CajaService
     /**
      * Cierra una caja con rendición a tesorería (si aplica)
      *
-     * @param Caja $caja
-     * @param float $saldoDeclarado
-     * @param int $usuarioId
-     * @param CierreTurno|null $cierreTurno
-     * @param Tesoreria|null $tesoreria
-     * @param string|null $observaciones
-     * @param array|null $desgloseMonedas Monedas extranjeras: [monedaId => ['saldo' => float, ...]]
+     * @param  array|null  $desgloseMonedas  Monedas extranjeras: [monedaId => ['saldo' => float, ...]]
      * @return array ['success' => bool, 'message' => string, 'rendicion' => ?RendicionFondo, 'diferencia' => float]
      */
     public static function cerrarCajaConTesoreria(
@@ -505,7 +492,7 @@ class CajaService
 
                 // Si hay tesorería ACTIVA y (monto ARS > 0 o hay monedas extranjeras), hacer rendición
                 $seRindio = false;
-                if ($tesoreria && $tesoreria->activo && ($saldoDeclarado > 0 || !empty($desgloseMonedas))) {
+                if ($tesoreria && $tesoreria->activo && ($saldoDeclarado > 0 || ! empty($desgloseMonedas))) {
                     $rendicion = TesoreriaService::rendirFondo(
                         $caja,
                         $tesoreria,
@@ -561,7 +548,7 @@ class CajaService
 
             return [
                 'success' => false,
-                'message' => 'Error al cerrar la caja: ' . $e->getMessage(),
+                'message' => 'Error al cerrar la caja: '.$e->getMessage(),
                 'rendicion' => null,
                 'diferencia' => 0,
             ];
@@ -575,7 +562,7 @@ class CajaService
     {
         $sucursalId = SucursalService::getSucursalActiva();
 
-        if (!$sucursalId) {
+        if (! $sucursalId) {
             return null;
         }
 

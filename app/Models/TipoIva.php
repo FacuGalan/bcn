@@ -17,7 +17,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $activo Si está activo
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read \Illuminate\Database\Eloquent\Collection|\App\Models\Articulo[] $articulos
  * @property-read \Illuminate\Database\Eloquent\Collection|\App\Models\VentaDetalle[] $ventasDetalle
  * @property-read \Illuminate\Database\Eloquent\Collection|\App\Models\CompraDetalle[] $comprasDetalle
@@ -95,10 +94,6 @@ class TipoIva extends Model
 
     /**
      * Calcula el monto de IVA para un precio dado
-     *
-     * @param float $precio
-     * @param bool $precioIncluyeIva
-     * @return float
      */
     public function calcularIva(float $precio, bool $precioIncluyeIva = true): float
     {
@@ -117,14 +112,10 @@ class TipoIva extends Model
 
     /**
      * Obtiene el precio sin IVA
-     *
-     * @param float $precio
-     * @param bool $precioIncluyeIva
-     * @return float
      */
     public function obtenerPrecioSinIva(float $precio, bool $precioIncluyeIva = true): float
     {
-        if ($this->porcentaje == 0 || !$precioIncluyeIva) {
+        if ($this->porcentaje == 0 || ! $precioIncluyeIva) {
             return $precio;
         }
 
@@ -133,10 +124,6 @@ class TipoIva extends Model
 
     /**
      * Obtiene el precio con IVA
-     *
-     * @param float $precio
-     * @param bool $precioIncluyeIva
-     * @return float
      */
     public function obtenerPrecioConIva(float $precio, bool $precioIncluyeIva = false): float
     {

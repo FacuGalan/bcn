@@ -24,7 +24,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $observaciones
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Tesoreria $tesoreria
  * @property-read Caja $caja
  * @property-read User $usuarioEntrega
@@ -35,6 +34,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ProvisionFondo extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'provision_fondos';
 
     protected $fillable = [
@@ -60,7 +60,9 @@ class ProvisionFondo extends Model
 
     // Estados
     public const ESTADO_PENDIENTE = 'pendiente';
+
     public const ESTADO_CONFIRMADO = 'confirmado';
+
     public const ESTADO_CANCELADO = 'cancelado';
 
     public const ESTADOS = [
@@ -167,7 +169,7 @@ class ProvisionFondo extends Model
      */
     public function confirmarRecepcion(int $usuarioRecibeId): bool
     {
-        if (!$this->esta_pendiente) {
+        if (! $this->esta_pendiente) {
             return false;
         }
 

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class TipoCambio extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'tipos_cambio';
 
     protected $fillable = [
@@ -73,8 +74,8 @@ class TipoCambio extends Model
      * Obtiene la tasa de venta para convertir de moneda extranjera a moneda principal.
      * Busca en ambas direcciones e invierte si es necesario.
      *
-     * @param int $monedaExtranjeraId ID de la moneda extranjera (ej: USD)
-     * @param int $monedaPrincipalId ID de la moneda principal (ej: ARS)
+     * @param  int  $monedaExtranjeraId  ID de la moneda extranjera (ej: USD)
+     * @param  int  $monedaPrincipalId  ID de la moneda principal (ej: ARS)
      * @return float|null Tasa: cuántas unidades de principal por 1 extranjera (ej: 1400.00)
      */
     public static function obtenerTasaVenta(int $monedaExtranjeraId, int $monedaPrincipalId): ?float

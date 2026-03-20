@@ -10,7 +10,7 @@ return new class extends Migration
         $comercios = DB::connection('config')->table('comercios')->get();
 
         foreach ($comercios as $comercio) {
-            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT) . '_';
+            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT).'_';
 
             // ==================== NUEVAS TABLAS ====================
 
@@ -284,29 +284,32 @@ return new class extends Migration
         $comercios = DB::connection('config')->table('comercios')->get();
 
         foreach ($comercios as $comercio) {
-            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT) . '_';
+            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT).'_';
 
             // Remove ALTER columns
             try {
                 $columns = DB::connection('pymes')->select("SHOW COLUMNS FROM `{$prefix}cobro_pagos` LIKE 'movimiento_cuenta_empresa_id'");
-                if (!empty($columns)) {
+                if (! empty($columns)) {
                     DB::connection('pymes')->statement("ALTER TABLE `{$prefix}cobro_pagos` DROP COLUMN `movimiento_cuenta_empresa_id`, DROP COLUMN `moneda_id`");
                 }
-            } catch (\Exception $e) {}
+            } catch (\Exception $e) {
+            }
 
             try {
                 $columns = DB::connection('pymes')->select("SHOW COLUMNS FROM `{$prefix}venta_pagos` LIKE 'movimiento_cuenta_empresa_id'");
-                if (!empty($columns)) {
+                if (! empty($columns)) {
                     DB::connection('pymes')->statement("ALTER TABLE `{$prefix}venta_pagos` DROP COLUMN `movimiento_cuenta_empresa_id`, DROP COLUMN `moneda_id`");
                 }
-            } catch (\Exception $e) {}
+            } catch (\Exception $e) {
+            }
 
             try {
                 $columns = DB::connection('pymes')->select("SHOW COLUMNS FROM `{$prefix}formas_pago` LIKE 'cuenta_empresa_id'");
-                if (!empty($columns)) {
+                if (! empty($columns)) {
                     DB::connection('pymes')->statement("ALTER TABLE `{$prefix}formas_pago` DROP COLUMN `cuenta_empresa_id`, DROP COLUMN `moneda_id`");
                 }
-            } catch (\Exception $e) {}
+            } catch (\Exception $e) {
+            }
 
             // Drop tables in reverse dependency order
             $tables = [
@@ -322,7 +325,8 @@ return new class extends Migration
             foreach ($tables as $table) {
                 try {
                     DB::connection('pymes')->statement("DROP TABLE IF EXISTS `{$prefix}{$table}`");
-                } catch (\Exception $e) {}
+                } catch (\Exception $e) {
+                }
             }
         }
     }

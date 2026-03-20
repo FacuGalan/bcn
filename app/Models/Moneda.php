@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Moneda extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'monedas';
 
     protected $fillable = [

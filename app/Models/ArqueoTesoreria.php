@@ -23,7 +23,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $observaciones
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Tesoreria $tesoreria
  * @property-read User $usuario
  * @property-read User|null $supervisor
@@ -31,6 +30,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ArqueoTesoreria extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'arqueos_tesoreria';
 
     protected $fillable = [
@@ -55,7 +55,9 @@ class ArqueoTesoreria extends Model
 
     // Estados
     public const ESTADO_PENDIENTE = 'pendiente';
+
     public const ESTADO_APROBADO = 'aprobado';
+
     public const ESTADO_RECHAZADO = 'rechazado';
 
     public const ESTADOS = [
@@ -152,8 +154,13 @@ class ArqueoTesoreria extends Model
 
     public function getTipoDiferenciaAttribute(): string
     {
-        if ($this->diferencia > 0) return 'sobrante';
-        if ($this->diferencia < 0) return 'faltante';
+        if ($this->diferencia > 0) {
+            return 'sobrante';
+        }
+        if ($this->diferencia < 0) {
+            return 'faltante';
+        }
+
         return 'cuadrado';
     }
 
@@ -164,7 +171,7 @@ class ArqueoTesoreria extends Model
      */
     public function aprobar(int $supervisorId, bool $aplicarAjuste = false): bool
     {
-        if (!$this->esta_pendiente) {
+        if (! $this->esta_pendiente) {
             return false;
         }
 
@@ -198,16 +205,16 @@ class ArqueoTesoreria extends Model
     /**
      * Rechaza el arqueo
      */
-    public function rechazar(int $supervisorId, string $motivo = null): bool
+    public function rechazar(int $supervisorId, ?string $motivo = null): bool
     {
-        if (!$this->esta_pendiente) {
+        if (! $this->esta_pendiente) {
             return false;
         }
 
         $this->supervisor_id = $supervisorId;
         $this->estado = self::ESTADO_RECHAZADO;
         if ($motivo) {
-            $this->observaciones = ($this->observaciones ? $this->observaciones . "\n" : '') . "Rechazado: " . $motivo;
+            $this->observaciones = ($this->observaciones ? $this->observaciones."\n" : '').'Rechazado: '.$motivo;
         }
         $this->save();
 

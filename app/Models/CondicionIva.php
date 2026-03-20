@@ -47,19 +47,33 @@ class CondicionIva extends Model
 
     // Constantes para los códigos de condición IVA
     public const RESPONSABLE_INSCRIPTO = 1;
+
     public const RESPONSABLE_NO_INSCRIPTO = 2;
+
     public const NO_RESPONSABLE = 3;
+
     public const SUJETO_EXENTO = 4;
+
     public const CONSUMIDOR_FINAL = 5;
+
     public const RESPONSABLE_MONOTRIBUTO = 6;
+
     public const SUJETO_NO_CATEGORIZADO = 7;
+
     public const PROVEEDOR_EXTERIOR = 8;
+
     public const CLIENTE_EXTERIOR = 9;
+
     public const IVA_LIBERADO_LEY_19640 = 10;
+
     public const AGENTE_PERCEPCION = 11;
+
     public const PEQUENO_CONTRIBUYENTE_EVENTUAL = 12;
+
     public const MONOTRIBUTISTA_SOCIAL = 13;
+
     public const PEQUENO_CONTRIBUYENTE_EVENTUAL_SOCIAL = 14;
+
     public const MONOTRIBUTO_TRABAJADOR_INDEPENDIENTE_PROMOVIDO = 16;
 
     /**
@@ -120,7 +134,7 @@ class CondicionIva extends Model
      */
     public function requiereCuit(): bool
     {
-        return !in_array($this->codigo, [
+        return ! in_array($this->codigo, [
             self::CONSUMIDOR_FINAL,
             self::SUJETO_NO_CATEGORIZADO,
         ]);

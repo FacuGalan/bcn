@@ -3,9 +3,9 @@
 namespace App\Services;
 
 use App\Models\Sucursal;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Collection;
 
 /**
  * Servicio: SucursalService
@@ -23,29 +23,21 @@ class SucursalService
 {
     /**
      * Caché de sucursales disponibles durante el request
-     *
-     * @var Collection|null
      */
     protected static ?Collection $sucursalesCache = null;
 
     /**
      * Caché de IDs de sucursales disponibles durante el request
-     *
-     * @var array|null
      */
     protected static ?array $sucursalIdsCache = null;
 
     /**
      * Caché del modelo de sucursal activa durante el request
-     *
-     * @var Sucursal|null
      */
     protected static ?Sucursal $sucursalActivaCache = null;
 
     /**
      * Obtiene el ID de la sucursal activa de la sesión
-     *
-     * @return int|null
      */
     public static function getSucursalActiva(): ?int
     {
@@ -55,14 +47,12 @@ class SucursalService
     /**
      * Obtiene el modelo de la sucursal activa
      * OPTIMIZADO: Usa caché durante el request
-     *
-     * @return Sucursal|null
      */
     public static function getSucursalActivaModel(): ?Sucursal
     {
         $sucursalId = self::getSucursalActiva();
 
-        if (!$sucursalId) {
+        if (! $sucursalId) {
             return null;
         }
 
@@ -77,6 +67,7 @@ class SucursalService
 
         if ($sucursal) {
             self::$sucursalActivaCache = $sucursal;
+
             return $sucursal;
         }
 
@@ -90,8 +81,6 @@ class SucursalService
     /**
      * Obtiene todas las sucursales a las que el usuario tiene acceso
      * OPTIMIZADO: Cachea durante el request para evitar consultas repetidas
-     *
-     * @return Collection
      */
     public static function getSucursalesDisponibles(): Collection
     {
@@ -102,16 +91,18 @@ class SucursalService
 
         $user = Auth::user();
 
-        if (!$user) {
+        if (! $user) {
             self::$sucursalesCache = collect();
+
             return self::$sucursalesCache;
         }
 
         // Verificar que hay un comercio activo en sesión antes de consultar el tenant
         // Esto previene errores cuando el usuario tiene "recordarme" pero no hay comercio seleccionado
         $comercioActivoId = session('comercio_activo_id');
-        if (!$comercioActivoId) {
+        if (! $comercioActivoId) {
             self::$sucursalesCache = collect();
+
             return self::$sucursalesCache;
         }
 
@@ -127,12 +118,14 @@ class SucursalService
         } catch (\Exception $e) {
             // Si hay error de conexión o tabla no existe, retornar colección vacía
             self::$sucursalesCache = collect();
+
             return self::$sucursalesCache;
         }
 
         if (empty($sucursalIds)) {
             self::$sucursalesCache = collect();
             self::$sucursalIdsCache = [];
+
             return self::$sucursalesCache;
         }
 
@@ -162,9 +155,6 @@ class SucursalService
     /**
      * Verifica si el usuario tiene acceso a una sucursal específica
      * OPTIMIZADO: Usa caché de IDs para evitar consulta completa
-     *
-     * @param int $sucursalId
-     * @return bool
      */
     public static function tieneAccesoASucursal(int $sucursalId): bool
     {
@@ -187,24 +177,20 @@ class SucursalService
     /**
      * Establece la sucursal activa en la sesión
      * Solo si el usuario tiene acceso a ella
-     *
-     * @param int $sucursalId
-     * @return bool
      */
     public static function setSucursalActiva(int $sucursalId): bool
     {
-        if (!self::tieneAccesoASucursal($sucursalId)) {
+        if (! self::tieneAccesoASucursal($sucursalId)) {
             return false;
         }
 
         session(['sucursal_id' => $sucursalId]);
+
         return true;
     }
 
     /**
      * Obtiene la sucursal principal del usuario
-     *
-     * @return Sucursal|null
      */
     public static function getSucursalPrincipal(): ?Sucursal
     {
@@ -220,15 +206,13 @@ class SucursalService
     /**
      * Valida que haya una sucursal activa válida
      * Si no hay, establece la principal o primera disponible
-     *
-     * @return void
      */
     public static function validarYEstablecerSucursalActiva(): void
     {
         $sucursalActual = self::getSucursalActiva();
 
         // Si no hay sucursal en sesión o no tiene acceso a la actual
-        if (!$sucursalActual || !self::tieneAccesoASucursal($sucursalActual)) {
+        if (! $sucursalActual || ! self::tieneAccesoASucursal($sucursalActual)) {
             $principal = self::getSucursalPrincipal();
 
             if ($principal) {
@@ -240,8 +224,6 @@ class SucursalService
     /**
      * Limpia el caché de sucursales
      * Útil cuando se cambian permisos o se agregan/eliminan sucursales
-     *
-     * @return void
      */
     public static function clearCache(): void
     {

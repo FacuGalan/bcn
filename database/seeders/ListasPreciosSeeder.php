@@ -2,15 +2,11 @@
 
 namespace Database\Seeders;
 
-use App\Models\ListaPrecio;
-use App\Models\ListaPrecioCondicion;
-use App\Models\ListaPrecioArticulo;
-use App\Models\Sucursal;
-use App\Models\Articulo;
-use App\Models\Categoria;
 use App\Models\FormaPago;
 use App\Models\FormaVenta;
-use App\Models\CanalVenta;
+use App\Models\ListaPrecio;
+use App\Models\ListaPrecioCondicion;
+use App\Models\Sucursal;
 use Illuminate\Database\Seeder;
 
 /**
@@ -35,6 +31,7 @@ class ListasPreciosSeeder extends Seeder
 
         if ($sucursales->isEmpty()) {
             $this->command->warn('No hay sucursales. Ejecuta primero el seeder de sucursales.');
+
             return;
         }
 
@@ -63,11 +60,12 @@ class ListasPreciosSeeder extends Seeder
     protected function crearListaBase(Sucursal $sucursal): void
     {
         $existe = ListaPrecio::where('sucursal_id', $sucursal->id)
-                             ->where('es_lista_base', true)
-                             ->exists();
+            ->where('es_lista_base', true)
+            ->exists();
 
         if ($existe) {
             $this->command->warn("  - Lista Base ya existe para {$sucursal->nombre}");
+
             return;
         }
 
@@ -85,7 +83,7 @@ class ListasPreciosSeeder extends Seeder
             'activo' => true,
         ]);
 
-        $this->command->info("  + Lista Base creada");
+        $this->command->info('  + Lista Base creada');
     }
 
     /**
@@ -94,11 +92,12 @@ class ListasPreciosSeeder extends Seeder
     protected function crearListaMayorista(Sucursal $sucursal): void
     {
         $existe = ListaPrecio::where('sucursal_id', $sucursal->id)
-                             ->where('codigo', 'MAYORISTA')
-                             ->exists();
+            ->where('codigo', 'MAYORISTA')
+            ->exists();
 
         if ($existe) {
             $this->command->warn("  - Lista Mayorista ya existe para {$sucursal->nombre}");
+
             return;
         }
 
@@ -117,7 +116,7 @@ class ListasPreciosSeeder extends Seeder
             'activo' => true,
         ]);
 
-        $this->command->info("  + Lista Mayorista creada (15% descuento, min 10 unidades)");
+        $this->command->info('  + Lista Mayorista creada (15% descuento, min 10 unidades)');
     }
 
     /**
@@ -126,18 +125,19 @@ class ListasPreciosSeeder extends Seeder
     protected function crearListaEfectivo(Sucursal $sucursal): void
     {
         $existe = ListaPrecio::where('sucursal_id', $sucursal->id)
-                             ->where('codigo', 'EFECTIVO')
-                             ->exists();
+            ->where('codigo', 'EFECTIVO')
+            ->exists();
 
         if ($existe) {
             $this->command->warn("  - Lista Efectivo ya existe para {$sucursal->nombre}");
+
             return;
         }
 
         // Buscar forma de pago "Efectivo"
         $formaPagoEfectivo = FormaPago::where('concepto', 'efectivo')
-                                       ->where('activo', true)
-                                       ->first();
+            ->where('activo', true)
+            ->first();
 
         $lista = ListaPrecio::create([
             'sucursal_id' => $sucursal->id,
@@ -161,9 +161,9 @@ class ListasPreciosSeeder extends Seeder
                 'forma_pago_id' => $formaPagoEfectivo->id,
             ]);
 
-            $this->command->info("  + Lista Efectivo creada (5% descuento, condición: pago efectivo)");
+            $this->command->info('  + Lista Efectivo creada (5% descuento, condición: pago efectivo)');
         } else {
-            $this->command->warn("  + Lista Efectivo creada SIN condición (no se encontró forma de pago efectivo)");
+            $this->command->warn('  + Lista Efectivo creada SIN condición (no se encontró forma de pago efectivo)');
         }
     }
 
@@ -173,18 +173,19 @@ class ListasPreciosSeeder extends Seeder
     protected function crearListaDelivery(Sucursal $sucursal): void
     {
         $existe = ListaPrecio::where('sucursal_id', $sucursal->id)
-                             ->where('codigo', 'DELIVERY')
-                             ->exists();
+            ->where('codigo', 'DELIVERY')
+            ->exists();
 
         if ($existe) {
             $this->command->warn("  - Lista Delivery ya existe para {$sucursal->nombre}");
+
             return;
         }
 
         // Buscar forma de venta "Delivery"
         $formaVentaDelivery = FormaVenta::where('nombre', 'like', '%delivery%')
-                                         ->where('activo', true)
-                                         ->first();
+            ->where('activo', true)
+            ->first();
 
         $lista = ListaPrecio::create([
             'sucursal_id' => $sucursal->id,
@@ -208,9 +209,9 @@ class ListasPreciosSeeder extends Seeder
                 'forma_venta_id' => $formaVentaDelivery->id,
             ]);
 
-            $this->command->info("  + Lista Delivery creada (10% recargo, condición: forma venta delivery)");
+            $this->command->info('  + Lista Delivery creada (10% recargo, condición: forma venta delivery)');
         } else {
-            $this->command->warn("  + Lista Delivery creada SIN condición (no se encontró forma de venta delivery)");
+            $this->command->warn('  + Lista Delivery creada SIN condición (no se encontró forma de venta delivery)');
         }
     }
 }

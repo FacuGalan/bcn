@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Modelo TransferenciaEfectivo
@@ -27,7 +26,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $observaciones
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Caja $cajaOrigen
  * @property-read Caja $cajaDestino
  * @property-read User $usuarioSolicita
@@ -38,6 +36,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class TransferenciaEfectivo extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'transferencias_efectivo';
 
     protected $fillable = [
@@ -149,11 +148,12 @@ class TransferenciaEfectivo extends Model
      */
     public function completar(): bool
     {
-        if (!$this->estaPendiente()) {
+        if (! $this->estaPendiente()) {
             return false;
         }
 
         $this->estado = 'completada';
+
         return $this->save();
     }
 
@@ -167,6 +167,7 @@ class TransferenciaEfectivo extends Model
         }
 
         $this->estado = 'cancelada';
+
         return $this->save();
     }
 

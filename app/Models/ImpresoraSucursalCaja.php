@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class ImpresoraSucursalCaja extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'impresora_sucursal_caja';
 
     protected $fillable = [
@@ -74,10 +75,11 @@ class ImpresoraSucursalCaja extends Model
     {
         $desc = $this->sucursal->nombre;
         if ($this->caja) {
-            $desc .= ' - ' . $this->caja->nombre;
+            $desc .= ' - '.$this->caja->nombre;
         } else {
             $desc .= ' (Toda la sucursal)';
         }
+
         return $desc;
     }
 }

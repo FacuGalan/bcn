@@ -2,17 +2,16 @@
 
 namespace App\Services;
 
+use App\Models\Articulo;
+use App\Models\Caja;
 use App\Models\Compra;
 use App\Models\CompraDetalle;
-use App\Models\Stock;
-use App\Models\Caja;
 use App\Models\MovimientoCaja;
-use App\Models\Proveedor;
-use App\Models\Articulo;
 use App\Models\MovimientoStock;
+use App\Models\Stock;
+use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Exception;
 
 /**
  * Servicio de Compras
@@ -32,9 +31,9 @@ class CompraService
     /**
      * Crea una nueva compra con sus detalles
      *
-     * @param array $data Datos de la compra
-     * @param array $detalles Array de detalles de la compra
-     * @return Compra
+     * @param  array  $data  Datos de la compra
+     * @param  array  $detalles  Array de detalles de la compra
+     *
      * @throws Exception
      */
     public function crearCompra(array $data, array $detalles): Compra
@@ -114,7 +113,7 @@ class CompraService
             DB::connection('pymes_tenant')->rollBack();
             Log::error('Error al crear compra', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             throw $e;
         }
@@ -122,10 +121,6 @@ class CompraService
 
     /**
      * Crea un detalle de compra con cálculos de crédito fiscal de IVA
-     *
-     * @param Compra $compra
-     * @param array $detalle
-     * @return CompraDetalle
      */
     protected function crearDetalleCompra(Compra $compra, array $detalle): CompraDetalle
     {
@@ -157,14 +152,13 @@ class CompraService
     /**
      * Valida que la caja esté abierta
      *
-     * @param int $cajaId
      * @throws Exception
      */
     protected function validarCajaAbierta(int $cajaId): void
     {
         $caja = Caja::findOrFail($cajaId);
 
-        if (!$caja->estaAbierta()) {
+        if (! $caja->estaAbierta()) {
             throw new Exception('La caja debe estar abierta para realizar compras');
         }
     }
@@ -172,26 +166,22 @@ class CompraService
     /**
      * Valida que haya saldo suficiente en caja
      *
-     * @param int $cajaId
-     * @param float $monto
      * @throws Exception
      */
     protected function validarSaldoCaja(int $cajaId, float $monto): void
     {
         $caja = Caja::findOrFail($cajaId);
 
-        if (!$caja->tieneSaldoSuficiente($monto)) {
+        if (! $caja->tieneSaldoSuficiente($monto)) {
             throw new Exception(
-                "Saldo insuficiente en caja. Disponible: $" . number_format($caja->saldo_actual, 2) .
-                ", Necesario: $" . number_format($monto, 2)
+                'Saldo insuficiente en caja. Disponible: $'.number_format($caja->saldo_actual, 2).
+                ', Necesario: $'.number_format($monto, 2)
             );
         }
     }
 
     /**
      * Actualiza el stock por la compra realizada (aumenta stock)
-     *
-     * @param Compra $compra
      */
     protected function actualizarStockPorCompra(Compra $compra): void
     {
@@ -199,7 +189,7 @@ class CompraService
             $articulo = $detalle->articulo;
 
             // Solo actualizar stock si el artículo lo controla en esta sucursal
-            if (!$articulo->controlaStock($compra->sucursal_id)) {
+            if (! $articulo->controlaStock($compra->sucursal_id)) {
                 continue;
             }
 
@@ -235,15 +225,13 @@ class CompraService
 
     /**
      * Registra el movimiento de caja por la compra (egreso)
-     *
-     * @param Compra $compra
      */
     protected function registrarMovimientoCaja(Compra $compra): void
     {
         $caja = Caja::findOrFail($compra->caja_id);
 
         // Crear movimiento de caja (egreso)
-        $movimiento = new MovimientoCaja();
+        $movimiento = new MovimientoCaja;
         $movimiento->caja_id = $caja->id;
         $movimiento->tipo_movimiento = 'egreso';
         $movimiento->concepto = "Compra #{$compra->numero_comprobante}";
@@ -263,31 +251,25 @@ class CompraService
 
     /**
      * Genera un número de comprobante único
-     *
-     * @param int $sucursalId
-     * @param string $tipoComprobante
-     * @return string
      */
     protected function generarNumeroComprobante(int $sucursalId, string $tipoComprobante): string
     {
         // Obtener el último número de comprobante para este tipo y sucursal
         $ultimaCompra = Compra::where('sucursal_id', $sucursalId)
-                             ->where('tipo_comprobante', $tipoComprobante)
-                             ->orderBy('id', 'desc')
-                             ->first();
+            ->where('tipo_comprobante', $tipoComprobante)
+            ->orderBy('id', 'desc')
+            ->first();
 
         $numero = $ultimaCompra ? intval(substr($ultimaCompra->numero_comprobante, -8)) + 1 : 1;
 
         // Formato: TIPO-SUCURSAL-00000001
         $prefijo = $this->obtenerPrefijoComprobante($tipoComprobante);
+
         return sprintf('%s-%04d-%08d', $prefijo, $sucursalId, $numero);
     }
 
     /**
      * Obtiene el prefijo del comprobante según el tipo
-     *
-     * @param string $tipoComprobante
-     * @return string
      */
     protected function obtenerPrefijoComprobante(string $tipoComprobante): string
     {
@@ -306,8 +288,6 @@ class CompraService
     /**
      * Cancela una compra y revierte sus efectos
      *
-     * @param int $compraId
-     * @return Compra
      * @throws Exception
      */
     public function cancelarCompra(int $compraId): Compra
@@ -343,7 +323,7 @@ class CompraService
             DB::connection('pymes_tenant')->rollBack();
             Log::error('Error al cancelar compra', [
                 'compra_id' => $compraId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }
@@ -352,7 +332,6 @@ class CompraService
     /**
      * Revierte el stock por cancelación de compra
      *
-     * @param Compra $compra
      * @throws Exception
      */
     protected function revertirStockPorCompra(Compra $compra): void
@@ -360,22 +339,22 @@ class CompraService
         foreach ($compra->detalles as $detalle) {
             $articulo = $detalle->articulo;
 
-            if (!$articulo->controlaStock($compra->sucursal_id)) {
+            if (! $articulo->controlaStock($compra->sucursal_id)) {
                 continue;
             }
 
             $stock = Stock::where('sucursal_id', $compra->sucursal_id)
-                         ->where('articulo_id', $detalle->articulo_id)
-                         ->first();
+                ->where('articulo_id', $detalle->articulo_id)
+                ->first();
 
-            if (!$stock) {
+            if (! $stock) {
                 throw new Exception("No se encontró stock para el artículo {$articulo->nombre}");
             }
 
             // Validar que haya suficiente stock para revertir
             if ($stock->cantidad < $detalle->cantidad) {
                 throw new Exception(
-                    "No se puede cancelar la compra. Stock actual de '{$articulo->nombre}': {$stock->cantidad}, " .
+                    "No se puede cancelar la compra. Stock actual de '{$articulo->nombre}': {$stock->cantidad}, ".
                     "Se necesita revertir: {$detalle->cantidad}"
                 );
             }
@@ -398,11 +377,6 @@ class CompraService
     /**
      * Registra un pago a una compra en cuenta corriente
      *
-     * @param int $compraId
-     * @param float $monto
-     * @param int $cajaId
-     * @param int $usuarioId
-     * @return Compra
      * @throws Exception
      */
     public function registrarPago(int $compraId, float $monto, int $cajaId, int $usuarioId): Compra
@@ -412,7 +386,7 @@ class CompraService
         try {
             $compra = Compra::findOrFail($compraId);
 
-            if (!$compra->esCtaCte()) {
+            if (! $compra->esCtaCte()) {
                 throw new Exception('Esta compra no es a cuenta corriente');
             }
 
@@ -422,16 +396,16 @@ class CompraService
 
             // Validar caja
             $caja = Caja::findOrFail($cajaId);
-            if (!$caja->estaAbierta()) {
+            if (! $caja->estaAbierta()) {
                 throw new Exception('La caja debe estar abierta para registrar pagos');
             }
 
-            if (!$caja->tieneSaldoSuficiente($monto)) {
+            if (! $caja->tieneSaldoSuficiente($monto)) {
                 throw new Exception('Saldo insuficiente en caja');
             }
 
             // Registrar movimiento de caja
-            $movimiento = new MovimientoCaja();
+            $movimiento = new MovimientoCaja;
             $movimiento->caja_id = $caja->id;
             $movimiento->tipo_movimiento = 'egreso';
             $movimiento->concepto = "Pago compra #{$compra->numero_comprobante}";
@@ -454,7 +428,7 @@ class CompraService
             Log::info('Pago de compra registrado', [
                 'compra_id' => $compra->id,
                 'monto' => $monto,
-                'saldo_pendiente' => $compra->saldo_pendiente
+                'saldo_pendiente' => $compra->saldo_pendiente,
             ]);
 
             return $compra->fresh();
@@ -463,7 +437,7 @@ class CompraService
             DB::connection('pymes_tenant')->rollBack();
             Log::error('Error al registrar pago de compra', [
                 'compra_id' => $compraId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }

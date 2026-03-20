@@ -22,7 +22,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $activo
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Sucursal $sucursal
  * @property-read Tesoreria|null $tesoreria
  * @property-read \Illuminate\Database\Eloquent\Collection|Caja[] $cajas
@@ -30,6 +29,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class GrupoCierre extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'grupos_cierre';
 
     protected $fillable = [
@@ -164,7 +164,7 @@ class GrupoCierre extends Model
      */
     public function provisionarACaja(float $monto): bool
     {
-        if (!$this->usaFondoComun()) {
+        if (! $this->usaFondoComun()) {
             return false;
         }
 
@@ -173,6 +173,7 @@ class GrupoCierre extends Model
         }
 
         $this->saldo_fondo_comun -= $monto;
+
         return $this->save();
     }
 
@@ -181,11 +182,12 @@ class GrupoCierre extends Model
      */
     public function recibirDeCaja(float $monto): bool
     {
-        if (!$this->usaFondoComun()) {
+        if (! $this->usaFondoComun()) {
             return false;
         }
 
         $this->saldo_fondo_comun += $monto;
+
         return $this->save();
     }
 
@@ -195,6 +197,7 @@ class GrupoCierre extends Model
     public function establecerFondoComun(float $monto): bool
     {
         $this->saldo_fondo_comun = $monto;
+
         return $this->save();
     }
 }

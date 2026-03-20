@@ -11,6 +11,7 @@ use App\Models\HistorialPrecio;
 use App\Models\Receta;
 use App\Models\Stock;
 use App\Models\Sucursal;
+use App\Services\CatalogoCache;
 use App\Traits\SucursalAware;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
@@ -831,7 +832,7 @@ class ArticulosSucursal extends Component
         }
 
         return view('livewire.configuracion.articulos-sucursal', [
-            'sucursales' => Sucursal::orderBy('nombre')->get(),
+            'sucursales' => CatalogoCache::sucursalesTodas(),
             'categoriasFiltro' => $categoriasFiltro,
             'gruposEtiquetasFiltro' => $gruposEtiquetasFiltro,
             'articulos' => $this->getArticulos(),

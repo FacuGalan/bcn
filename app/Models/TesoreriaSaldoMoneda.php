@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class TesoreriaSaldoMoneda extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'tesoreria_saldos_moneda';
 
     protected $fillable = [

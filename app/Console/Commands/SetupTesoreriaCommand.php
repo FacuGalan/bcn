@@ -2,12 +2,12 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use App\Models\Comercio;
+use App\Models\MenuItem;
 use App\Models\Sucursal;
 use App\Models\Tesoreria;
-use App\Models\MenuItem;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Comando para configurar el sistema de tesorería en bases de datos existentes
@@ -34,6 +34,7 @@ class SetupTesoreriaCommand extends Command
 
         if ($soloMenu) {
             $this->crearMenu();
+
             return self::SUCCESS;
         }
 
@@ -44,6 +45,7 @@ class SetupTesoreriaCommand extends Command
 
         if ($comercios->isEmpty()) {
             $this->error('No se encontraron comercios para procesar');
+
             return self::FAILURE;
         }
 
@@ -54,7 +56,7 @@ class SetupTesoreriaCommand extends Command
             $this->procesarComercio($comercio, $soloTablas);
         }
 
-        if (!$soloTablas) {
+        if (! $soloTablas) {
             $this->crearMenu();
         }
 
@@ -79,7 +81,7 @@ class SetupTesoreriaCommand extends Command
             // 1. Crear/actualizar tablas
             $this->crearTablas($connectionName, $prefix);
 
-            if (!$soloTablas) {
+            if (! $soloTablas) {
                 // 2. Crear tesorerías para sucursales
                 $this->crearTesoreriasSucursales($comercio);
             }
@@ -109,8 +111,8 @@ class SetupTesoreriaCommand extends Command
         ];
 
         foreach ($tablasNuevas as $tabla) {
-            $tablaConPrefijo = $prefix . $tabla;
-            if (!DB::connection($connection)->getSchemaBuilder()->hasTable($tabla)) {
+            $tablaConPrefijo = $prefix.$tabla;
+            if (! DB::connection($connection)->getSchemaBuilder()->hasTable($tabla)) {
                 $this->line("    Creando tabla: {$tablaConPrefijo}");
             } else {
                 $this->line("    Tabla ya existe: {$tablaConPrefijo}");
@@ -129,7 +131,7 @@ class SetupTesoreriaCommand extends Command
             ->getSchemaBuilder()
             ->getColumnListing($tabla);
 
-        if (!in_array('fondo_comun', $columnas)) {
+        if (! in_array('fondo_comun', $columnas)) {
             $this->line("    Agregando columna fondo_comun a {$prefix}{$tabla}");
             DB::connection($connection)->statement("
                 ALTER TABLE `{$prefix}{$tabla}`
@@ -137,7 +139,7 @@ class SetupTesoreriaCommand extends Command
             ");
         }
 
-        if (!in_array('saldo_fondo_comun', $columnas)) {
+        if (! in_array('saldo_fondo_comun', $columnas)) {
             $this->line("    Agregando columna saldo_fondo_comun a {$prefix}{$tabla}");
             DB::connection($connection)->statement("
                 ALTER TABLE `{$prefix}{$tabla}`
@@ -145,7 +147,7 @@ class SetupTesoreriaCommand extends Command
             ");
         }
 
-        if (!in_array('tesoreria_id', $columnas)) {
+        if (! in_array('tesoreria_id', $columnas)) {
             $this->line("    Agregando columna tesoreria_id a {$prefix}{$tabla}");
             DB::connection($connection)->statement("
                 ALTER TABLE `{$prefix}{$tabla}`
@@ -191,6 +193,7 @@ class SetupTesoreriaCommand extends Command
 
         if ($existeMenu) {
             $this->line('  - Menú de tesorería ya existe');
+
             return;
         }
 

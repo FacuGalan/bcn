@@ -143,7 +143,7 @@ class Cuit extends Model
             return $cuit;
         }
 
-        return substr($cuit, 0, 2) . '-' . substr($cuit, 2, 8) . '-' . substr($cuit, 10, 1);
+        return substr($cuit, 0, 2).'-'.substr($cuit, 2, 8).'-'.substr($cuit, 10, 1);
     }
 
     /**
@@ -161,7 +161,7 @@ class Cuit extends Model
         $suma = 0;
 
         for ($i = 0; $i < 10; $i++) {
-            $suma += (int)$cuit[$i] * $multiplicadores[$i];
+            $suma += (int) $cuit[$i] * $multiplicadores[$i];
         }
 
         $resto = $suma % 11;
@@ -173,7 +173,7 @@ class Cuit extends Model
             $digitoVerificador = 9;
         }
 
-        return (int)$cuit[10] === $digitoVerificador;
+        return (int) $cuit[10] === $digitoVerificador;
     }
 
     /**
@@ -197,7 +197,7 @@ class Cuit extends Model
      */
     public function tieneCertificadoVigente(): bool
     {
-        if (!$this->fecha_vencimiento_certificado) {
+        if (! $this->fecha_vencimiento_certificado) {
             return false;
         }
 
@@ -209,7 +209,7 @@ class Cuit extends Model
      */
     public function diasHastaVencimientoCertificado(): ?int
     {
-        if (!$this->fecha_vencimiento_certificado) {
+        if (! $this->fecha_vencimiento_certificado) {
             return null;
         }
 
@@ -239,7 +239,7 @@ class Cuit extends Model
      */
     public function tieneCertificados(): bool
     {
-        return !empty($this->certificado_path) && !empty($this->clave_path);
+        return ! empty($this->certificado_path) && ! empty($this->clave_path);
     }
 
     /**
@@ -277,7 +277,7 @@ class Cuit extends Model
      */
     public function getCertificadoContenido(): ?string
     {
-        if (!$this->certificado_path) {
+        if (! $this->certificado_path) {
             return null;
         }
 
@@ -289,7 +289,7 @@ class Cuit extends Model
      */
     public function getClaveContenido(): ?string
     {
-        if (!$this->clave_path) {
+        if (! $this->clave_path) {
             return null;
         }
 
@@ -324,7 +324,7 @@ class Cuit extends Model
         $contenidoEncriptado = encrypt($contenido);
 
         $directorio = "certificados/{$comercioId}/{$this->id}";
-        $nombreArchivo = "{$tipo}_" . time() . '.enc';
+        $nombreArchivo = "{$tipo}_".time().'.enc';
         $path = "{$directorio}/{$nombreArchivo}";
 
         Storage::disk('local')->put($path, $contenidoEncriptado);
@@ -337,7 +337,7 @@ class Cuit extends Model
      */
     protected function obtenerArchivoDesencriptado(string $path): ?string
     {
-        if (!Storage::disk('local')->exists($path)) {
+        if (! Storage::disk('local')->exists($path)) {
             return null;
         }
 

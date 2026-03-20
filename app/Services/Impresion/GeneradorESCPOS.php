@@ -2,10 +2,10 @@
 
 namespace App\Services\Impresion;
 
-use App\Models\Venta;
 use App\Models\ComprobanteFiscal;
-use App\Models\Impresora;
 use App\Models\ConfiguracionImpresion;
+use App\Models\Impresora;
+use App\Models\Venta;
 
 /**
  * Generador de comandos ESC/POS para impresoras térmicas
@@ -14,23 +14,40 @@ class GeneradorESCPOS
 {
     // Comandos ESC/POS comunes
     private const ESC = "\x1B";
+
     private const GS = "\x1D";
+
     private const INIT = "\x1B\x40";
+
     private const BOLD_ON = "\x1B\x45\x01";
+
     private const BOLD_OFF = "\x1B\x45\x00";
+
     private const ALIGN_LEFT = "\x1B\x61\x00";
+
     private const ALIGN_CENTER = "\x1B\x61\x01";
+
     private const ALIGN_RIGHT = "\x1B\x61\x02";
+
     private const FONT_NORMAL = "\x1B\x21\x00";
+
     private const FONT_DOUBLE_HEIGHT = "\x1B\x21\x10";
+
     private const FONT_DOUBLE_WIDTH = "\x1B\x21\x20";
+
     private const FONT_DOUBLE = "\x1B\x21\x30";
+
     private const CUT_PARTIAL = "\x1D\x56\x01";
+
     private const CUT_FULL = "\x1D\x56\x00";
+
     private const OPEN_DRAWER = "\x1B\x70\x00\x19\xFA";
+
     private const FEED_LINES = "\x1B\x64";
+
     // Code Page para caracteres espanoles (CP850 - Latin-1)
     private const CODE_PAGE_850 = "\x1B\x74\x02";
+
     // Alternativa: Windows-1252
     private const CODE_PAGE_1252 = "\x1B\x74\x10";
 
@@ -61,41 +78,41 @@ class GeneradorESCPOS
             $comandos[] = $this->texto($this->convertirTexto($venta->sucursal->direccion));
         }
         if ($venta->sucursal->telefono) {
-            $comandos[] = $this->texto("Tel: " . $venta->sucursal->telefono);
+            $comandos[] = $this->texto('Tel: '.$venta->sucursal->telefono);
         }
 
         // ========== NUMERO DE TICKET DESTACADO ==========
         $comandos[] = $this->linea();
         $comandos[] = $this->alinear('centro');
-        $comandos[] = $this->texto("TICKET");
+        $comandos[] = $this->texto('TICKET');
         $comandos[] = $this->negrita(true);
         $comandos[] = $this->fuenteDoble();
-        $comandos[] = $this->texto("#" . $venta->numero);
+        $comandos[] = $this->texto('#'.$venta->numero);
         $comandos[] = $this->fuenteNormal();
         $comandos[] = $this->negrita(false);
         $comandos[] = $this->linea();
 
         // ========== DATOS DE LA VENTA ==========
         $comandos[] = $this->alinear('izquierda');
-        $comandos[] = $this->texto("Fecha: " . $venta->fecha->format('d/m/Y'));
-        $comandos[] = $this->texto("Hora: " . $venta->fecha->format('H:i'));
+        $comandos[] = $this->texto('Fecha: '.$venta->fecha->format('d/m/Y'));
+        $comandos[] = $this->texto('Hora: '.$venta->fecha->format('H:i'));
         if ($venta->caja) {
-            $comandos[] = $this->texto("Caja: " . $this->convertirTexto($venta->caja->nombre));
+            $comandos[] = $this->texto('Caja: '.$this->convertirTexto($venta->caja->nombre));
         }
-        $comandos[] = $this->texto("Atendido por: " . $this->convertirTexto($venta->usuario?->name ?? '-'));
+        $comandos[] = $this->texto('Atendido por: '.$this->convertirTexto($venta->usuario?->name ?? '-'));
 
         // ========== CLIENTE ==========
         if ($venta->cliente) {
             $comandos[] = $this->linea('-');
             $comandos[] = $this->negrita(true);
-            $comandos[] = $this->texto("Cliente: " . $this->convertirTexto($venta->cliente->nombre));
+            $comandos[] = $this->texto('Cliente: '.$this->convertirTexto($venta->cliente->nombre));
             $comandos[] = $this->negrita(false);
             if ($venta->cliente->documento) {
                 $tipoDoc = $venta->cliente->tipo_documento ?? 'DNI';
-                $comandos[] = $this->texto("{$tipoDoc}: " . $venta->cliente->documento);
+                $comandos[] = $this->texto("{$tipoDoc}: ".$venta->cliente->documento);
             }
             if ($venta->cliente->telefono) {
-                $comandos[] = $this->texto("Tel: " . $venta->cliente->telefono);
+                $comandos[] = $this->texto('Tel: '.$venta->cliente->telefono);
             }
             if ($venta->cliente->direccion) {
                 $comandos[] = $this->texto($this->truncar($this->convertirTexto($venta->cliente->direccion), $this->ancho));
@@ -105,7 +122,7 @@ class GeneradorESCPOS
         // ========== DETALLE DE ITEMS ==========
         $comandos[] = $this->linea();
         $comandos[] = $this->alinear('centro');
-        $comandos[] = $this->texto("DETALLE DE COMPRA");
+        $comandos[] = $this->texto('DETALLE DE COMPRA');
         $comandos[] = $this->linea('-');
         $comandos[] = $this->alinear('izquierda');
 
@@ -131,7 +148,7 @@ class GeneradorESCPOS
             }
 
             // Descuento manual (si no es promocion)
-            if ($detalle->descuento > 0 && !$detalle->tiene_promocion) {
+            if ($detalle->descuento > 0 && ! $detalle->tiene_promocion) {
                 $comandos[] = $this->texto("  Descuento: -\${$this->formatoNumero($detalle->descuento)}");
             }
 
@@ -142,13 +159,13 @@ class GeneradorESCPOS
             }
 
             // Linea final: Total del item
-            $totalLinea = $this->formatearDosColumnas("  Total:", "\${$this->formatoNumero($detalle->total)}");
+            $totalLinea = $this->formatearDosColumnas('  Total:', "\${$this->formatoNumero($detalle->total)}");
             $comandos[] = $this->negrita(true);
             $comandos[] = $this->texto($totalLinea);
             $comandos[] = $this->negrita(false);
 
             // Separador entre items
-            $comandos[] = $this->texto("");
+            $comandos[] = $this->texto('');
         }
 
         // ========== TOTALES ==========
@@ -166,12 +183,12 @@ class GeneradorESCPOS
         if ($promocionesVenta->count() > 0) {
             $comandos[] = $this->linea('-');
             $comandos[] = $this->alinear('izquierda');
-            $comandos[] = $this->texto("PROMOCIONES APLICADAS:");
+            $comandos[] = $this->texto('PROMOCIONES APLICADAS:');
             foreach ($promocionesVenta as $promo) {
                 $nombrePromo = $this->truncar($this->convertirTexto($promo->descripcion_promocion), $this->ancho - 18);
                 $montoPromo = "-\${$this->formatoNumero($promo->descuento_aplicado)}";
                 // Nombre y monto en el mismo renglon
-                $comandos[] = $this->texto($this->formatearDosColumnas("  " . $nombrePromo, $montoPromo));
+                $comandos[] = $this->texto($this->formatearDosColumnas('  '.$nombrePromo, $montoPromo));
             }
             $comandos[] = $this->alinear('derecha');
         } elseif ($venta->descuento > 0) {
@@ -189,7 +206,7 @@ class GeneradorESCPOS
         // Total final destacado
         $comandos[] = $this->linea();
         $comandos[] = $this->alinear('centro');
-        $comandos[] = $this->texto("T O T A L");
+        $comandos[] = $this->texto('T O T A L');
         $comandos[] = $this->negrita(true);
         $comandos[] = $this->fuenteDoble();
         $comandos[] = $this->texto("\${$this->formatoNumero($venta->total_final)}");
@@ -199,7 +216,7 @@ class GeneradorESCPOS
 
         // ========== FORMAS DE PAGO ==========
         $comandos[] = $this->alinear('izquierda');
-        $comandos[] = $this->texto("FORMA DE PAGO:");
+        $comandos[] = $this->texto('FORMA DE PAGO:');
 
         foreach ($venta->pagos as $pago) {
             $fp = $this->convertirTexto($pago->formaPago?->nombre ?? 'Efectivo');
@@ -225,7 +242,7 @@ class GeneradorESCPOS
 
             // Referencia
             if ($pago->referencia) {
-                $comandos[] = $this->texto("  Ref: " . $this->truncar($this->convertirTexto($pago->referencia), $this->ancho - 8));
+                $comandos[] = $this->texto('  Ref: '.$this->truncar($this->convertirTexto($pago->referencia), $this->ancho - 8));
             }
         }
 
@@ -246,24 +263,24 @@ class GeneradorESCPOS
             $comandos[] = $this->linea();
             $comandos[] = $this->alinear('centro');
             $comandos[] = $this->negrita(true);
-            $comandos[] = $this->texto("** CUENTA CORRIENTE **");
+            $comandos[] = $this->texto('** CUENTA CORRIENTE **');
             $comandos[] = $this->texto("Saldo: \${$this->formatoNumero($venta->saldo_pendiente_cache)}");
             $comandos[] = $this->negrita(false);
             if ($venta->fecha_vencimiento) {
-                $comandos[] = $this->texto("Vence: " . $venta->fecha_vencimiento->format('d/m/Y'));
+                $comandos[] = $this->texto('Vence: '.$venta->fecha_vencimiento->format('d/m/Y'));
             }
         }
 
         // ========== PIE DE TICKET ==========
         $comandos[] = $this->linea();
         $comandos[] = $this->alinear('centro');
-        $comandos[] = $this->texto($this->convertirTexto($config?->texto_pie_ticket ?? "Gracias por su compra!"));
+        $comandos[] = $this->texto($this->convertirTexto($config?->texto_pie_ticket ?? 'Gracias por su compra!'));
 
         // Observaciones
         if ($venta->observaciones) {
             $comandos[] = $this->linea('-');
             $comandos[] = $this->alinear('izquierda');
-            $comandos[] = $this->texto("Obs: " . $this->truncar($this->convertirTexto($venta->observaciones), $this->ancho - 5));
+            $comandos[] = $this->texto('Obs: '.$this->truncar($this->convertirTexto($venta->observaciones), $this->ancho - 5));
         }
 
         // Fecha de impresion
@@ -340,7 +357,7 @@ class GeneradorESCPOS
 
         // Inicio de actividades
         if ($comprobante->cuit->inicio_actividades) {
-            $comandos[] = $this->texto("Inicio Act.: " . $comprobante->cuit->inicio_actividades->format('d/m/Y'));
+            $comandos[] = $this->texto('Inicio Act.: '.$comprobante->cuit->inicio_actividades->format('d/m/Y'));
         }
         $comandos[] = $this->negrita(false);
 
@@ -351,27 +368,27 @@ class GeneradorESCPOS
         $comandos[] = $this->fuenteDoble();
         $comandos[] = $this->texto($this->convertirTexto($comprobante->tipo_legible));
         $comandos[] = $this->fuenteNormal();
-        $comandos[] = $this->texto("Nro: " . $comprobante->numero_formateado);
+        $comandos[] = $this->texto('Nro: '.$comprobante->numero_formateado);
         $comandos[] = $this->negrita(false);
 
         $comandos[] = $this->alinear('izquierda');
         $comandos[] = $this->negrita(true);
-        $comandos[] = $this->texto("Fecha: " . $comprobante->fecha_emision->format('d/m/Y'));
-        $comandos[] = $this->texto("Hora: " . $comprobante->created_at->format('H:i'));
-        $comandos[] = $this->texto("Pto. Venta: " . str_pad($comprobante->punto_venta_numero, 4, '0', STR_PAD_LEFT));
+        $comandos[] = $this->texto('Fecha: '.$comprobante->fecha_emision->format('d/m/Y'));
+        $comandos[] = $this->texto('Hora: '.$comprobante->created_at->format('H:i'));
+        $comandos[] = $this->texto('Pto. Venta: '.str_pad($comprobante->punto_venta_numero, 4, '0', STR_PAD_LEFT));
         $comandos[] = $this->negrita(false);
 
         // Datos del receptor (cliente)
         $comandos[] = $this->linea();
         $comandos[] = $this->negrita(true);
-        $comandos[] = $this->texto("CLIENTE:");
+        $comandos[] = $this->texto('CLIENTE:');
         $comandos[] = $this->texto($this->convertirTexto($comprobante->receptor_nombre));
 
         // Tipo de documento legible (CUIT, DNI, etc. en vez de código 80, 96, etc.)
         // No mostrar si el documento es 0
         if ($comprobante->receptor_documento_numero && $comprobante->receptor_documento_numero != '0') {
             $tipoDocLegible = $this->nombreTipoDocumento($comprobante->receptor_documento_tipo);
-            $comandos[] = $this->texto("{$tipoDocLegible}: " . $comprobante->receptor_documento_numero);
+            $comandos[] = $this->texto("{$tipoDocLegible}: ".$comprobante->receptor_documento_numero);
         }
 
         // Domicilio del cliente si existe
@@ -394,7 +411,7 @@ class GeneradorESCPOS
         if ($comprobante->es_total_venta && $venta) {
             // FACTURA POR EL TOTAL: mostrar detalle igual que el ticket
             $comandos[] = $this->alinear('centro');
-            $comandos[] = $this->texto("DETALLE DE COMPRA");
+            $comandos[] = $this->texto('DETALLE DE COMPRA');
             $comandos[] = $this->linea('-');
             $comandos[] = $this->alinear('izquierda');
 
@@ -423,7 +440,7 @@ class GeneradorESCPOS
                 }
 
                 // Descuento manual (si no es promocion)
-                if ($detalle->descuento > 0 && !$detalle->tiene_promocion) {
+                if ($detalle->descuento > 0 && ! $detalle->tiene_promocion) {
                     $comandos[] = $this->texto("  Descuento: -\${$this->formatoNumero($detalle->descuento)}");
                 }
 
@@ -434,11 +451,11 @@ class GeneradorESCPOS
                 }
 
                 // Total del item
-                $totalLinea = $this->formatearDosColumnas("  Total:", "\${$this->formatoNumero($detalle->total)}");
+                $totalLinea = $this->formatearDosColumnas('  Total:', "\${$this->formatoNumero($detalle->total)}");
                 $comandos[] = $this->negrita(true);
                 $comandos[] = $this->texto($totalLinea);
                 $comandos[] = $this->negrita(false);
-                $comandos[] = $this->texto("");
+                $comandos[] = $this->texto('');
             }
 
             // Promociones aplicadas a nivel venta
@@ -446,11 +463,11 @@ class GeneradorESCPOS
             if ($promocionesVenta->count() > 0) {
                 $comandos[] = $this->linea('-');
                 $comandos[] = $this->alinear('izquierda');
-                $comandos[] = $this->texto("PROMOCIONES APLICADAS:");
+                $comandos[] = $this->texto('PROMOCIONES APLICADAS:');
                 foreach ($promocionesVenta as $promo) {
                     $nombrePromo = $this->truncar($this->convertirTexto($promo->descripcion_promocion), $this->ancho - 18);
                     $montoPromo = "-\${$this->formatoNumero($promo->descuento_aplicado)}";
-                    $comandos[] = $this->texto($this->formatearDosColumnas("  " . $nombrePromo, $montoPromo));
+                    $comandos[] = $this->texto($this->formatearDosColumnas('  '.$nombrePromo, $montoPromo));
                 }
             }
         } else {
@@ -464,17 +481,17 @@ class GeneradorESCPOS
                     : number_format($alicuota->alicuota, 1);
                 $descripcion = "Articulos varios (IVA {$alicuotaFormateada}%)";
                 $comandos[] = $this->texto($this->truncar($descripcion, $this->ancho));
-                $comandos[] = $this->texto($this->formatearDosColumnas("  Total:", "\${$this->formatoNumero($subtotalConIva)}"));
+                $comandos[] = $this->texto($this->formatearDosColumnas('  Total:', "\${$this->formatoNumero($subtotalConIva)}"));
             }
             // Neto no gravado
             if ($comprobante->neto_no_gravado > 0) {
-                $comandos[] = $this->texto("Articulos varios (No gravado)");
-                $comandos[] = $this->texto($this->formatearDosColumnas("  Total:", "\${$this->formatoNumero($comprobante->neto_no_gravado)}"));
+                $comandos[] = $this->texto('Articulos varios (No gravado)');
+                $comandos[] = $this->texto($this->formatearDosColumnas('  Total:', "\${$this->formatoNumero($comprobante->neto_no_gravado)}"));
             }
             // Neto exento
             if ($comprobante->neto_exento > 0) {
-                $comandos[] = $this->texto("Articulos varios (Exento)");
-                $comandos[] = $this->texto($this->formatearDosColumnas("  Total:", "\${$this->formatoNumero($comprobante->neto_exento)}"));
+                $comandos[] = $this->texto('Articulos varios (Exento)');
+                $comandos[] = $this->texto($this->formatearDosColumnas('  Total:', "\${$this->formatoNumero($comprobante->neto_exento)}"));
             }
         }
 
@@ -523,11 +540,11 @@ class GeneradorESCPOS
         if ($pagosAMostrar->count() > 0) {
             $comandos[] = $this->linea('-');
             $comandos[] = $this->alinear('izquierda');
-            $comandos[] = $this->texto("FORMA DE PAGO:");
+            $comandos[] = $this->texto('FORMA DE PAGO:');
             foreach ($pagosAMostrar as $pago) {
                 $nombrePago = $this->convertirTexto($pago->formaPago?->nombre ?? 'Efectivo');
                 $montoMostrar = $pago->monto_facturado ?? $pago->monto_final;
-                $comandos[] = $this->texto($this->formatearDosColumnas("  " . $nombrePago, "\${$this->formatoNumero($montoMostrar)}"));
+                $comandos[] = $this->texto($this->formatearDosColumnas('  '.$nombrePago, "\${$this->formatoNumero($montoMostrar)}"));
                 if ($pago->cuotas && $pago->cuotas > 1) {
                     $recargoTxt = $pago->recargo_cuotas_porcentaje > 0 ? " (+{$pago->recargo_cuotas_porcentaje}%)" : '';
                     $comandos[] = $this->texto("    {$pago->cuotas} cuotas de \${$this->formatoNumero($pago->monto_cuota)}{$recargoTxt}");
@@ -538,8 +555,8 @@ class GeneradorESCPOS
         // CAE
         $comandos[] = $this->linea();
         $comandos[] = $this->alinear('centro');
-        $comandos[] = $this->texto("CAE: " . $comprobante->cae);
-        $comandos[] = $this->texto("Vto CAE: " . $comprobante->cae_vencimiento->format('d/m/Y'));
+        $comandos[] = $this->texto('CAE: '.$comprobante->cae);
+        $comandos[] = $this->texto('Vto CAE: '.$comprobante->cae_vencimiento->format('d/m/Y'));
 
         // Leyenda fiscal obligatoria
         $comandos[] = $this->linea('-');
@@ -551,23 +568,23 @@ class GeneradorESCPOS
         $esMonotributista = $comprobante->cliente?->esMonotributista() ?? false;
 
         if ($comprobante->letra === 'A' && $esMonotributista) {
-            $leyendaFiscal = "El credito fiscal discriminado en el presente comprobante, solo podra ser computado a efectos del Regimen de Sostenimiento e Inclusion Fiscal para Pequenos Contribuyentes de la Ley No 27.618";
+            $leyendaFiscal = 'El credito fiscal discriminado en el presente comprobante, solo podra ser computado a efectos del Regimen de Sostenimiento e Inclusion Fiscal para Pequenos Contribuyentes de la Ley No 27.618';
             $palabras = explode(' ', $leyendaFiscal);
             $linea = '';
             foreach ($palabras as $palabra) {
-                if (strlen($linea . ' ' . $palabra) > $this->ancho) {
+                if (strlen($linea.' '.$palabra) > $this->ancho) {
                     $comandos[] = $this->texto($linea);
                     $linea = $palabra;
                 } else {
-                    $linea .= ($linea ? ' ' : '') . $palabra;
+                    $linea .= ($linea ? ' ' : '').$palabra;
                 }
             }
             if ($linea) {
                 $comandos[] = $this->texto($linea);
             }
         } else {
-            $comandos[] = $this->texto("Regimen de Transparencia Fiscal");
-            $comandos[] = $this->texto("(Ley 27.743)");
+            $comandos[] = $this->texto('Regimen de Transparencia Fiscal');
+            $comandos[] = $this->texto('(Ley 27.743)');
             $comandos[] = $this->texto("IVA contenido: \${$this->formatoNumero($comprobante->iva_total)}");
         }
         $comandos[] = $this->negrita(false);
@@ -578,11 +595,11 @@ class GeneradorESCPOS
             $palabras = explode(' ', $this->convertirTexto($config->texto_legal_factura));
             $linea = '';
             foreach ($palabras as $palabra) {
-                if (strlen($linea . ' ' . $palabra) > $this->ancho) {
+                if (strlen($linea.' '.$palabra) > $this->ancho) {
                     $comandos[] = $this->texto($linea);
                     $linea = $palabra;
                 } else {
-                    $linea .= ($linea ? ' ' : '') . $palabra;
+                    $linea .= ($linea ? ' ' : '').$palabra;
                 }
             }
             if ($linea) {
@@ -607,17 +624,17 @@ class GeneradorESCPOS
         $comandos[] = $this->alinear('centro');
         $comandos[] = $this->negrita(true);
         $comandos[] = $this->fuenteDoble();
-        $comandos[] = $this->texto("PRUEBA DE IMPRESION");
+        $comandos[] = $this->texto('PRUEBA DE IMPRESION');
         $comandos[] = $this->fuenteNormal();
         $comandos[] = $this->negrita(false);
         $comandos[] = $this->linea();
-        $comandos[] = $this->texto("BCN Pymes");
-        $comandos[] = $this->texto("Impresora: " . $impresora->nombre);
-        $comandos[] = $this->texto("Tipo: " . $impresora->tipo_legible);
-        $comandos[] = $this->texto("Ancho: " . $impresora->ancho_caracteres . " caracteres");
+        $comandos[] = $this->texto('BCN Pymes');
+        $comandos[] = $this->texto('Impresora: '.$impresora->nombre);
+        $comandos[] = $this->texto('Tipo: '.$impresora->tipo_legible);
+        $comandos[] = $this->texto('Ancho: '.$impresora->ancho_caracteres.' caracteres');
         $comandos[] = $this->linea();
-        $comandos[] = $this->texto("Impresora configurada");
-        $comandos[] = $this->texto("correctamente.");
+        $comandos[] = $this->texto('Impresora configurada');
+        $comandos[] = $this->texto('correctamente.');
         $comandos[] = $this->linea();
         $comandos[] = $this->texto(date('d/m/Y H:i:s'));
         $comandos[] = $this->avanzar(4);
@@ -633,17 +650,18 @@ class GeneradorESCPOS
 
     protected function texto(string $texto): array
     {
-        return ['type' => 'raw', 'data' => base64_encode($texto . "\n")];
+        return ['type' => 'raw', 'data' => base64_encode($texto."\n")];
     }
 
     protected function alinear(string $pos): array
     {
-        $cmd = match($pos) {
+        $cmd = match ($pos) {
             'izquierda' => self::ALIGN_LEFT,
             'centro' => self::ALIGN_CENTER,
             'derecha' => self::ALIGN_RIGHT,
             default => self::ALIGN_LEFT,
         };
+
         return $this->raw($cmd);
     }
 
@@ -669,7 +687,7 @@ class GeneradorESCPOS
 
     protected function avanzar(int $lineas): array
     {
-        return $this->raw(self::FEED_LINES . chr($lineas));
+        return $this->raw(self::FEED_LINES.chr($lineas));
     }
 
     public function cortar(bool $parcial = true): array
@@ -693,12 +711,13 @@ class GeneradorESCPOS
                 $linea .= str_pad(mb_substr($valor, 0, $ancho), $ancho);
             }
         }
+
         return $linea;
     }
 
     protected function truncar(string $texto, int $max): string
     {
-        return mb_strlen($texto) > $max ? mb_substr($texto, 0, $max - 3) . '...' : $texto;
+        return mb_strlen($texto) > $max ? mb_substr($texto, 0, $max - 3).'...' : $texto;
     }
 
     /**
@@ -728,19 +747,19 @@ class GeneradorESCPOS
             "\xC3\xBC" => "\x81", // ü
             "\xC3\x9C" => "\x9A", // Ü
             // Signos de apertura
-            "\xC2\xBF" => "?",    // ¿
-            "\xC2\xA1" => "!",    // ¡
+            "\xC2\xBF" => '?',    // ¿
+            "\xC2\xA1" => '!',    // ¡
             // Otros caracteres comunes
             "\xC2\xB0" => "\xF8", // °
             "\xC2\xBA" => "\xF8", // º
             "\xC2\xAA" => "\xA6", // ª
-            "\xE2\x82\xAC" => "EUR", // €
-            "\xE2\x80\x93" => "-",   // guion medio
-            "\xE2\x80\x94" => "-",   // guion largo
+            "\xE2\x82\xAC" => 'EUR', // €
+            "\xE2\x80\x93" => '-',   // guion medio
+            "\xE2\x80\x94" => '-',   // guion largo
             "\xE2\x80\x98" => "'",   // comilla simple izq
             "\xE2\x80\x99" => "'",   // comilla simple der
-            "\xE2\x80\x9C" => "\"",  // comilla doble izq
-            "\xE2\x80\x9D" => "\"",  // comilla doble der
+            "\xE2\x80\x9C" => '"',  // comilla doble izq
+            "\xE2\x80\x9D" => '"',  // comilla doble der
         ];
 
         return strtr($texto, $reemplazos);
@@ -755,6 +774,7 @@ class GeneradorESCPOS
         if ($espacios < 1) {
             $espacios = 1;
         }
-        return $izq . str_repeat(' ', $espacios) . $der;
+
+        return $izq.str_repeat(' ', $espacios).$der;
     }
 }

@@ -46,7 +46,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  * @property \Carbon\Carbon|null $deleted_at
- *
  * @property-read Sucursal $sucursal
  * @property-read CierreTurno|null $cierreTurno
  * @property-read Cliente|null $cliente
@@ -62,6 +61,7 @@ class Venta extends Model
     use SoftDeletes;
 
     protected $connection = 'pymes_tenant';
+
     protected $table = 'ventas';
 
     protected $fillable = [
@@ -330,7 +330,7 @@ class Venta extends Model
         $this->iva = $totales['iva'];
         $this->total = $totales['total'];
 
-        if (!$this->esCtaCte()) {
+        if (! $this->esCtaCte()) {
             $this->saldo_pendiente_cache = 0;
         } else {
             $this->saldo_pendiente_cache = $this->total;
@@ -367,6 +367,7 @@ class Venta extends Model
         }
 
         $this->estado = 'cancelada';
+
         return $this->save();
     }
 }

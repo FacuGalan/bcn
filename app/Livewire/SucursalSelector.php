@@ -2,11 +2,10 @@
 
 namespace App\Livewire;
 
-use Livewire\Component;
 use App\Models\Sucursal;
-use App\Services\SucursalService;
 use App\Services\CajaService;
-use Illuminate\Support\Facades\Auth;
+use App\Services\SucursalService;
+use Livewire\Component;
 
 /**
  * Componente Livewire: Selector de Sucursal
@@ -26,7 +25,9 @@ use Illuminate\Support\Facades\Auth;
 class SucursalSelector extends Component
 {
     public $sucursalActual;
+
     public $sucursalesDisponibles;
+
     public $mostrarDropdown = false;
 
     public function mount()
@@ -48,7 +49,7 @@ class SucursalSelector extends Component
         }
 
         // Si no hay sucursal en sesión, usar la primera disponible
-        if (!$this->sucursalActual && $this->sucursalesDisponibles->isNotEmpty()) {
+        if (! $this->sucursalActual && $this->sucursalesDisponibles->isNotEmpty()) {
             $this->sucursalActual = $this->sucursalesDisponibles->first();
             session(['sucursal_id' => $this->sucursalActual->id]);
         }
@@ -71,7 +72,7 @@ class SucursalSelector extends Component
             CajaService::establecerPrimeraCajaDisponible();
 
             // Limpiar caché del menú dinámico
-            cache()->forget('menu_parent_items_' . auth()->id() . '_' . session('comercio_activo_id'));
+            cache()->forget('menu_parent_items_'.auth()->id().'_'.session('comercio_activo_id'));
 
             // Actualizar sucursal actual
             $this->sucursalActual = $sucursal;
@@ -96,7 +97,7 @@ class SucursalSelector extends Component
 
     public function toggleDropdown()
     {
-        $this->mostrarDropdown = !$this->mostrarDropdown;
+        $this->mostrarDropdown = ! $this->mostrarDropdown;
     }
 
     public function render()

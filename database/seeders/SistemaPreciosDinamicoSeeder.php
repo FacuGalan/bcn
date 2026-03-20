@@ -116,17 +116,17 @@ class SistemaPreciosDinamicoSeeder extends Seeder
 
         // Verificar que exista el Comercio 1
         $comercio = \App\Models\Comercio::find(1);
-        if (!$comercio) {
+        if (! $comercio) {
             echo "\n❌ ERROR: No existe el Comercio 1\n";
             echo "   Ejecuta primero: php artisan db:seed\n\n";
             exit(1);
         }
 
         // Configurar tenant
-        $prefix = str_pad(1, 6, '0', STR_PAD_LEFT) . '_';
+        $prefix = str_pad(1, 6, '0', STR_PAD_LEFT).'_';
         config([
             'database.connections.pymes_tenant.prefix' => $prefix,
-            'database.connections.pymes_tenant.database' => $comercio->database_name ?? 'pymes'
+            'database.connections.pymes_tenant.database' => $comercio->database_name ?? 'pymes',
         ]);
         \Illuminate\Support\Facades\DB::purge('pymes_tenant');
 

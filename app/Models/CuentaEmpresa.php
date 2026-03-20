@@ -10,9 +10,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class CuentaEmpresa extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'cuentas_empresa';
 
     const TIPO_BANCO = 'banco';
+
     const TIPO_BILLETERA = 'billetera_digital';
 
     const SUBTIPOS = [
@@ -94,6 +96,7 @@ class CuentaEmpresa extends Model
         if ($this->tipo === self::TIPO_BANCO && $this->banco) {
             return "{$this->banco} - {$this->nombre}";
         }
+
         return $this->nombre;
     }
 

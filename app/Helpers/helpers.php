@@ -1,15 +1,13 @@
 <?php
 
-use App\Services\SucursalService;
-use App\Services\CajaService;
-use App\Models\Sucursal;
 use App\Models\Caja;
+use App\Models\Sucursal;
+use App\Services\CajaService;
+use App\Services\SucursalService;
 
-if (!function_exists('sucursal_activa')) {
+if (! function_exists('sucursal_activa')) {
     /**
      * Obtiene el ID de la sucursal activa de la sesión
-     *
-     * @return int|null
      */
     function sucursal_activa(): ?int
     {
@@ -17,11 +15,9 @@ if (!function_exists('sucursal_activa')) {
     }
 }
 
-if (!function_exists('sucursal_activa_model')) {
+if (! function_exists('sucursal_activa_model')) {
     /**
      * Obtiene el modelo de la sucursal activa
-     *
-     * @return Sucursal|null
      */
     function sucursal_activa_model(): ?Sucursal
     {
@@ -29,12 +25,9 @@ if (!function_exists('sucursal_activa_model')) {
     }
 }
 
-if (!function_exists('tiene_acceso_sucursal')) {
+if (! function_exists('tiene_acceso_sucursal')) {
     /**
      * Verifica si el usuario tiene acceso a una sucursal
-     *
-     * @param int $sucursalId
-     * @return bool
      */
     function tiene_acceso_sucursal(int $sucursalId): bool
     {
@@ -46,11 +39,9 @@ if (!function_exists('tiene_acceso_sucursal')) {
 // HELPERS DE CAJAS
 // =====================================================
 
-if (!function_exists('caja_activa')) {
+if (! function_exists('caja_activa')) {
     /**
      * Obtiene el ID de la caja activa de la sesión
-     *
-     * @return int|null
      */
     function caja_activa(): ?int
     {
@@ -58,11 +49,9 @@ if (!function_exists('caja_activa')) {
     }
 }
 
-if (!function_exists('caja_activa_model')) {
+if (! function_exists('caja_activa_model')) {
     /**
      * Obtiene el modelo de la caja activa
-     *
-     * @return Caja|null
      */
     function caja_activa_model(): ?Caja
     {
@@ -70,12 +59,9 @@ if (!function_exists('caja_activa_model')) {
     }
 }
 
-if (!function_exists('tiene_acceso_caja')) {
+if (! function_exists('tiene_acceso_caja')) {
     /**
      * Verifica si el usuario tiene acceso a una caja
-     *
-     * @param int $cajaId
-     * @return bool
      */
     function tiene_acceso_caja(int $cajaId): bool
     {
@@ -87,64 +73,59 @@ if (!function_exists('tiene_acceso_caja')) {
 // HELPERS DE FORMATEO DE NÚMEROS Y PRECIOS
 // =====================================================
 
-if (!function_exists('formato_precio')) {
+if (! function_exists('formato_precio')) {
     /**
      * Formatea un valor como precio con separadores argentinos
      * Separador de miles: punto (.)
      * Separador de decimales: coma (,)
      *
-     * @param float|int|string|null $valor
-     * @param int $decimales
-     * @param bool $conSigno Si incluir el signo $ al inicio
-     * @return string
+     * @param  float|int|string|null  $valor
+     * @param  bool  $conSigno  Si incluir el signo $ al inicio
      */
     function formato_precio($valor, int $decimales = 2, bool $conSigno = false): string
     {
         $valor = floatval($valor ?? 0);
         $formateado = number_format($valor, $decimales, ',', '.');
-        return $conSigno ? '$ ' . $formateado : $formateado;
+
+        return $conSigno ? '$ '.$formateado : $formateado;
     }
 }
 
-if (!function_exists('formato_numero')) {
+if (! function_exists('formato_numero')) {
     /**
      * Formatea un número con separadores argentinos
      * Separador de miles: punto (.)
      * Separador de decimales: coma (,)
      *
-     * @param float|int|string|null $valor
-     * @param int $decimales
-     * @return string
+     * @param  float|int|string|null  $valor
      */
     function formato_numero($valor, int $decimales = 2): string
     {
         $valor = floatval($valor ?? 0);
+
         return number_format($valor, $decimales, ',', '.');
     }
 }
 
-if (!function_exists('formato_porcentaje')) {
+if (! function_exists('formato_porcentaje')) {
     /**
      * Formatea un valor como porcentaje con separadores argentinos
      *
-     * @param float|int|string|null $valor
-     * @param int $decimales
-     * @return string
+     * @param  float|int|string|null  $valor
      */
     function formato_porcentaje($valor, int $decimales = 2): string
     {
         $valor = floatval($valor ?? 0);
-        return number_format($valor, $decimales, ',', '.') . '%';
+
+        return number_format($valor, $decimales, ',', '.').'%';
     }
 }
 
-if (!function_exists('formato_cantidad')) {
+if (! function_exists('formato_cantidad')) {
     /**
      * Formatea una cantidad (puede tener decimales o no según el valor)
      *
-     * @param float|int|string|null $valor
-     * @param int $decimales
-     * @return string
+     * @param  float|int|string|null  $valor
      */
     function formato_cantidad($valor, int $decimales = 2): string
     {
@@ -153,6 +134,7 @@ if (!function_exists('formato_cantidad')) {
         if (floor($valor) == $valor) {
             return number_format($valor, 0, ',', '.');
         }
+
         return number_format($valor, $decimales, ',', '.');
     }
 }

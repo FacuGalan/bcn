@@ -2,23 +2,24 @@
 
 namespace App\Livewire\Configuracion\Promociones;
 
-use Livewire\Component;
+use App\Models\Articulo;
+use App\Models\Categoria;
+use App\Models\ListaPrecio;
 use App\Models\Promocion;
 use App\Models\PromocionCondicion;
 use App\Models\PromocionEscala;
-use App\Models\Articulo;
-use App\Models\Categoria;
-use App\Models\FormaVenta;
-use App\Models\CanalVenta;
-use App\Models\FormaPago;
-use App\Models\ListaPrecio;
+use App\Services\CatalogoCache;
+use Livewire\Component;
 
 class WizardPromocion extends Component
 {
     // Control del wizard
     public $pasoActual = 1;
+
     public $totalPasos = 5;
+
     public $modoEdicion = false;
+
     public $promocionId = null;
 
     // Paso 1: Tipo de promoción
@@ -26,28 +27,42 @@ class WizardPromocion extends Component
 
     // Paso 2: Configuración básica
     public $nombre = '';
+
     public $descripcion = '';
+
     public $codigoCupon = '';
+
     public $valor = null;
 
     // Paso 5: Prioridad y simulador
     public $prioridad = 1;
+
     public $promocionesCompetidoras = [];
+
     public $mostrarModalEdicion = false;
 
     // Simulador de venta
     public $itemsSimulador = [];
+
     public $resultadoSimulador = null;
+
     public $busquedaArticuloSimulador = '';
+
     public $articulosSimuladorResultados = [];
+
     public $mostrarFiltrosSimulador = true;
+
     public $mostrarBuscadorArticulos = false;
 
     // Filtros del simulador
     public $simuladorSucursalId = null;
+
     public $simuladorFormaVentaId = null;
+
     public $simuladorCanalVentaId = null;
+
     public $simuladorFormaPagoId = null;
+
     public $simuladorListaPrecioId = null;
 
     // Listas de precios disponibles para el simulador
@@ -58,33 +73,55 @@ class WizardPromocion extends Component
 
     // Paso 3: Alcance
     public $sucursalesSeleccionadas = [];
+
     public $articuloId = null;
+
     public $categoriaId = null;
+
     public $busquedaArticulo = '';
+
     public $alcanceArticulos = 'todos'; // todos, categoria, articulo
+
     public $mostrarBuscadorArticuloAlcance = false;
 
     // Paso 4: Condiciones y restricciones
     public $formaVentaId = null;
+
     public $canalVentaId = null;
+
     public $formaPagoId = null;
+
     public $montoMinimo = null;
+
     public $cantidadMinima = null;
+
     public $cantidadMaxima = null;
+
     public $vigenciaDesde = null;
+
     public $vigenciaHasta = null;
+
     public $horaDesde = null;
+
     public $horaHasta = null;
+
     public $diasSemana = [];
+
     public $usosMaximos = null;
+
     public $combinable = false;
+
     public $activo = true;
 
     // Colecciones
     public $articulos = [];
+
     public $categorias = [];
+
     public $formasVenta = [];
+
     public $canalesVenta = [];
+
     public $formasPago = [];
 
     protected $rules = [
@@ -113,10 +150,10 @@ class WizardPromocion extends Component
 
     public function mount($id = null)
     {
-        $this->categorias = Categoria::activas()->orderBy('nombre')->get();
-        $this->formasVenta = FormaVenta::activas()->get();
-        $this->canalesVenta = CanalVenta::activos()->get();
-        $this->formasPago = FormaPago::activas()->get();
+        $this->categorias = CatalogoCache::categorias();
+        $this->formasVenta = CatalogoCache::formasVenta();
+        $this->canalesVenta = CatalogoCache::canalesVenta();
+        $this->formasPago = CatalogoCache::formasPago();
 
         // Auto-asignar sucursal activa
         $this->sucursalesSeleccionadas = [sucursal_activa()];
@@ -215,10 +252,10 @@ class WizardPromocion extends Component
         $query = Articulo::where('activo', true);
 
         if (strlen($value) >= 1) {
-            $query->where(function($q) use ($value) {
-                $q->where('nombre', 'like', '%' . $value . '%')
-                  ->orWhere('codigo', 'like', '%' . $value . '%')
-                  ->orWhere('codigo_barras', 'like', '%' . $value . '%');
+            $query->where(function ($q) use ($value) {
+                $q->where('nombre', 'like', '%'.$value.'%')
+                    ->orWhere('codigo', 'like', '%'.$value.'%')
+                    ->orWhere('codigo_barras', 'like', '%'.$value.'%');
             });
         }
 
@@ -275,23 +312,24 @@ class WizardPromocion extends Component
      */
     public function seleccionarPrimerArticulo()
     {
-        if (!empty($this->busquedaArticulo)) {
+        if (! empty($this->busquedaArticulo)) {
             // Primero intentar coincidencia exacta por código
             $articuloPorCodigo = Articulo::where('activo', true)
-                ->where(function($q) {
+                ->where(function ($q) {
                     $q->where('codigo', $this->busquedaArticulo)
-                      ->orWhere('codigo_barras', $this->busquedaArticulo);
+                        ->orWhere('codigo_barras', $this->busquedaArticulo);
                 })
                 ->first();
 
             if ($articuloPorCodigo) {
                 $this->seleccionarArticulo($articuloPorCodigo->id);
+
                 return;
             }
         }
 
         // Si no hay coincidencia exacta, usar el primer resultado
-        if (!empty($this->articulos) && count($this->articulos) > 0) {
+        if (! empty($this->articulos) && count($this->articulos) > 0) {
             $this->seleccionarArticulo($this->articulos[0]->id);
         }
     }
@@ -305,6 +343,7 @@ class WizardPromocion extends Component
 
         if (empty($sucursalId)) {
             $this->promocionesCompetidoras = collect();
+
             return;
         }
 
@@ -324,7 +363,7 @@ class WizardPromocion extends Component
             $query->where(function ($q) {
                 $q->whereHas('condiciones', function ($subQ) {
                     $subQ->where('tipo_condicion', 'por_articulo')
-                         ->where('articulo_id', $this->articuloId);
+                        ->where('articulo_id', $this->articuloId);
                 })->orWhereDoesntHave('condiciones', function ($subQ) {
                     $subQ->whereIn('tipo_condicion', ['por_articulo', 'por_categoria']);
                 });
@@ -333,7 +372,7 @@ class WizardPromocion extends Component
             $query->where(function ($q) {
                 $q->whereHas('condiciones', function ($subQ) {
                     $subQ->where('tipo_condicion', 'por_categoria')
-                         ->where('categoria_id', $this->categoriaId);
+                        ->where('categoria_id', $this->categoriaId);
                 })->orWhereDoesntHave('condiciones', function ($subQ) {
                     $subQ->whereIn('tipo_condicion', ['por_articulo', 'por_categoria']);
                 });
@@ -346,7 +385,7 @@ class WizardPromocion extends Component
             $query->where(function ($q) use ($formaVentaFiltro) {
                 $q->whereHas('condiciones', function ($subQ) use ($formaVentaFiltro) {
                     $subQ->where('tipo_condicion', 'por_forma_venta')
-                         ->where('forma_venta_id', $formaVentaFiltro);
+                        ->where('forma_venta_id', $formaVentaFiltro);
                 })->orWhereDoesntHave('condiciones', function ($subQ) {
                     $subQ->where('tipo_condicion', 'por_forma_venta');
                 });
@@ -359,7 +398,7 @@ class WizardPromocion extends Component
             $query->where(function ($q) use ($canalVentaFiltro) {
                 $q->whereHas('condiciones', function ($subQ) use ($canalVentaFiltro) {
                     $subQ->where('tipo_condicion', 'por_canal')
-                         ->where('canal_venta_id', $canalVentaFiltro);
+                        ->where('canal_venta_id', $canalVentaFiltro);
                 })->orWhereDoesntHave('condiciones', function ($subQ) {
                     $subQ->where('tipo_condicion', 'por_canal');
                 });
@@ -372,7 +411,7 @@ class WizardPromocion extends Component
             $query->where(function ($q) use ($formaPagoFiltro) {
                 $q->whereHas('condiciones', function ($subQ) use ($formaPagoFiltro) {
                     $subQ->where('tipo_condicion', 'por_forma_pago')
-                         ->where('forma_pago_id', $formaPagoFiltro);
+                        ->where('forma_pago_id', $formaPagoFiltro);
                 })->orWhereDoesntHave('condiciones', function ($subQ) {
                     $subQ->where('tipo_condicion', 'por_forma_pago');
                 });
@@ -414,10 +453,10 @@ class WizardPromocion extends Component
             ->where('activo', true);
 
         if (strlen($busqueda) >= 1) {
-            $query->where(function($q) use ($busqueda) {
-                $q->where('nombre', 'like', '%' . $busqueda . '%')
-                  ->orWhere('codigo', 'like', '%' . $busqueda . '%')
-                  ->orWhere('codigo_barras', 'like', '%' . $busqueda . '%');
+            $query->where(function ($q) use ($busqueda) {
+                $q->where('nombre', 'like', '%'.$busqueda.'%')
+                    ->orWhere('codigo', 'like', '%'.$busqueda.'%')
+                    ->orWhere('codigo_barras', 'like', '%'.$busqueda.'%');
             });
         }
 
@@ -425,8 +464,9 @@ class WizardPromocion extends Component
             ->limit(15)
             ->get();
 
-        $this->articulosSimuladorResultados = $articulos->map(function($art) {
+        $this->articulosSimuladorResultados = $articulos->map(function ($art) {
             $precioInfo = $this->obtenerPrecioConLista($art);
+
             return [
                 'id' => $art->id,
                 'nombre' => $art->nombre,
@@ -470,22 +510,23 @@ class WizardPromocion extends Component
     public function agregarPrimerArticulo()
     {
         // Si hay búsqueda, primero intentar coincidencia exacta por código de barras
-        if (!empty($this->busquedaArticuloSimulador)) {
+        if (! empty($this->busquedaArticuloSimulador)) {
             $articuloPorBarras = Articulo::where('activo', true)
-                ->where(function($q) {
+                ->where(function ($q) {
                     $q->where('codigo_barras', $this->busquedaArticuloSimulador)
-                      ->orWhere('codigo', $this->busquedaArticuloSimulador);
+                        ->orWhere('codigo', $this->busquedaArticuloSimulador);
                 })
                 ->first();
 
             if ($articuloPorBarras) {
                 $this->agregarArticuloSimulador($articuloPorBarras->id);
+
                 return;
             }
         }
 
         // Si no hay coincidencia exacta, usar el primer resultado de la lista
-        if (!empty($this->articulosSimuladorResultados)) {
+        if (! empty($this->articulosSimuladorResultados)) {
             $this->agregarArticuloSimulador($this->articulosSimuladorResultados[0]['id']);
         }
     }
@@ -568,8 +609,9 @@ class WizardPromocion extends Component
      */
     protected function cargarListasPreciosSimulador(): void
     {
-        if (!$this->simuladorSucursalId) {
+        if (! $this->simuladorSucursalId) {
             $this->listasPreciosSimulador = [];
+
             return;
         }
 
@@ -609,7 +651,7 @@ class WizardPromocion extends Component
         }
 
         // Si no hay lista seleccionada, usar lista base
-        if (!$this->simuladorListaPrecioId) {
+        if (! $this->simuladorListaPrecioId) {
             return [
                 'precio' => $precioListaBase,
                 'precio_base' => $precioBaseArticulo,
@@ -619,7 +661,7 @@ class WizardPromocion extends Component
         }
 
         $listaPrecio = ListaPrecio::find($this->simuladorListaPrecioId);
-        if (!$listaPrecio) {
+        if (! $listaPrecio) {
             return [
                 'precio' => $precioListaBase,
                 'precio_base' => $precioBaseArticulo,
@@ -646,7 +688,7 @@ class WizardPromocion extends Component
         ];
 
         // Si la lista no cumple condiciones, usar lista base (sin mostrar ajuste)
-        if (!$listaPrecio->validarCondiciones($contexto)) {
+        if (! $listaPrecio->validarCondiciones($contexto)) {
             return [
                 'precio' => $precioListaBase,
                 'precio_base' => $precioBaseArticulo,
@@ -657,6 +699,7 @@ class WizardPromocion extends Component
 
         // Lista diferente a la base y cumple condiciones: SIEMPRE mostrar como ajuste
         $precioInfo = $listaPrecio->obtenerPrecioArticulo($articulo);
+
         return [
             'precio' => $precioInfo['precio'],
             'precio_base' => $precioBaseArticulo,
@@ -713,7 +756,7 @@ class WizardPromocion extends Component
         $listaSeleccionada = collect($this->listasPreciosSimulador)
             ->firstWhere('id', $this->simuladorListaPrecioId);
 
-        if (!$listaSeleccionada) {
+        if (! $listaSeleccionada) {
             return [
                 'aplica_promociones' => true,
                 'promociones_alcance' => 'todos',
@@ -734,7 +777,7 @@ class WizardPromocion extends Component
         $infoPromos = $this->obtenerInfoPromocionesLista();
 
         // Si la lista no aplica promociones, todos los artículos están excluidos
-        if (!$infoPromos['aplica_promociones']) {
+        if (! $infoPromos['aplica_promociones']) {
             return true;
         }
 
@@ -756,6 +799,7 @@ class WizardPromocion extends Component
     {
         if (empty($this->itemsSimulador)) {
             $this->resultadoSimulador = null;
+
             return;
         }
 
@@ -799,7 +843,7 @@ class WizardPromocion extends Component
         // Verificar si la promoción nueva (que estamos creando) es NO combinable
         $promocionNuevaNoCombinable = null;
         foreach ($todasPromociones as $promo) {
-            if ($promo['es_nueva'] && !$promo['combinable']) {
+            if ($promo['es_nueva'] && ! $promo['combinable']) {
                 $promocionNuevaNoCombinable = $promo;
                 break;
             }
@@ -808,13 +852,13 @@ class WizardPromocion extends Component
         // Si la promoción nueva es NO combinable, solo debe aplicar ella (sin otras)
         if ($promocionNuevaNoCombinable) {
             // Filtrar para que solo quede la promoción nueva
-            $promocionesArticulo = array_filter($promocionesArticulo, fn($p) => $p['es_nueva']);
-            $promocionesVenta = array_filter($promocionesVenta, fn($p) => $p['es_nueva']);
+            $promocionesArticulo = array_filter($promocionesArticulo, fn ($p) => $p['es_nueva']);
+            $promocionesVenta = array_filter($promocionesVenta, fn ($p) => $p['es_nueva']);
         } else {
             // Si la nueva ES combinable, filtrar las NO combinables existentes
             // (las NO combinables no deben combinarse con la nueva combinable)
-            $promocionesArticulo = array_filter($promocionesArticulo, fn($p) => $p['combinable'] || $p['es_nueva']);
-            $promocionesVenta = array_filter($promocionesVenta, fn($p) => $p['combinable'] || $p['es_nueva']);
+            $promocionesArticulo = array_filter($promocionesArticulo, fn ($p) => $p['combinable'] || $p['es_nueva']);
+            $promocionesVenta = array_filter($promocionesVenta, fn ($p) => $p['combinable'] || $p['es_nueva']);
         }
 
         // Contexto de la venta para evaluar condiciones (incluye filtros del simulador)
@@ -844,7 +888,7 @@ class WizardPromocion extends Component
         $descuentoVenta = 0;
         foreach ($promocionesVenta as $promo) {
             // Verificar condiciones de la promoción
-            if (!$this->promocionCumpleCondiciones($promo, $contextoVenta)) {
+            if (! $this->promocionCumpleCondiciones($promo, $contextoVenta)) {
                 continue;
             }
 
@@ -985,8 +1029,8 @@ class WizardPromocion extends Component
         }
 
         // Separar descuentos y recargos
-        $descuentos = array_filter($promocionesParaItem, fn($p) => $this->esDescuento($p['tipo']));
-        $recargos = array_filter($promocionesParaItem, fn($p) => !$this->esDescuento($p['tipo']));
+        $descuentos = array_filter($promocionesParaItem, fn ($p) => $this->esDescuento($p['tipo']));
+        $recargos = array_filter($promocionesParaItem, fn ($p) => ! $this->esDescuento($p['tipo']));
 
         // Encontrar mejor combinación de descuentos para este item
         $mejorDescuentos = $this->encontrarMejorCombinacionParaItem(
@@ -1048,23 +1092,23 @@ class WizardPromocion extends Component
     private function promocionCumpleCondiciones(array $promo, array $contextoVenta): bool
     {
         // Verificar monto mínimo
-        if (!empty($promo['monto_minimo'])) {
+        if (! empty($promo['monto_minimo'])) {
             if ($contextoVenta['subtotal'] < (float) $promo['monto_minimo']) {
                 return false;
             }
         }
 
         // Verificar cantidad mínima
-        if (!empty($promo['cantidad_minima'])) {
+        if (! empty($promo['cantidad_minima'])) {
             if ($contextoVenta['cantidad_total'] < (int) $promo['cantidad_minima']) {
                 return false;
             }
         }
 
         // Verificar forma de pago: si la promoción requiere una forma de pago específica
-        if (!empty($promo['forma_pago_id'])) {
+        if (! empty($promo['forma_pago_id'])) {
             // Si el simulador tiene una forma de pago seleccionada, debe coincidir
-            if (!empty($contextoVenta['forma_pago_id'])) {
+            if (! empty($contextoVenta['forma_pago_id'])) {
                 if ($promo['forma_pago_id'] != $contextoVenta['forma_pago_id']) {
                     return false;
                 }
@@ -1077,8 +1121,8 @@ class WizardPromocion extends Component
         }
 
         // Verificar forma de venta
-        if (!empty($promo['forma_venta_id'])) {
-            if (!empty($contextoVenta['forma_venta_id'])) {
+        if (! empty($promo['forma_venta_id'])) {
+            if (! empty($contextoVenta['forma_venta_id'])) {
                 if ($promo['forma_venta_id'] != $contextoVenta['forma_venta_id']) {
                     return false;
                 }
@@ -1088,8 +1132,8 @@ class WizardPromocion extends Component
         }
 
         // Verificar canal de venta
-        if (!empty($promo['canal_venta_id'])) {
-            if (!empty($contextoVenta['canal_venta_id'])) {
+        if (! empty($promo['canal_venta_id'])) {
+            if (! empty($contextoVenta['canal_venta_id'])) {
                 if ($promo['canal_venta_id'] != $contextoVenta['canal_venta_id']) {
                     return false;
                 }
@@ -1132,7 +1176,7 @@ class WizardPromocion extends Component
                 }
             }
 
-            if (!$this->esCombinacionValida($combinacion)) {
+            if (! $this->esCombinacionValida($combinacion)) {
                 continue;
             }
 
@@ -1177,7 +1221,7 @@ class WizardPromocion extends Component
      */
     private function calcularCombinacionParaItem(array $combinacion, float $montoInicial, int $cantidad): array
     {
-        usort($combinacion, fn($a, $b) => $a['prioridad'] <=> $b['prioridad']);
+        usort($combinacion, fn ($a, $b) => $a['prioridad'] <=> $b['prioridad']);
 
         $montoActual = $montoInicial;
         $promocionesAplicadas = [];
@@ -1273,7 +1317,7 @@ class WizardPromocion extends Component
 
             $promoResumen['aplicada'] = count($promoResumen['aplicada_en']) > 0;
 
-            if (!$promoResumen['aplicada']) {
+            if (! $promoResumen['aplicada']) {
                 // Determinar razón por la que no se aplicó
                 $promoResumen['razon'] = $this->determinarRazonNoAplicada($promo, $items, $contextoVenta);
             }
@@ -1282,10 +1326,11 @@ class WizardPromocion extends Component
         }
 
         // Ordenar: primero las aplicadas, luego por prioridad
-        usort($resumen, function($a, $b) {
+        usort($resumen, function ($a, $b) {
             if ($a['aplicada'] !== $b['aplicada']) {
                 return $b['aplicada'] <=> $a['aplicada'];
             }
+
             return $a['prioridad'] <=> $b['prioridad'];
         });
 
@@ -1298,7 +1343,7 @@ class WizardPromocion extends Component
     private function determinarRazonNoAplicada(array $promo, array $items, array $contextoVenta): string
     {
         // Verificar forma de pago
-        if (!empty($promo['forma_pago_id'])) {
+        if (! empty($promo['forma_pago_id'])) {
             if (empty($contextoVenta['forma_pago_id'])) {
                 return __('Requiere forma de pago específica');
             }
@@ -1308,7 +1353,7 @@ class WizardPromocion extends Component
         }
 
         // Verificar forma de venta
-        if (!empty($promo['forma_venta_id'])) {
+        if (! empty($promo['forma_venta_id'])) {
             if (empty($contextoVenta['forma_venta_id'])) {
                 return __('Requiere forma de venta específica');
             }
@@ -1318,7 +1363,7 @@ class WizardPromocion extends Component
         }
 
         // Verificar canal de venta
-        if (!empty($promo['canal_venta_id'])) {
+        if (! empty($promo['canal_venta_id'])) {
             if (empty($contextoVenta['canal_venta_id'])) {
                 return __('Requiere canal de venta específico');
             }
@@ -1328,19 +1373,21 @@ class WizardPromocion extends Component
         }
 
         // Verificar monto mínimo
-        if (!empty($promo['monto_minimo'])) {
+        if (! empty($promo['monto_minimo'])) {
             $montoMinimo = (float) $promo['monto_minimo'];
             if ($contextoVenta['subtotal'] < $montoMinimo) {
                 $faltante = $montoMinimo - $contextoVenta['subtotal'];
+
                 return __('Monto mínimo no alcanzado (faltan $:faltante)', ['faltante' => number_format($faltante, 0, ',', '.')]);
             }
         }
 
         // Verificar cantidad mínima
-        if (!empty($promo['cantidad_minima'])) {
+        if (! empty($promo['cantidad_minima'])) {
             $cantidadMinima = (int) $promo['cantidad_minima'];
             if ($contextoVenta['cantidad_total'] < $cantidadMinima) {
                 $faltante = $cantidadMinima - $contextoVenta['cantidad_total'];
+
                 return __('Cantidad mínima no alcanzada (faltan :faltante unidades)', ['faltante' => $faltante]);
             }
         }
@@ -1354,7 +1401,7 @@ class WizardPromocion extends Component
             }
         }
 
-        if (!$aplicaAlguno) {
+        if (! $aplicaAlguno) {
             return __('No aplica a estos artículos');
         }
 
@@ -1381,7 +1428,7 @@ class WizardPromocion extends Component
         // Contar promociones no combinables
         $noCombinable = 0;
         foreach ($combinacion as $promo) {
-            if (!$promo['combinable']) {
+            if (! $promo['combinable']) {
                 $noCombinable++;
             }
         }
@@ -1416,6 +1463,7 @@ class WizardPromocion extends Component
                 // precio_fijo: el artículo pasa a valer el precio fijo
                 // El descuento es la diferencia entre el subtotal original y (precio_fijo * cantidad)
                 $precioFijoTotal = $promo['valor'] * $cantidad;
+
                 return [
                     'tipo' => 'descuento',
                     'porcentaje' => null,
@@ -1439,7 +1487,7 @@ class WizardPromocion extends Component
 
             case 'descuento_escalonado':
                 $escalas = collect($promo['escalas'])
-                    ->filter(fn($e) => !empty($e['cantidad_desde']) && !empty($e['valor']))
+                    ->filter(fn ($e) => ! empty($e['cantidad_desde']) && ! empty($e['valor']))
                     ->sortByDesc('cantidad_desde');
 
                 foreach ($escalas as $escala) {
@@ -1466,6 +1514,7 @@ class WizardPromocion extends Component
                         }
                     }
                 }
+
                 return ['tipo' => 'descuento', 'porcentaje' => 0, 'valor' => 0];
 
             default:
@@ -1488,7 +1537,7 @@ class WizardPromocion extends Component
 
     public function siguiente()
     {
-        if (!$this->validarPasoActual()) {
+        if (! $this->validarPasoActual()) {
             return;
         }
 
@@ -1544,7 +1593,7 @@ class WizardPromocion extends Component
     protected function inicializarSimulador()
     {
         // Inicializar filtros del simulador con la primera sucursal seleccionada
-        if (empty($this->simuladorSucursalId) && !empty($this->sucursalesSeleccionadas)) {
+        if (empty($this->simuladorSucursalId) && ! empty($this->sucursalesSeleccionadas)) {
             $this->simuladorSucursalId = $this->sucursalesSeleccionadas[0];
         }
         // Inicializar con los valores de restricciones si están definidos
@@ -1565,7 +1614,7 @@ class WizardPromocion extends Component
         }
 
         $this->cargarPromocionesCompetidoras();
-        if (!empty($this->itemsSimulador)) {
+        if (! empty($this->itemsSimulador)) {
             $this->actualizarPreciosItemsSimulador();
             $this->simularVenta();
         }
@@ -1585,7 +1634,8 @@ class WizardPromocion extends Component
 
             // Validar que cantidad_desde sea menor o igual a cantidad_hasta
             if ($escalaActual['cantidad_hasta'] && $desde > $hasta) {
-                $this->js("window.notify('" . addslashes(__('Escala :desde-:hasta: "Desde" debe ser menor o igual a "Hasta"', ['desde' => $desde, 'hasta' => $hasta])) . "', 'error', 5000)");
+                $this->js("window.notify('".addslashes(__('Escala :desde-:hasta: "Desde" debe ser menor o igual a "Hasta"', ['desde' => $desde, 'hasta' => $hasta]))."', 'error', 5000)");
+
                 return false;
             }
 
@@ -1607,7 +1657,8 @@ class WizardPromocion extends Component
                     $rangoActual = $escalaActual['cantidad_hasta'] ? "{$desde}-{$hasta}" : "{$desde}+";
                     $rangoSiguiente = $escalaSiguiente['cantidad_hasta'] ? "{$desdeSiguiente}-{$hastaSiguiente}" : "{$desdeSiguiente}+";
 
-                    $this->js("window.notify('" . addslashes(__('Las escalas :rango1 y :rango2 se solapan. Ajusta los rangos para que no se crucen.', ['rango1' => $rangoActual, 'rango2' => $rangoSiguiente])) . "', 'error', 6000)");
+                    $this->js("window.notify('".addslashes(__('Las escalas :rango1 y :rango2 se solapan. Ajusta los rangos para que no se crucen.', ['rango1' => $rangoActual, 'rango2' => $rangoSiguiente]))."', 'error', 6000)");
+
                     return false;
                 }
             }
@@ -1620,15 +1671,17 @@ class WizardPromocion extends Component
     {
         switch ($this->pasoActual) {
             case 1:
-                if (!$this->tipo) {
-                    $this->js("window.notify('" . __('Debes seleccionar un tipo de promoción') . "', 'error')");
+                if (! $this->tipo) {
+                    $this->js("window.notify('".__('Debes seleccionar un tipo de promoción')."', 'error')");
+
                     return false;
                 }
                 break;
 
             case 2:
-                if (!$this->nombre) {
-                    $this->js("window.notify('" . __('Debes ingresar un nombre para la promoción') . "', 'error')");
+                if (! $this->nombre) {
+                    $this->js("window.notify('".__('Debes ingresar un nombre para la promoción')."', 'error')");
+
                     return false;
                 }
 
@@ -1636,18 +1689,20 @@ class WizardPromocion extends Component
                     // Validar que las escalas estén completas
                     foreach ($this->escalas as $escala) {
                         if (empty($escala['cantidad_desde']) || empty($escala['valor'])) {
-                            $this->js("window.notify('" . __('Todas las escalas deben tener cantidad desde y valor') . "', 'error')");
+                            $this->js("window.notify('".__('Todas las escalas deben tener cantidad desde y valor')."', 'error')");
+
                             return false;
                         }
                     }
 
                     // Validar que las escalas no se solapen
-                    if (!$this->validarEscalasNoSeSolapan()) {
+                    if (! $this->validarEscalasNoSeSolapan()) {
                         return false;
                     }
-                } elseif (!str_contains($this->tipo, 'escalonado')) {
+                } elseif (! str_contains($this->tipo, 'escalonado')) {
                     if (empty($this->valor)) {
-                        $this->js("window.notify('" . __('Debes ingresar un valor') . "', 'error')");
+                        $this->js("window.notify('".__('Debes ingresar un valor')."', 'error')");
+
                         return false;
                     }
                 }
@@ -1657,15 +1712,18 @@ class WizardPromocion extends Component
             case 3:
                 // Validar que precio_fijo requiera artículo específico
                 if ($this->tipo === 'precio_fijo' && $this->alcanceArticulos !== 'articulo') {
-                    $this->js("window.notify('" . __('La promoción de Precio Fijo debe aplicar a un artículo específico') . "', 'error', 5000)");
+                    $this->js("window.notify('".__('La promoción de Precio Fijo debe aplicar a un artículo específico')."', 'error', 5000)");
+
                     return false;
                 }
-                if ($this->tipo === 'precio_fijo' && !$this->articuloId) {
-                    $this->js("window.notify('" . __('Debes seleccionar un artículo para la promoción de Precio Fijo') . "', 'error', 5000)");
+                if ($this->tipo === 'precio_fijo' && ! $this->articuloId) {
+                    $this->js("window.notify('".__('Debes seleccionar un artículo para la promoción de Precio Fijo')."', 'error', 5000)");
+
                     return false;
                 }
                 if (empty($this->sucursalesSeleccionadas)) {
-                    $this->js("window.notify('" . __('Debes seleccionar al menos una sucursal') . "', 'error')");
+                    $this->js("window.notify('".__('Debes seleccionar al menos una sucursal')."', 'error')");
+
                     return false;
                 }
                 break;
@@ -1677,7 +1735,7 @@ class WizardPromocion extends Component
     public function guardar()
     {
         // Si no es combinable, fijar prioridad en 1 automáticamente
-        if (!$this->combinable) {
+        if (! $this->combinable) {
             $this->prioridad = 1;
         }
 
@@ -1697,7 +1755,7 @@ class WizardPromocion extends Component
         } catch (\Illuminate\Validation\ValidationException $e) {
             \Log::error('Error de validación', ['errors' => $e->errors()]);
             $errores = collect($e->errors())->flatten()->implode(', ');
-            $this->js("window.notify('" . addslashes(__('Error de validación: ') . $errores) . "', 'error', 7000)");
+            $this->js("window.notify('".addslashes(__('Error de validación: ').$errores)."', 'error', 7000)");
             throw $e;
         }
 
@@ -1711,9 +1769,9 @@ class WizardPromocion extends Component
             return redirect()->route('configuracion.promociones');
 
         } catch (\Exception $e) {
-            \Log::error('Error al guardar promocion: ' . $e->getMessage());
+            \Log::error('Error al guardar promocion: '.$e->getMessage());
             $errorMsg = addslashes($e->getMessage());
-            $this->js("window.notify('" . addslashes(__('Error al guardar promoción: ') . $e->getMessage()) . "', 'error', 7000)");
+            $this->js("window.notify('".addslashes(__('Error al guardar promoción: ').$e->getMessage())."', 'error', 7000)");
         }
     }
 
@@ -1737,7 +1795,7 @@ class WizardPromocion extends Component
                 'activo' => $this->activo,
                 'vigencia_desde' => $this->vigenciaDesde,
                 'vigencia_hasta' => $this->vigenciaHasta,
-                'dias_semana' => !empty($this->diasSemana) ? $this->diasSemana : null,
+                'dias_semana' => ! empty($this->diasSemana) ? $this->diasSemana : null,
                 'hora_desde' => $this->horaDesde,
                 'hora_hasta' => $this->horaHasta,
                 'usos_maximos' => $this->usosMaximos,
@@ -1754,7 +1812,7 @@ class WizardPromocion extends Component
             ? __('Promoción creada correctamente')
             : __(':count promociones creadas correctamente', ['count' => $promocionesCreadas]);
 
-        $this->js("window.notify('" . addslashes($mensaje) . "', 'success')");
+        $this->js("window.notify('".addslashes($mensaje)."', 'success')");
     }
 
     /**
@@ -1776,7 +1834,7 @@ class WizardPromocion extends Component
             'activo' => $this->activo,
             'vigencia_desde' => $this->vigenciaDesde,
             'vigencia_hasta' => $this->vigenciaHasta,
-            'dias_semana' => !empty($this->diasSemana) ? $this->diasSemana : null,
+            'dias_semana' => ! empty($this->diasSemana) ? $this->diasSemana : null,
             'hora_desde' => $this->horaDesde,
             'hora_hasta' => $this->horaHasta,
             'usos_maximos' => $this->usosMaximos,
@@ -1790,7 +1848,7 @@ class WizardPromocion extends Component
         $this->guardarEscalas($promocion);
         $this->guardarCondiciones($promocion);
 
-        $this->js("window.notify('" . __('Promoción actualizada correctamente') . "', 'success')");
+        $this->js("window.notify('".__('Promoción actualizada correctamente')."', 'success')");
     }
 
     /**
@@ -1800,7 +1858,7 @@ class WizardPromocion extends Component
     {
         if ($this->tipo === 'descuento_escalonado') {
             foreach ($this->escalas as $escalaData) {
-                if (!empty($escalaData['cantidad_desde']) && !empty($escalaData['valor'])) {
+                if (! empty($escalaData['cantidad_desde']) && ! empty($escalaData['valor'])) {
                     PromocionEscala::create([
                         'promocion_id' => $promocion->id,
                         'cantidad_desde' => $escalaData['cantidad_desde'],

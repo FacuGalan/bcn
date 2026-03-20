@@ -26,7 +26,7 @@ return new class extends Migration
         // 2. Buscar o crear padre "Stock"
         $stock = $conn->table('menu_items')->where('slug', 'stock')->whereNull('parent_id')->first();
 
-        if (!$stock) {
+        if (! $stock) {
             $stockId = $conn->table('menu_items')->insertGetId([
                 'parent_id' => null,
                 'nombre' => 'Stock',
@@ -55,7 +55,7 @@ return new class extends Migration
         foreach ($hijos as $hijo) {
             $existe = $conn->table('menu_items')->where('slug', $hijo['slug'])->exists();
 
-            if (!$existe) {
+            if (! $existe) {
                 $conn->table('menu_items')->insert([
                     'parent_id' => $stockId,
                     'nombre' => $hijo['nombre'],

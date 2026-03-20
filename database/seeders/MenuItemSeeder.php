@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Models\MenuItem;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Seeder para la estructura del menú del sistema
@@ -19,7 +18,6 @@ use Illuminate\Support\Facades\DB;
  * que será la misma para todos los comercios. Los permisos se generarán
  * automáticamente desde estos items de menú.
  *
- * @package Database\Seeders
  * @version 2.0.0
  */
 class MenuItemSeeder extends Seeder

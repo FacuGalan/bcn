@@ -5,8 +5,8 @@ namespace App\Services\ARCA;
 use App\Models\Caja;
 use App\Models\Cliente;
 use App\Models\ComprobanteFiscal;
-use App\Models\ComprobanteFiscalIva;
 use App\Models\ComprobanteFiscalItem;
+use App\Models\ComprobanteFiscalIva;
 use App\Models\ComprobanteFiscalVenta;
 use App\Models\CondicionIva;
 use App\Models\Cuit;
@@ -14,7 +14,6 @@ use App\Models\FormaPago;
 use App\Models\PuntoVenta;
 use App\Models\Sucursal;
 use App\Models\Venta;
-use App\Models\VentaDetalle;
 use App\Models\VentaPago;
 use Carbon\Carbon;
 use Exception;
@@ -42,7 +41,7 @@ class ComprobanteFiscalService
     public function debeGenerarFacturaFiscal(Sucursal $sucursal, array $pagos): bool
     {
         // Verificar configuración de sucursal
-        if (!$sucursal->facturacion_fiscal_automatica) {
+        if (! $sucursal->facturacion_fiscal_automatica) {
             return false;
         }
 
@@ -71,7 +70,7 @@ class ComprobanteFiscalService
     {
         $condicionEmisor = $cuitEmisor->condicionIva;
 
-        if (!$condicionEmisor) {
+        if (! $condicionEmisor) {
             throw new Exception('El CUIT emisor no tiene condición de IVA configurada');
         }
 
@@ -83,14 +82,14 @@ class ComprobanteFiscalService
         // Emisor es Responsable Inscripto
         if ($condicionEmisor->esResponsableInscripto()) {
             // Si no hay cliente o no tiene condición IVA, es B (consumidor final)
-            if (!$cliente || !$cliente->condicion_iva_id) {
+            if (! $cliente || ! $cliente->condicion_iva_id) {
                 return 'factura_b';
             }
 
             // Obtener condición del cliente a través de la relación
             $condicionCliente = $cliente->condicionIva;
 
-            if (!$condicionCliente) {
+            if (! $condicionCliente) {
                 return 'factura_b';
             }
 
@@ -111,12 +110,11 @@ class ComprobanteFiscalService
     /**
      * Crea un comprobante fiscal para una venta
      *
-     * @param Venta $venta La venta a facturar
-     * @param array $opciones Opciones adicionales:
-     *   - punto_venta: PuntoVenta específico
-     *   - tipo_comprobante: Tipo de comprobante forzado
-     *   - pagos_facturar: Array de pagos a facturar (para facturación parcial)
-     * @return ComprobanteFiscal
+     * @param  Venta  $venta  La venta a facturar
+     * @param  array  $opciones  Opciones adicionales:
+     *                           - punto_venta: PuntoVenta específico
+     *                           - tipo_comprobante: Tipo de comprobante forzado
+     *                           - pagos_facturar: Array de pagos a facturar (para facturación parcial)
      */
     public function crearComprobanteFiscal(Venta $venta, array $opciones = []): ComprobanteFiscal
     {
@@ -126,25 +124,25 @@ class ComprobanteFiscalService
         // Estructura: Caja → Punto de Venta (defecto) → CUIT
         $caja = $venta->caja;
 
-        if (!$caja) {
+        if (! $caja) {
             throw new Exception('La venta no tiene caja asignada');
         }
 
         // Obtener punto de venta por defecto de la caja
         $puntoVenta = $opciones['punto_venta'] ?? $caja->puntoVentaDefecto();
 
-        if (!$puntoVenta) {
+        if (! $puntoVenta) {
             throw new Exception("La caja '{$caja->nombre}' no tiene punto de venta asignado. Configure los puntos de venta en Configuración → Empresa → Cajas.");
         }
 
         // Obtener CUIT desde el punto de venta
         $cuit = $puntoVenta->cuit;
 
-        if (!$cuit) {
+        if (! $cuit) {
             throw new Exception("El punto de venta {$puntoVenta->numero_formateado} no tiene CUIT asociado");
         }
 
-        if (!$cuit->activo) {
+        if (! $cuit->activo) {
             throw new Exception("El CUIT {$cuit->numero_formateado} está inactivo");
         }
 
@@ -159,7 +157,7 @@ class ComprobanteFiscalService
         $totalAFacturar = $opciones['total_a_facturar'] ?? $venta->total_final;
 
         // Si hay facturación parcial con pagos específicos, calcular el total desde los pagos
-        if (!empty($opciones['pagos_facturar']) && empty($opciones['total_a_facturar'])) {
+        if (! empty($opciones['pagos_facturar']) && empty($opciones['total_a_facturar'])) {
             $totalAFacturar = array_sum(array_column($opciones['pagos_facturar'], 'monto_final'));
 
             Log::info('Facturación parcial', [
@@ -173,7 +171,7 @@ class ComprobanteFiscalService
         // Para Factura C: calcular directamente (no discrimina IVA)
         $esFacturaC = str_ends_with($tipoComprobante, '_c');
 
-        if (!$esFacturaC && !empty($opciones['desglose_iva'])) {
+        if (! $esFacturaC && ! empty($opciones['desglose_iva'])) {
             // Usar el desglose ya calculado por el frontend DIRECTAMENTE
             // El frontend ya calcula valores que cumplen AFIP: iva = neto * porcentaje
             $desgloseRecibido = $opciones['desglose_iva'];
@@ -321,7 +319,7 @@ class ComprobanteFiscalService
                         'monto_facturado' => $pago->monto_final,
                     ]);
                 }
-            } elseif (!empty($opciones['pagos_facturar'])) {
+            } elseif (! empty($opciones['pagos_facturar'])) {
                 // Factura parcial: marcar solo los pagos especificados
                 Log::info('Marcando pagos como facturados (parcial)', [
                     'comprobante_id' => $comprobante->id,
@@ -383,7 +381,7 @@ class ComprobanteFiscalService
     protected function prepararDatosReceptor(?Cliente $cliente, string $tipoComprobante): array
     {
         // Si no hay cliente, usar consumidor final genérico
-        if (!$cliente) {
+        if (! $cliente) {
             return [
                 'nombre' => 'CONSUMIDOR FINAL',
                 'doc_tipo' => '99',  // Código AFIP: Sin identificar
@@ -432,9 +430,9 @@ class ComprobanteFiscalService
      * Siempre calcula las alícuotas para registro interno,
      * aunque para Factura C no se envíen a AFIP.
      *
-     * @param Venta $venta La venta
-     * @param string $tipoComprobante Tipo de comprobante (factura_a, factura_b, factura_c)
-     * @param float|null $totalAFacturar Total a facturar (para facturación parcial)
+     * @param  Venta  $venta  La venta
+     * @param  string  $tipoComprobante  Tipo de comprobante (factura_a, factura_b, factura_c)
+     * @param  float|null  $totalAFacturar  Total a facturar (para facturación parcial)
      */
     protected function calcularDetallesIva(Venta $venta, string $tipoComprobante, ?float $totalAFacturar = null): array
     {
@@ -461,7 +459,7 @@ class ComprobanteFiscalService
                         'porcentaje' => 21,
                         'base_imponible' => round($total, 2),
                         'importe' => 0,
-                    ]
+                    ],
                 ],
             ];
         }
@@ -484,7 +482,7 @@ class ComprobanteFiscalService
 
                 // Agrupar por alícuota
                 $codigoAfip = ARCAService::getAlicuotaIVA($porcentaje);
-                if (!isset($alicuotas[$codigoAfip])) {
+                if (! isset($alicuotas[$codigoAfip])) {
                     $alicuotas[$codigoAfip] = [
                         'codigo_afip' => $codigoAfip,
                         'porcentaje' => $porcentaje,
@@ -597,7 +595,7 @@ class ComprobanteFiscalService
             ];
 
             // Agregar alícuotas de IVA
-            if (!empty($detallesIva['alicuotas'])) {
+            if (! empty($detallesIva['alicuotas'])) {
                 $datos['iva'] = array_map(function ($alicuota) {
                     return [
                         'Id' => $alicuota['codigo_afip'],
@@ -617,6 +615,7 @@ class ComprobanteFiscalService
     protected function extraerLetra(string $tipoComprobante): string
     {
         $partes = explode('_', $tipoComprobante);
+
         return strtoupper(end($partes));
     }
 
@@ -647,11 +646,10 @@ class ComprobanteFiscalService
     /**
      * Crea una nota de crédito para anular un comprobante fiscal
      *
-     * @param ComprobanteFiscal $comprobanteOriginal Comprobante a anular
-     * @param Venta $venta La venta asociada
-     * @param string|null $motivo Motivo de la anulación
-     * @param int|null $usuarioId ID del usuario que realiza la operación
-     * @return ComprobanteFiscal
+     * @param  ComprobanteFiscal  $comprobanteOriginal  Comprobante a anular
+     * @param  Venta  $venta  La venta asociada
+     * @param  string|null  $motivo  Motivo de la anulación
+     * @param  int|null  $usuarioId  ID del usuario que realiza la operación
      */
     public function crearNotaCredito(
         ComprobanteFiscal $comprobanteOriginal,
@@ -659,11 +657,11 @@ class ComprobanteFiscalService
         ?string $motivo = null,
         ?int $usuarioId = null
     ): ComprobanteFiscal {
-        if (!$comprobanteOriginal->esFactura()) {
+        if (! $comprobanteOriginal->esFactura()) {
             throw new Exception('Solo se pueden anular facturas');
         }
 
-        if (!$comprobanteOriginal->estaAutorizado()) {
+        if (! $comprobanteOriginal->estaAutorizado()) {
             throw new Exception('Solo se pueden anular comprobantes autorizados');
         }
 
@@ -677,7 +675,7 @@ class ComprobanteFiscalService
         $puntoVenta = $comprobanteOriginal->puntoVenta;
         $cuit = $comprobanteOriginal->cuit;
 
-        if (!$cuit->activo) {
+        if (! $cuit->activo) {
             throw new Exception("El CUIT {$cuit->numero_formateado} está inactivo");
         }
 
@@ -717,7 +715,7 @@ class ComprobanteFiscalService
         // Si no hay alícuotas guardadas pero hay neto gravado, crear una alícuota por defecto
         // Esto puede pasar en comprobantes antiguos que no tenían desglose de IVA guardado
         // AFIP requiere IVA si ImpNeto > 0 para Facturas A/B
-        if (empty($detallesIva['alicuotas']) && !$esFacturaC && $detallesIva['neto_gravado'] > 0) {
+        if (empty($detallesIva['alicuotas']) && ! $esFacturaC && $detallesIva['neto_gravado'] > 0) {
             // Si no hay IVA guardado, recalcular asumiendo 21%
             $ivaImporte = $detallesIva['iva_total'];
             if ($ivaImporte <= 0) {
@@ -945,7 +943,7 @@ class ComprobanteFiscalService
             ];
 
             // Agregar alícuotas de IVA (obligatorio si hay neto gravado)
-            if (!empty($detallesIva['alicuotas'])) {
+            if (! empty($detallesIva['alicuotas'])) {
                 $datos['iva'] = array_map(function ($alicuota) {
                     return [
                         'Id' => $alicuota['codigo_afip'],

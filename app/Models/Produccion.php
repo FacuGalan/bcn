@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Produccion extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'producciones';
 
     protected $fillable = [

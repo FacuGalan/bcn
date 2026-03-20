@@ -36,6 +36,7 @@ class MigrateTenants extends Command
 
         if ($comercios->isEmpty()) {
             $this->warn('⚠️  No hay comercios en el sistema.');
+
             return Command::SUCCESS;
         }
 
@@ -81,13 +82,14 @@ class MigrateTenants extends Command
                 }
 
             } catch (\Exception $e) {
-                $this->error('   ❌ Error: ' . $e->getMessage());
+                $this->error('   ❌ Error: '.$e->getMessage());
             }
 
             $this->newLine();
         }
 
         $this->info('✨ Proceso completado!');
+
         return Command::SUCCESS;
     }
 }

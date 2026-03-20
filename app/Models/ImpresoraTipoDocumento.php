@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ImpresoraTipoDocumento extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'impresora_tipo_documento';
 
     public const TIPOS_DOCUMENTO = [
@@ -24,7 +25,9 @@ class ImpresoraTipoDocumento extends Model
     ];
 
     public const TIPOS_FACTURA = ['factura_a', 'factura_b', 'factura_c'];
+
     public const TIPOS_VENTA = ['ticket_venta', 'factura_a', 'factura_b', 'factura_c'];
+
     public const TIPOS_CAJA = ['cierre_turno', 'cierre_caja', 'arqueo'];
 
     protected $fillable = [

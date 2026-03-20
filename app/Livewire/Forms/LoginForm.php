@@ -26,8 +26,8 @@ use Livewire\Form;
  * - Control de sesiones concurrentes
  * - Establecimiento del comercio activo
  *
- * @package App\Livewire\Forms
  * @author BCN Pymes
+ *
  * @version 1.0.0
  */
 class LoginForm extends Form
@@ -35,32 +35,24 @@ class LoginForm extends Form
     /**
      * Email del comercio al que se quiere acceder
      * Opcional para System Admins
-     *
-     * @var string
      */
     #[Validate('nullable|string|email')]
     public string $comercio_email = '';
 
     /**
      * Nombre de usuario para login
-     *
-     * @var string
      */
     #[Validate('required|string')]
     public string $username = '';
 
     /**
      * Contraseña del usuario
-     *
-     * @var string
      */
     #[Validate('required|string')]
     public string $password = '';
 
     /**
      * Recordar sesión
-     *
-     * @var bool
      */
     #[Validate('boolean')]
     public bool $remember = false;
@@ -89,6 +81,7 @@ class LoginForm extends Form
      * 8. Establecer comercio activo
      *
      * @return array Array con información sobre si necesita confirmación
+     *
      * @throws \Illuminate\Validation\ValidationException
      */
     public function authenticate(): array
@@ -102,7 +95,7 @@ class LoginForm extends Form
             ->first();
 
         if ($systemAdmin && Hash::check($this->password, $systemAdmin->password)) {
-            if (!$systemAdmin->activo) {
+            if (! $systemAdmin->activo) {
                 RateLimiter::hit($this->throttleKey());
                 throw ValidationException::withMessages([
                     'form.username' => 'Tu cuenta ha sido desactivada. Contacta al administrador.',
@@ -139,7 +132,7 @@ class LoginForm extends Form
 
         $comercio = Comercio::where('email', $this->comercio_email)->first();
 
-        if (!$comercio) {
+        if (! $comercio) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
@@ -149,10 +142,10 @@ class LoginForm extends Form
 
         // 3. Buscar usuario por username DENTRO de los usuarios del comercio
         $user = User::where('username', $this->username)
-            ->whereHas('comercios', fn($q) => $q->where('comercios.id', $comercio->id))
+            ->whereHas('comercios', fn ($q) => $q->where('comercios.id', $comercio->id))
             ->first();
 
-        if (!$user) {
+        if (! $user) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
@@ -161,7 +154,7 @@ class LoginForm extends Form
         }
 
         // 4. Verificar la contraseña
-        if (!Hash::check($this->password, $user->password)) {
+        if (! Hash::check($this->password, $user->password)) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
@@ -170,7 +163,7 @@ class LoginForm extends Form
         }
 
         // 5. Verificar que el usuario esté activo
-        if (!$user->activo) {
+        if (! $user->activo) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
@@ -206,7 +199,7 @@ class LoginForm extends Form
     /**
      * Completa el proceso de login después de la confirmación (o si no necesita confirmación)
      *
-     * @param array $selectedSessionIds Array de IDs de sesiones a cerrar (opcional)
+     * @param  array  $selectedSessionIds  Array de IDs de sesiones a cerrar (opcional)
      * @return array Array indicando que el login fue exitoso
      */
     public function completeLogin(array $selectedSessionIds = []): array
@@ -215,14 +208,14 @@ class LoginForm extends Form
         $userId = Session::get(self::SESSION_VALIDATED_USER_ID);
         $comercioId = Session::get(self::SESSION_VALIDATED_COMERCIO_ID);
 
-        if (!$userId) {
+        if (! $userId) {
             throw new \Exception('No hay usuario validado. Debe llamar authenticate() primero.');
         }
 
         // Obtener modelo de usuario
         $user = User::find($userId);
 
-        if (!$user) {
+        if (! $user) {
             throw new \Exception('Usuario no encontrado en base de datos.');
         }
 
@@ -230,7 +223,7 @@ class LoginForm extends Form
 
         // Cerrar sesiones si es necesario
         if ($sessionManager->hasReachedSessionLimit($user)) {
-            if (!empty($selectedSessionIds)) {
+            if (! empty($selectedSessionIds)) {
                 // Cerrar sesiones específicas seleccionadas por el usuario
                 $sessionManager->closeSpecificSessions($selectedSessionIds);
             } else {
@@ -240,7 +233,7 @@ class LoginForm extends Form
         }
 
         // Actualizar password_visible si no está configurado
-        if (!$user->hasPasswordVisible()) {
+        if (! $user->hasPasswordVisible()) {
             $user->setPasswordVisible($this->password);
             $user->save();
         }
@@ -267,13 +260,13 @@ class LoginForm extends Form
         }
 
         // Para usuarios normales, establecer el comercio
-        if (!$comercioId) {
+        if (! $comercioId) {
             throw new \Exception('No hay comercio validado para usuario normal.');
         }
 
         $comercio = Comercio::find($comercioId);
 
-        if (!$comercio) {
+        if (! $comercio) {
             throw new \Exception('Comercio no encontrado en base de datos.');
         }
 
@@ -302,8 +295,6 @@ class LoginForm extends Form
 
     /**
      * Cancela el proceso de login y limpia los datos temporales
-     *
-     * @return void
      */
     public function cancelLogin(): void
     {
@@ -317,12 +308,11 @@ class LoginForm extends Form
     /**
      * Verifica que la solicitud de autenticación no esté limitada por intentos
      *
-     * @return void
      * @throws \Illuminate\Validation\ValidationException
      */
     protected function ensureIsNotRateLimited(): void
     {
-        if (!RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
+        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
             return;
         }
 
@@ -342,8 +332,7 @@ class LoginForm extends Form
      * Establece la sucursal por defecto para el usuario
      * Y también establece la primera caja disponible
      *
-     * @param User $user Usuario autenticado
-     * @return void
+     * @param  User  $user  Usuario autenticado
      */
     protected function establecerSucursalPorDefecto(User $user): void
     {
@@ -370,7 +359,7 @@ class LoginForm extends Form
     protected function throttleKey(): string
     {
         return Str::transliterate(
-            Str::lower($this->comercio_email . '|' . $this->username) . '|' . request()->ip()
+            Str::lower($this->comercio_email.'|'.$this->username).'|'.request()->ip()
         );
     }
 }

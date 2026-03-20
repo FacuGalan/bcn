@@ -2,16 +2,16 @@
 
 namespace App\Livewire\Configuracion;
 
+use App\Models\ConfiguracionImpresion;
 use App\Models\Impresora;
 use App\Models\ImpresoraSucursalCaja;
 use App\Models\ImpresoraTipoDocumento;
-use App\Models\ConfiguracionImpresion;
 use App\Models\Sucursal;
-use Livewire\Component;
-use Livewire\WithPagination;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
-use Illuminate\Support\Facades\DB;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 #[Layout('layouts.app')]
 class Impresoras extends Component
@@ -20,35 +20,53 @@ class Impresoras extends Component
 
     // Filtros
     public string $search = '';
+
     public string $filterTipo = 'all';
 
     // Modal CRUD
     public bool $showModal = false;
+
     public bool $editMode = false;
+
     public ?int $impresoraId = null;
 
     // Formulario impresora
     public string $nombre = '';
+
     public string $nombreSistema = '';
+
     public string $tipo = 'termica';
+
     public string $formatoPapel = '80mm';
+
     public int $anchoCaracteres = 48;
+
     public bool $activa = true;
+
     public array $configuracion = [];
 
     // Modal asignaciones
     public bool $showModalAsignacion = false;
+
     public ?int $impresoraAsignar = null;
+
     public array $asignaciones = [];
 
     // Modal configuracion sucursal
     public bool $showModalConfig = false;
+
     public ?int $sucursalConfigId = null;
+
     public bool $configImpresionAutomaticaVenta = true;
+
     public bool $configImpresionAutomaticaFactura = true;
+
     public bool $configAbrirCajonEfectivo = true;
+
     public bool $configCortarPapelAutomatico = true;
+
     public string $configTextoPieTicket = '';
+
     public string $configTextoLegalFactura = '';
 
     // Impresoras detectadas del sistema (via JS)
@@ -65,7 +83,7 @@ class Impresoras extends Component
     public function mount(): void
     {
         $this->sucursales = Sucursal::where('activa', true)
-            ->with(['cajas' => fn($q) => $q->where('activo', true)])
+            ->with(['cajas' => fn ($q) => $q->where('activo', true)])
             ->orderBy('nombre')
             ->get();
     }
@@ -193,7 +211,7 @@ class Impresoras extends Component
     public function toggleStatus(int $id): void
     {
         $impresora = Impresora::findOrFail($id);
-        $impresora->activa = !$impresora->activa;
+        $impresora->activa = ! $impresora->activa;
         $impresora->save();
 
         $status = $impresora->activa ? __('activada') : __('desactivada');
@@ -208,7 +226,7 @@ class Impresoras extends Component
 
         $this->asignaciones = [];
         foreach ($impresora->asignaciones as $asig) {
-            $key = $asig->sucursal_id . '_' . ($asig->caja_id ?? 'all');
+            $key = $asig->sucursal_id.'_'.($asig->caja_id ?? 'all');
             $this->asignaciones[$key] = [
                 'id' => $asig->id,
                 'sucursal_id' => $asig->sucursal_id,
@@ -223,10 +241,10 @@ class Impresoras extends Component
 
     public function toggleAsignacion(int $sucursalId, $cajaId, string $tipoDoc): void
     {
-        $cajaId = $cajaId === 'all' ? null : (int)$cajaId;
-        $key = $sucursalId . '_' . ($cajaId ?? 'all');
+        $cajaId = $cajaId === 'all' ? null : (int) $cajaId;
+        $key = $sucursalId.'_'.($cajaId ?? 'all');
 
-        if (!isset($this->asignaciones[$key])) {
+        if (! isset($this->asignaciones[$key])) {
             $this->asignaciones[$key] = [
                 'sucursal_id' => $sucursalId,
                 'caja_id' => $cajaId,
@@ -250,18 +268,18 @@ class Impresoras extends Component
 
     public function toggleDefecto(int $sucursalId, $cajaId): void
     {
-        $cajaId = $cajaId === 'all' ? null : (int)$cajaId;
-        $key = $sucursalId . '_' . ($cajaId ?? 'all');
+        $cajaId = $cajaId === 'all' ? null : (int) $cajaId;
+        $key = $sucursalId.'_'.($cajaId ?? 'all');
 
         if (isset($this->asignaciones[$key])) {
-            $this->asignaciones[$key]['es_defecto'] = !$this->asignaciones[$key]['es_defecto'];
+            $this->asignaciones[$key]['es_defecto'] = ! $this->asignaciones[$key]['es_defecto'];
         }
     }
 
     public function tieneAsignacion(int $sucursalId, $cajaId, string $tipoDoc): bool
     {
-        $cajaId = $cajaId === 'all' ? null : (int)$cajaId;
-        $key = $sucursalId . '_' . ($cajaId ?? 'all');
+        $cajaId = $cajaId === 'all' ? null : (int) $cajaId;
+        $key = $sucursalId.'_'.($cajaId ?? 'all');
 
         return isset($this->asignaciones[$key]) &&
                in_array($tipoDoc, $this->asignaciones[$key]['tipos'] ?? []);
@@ -269,8 +287,8 @@ class Impresoras extends Component
 
     public function esDefecto(int $sucursalId, $cajaId): bool
     {
-        $cajaId = $cajaId === 'all' ? null : (int)$cajaId;
-        $key = $sucursalId . '_' . ($cajaId ?? 'all');
+        $cajaId = $cajaId === 'all' ? null : (int) $cajaId;
+        $key = $sucursalId.'_'.($cajaId ?? 'all');
 
         return isset($this->asignaciones[$key]) &&
                ($this->asignaciones[$key]['es_defecto'] ?? false);
@@ -283,7 +301,9 @@ class Impresoras extends Component
             ImpresoraSucursalCaja::where('impresora_id', $this->impresoraAsignar)->delete();
 
             foreach ($this->asignaciones as $key => $asig) {
-                if (empty($asig['tipos'])) continue;
+                if (empty($asig['tipos'])) {
+                    continue;
+                }
 
                 $impresoraSucursalCaja = ImpresoraSucursalCaja::create([
                     'impresora_id' => $this->impresoraAsignar,
@@ -364,8 +384,8 @@ class Impresoras extends Component
 
         if ($this->search) {
             $query->where(function ($q) {
-                $q->where('nombre', 'like', '%' . $this->search . '%')
-                  ->orWhere('nombre_sistema', 'like', '%' . $this->search . '%');
+                $q->where('nombre', 'like', '%'.$this->search.'%')
+                    ->orWhere('nombre_sistema', 'like', '%'.$this->search.'%');
             });
         }
 

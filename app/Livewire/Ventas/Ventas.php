@@ -2,18 +2,18 @@
 
 namespace App\Livewire\Ventas;
 
-use Livewire\Component;
-use Livewire\WithPagination;
-use App\Traits\CajaAware;
-use App\Services\VentaService;
-use App\Models\Venta;
-use App\Models\Cliente;
 use App\Models\Articulo;
 use App\Models\Caja;
+use App\Models\Cliente;
 use App\Models\Sucursal;
+use App\Models\Venta;
+use App\Services\VentaService;
+use App\Traits\CajaAware;
+use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Exception;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 /**
  * Componente Livewire: Ventas / POS (Point of Sale)
@@ -33,6 +33,7 @@ use Exception;
  *
  * PROPIEDADES PRINCIPALES:
  * =======================
+ *
  * @property Collection $ventas - Lista paginada de ventas
  * @property array $carrito - Items en el carrito de venta actual
  * @property float $subtotal - Subtotal calculado del carrito
@@ -110,13 +111,13 @@ use Exception;
  *
  * FASE 4 - Sistema Multi-Sucursal (Componentes Livewire)
  *
- * @package App\Livewire\Ventas
  * @author BCN Pymes
+ *
  * @version 1.0.0
  */
 class Ventas extends Component
 {
-    use WithPagination, CajaAware;
+    use CajaAware, WithPagination;
 
     // =========================================
     // PROPIEDADES DE LISTADO Y FILTROS
@@ -124,6 +125,7 @@ class Ventas extends Component
 
     /**
      * Búsqueda por número de comprobante o nombre de cliente
+     *
      * @var string
      */
     public $search = '';
@@ -131,6 +133,7 @@ class Ventas extends Component
     /**
      * Filtro por estado de venta
      * Valores: 'all', 'completada', 'pendiente', 'cancelada'
+     *
      * @var string
      */
     public $filterEstado = 'all';
@@ -138,18 +141,21 @@ class Ventas extends Component
     /**
      * Filtro por forma de pago
      * Valores: 'all', 'efectivo', 'debito', 'credito', 'cta_cte'
+     *
      * @var string
      */
     public $filterFormaPago = 'all';
 
     /**
      * Filtro por fecha desde
+     *
      * @var string|null
      */
     public $filterFechaDesde = null;
 
     /**
      * Filtro por fecha hasta
+     *
      * @var string|null
      */
     public $filterFechaHasta = null;
@@ -158,6 +164,7 @@ class Ventas extends Component
      * Filtro por caja
      * Si es 'all', muestra todas las cajas
      * Si es 'actual', filtra por la caja activa
+     *
      * @var string
      */
     public $filterCaja = 'actual';
@@ -165,12 +172,14 @@ class Ventas extends Component
     /**
      * Filtro por comprobante fiscal
      * all = todas, con = con comprobante fiscal, sin = sin comprobante fiscal
+     *
      * @var string
      */
     public $filterComprobanteFiscal = 'all';
 
     /**
      * Controla visibilidad de filtros en móvil
+     *
      * @var bool
      */
     public $showFilters = false;
@@ -181,24 +190,28 @@ class Ventas extends Component
 
     /**
      * Controla visibilidad del modal de confirmación de reimpresión
+     *
      * @var bool
      */
     public $showReimprimirModal = false;
 
     /**
      * Tipo de documento a reimprimir: 'ticket' o 'fiscal'
+     *
      * @var string|null
      */
     public $reimprimirTipo = null;
 
     /**
      * ID del documento a reimprimir
+     *
      * @var int|null
      */
     public $reimprimirId = null;
 
     /**
      * Título del documento a reimprimir (para mostrar en el modal)
+     *
      * @var string
      */
     public $reimprimirTitulo = '';
@@ -209,12 +222,14 @@ class Ventas extends Component
 
     /**
      * Controla visibilidad del modal de cancelación
+     *
      * @var bool
      */
     public $showCancelarModal = false;
 
     /**
      * ID de la venta a cancelar
+     *
      * @var int|null
      */
     public $cancelarVentaId = null;
@@ -222,30 +237,35 @@ class Ventas extends Component
     /**
      * Indica si la venta a cancelar permite conversión a cuenta corriente
      * (solo si NO es ya cuenta corriente y tiene cliente)
+     *
      * @var bool
      */
     public $cancelarPermiteCtaCte = false;
 
     /**
      * Motivo de cancelación ingresado por el usuario
+     *
      * @var string
      */
     public $cancelarMotivo = '';
 
     /**
      * Información de la venta a cancelar para mostrar en el modal
+     *
      * @var array
      */
     public $cancelarVentaInfo = [];
 
     /**
      * Indica si la venta tiene comprobantes fiscales (facturas autorizadas)
+     *
      * @var bool
      */
     public $cancelarTieneComprobanteFiscal = false;
 
     /**
      * Lista de comprobantes fiscales de la venta a cancelar
+     *
      * @var array
      */
     public $cancelarComprobantesFiscales = [];
@@ -265,18 +285,21 @@ class Ventas extends Component
      *   'descuento' => float,
      *   'subtotal' => float (cantidad * (precio_unitario - descuento))
      * ]
+     *
      * @var array
      */
     public $carrito = [];
 
     /**
      * ID del cliente seleccionado
+     *
      * @var int|null
      */
     public $clienteSeleccionado = null;
 
     /**
      * Búsqueda de artículos en el POS
+     *
      * @var string
      */
     public $buscarArticulo = '';
@@ -284,30 +307,35 @@ class Ventas extends Component
     /**
      * Forma de pago seleccionada
      * Valores: 'efectivo', 'debito', 'credito', 'cta_cte'
+     *
      * @var string
      */
     public $formaPago = 'efectivo';
 
     /**
      * ID de la caja seleccionada
+     *
      * @var int|null
      */
     public $cajaSeleccionada = null;
 
     /**
      * Tipo de comprobante
+     *
      * @var string
      */
     public $tipoComprobante = 'ticket';
 
     /**
      * Descuento general sobre el total (porcentaje)
+     *
      * @var float
      */
     public $descuentoGeneral = 0;
 
     /**
      * Observaciones de la venta
+     *
      * @var string|null
      */
     public $observaciones = null;
@@ -318,18 +346,21 @@ class Ventas extends Component
 
     /**
      * Subtotal del carrito (sin IVA)
+     *
      * @var float
      */
     public $subtotal = 0;
 
     /**
      * Total de IVA
+     *
      * @var float
      */
     public $totalIva = 0;
 
     /**
      * Total final de la venta
+     *
      * @var float
      */
     public $total = 0;
@@ -340,18 +371,21 @@ class Ventas extends Component
 
     /**
      * Controla visibilidad del modal de POS
+     *
      * @var bool
      */
     public $showPosModal = false;
 
     /**
      * Controla visibilidad del modal de detalles
+     *
      * @var bool
      */
     public $showDetalleModal = false;
 
     /**
      * ID de la venta para ver detalles
+     *
      * @var int|null
      */
     public $ventaDetalleId = null;
@@ -362,6 +396,7 @@ class Ventas extends Component
 
     /**
      * Servicio de ventas
+     *
      * @var VentaService
      */
     protected $ventaService;
@@ -417,7 +452,7 @@ class Ventas extends Component
     {
         // Limpiar carrito por seguridad (la caja cambió)
         // El usuario debe iniciar una nueva venta con la nueva caja
-        if ($this->showPosModal && !empty($this->carrito)) {
+        if ($this->showPosModal && ! empty($this->carrito)) {
             $this->resetPOS();
         }
 
@@ -445,11 +480,11 @@ class Ventas extends Component
     {
         $ventas = $this->obtenerVentas();
         $clientes = Cliente::activos()
-                           ->orderBy('nombre')
-                           ->get();
+            ->orderBy('nombre')
+            ->get();
         $cajas = Caja::porSucursal($this->obtenerSucursalActual())
-                    ->activas()
-                    ->get();
+            ->activas()
+            ->get();
 
         // Obtener formas de pago activas de la sucursal
         $formasPago = \App\Models\FormaPagoSucursal::with('formaPago')
@@ -491,7 +526,7 @@ class Ventas extends Component
     protected function obtenerVentas()
     {
         $query = Venta::with(['cliente', 'caja', 'usuario', 'formaPago', 'comprobantesFiscales', 'pagos.formaPago'])
-                     ->where('sucursal_id', $this->obtenerSucursalActual());
+            ->where('sucursal_id', $this->obtenerSucursalActual());
 
         // Filtro de búsqueda
         if ($this->search) {
@@ -507,15 +542,15 @@ class Ventas extends Component
                 // (porque si tiene factura por el total, el ticket no se muestra)
                 $q->orWhere(function ($q2) use ($searchTerm) {
                     $q2->where('numero', 'like', "%{$searchTerm}%")
-                       ->whereDoesntHave('comprobantesFiscales', function ($q3) {
-                           $q3->where('es_total_venta', true);
-                       });
+                        ->whereDoesntHave('comprobantesFiscales', function ($q3) {
+                            $q3->where('es_total_venta', true);
+                        });
                 });
 
                 // 3. Buscar por nombre de cliente
                 $q->orWhereHas('cliente', function ($q2) use ($searchTerm) {
                     $q2->where('nombre', 'like', "%{$searchTerm}%")
-                       ->orWhere('razon_social', 'like', "%{$searchTerm}%");
+                        ->orWhere('razon_social', 'like', "%{$searchTerm}%");
                 });
 
                 // 4. Buscar por comprobante fiscal (número formateado XXXX-XXXXXXXX)
@@ -525,11 +560,11 @@ class Ventas extends Component
                         $puntoVenta = intval($matches[1]);
                         $numeroComprobante = intval($matches[2]);
                         $q3->where('punto_venta_numero', $puntoVenta)
-                           ->where('numero_comprobante', $numeroComprobante);
+                            ->where('numero_comprobante', $numeroComprobante);
                     } else {
                         // Buscar parcial en número de comprobante o CAE
                         $q3->where('numero_comprobante', 'like', "%{$searchTerm}%")
-                           ->orWhere('cae', 'like', "%{$searchTerm}%");
+                            ->orWhere('cae', 'like', "%{$searchTerm}%");
                     }
                 });
             });
@@ -546,10 +581,10 @@ class Ventas extends Component
             $query->where(function ($q) use ($formaPagoId) {
                 // Buscar en forma_pago_id principal O en los pagos de la venta
                 $q->where('forma_pago_id', $formaPagoId)
-                  ->orWhereHas('pagos', function ($q2) use ($formaPagoId) {
-                      $q2->where('forma_pago_id', $formaPagoId)
-                         ->where('estado', '!=', 'anulado');
-                  });
+                    ->orWhereHas('pagos', function ($q2) use ($formaPagoId) {
+                        $q2->where('forma_pago_id', $formaPagoId)
+                            ->where('estado', '!=', 'anulado');
+                    });
             });
         }
 
@@ -585,7 +620,7 @@ class Ventas extends Component
         }
 
         return $query->orderBy('created_at', 'desc')
-                    ->paginate(10);
+            ->paginate(10);
     }
 
     /**
@@ -603,7 +638,7 @@ class Ventas extends Component
      */
     public function toggleFilters()
     {
-        $this->showFilters = !$this->showFilters;
+        $this->showFilters = ! $this->showFilters;
     }
 
     /**
@@ -654,7 +689,7 @@ class Ventas extends Component
     /**
      * Agrega un artículo al carrito
      *
-     * @param int $articuloId
+     * @param  int  $articuloId
      */
     public function agregarAlCarrito($articuloId)
     {
@@ -662,15 +697,17 @@ class Ventas extends Component
             $articulo = Articulo::with('tipoIva')->findOrFail($articuloId);
 
             // Validar que el artículo esté disponible en la sucursal
-            if (!$articulo->estaDisponibleEnSucursal($this->obtenerSucursalActual())) {
+            if (! $articulo->estaDisponibleEnSucursal($this->obtenerSucursalActual())) {
                 $this->dispatch('toast-error', message: __('El artículo no está disponible en esta sucursal'));
+
                 return;
             }
 
             // Validar stock si controla stock en esta sucursal
             if ($articulo->controlaStock($this->obtenerSucursalActual())) {
-                if (!$articulo->tieneStockSuficiente($this->obtenerSucursalActual(), 1)) {
+                if (! $articulo->tieneStockSuficiente($this->obtenerSucursalActual(), 1)) {
                     $this->dispatch('toast-error', message: __('Stock insuficiente para este artículo'));
+
                     return;
                 }
             }
@@ -704,16 +741,16 @@ class Ventas extends Component
         } catch (Exception $e) {
             Log::error('Error al agregar artículo al carrito', [
                 'articulo_id' => $articuloId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            $this->dispatch('toast-error', message: __('Error al agregar artículo: ') . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error al agregar artículo: ').$e->getMessage());
         }
     }
 
     /**
      * Busca un artículo en el carrito por su ID
      *
-     * @param int $articuloId
+     * @param  int  $articuloId
      * @return int|null Índice del artículo en el carrito, o null si no está
      */
     protected function buscarEnCarrito($articuloId)
@@ -723,13 +760,14 @@ class Ventas extends Component
                 return $key;
             }
         }
+
         return null;
     }
 
     /**
      * Elimina un artículo del carrito
      *
-     * @param int $index Índice del item en el array carrito
+     * @param  int  $index  Índice del item en el array carrito
      */
     public function eliminarDelCarrito($index)
     {
@@ -744,8 +782,8 @@ class Ventas extends Component
     /**
      * Actualiza la cantidad de un artículo en el carrito
      *
-     * @param int $index
-     * @param float $cantidad
+     * @param  int  $index
+     * @param  float  $cantidad
      */
     public function actualizarCantidad($index, $cantidad)
     {
@@ -754,6 +792,7 @@ class Ventas extends Component
 
             if ($cantidad <= 0) {
                 $this->eliminarDelCarrito($index);
+
                 return;
             }
 
@@ -765,8 +804,8 @@ class Ventas extends Component
     /**
      * Actualiza el descuento de un artículo
      *
-     * @param int $index
-     * @param float $descuento
+     * @param  int  $index
+     * @param  float  $descuento
      */
     public function actualizarDescuento($index, $descuento)
     {
@@ -830,12 +869,14 @@ class Ventas extends Component
             // Validar carrito no vacío
             if (empty($this->carrito)) {
                 $this->dispatch('toast-error', message: __('El carrito está vacío'));
+
                 return;
             }
 
             // Validar cliente si es cuenta corriente
-            if ($this->formaPago === 'cta_cte' && !$this->clienteSeleccionado) {
+            if ($this->formaPago === 'cta_cte' && ! $this->clienteSeleccionado) {
                 $this->dispatch('toast-error', message: __('Debe seleccionar un cliente para ventas a cuenta corriente'));
+
                 return;
             }
 
@@ -843,8 +884,9 @@ class Ventas extends Component
             $cajaId = $this->cajaSeleccionada ?? caja_activa();
 
             // Validar caja si no es cuenta corriente
-            if ($this->formaPago !== 'cta_cte' && !$cajaId) {
+            if ($this->formaPago !== 'cta_cte' && ! $cajaId) {
                 $this->dispatch('toast-error', message: __('Debe seleccionar una caja o tener una caja activa'));
+
                 return;
             }
 
@@ -883,9 +925,9 @@ class Ventas extends Component
         } catch (Exception $e) {
             Log::error('Error al procesar venta', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
-            $this->dispatch('toast-error', message: __('Error al procesar venta: ') . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error al procesar venta: ').$e->getMessage());
         }
     }
 
@@ -905,7 +947,7 @@ class Ventas extends Component
     /**
      * Abre el modal de detalles de una venta
      *
-     * @param int $ventaId
+     * @param  int  $ventaId
      */
     public function verDetalle($ventaId)
     {
@@ -925,7 +967,7 @@ class Ventas extends Component
     /**
      * Abre el modal de cancelación con las opciones disponibles
      *
-     * @param int $ventaId
+     * @param  int  $ventaId
      */
     public function abrirCancelarModal($ventaId)
     {
@@ -934,6 +976,7 @@ class Ventas extends Component
 
             if ($venta->estaCancelada()) {
                 $this->dispatch('toast-error', message: __('La venta ya está cancelada'));
+
                 return;
             }
 
@@ -942,7 +985,7 @@ class Ventas extends Component
 
             // Determinar si permite conversión a cuenta corriente
             // Solo si NO es ya cuenta corriente Y tiene cliente asignado
-            $this->cancelarPermiteCtaCte = !$venta->es_cuenta_corriente && $venta->cliente_id !== null;
+            $this->cancelarPermiteCtaCte = ! $venta->es_cuenta_corriente && $venta->cliente_id !== null;
 
             // Detectar comprobantes fiscales autorizados y calcular saldo neto
             $todosComprobantes = $venta->comprobantesFiscales()
@@ -999,7 +1042,7 @@ class Ventas extends Component
         } catch (Exception $e) {
             Log::error('Error al abrir modal de cancelación', [
                 'venta_id' => $ventaId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             $this->dispatch('toast-error', message: __('Error al cargar datos de la venta'));
         }
@@ -1034,9 +1077,9 @@ class Ventas extends Component
             );
 
             $mensaje = __('Venta cancelada completamente');
-            if (!empty($resultado['notas_credito'])) {
+            if (! empty($resultado['notas_credito'])) {
                 $cantNC = count($resultado['notas_credito']);
-                $mensaje .= '. ' . __('Se emitieron :cantidad nota(s) de crédito.', ['cantidad' => $cantNC]);
+                $mensaje .= '. '.__('Se emitieron :cantidad nota(s) de crédito.', ['cantidad' => $cantNC]);
             }
 
             $this->dispatch('toast-success', message: $mensaje);
@@ -1049,9 +1092,9 @@ class Ventas extends Component
         } catch (Exception $e) {
             Log::error('Error al cancelar venta completa', [
                 'venta_id' => $this->cancelarVentaId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            $this->dispatch('toast-error', message: __('Error al cancelar: ') . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error al cancelar: ').$e->getMessage());
         }
     }
 
@@ -1077,9 +1120,9 @@ class Ventas extends Component
         } catch (Exception $e) {
             Log::error('Error al convertir venta a cuenta corriente', [
                 'venta_id' => $this->cancelarVentaId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            $this->dispatch('toast-error', message: __('Error: ') . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error: ').$e->getMessage());
         }
     }
 
@@ -1109,16 +1152,16 @@ class Ventas extends Component
         } catch (Exception $e) {
             Log::error('Error al anular parte fiscal', [
                 'venta_id' => $this->cancelarVentaId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            $this->dispatch('toast-error', message: __('Error: ') . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error: ').$e->getMessage());
         }
     }
 
     /**
      * Cancela una venta (método legacy - ahora abre el modal de opciones)
      *
-     * @param int $ventaId
+     * @param  int  $ventaId
      */
     public function cancelarVenta($ventaId)
     {

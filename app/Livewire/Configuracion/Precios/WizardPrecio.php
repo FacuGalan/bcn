@@ -2,38 +2,47 @@
 
 namespace App\Livewire\Configuracion\Precios;
 
-use Livewire\Component;
+use App\Models\Articulo;
 use App\Models\PrecioBase;
 use App\Models\Sucursal;
-use App\Models\Articulo;
-use App\Models\FormaVenta;
-use App\Models\CanalVenta;
+use App\Services\CatalogoCache;
+use Livewire\Component;
 
 class WizardPrecio extends Component
 {
     // Control del wizard
     public $pasoActual = 1;
+
     public $totalPasos = 3;
 
     // Paso 1: Artículo
     public $articuloId = null;
+
     public $busquedaArticulo = '';
 
     // Paso 2: Contexto
     public $sucursalesSeleccionadas = [];
+
     public $formaVentaId = null;
+
     public $canalVentaId = null;
 
     // Paso 3: Precio y vigencia
     public $precio = null;
+
     public $vigenciaDesde = null;
+
     public $vigenciaHasta = null;
+
     public $activo = true;
 
     // Colecciones
     public $articulos = [];
+
     public $sucursales = [];
+
     public $formasVenta = [];
+
     public $canalesVenta = [];
 
     // Conflictos
@@ -60,20 +69,20 @@ class WizardPrecio extends Component
     public function mount()
     {
         // Cargar colecciones iniciales
-        $this->sucursales = Sucursal::select('id', 'nombre')->orderBy('nombre')->get();
-        $this->formasVenta = FormaVenta::activas()->get();
-        $this->canalesVenta = CanalVenta::activos()->get();
+        $this->sucursales = CatalogoCache::sucursalesTodas();
+        $this->formasVenta = CatalogoCache::formasVenta();
+        $this->canalesVenta = CatalogoCache::canalesVenta();
     }
 
     public function updatedBusquedaArticulo($value)
     {
         if (strlen($value) >= 2) {
-            $this->articulos = Articulo::where(function($q) use ($value) {
-                $q->where('nombre', 'like', '%' . $value . '%')
-                  ->orWhere('codigo', 'like', '%' . $value . '%');
+            $this->articulos = Articulo::where(function ($q) use ($value) {
+                $q->where('nombre', 'like', '%'.$value.'%')
+                    ->orWhere('codigo', 'like', '%'.$value.'%');
             })
-            ->limit(20)
-            ->get();
+                ->limit(20)
+                ->get();
         } else {
             $this->articulos = [];
         }
@@ -90,7 +99,7 @@ class WizardPrecio extends Component
     public function siguiente()
     {
         // Validar paso actual antes de avanzar
-        if (!$this->validarPasoActual()) {
+        if (! $this->validarPasoActual()) {
             return;
         }
 
@@ -117,8 +126,9 @@ class WizardPrecio extends Component
     {
         switch ($this->pasoActual) {
             case 1:
-                if (!$this->articuloId) {
+                if (! $this->articuloId) {
                     session()->flash('error', __('Debes seleccionar un artículo'));
+
                     return false;
                 }
                 break;
@@ -126,6 +136,7 @@ class WizardPrecio extends Component
             case 2:
                 if (empty($this->sucursalesSeleccionadas)) {
                     session()->flash('error', __('Debes seleccionar al menos una sucursal'));
+
                     return false;
                 }
                 break;
@@ -168,47 +179,47 @@ class WizardPrecio extends Component
 
             // Verificar solapamiento de fechas
             if ($this->vigenciaDesde || $this->vigenciaHasta) {
-                $query->where(function($q) {
-                    $q->where(function($sq) {
+                $query->where(function ($q) {
+                    $q->where(function ($sq) {
                         // Caso 1: El precio existente NO tiene vigencia (permanente)
                         $sq->whereNull('vigencia_desde')
-                           ->whereNull('vigencia_hasta');
+                            ->whereNull('vigencia_hasta');
                     })
-                    ->orWhere(function($sq) {
-                        // Caso 2: Hay solapamiento de fechas
-                        if ($this->vigenciaDesde && $this->vigenciaHasta) {
-                            // El nuevo precio tiene inicio Y fin
-                            $sq->where(function($ssq) {
-                                $ssq->where(function($sssq) {
-                                    // El existente empieza dentro del rango nuevo
-                                    $sssq->where('vigencia_desde', '>=', $this->vigenciaDesde)
-                                         ->where('vigencia_desde', '<=', $this->vigenciaHasta);
-                                })
-                                ->orWhere(function($sssq) {
-                                    // El existente termina dentro del rango nuevo
-                                    $sssq->where('vigencia_hasta', '>=', $this->vigenciaDesde)
-                                         ->where('vigencia_hasta', '<=', $this->vigenciaHasta);
-                                })
-                                ->orWhere(function($sssq) {
-                                    // El existente contiene al rango nuevo
-                                    $sssq->where('vigencia_desde', '<=', $this->vigenciaDesde)
-                                         ->where('vigencia_hasta', '>=', $this->vigenciaHasta);
+                        ->orWhere(function ($sq) {
+                            // Caso 2: Hay solapamiento de fechas
+                            if ($this->vigenciaDesde && $this->vigenciaHasta) {
+                                // El nuevo precio tiene inicio Y fin
+                                $sq->where(function ($ssq) {
+                                    $ssq->where(function ($sssq) {
+                                        // El existente empieza dentro del rango nuevo
+                                        $sssq->where('vigencia_desde', '>=', $this->vigenciaDesde)
+                                            ->where('vigencia_desde', '<=', $this->vigenciaHasta);
+                                    })
+                                        ->orWhere(function ($sssq) {
+                                            // El existente termina dentro del rango nuevo
+                                            $sssq->where('vigencia_hasta', '>=', $this->vigenciaDesde)
+                                                ->where('vigencia_hasta', '<=', $this->vigenciaHasta);
+                                        })
+                                        ->orWhere(function ($sssq) {
+                                            // El existente contiene al rango nuevo
+                                            $sssq->where('vigencia_desde', '<=', $this->vigenciaDesde)
+                                                ->where('vigencia_hasta', '>=', $this->vigenciaHasta);
+                                        });
                                 });
-                            });
-                        } elseif ($this->vigenciaDesde) {
-                            // Solo tiene fecha de inicio (precio permanente desde esa fecha)
-                            $sq->where(function($ssq) {
-                                $ssq->whereNull('vigencia_hasta')
-                                    ->orWhere('vigencia_hasta', '>=', $this->vigenciaDesde);
-                            });
-                        } elseif ($this->vigenciaHasta) {
-                            // Solo tiene fecha de fin (precio permanente hasta esa fecha)
-                            $sq->where(function($ssq) {
-                                $ssq->whereNull('vigencia_desde')
-                                    ->orWhere('vigencia_desde', '<=', $this->vigenciaHasta);
-                            });
-                        }
-                    });
+                            } elseif ($this->vigenciaDesde) {
+                                // Solo tiene fecha de inicio (precio permanente desde esa fecha)
+                                $sq->where(function ($ssq) {
+                                    $ssq->whereNull('vigencia_hasta')
+                                        ->orWhere('vigencia_hasta', '>=', $this->vigenciaDesde);
+                                });
+                            } elseif ($this->vigenciaHasta) {
+                                // Solo tiene fecha de fin (precio permanente hasta esa fecha)
+                                $sq->where(function ($ssq) {
+                                    $ssq->whereNull('vigencia_desde')
+                                        ->orWhere('vigencia_desde', '<=', $this->vigenciaHasta);
+                                });
+                            }
+                        });
                 });
             } else {
                 // El nuevo precio es permanente, se solapa con cualquier precio existente
@@ -233,7 +244,8 @@ class WizardPrecio extends Component
         $this->verificarConflictos();
 
         if (count($this->preciosConflictivos) > 0) {
-            $this->js("window.notify('" . addslashes(__('No se puede crear el precio porque hay conflictos con precios existentes. Por favor, revisa la sección de advertencias.')) . "', 'error', 7000)");
+            $this->js("window.notify('".addslashes(__('No se puede crear el precio porque hay conflictos con precios existentes. Por favor, revisa la sección de advertencias.'))."', 'error', 7000)");
+
             return;
         }
 
@@ -242,7 +254,7 @@ class WizardPrecio extends Component
 
             // Crear un precio por cada sucursal seleccionada
             foreach ($this->sucursalesSeleccionadas as $sucursalId) {
-                $precio = new PrecioBase();
+                $precio = new PrecioBase;
                 $precio->sucursal_id = $sucursalId;
                 $precio->articulo_id = $this->articuloId;
                 $precio->forma_venta_id = $this->formaVentaId;
@@ -262,16 +274,16 @@ class WizardPrecio extends Component
 
             session()->flash('notify', [
                 'message' => $mensaje,
-                'type' => 'success'
+                'type' => 'success',
             ]);
 
             return redirect()->route('configuracion.precios');
 
         } catch (\Exception $e) {
-            \Log::error('Error al crear precio: ' . $e->getMessage());
+            \Log::error('Error al crear precio: '.$e->getMessage());
 
             $errorMsg = addslashes($e->getMessage());
-            $this->js("window.notify('" . addslashes(__('Error al crear precio: ') . $e->getMessage()) . "', 'error', 7000)");
+            $this->js("window.notify('".addslashes(__('Error al crear precio: ').$e->getMessage())."', 'error', 7000)");
         }
     }
 

@@ -33,7 +33,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool $activo
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read CondicionIva|null $condicionIva
  * @property-read Sucursal|null $sucursal
  * @property-read Cliente|null $cliente
@@ -42,6 +41,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Proveedor extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'proveedores';
 
     protected $fillable = [
@@ -135,7 +135,7 @@ class Proveedor extends Model
 
     public function scopeResponsablesInscriptos($query)
     {
-        return $query->whereHas('condicionIva', fn($q) => $q->where('codigo', CondicionIva::RESPONSABLE_INSCRIPTO));
+        return $query->whereHas('condicionIva', fn ($q) => $q->where('codigo', CondicionIva::RESPONSABLE_INSCRIPTO));
     }
 
     // Métodos auxiliares
@@ -169,7 +169,7 @@ class Proveedor extends Model
      */
     public function tieneClienteVinculado(): bool
     {
-        return !is_null($this->cliente_id);
+        return ! is_null($this->cliente_id);
     }
 
     /**
@@ -218,8 +218,8 @@ class Proveedor extends Model
     public function obtenerTotalCompras(): float
     {
         return $this->compras()
-                    ->where('estado', 'completada')
-                    ->sum('total');
+            ->where('estado', 'completada')
+            ->sum('total');
     }
 
     /**
@@ -228,7 +228,7 @@ class Proveedor extends Model
     public function obtenerTotalPendiente(): float
     {
         return $this->compras()
-                    ->whereIn('estado', ['pendiente', 'parcial'])
-                    ->sum('saldo_pendiente');
+            ->whereIn('estado', ['pendiente', 'parcial'])
+            ->sum('saldo_pendiente');
     }
 }

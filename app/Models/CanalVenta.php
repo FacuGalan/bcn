@@ -25,13 +25,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $orden Orden de visualización
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read \Illuminate\Database\Eloquent\Collection|ListaPrecioCondicion[] $listaPrecioCondiciones
  * @property-read \Illuminate\Database\Eloquent\Collection|PromocionCondicion[] $promocionesCondiciones
  */
 class CanalVenta extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'canales_venta';
 
     protected $fillable = [
@@ -107,8 +107,8 @@ class CanalVenta extends Model
     public function contarListasAsociadas(): int
     {
         return $this->listaPrecioCondiciones()
-                    ->distinct('lista_precio_id')
-                    ->count('lista_precio_id');
+            ->distinct('lista_precio_id')
+            ->count('lista_precio_id');
     }
 
     /**
@@ -117,20 +117,20 @@ class CanalVenta extends Model
     public function obtenerPromocionesActivas()
     {
         return $this->promocionesCondiciones()
-                    ->whereHas('promocion', function ($query) {
-                        $query->where('activo', true)
-                              ->where(function ($q) {
-                                  $q->whereNull('vigencia_desde')
-                                    ->orWhere('vigencia_desde', '<=', now());
-                              })
-                              ->where(function ($q) {
-                                  $q->whereNull('vigencia_hasta')
-                                    ->orWhere('vigencia_hasta', '>=', now());
-                              });
+            ->whereHas('promocion', function ($query) {
+                $query->where('activo', true)
+                    ->where(function ($q) {
+                        $q->whereNull('vigencia_desde')
+                            ->orWhere('vigencia_desde', '<=', now());
                     })
-                    ->with('promocion')
-                    ->get()
-                    ->pluck('promocion')
-                    ->unique('id');
+                    ->where(function ($q) {
+                        $q->whereNull('vigencia_hasta')
+                            ->orWhere('vigencia_hasta', '>=', now());
+                    });
+            })
+            ->with('promocion')
+            ->get()
+            ->pluck('promocion')
+            ->unique('id');
     }
 }

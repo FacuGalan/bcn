@@ -44,6 +44,6 @@ class CondicionesIvaSeeder extends Seeder
 
         DB::connection('config')->table('condiciones_iva')->insert($condiciones);
 
-        $this->command->info('Condiciones de IVA creadas: ' . count($condiciones));
+        $this->command->info('Condiciones de IVA creadas: '.count($condiciones));
     }
 }

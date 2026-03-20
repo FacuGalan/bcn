@@ -2,28 +2,25 @@
 
 namespace App\Services;
 
+use App\Models\Articulo;
+use App\Models\Caja;
+use App\Models\Cliente;
+use App\Models\ComprobanteFiscal;
+use App\Models\ConceptoPago;
+use App\Models\FormaPago;
+use App\Models\MovimientoCaja;
+use App\Models\MovimientoStock;
+use App\Models\Receta;
+use App\Models\Stock;
+use App\Models\Sucursal;
 use App\Models\Venta;
 use App\Models\VentaDetalle;
 use App\Models\VentaPago;
-use App\Models\Stock;
-use App\Models\Caja;
-use App\Models\MovimientoCaja;
-use App\Models\Cliente;
-use App\Models\Articulo;
-use App\Models\ConceptoPago;
-use App\Models\FormaPago;
-use App\Models\ComprobanteFiscal;
 use App\Services\ARCA\ComprobanteFiscalService;
-use App\Models\MovimientoStock;
-use App\Models\Receta;
-use App\Models\Sucursal;
-use App\Services\CobroService;
-use App\Services\CuentaCorrienteService;
-use App\Services\CuentaEmpresaService;
+use Exception;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Auth;
-use Exception;
 
 /**
  * Servicio de Ventas
@@ -52,9 +49,9 @@ class VentaService
     /**
      * Crea una nueva venta con sus detalles
      *
-     * @param array $data Datos de la venta
-     * @param array $detalles Array de detalles de la venta
-     * @return Venta
+     * @param  array  $data  Datos de la venta
+     * @param  array  $detalles  Array de detalles de la venta
+     *
      * @throws Exception
      */
     public function crearVenta(array $data, array $detalles): Venta
@@ -82,7 +79,7 @@ class VentaService
             }
 
             // Generar número de venta si no viene (por caja)
-            if (empty($data['numero']) && !empty($data['caja_id'])) {
+            if (empty($data['numero']) && ! empty($data['caja_id'])) {
                 $data['numero'] = $this->generarNumeroVenta($data['caja_id']);
             }
 
@@ -138,7 +135,7 @@ class VentaService
             }
 
             // Solo recalcular totales si no vienen proporcionados
-            if (!$usarTotalesProporcionados) {
+            if (! $usarTotalesProporcionados) {
                 $venta->actualizarTotales();
             }
 
@@ -158,7 +155,7 @@ class VentaService
 
             // Actualizar cache de saldo del cliente si es cuenta corriente (después del commit)
             if ($venta->cliente_id && $venta->es_cuenta_corriente) {
-                $ccService = new CuentaCorrienteService();
+                $ccService = new CuentaCorrienteService;
                 $ccService->actualizarCacheCliente($venta->cliente_id, $venta->sucursal_id);
             }
 
@@ -174,7 +171,7 @@ class VentaService
             DB::connection('pymes_tenant')->rollBack();
             Log::error('Error al crear venta', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             throw $e;
         }
@@ -183,10 +180,7 @@ class VentaService
     /**
      * Crea un detalle de venta con cálculos de IVA
      *
-     * @param Venta $venta
-     * @param array $detalle
-     * @param bool $usarDatosProporcionados Si true, usa los datos del detalle sin recalcular
-     * @return VentaDetalle
+     * @param  bool  $usarDatosProporcionados  Si true, usa los datos del detalle sin recalcular
      */
     protected function crearDetalleVenta(Venta $venta, array $detalle, bool $usarDatosProporcionados = false): VentaDetalle
     {
@@ -248,12 +242,12 @@ class VentaService
             ]);
 
             // Guardar promociones aplicadas al detalle
-            if (!empty($detalle['_promociones_item'])) {
+            if (! empty($detalle['_promociones_item'])) {
                 $this->guardarPromocionesDetalle($ventaDetalle, $detalle['_promociones_item']);
             }
 
             // Guardar opcionales seleccionados
-            if (!empty($detalle['opcionales'])) {
+            if (! empty($detalle['opcionales'])) {
                 $this->guardarOpcionalesDetalle($ventaDetalle, $detalle['opcionales']);
             }
 
@@ -294,8 +288,7 @@ class VentaService
     /**
      * Guarda las promociones aplicadas a la venta
      *
-     * @param Venta $venta
-     * @param array $data Datos con _promociones_comunes y _promociones_especiales
+     * @param  array  $data  Datos con _promociones_comunes y _promociones_especiales
      */
     protected function guardarPromocionesVenta(Venta $venta, array $data): void
     {
@@ -324,7 +317,7 @@ class VentaService
         foreach ($promocionesEspeciales as $promo) {
             // tipo_beneficio debe ser 'porcentaje' o 'monto_fijo'
             $tipoBeneficio = $promo['tipo'] ?? 'monto_fijo';
-            if (!in_array($tipoBeneficio, ['porcentaje', 'monto_fijo'])) {
+            if (! in_array($tipoBeneficio, ['porcentaje', 'monto_fijo'])) {
                 $tipoBeneficio = 'monto_fijo'; // Para combos, nx1, etc. usamos monto_fijo
             }
 
@@ -354,8 +347,7 @@ class VentaService
     /**
      * Guarda las promociones aplicadas a un detalle de venta
      *
-     * @param VentaDetalle $detalle
-     * @param array $promocionesItem Info de promociones del ítem
+     * @param  array  $promocionesItem  Info de promociones del ítem
      */
     protected function guardarPromocionesDetalle(VentaDetalle $detalle, array $promocionesItem): void
     {
@@ -402,6 +394,7 @@ class VentaService
                     'cantidad_bonificada' => null,
                     'created_at' => now(),
                 ]);
+
                 continue;
             }
 
@@ -448,8 +441,6 @@ class VentaService
     /**
      * Valida que hay stock disponible para todos los artículos
      *
-     * @param int $sucursalId
-     * @param array $detalles
      * @throws Exception
      */
     protected function validarStockDisponible(int $sucursalId, array $detalles): void
@@ -486,7 +477,7 @@ class VentaService
                     foreach ($receta->ingredientes as $ingrediente) {
                         $cantNecesaria = $ingrediente->cantidad * $detalle['cantidad'] / $receta->cantidad_producida;
                         $artId = $ingrediente->articulo_id;
-                        if (!isset($ingredientesNecesarios[$artId])) {
+                        if (! isset($ingredientesNecesarios[$artId])) {
                             $ingredientesNecesarios[$artId] = [
                                 'cantidad' => 0,
                                 'nombre' => $ingrediente->articulo->nombre ?? "Artículo #$artId",
@@ -507,15 +498,16 @@ class VentaService
 
             // modo 'unitario': validar stock del artículo directamente
             $stock = Stock::where('sucursal_id', $sucursalId)
-                         ->where('articulo_id', $detalle['articulo_id'])
-                         ->first();
+                ->where('articulo_id', $detalle['articulo_id'])
+                ->first();
 
-            if (!$stock) {
+            if (! $stock) {
                 $msg = "El artículo '{$articulo->nombre}' no tiene stock en esta sucursal";
                 if ($controlStock === 'bloquea') {
                     throw new Exception($msg);
                 }
                 $faltantes[] = $msg;
+
                 continue;
             }
 
@@ -537,13 +529,13 @@ class VentaService
         // Validar stock de todos los ingredientes acumulados
         foreach ($ingredientesNecesarios as $articuloId => $info) {
             $stock = Stock::where('sucursal_id', $sucursalId)
-                         ->where('articulo_id', $articuloId)
-                         ->first();
+                ->where('articulo_id', $articuloId)
+                ->first();
 
             $disponible = $stock ? (float) $stock->cantidad : 0;
             if ($disponible < $info['cantidad']) {
-                $msg = "Stock insuficiente del ingrediente '{$info['nombre']}'. " .
-                    "Disponible: " . round($disponible, 2) . ", Necesario: " . round($info['cantidad'], 2);
+                $msg = "Stock insuficiente del ingrediente '{$info['nombre']}'. ".
+                    'Disponible: '.round($disponible, 2).', Necesario: '.round($info['cantidad'], 2);
                 if ($controlStock === 'bloquea') {
                     throw new Exception($msg);
                 }
@@ -552,7 +544,7 @@ class VentaService
         }
 
         // En modo 'advierte', guardar faltantes como advertencias
-        if ($controlStock === 'advierte' && !empty($faltantes)) {
+        if ($controlStock === 'advierte' && ! empty($faltantes)) {
             $this->advertenciasStock = $faltantes;
         }
     }
@@ -572,7 +564,7 @@ class VentaService
                     foreach ($recetaOpc->ingredientes as $ingrediente) {
                         $cantNecesaria = $ingrediente->cantidad * $cantOpcional / $recetaOpc->cantidad_producida;
                         $artId = $ingrediente->articulo_id;
-                        if (!isset($ingredientesNecesarios[$artId])) {
+                        if (! isset($ingredientesNecesarios[$artId])) {
                             $ingredientesNecesarios[$artId] = [
                                 'cantidad' => 0,
                                 'nombre' => $ingrediente->articulo->nombre ?? "Artículo #$artId",
@@ -588,20 +580,17 @@ class VentaService
     /**
      * Valida el crédito disponible del cliente
      *
-     * @param int $clienteId
-     * @param int $sucursalId
-     * @param float $montoVenta
      * @throws Exception
      */
     protected function validarCreditoCliente(int $clienteId, int $sucursalId, float $montoVenta): void
     {
         $cliente = Cliente::findOrFail($clienteId);
 
-        if (!$cliente->tieneDisponibilidadCredito($montoVenta, $sucursalId)) {
+        if (! $cliente->tieneDisponibilidadCredito($montoVenta, $sucursalId)) {
             $disponible = $cliente->obtenerCreditoDisponibleEnSucursal($sucursalId);
             throw new Exception(
-                "Crédito insuficiente. Disponible: $" . number_format($disponible, 2) .
-                ", Necesario: $" . number_format($montoVenta, 2)
+                'Crédito insuficiente. Disponible: $'.number_format($disponible, 2).
+                ', Necesario: $'.number_format($montoVenta, 2)
             );
         }
     }
@@ -609,22 +598,19 @@ class VentaService
     /**
      * Valida que la caja esté abierta
      *
-     * @param int $cajaId
      * @throws Exception
      */
     protected function validarCajaAbierta(int $cajaId): void
     {
         $caja = Caja::findOrFail($cajaId);
 
-        if (!$caja->estaAbierta()) {
+        if (! $caja->estaAbierta()) {
             throw new Exception('La caja debe estar abierta para realizar ventas');
         }
     }
 
     /**
      * Actualiza el stock por la venta realizada
-     *
-     * @param Venta $venta
      */
     protected function actualizarStockPorVenta(Venta $venta): void
     {
@@ -649,13 +635,14 @@ class VentaService
                 }
                 // Descontar stock de opcionales con receta de este detalle
                 $this->descontarStockOpcionalesDetalle($detalle, $venta);
+
                 continue;
             }
 
             // modo 'unitario': descontar stock del artículo directamente
             $stock = Stock::where('sucursal_id', $venta->sucursal_id)
-                         ->where('articulo_id', $detalle->articulo_id)
-                         ->firstOrFail();
+                ->where('articulo_id', $detalle->articulo_id)
+                ->firstOrFail();
 
             $stock->disminuir($detalle->cantidad, $this->permitirStockNegativo);
 
@@ -686,8 +673,8 @@ class VentaService
             $cantidadDescontar = $ingrediente->cantidad * $cantidadVendida / $receta->cantidad_producida;
 
             $stock = Stock::where('sucursal_id', $sucursalId)
-                         ->where('articulo_id', $ingrediente->articulo_id)
-                         ->first();
+                ->where('articulo_id', $ingrediente->articulo_id)
+                ->first();
 
             if ($stock) {
                 $stock->disminuir($cantidadDescontar, $this->permitirStockNegativo);
@@ -726,15 +713,13 @@ class VentaService
 
     /**
      * Registra el movimiento de caja por la venta
-     *
-     * @param Venta $venta
      */
     protected function registrarMovimientoCaja(Venta $venta): void
     {
         $caja = Caja::findOrFail($venta->caja_id);
 
         // Crear movimiento de caja
-        $movimiento = new MovimientoCaja();
+        $movimiento = new MovimientoCaja;
         $movimiento->caja_id = $caja->id;
         $movimiento->tipo_movimiento = 'ingreso';
         $movimiento->concepto = "Venta #{$venta->numero_comprobante}";
@@ -754,8 +739,6 @@ class VentaService
 
     /**
      * Actualiza el saldo del cliente en cuenta corriente
-     *
-     * @param Venta $venta
      */
     protected function actualizarSaldoCliente(Venta $venta): void
     {
@@ -768,9 +751,6 @@ class VentaService
      *
      * Formato: NUMERO_CAJA-SECUENCIAL (ej: 0001-00000001)
      * La secuencia es independiente por cada caja.
-     *
-     * @param int $cajaId
-     * @return string
      */
     protected function generarNumeroVenta(int $cajaId): string
     {
@@ -778,9 +758,9 @@ class VentaService
 
         // Obtener el último número de venta para esta caja
         $ultimaVenta = Venta::where('caja_id', $cajaId)
-                           ->whereNotNull('numero')
-                           ->orderBy('id', 'desc')
-                           ->first();
+            ->whereNotNull('numero')
+            ->orderBy('id', 'desc')
+            ->first();
 
         $secuencial = 1;
         if ($ultimaVenta && $ultimaVenta->numero) {
@@ -803,10 +783,10 @@ class VentaService
      * - Revierte movimientos de caja
      * - Marca la venta como "cancelada"
      *
-     * @param int $ventaId
-     * @param string|null $motivo Motivo de la cancelación
-     * @param bool $emitirNotaCredito Si debe emitir NC para comprobantes fiscales
+     * @param  string|null  $motivo  Motivo de la cancelación
+     * @param  bool  $emitirNotaCredito  Si debe emitir NC para comprobantes fiscales
      * @return array ['venta' => Venta, 'notas_credito' => ComprobanteFiscal[]]
+     *
      * @throws Exception
      */
     public function cancelarVentaCompleta(int $ventaId, ?string $motivo = null, bool $emitirNotaCredito = true): array
@@ -848,7 +828,7 @@ class VentaService
 
             // Solo emitir NC si hay saldo fiscal pendiente
             if ($saldoFiscal > 0.01 && $emitirNotaCredito && count($facturasParaAnular) > 0) {
-                $comprobanteFiscalService = new ComprobanteFiscalService();
+                $comprobanteFiscalService = new ComprobanteFiscalService;
 
                 foreach ($facturasParaAnular as $comprobante) {
                     $notaCredito = $comprobanteFiscalService->crearNotaCredito(
@@ -921,7 +901,7 @@ class VentaService
                     try {
                         CuentaEmpresaService::revertirMovimiento(
                             $pago->movimiento_cuenta_empresa_id,
-                            $motivo ?? 'Cancelación de venta #' . $venta->numero,
+                            $motivo ?? 'Cancelación de venta #'.$venta->numero,
                             $usuarioId
                         );
                     } catch (\Exception $e) {
@@ -952,7 +932,7 @@ class VentaService
 
             // 5. Anular movimientos de cuenta corriente con contraasientos
             if ($venta->es_cuenta_corriente && $venta->cliente_id) {
-                $ccService = new CuentaCorrienteService();
+                $ccService = new CuentaCorrienteService;
                 $ccService->anularMovimientosVenta($venta, $motivo ?? 'Cancelación de venta', $usuarioId);
             }
 
@@ -987,9 +967,9 @@ class VentaService
      * - Desmarca los pagos como facturados (comprobante_fiscal_id = null)
      * - Actualiza el cache fiscal de la venta
      *
-     * @param int $ventaId
-     * @param string|null $motivo Motivo de la anulación fiscal
+     * @param  string|null  $motivo  Motivo de la anulación fiscal
      * @return array ['venta' => Venta, 'notas_credito' => ComprobanteFiscal[]]
+     *
      * @throws Exception
      */
     public function anularSoloParteFiscal(int $ventaId, ?string $motivo = null): array
@@ -1015,7 +995,7 @@ class VentaService
 
             $usuarioId = Auth::id();
             $notasCredito = [];
-            $comprobanteFiscalService = new ComprobanteFiscalService();
+            $comprobanteFiscalService = new ComprobanteFiscalService;
 
             // 1. Emitir nota de crédito para cada comprobante fiscal
             foreach ($comprobantesFiscales as $comprobante) {
@@ -1079,9 +1059,8 @@ class VentaService
      *
      * IMPORTANTE: Solo disponible si la venta NO es ya cuenta corriente
      *
-     * @param int $ventaId
-     * @param string|null $motivo Motivo de la anulación de pagos
-     * @return Venta
+     * @param  string|null  $motivo  Motivo de la anulación de pagos
+     *
      * @throws Exception
      */
     public function anularPagosYPasarACtaCte(int $ventaId, ?string $motivo = null): Venta
@@ -1099,7 +1078,7 @@ class VentaService
                 throw new Exception('La venta ya es cuenta corriente');
             }
 
-            if (!$venta->cliente_id) {
+            if (! $venta->cliente_id) {
                 throw new Exception('La venta debe tener un cliente asignado para pasar a cuenta corriente');
             }
 
@@ -1156,7 +1135,7 @@ class VentaService
                 $q->where('codigo', ConceptoPago::CREDITO_CLIENTE);
             })->first();
 
-            if (!$formaPagoCtaCte) {
+            if (! $formaPagoCtaCte) {
                 throw new Exception('No se encontró la forma de pago de cuenta corriente configurada');
             }
 
@@ -1223,9 +1202,8 @@ class VentaService
     /**
      * Cancela una venta (método legacy - redirige a cancelarVentaCompleta)
      *
-     * @param int $ventaId
-     * @return Venta
      * @throws Exception
+     *
      * @deprecated Usar cancelarVentaCompleta() en su lugar
      */
     public function cancelarVenta(int $ventaId): Venta
@@ -1238,19 +1216,15 @@ class VentaService
      *
      * Debe llamarse después de crear un VentaPago con es_cuenta_corriente = true
      * y si la venta tiene cliente asignado.
-     *
-     * @param VentaPago $ventaPago
-     * @param int $usuarioId
-     * @return \App\Models\MovimientoCuentaCorriente|null
      */
     public function registrarMovimientoCCPago(VentaPago $ventaPago, int $usuarioId): ?\App\Models\MovimientoCuentaCorriente
     {
-        if (!$ventaPago->es_cuenta_corriente) {
+        if (! $ventaPago->es_cuenta_corriente) {
             return null;
         }
 
         $venta = $ventaPago->venta;
-        if (!$venta || !$venta->cliente_id) {
+        if (! $venta || ! $venta->cliente_id) {
             return null;
         }
 
@@ -1260,7 +1234,7 @@ class VentaService
         ]);
 
         // Registrar el movimiento de cuenta corriente
-        $ccService = new CuentaCorrienteService();
+        $ccService = new CuentaCorrienteService;
         $movimiento = $ccService->registrarMovimientoVenta($ventaPago, $usuarioId);
 
         return $movimiento;
@@ -1275,8 +1249,6 @@ class VentaService
      * 2. Registra cada pago NO-CC como HABER (pago inmediato que reduce deuda)
      * 3. Los pagos CC quedan como deuda pendiente (saldo_pendiente > 0)
      *
-     * @param Venta $venta
-     * @param int $usuarioId
      * @return array Movimientos creados
      */
     public function procesarPagosCuentaCorriente(Venta $venta, int $usuarioId): array
@@ -1284,11 +1256,11 @@ class VentaService
         $movimientos = [];
 
         // Solo procesar si la venta tiene cliente
-        if (!$venta->cliente_id) {
+        if (! $venta->cliente_id) {
             return $movimientos;
         }
 
-        $ccService = new CuentaCorrienteService();
+        $ccService = new CuentaCorrienteService;
 
         // Construir descripcion_comprobantes
         $comprobantes = [];
@@ -1304,8 +1276,8 @@ class VentaService
         $montoTicket = max(0, $venta->total_final - $totalFiscal);
 
         // Solo mostrar ticket si NO hay factura por el total (es decir, hay parte en negro)
-        if (!$tieneFacturaTotal) {
-            $montoFormateado = '$' . number_format($montoTicket, 2, ',', '.');
+        if (! $tieneFacturaTotal) {
+            $montoFormateado = '$'.number_format($montoTicket, 2, ',', '.');
             $comprobantes[] = "Ticket {$venta->numero} ({$montoFormateado})";
         }
 
@@ -1313,7 +1285,7 @@ class VentaService
         if ($venta->comprobantesFiscales->isNotEmpty()) {
             foreach ($venta->comprobantesFiscales as $cf) {
                 // Determinar abreviatura según tipo y letra
-                $tipoAbrev = match($cf->tipo) {
+                $tipoAbrev = match ($cf->tipo) {
                     'factura_a', 'factura_b', 'factura_c' => 'FA',
                     'nota_credito_a', 'nota_credito_b', 'nota_credito_c' => 'NC',
                     'nota_debito_a', 'nota_debito_b', 'nota_debito_c' => 'ND',
@@ -1322,7 +1294,7 @@ class VentaService
                 $letra = $cf->letra ?? '';
                 $pv = str_pad($cf->punto_venta_numero ?? 0, 4, '0', STR_PAD_LEFT);
                 $num = str_pad($cf->numero_comprobante ?? 0, 8, '0', STR_PAD_LEFT);
-                $montoFormateado = '$' . number_format($cf->total, 2, ',', '.');
+                $montoFormateado = '$'.number_format($cf->total, 2, ',', '.');
                 $comprobantes[] = "{$tipoAbrev} {$letra} {$pv}-{$num} ({$montoFormateado})";
             }
         }
@@ -1392,8 +1364,6 @@ class VentaService
 
     /**
      * Revierte el stock por cancelación de venta
-     *
-     * @param Venta $venta
      */
     protected function revertirStockPorVenta(Venta $venta): void
     {
@@ -1419,13 +1389,14 @@ class VentaService
                 }
                 // Revertir stock de opcionales con receta
                 $this->revertirStockOpcionalesDetalle($detalle, $venta, $usuarioId);
+
                 continue;
             }
 
             // modo 'unitario': revertir stock del artículo directamente
             $stock = Stock::where('sucursal_id', $venta->sucursal_id)
-                         ->where('articulo_id', $detalle->articulo_id)
-                         ->first();
+                ->where('articulo_id', $detalle->articulo_id)
+                ->first();
 
             if ($stock) {
                 $stock->aumentar($detalle->cantidad);
@@ -1458,8 +1429,8 @@ class VentaService
             $cantidadRevertir = $ingrediente->cantidad * $cantidadVendida / $receta->cantidad_producida;
 
             $stock = Stock::where('sucursal_id', $sucursalId)
-                         ->where('articulo_id', $ingrediente->articulo_id)
-                         ->first();
+                ->where('articulo_id', $ingrediente->articulo_id)
+                ->first();
 
             if ($stock) {
                 $stock->aumentar($cantidadRevertir);

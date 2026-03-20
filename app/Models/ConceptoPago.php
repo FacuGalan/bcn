@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Modelo ConceptoPago
@@ -32,13 +32,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property int $orden Orden de visualización
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read \Illuminate\Database\Eloquent\Collection|FormaPago[] $formasPago
  * @property-read \Illuminate\Database\Eloquent\Collection|FormaPago[] $formasPagoMixtas
  */
 class ConceptoPago extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'conceptos_pago';
 
     protected $fillable = [
@@ -61,11 +61,17 @@ class ConceptoPago extends Model
     // ==================== Constantes de códigos ====================
 
     public const EFECTIVO = 'efectivo';
+
     public const TARJETA_DEBITO = 'tarjeta_debito';
+
     public const TARJETA_CREDITO = 'tarjeta_credito';
+
     public const TRANSFERENCIA = 'transferencia';
+
     public const WALLET = 'wallet';
+
     public const CHEQUE = 'cheque';
+
     public const CREDITO_CLIENTE = 'credito_cliente';
 
     // ==================== Relaciones ====================

@@ -10,10 +10,10 @@ return new class extends Migration
         $pdo = DB::connection('pymes')->getPdo();
 
         // Shift existing menu items order to make room for Bancos at position 3
-        DB::connection('pymes')->statement("
+        DB::connection('pymes')->statement('
             UPDATE menu_items SET orden = orden + 1
             WHERE parent_id IS NULL AND orden >= 3
-        ");
+        ');
 
         // Create parent: Bancos
         DB::connection('pymes')->table('menu_items')->insert([
@@ -57,9 +57,9 @@ return new class extends Migration
         // Create permissions in pymes.permissions
         $slugs = ['bancos', 'resumen-cuentas', 'cuentas-empresa', 'movimientos-cuenta', 'transferencias-cuenta'];
         foreach ($slugs as $slug) {
-            $permName = 'menu.' . $slug;
+            $permName = 'menu.'.$slug;
             $exists = DB::connection('pymes')->table('permissions')->where('name', $permName)->exists();
-            if (!$exists) {
+            if (! $exists) {
                 DB::connection('pymes')->table('permissions')->insert([
                     'name' => $permName,
                     'guard_name' => 'web',
@@ -73,12 +73,12 @@ return new class extends Migration
         $comercios = DB::connection('config')->table('comercios')->get();
 
         foreach ($comercios as $comercio) {
-            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT) . '_';
+            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT).'_';
 
             try {
                 // Get permission IDs
                 $permisos = DB::connection('pymes')->table('permissions')
-                    ->whereIn('name', array_map(fn($s) => 'menu.' . $s, $slugs))
+                    ->whereIn('name', array_map(fn ($s) => 'menu.'.$s, $slugs))
                     ->pluck('id', 'name');
 
                 // Get role IDs
@@ -93,7 +93,7 @@ return new class extends Migration
                         $permisosParaRol = $permisos->values()->toArray();
                     } elseif ($role->name === 'Vendedor') {
                         // Only resumen
-                        $permisosParaRol = $permisos->filter(fn($id, $name) => in_array($name, ['menu.bancos', 'menu.resumen-cuentas']))->values()->toArray();
+                        $permisosParaRol = $permisos->filter(fn ($id, $name) => in_array($name, ['menu.bancos', 'menu.resumen-cuentas']))->values()->toArray();
                     }
 
                     foreach ($permisosParaRol as $permId) {
@@ -122,21 +122,22 @@ return new class extends Migration
         $comercios = DB::connection('config')->table('comercios')->get();
         $slugs = ['bancos', 'resumen-cuentas', 'cuentas-empresa', 'movimientos-cuenta', 'transferencias-cuenta'];
         $permisos = DB::connection('pymes')->table('permissions')
-            ->whereIn('name', array_map(fn($s) => 'menu.' . $s, $slugs))
+            ->whereIn('name', array_map(fn ($s) => 'menu.'.$s, $slugs))
             ->pluck('id');
 
         foreach ($comercios as $comercio) {
-            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT) . '_';
+            $prefix = str_pad($comercio->id, 6, '0', STR_PAD_LEFT).'_';
             try {
                 foreach ($permisos as $permId) {
                     DB::connection('pymes')->statement("DELETE FROM `{$prefix}role_has_permissions` WHERE permission_id = ?", [$permId]);
                 }
-            } catch (\Exception $e) {}
+            } catch (\Exception $e) {
+            }
         }
 
         // Remove permissions
         DB::connection('pymes')->table('permissions')
-            ->whereIn('name', array_map(fn($s) => 'menu.' . $s, $slugs))
+            ->whereIn('name', array_map(fn ($s) => 'menu.'.$s, $slugs))
             ->delete();
 
         // Remove menu items
@@ -144,9 +145,9 @@ return new class extends Migration
         DB::connection('pymes')->table('menu_items')->whereIn('slug', ['resumen-cuentas', 'cuentas-empresa', 'movimientos-cuenta', 'transferencias-cuenta'])->delete();
 
         // Shift back
-        DB::connection('pymes')->statement("
+        DB::connection('pymes')->statement('
             UPDATE menu_items SET orden = orden - 1
             WHERE parent_id IS NULL AND orden > 3
-        ");
+        ');
     }
 };
