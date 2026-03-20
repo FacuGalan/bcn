@@ -1,41 +1,39 @@
 <div class="py-4" x-data>
     <div class="px-4 sm:px-6 lg:px-8">
         <!-- Header -->
-        <div class="mb-4 sm:mb-6 flex-shrink-0">
-            <div class="flex justify-between items-start gap-3 sm:gap-4">
-                <div class="flex-1">
-                    <div class="flex items-center gap-3">
-                        <button
-                            wire:click="volver"
-                            class="inline-flex items-center justify-center w-8 h-8 text-gray-500 dark:text-gray-400 hover:text-bcn-primary hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-                            :title="__('Volver a artículos')"
-                        >
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                            </svg>
-                        </button>
-                        <div>
-                            <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white">{{ __('Cambio Masivo de Precios') }}</h2>
-                            <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">{{ __('Configura y aplica ajustes de precios a múltiples artículos') }}</p>
-                        </div>
-                    </div>
+        <div class="mb-4 sm:mb-6">
+            <div class="flex justify-between items-start gap-2 sm:gap-4">
+                <div class="flex-1 min-w-0">
+                    <h2 class="text-lg sm:text-2xl font-bold text-bcn-secondary dark:text-white truncate">{{ __('Cambio Masivo de Precios') }}</h2>
+                    <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300 hidden sm:block">{{ __('Configura y aplica ajustes de precios a múltiples artículos') }}</p>
                 </div>
-
-                <!-- Derecha: Botón programados -->
-                <button
-                    wire:click="toggleProgramados"
-                    class="relative inline-flex items-center justify-center w-10 h-10 sm:w-auto sm:h-auto sm:gap-1.5 sm:px-3 sm:py-2 border border-bcn-primary text-bcn-primary hover:bg-bcn-primary hover:text-white rounded-lg text-xs font-medium transition-colors"
-                >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span class="hidden sm:inline">{{ __('Programados') }}</span>
-                    @if($this->pendientesCount > 0)
-                        <span class="absolute -top-1 -right-1 sm:relative sm:top-auto sm:right-auto inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-amber-500 rounded-full">
-                            {{ $this->pendientesCount }}
-                        </span>
-                    @endif
-                </button>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <!-- Botón programados -->
+                    <button
+                        wire:click="toggleProgramados"
+                        class="relative inline-flex items-center justify-center p-2 sm:px-3 sm:py-2 sm:gap-1.5 border border-bcn-primary text-bcn-primary hover:bg-bcn-primary hover:text-white rounded-lg text-xs font-medium transition-colors"
+                    >
+                        <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span class="hidden sm:inline">{{ __('Programados') }}</span>
+                        @if($this->pendientesCount > 0)
+                            <span class="absolute -top-1 -right-1 sm:relative sm:top-auto sm:right-auto inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-amber-500 rounded-full">
+                                {{ $this->pendientesCount }}
+                            </span>
+                        @endif
+                    </button>
+                    <!-- Botón volver -->
+                    <button
+                        wire:click="volver"
+                        class="inline-flex items-center justify-center p-2 sm:px-4 sm:py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-xs font-medium"
+                    >
+                        <svg class="w-5 h-5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        <span class="hidden sm:inline">{{ __('Volver') }}</span>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -204,48 +202,37 @@
         @if($paso === 1)
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-3 sm:p-4">
-                    <!-- Títulos alineados -->
-                    <div class="grid grid-cols-1 lg:grid-cols-10 gap-4 mb-3">
-                        <div class="lg:col-span-3">
-                            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Configuración del ajuste') }}</h3>
-                        </div>
-                        <div class="lg:col-span-7">
-                            <div class="flex items-center justify-between">
-                                <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Filtros (opcional)') }}</h3>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Si no seleccionas ningún filtro, se aplicará a todos los artículos activos.') }}</p>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Contenido -->
                     <div class="grid grid-cols-1 lg:grid-cols-10 gap-4">
-                        <!-- Columna izquierda: Ajuste (30%) -->
+                        <!-- Columna izquierda: Ajuste -->
                         <div class="lg:col-span-3 space-y-3">
-                            <!-- Tipo de ajuste + Tipo de valor en una fila -->
-                            <div class="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipo de ajuste') }}</label>
-                                    <div class="flex gap-3">
-                                        <label class="flex items-center">
+                            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Configuración del ajuste') }}</h3>
+
+                            <!-- Tipo de ajuste + Tipo de valor -->
+                            <div class="grid grid-cols-3 gap-3">
+                                <div class="col-span-2">
+                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">{{ __('Tipo de ajuste') }}</label>
+                                    <div class="flex gap-4">
+                                        <label class="flex items-center gap-1.5">
                                             <input type="radio" wire:model.live="tipoAjuste" value="descuento" class="text-bcn-primary focus:ring-bcn-primary">
-                                            <span class="ml-1.5 text-xs text-gray-700 dark:text-gray-300">{{ __('Descuento') }}</span>
+                                            <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Descuento') }}</span>
                                         </label>
-                                        <label class="flex items-center">
+                                        <label class="flex items-center gap-1.5">
                                             <input type="radio" wire:model.live="tipoAjuste" value="recargo" class="text-bcn-primary focus:ring-bcn-primary">
-                                            <span class="ml-1.5 text-xs text-gray-700 dark:text-gray-300">{{ __('Recargo') }}</span>
+                                            <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Recargo') }}</span>
                                         </label>
                                     </div>
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipo de valor') }}</label>
+                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">{{ __('Valor') }}</label>
                                     <div class="flex gap-3">
-                                        <label class="flex items-center">
+                                        <label class="flex items-center gap-1">
                                             <input type="radio" wire:model.live="tipoValor" value="porcentual" class="text-bcn-primary focus:ring-bcn-primary">
-                                            <span class="ml-1.5 text-xs text-gray-700 dark:text-gray-300">%</span>
+                                            <span class="text-xs text-gray-700 dark:text-gray-300">%</span>
                                         </label>
-                                        <label class="flex items-center">
+                                        <label class="flex items-center gap-1">
                                             <input type="radio" wire:model.live="tipoValor" value="fijo" class="text-bcn-primary focus:ring-bcn-primary">
-                                            <span class="ml-1.5 text-xs text-gray-700 dark:text-gray-300">$</span>
+                                            <span class="text-xs text-gray-700 dark:text-gray-300">$</span>
                                         </label>
                                     </div>
                                 </div>
@@ -333,99 +320,118 @@
                             </div>
                         </div>
 
-                        <!-- Columna derecha: Filtros (70%) -->
+                        <!-- Columna derecha: Filtros -->
                         <div class="lg:col-span-7">
-                            <!-- Grid de Categorías y Etiquetas lado a lado -->
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Filtros (opcional)') }}</h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">{{ __('Sin filtros = todos los artículos activos') }}</p>
+                            </div>
+
+                            <!-- Grid de Categorías y Etiquetas -->
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <!-- Categorías -->
-                                <div class="flex flex-col">
-                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        {{ __('Categorías') }}
-                                        @if(count($categoriasSeleccionadas) > 0)
-                                            <span class="ml-1 px-1.5 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">
-                                                {{ count($categoriasSeleccionadas) }}
-                                            </span>
-                                        @endif
-                                    </label>
-                                    <div class="relative mb-1.5">
-                                        <input
-                                            type="text"
-                                            wire:model.live.debounce.300ms="busquedaCategoria"
-                                            :placeholder="__('Buscar categoría...')"
-                                            class="w-full pl-7 pr-3 py-1 text-xs border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
-                                        >
-                                        <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                                        </svg>
-                                    </div>
-                                    <div class="flex-1 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md p-1.5 space-y-0.5" style="max-height: calc(100vh - 380px);">
-                                        @forelse($categorias as $categoria)
-                                            <label class="flex items-center px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    wire:model.live="categoriasSeleccionadas"
-                                                    value="{{ $categoria->id }}"
-                                                    class="rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary"
-                                                />
-                                                <span class="ml-2 flex items-center gap-1.5">
-                                                    <span class="w-2.5 h-2.5 rounded-full" style="background-color: {{ $categoria->color }}"></span>
-                                                    <span class="text-xs text-gray-700 dark:text-gray-300">{{ $categoria->nombre }}</span>
+                                <div x-data="{ open: window.innerWidth >= 640 }" class="flex flex-col">
+                                    <button @click="open = !open" type="button" class="flex items-center justify-between text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 sm:pointer-events-none">
+                                        <span>
+                                            {{ __('Categorías') }}
+                                            @if(count($categoriasSeleccionadas) > 0)
+                                                <span class="ml-1 px-1.5 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">
+                                                    {{ count($categoriasSeleccionadas) }}
                                                 </span>
-                                            </label>
-                                        @empty
-                                            <p class="text-xs text-gray-500 dark:text-gray-400 p-2">{{ __('No hay categorías disponibles') }}</p>
-                                        @endforelse
+                                            @endif
+                                        </span>
+                                        <svg class="w-4 h-4 transition-transform sm:hidden" :class="open && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                    <div x-show="open" x-collapse>
+                                        <div class="relative mb-1.5">
+                                            <input
+                                                type="text"
+                                                wire:model.live.debounce.300ms="busquedaCategoria"
+                                                :placeholder="__('Buscar categoría...')"
+                                                class="w-full pl-7 pr-3 py-1 text-xs border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
+                                            >
+                                            <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                            </svg>
+                                        </div>
+                                        <div class="overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md p-1.5 space-y-0.5 max-h-48 sm:max-h-64 lg:max-h-80">
+                                            @forelse($categorias as $categoria)
+                                                <label class="flex items-center px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        wire:model.live="categoriasSeleccionadas"
+                                                        value="{{ $categoria->id }}"
+                                                        class="rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary"
+                                                    />
+                                                    <span class="ml-2 flex items-center gap-1.5">
+                                                        <span class="w-2.5 h-2.5 rounded-full" style="background-color: {{ $categoria->color }}"></span>
+                                                        <span class="text-xs text-gray-700 dark:text-gray-300">{{ $categoria->nombre }}</span>
+                                                    </span>
+                                                </label>
+                                            @empty
+                                                <p class="text-xs text-gray-500 dark:text-gray-400 p-2">{{ __('No hay categorías disponibles') }}</p>
+                                            @endforelse
+                                        </div>
                                     </div>
                                 </div>
 
                                 <!-- Etiquetas agrupadas -->
-                                <div class="flex flex-col">
-                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        {{ __('Etiquetas') }}
-                                        @if(count($etiquetasSeleccionadas) > 0)
-                                            <span class="ml-1 px-1.5 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">
-                                                {{ count($etiquetasSeleccionadas) }}
-                                            </span>
-                                        @endif
-                                    </label>
-                                    <div class="relative mb-1.5">
-                                        <input
-                                            type="text"
-                                            wire:model.live.debounce.300ms="busquedaEtiqueta"
-                                            :placeholder="__('Buscar grupo o etiqueta...')"
-                                            class="w-full pl-7 pr-3 py-1 text-xs border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
-                                        >
-                                        <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                                        </svg>
-                                    </div>
-                                    <div class="flex-1 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md" style="max-height: calc(100vh - 380px);">
-                                        @forelse($gruposEtiquetas as $grupo)
-                                            @if($grupo->etiquetas->count() > 0)
-                                                <div class="border-b border-gray-100 dark:border-gray-700 last:border-b-0">
-                                                    <div class="px-2.5 py-1.5 bg-gray-50 dark:bg-gray-700 flex items-center gap-1.5 sticky top-0">
-                                                        <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: {{ $grupo->color }}"></span>
-                                                        <span class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ $grupo->nombre }}</span>
-                                                    </div>
-                                                    <div class="p-1.5 space-y-0.5">
-                                                        @foreach($grupo->etiquetas as $etiqueta)
-                                                            <label class="flex items-center gap-1.5 px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    wire:model.live="etiquetasSeleccionadas"
-                                                                    value="{{ $etiqueta->id }}"
-                                                                    class="w-3.5 h-3.5 rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary"
-                                                                />
-                                                                <span class="w-2 h-2 rounded-full flex-shrink-0" style="background-color: {{ $etiqueta->color ?? $grupo->color }}"></span>
-                                                                <span class="text-xs text-gray-700 dark:text-gray-300">{{ $etiqueta->nombre }}</span>
-                                                            </label>
-                                                        @endforeach
-                                                    </div>
-                                                </div>
+                                <div x-data="{ open: window.innerWidth >= 640 }" class="flex flex-col">
+                                    <button @click="open = !open" type="button" class="flex items-center justify-between text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 sm:pointer-events-none">
+                                        <span>
+                                            {{ __('Etiquetas') }}
+                                            @if(count($etiquetasSeleccionadas) > 0)
+                                                <span class="ml-1 px-1.5 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">
+                                                    {{ count($etiquetasSeleccionadas) }}
+                                                </span>
                                             @endif
-                                        @empty
-                                            <p class="text-xs text-gray-500 dark:text-gray-400 p-2">{{ __('No hay etiquetas disponibles') }}</p>
-                                        @endforelse
+                                        </span>
+                                        <svg class="w-4 h-4 transition-transform sm:hidden" :class="open && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                    <div x-show="open" x-collapse>
+                                        <div class="relative mb-1.5">
+                                            <input
+                                                type="text"
+                                                wire:model.live.debounce.300ms="busquedaEtiqueta"
+                                                :placeholder="__('Buscar grupo o etiqueta...')"
+                                                class="w-full pl-7 pr-3 py-1 text-xs border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
+                                            >
+                                            <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                            </svg>
+                                        </div>
+                                        <div class="overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md max-h-48 sm:max-h-64 lg:max-h-80">
+                                            @forelse($gruposEtiquetas as $grupo)
+                                                @if($grupo->etiquetas->count() > 0)
+                                                    <div class="border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                                                        <div class="px-2.5 py-1.5 bg-gray-50 dark:bg-gray-700 flex items-center gap-1.5 sticky top-0">
+                                                            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: {{ $grupo->color }}"></span>
+                                                            <span class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ $grupo->nombre }}</span>
+                                                        </div>
+                                                        <div class="p-1.5 space-y-0.5">
+                                                            @foreach($grupo->etiquetas as $etiqueta)
+                                                                <label class="flex items-center gap-1.5 px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        wire:model.live="etiquetasSeleccionadas"
+                                                                        value="{{ $etiqueta->id }}"
+                                                                        class="w-3.5 h-3.5 rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary"
+                                                                    />
+                                                                    <span class="w-2 h-2 rounded-full flex-shrink-0" style="background-color: {{ $etiqueta->color ?? $grupo->color }}"></span>
+                                                                    <span class="text-xs text-gray-700 dark:text-gray-300">{{ $etiqueta->nombre }}</span>
+                                                                </label>
+                                                            @endforeach
+                                                        </div>
+                                                    </div>
+                                                @endif
+                                            @empty
+                                                <p class="text-xs text-gray-500 dark:text-gray-400 p-2">{{ __('No hay etiquetas disponibles') }}</p>
+                                            @endforelse
+                                        </div>
                                     </div>
                                 </div>
                             </div>
