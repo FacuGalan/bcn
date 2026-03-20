@@ -2,30 +2,36 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Carbon\Carbon;
 
 class PromocionEspecial extends Model
 {
     use HasFactory, SoftDeletes;
 
     protected $connection = 'pymes_tenant';
+
     protected $table = 'promociones_especiales';
 
     // Tipos de promoción
     const TIPO_NXM = 'nxm';
+
     const TIPO_NXM_AVANZADO = 'nxm_avanzado';
+
     const TIPO_COMBO = 'combo';
+
     const TIPO_MENU = 'menu';
 
     // Tipos de precio
     const PRECIO_FIJO = 'fijo';
+
     const PRECIO_PORCENTAJE = 'porcentaje';
 
     // Tipos de beneficio NxM
     const BENEFICIO_GRATIS = 'gratis';
+
     const BENEFICIO_DESCUENTO = 'descuento';
 
     protected $fillable = [
@@ -138,10 +144,10 @@ class PromocionEspecial extends Model
 
         return $query->where(function ($q) use ($hoy) {
             $q->whereNull('vigencia_desde')
-              ->orWhere('vigencia_desde', '<=', $hoy);
+                ->orWhere('vigencia_desde', '<=', $hoy);
         })->where(function ($q) use ($hoy) {
             $q->whereNull('vigencia_hasta')
-              ->orWhere('vigencia_hasta', '>=', $hoy);
+                ->orWhere('vigencia_hasta', '>=', $hoy);
         });
     }
 
@@ -235,16 +241,11 @@ class PromocionEspecial extends Model
             return false;
         }
 
-        // Verificar día de la semana
-        if (!empty($this->dias_semana)) {
-            $diasMap = [
-                'lunes' => 1, 'martes' => 2, 'miercoles' => 3,
-                'jueves' => 4, 'viernes' => 5, 'sabado' => 6, 'domingo' => 7
-            ];
-            $diaSemana = strtolower($ahora->locale('es')->dayName);
-            $diaSemana = str_replace(['á', 'é', 'í', 'ó', 'ú'], ['a', 'e', 'i', 'o', 'u'], $diaSemana);
+        // Verificar día de la semana (0=Domingo, 6=Sábado, mismo formato que Promocion)
+        if (! empty($this->dias_semana)) {
+            $diaActual = (int) $ahora->dayOfWeek;
 
-            if (!in_array($diaSemana, $this->dias_semana)) {
+            if (! in_array($diaActual, $this->dias_semana)) {
                 return false;
             }
         }
@@ -271,6 +272,7 @@ class PromocionEspecial extends Model
         if ($this->usos_maximos === null) {
             return true;
         }
+
         return $this->usos_actuales < $this->usos_maximos;
     }
 
@@ -319,6 +321,7 @@ class PromocionEspecial extends Model
                     ->pluck('id')
                     ->toArray();
             }
+
             return [];
         }
 
@@ -326,7 +329,7 @@ class PromocionEspecial extends Model
             return $this->gruposTrigger()
                 ->with('articulos')
                 ->get()
-                ->flatMap(fn($g) => $g->articulos->pluck('id'))
+                ->flatMap(fn ($g) => $g->articulos->pluck('id'))
                 ->unique()
                 ->values()
                 ->toArray();
@@ -350,7 +353,7 @@ class PromocionEspecial extends Model
             return $this->gruposReward()
                 ->with('articulos')
                 ->get()
-                ->flatMap(fn($g) => $g->articulos->pluck('id'))
+                ->flatMap(fn ($g) => $g->articulos->pluck('id'))
                 ->unique()
                 ->values()
                 ->toArray();
@@ -365,7 +368,7 @@ class PromocionEspecial extends Model
      */
     public function obtenerEscalaParaCantidad(int $cantidad): ?array
     {
-        if (!$this->esNxM()) {
+        if (! $this->esNxM()) {
             return null;
         }
 
@@ -373,9 +376,9 @@ class PromocionEspecial extends Model
         if ($this->usa_escalas) {
             $escalaAplicable = $this->escalas()
                 ->where('cantidad_desde', '<=', $cantidad)
-                ->where(function($q) use ($cantidad) {
+                ->where(function ($q) use ($cantidad) {
                     $q->whereNull('cantidad_hasta')
-                      ->orWhere('cantidad_hasta', '>=', $cantidad);
+                        ->orWhere('cantidad_hasta', '>=', $cantidad);
                 })
                 ->orderBy('cantidad_desde', 'desc')
                 ->first();
@@ -388,6 +391,7 @@ class PromocionEspecial extends Model
                     'beneficio_porcentaje' => $escalaAplicable->beneficio_porcentaje,
                 ];
             }
+
             return null;
         }
 
@@ -412,7 +416,7 @@ class PromocionEspecial extends Model
     {
         $escala = $this->obtenerEscalaParaCantidad($cantidadTriggers);
 
-        if (!$escala) {
+        if (! $escala) {
             return [
                 'unidades_pagan' => $cantidadTriggers,
                 'unidades_bonificadas' => 0,
@@ -473,7 +477,7 @@ class PromocionEspecial extends Model
      */
     public function calcularCombosDisponibles(array $articulosVenta): int
     {
-        if (!$this->esComboOMenu()) {
+        if (! $this->esComboOMenu()) {
             return 0;
         }
 
@@ -524,6 +528,7 @@ class PromocionEspecial extends Model
         }
 
         $descuento = $total * ($this->precio_valor / 100);
+
         return $total - $descuento;
     }
 
@@ -537,6 +542,7 @@ class PromocionEspecial extends Model
             $precio = $preciosArticulos[$articuloId] ?? 0;
             $total += $precio * $cantidad;
         }
+
         return $total;
     }
 
@@ -558,6 +564,7 @@ class PromocionEspecial extends Model
                 } else {
                     $desc .= " con {$this->beneficio_porcentaje}% dto";
                 }
+
                 return $desc;
 
             case self::TIPO_NXM_AVANZADO:
@@ -567,13 +574,15 @@ class PromocionEspecial extends Model
                 if ($this->precio_tipo === self::PRECIO_PORCENTAJE) {
                     return "Combo ({$this->precio_valor}% dto)";
                 }
-                return 'Combo $' . number_format($this->precio_valor, 0, ',', '.');
+
+                return 'Combo $'.number_format($this->precio_valor, 0, ',', '.');
 
             case self::TIPO_MENU:
                 if ($this->precio_tipo === self::PRECIO_PORCENTAJE) {
                     return "Menú ({$this->precio_valor}% dto)";
                 }
-                return 'Menú $' . number_format($this->precio_valor, 0, ',', '.');
+
+                return 'Menú $'.number_format($this->precio_valor, 0, ',', '.');
         }
 
         return $this->tipo;
@@ -584,7 +593,7 @@ class PromocionEspecial extends Model
      */
     public function getNombreTipoAttribute(): string
     {
-        return match($this->tipo) {
+        return match ($this->tipo) {
             self::TIPO_NXM => 'NxM',
             self::TIPO_NXM_AVANZADO => 'NxM Avanzado',
             self::TIPO_COMBO => 'Combo/Pack',

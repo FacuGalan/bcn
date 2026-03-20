@@ -3,14 +3,11 @@
 namespace App\Services;
 
 use App\Models\Articulo;
-use App\Models\ListaPrecio;
-use App\Models\ListaPrecioArticulo;
-use App\Models\Promocion;
-use App\Models\PromocionCondicion;
-use App\Models\PromocionEscala;
+use App\Models\Cliente;
 use App\Models\FormaPago;
 use App\Models\FormaPagoCuota;
-use App\Models\Cliente;
+use App\Models\ListaPrecio;
+use App\Models\Promocion;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -49,11 +46,10 @@ class PrecioService
     /**
      * Obtiene la lista de precios aplicable para un contexto de venta
      *
-     * @param int $sucursalId ID de la sucursal
-     * @param array $contexto Contexto de la venta
-     * @param int|null $listaPrecioIdManual ID de lista seleccionada manualmente
-     * @param int|null $clienteId ID del cliente
-     * @return ListaPrecio|null
+     * @param  int  $sucursalId  ID de la sucursal
+     * @param  array  $contexto  Contexto de la venta
+     * @param  int|null  $listaPrecioIdManual  ID de lista seleccionada manualmente
+     * @param  int|null  $clienteId  ID del cliente
      */
     public function obtenerListaAplicable(
         int $sucursalId,
@@ -72,8 +68,6 @@ class PrecioService
     /**
      * Obtiene el precio de un artículo según una lista de precios
      *
-     * @param Articulo $articulo
-     * @param ListaPrecio $listaPrecio
      * @return array ['precio' => float, 'ajuste_porcentaje' => float, 'origen' => string, 'precio_base' => float]
      */
     public function obtenerPrecioConLista(Articulo $articulo, ListaPrecio $listaPrecio): array
@@ -84,11 +78,11 @@ class PrecioService
     /**
      * Obtiene el precio base de un artículo para una sucursal y contexto
      *
-     * @param int $articuloId ID del artículo
-     * @param int $sucursalId ID de la sucursal
-     * @param array $contexto Contexto de la venta
-     * @param int|null $listaPrecioIdManual ID de lista seleccionada manualmente
-     * @param int|null $clienteId ID del cliente
+     * @param  int  $articuloId  ID del artículo
+     * @param  int  $sucursalId  ID de la sucursal
+     * @param  array  $contexto  Contexto de la venta
+     * @param  int|null  $listaPrecioIdManual  ID de lista seleccionada manualmente
+     * @param  int|null  $clienteId  ID del cliente
      * @return array|null ['precio' => float, 'lista_precio' => ListaPrecio|null, 'ajuste_porcentaje' => float, 'origen' => string]
      */
     public function obtenerPrecioBase(
@@ -99,8 +93,9 @@ class PrecioService
         ?int $clienteId = null
     ): ?array {
         $articulo = Articulo::find($articuloId);
-        if (!$articulo) {
+        if (! $articulo) {
             Log::warning("Artículo {$articuloId} no encontrado");
+
             return null;
         }
 
@@ -119,6 +114,7 @@ class PrecioService
             $resultado['lista_precio'] = $listaPrecio;
             $resultado['lista_precio_id'] = $listaPrecio->id;
             $resultado['lista_precio_nombre'] = $listaPrecio->nombre;
+
             return $resultado;
         }
 
@@ -145,21 +141,21 @@ class PrecioService
      * 4. Calcula IVA
      * 5. Aplica ajustes por forma de pago
      *
-     * @param int $articuloId ID del artículo
-     * @param int $sucursalId ID de la sucursal
-     * @param float $cantidad Cantidad de unidades
-     * @param array $contexto Contexto de la venta con claves:
-     *   - forma_venta_id: int|null
-     *   - canal_venta_id: int|null
-     *   - forma_pago_id: int|null
-     *   - cuotas: int|null
-     *   - fecha: Carbon|null
-     *   - hora: string|null (HH:MM:SS)
-     *   - dia_semana: int|null (0=Domingo, 6=Sábado)
-     *   - total_compra: float|null (para validar monto mínimo)
-     *   - codigo_cupon: string|null
-     *   - lista_precio_id: int|null (lista seleccionada manualmente)
-     *   - cliente_id: int|null
+     * @param  int  $articuloId  ID del artículo
+     * @param  int  $sucursalId  ID de la sucursal
+     * @param  float  $cantidad  Cantidad de unidades
+     * @param  array  $contexto  Contexto de la venta con claves:
+     *                           - forma_venta_id: int|null
+     *                           - canal_venta_id: int|null
+     *                           - forma_pago_id: int|null
+     *                           - cuotas: int|null
+     *                           - fecha: Carbon|null
+     *                           - hora: string|null (HH:MM:SS)
+     *                           - dia_semana: int|null (0=Domingo, 6=Sábado)
+     *                           - total_compra: float|null (para validar monto mínimo)
+     *                           - codigo_cupon: string|null
+     *                           - lista_precio_id: int|null (lista seleccionada manualmente)
+     *                           - cliente_id: int|null
      * @return array Desglose completo del cálculo
      */
     public function calcularPrecioFinal(
@@ -170,7 +166,7 @@ class PrecioService
     ): array {
         // Obtener artículo
         $articulo = Articulo::find($articuloId);
-        if (!$articulo) {
+        if (! $articulo) {
             throw new \Exception("Artículo {$articuloId} no encontrado");
         }
 
@@ -199,7 +195,7 @@ class PrecioService
             $contexto['cliente_id']
         );
 
-        if (!$precioInfo) {
+        if (! $precioInfo) {
             throw new \Exception("No se encontró precio para el artículo {$articulo->nombre}");
         }
 
@@ -224,14 +220,19 @@ class PrecioService
             // Si el alcance es 'excluir_lista', verificar si el artículo tiene precio especial en la lista
             $articuloExcluidoDePromociones = false;
             if ($promocionesAlcance === 'excluir_lista' && $listaPrecio) {
-                // Verificar si el artículo tiene un precio específico en esta lista
+                // Verificar si el artículo tiene precio directo o por categoría en esta lista
                 $tienePrecioEspecial = $listaPrecio->articulos()
-                    ->where('articulo_id', $articuloId)
+                    ->where(function ($query) use ($articuloId, $articulo) {
+                        $query->where('articulo_id', $articuloId);
+                        if ($articulo->categoria_id) {
+                            $query->orWhere('categoria_id', $articulo->categoria_id);
+                        }
+                    })
                     ->exists();
                 $articuloExcluidoDePromociones = $tienePrecioEspecial;
             }
 
-            if (!$articuloExcluidoDePromociones) {
+            if (! $articuloExcluidoDePromociones) {
                 $contexto['articulo_id'] = $articuloId;
                 $contexto['categoria_id'] = $articulo->categoria_id;
                 $contexto['total'] = $subtotal;
@@ -332,9 +333,9 @@ class PrecioService
      * 3. Ordena por prioridad (menor número = mayor prioridad)
      * 4. Aplica promociones según combinabilidad
      *
-     * @param int $sucursalId ID de la sucursal
-     * @param array $contexto Contexto completo de la venta
-     * @param float $subtotal Subtotal sobre el cual aplicar descuentos
+     * @param  int  $sucursalId  ID de la sucursal
+     * @param  array  $contexto  Contexto completo de la venta
+     * @param  float  $subtotal  Subtotal sobre el cual aplicar descuentos
      * @return array Lista de promociones aplicadas
      */
     public function aplicarPromociones(
@@ -349,60 +350,220 @@ class PrecioService
             return [];
         }
 
-        // 2. Ordenar por prioridad (menor número = mayor prioridad)
-        $promociones = $promociones->sortBy([
-            ['prioridad', 'asc'],
-            ['id', 'asc']
-        ]);
+        // 2. Convertir a array para búsqueda exhaustiva
+        $cantidad = $contexto['cantidad'] ?? 1;
+        $promos = $promociones->map(fn ($p) => [
+            'id' => $p->id,
+            'nombre' => $p->nombre,
+            'tipo' => $p->tipo,
+            'valor' => $p->valor,
+            'prioridad' => $p->prioridad,
+            'combinable' => $p->combinable,
+            'escalas' => $p->escalas->toArray(),
+            '_model' => $p,
+        ])->values()->all();
 
-        // 3. Aplicar promociones según combinabilidad
+        // 3. Buscar la mejor combinación (exhaustiva, 2^n)
+        $mejor = $this->encontrarMejorCombinacion($promos, $subtotal, $cantidad);
+
+        // 4. Formatear resultado
         $promocionesAplicadas = [];
-        $montoAcumulado = $subtotal;
-        $yaAplicoExcluyente = false;
-
-        foreach ($promociones as $promocion) {
-            if ($yaAplicoExcluyente) {
-                break;
-            }
-
-            $ajuste = $this->calcularAjustePromocion(
-                $promocion,
-                $montoAcumulado,
-                $contexto['cantidad'] ?? 1
-            );
-
-            if ($ajuste['valor'] > 0) {
-                $promocionesAplicadas[] = [
-                    'promocion_id' => $promocion->id,
-                    'nombre' => $promocion->nombre,
-                    'tipo' => $ajuste['tipo'],
-                    'porcentaje' => $ajuste['porcentaje'],
-                    'monto_descuento' => $ajuste['valor'],
-                    'prioridad' => $promocion->prioridad,
-                    'combinable' => $promocion->combinable,
-                ];
-
-                if ($ajuste['tipo'] === 'descuento') {
-                    $montoAcumulado -= $ajuste['valor'];
-                }
-
-                if (!$promocion->combinable) {
-                    $yaAplicoExcluyente = true;
-                }
-
-                $promocion->incrementarUso();
-            }
+        foreach ($mejor['promociones'] as $pa) {
+            $promocionesAplicadas[] = [
+                'promocion_id' => $pa['id'],
+                'nombre' => $pa['nombre'],
+                'tipo' => $pa['tipo_ajuste'],
+                'porcentaje' => $pa['porcentaje'] ?? 0,
+                'monto_descuento' => $pa['descuento'],
+                'prioridad' => $pa['prioridad'],
+                'combinable' => $pa['combinable'],
+            ];
         }
 
         return $promocionesAplicadas;
     }
 
     /**
+     * Encuentra la mejor combinación de promociones evaluando todas las posibilidades.
+     * Misma lógica que NuevaVenta para mantener consistencia.
+     */
+    private function encontrarMejorCombinacion(array $promociones, float $montoInicial, int $cantidad): array
+    {
+        if (empty($promociones)) {
+            return ['monto_final' => $montoInicial, 'promociones' => []];
+        }
+
+        // Separar excluyentes (solo) de combinables
+        $excluyentes = array_filter($promociones, fn ($p) => ! $p['combinable']);
+        $combinables = array_values(array_filter($promociones, fn ($p) => $p['combinable']));
+
+        $mejorResultado = ['monto_final' => $montoInicial, 'promociones' => []];
+
+        // 1. Evaluar cada excluyente por separado — O(n)
+        foreach ($excluyentes as $promo) {
+            $resultado = $this->calcularCombinacion([$promo], $montoInicial, $cantidad);
+            if ($resultado['monto_final'] < $mejorResultado['monto_final']) {
+                $mejorResultado = $resultado;
+            }
+        }
+
+        // 2. Evaluar combinables
+        if (! empty($combinables)) {
+            $n = count($combinables);
+
+            if ($n <= 15) {
+                // Exhaustiva para sets pequeños — O(2^n)
+                $totalCombinaciones = pow(2, $n);
+                for ($i = 1; $i < $totalCombinaciones; $i++) {
+                    $combinacion = [];
+                    for ($j = 0; $j < $n; $j++) {
+                        if ($i & (1 << $j)) {
+                            $combinacion[] = $combinables[$j];
+                        }
+                    }
+                    $resultado = $this->calcularCombinacion($combinacion, $montoInicial, $cantidad);
+                    if ($resultado['monto_final'] < $mejorResultado['monto_final']) {
+                        $mejorResultado = $resultado;
+                    }
+                }
+            } else {
+                // Greedy para sets grandes — O(n log n)
+                $resultado = $this->calcularCombinacionGreedy($combinables, $montoInicial, $cantidad);
+                if ($resultado['monto_final'] < $mejorResultado['monto_final']) {
+                    $mejorResultado = $resultado;
+                }
+            }
+        }
+
+        return $mejorResultado;
+    }
+
+    /**
+     * Fallback greedy para sets grandes de promociones combinables.
+     * Ordena por mayor descuento efectivo y aplica en cascada.
+     */
+    private function calcularCombinacionGreedy(array $combinables, float $montoInicial, int $cantidad): array
+    {
+        // Calcular descuento efectivo de cada una y ordenar desc
+        $conDescuento = [];
+        foreach ($combinables as $promo) {
+            $model = $promo['_model'] ?? null;
+            $ajuste = $model
+                ? $model->calcularAjuste($montoInicial, $cantidad)
+                : $this->calcularAjusteDesdeArray($promo, $montoInicial, $cantidad);
+            $conDescuento[] = ['promo' => $promo, 'descuento_estimado' => $ajuste['valor']];
+        }
+
+        usort($conDescuento, fn ($a, $b) => $b['descuento_estimado'] <=> $a['descuento_estimado']);
+
+        $ordenadas = array_map(fn ($item) => $item['promo'], $conDescuento);
+
+        return $this->calcularCombinacion($ordenadas, $montoInicial, $cantidad);
+    }
+
+    /**
+     * Calcula el resultado de aplicar una combinación de promociones.
+     */
+    private function calcularCombinacion(array $combinacion, float $montoInicial, int $cantidad): array
+    {
+        usort($combinacion, fn ($a, $b) => $a['prioridad'] <=> $b['prioridad']);
+
+        $montoActual = $montoInicial;
+        $promocionesAplicadas = [];
+
+        foreach ($combinacion as $promo) {
+            $model = $promo['_model'] ?? null;
+            if ($model) {
+                $ajuste = $model->calcularAjuste($montoActual, $cantidad);
+            } else {
+                $ajuste = $this->calcularAjusteDesdeArray($promo, $montoActual, $cantidad);
+            }
+
+            if ($ajuste['valor'] > 0) {
+                if ($ajuste['tipo'] === 'descuento') {
+                    $montoActual -= $ajuste['valor'];
+                } else {
+                    $montoActual += $ajuste['valor'];
+                }
+
+                $promocionesAplicadas[] = [
+                    'id' => $promo['id'],
+                    'nombre' => $promo['nombre'],
+                    'tipo_ajuste' => $ajuste['tipo'],
+                    'porcentaje' => $ajuste['porcentaje'] ?? 0,
+                    'descuento' => $ajuste['valor'],
+                    'prioridad' => $promo['prioridad'],
+                    'combinable' => $promo['combinable'],
+                ];
+            }
+        }
+
+        return [
+            'monto_final' => max(0, $montoActual),
+            'promociones' => $promocionesAplicadas,
+        ];
+    }
+
+    /**
+     * Calcula ajuste desde array (fallback sin modelo Eloquent).
+     */
+    private function calcularAjusteDesdeArray(array $promo, float $monto, int $cantidad): array
+    {
+        $valor = 0;
+        $tipo = 'descuento';
+        $porcentaje = 0;
+
+        switch ($promo['tipo']) {
+            case 'descuento_porcentaje':
+                $porcentaje = (float) $promo['valor'];
+                $valor = round($monto * ($porcentaje / 100), 2);
+                break;
+            case 'descuento_monto':
+                $valor = min((float) $promo['valor'], $monto);
+                break;
+            case 'precio_fijo':
+                $precioFijoTotal = (float) $promo['valor'] * $cantidad;
+                $valor = max(0, $monto - $precioFijoTotal);
+                break;
+            case 'recargo_porcentaje':
+                $tipo = 'recargo';
+                $porcentaje = (float) $promo['valor'];
+                $valor = round($monto * ($porcentaje / 100), 2);
+                break;
+            case 'recargo_monto':
+                $tipo = 'recargo';
+                $valor = (float) $promo['valor'];
+                break;
+            case 'descuento_escalonado':
+                if (! empty($promo['escalas'])) {
+                    $escalas = collect($promo['escalas'])
+                        ->filter(fn ($e) => ! empty($e['cantidad_desde']) && ! empty($e['valor']))
+                        ->sortByDesc('cantidad_desde');
+
+                    foreach ($escalas as $escala) {
+                        if ($cantidad >= $escala['cantidad_desde']) {
+                            $tipoDesc = $escala['tipo_descuento'] ?? 'porcentaje';
+                            if ($tipoDesc === 'porcentaje') {
+                                $porcentaje = (float) $escala['valor'];
+                                $valor = round($monto * ($porcentaje / 100), 2);
+                            } elseif ($tipoDesc === 'precio_fijo') {
+                                $precioFijoEscala = (float) $escala['valor'] * $cantidad;
+                                $valor = max(0, $monto - $precioFijoEscala);
+                            } else {
+                                $valor = min((float) $escala['valor'], $monto);
+                            }
+                            break;
+                        }
+                    }
+                }
+                break;
+        }
+
+        return ['tipo' => $tipo, 'valor' => $valor, 'porcentaje' => $porcentaje];
+    }
+
+    /**
      * Obtiene todas las promociones que podrían aplicar a un contexto
-     *
-     * @param int $sucursalId
-     * @param array $contexto
-     * @return Collection
      */
     private function obtenerPromocionesAplicables(int $sucursalId, array $contexto): Collection
     {
@@ -411,11 +572,11 @@ class PrecioService
         $hora = $contexto['hora'] ?? now()->format('H:i:s');
 
         $query = Promocion::where('sucursal_id', $sucursalId)
-                          ->where('activo', true)
-                          ->vigentes($fecha)
-                          ->conUsosDisponibles();
+            ->where('activo', true)
+            ->vigentes($fecha)
+            ->conUsosDisponibles();
 
-        if (!empty($contexto['codigo_cupon'])) {
+        if (! empty($contexto['codigo_cupon'])) {
             $query->where('codigo_cupon', $contexto['codigo_cupon']);
         } else {
             $query->automaticas();
@@ -423,12 +584,18 @@ class PrecioService
 
         $promociones = $query->with('condiciones', 'escalas')->get();
 
-        return $promociones->filter(function ($promocion) use ($diaSemana, $hora, $contexto) {
-            if (!$promocion->aplicaEnDiaSemana($diaSemana)) {
+        $clienteId = $contexto['cliente_id'] ?? null;
+
+        return $promociones->filter(function ($promocion) use ($diaSemana, $hora, $contexto, $clienteId) {
+            if (! $promocion->aplicaEnDiaSemana($diaSemana)) {
                 return false;
             }
 
-            if (!$promocion->aplicaEnHorario($hora)) {
+            if (! $promocion->aplicaEnHorario($hora)) {
+                return false;
+            }
+
+            if (! $promocion->tieneUsosDisponiblesParaCliente($clienteId)) {
                 return false;
             }
 
@@ -438,10 +605,6 @@ class PrecioService
 
     /**
      * Valida que se cumplan todas las condiciones de una promoción
-     *
-     * @param Promocion $promocion
-     * @param array $contexto
-     * @return bool
      */
     private function validarCondicionesPromocion(Promocion $promocion, array $contexto): bool
     {
@@ -450,7 +613,7 @@ class PrecioService
         }
 
         foreach ($promocion->condiciones as $condicion) {
-            if (!$condicion->seCumple($contexto)) {
+            if (! $condicion->seCumple($contexto)) {
                 return false;
             }
         }
@@ -460,11 +623,6 @@ class PrecioService
 
     /**
      * Calcula el ajuste de una promoción
-     *
-     * @param Promocion $promocion
-     * @param float $monto
-     * @param int $cantidad
-     * @return array
      */
     private function calcularAjustePromocion(Promocion $promocion, float $monto, int $cantidad): array
     {
@@ -473,15 +631,10 @@ class PrecioService
 
     /**
      * Calcula ajustes por forma de pago
-     *
-     * @param int|null $formaPagoId
-     * @param float $total
-     * @param int|null $cuotas
-     * @return array
      */
     private function calcularAjusteFormaPago(?int $formaPagoId, float $total, ?int $cuotas = null): array
     {
-        if (!$formaPagoId) {
+        if (! $formaPagoId) {
             return [
                 'tipo' => 'ninguno',
                 'descripcion' => 'Sin ajuste',
@@ -491,7 +644,7 @@ class PrecioService
         }
 
         $formaPago = FormaPago::find($formaPagoId);
-        if (!$formaPago) {
+        if (! $formaPago) {
             return [
                 'tipo' => 'ninguno',
                 'descripcion' => 'Forma de pago no encontrada',
@@ -509,9 +662,9 @@ class PrecioService
 
         if ($cuotas && $cuotas > 1 && $formaPago->permite_cuotas) {
             $planCuotas = FormaPagoCuota::where('forma_pago_id', $formaPago->id)
-                                        ->where('cantidad_cuotas', $cuotas)
-                                        ->where('activo', true)
-                                        ->first();
+                ->where('cantidad_cuotas', $cuotas)
+                ->where('activo', true)
+                ->first();
 
             if ($planCuotas) {
                 $recargoMonto = $planCuotas->calcularRecargo($total);
@@ -536,13 +689,12 @@ class PrecioService
     /**
      * Calcula precio para múltiples artículos (carrito completo)
      *
-     * @param array $items Array de items con estructura:
-     *   [
-     *     ['articulo_id' => int, 'cantidad' => float],
-     *     ...
-     *   ]
-     * @param int $sucursalId
-     * @param array $contexto Contexto de la venta
+     * @param  array  $items  Array de items con estructura:
+     *                        [
+     *                        ['articulo_id' => int, 'cantidad' => float],
+     *                        ...
+     *                        ]
+     * @param  array  $contexto  Contexto de la venta
      * @return array Desglose completo del carrito
      */
     public function calcularCarrito(array $items, int $sucursalId, array $contexto = []): array
@@ -585,7 +737,7 @@ class PrecioService
 
         // Obtener info de la lista usada (todas deberían usar la misma)
         $listaInfo = null;
-        if (!empty($itemsCalculados)) {
+        if (! empty($itemsCalculados)) {
             $listaInfo = [
                 'lista_precio_id' => $itemsCalculados[0]['lista_precio_id'],
                 'lista_precio_nombre' => $itemsCalculados[0]['lista_precio_nombre'],
@@ -605,18 +757,14 @@ class PrecioService
 
     /**
      * Obtiene todas las listas de precios disponibles para una sucursal
-     *
-     * @param int $sucursalId
-     * @param bool $incluirInactivas
-     * @return Collection
      */
     public function obtenerListasPreciosSucursal(int $sucursalId, bool $incluirInactivas = false): Collection
     {
         $query = ListaPrecio::porSucursal($sucursalId)
-                            ->ordenadoPorPrioridad()
-                            ->conCondiciones();
+            ->ordenadoPorPrioridad()
+            ->conCondiciones();
 
-        if (!$incluirInactivas) {
+        if (! $incluirInactivas) {
             $query->activas();
         }
 
@@ -625,16 +773,12 @@ class PrecioService
 
     /**
      * Crea la lista base obligatoria para una sucursal si no existe
-     *
-     * @param int $sucursalId
-     * @param string $nombre
-     * @return ListaPrecio
      */
     public function asegurarListaBase(int $sucursalId, string $nombre = 'Lista Base'): ListaPrecio
     {
         $listaBase = ListaPrecio::obtenerListaBase($sucursalId);
 
-        if (!$listaBase) {
+        if (! $listaBase) {
             $listaBase = ListaPrecio::crearListaBase($sucursalId, $nombre);
         }
 
@@ -643,17 +787,13 @@ class PrecioService
 
     /**
      * Simula el precio de un artículo con una lista específica (sin guardar)
-     *
-     * @param int $articuloId
-     * @param int $listaPrecioId
-     * @return array|null
      */
     public function simularPrecioConLista(int $articuloId, int $listaPrecioId): ?array
     {
         $articulo = Articulo::find($articuloId);
         $listaPrecio = ListaPrecio::find($listaPrecioId);
 
-        if (!$articulo || !$listaPrecio) {
+        if (! $articulo || ! $listaPrecio) {
             return null;
         }
 
@@ -662,15 +802,11 @@ class PrecioService
 
     /**
      * Obtiene un resumen comparativo de precios de un artículo en todas las listas de una sucursal
-     *
-     * @param int $articuloId
-     * @param int $sucursalId
-     * @return array
      */
     public function compararPreciosEnListas(int $articuloId, int $sucursalId): array
     {
         $articulo = Articulo::find($articuloId);
-        if (!$articulo) {
+        if (! $articulo) {
             return [];
         }
 

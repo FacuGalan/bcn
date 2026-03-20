@@ -26,12 +26,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property float $descuento_porcentaje Porcentaje de descuento para esta escala
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- *
  * @property-read Promocion $promocion
  */
 class PromocionEscala extends Model
 {
     protected $connection = 'pymes_tenant';
+
     protected $table = 'promociones_escalas';
 
     protected $fillable = [
@@ -74,10 +74,10 @@ class PromocionEscala extends Model
     public function scopeParaCantidad($query, int $cantidad)
     {
         return $query->where('cantidad_desde', '<=', $cantidad)
-                     ->where(function ($q) use ($cantidad) {
-                         $q->whereNull('cantidad_hasta')
-                           ->orWhere('cantidad_hasta', '>=', $cantidad);
-                     });
+            ->where(function ($q) use ($cantidad) {
+                $q->whereNull('cantidad_hasta')
+                    ->orWhere('cantidad_hasta', '>=', $cantidad);
+            });
     }
 
     /**
@@ -101,8 +101,7 @@ class PromocionEscala extends Model
     /**
      * Verifica si esta escala aplica para una cantidad dada
      *
-     * @param int $cantidad Cantidad a evaluar
-     * @return bool
+     * @param  int  $cantidad  Cantidad a evaluar
      */
     public function aplicaParaCantidad(int $cantidad): bool
     {
@@ -120,25 +119,37 @@ class PromocionEscala extends Model
     /**
      * Calcula el descuento para un monto y cantidad dados
      *
-     * @param float $monto Monto sobre el cual calcular el descuento
-     * @param int $cantidad Cantidad de artículos
+     * @param  float  $monto  Monto sobre el cual calcular el descuento
+     * @param  int  $cantidad  Cantidad de artículos
      * @return array ['porcentaje' => float, 'monto' => float]
      */
     public function calcularDescuento(float $monto, int $cantidad): array
     {
-        if (!$this->aplicaParaCantidad($cantidad)) {
-            return [
-                'porcentaje' => 0,
-                'monto' => 0,
-            ];
+        if (! $this->aplicaParaCantidad($cantidad)) {
+            return ['porcentaje' => 0, 'monto' => 0];
         }
 
-        $montoDescuento = round($monto * ($this->descuento_porcentaje / 100), 2);
+        $tipoDesc = $this->tipo_descuento ?? 'porcentaje';
+        $valorEscala = (float) $this->valor;
 
-        return [
-            'porcentaje' => $this->descuento_porcentaje,
-            'monto' => $montoDescuento,
-        ];
+        if ($tipoDesc === 'porcentaje') {
+            return [
+                'porcentaje' => $valorEscala,
+                'monto' => round($monto * ($valorEscala / 100), 2),
+            ];
+        } elseif ($tipoDesc === 'precio_fijo') {
+            $precioFijoTotal = $valorEscala * $cantidad;
+
+            return [
+                'porcentaje' => 0,
+                'monto' => max(0, $monto - $precioFijoTotal),
+            ];
+        } else {
+            return [
+                'porcentaje' => 0,
+                'monto' => min($valorEscala, $monto),
+            ];
+        }
     }
 
     /**
@@ -169,7 +180,16 @@ class PromocionEscala extends Model
         $rango = $this->obtenerRangoCantidades();
         $unidades = $this->cantidad_hasta === 1 ? 'unidad' : 'unidades';
 
-        return "{$rango} {$unidades}: {$this->descuento_porcentaje}% OFF";
+        $tipoDesc = $this->tipo_descuento ?? 'porcentaje';
+        $valorEscala = (float) $this->valor;
+
+        if ($tipoDesc === 'porcentaje') {
+            return "{$rango} {$unidades}: {$valorEscala}% OFF";
+        } elseif ($tipoDesc === 'precio_fijo') {
+            return "{$rango} {$unidades}: \${$valorEscala} c/u";
+        } else {
+            return "{$rango} {$unidades}: -\${$valorEscala}";
+        }
     }
 
     /**
@@ -177,10 +197,9 @@ class PromocionEscala extends Model
      */
     public function esMayorDescuento(): bool
     {
-        $maxDescuento = $this->promocion->escalas()
-                                        ->max('descuento_porcentaje');
+        $maxValor = $this->promocion->escalas()->max('valor');
 
-        return $this->descuento_porcentaje >= $maxDescuento;
+        return (float) $this->valor >= (float) $maxValor;
     }
 
     /**
@@ -197,9 +216,9 @@ class PromocionEscala extends Model
     public function obtenerSiguienteEscala(): ?self
     {
         return $this->promocion->escalas()
-                               ->where('cantidad_desde', '>', $this->cantidad_desde)
-                               ->orderBy('cantidad_desde')
-                               ->first();
+            ->where('cantidad_desde', '>', $this->cantidad_desde)
+            ->orderBy('cantidad_desde')
+            ->first();
     }
 
     /**
@@ -208,22 +227,22 @@ class PromocionEscala extends Model
     public function obtenerEscalaAnterior(): ?self
     {
         return $this->promocion->escalas()
-                               ->where('cantidad_desde', '<', $this->cantidad_desde)
-                               ->orderBy('cantidad_desde', 'desc')
-                               ->first();
+            ->where('cantidad_desde', '<', $this->cantidad_desde)
+            ->orderBy('cantidad_desde', 'desc')
+            ->first();
     }
 
     /**
      * Calcula cuántas unidades más se necesitan para la siguiente escala
      *
-     * @param int $cantidadActual Cantidad actual
+     * @param  int  $cantidadActual  Cantidad actual
      * @return int|null Cantidad faltante o null si no hay siguiente escala
      */
     public function calcularUnidadesParaSiguienteEscala(int $cantidadActual): ?int
     {
         $siguienteEscala = $this->obtenerSiguienteEscala();
 
-        if (!$siguienteEscala) {
+        if (! $siguienteEscala) {
             return null; // Ya está en la última escala
         }
 

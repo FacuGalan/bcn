@@ -2,45 +2,44 @@
 
 namespace App\Livewire\Ventas;
 
-use Livewire\Component;
-use Livewire\Attributes\On;
-use App\Traits\CajaAware;
-use App\Traits\AperturaTurnoTrait;
-use App\Services\CajaService;
-use App\Services\CuentaEmpresaService;
-use App\Services\VentaService;
-use App\Services\OpcionalService;
-use App\Models\Cliente;
 use App\Models\Articulo;
 use App\Models\Caja;
-use App\Models\Sucursal;
-use App\Models\FormaVenta;
 use App\Models\CanalVenta;
+use App\Models\Categoria;
+use App\Models\Cliente;
+use App\Models\ConceptoPago;
+use App\Models\CondicionIva;
+use App\Models\CuentaEmpresa;
 use App\Models\FormaPago;
-use App\Models\FormaPagoSucursal;
 use App\Models\FormaPagoCuota;
 use App\Models\FormaPagoCuotaSucursal;
-use App\Models\ConceptoPago;
-use App\Models\VentaPago;
+use App\Models\FormaPagoSucursal;
+use App\Models\FormaVenta;
 use App\Models\ListaPrecio;
 use App\Models\ListaPrecioArticulo;
-use App\Models\Categoria;
+use App\Models\Moneda;
+use App\Models\MovimientoCaja;
 use App\Models\Promocion;
 use App\Models\PromocionEspecial;
 use App\Models\PuntoVenta;
-use App\Models\TipoIva;
-use App\Models\CondicionIva;
-use App\Models\MovimientoCaja;
-use App\Models\CuentaEmpresa;
-use App\Models\Stock;
 use App\Models\Receta;
-use App\Models\Moneda;
+use App\Models\Stock;
+use App\Models\Sucursal;
 use App\Models\TipoCambio;
+use App\Models\VentaPago;
 use App\Services\ARCA\ComprobanteFiscalService;
+use App\Services\CajaService;
+use App\Services\CuentaEmpresaService;
+use App\Services\OpcionalService;
+use App\Services\VentaService;
+use App\Traits\AperturaTurnoTrait;
+use App\Traits\CajaAware;
+use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Exception;
+use Livewire\Attributes\On;
+use Livewire\Component;
 
 /**
  * Componente Livewire: Nueva Venta (POS)
@@ -51,13 +50,11 @@ use Exception;
  * - Aplicación de promociones especiales (NxM, Combo, Menú)
  * - Aplicación de promociones comunes (descuentos, etc.)
  * - Selectores de forma de venta, canal de venta, forma de pago y lista de precios
- *
- * @package App\Livewire\Ventas
  */
 class NuevaVenta extends Component
 {
-    use CajaAware;
     use AperturaTurnoTrait;
+    use CajaAware;
 
     // =========================================
     // PROPIEDADES DEL POS / CARRITO
@@ -378,6 +375,7 @@ class NuevaVenta extends Component
     // =========================================
 
     protected $ventaService;
+
     protected $opcionalService;
 
     public function boot(VentaService $ventaService, OpcionalService $opcionalService)
@@ -464,7 +462,7 @@ class NuevaVenta extends Component
         $this->cajaSeleccionada = $cajaId;
         $this->actualizarEstadoCaja();
 
-        if (!empty($this->items)) {
+        if (! empty($this->items)) {
             $this->items = [];
             $this->resultado = null;
             $this->dispatch('toast-info', message: __('Caja cambiada. El carrito ha sido limpiado.'));
@@ -521,8 +519,9 @@ class NuevaVenta extends Component
         try {
             $caja = Caja::find($cajaId);
 
-            if (!$caja) {
+            if (! $caja) {
                 $this->dispatch('toast-error', message: __('Caja no encontrada'));
+
                 return;
             }
 
@@ -530,6 +529,7 @@ class NuevaVenta extends Component
             if ($caja->estado === 'abierta') {
                 $this->dispatch('toast-info', message: __('La caja ya está activa'));
                 $this->actualizarEstadoCaja();
+
                 return;
             }
 
@@ -548,7 +548,7 @@ class NuevaVenta extends Component
 
         } catch (\Exception $e) {
             Log::error('Error al activar caja', ['error' => $e->getMessage(), 'caja_id' => $cajaId]);
-            $this->dispatch('toast-error', message: __('Error al activar la caja: ') . $e->getMessage());
+            $this->dispatch('toast-error', message: __('Error al activar la caja: ').$e->getMessage());
         }
     }
 
@@ -558,8 +558,9 @@ class NuevaVenta extends Component
 
     protected function cargarListasPrecios(): void
     {
-        if (!$this->sucursalId) {
+        if (! $this->sucursalId) {
             $this->listasPreciosDisponibles = [];
+
             return;
         }
 
@@ -586,7 +587,7 @@ class NuevaVenta extends Component
     {
         // Primero buscar la lista marcada como base
         foreach ($this->listasPreciosDisponibles as $lista) {
-            if (!empty($lista['es_lista_base']) && $lista['es_lista_base'] === true) {
+            if (! empty($lista['es_lista_base']) && $lista['es_lista_base'] === true) {
                 return (int) $lista['id'];
             }
         }
@@ -614,6 +615,7 @@ class NuevaVenta extends Component
         // Solo mostrar resultados si hay al menos 3 caracteres
         if (strlen($value) < 3) {
             $this->articulosResultados = [];
+
             return;
         }
 
@@ -630,29 +632,29 @@ class NuevaVenta extends Component
 
         // Cada palabra debe coincidir en nombre, código, código de barras O nombre de categoría
         foreach ($palabras as $palabra) {
-            $query->where(function($q) use ($palabra) {
-                $q->where('nombre', 'like', '%' . $palabra . '%')
-                  ->orWhere('codigo', 'like', '%' . $palabra . '%')
-                  ->orWhere('codigo_barras', 'like', '%' . $palabra . '%')
-                  ->orWhereHas('categoriaModel', function($subQ) use ($palabra) {
-                      $subQ->where('nombre', 'like', '%' . $palabra . '%');
-                  });
+            $query->where(function ($q) use ($palabra) {
+                $q->where('nombre', 'like', '%'.$palabra.'%')
+                    ->orWhere('codigo', 'like', '%'.$palabra.'%')
+                    ->orWhere('codigo_barras', 'like', '%'.$palabra.'%')
+                    ->orWhereHas('categoriaModel', function ($subQ) use ($palabra) {
+                        $subQ->where('nombre', 'like', '%'.$palabra.'%');
+                    });
             });
         }
 
         // Filtrar por sucursal si hay artículos habilitados por sucursal
         if ($this->sucursalId) {
-            $query->where(function($q) {
-                $q->whereHas('sucursales', function($subQ) {
+            $query->where(function ($q) {
+                $q->whereHas('sucursales', function ($subQ) {
                     $subQ->where('sucursal_id', $this->sucursalId)
-                         ->where('articulos_sucursales.activo', 1);
+                        ->where('articulos_sucursales.activo', 1);
                 })->orWhereDoesntHave('sucursales');
             });
         }
 
         $articulos = $query->orderBy('nombre')->limit(15)->get();
 
-        $this->articulosResultados = $articulos->map(function($art) {
+        $this->articulosResultados = $articulos->map(function ($art) {
             return [
                 'id' => $art->id,
                 'nombre' => $art->nombre,
@@ -680,7 +682,7 @@ class NuevaVenta extends Component
         }
 
         // Si no hay lista seleccionada, usar lista base
-        if (!$this->listaPrecioId) {
+        if (! $this->listaPrecioId) {
             return [
                 'precio' => $precioListaBase,
                 'precio_base' => $precioBaseArticulo,
@@ -689,7 +691,7 @@ class NuevaVenta extends Component
         }
 
         $listaPrecio = ListaPrecio::find($this->listaPrecioId);
-        if (!$listaPrecio) {
+        if (! $listaPrecio) {
             return [
                 'precio' => $precioListaBase,
                 'precio_base' => $precioBaseArticulo,
@@ -713,7 +715,7 @@ class NuevaVenta extends Component
             'canal_venta_id' => $this->canalVentaId,
         ];
 
-        if (!$listaPrecio->validarCondiciones($contexto)) {
+        if (! $listaPrecio->validarCondiciones($contexto)) {
             return [
                 'precio' => $precioListaBase,
                 'precio_base' => $precioBaseArticulo,
@@ -723,6 +725,7 @@ class NuevaVenta extends Component
 
         // Lista diferente a la base y cumple condiciones
         $precioInfo = $listaPrecio->obtenerPrecioArticulo($articulo, $precioBaseArticulo);
+
         return [
             'precio' => $precioInfo['precio'],
             'precio_base' => $precioBaseArticulo,
@@ -741,11 +744,13 @@ class NuevaVenta extends Component
     {
         if ($this->modoConsulta) {
             $this->consultarPrecios($articuloId);
+
             return;
         }
 
         if ($this->modoBusqueda) {
             $this->buscarEnDetalle($articuloId);
+
             return;
         }
 
@@ -775,8 +780,8 @@ class NuevaVenta extends Component
 
         if ($modoStock === 'unitario') {
             $stock = Stock::where('sucursal_id', $this->sucursalId)
-                         ->where('articulo_id', $articulo->id)
-                         ->first();
+                ->where('articulo_id', $articulo->id)
+                ->first();
             $disponible = $stock ? (float) $stock->cantidad : 0;
 
             // Sumar cantidad ya en el carrito para el mismo artículo
@@ -789,7 +794,7 @@ class NuevaVenta extends Component
 
             $totalNecesario = $enCarrito + $cantidad;
             if ($disponible < $totalNecesario) {
-                $faltantes[] = "'{$articulo->nombre}': disponible " . round($disponible, 2) . ", necesario " . round($totalNecesario, 2);
+                $faltantes[] = "'{$articulo->nombre}': disponible ".round($disponible, 2).', necesario '.round($totalNecesario, 2);
             }
         } elseif ($modoStock === 'receta') {
             $receta = $articulo->resolverReceta($this->sucursalId);
@@ -797,12 +802,12 @@ class NuevaVenta extends Component
                 foreach ($receta->ingredientes as $ingrediente) {
                     $cantNecesaria = $ingrediente->cantidad * $cantidad / $receta->cantidad_producida;
                     $stock = Stock::where('sucursal_id', $this->sucursalId)
-                                 ->where('articulo_id', $ingrediente->articulo_id)
-                                 ->first();
+                        ->where('articulo_id', $ingrediente->articulo_id)
+                        ->first();
                     $disponible = $stock ? (float) $stock->cantidad : 0;
                     if ($disponible < $cantNecesaria) {
                         $nombre = $ingrediente->articulo->nombre ?? "Artículo #{$ingrediente->articulo_id}";
-                        $faltantes[] = "'{$nombre}': disponible " . round($disponible, 2) . ", necesario " . round($cantNecesaria, 2);
+                        $faltantes[] = "'{$nombre}': disponible ".round($disponible, 2).', necesario '.round($cantNecesaria, 2);
                     }
                 }
             }
@@ -816,12 +821,12 @@ class NuevaVenta extends Component
                         foreach ($recetaOpc->ingredientes as $ingrediente) {
                             $cantNecesaria = $ingrediente->cantidad * $cantOpcional / $recetaOpc->cantidad_producida;
                             $stock = Stock::where('sucursal_id', $this->sucursalId)
-                                         ->where('articulo_id', $ingrediente->articulo_id)
-                                         ->first();
+                                ->where('articulo_id', $ingrediente->articulo_id)
+                                ->first();
                             $disponible = $stock ? (float) $stock->cantidad : 0;
                             if ($disponible < $cantNecesaria) {
                                 $nombre = $ingrediente->articulo->nombre ?? "Artículo #{$ingrediente->articulo_id}";
-                                $faltantes[] = "'{$nombre}': disponible " . round($disponible, 2) . ", necesario " . round($cantNecesaria, 2);
+                                $faltantes[] = "'{$nombre}': disponible ".round($disponible, 2).', necesario '.round($cantNecesaria, 2);
                             }
                         }
                     }
@@ -838,14 +843,16 @@ class NuevaVenta extends Component
         $prefijo = ($controlStock === 'bloquea') ? __('Stock insuficiente') : __('Advertencia de stock');
 
         foreach ($mensajes as $msg) {
-            $this->dispatch($tipo, message: $prefijo . ': ' . $msg);
+            $this->dispatch($tipo, message: $prefijo.': '.$msg);
         }
     }
 
     public function agregarArticulo($articuloId)
     {
         $articulo = Articulo::with(['categoriaModel', 'tipoIva'])->find($articuloId);
-        if (!$articulo) return;
+        if (! $articulo) {
+            return;
+        }
 
         $precioInfo = $this->obtenerPrecioConLista($articulo);
 
@@ -859,7 +866,7 @@ class NuevaVenta extends Component
 
         // Verificar si el artículo tiene opcionales en esta sucursal
         $grupos = $this->opcionalService->obtenerOpcionalesParaVenta($articuloId, $this->sucursalId);
-        if (!empty($grupos)) {
+        if (! empty($grupos)) {
             // Tiene opcionales: abrir wizard en vez de agregar directo
             $this->wizardArticuloId = $articulo->id;
             $this->wizardArticuloData = [
@@ -882,6 +889,7 @@ class NuevaVenta extends Component
             $this->mostrarWizardOpcionales = true;
             $this->busquedaArticulo = '';
             $this->articulosResultados = [];
+
             return;
         }
 
@@ -895,7 +903,7 @@ class NuevaVenta extends Component
         foreach ($this->items as $idx => $item) {
             if (
                 ($item['articulo_id'] ?? null) == $articulo->id
-                && !($item['es_concepto'] ?? false)
+                && ! ($item['es_concepto'] ?? false)
                 && (float) ($item['precio'] ?? 0) === (float) $precioNuevo
                 && empty($item['ajuste_manual_tipo'])
                 && empty($item['opcionales'])
@@ -954,9 +962,9 @@ class NuevaVenta extends Component
 
         // Primero intentar coincidencia exacta por código de barras o código
         $articuloPorCodigo = Articulo::where('activo', true)
-            ->where(function($q) use ($busqueda) {
+            ->where(function ($q) use ($busqueda) {
                 $q->where('codigo_barras', $busqueda)
-                  ->orWhere('codigo', $busqueda);
+                    ->orWhere('codigo', $busqueda);
             })
             ->first();
 
@@ -964,23 +972,25 @@ class NuevaVenta extends Component
 
         if ($articuloPorCodigo) {
             $articuloId = $articuloPorCodigo->id;
-        } elseif (!empty($this->articulosResultados)) {
+        } elseif (! empty($this->articulosResultados)) {
             $articuloId = $this->articulosResultados[0]['id'];
         }
 
-        if (!$articuloId) {
+        if (! $articuloId) {
             return;
         }
 
         // Verificar si está en modo consulta
         if ($this->modoConsulta) {
             $this->consultarPrecios($articuloId);
+
             return;
         }
 
         // Verificar si está en modo búsqueda en detalle
         if ($this->modoBusqueda) {
             $this->buscarEnDetalle($articuloId);
+
             return;
         }
 
@@ -1002,9 +1012,9 @@ class NuevaVenta extends Component
 
         // Buscar coincidencia exacta por código de barras o código
         $articulo = Articulo::where('activo', true)
-            ->where(function($q) use ($codigo) {
+            ->where(function ($q) use ($codigo) {
                 $q->where('codigo_barras', $codigo)
-                  ->orWhere('codigo', $codigo);
+                    ->orWhere('codigo', $codigo);
             })
             ->first();
 
@@ -1073,8 +1083,9 @@ class NuevaVenta extends Component
     {
         $articulo = Articulo::with('categoriaModel')->find($articuloId);
 
-        if (!$articulo) {
+        if (! $articulo) {
             $this->dispatch('toast-error', message: __('Artículo no encontrado'));
+
             return;
         }
 
@@ -1199,11 +1210,15 @@ class NuevaVenta extends Component
     public function toggleOpcion($opcionalId)
     {
         $grupo = $this->wizardGrupos[$this->wizardPasoActual] ?? null;
-        if (!$grupo) return;
+        if (! $grupo) {
+            return;
+        }
 
         // Verificar que la opción esté disponible
         $opcion = collect($grupo['opciones'])->firstWhere('opcional_id', $opcionalId);
-        if (!$opcion || !($opcion['disponible'] ?? true)) return;
+        if (! $opcion || ! ($opcion['disponible'] ?? true)) {
+            return;
+        }
 
         $grupoId = $grupo['grupo_id'];
         $selecciones = $this->wizardSelecciones[$grupoId] ?? [];
@@ -1229,11 +1244,15 @@ class NuevaVenta extends Component
     public function cambiarCantidadOpcion($opcionalId, $delta)
     {
         $grupo = $this->wizardGrupos[$this->wizardPasoActual] ?? null;
-        if (!$grupo) return;
+        if (! $grupo) {
+            return;
+        }
 
         // Verificar que la opción esté disponible
         $opcion = collect($grupo['opciones'])->firstWhere('opcional_id', $opcionalId);
-        if (!$opcion || !($opcion['disponible'] ?? true)) return;
+        if (! $opcion || ! ($opcion['disponible'] ?? true)) {
+            return;
+        }
 
         $grupoId = $grupo['grupo_id'];
         $selecciones = $this->wizardSelecciones[$grupoId] ?? [];
@@ -1265,7 +1284,7 @@ class NuevaVenta extends Component
     public function confirmarPasoWizard($forzar = false)
     {
         // Validar obligatorio (Ctrl+Enter fuerza el avance)
-        if (!$forzar) {
+        if (! $forzar) {
             $grupo = $this->wizardGrupos[$this->wizardPasoActual] ?? null;
             if ($grupo && $grupo['obligatorio']) {
                 $grupoId = $grupo['grupo_id'];
@@ -1311,8 +1330,9 @@ class NuevaVenta extends Component
     public function confirmarWizardOpcionales()
     {
         $data = $this->wizardArticuloData;
-        if (!$data) {
+        if (! $data) {
             $this->cerrarWizardOpcionales();
+
             return;
         }
 
@@ -1324,7 +1344,9 @@ class NuevaVenta extends Component
             $grupoId = $grupo['grupo_id'];
             $selecciones = $this->wizardSelecciones[$grupoId] ?? [];
 
-            if (empty($selecciones)) continue;
+            if (empty($selecciones)) {
+                continue;
+            }
 
             $seleccionesDetalle = [];
             foreach ($grupo['opciones'] as $opcion) {
@@ -1341,7 +1363,7 @@ class NuevaVenta extends Component
                 }
             }
 
-            if (!empty($seleccionesDetalle)) {
+            if (! empty($seleccionesDetalle)) {
                 $opcionalesItem[] = [
                     'grupo_id' => $grupoId,
                     'grupo_nombre' => $grupo['nombre'],
@@ -1398,10 +1420,14 @@ class NuevaVenta extends Component
     public function editarOpcionalesItem($index)
     {
         $item = $this->items[$index] ?? null;
-        if (!$item || empty($item['articulo_id'])) return;
+        if (! $item || empty($item['articulo_id'])) {
+            return;
+        }
 
         $grupos = $this->opcionalService->obtenerOpcionalesParaVenta($item['articulo_id'], $this->sucursalId);
-        if (empty($grupos)) return;
+        if (empty($grupos)) {
+            return;
+        }
 
         $this->wizardArticuloId = $item['articulo_id'];
         $this->wizardArticuloData = [
@@ -1462,7 +1488,7 @@ class NuevaVenta extends Component
         $this->categoriasDisponibles = Categoria::where('activo', true)
             ->orderBy('nombre')
             ->get()
-            ->map(fn($c) => ['id' => $c->id, 'nombre' => $c->nombre])
+            ->map(fn ($c) => ['id' => $c->id, 'nombre' => $c->nombre])
             ->toArray();
 
         $this->conceptoDescripcion = '';
@@ -1491,6 +1517,7 @@ class NuevaVenta extends Component
         // Validar solo el importe
         if ($this->conceptoImporte <= 0) {
             $this->dispatch('toast-error', message: 'El importe debe ser mayor a cero');
+
             return;
         }
 
@@ -1554,6 +1581,7 @@ class NuevaVenta extends Component
         // Solo mostrar resultados si hay al menos 2 caracteres
         if (strlen($value) < 2) {
             $this->clientesResultados = [];
+
             return;
         }
 
@@ -1569,28 +1597,28 @@ class NuevaVenta extends Component
 
         // Filtrar por sucursal si está seleccionada
         if ($this->sucursalId) {
-            $query->where(function($q) {
+            $query->where(function ($q) {
                 // Clientes vinculados a la sucursal y activos en ella
-                $q->whereHas('sucursales', function($subQ) {
+                $q->whereHas('sucursales', function ($subQ) {
                     $subQ->where('sucursal_id', $this->sucursalId)
-                         ->where('clientes_sucursales.activo', true);
+                        ->where('clientes_sucursales.activo', true);
                 })
                 // O clientes sin vinculación a ninguna sucursal (disponibles para todas)
-                ->orWhereDoesntHave('sucursales');
+                    ->orWhereDoesntHave('sucursales');
             });
         }
 
         // Búsqueda inteligente por nombre, CUIT y teléfono
-        $query->where(function($q) use ($busqueda) {
-            $q->where('nombre', 'like', '%' . $busqueda . '%')
-              ->orWhere('cuit', 'like', '%' . $busqueda . '%')
-              ->orWhere('telefono', 'like', '%' . $busqueda . '%');
+        $query->where(function ($q) use ($busqueda) {
+            $q->where('nombre', 'like', '%'.$busqueda.'%')
+                ->orWhere('cuit', 'like', '%'.$busqueda.'%')
+                ->orWhere('telefono', 'like', '%'.$busqueda.'%');
         });
 
         $this->clientesResultados = $query->orderBy('nombre')
             ->limit(10)
             ->get()
-            ->map(fn($c) => [
+            ->map(fn ($c) => [
                 'id' => $c->id,
                 'nombre' => $c->nombre,
                 'cuit' => $c->cuit,
@@ -1633,35 +1661,36 @@ class NuevaVenta extends Component
         // Por defecto, Factura B (Consumidor Final)
         $this->tipoFacturaCliente = 'B';
 
-        if (!$cliente) {
+        if (! $cliente) {
             return;
         }
 
         // Obtener condición IVA del emisor desde la caja activa
         try {
             $cajaId = $this->cajaSeleccionada ?? caja_activa();
-            if (!$cajaId) {
+            if (! $cajaId) {
                 return;
             }
 
             $caja = Caja::with('puntosVenta.cuit.condicionIva')->find($cajaId);
-            if (!$caja) {
+            if (! $caja) {
                 return;
             }
 
             $puntoVenta = $caja->puntoVentaDefecto();
-            if (!$puntoVenta || !$puntoVenta->cuit) {
+            if (! $puntoVenta || ! $puntoVenta->cuit) {
                 return;
             }
 
             $condicionEmisor = $puntoVenta->cuit->condicionIva;
-            if (!$condicionEmisor) {
+            if (! $condicionEmisor) {
                 return;
             }
 
             // Si el emisor es Monotributista o Exento, siempre es C
             if ($condicionEmisor->esMonotributista() || $condicionEmisor->esExento()) {
                 $this->tipoFacturaCliente = 'C';
+
                 return;
             }
 
@@ -1701,12 +1730,12 @@ class NuevaVenta extends Component
      */
     public function seleccionarPrimerCliente()
     {
-        if (empty($this->clientesResultados) && !empty($this->busquedaCliente)) {
+        if (empty($this->clientesResultados) && ! empty($this->busquedaCliente)) {
             // Si no hay resultados, buscar
             $this->buscarClientes($this->busquedaCliente);
         }
 
-        if (!empty($this->clientesResultados)) {
+        if (! empty($this->clientesResultados)) {
             $this->seleccionarCliente($this->clientesResultados[0]['id']);
         }
     }
@@ -1766,12 +1795,12 @@ class NuevaVenta extends Component
             $this->cerrarModalClienteRapido();
 
             $this->dispatch('notify',
-                message: 'Cliente "' . $cliente->nombre . '" creado correctamente',
+                message: 'Cliente "'.$cliente->nombre.'" creado correctamente',
                 type: 'success'
             );
 
         } catch (Exception $e) {
-            Log::error('Error al crear cliente rápido: ' . $e->getMessage());
+            Log::error('Error al crear cliente rápido: '.$e->getMessage());
             $this->dispatch('notify',
                 message: 'Error al crear el cliente',
                 type: 'error'
@@ -1828,7 +1857,7 @@ class NuevaVenta extends Component
         $this->actualizarFacturaFiscalSegunFP();
 
         // Si es forma de pago mixta, abrir modal de desglose
-        if ($this->ajusteFormaPagoInfo['es_mixta'] && !empty($this->items)) {
+        if ($this->ajusteFormaPagoInfo['es_mixta'] && ! empty($this->items)) {
             $this->abrirModalDesglose();
         }
     }
@@ -1849,7 +1878,7 @@ class NuevaVenta extends Component
      */
     public function toggleCuotasSelector(): void
     {
-        $this->cuotasSelectorAbierto = !$this->cuotasSelectorAbierto;
+        $this->cuotasSelectorAbierto = ! $this->cuotasSelectorAbierto;
     }
 
     /**
@@ -1860,13 +1889,13 @@ class NuevaVenta extends Component
         $this->cuotasFormaPagoDisponibles = [];
         $this->formaPagoPermiteCuotas = false;
 
-        if (!$this->formaPagoId) {
+        if (! $this->formaPagoId) {
             return;
         }
 
         $formaPago = FormaPago::find($this->formaPagoId);
 
-        if (!$formaPago || !$formaPago->permite_cuotas || $formaPago->es_mixta) {
+        if (! $formaPago || ! $formaPago->permite_cuotas || $formaPago->es_mixta) {
             return;
         }
 
@@ -1887,7 +1916,7 @@ class NuevaVenta extends Component
                 ->first();
 
             // Si existe config de sucursal y está desactivada, omitir
-            if ($configSucursal && !$configSucursal->activo) {
+            if ($configSucursal && ! $configSucursal->activo) {
                 continue;
             }
 
@@ -1916,13 +1945,13 @@ class NuevaVenta extends Component
     {
         $this->resetInfoCuotaSeleccionada();
 
-        if (!$this->cuotaSeleccionadaId) {
+        if (! $this->cuotaSeleccionadaId) {
             return;
         }
 
         $cuotaInfo = collect($this->cuotasFormaPagoDisponibles)->firstWhere('id', (int) $this->cuotaSeleccionadaId);
 
-        if (!$cuotaInfo) {
+        if (! $cuotaInfo) {
             return;
         }
 
@@ -1948,12 +1977,12 @@ class NuevaVenta extends Component
             return '1 pago';
         }
 
-        $desc = "{$cantCuotas} cuotas de $" . number_format($cuotaInfo['valor_cuota'], 2, ',', '.');
+        $desc = "{$cantCuotas} cuotas de $".number_format($cuotaInfo['valor_cuota'], 2, ',', '.');
 
         if ($recargo > 0) {
             $desc .= " (+{$recargo}%)";
         } else {
-            $desc .= " (sin interés)";
+            $desc .= ' (sin interés)';
         }
 
         return $desc;
@@ -1993,7 +2022,7 @@ class NuevaVenta extends Component
             'valor_cuota' => 0,
         ];
 
-        if (!$this->formaPagoId || !$this->resultado) {
+        if (! $this->formaPagoId || ! $this->resultado) {
             return;
         }
 
@@ -2004,10 +2033,10 @@ class NuevaVenta extends Component
 
         $fp = collect($this->formasPagoSucursal)->firstWhere('id', (int) $this->formaPagoId);
 
-        if (!$fp) {
+        if (! $fp) {
             // Intentar cargar desde la base de datos
             $formaPago = FormaPago::find($this->formaPagoId);
-            if (!$formaPago) {
+            if (! $formaPago) {
                 return;
             }
 
@@ -2040,7 +2069,7 @@ class NuevaVenta extends Component
         $valorCuota = $totalConAjuste;
 
         // Si hay cuota seleccionada, aplicar recargo de cuotas
-        if ($this->cuotaSeleccionadaId && !empty($this->cuotasFormaPagoDisponibles)) {
+        if ($this->cuotaSeleccionadaId && ! empty($this->cuotasFormaPagoDisponibles)) {
             $cuotaInfo = collect($this->cuotasFormaPagoDisponibles)->firstWhere('id', (int) $this->cuotaSeleccionadaId);
 
             if ($cuotaInfo) {
@@ -2090,12 +2119,12 @@ class NuevaVenta extends Component
      * El ajuste de forma de pago (descuento o recargo) se prorratea proporcionalmente
      * entre las alícuotas de IVA, siguiendo las reglas de AFIP.
      *
-     * @param float $montoAjusteFormaPago Monto del ajuste de forma de pago (negativo = descuento)
-     * @param float $montoRecargoCuotas Monto del recargo por cuotas (siempre positivo o cero)
+     * @param  float  $montoAjusteFormaPago  Monto del ajuste de forma de pago (negativo = descuento)
+     * @param  float  $montoRecargoCuotas  Monto del recargo por cuotas (siempre positivo o cero)
      */
     protected function actualizarDesgloseIvaConAjusteFormaPago(float $montoAjusteFormaPago, float $montoRecargoCuotas): void
     {
-        if (!$this->resultado || !isset($this->resultado['desglose_iva'])) {
+        if (! $this->resultado || ! isset($this->resultado['desglose_iva'])) {
             return;
         }
 
@@ -2108,6 +2137,7 @@ class NuevaVenta extends Component
             $this->resultado['desglose_iva']['ajuste_forma_pago'] = 0;
             $this->resultado['desglose_iva']['recargo_cuotas'] = 0;
             $this->resultado['desglose_iva']['total_con_ajuste_fp'] = $desglose['total'];
+
             return;
         }
 
@@ -2186,8 +2216,9 @@ class NuevaVenta extends Component
      */
     public function abrirModalDesglose(): void
     {
-        if (empty($this->items) || !$this->resultado) {
+        if (empty($this->items) || ! $this->resultado) {
             $this->dispatch('toast-error', message: 'El carrito está vacío');
+
             return;
         }
 
@@ -2207,14 +2238,16 @@ class NuevaVenta extends Component
      */
     public function editarDesglose(): void
     {
-        if (empty($this->items) || !$this->resultado) {
+        if (empty($this->items) || ! $this->resultado) {
             $this->dispatch('toast-error', message: 'El carrito está vacío');
+
             return;
         }
 
         if (empty($this->desglosePagos)) {
             // Si no hay desglose, abrir como nuevo
             $this->abrirModalDesglose();
+
             return;
         }
 
@@ -2298,8 +2331,9 @@ class NuevaVenta extends Component
     {
         $index = $this->ajusteManualPopoverIndex;
 
-        if ($index === null || !isset($this->items[$index])) {
+        if ($index === null || ! isset($this->items[$index])) {
             $this->cerrarAjusteManual();
+
             return;
         }
 
@@ -2310,6 +2344,7 @@ class NuevaVenta extends Component
         // Validar que se ingresó un valor
         if ($valor === null || $valor === '') {
             $this->dispatch('toast-error', message: 'Ingrese un valor');
+
             return;
         }
 
@@ -2319,6 +2354,7 @@ class NuevaVenta extends Component
             // El valor es el nuevo precio directo
             if ($valor <= 0) {
                 $this->dispatch('toast-error', message: 'El precio debe ser mayor a cero');
+
                 return;
             }
             $nuevoPrecio = $valor;
@@ -2326,12 +2362,14 @@ class NuevaVenta extends Component
             // El valor es un porcentaje (positivo = descuento, negativo = recargo)
             if ($valor < -100 || $valor > 100) {
                 $this->dispatch('toast-error', message: 'El porcentaje debe estar entre -100% y 100%');
+
                 return;
             }
             // Positivo resta (descuento), negativo suma (recargo)
             $nuevoPrecio = round($precioBase - ($precioBase * $valor / 100), 2);
             if ($nuevoPrecio <= 0) {
                 $this->dispatch('toast-error', message: 'El precio resultante debe ser mayor a cero');
+
                 return;
             }
         }
@@ -2356,7 +2394,7 @@ class NuevaVenta extends Component
      */
     public function quitarAjusteManual(int $index): void
     {
-        if (!isset($this->items[$index])) {
+        if (! isset($this->items[$index])) {
             return;
         }
 
@@ -2393,6 +2431,7 @@ class NuevaVenta extends Component
     {
         if (empty($this->items)) {
             $this->resultado = null;
+
             return;
         }
 
@@ -2413,7 +2452,7 @@ class NuevaVenta extends Component
 
         // Marcar artículos excluidos de promociones
         $articulosExcluidos = [];
-        if (!$infoPromos['aplica_promociones']) {
+        if (! $infoPromos['aplica_promociones']) {
             // La lista no aplica promociones, todos excluidos
             foreach ($poolUnidades as &$unidad) {
                 $unidad['excluido_promociones'] = true;
@@ -2424,8 +2463,14 @@ class NuevaVenta extends Component
             $listaPrecio = ListaPrecio::find($this->listaPrecioId);
             if ($listaPrecio) {
                 foreach ($poolUnidades as &$unidad) {
+                    $categoriaId = $unidad['categoria_id'] ?? null;
                     $tienePrecioEspecial = $listaPrecio->articulos()
-                        ->where('articulo_id', $unidad['articulo_id'])
+                        ->where(function ($query) use ($unidad, $categoriaId) {
+                            $query->where('articulo_id', $unidad['articulo_id']);
+                            if ($categoriaId) {
+                                $query->orWhere('categoria_id', $categoriaId);
+                            }
+                        })
                         ->exists();
                     if ($tienePrecioEspecial) {
                         $unidad['excluido_promociones'] = true;
@@ -2512,8 +2557,8 @@ class NuevaVenta extends Component
 
             // Calcular unidades libres por item para promociones comunes
             foreach ($itemsParaPromos as $itemIndex => &$itemPromo) {
-                $unidadesDelItem = array_values(array_filter($poolUnidades, fn($u) => $u['item_index'] === $itemIndex));
-                $unidadesLibres = array_values(array_filter($unidadesDelItem, fn($u) => !($u['consumida'] ?? false)));
+                $unidadesDelItem = array_values(array_filter($poolUnidades, fn ($u) => $u['item_index'] === $itemIndex));
+                $unidadesLibres = array_values(array_filter($unidadesDelItem, fn ($u) => ! ($u['consumida'] ?? false)));
                 $cantidadLibre = count($unidadesLibres);
                 $cantidadTotal = count($unidadesDelItem);
 
@@ -2543,9 +2588,9 @@ class NuevaVenta extends Component
         // Preparar información de items con estado
         foreach ($this->items as $index => $item) {
             // Filtrar unidades de este item específico y reindexar
-            $unidadesDelItem = array_values(array_filter($poolUnidades, fn($u) => $u['item_index'] === $index));
-            $unidadesConsumidas = array_values(array_filter($unidadesDelItem, fn($u) => $u['consumida'] ?? false));
-            $unidadesLibres = array_values(array_filter($unidadesDelItem, fn($u) => !($u['consumida'] ?? false)));
+            $unidadesDelItem = array_values(array_filter($poolUnidades, fn ($u) => $u['item_index'] === $index));
+            $unidadesConsumidas = array_values(array_filter($unidadesDelItem, fn ($u) => $u['consumida'] ?? false));
+            $unidadesLibres = array_values(array_filter($unidadesDelItem, fn ($u) => ! ($u['consumida'] ?? false)));
             $articuloId = $item['articulo_id'] ?? null;
             $excluido = isset($articulosExcluidos[$articuloId]);
 
@@ -2556,10 +2601,10 @@ class NuevaVenta extends Component
             // Obtener info completa de promociones especiales aplicadas a este item
             $promosEspecialesItem = [];
             foreach ($unidadesConsumidas as $unidad) {
-                if (!empty($unidad['promo_especial_info'])) {
+                if (! empty($unidad['promo_especial_info'])) {
                     $promoKey = $unidad['promo_especial_info']['id'];
                     // Evitar duplicados usando el ID como clave
-                    if (!isset($promosEspecialesItem[$promoKey])) {
+                    if (! isset($promosEspecialesItem[$promoKey])) {
                         $promosEspecialesItem[$promoKey] = $unidad['promo_especial_info'];
                     }
                 }
@@ -2580,6 +2625,15 @@ class NuevaVenta extends Component
                 'promociones_comunes' => $promocionesComunes,
                 'descuento_comun' => $descuentoComun,
             ];
+        }
+
+        // Validar límite máximo de descuento (70% del subtotal)
+        if ($resultado['subtotal'] > 0) {
+            $maxDescuento = $resultado['subtotal'] * 0.70;
+            if ($resultado['total_descuentos'] > $maxDescuento) {
+                Log::warning("Descuento total {$resultado['total_descuentos']} excede 70% del subtotal {$resultado['subtotal']}");
+                $resultado['total_descuentos'] = $maxDescuento;
+            }
         }
 
         // Calcular total final
@@ -2614,9 +2668,9 @@ class NuevaVenta extends Component
      * 3. Si hay descuentos, los prorrateamos proporcionalmente a los netos
      * 4. Recalculamos el IVA sobre los netos con descuento
      *
-     * @param array $items Items del resultado con precio y cantidad
-     * @param float $totalDescuentos Total de descuentos aplicados (promociones)
-     * @param float $subtotal Subtotal antes de descuentos
+     * @param  array  $items  Items del resultado con precio y cantidad
+     * @param  float  $totalDescuentos  Total de descuentos aplicados (promociones)
+     * @param  float  $subtotal  Subtotal antes de descuentos
      * @return array Desglose por alícuota + totales
      */
     protected function calcularDesgloseIva(array $items, float $totalDescuentos, float $subtotal): array
@@ -2651,7 +2705,7 @@ class NuevaVenta extends Component
             }
 
             // Inicializar alícuota si no existe
-            if (!isset($porAlicuota[$ivaCodigo])) {
+            if (! isset($porAlicuota[$ivaCodigo])) {
                 $porAlicuota[$ivaCodigo] = [
                     'codigo' => $ivaCodigo,
                     'nombre' => $ivaNombre,
@@ -2756,7 +2810,7 @@ class NuevaVenta extends Component
 
             for ($i = 0; $i < $cantidad; $i++) {
                 $pool[] = [
-                    'id' => 'u_' . ($idCounter++),
+                    'id' => 'u_'.($idCounter++),
                     'item_index' => $itemIndex,
                     'articulo_id' => $item['articulo_id'],
                     'categoria_id' => $item['categoria_id'] ?? null,
@@ -2779,7 +2833,7 @@ class NuevaVenta extends Component
         $listaSeleccionada = collect($this->listasPreciosDisponibles)
             ->firstWhere('id', $this->listaPrecioId);
 
-        if (!$listaSeleccionada) {
+        if (! $listaSeleccionada) {
             return [
                 'aplica_promociones' => true,
                 'promociones_alcance' => 'todos',
@@ -2800,25 +2854,26 @@ class NuevaVenta extends Component
     {
         $promociones = PromocionEspecial::where('sucursal_id', $this->sucursalId)
             ->where('activo', true)
-            ->where(function($q) {
+            ->where(function ($q) {
                 $q->whereNull('vigencia_desde')
-                  ->orWhere('vigencia_desde', '<=', now());
+                    ->orWhere('vigencia_desde', '<=', now());
             })
-            ->where(function($q) {
+            ->where(function ($q) {
                 $q->whereNull('vigencia_hasta')
-                  ->orWhere('vigencia_hasta', '>=', now());
+                    ->orWhere('vigencia_hasta', '>=', now());
             })
             ->with(['grupos.articulos', 'escalas'])
             ->orderBy('prioridad')
             ->get();
 
-        return $promociones->filter(function($promo) use ($contexto) {
+        return $promociones->filter(function ($promo) use ($contexto) {
             // Verificar usos disponibles
-            if (!$promo->tieneUsosDisponibles()) {
+            if (! $promo->tieneUsosDisponibles()) {
                 return false;
             }
+
             return $this->promocionEspecialCumpleCondiciones($promo, $contexto);
-        })->map(function($promo) {
+        })->map(function ($promo) {
             return $this->convertirPromocionEspecialAArray($promo);
         })->toArray();
     }
@@ -2847,7 +2902,7 @@ class NuevaVenta extends Component
         }
 
         // Verificar día de la semana
-        if (!empty($promo->dias_semana) && !in_array($contexto['dia_semana'], $promo->dias_semana)) {
+        if (! empty($promo->dias_semana) && ! in_array($contexto['dia_semana'], $promo->dias_semana)) {
             return false;
         }
 
@@ -2879,21 +2934,21 @@ class NuevaVenta extends Component
             'usa_escalas' => $promo->usa_escalas,
             'escalas' => $promo->escalas->toArray(),
             // NxM avanzado
-            'grupos_trigger' => $promo->gruposTrigger ? $promo->gruposTrigger->map(fn($g) => [
+            'grupos_trigger' => $promo->gruposTrigger ? $promo->gruposTrigger->map(fn ($g) => [
                 'nombre' => $g->nombre,
                 'articulos_ids' => $g->articulos->pluck('id')->toArray(),
             ])->toArray() : [],
-            'grupos_reward' => $promo->gruposReward ? $promo->gruposReward->map(fn($g) => [
+            'grupos_reward' => $promo->gruposReward ? $promo->gruposReward->map(fn ($g) => [
                 'nombre' => $g->nombre,
                 'articulos_ids' => $g->articulos->pluck('id')->toArray(),
             ])->toArray() : [],
             // Combo/Menu
             'precio_tipo' => $promo->precio_tipo,
             'precio_valor' => $promo->precio_valor,
-            'grupos' => $promo->grupos->map(fn($g) => [
+            'grupos' => $promo->grupos->map(fn ($g) => [
                 'nombre' => $g->nombre,
                 'cantidad' => $g->cantidad,
-                'articulos' => $g->articulos->map(fn($a) => [
+                'articulos' => $g->articulos->map(fn ($a) => [
                     'id' => $a->id,
                     'precio' => $a->precio_base,
                 ])->toArray(),
@@ -2904,9 +2959,9 @@ class NuevaVenta extends Component
     protected function intentarAplicarPromocionEspecial(array $promo, array $poolUnidades): array
     {
         // Filtrar solo unidades disponibles
-        $unidadesDisponibles = array_filter($poolUnidades, fn($u) => !$u['consumida'] && !($u['excluido_promociones'] ?? false));
+        $unidadesDisponibles = array_filter($poolUnidades, fn ($u) => ! $u['consumida'] && ! ($u['excluido_promociones'] ?? false));
 
-        return match($promo['tipo']) {
+        return match ($promo['tipo']) {
             'nxm' => $this->aplicarNxMBasico($promo, $unidadesDisponibles),
             'nxm_avanzado' => $this->aplicarNxMAvanzado($promo, $unidadesDisponibles),
             'combo' => $this->aplicarCombo($promo, $unidadesDisponibles),
@@ -2918,13 +2973,14 @@ class NuevaVenta extends Component
     protected function aplicarNxMBasico(array $promo, array $unidadesDisponibles): array
     {
         // Filtrar unidades que aplican a esta promoción
-        $unidadesAplicables = array_filter($unidadesDisponibles, function($u) use ($promo) {
+        $unidadesAplicables = array_filter($unidadesDisponibles, function ($u) use ($promo) {
             if ($promo['nxm_articulo_id']) {
                 return $u['articulo_id'] == $promo['nxm_articulo_id'];
             }
             if ($promo['nxm_categoria_id']) {
                 return $u['categoria_id'] == $promo['nxm_categoria_id'];
             }
+
             return false;
         });
 
@@ -2936,7 +2992,7 @@ class NuevaVenta extends Component
         $beneficioTipo = $promo['beneficio_tipo'] ?? 'gratis';
         $beneficioPorcentaje = $promo['beneficio_porcentaje'] ?? 100;
 
-        if ($promo['usa_escalas'] && !empty($promo['escalas'])) {
+        if ($promo['usa_escalas'] && ! empty($promo['escalas'])) {
             $escalaAplicable = null;
             foreach ($promo['escalas'] as $escala) {
                 $desde = (int) ($escala['cantidad_desde'] ?? 0);
@@ -2947,7 +3003,7 @@ class NuevaVenta extends Component
                 }
             }
 
-            if (!$escalaAplicable) {
+            if (! $escalaAplicable) {
                 return ['aplicada' => false, 'razon' => 'No hay escala aplicable'];
             }
 
@@ -2962,7 +3018,7 @@ class NuevaVenta extends Component
         }
 
         // Ordenar por precio descendente para bonificar los más caros
-        usort($unidadesAplicables, fn($a, $b) => $b['precio'] <=> $a['precio']);
+        usort($unidadesAplicables, fn ($a, $b) => $b['precio'] <=> $a['precio']);
 
         $vecesAplicable = floor($cantidadDisponible / $lleva);
         $totalUnidadesEnPromo = $lleva * $vecesAplicable;
@@ -3010,15 +3066,15 @@ class NuevaVenta extends Component
             $rewardIds = array_merge($rewardIds, $grupo['articulos_ids'] ?? []);
         }
 
-        $unidadesTrigger = array_values(array_filter($unidadesDisponibles, fn($u) => in_array($u['articulo_id'], $triggerIds)));
-        $unidadesReward = array_values(array_filter($unidadesDisponibles, fn($u) => in_array($u['articulo_id'], $rewardIds)));
+        $unidadesTrigger = array_values(array_filter($unidadesDisponibles, fn ($u) => in_array($u['articulo_id'], $triggerIds)));
+        $unidadesReward = array_values(array_filter($unidadesDisponibles, fn ($u) => in_array($u['articulo_id'], $rewardIds)));
 
         $lleva = $promo['nxm_lleva'];
         $bonifica = $promo['nxm_bonifica'];
         $beneficioTipo = $promo['beneficio_tipo'] ?? 'gratis';
         $beneficioPorcentaje = $promo['beneficio_porcentaje'] ?? 100;
 
-        if ($promo['usa_escalas'] && !empty($promo['escalas'])) {
+        if ($promo['usa_escalas'] && ! empty($promo['escalas'])) {
             $cantidadTrigger = count($unidadesTrigger);
             $escalaAplicable = null;
             foreach ($promo['escalas'] as $escala) {
@@ -3046,7 +3102,7 @@ class NuevaVenta extends Component
             return ['aplicada' => false, 'razon' => "Necesita {$bonifica} rewards"];
         }
 
-        usort($unidadesReward, fn($a, $b) => $b['precio'] <=> $a['precio']);
+        usort($unidadesReward, fn ($a, $b) => $b['precio'] <=> $a['precio']);
 
         $vecesAplicable = min(
             floor(count($unidadesTrigger) / $lleva),
@@ -3106,7 +3162,9 @@ class NuevaVenta extends Component
             $cantidadRequerida = (int) ($grupo['cantidad'] ?? 1);
             $articulosDelGrupo = $grupo['articulos'] ?? [];
 
-            if (empty($articulosDelGrupo)) continue;
+            if (empty($articulosDelGrupo)) {
+                continue;
+            }
 
             // Obtener todos los IDs de artículos válidos para este grupo
             $articulosIdsDelGrupo = array_column($articulosDelGrupo, 'id');
@@ -3114,7 +3172,7 @@ class NuevaVenta extends Component
             // Buscar unidades de CUALQUIER artículo del grupo (no solo el primero)
             $unidadesDeEsteGrupo = array_values(array_filter(
                 $unidadesDisponibles,
-                fn($u) => in_array($u['articulo_id'], $articulosIdsDelGrupo) && !in_array($u['id'], $unidadesConsumidas)
+                fn ($u) => in_array($u['articulo_id'], $articulosIdsDelGrupo) && ! in_array($u['id'], $unidadesConsumidas)
             ));
 
             if (count($unidadesDeEsteGrupo) < $cantidadRequerida) {
@@ -3122,7 +3180,7 @@ class NuevaVenta extends Component
             }
 
             // Ordenar por precio ascendente para consumir los más baratos primero
-            usort($unidadesDeEsteGrupo, fn($a, $b) => $a['precio'] <=> $b['precio']);
+            usort($unidadesDeEsteGrupo, fn ($a, $b) => $a['precio'] <=> $b['precio']);
 
             for ($i = 0; $i < $cantidadRequerida; $i++) {
                 $unidad = $unidadesDeEsteGrupo[$i];
@@ -3148,7 +3206,7 @@ class NuevaVenta extends Component
             'aplicada' => true,
             'descuento' => $descuento,
             'descripcion' => $promo['precio_tipo'] === 'fijo'
-                ? "Combo a $" . number_format($promo['precio_valor'], 0, ',', '.')
+                ? 'Combo a $'.number_format($promo['precio_valor'], 0, ',', '.')
                 : "Combo con {$promo['precio_valor']}% dto",
             'unidades_consumidas' => $unidadesConsumidas,
         ];
@@ -3173,14 +3231,14 @@ class NuevaVenta extends Component
 
             $unidadesDeEsteGrupo = array_values(array_filter(
                 $unidadesDisponibles,
-                fn($u) => in_array($u['articulo_id'], $articulosDelGrupo) && !in_array($u['id'], $unidadesConsumidas)
+                fn ($u) => in_array($u['articulo_id'], $articulosDelGrupo) && ! in_array($u['id'], $unidadesConsumidas)
             ));
 
             if (count($unidadesDeEsteGrupo) < $cantidadRequerida) {
                 return ['aplicada' => false, 'razon' => "Faltan artículos para '{$grupo['nombre']}'"];
             }
 
-            usort($unidadesDeEsteGrupo, fn($a, $b) => $a['precio'] <=> $b['precio']);
+            usort($unidadesDeEsteGrupo, fn ($a, $b) => $a['precio'] <=> $b['precio']);
 
             for ($i = 0; $i < $cantidadRequerida; $i++) {
                 $unidad = $unidadesDeEsteGrupo[$i];
@@ -3206,7 +3264,7 @@ class NuevaVenta extends Component
             'aplicada' => true,
             'descuento' => $descuento,
             'descripcion' => $promo['precio_tipo'] === 'fijo'
-                ? "Menú a $" . number_format($promo['precio_valor'], 0, ',', '.')
+                ? 'Menú a $'.number_format($promo['precio_valor'], 0, ',', '.')
                 : "Menú con {$promo['precio_valor']}% dto",
             'unidades_consumidas' => $unidadesConsumidas,
         ];
@@ -3228,17 +3286,18 @@ class NuevaVenta extends Component
             ->get();
 
         // Filtrar por día de la semana y horario
-        return $promociones->filter(function($promo) use ($contexto) {
+        return $promociones->filter(function ($promo) use ($contexto) {
             // Verificar día de la semana
-            if (!$promo->aplicaEnDiaSemana($contexto['dia_semana'])) {
+            if (! $promo->aplicaEnDiaSemana($contexto['dia_semana'])) {
                 return false;
             }
             // Verificar horario
-            if (!$promo->aplicaEnHorario($contexto['hora'])) {
+            if (! $promo->aplicaEnHorario($contexto['hora'])) {
                 return false;
             }
+
             return true;
-        })->map(function($promo) {
+        })->map(function ($promo) {
             return $this->convertirPromocionComunAArray($promo);
         })->toArray();
     }
@@ -3281,23 +3340,23 @@ class NuevaVenta extends Component
     protected function promocionCumpleCondiciones(array $promo, array $contexto): bool
     {
         // Verificar monto mínimo
-        if (!empty($promo['monto_minimo'])) {
+        if (! empty($promo['monto_minimo'])) {
             if (($contexto['subtotal'] ?? 0) < (float) $promo['monto_minimo']) {
                 return false;
             }
         }
 
         // Verificar cantidad mínima
-        if (!empty($promo['cantidad_minima'])) {
+        if (! empty($promo['cantidad_minima'])) {
             if (($contexto['cantidad_total'] ?? 0) < (int) $promo['cantidad_minima']) {
                 return false;
             }
         }
 
         // Verificar forma de pago: si la promoción requiere una forma de pago específica
-        if (!empty($promo['forma_pago_id'])) {
+        if (! empty($promo['forma_pago_id'])) {
             // Si el contexto tiene una forma de pago seleccionada, debe coincidir
-            if (!empty($contexto['forma_pago_id'])) {
+            if (! empty($contexto['forma_pago_id'])) {
                 if ($promo['forma_pago_id'] != $contexto['forma_pago_id']) {
                     return false;
                 }
@@ -3308,8 +3367,8 @@ class NuevaVenta extends Component
         }
 
         // Verificar forma de venta
-        if (!empty($promo['forma_venta_id'])) {
-            if (!empty($contexto['forma_venta_id'])) {
+        if (! empty($promo['forma_venta_id'])) {
+            if (! empty($contexto['forma_venta_id'])) {
                 if ($promo['forma_venta_id'] != $contexto['forma_venta_id']) {
                     return false;
                 }
@@ -3319,8 +3378,8 @@ class NuevaVenta extends Component
         }
 
         // Verificar canal de venta
-        if (!empty($promo['canal_venta_id'])) {
-            if (!empty($contexto['canal_venta_id'])) {
+        if (! empty($promo['canal_venta_id'])) {
+            if (! empty($contexto['canal_venta_id'])) {
                 if ($promo['canal_venta_id'] != $contexto['canal_venta_id']) {
                     return false;
                 }
@@ -3330,15 +3389,15 @@ class NuevaVenta extends Component
         }
 
         // Verificar día de la semana
-        if (!empty($promo['dias_semana']) && !in_array($contexto['dia_semana'], $promo['dias_semana'])) {
+        if (! empty($promo['dias_semana']) && ! in_array($contexto['dia_semana'], $promo['dias_semana'])) {
             return false;
         }
 
         // Verificar horario
-        if (!empty($promo['hora_desde']) && $contexto['hora'] < $promo['hora_desde']) {
+        if (! empty($promo['hora_desde']) && $contexto['hora'] < $promo['hora_desde']) {
             return false;
         }
-        if (!empty($promo['hora_hasta']) && $contexto['hora'] > $promo['hora_hasta']) {
+        if (! empty($promo['hora_hasta']) && $contexto['hora'] > $promo['hora_hasta']) {
             return false;
         }
 
@@ -3351,12 +3410,12 @@ class NuevaVenta extends Component
     protected function promocionAplicaAItem(array $promo, ?int $articuloId, ?int $categoriaId): bool
     {
         // Si la promoción es para un artículo específico
-        if (!empty($promo['articulo_id'])) {
+        if (! empty($promo['articulo_id'])) {
             return $promo['articulo_id'] == $articuloId;
         }
 
         // Si la promoción es para una categoría específica
-        if (!empty($promo['categoria_id'])) {
+        if (! empty($promo['categoria_id'])) {
             return $promo['categoria_id'] == $categoriaId;
         }
 
@@ -3371,7 +3430,7 @@ class NuevaVenta extends Component
     {
         $promocionesAplicadas = [];
         $cantidadTotal = array_sum(array_column($items, 'cantidad'));
-        $subtotal = array_sum(array_map(fn($i) => $i['precio'] * $i['cantidad'], $items));
+        $subtotal = array_sum(array_map(fn ($i) => $i['precio'] * $i['cantidad'], $items));
 
         $contextoCompleto = array_merge($contexto, [
             'subtotal' => $subtotal,
@@ -3379,7 +3438,7 @@ class NuevaVenta extends Component
         ]);
 
         // Filtrar promociones que cumplen condiciones generales
-        $promocionesValidas = array_filter($promociones, fn($p) => $this->promocionCumpleCondiciones($p, $contextoCompleto));
+        $promocionesValidas = array_filter($promociones, fn ($p) => $this->promocionCumpleCondiciones($p, $contextoCompleto));
 
         // Procesar cada item
         foreach ($items as $itemIndex => &$item) {
@@ -3390,12 +3449,12 @@ class NuevaVenta extends Component
             $subtotalItem = $precioUnitario * $cantidad;
 
             // Saltar items excluidos de promociones
-            if (!empty($item['excluido_promociones'])) {
+            if (! empty($item['excluido_promociones'])) {
                 continue;
             }
 
             // Filtrar promociones que aplican a este item
-            $promocionesParaItem = array_filter($promocionesValidas, fn($p) => $this->promocionAplicaAItem($p, $articuloId, $categoriaId));
+            $promocionesParaItem = array_filter($promocionesValidas, fn ($p) => $this->promocionAplicaAItem($p, $articuloId, $categoriaId));
 
             if (empty($promocionesParaItem)) {
                 continue;
@@ -3408,7 +3467,7 @@ class NuevaVenta extends Component
                 $cantidad
             );
 
-            if (!empty($mejorCombinacion['promociones'])) {
+            if (! empty($mejorCombinacion['promociones'])) {
                 $item['promociones_comunes'] = [];
                 $item['total_descuento_comun'] = 0;
 
@@ -3427,7 +3486,7 @@ class NuevaVenta extends Component
                             break;
                         }
                     }
-                    if (!$yaExiste) {
+                    if (! $yaExiste) {
                         $promocionesAplicadas[] = [
                             'id' => $promoAplicada['id'],
                             'nombre' => $promoAplicada['nombre'],
@@ -3453,34 +3512,45 @@ class NuevaVenta extends Component
             return ['monto_final' => $montoInicial, 'promociones' => []];
         }
 
-        $mejorResultado = [
-            'monto_final' => $montoInicial,
-            'promociones' => [],
-        ];
+        // Separar excluyentes de combinables
+        $excluyentes = array_filter($promociones, fn ($p) => ! $p['combinable']);
+        $combinables = array_values(array_filter($promociones, fn ($p) => $p['combinable']));
 
-        $n = count($promociones);
-        $totalCombinaciones = pow(2, $n);
+        $mejorResultado = ['monto_final' => $montoInicial, 'promociones' => []];
 
-        // Evaluar todas las combinaciones posibles
-        for ($i = 1; $i < $totalCombinaciones; $i++) {
-            $combinacion = [];
-            for ($j = 0; $j < $n; $j++) {
-                if ($i & (1 << $j)) {
-                    $combinacion[] = $promociones[$j];
-                }
-            }
-
-            // Verificar si la combinación es válida (respeta reglas de combinabilidad)
-            if (!$this->esCombinacionValida($combinacion)) {
-                continue;
-            }
-
-            // Calcular resultado de esta combinación
-            $resultado = $this->calcularCombinacion($combinacion, $montoInicial, $cantidad);
-
-            // Si es mejor (menor monto final), guardarla
+        // 1. Evaluar cada excluyente por separado — O(n)
+        foreach ($excluyentes as $promo) {
+            $resultado = $this->calcularCombinacion([$promo], $montoInicial, $cantidad);
             if ($resultado['monto_final'] < $mejorResultado['monto_final']) {
                 $mejorResultado = $resultado;
+            }
+        }
+
+        // 2. Evaluar combinables
+        if (! empty($combinables)) {
+            $n = count($combinables);
+
+            if ($n <= 15) {
+                // Exhaustiva para sets pequeños — O(2^n)
+                $totalCombinaciones = pow(2, $n);
+                for ($i = 1; $i < $totalCombinaciones; $i++) {
+                    $combinacion = [];
+                    for ($j = 0; $j < $n; $j++) {
+                        if ($i & (1 << $j)) {
+                            $combinacion[] = $combinables[$j];
+                        }
+                    }
+                    $resultado = $this->calcularCombinacion($combinacion, $montoInicial, $cantidad);
+                    if ($resultado['monto_final'] < $mejorResultado['monto_final']) {
+                        $mejorResultado = $resultado;
+                    }
+                }
+            } else {
+                // Greedy para sets grandes — O(n log n)
+                $resultado = $this->calcularCombinacionGreedy($combinables, $montoInicial, $cantidad);
+                if ($resultado['monto_final'] < $mejorResultado['monto_final']) {
+                    $mejorResultado = $resultado;
+                }
             }
         }
 
@@ -3488,22 +3558,20 @@ class NuevaVenta extends Component
     }
 
     /**
-     * Verifica si una combinación de promociones es válida
+     * Fallback greedy para sets grandes de promociones combinables.
      */
-    protected function esCombinacionValida(array $combinacion): bool
+    protected function calcularCombinacionGreedy(array $combinables, float $montoInicial, int $cantidad): array
     {
-        if (count($combinacion) <= 1) {
-            return true;
+        $conDescuento = [];
+        foreach ($combinables as $promo) {
+            $ajuste = $this->calcularAjustePromocion($promo, $montoInicial, $cantidad);
+            $conDescuento[] = ['promo' => $promo, 'descuento_estimado' => $ajuste['valor']];
         }
 
-        // Si hay más de una promoción, todas deben ser combinables
-        foreach ($combinacion as $promo) {
-            if (!$promo['combinable']) {
-                return false;
-            }
-        }
+        usort($conDescuento, fn ($a, $b) => $b['descuento_estimado'] <=> $a['descuento_estimado']);
+        $ordenadas = array_map(fn ($item) => $item['promo'], $conDescuento);
 
-        return true;
+        return $this->calcularCombinacion($ordenadas, $montoInicial, $cantidad);
     }
 
     /**
@@ -3512,7 +3580,7 @@ class NuevaVenta extends Component
     protected function calcularCombinacion(array $combinacion, float $montoInicial, int $cantidad): array
     {
         // Ordenar por prioridad
-        usort($combinacion, fn($a, $b) => $a['prioridad'] <=> $b['prioridad']);
+        usort($combinacion, fn ($a, $b) => $a['prioridad'] <=> $b['prioridad']);
 
         $montoActual = $montoInicial;
         $promocionesAplicadas = [];
@@ -3521,7 +3589,10 @@ class NuevaVenta extends Component
             $ajuste = $this->calcularAjustePromocion($promo, $montoActual, $cantidad);
 
             if ($ajuste['valor'] > 0) {
-                $montoActual -= $ajuste['valor'];
+                $esRecargo = in_array($promo['tipo'], ['recargo_porcentaje', 'recargo_monto']);
+                $montoActual = $esRecargo
+                    ? $montoActual + $ajuste['valor']
+                    : $montoActual - $ajuste['valor'];
                 $promocionesAplicadas[] = [
                     'id' => $promo['id'],
                     'promocion_id' => $promo['id'], // ID explícito para guardar en BD
@@ -3559,19 +3630,19 @@ class NuevaVenta extends Component
 
             case 'descuento_monto':
                 $valor = min((float) $promo['valor'], $monto);
-                $descripcion = "$" . number_format($promo['valor'], 0, ',', '.') . " dto";
+                $descripcion = '$'.number_format($promo['valor'], 0, ',', '.').' dto';
                 break;
 
             case 'precio_fijo':
                 $precioFijoTotal = (float) $promo['valor'] * $cantidad;
                 $valor = max(0, $monto - $precioFijoTotal);
-                $descripcion = "Precio fijo $" . number_format($promo['valor'], 0, ',', '.');
+                $descripcion = 'Precio fijo $'.number_format($promo['valor'], 0, ',', '.');
                 break;
 
             case 'descuento_escalonado':
-                if (!empty($promo['escalas'])) {
+                if (! empty($promo['escalas'])) {
                     $escalas = collect($promo['escalas'])
-                        ->filter(fn($e) => !empty($e['cantidad_desde']) && !empty($e['valor']))
+                        ->filter(fn ($e) => ! empty($e['cantidad_desde']) && ! empty($e['valor']))
                         ->sortByDesc('cantidad_desde');
 
                     foreach ($escalas as $escala) {
@@ -3581,9 +3652,13 @@ class NuevaVenta extends Component
                                 $porcentaje = (float) $escala['valor'];
                                 $valor = round($monto * ($porcentaje / 100), 2);
                                 $descripcion = "{$porcentaje}% dto escalonado";
+                            } elseif ($tipoDesc === 'precio_fijo') {
+                                $precioFijoTotal = (float) $escala['valor'] * $cantidad;
+                                $valor = max(0, $monto - $precioFijoTotal);
+                                $descripcion = 'Precio fijo escalonado $'.number_format($escala['valor'], 0, ',', '.');
                             } else {
                                 $valor = min((float) $escala['valor'], $monto);
-                                $descripcion = "Monto fijo escalonado";
+                                $descripcion = 'Monto fijo escalonado';
                             }
                             break;
                         }
@@ -3618,8 +3693,9 @@ class NuevaVenta extends Component
      */
     protected function cargarFormasPagoSucursal(): void
     {
-        if (!$this->sucursalId) {
+        if (! $this->sucursalId) {
             $this->formasPagoSucursal = [];
+
             return;
         }
 
@@ -3637,7 +3713,7 @@ class NuevaVenta extends Component
             // Verificar si está activa en la sucursal
             $activaEnSucursal = $configSucursal ? $configSucursal->activo : true;
 
-            if (!$activaEnSucursal) {
+            if (! $activaEnSucursal) {
                 return null;
             }
 
@@ -3653,14 +3729,16 @@ class NuevaVenta extends Component
 
             // Obtener cuotas disponibles para la sucursal
             $cuotasDisponibles = [];
-            if ($fp->permite_cuotas && !$fp->es_mixta) {
+            if ($fp->permite_cuotas && ! $fp->es_mixta) {
                 foreach ($fp->cuotas as $cuota) {
                     $cuotaSucursal = FormaPagoCuotaSucursal::where('forma_pago_cuota_id', $cuota->id)
                         ->where('sucursal_id', $this->sucursalId)
                         ->first();
 
                     $activa = $cuotaSucursal ? $cuotaSucursal->activo : true;
-                    if (!$activa) continue;
+                    if (! $activa) {
+                        continue;
+                    }
 
                     $recargo = $cuotaSucursal && $cuotaSucursal->recargo_porcentaje !== null
                         ? $cuotaSucursal->recargo_porcentaje
@@ -3701,13 +3779,13 @@ class NuevaVenta extends Component
                 'concepto_pago_id' => $fp->concepto_pago_id,
                 'concepto_nombre' => $fp->conceptoPago?->nombre,
                 'es_mixta' => $fp->es_mixta ?? false,
-                'permite_cuotas' => $fp->permite_cuotas && !$fp->es_mixta,
+                'permite_cuotas' => $fp->permite_cuotas && ! $fp->es_mixta,
                 'ajuste_porcentaje' => $ajustePorcentaje ?? 0,
                 'factura_fiscal' => $facturaFiscal,
                 'permite_vuelto' => $fp->conceptoPago?->permite_vuelto ?? false,
                 'cuotas' => $cuotasDisponibles,
                 'conceptos_permitidos' => $fp->es_mixta
-                    ? $fp->conceptosPermitidos->map(fn($c) => [
+                    ? $fp->conceptosPermitidos->map(fn ($c) => [
                         'id' => $c->id,
                         'codigo' => $c->codigo,
                         'nombre' => $c->nombre,
@@ -3727,6 +3805,7 @@ class NuevaVenta extends Component
     public function obtenerAjusteFormaPago(int $formaPagoId): float
     {
         $fp = collect($this->formasPagoSucursal)->firstWhere('id', $formaPagoId);
+
         return $fp ? (float) $fp['ajuste_porcentaje'] : 0;
     }
 
@@ -3739,8 +3818,9 @@ class NuevaVenta extends Component
      */
     protected function cargarConfiguracionFiscalSucursal(): void
     {
-        if (!$this->sucursalId) {
+        if (! $this->sucursalId) {
             $this->sucursalFacturaAutomatica = false;
+
             return;
         }
 
@@ -3767,7 +3847,7 @@ class NuevaVenta extends Component
         $fp = collect($this->formasPagoSucursal)->firstWhere('id', (int) $this->formaPagoId);
 
         // Si es mixta, no se puede determinar aún (se decide en el desglose)
-        if ($fp && !$fp['es_mixta']) {
+        if ($fp && ! $fp['es_mixta']) {
             $this->emitirFacturaFiscal = $fp['factura_fiscal'] ?? false;
         }
     }
@@ -3778,6 +3858,7 @@ class NuevaVenta extends Component
     public function obtenerFacturaFiscalFP(int $formaPagoId): bool
     {
         $fp = collect($this->formasPagoSucursal)->firstWhere('id', $formaPagoId);
+
         return $fp ? (bool) ($fp['factura_fiscal'] ?? false) : false;
     }
 
@@ -3787,7 +3868,7 @@ class NuevaVenta extends Component
     public function toggleFacturaFiscalDesglose(int $index): void
     {
         if (isset($this->desglosePagos[$index])) {
-            $this->desglosePagos[$index]['factura_fiscal'] = !$this->desglosePagos[$index]['factura_fiscal'];
+            $this->desglosePagos[$index]['factura_fiscal'] = ! $this->desglosePagos[$index]['factura_fiscal'];
             $this->calcularMontoFacturaFiscal();
         }
     }
@@ -3820,6 +3901,7 @@ class NuevaVenta extends Component
                 $this->montoFacturaFiscal = 0;
                 $this->desgloseIvaFiscal = [];
             }
+
             return;
         }
 
@@ -3847,8 +3929,9 @@ class NuevaVenta extends Component
      */
     protected function formatearDesgloseParaAFIP(): void
     {
-        if (!$this->resultado || !isset($this->resultado['desglose_iva'])) {
+        if (! $this->resultado || ! isset($this->resultado['desglose_iva'])) {
             $this->desgloseIvaFiscal = [];
+
             return;
         }
 
@@ -3861,7 +3944,7 @@ class NuevaVenta extends Component
         $totalIva = 0;
 
         foreach ($desgloseOriginal['por_alicuota'] ?? [] as $alicuota) {
-            if (!is_array($alicuota)) {
+            if (! is_array($alicuota)) {
                 continue;
             }
 
@@ -3889,7 +3972,7 @@ class NuevaVenta extends Component
         $diferencia = round($this->montoFacturaFiscal - $sumaCalculada, 2);
 
         // Si hay diferencia, ajustar el neto de la última alícuota
-        if ($diferencia != 0 && !empty($porAlicuota)) {
+        if ($diferencia != 0 && ! empty($porAlicuota)) {
             $lastIndex = count($porAlicuota) - 1;
             $porcentajeUltimo = $porAlicuota[$lastIndex]['alicuota'];
 
@@ -3920,8 +4003,9 @@ class NuevaVenta extends Component
      */
     protected function recalcularDesgloseIvaFiscal(): void
     {
-        if (!$this->resultado || !isset($this->resultado['desglose_iva'])) {
+        if (! $this->resultado || ! isset($this->resultado['desglose_iva'])) {
             $this->desgloseIvaFiscal = [];
+
             return;
         }
 
@@ -3933,6 +4017,7 @@ class NuevaVenta extends Component
 
         if ($totalOriginal <= 0) {
             $this->desgloseIvaFiscal = [];
+
             return;
         }
 
@@ -3947,7 +4032,7 @@ class NuevaVenta extends Component
 
         foreach ($desgloseOriginal['por_alicuota'] ?? [] as $alicuota) {
             // Verificar que el array tenga la estructura esperada
-            if (!is_array($alicuota)) {
+            if (! is_array($alicuota)) {
                 continue;
             }
 
@@ -3975,7 +4060,7 @@ class NuevaVenta extends Component
         $diferencia = round($this->montoFacturaFiscal - $sumaCalculada, 2);
 
         // Si hay diferencia, ajustar el neto de la última alícuota
-        if ($diferencia != 0 && !empty($porAlicuota)) {
+        if ($diferencia != 0 && ! empty($porAlicuota)) {
             $lastIndex = count($porAlicuota) - 1;
             $porcentajeUltimo = $porAlicuota[$lastIndex]['alicuota'];
 
@@ -4019,23 +4104,24 @@ class NuevaVenta extends Component
     protected function debeSeleccionarPuntoVenta(): bool
     {
         $cajaId = $this->cajaSeleccionada ?? caja_activa();
-        if (!$cajaId) {
+        if (! $cajaId) {
             return false;
         }
 
         // Verificar permiso del usuario
         $user = Auth::user();
-        if (!$user || !$user->hasPermissionTo('func.seleccion_cuit')) {
+        if (! $user || ! $user->hasPermissionTo('func.seleccion_cuit')) {
             return false;
         }
 
         // Verificar si la caja tiene múltiples puntos de venta
         $caja = Caja::find($cajaId);
-        if (!$caja) {
+        if (! $caja) {
             return false;
         }
 
         $cantidadPV = $caja->puntosVenta()->count();
+
         return $cantidadPV > 1;
     }
 
@@ -4045,14 +4131,16 @@ class NuevaVenta extends Component
     protected function cargarPuntosVentaDisponibles(): void
     {
         $cajaId = $this->cajaSeleccionada ?? caja_activa();
-        if (!$cajaId) {
+        if (! $cajaId) {
             $this->puntosVentaDisponibles = [];
+
             return;
         }
 
         $caja = Caja::find($cajaId);
-        if (!$caja) {
+        if (! $caja) {
             $this->puntosVentaDisponibles = [];
+
             return;
         }
 
@@ -4094,8 +4182,9 @@ class NuevaVenta extends Component
      */
     public function confirmarPuntoVenta(): void
     {
-        if (!$this->puntoVentaSeleccionadoId) {
+        if (! $this->puntoVentaSeleccionadoId) {
             $this->dispatch('toast-error', message: 'Seleccione un punto de venta');
+
             return;
         }
 
@@ -4122,13 +4211,15 @@ class NuevaVenta extends Component
      */
     public function iniciarCobro(): void
     {
-        if (empty($this->items) || !$this->resultado) {
+        if (empty($this->items) || ! $this->resultado) {
             $this->dispatch('toast-error', message: 'El carrito está vacío');
+
             return;
         }
 
-        if (!$this->formaPagoId) {
+        if (! $this->formaPagoId) {
             $this->dispatch('toast-error', message: 'Seleccione una forma de pago');
+
             return;
         }
 
@@ -4137,12 +4228,14 @@ class NuevaVenta extends Component
             // Si ya hay un desglose completo, verificar y procesar
             if ($this->desgloseCompleto()) {
                 $this->verificarPuntoVentaYProcesar();
+
                 return;
             }
             // Si no, abrir modal para desglosar
-            if (!$this->mostrarModalPago) {
+            if (! $this->mostrarModalPago) {
                 $this->abrirModalDesglose();
             }
+
             return;
         }
 
@@ -4150,8 +4243,9 @@ class NuevaVenta extends Component
         $this->cargarFormasPagoSucursal();
         $fp = collect($this->formasPagoSucursal)->firstWhere('id', (int) $this->formaPagoId);
 
-        if (!$fp) {
+        if (! $fp) {
             $this->dispatch('toast-error', message: 'Forma de pago no válida');
+
             return;
         }
 
@@ -4176,6 +4270,7 @@ class NuevaVenta extends Component
                 'vuelto' => 0,
             ];
             $this->mostrarModalMonedaExtranjera = true;
+
             return;
         }
 
@@ -4188,7 +4283,7 @@ class NuevaVenta extends Component
         $permiteVuelto = $fp['permite_vuelto'] ?? false;
         $esCuentaCorriente = isset($fp['codigo']) && strtoupper($fp['codigo']) === 'CTA_CTE';
 
-        if ($permiteVuelto && !$esCuentaCorriente) {
+        if ($permiteVuelto && ! $esCuentaCorriente) {
             $this->pagoConVuelto = [
                 'forma_pago_id' => $fp['id'],
                 'nombre' => $fp['nombre'],
@@ -4197,6 +4292,7 @@ class NuevaVenta extends Component
                 'vuelto' => 0,
             ];
             $this->mostrarModalVuelto = true;
+
             return;
         }
 
@@ -4216,12 +4312,13 @@ class NuevaVenta extends Component
     {
         // Determinar si se va a generar factura fiscal
         $sucursal = Sucursal::find($this->sucursalId);
-        if (!$sucursal) {
+        if (! $sucursal) {
             $this->procesarVentaConDesglose();
+
             return;
         }
 
-        $comprobanteFiscalService = new ComprobanteFiscalService();
+        $comprobanteFiscalService = new ComprobanteFiscalService;
         $debeFacturarAutomatico = $comprobanteFiscalService->debeGenerarFacturaFiscal($sucursal, $this->desglosePagos);
         $debeFacturarManual = $this->emitirFacturaFiscal;
         $debeFacturarDesglose = collect($this->desglosePagos)->contains('factura_fiscal', true);
@@ -4230,6 +4327,7 @@ class NuevaVenta extends Component
         // Si se va a facturar Y el usuario puede seleccionar punto de venta → mostrar modal
         if ($debeFacturar && $this->debeSeleccionarPuntoVenta()) {
             $this->mostrarSeleccionPuntoVenta();
+
             return;
         }
 
@@ -4260,12 +4358,13 @@ class NuevaVenta extends Component
      */
     public function updatedNuevoPagoFormaPagoId($value): void
     {
-        if (!$value) {
+        if (! $value) {
             $this->cuotasDisponibles = [];
             $this->cuotasDesgloseConMontos = [];
             $this->cuotasDesgloseSelectorAbierto = false;
             $this->nuevoPago['tipo_cambio_tasa'] = null;
             $this->nuevoPago['monto_moneda_extranjera'] = null;
+
             return;
         }
 
@@ -4299,7 +4398,7 @@ class NuevaVenta extends Component
      */
     public function toggleCuotasDesgloseSelector(): void
     {
-        $this->cuotasDesgloseSelectorAbierto = !$this->cuotasDesgloseSelectorAbierto;
+        $this->cuotasDesgloseSelectorAbierto = ! $this->cuotasDesgloseSelectorAbierto;
     }
 
     /**
@@ -4357,8 +4456,9 @@ class NuevaVenta extends Component
      */
     public function agregarAlDesglose(): void
     {
-        if (!$this->nuevoPago['forma_pago_id']) {
+        if (! $this->nuevoPago['forma_pago_id']) {
             $this->dispatch('toast-error', message: 'Seleccione una forma de pago');
+
             return;
         }
 
@@ -4371,12 +4471,14 @@ class NuevaVenta extends Component
 
         if ($monto <= 0) {
             $this->dispatch('toast-error', message: 'No hay monto pendiente para agregar');
+
             return;
         }
 
         $fp = collect($this->formasPagoSucursal)->firstWhere('id', (int) $this->nuevoPago['forma_pago_id']);
-        if (!$fp) {
+        if (! $fp) {
             $this->dispatch('toast-error', message: 'Forma de pago no válida');
+
             return;
         }
 
@@ -4392,6 +4494,7 @@ class NuevaVenta extends Component
             $tipoCambioTasa = (float) ($this->nuevoPago['tipo_cambio_tasa'] ?? 0);
             if ($tipoCambioTasa <= 0) {
                 $this->dispatch('toast-error', message: __('Ingrese la cotización para esta moneda'));
+
                 return;
             }
             // El monto ingresado es en moneda extranjera, convertimos a principal
@@ -4400,8 +4503,9 @@ class NuevaVenta extends Component
         }
 
         // Validar que no exceda el pendiente (salvo que permita vuelto)
-        if ($monto > $this->montoPendienteDesglose + 0.01 && !$permiteVuelto) {
+        if ($monto > $this->montoPendienteDesglose + 0.01 && ! $permiteVuelto) {
             $this->dispatch('toast-error', message: __('El monto excede el pendiente'));
+
             return;
         }
 
@@ -4410,11 +4514,13 @@ class NuevaVenta extends Component
         if ($esCuentaCorriente) {
             $yaExisteCC = collect($this->desglosePagos)->contains(function ($pago) {
                 $fpExistente = collect($this->formasPagoSucursal)->firstWhere('id', $pago['forma_pago_id']);
+
                 return $fpExistente && isset($fpExistente['codigo']) && strtoupper($fpExistente['codigo']) === 'CTA_CTE';
             });
 
             if ($yaExisteCC) {
                 $this->dispatch('toast-error', message: __('Solo se permite un pago en Cuenta Corriente por venta'));
+
                 return;
             }
         }
@@ -4456,7 +4562,9 @@ class NuevaVenta extends Component
         // Calcular vuelto si pagó de más
         if ($montoRecibido !== null) {
             $vuelto = round($montoRecibido - $montoFinal, 2);
-            if ($vuelto < 0) $vuelto = 0;
+            if ($vuelto < 0) {
+                $vuelto = 0;
+            }
         } elseif ($permiteVuelto) {
             $montoRecibido = $montoFinal;
         }
@@ -4487,7 +4595,9 @@ class NuevaVenta extends Component
         ];
 
         $this->montoPendienteDesglose = round($this->montoPendienteDesglose - $montoParaBase, 2);
-        if ($this->montoPendienteDesglose < 0) $this->montoPendienteDesglose = 0;
+        if ($this->montoPendienteDesglose < 0) {
+            $this->montoPendienteDesglose = 0;
+        }
 
         // Recalcular el monto fiscal
         $this->calcularMontoFacturaFiscal();
@@ -4513,7 +4623,7 @@ class NuevaVenta extends Component
      */
     public function eliminarDelDesglose(int $index): void
     {
-        if (!isset($this->desglosePagos[$index])) {
+        if (! isset($this->desglosePagos[$index])) {
             return;
         }
 
@@ -4548,13 +4658,14 @@ class NuevaVenta extends Component
     protected function recalcularDesgloseIvaMixto(): void
     {
         // Si no hay desglose de IVA, no hacer nada
-        if (!isset($this->resultado['desglose_iva'])) {
+        if (! isset($this->resultado['desglose_iva'])) {
             return;
         }
 
         // Si no hay pagos en el desglose, limpiar valores mixtos existentes
         if (empty($this->desglosePagos)) {
             $this->limpiarDesgloseIvaMixto();
+
             return;
         }
 
@@ -4637,13 +4748,13 @@ class NuevaVenta extends Component
      */
     public function actualizarCuotasDesglose(int $index, int $cuotas): void
     {
-        if (!isset($this->desglosePagos[$index])) {
+        if (! isset($this->desglosePagos[$index])) {
             return;
         }
 
         $pago = &$this->desglosePagos[$index];
 
-        if (!$pago['permite_cuotas'] || $cuotas < 1) {
+        if (! $pago['permite_cuotas'] || $cuotas < 1) {
             return;
         }
 
@@ -4675,7 +4786,7 @@ class NuevaVenta extends Component
      */
     public function actualizarMontoRecibido(int $index, $monto): void
     {
-        if (!isset($this->desglosePagos[$index])) {
+        if (! isset($this->desglosePagos[$index])) {
             return;
         }
 
@@ -4692,7 +4803,7 @@ class NuevaVenta extends Component
     public function cerrarModalPago(): void
     {
         // Si el desglose está completo, actualizar el ajusteFormaPagoInfo con los totales
-        if ($this->desgloseCompleto() && !empty($this->desglosePagos)) {
+        if ($this->desgloseCompleto() && ! empty($this->desglosePagos)) {
             $totalBase = $this->resultado['total_final'] ?? 0;
             $totalConAjustes = $this->totalConAjustes;
             $montoAjuste = $totalConAjustes - $totalBase;
@@ -4703,7 +4814,7 @@ class NuevaVenta extends Component
 
         $this->mostrarModalPago = false;
         // No limpiar el desglose si está completo (para poder procesar después)
-        if (!$this->desgloseCompleto()) {
+        if (! $this->desgloseCompleto()) {
             $this->desglosePagos = [];
             $this->montoPendienteDesglose = 0;
             $this->totalConAjustes = 0;
@@ -4758,24 +4869,28 @@ class NuevaVenta extends Component
 
         if ($monto <= 0) {
             $this->dispatch('toast-error', message: __('Ingrese el monto en moneda extranjera'));
+
             return;
         }
         if ($cotizacion <= 0) {
             $this->dispatch('toast-error', message: __('Ingrese la cotización'));
+
             return;
         }
 
         $equivalente = round($monto * $cotizacion, 2);
         if ($equivalente < $totalVenta - 0.01) {
             $this->dispatch('toast-error', message: __('El monto es insuficiente para cubrir la venta'));
+
             return;
         }
 
         $vuelto = max(0, round($equivalente - $totalVenta, 2));
         $fp = collect($this->formasPagoSucursal)->firstWhere('id', (int) $this->pagoMonedaExtranjera['forma_pago_id']);
 
-        if (!$fp) {
+        if (! $fp) {
             $this->dispatch('toast-error', message: __('Forma de pago no válida'));
+
             return;
         }
 
@@ -4847,14 +4962,16 @@ class NuevaVenta extends Component
 
         if ($montoRecibido < $totalAPagar - 0.01) {
             $this->dispatch('toast-error', message: __('El monto recibido es insuficiente'));
+
             return;
         }
 
         $vuelto = max(0, round($montoRecibido - $totalAPagar, 2));
 
         $fp = collect($this->formasPagoSucursal)->firstWhere('id', (int) $this->pagoConVuelto['forma_pago_id']);
-        if (!$fp) {
+        if (! $fp) {
             $this->dispatch('toast-error', message: __('Forma de pago no válida'));
+
             return;
         }
 
@@ -4922,7 +5039,7 @@ class NuevaVenta extends Component
      */
     protected function limpiarDesgloseIvaMixto(): void
     {
-        if (!isset($this->resultado['desglose_iva'])) {
+        if (! isset($this->resultado['desglose_iva'])) {
             return;
         }
 
@@ -4967,8 +5084,9 @@ class NuevaVenta extends Component
      */
     public function confirmarPago(): void
     {
-        if (!$this->desgloseCompleto()) {
+        if (! $this->desgloseCompleto()) {
             $this->dispatch('toast-error', message: 'Complete el desglose de pagos');
+
             return;
         }
 
@@ -5006,12 +5124,14 @@ class NuevaVenta extends Component
         try {
             if (empty($this->items)) {
                 $this->dispatch('toast-error', message: 'El carrito está vacío');
+
                 return;
             }
 
             $sucursal = Sucursal::find($this->sucursalId);
-            if (!$sucursal) {
+            if (! $sucursal) {
                 $this->dispatch('toast-error', message: 'Sucursal no encontrada');
+
                 return;
             }
 
@@ -5024,7 +5144,7 @@ class NuevaVenta extends Component
             foreach ($this->desglosePagos as $pago) {
                 // Usar el flag si existe, sino verificar por código
                 $esCC = $pago['es_cuenta_corriente'] ?? false;
-                if (!$esCC && isset($pago['codigo'])) {
+                if (! $esCC && isset($pago['codigo'])) {
                     $esCC = strtoupper($pago['codigo']) === 'CTA_CTE';
                 }
 
@@ -5033,15 +5153,17 @@ class NuevaVenta extends Component
                     $montoCuentaCorriente += $pago['monto_final'];
 
                     // Cuenta corriente requiere cliente
-                    if (!$this->clienteSeleccionado) {
+                    if (! $this->clienteSeleccionado) {
                         $this->dispatch('toast-error', message: 'Debe seleccionar un cliente para ventas a cuenta corriente');
+
                         return;
                     }
 
                     // Verificar que el cliente tiene cuenta corriente habilitada
                     $cliente = Cliente::find($this->clienteSeleccionado);
-                    if (!$cliente || !$cliente->tiene_cuenta_corriente) {
+                    if (! $cliente || ! $cliente->tiene_cuenta_corriente) {
                         $this->dispatch('toast-error', message: 'El cliente no tiene cuenta corriente habilitada');
+
                         return;
                     }
 
@@ -5049,6 +5171,7 @@ class NuevaVenta extends Component
                     $nuevoSaldo = $cliente->saldo_deudor_cache + $montoCuentaCorriente;
                     if ($cliente->limite_credito > 0 && $nuevoSaldo > $cliente->limite_credito) {
                         $this->dispatch('toast-error', message: 'El cliente excede su límite de crédito');
+
                         return;
                     }
                 }
@@ -5058,25 +5181,27 @@ class NuevaVenta extends Component
             $requiereCaja = false;
             foreach ($this->desglosePagos as $pago) {
                 $esCC = $pago['es_cuenta_corriente'] ?? false;
-                if (!$esCC && isset($pago['codigo'])) {
+                if (! $esCC && isset($pago['codigo'])) {
                     $esCC = strtoupper($pago['codigo']) === 'CTA_CTE';
                 }
-                if (!$esCC) {
+                if (! $esCC) {
                     $requiereCaja = true;
                     break;
                 }
             }
 
-            if ($requiereCaja && !$cajaId) {
+            if ($requiereCaja && ! $cajaId) {
                 $this->dispatch('toast-error', message: 'Debe seleccionar una caja');
+
                 return;
             }
 
             // Verificar caja abierta
             if ($cajaId) {
                 $caja = Caja::find($cajaId);
-                if (!$caja || !$caja->estaAbierta()) {
+                if (! $caja || ! $caja->estaAbierta()) {
                     $this->dispatch('toast-error', message: 'La caja debe estar abierta');
+
                     return;
                 }
             }
@@ -5099,7 +5224,7 @@ class NuevaVenta extends Component
             // 1. Automático: sucursal.facturacion_fiscal_automatica = true Y alguna forma de pago tiene factura_fiscal = true
             // 2. Manual: el usuario marcó el checkbox emitirFacturaFiscal
             // 3. Desglose: algún pago en el desglose tiene factura_fiscal = true
-            $comprobanteFiscalService = new ComprobanteFiscalService();
+            $comprobanteFiscalService = new ComprobanteFiscalService;
             $debeFacturarAutomatico = $comprobanteFiscalService->debeGenerarFacturaFiscal($sucursal, $this->desglosePagos);
             $debeFacturarManual = $this->emitirFacturaFiscal;
             $debeFacturarDesglose = collect($this->desglosePagos)->contains('factura_fiscal', true);
@@ -5158,7 +5283,7 @@ class NuevaVenta extends Component
                     $descuentoPromocion = $itemResultado['descuento_comun'] ?? 0;
                     $promocionesComunes = $itemResultado['promociones_comunes'] ?? [];
                     $promocionesEspeciales = $itemResultado['promociones_especiales'] ?? [];
-                    $tienePromocion = !empty($promocionesComunes) || !empty($promocionesEspeciales);
+                    $tienePromocion = ! empty($promocionesComunes) || ! empty($promocionesEspeciales);
 
                     $detalles[] = [
                         'articulo_id' => $item['articulo_id'],
@@ -5198,7 +5323,7 @@ class NuevaVenta extends Component
 
                     // Determinar si es pago en efectivo (solo efectivo afecta la caja física)
                     $conceptoPago = null;
-                    if (!empty($pago['concepto_pago_id'])) {
+                    if (! empty($pago['concepto_pago_id'])) {
                         $conceptoPago = ConceptoPago::find($pago['concepto_pago_id']);
                     } elseif ($fp && $fp->concepto_pago_id) {
                         $conceptoPago = $fp->conceptoPago;
@@ -5206,14 +5331,14 @@ class NuevaVenta extends Component
                     $esEfectivo = $conceptoPago && $conceptoPago->esEfectivo();
 
                     // Solo afecta la caja física si es efectivo
-                    $afectaCaja = $esEfectivo && $cajaId && !$esCuentaCorriente;
+                    $afectaCaja = $esEfectivo && $cajaId && ! $esCuentaCorriente;
 
                     // Crear movimiento de caja SOLO si es efectivo
                     $movimientoCajaId = null;
                     if ($afectaCaja) {
                         $caja = Caja::find($cajaId);
                         $vuelto = (float) ($pago['vuelto'] ?? 0);
-                        $esMonedaExtranjera = !empty($pago['es_moneda_extranjera']) && !empty($pago['tipo_cambio_tasa']);
+                        $esMonedaExtranjera = ! empty($pago['es_moneda_extranjera']) && ! empty($pago['tipo_cambio_tasa']);
 
                         if ($esMonedaExtranjera && $vuelto > 0) {
                             // Moneda extranjera con vuelto: ingreso por el TOTAL recibido + egreso por vuelto
@@ -5292,7 +5417,7 @@ class NuevaVenta extends Component
                     ]);
 
                     // Si la forma de pago tiene cuenta empresa vinculada, registrar movimiento
-                    if (!$esCuentaCorriente) {
+                    if (! $esCuentaCorriente) {
                         $fpVinculada = FormaPago::find($pago['forma_pago_id']);
                         if ($fpVinculada && $fpVinculada->cuenta_empresa_id) {
                             try {
@@ -5324,11 +5449,11 @@ class NuevaVenta extends Component
                     try {
                         // Filtrar pagos creados que tienen factura_fiscal = true
                         // Ahora usamos los IDs reales de VentaPago
-                        $pagosConFactura = array_filter($pagosCreados, fn($p) => $p['factura_fiscal'] ?? false);
+                        $pagosConFactura = array_filter($pagosCreados, fn ($p) => $p['factura_fiscal'] ?? false);
                         $opcionesFiscal = [];
 
                         // Si hay pagos específicos con factura fiscal, pasar para facturación parcial
-                        if (!empty($pagosConFactura)) {
+                        if (! empty($pagosConFactura)) {
                             $opcionesFiscal['pagos_facturar'] = array_values($pagosConFactura);
 
                             Log::info('Facturación parcial - pagos con factura fiscal', [
@@ -5340,7 +5465,7 @@ class NuevaVenta extends Component
                         }
 
                         // Pasar el desglose de IVA ya calculado (con proporciones correctas)
-                        if (!empty($this->desgloseIvaFiscal)) {
+                        if (! empty($this->desgloseIvaFiscal)) {
                             $opcionesFiscal['desglose_iva'] = $this->desgloseIvaFiscal;
                             $opcionesFiscal['total_a_facturar'] = $this->montoFacturaFiscal;
                         }
@@ -5370,7 +5495,8 @@ class NuevaVenta extends Component
                         DB::connection('pymes_tenant')->rollBack();
 
                         // Notificar al usuario del error (sin limpiar carrito para que pueda reintentar)
-                        $this->dispatch('toast-error', message: 'Error al emitir factura fiscal: ' . $e->getMessage());
+                        $this->dispatch('toast-error', message: 'Error al emitir factura fiscal: '.$e->getMessage());
+
                         return;
                     }
                 }
@@ -5380,7 +5506,7 @@ class NuevaVenta extends Component
                 if ($this->clienteSeleccionado) {
                     $clienteCC = Cliente::find($this->clienteSeleccionado);
                     if ($clienteCC && $clienteCC->tiene_cuenta_corriente) {
-                        $ventaService = new \App\Services\VentaService();
+                        $ventaService = new \App\Services\VentaService;
                         $ventaService->procesarPagosCuentaCorriente($venta, auth()->id());
                     }
                 }
@@ -5396,9 +5522,9 @@ class NuevaVenta extends Component
                 $this->dispatch('toast-success', message: $mensaje);
 
                 // Mostrar advertencias de stock si las hay (modo 'advierte')
-                if (!empty($this->ventaService->advertenciasStock)) {
+                if (! empty($this->ventaService->advertenciasStock)) {
                     foreach ($this->ventaService->advertenciasStock as $adv) {
-                        $this->dispatch('toast-warning', message: __('Advertencia de stock') . ': ' . $adv);
+                        $this->dispatch('toast-warning', message: __('Advertencia de stock').': '.$adv);
                     }
                 }
 
@@ -5415,9 +5541,9 @@ class NuevaVenta extends Component
         } catch (Exception $e) {
             Log::error('Error al procesar venta con desglose', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
-            $this->dispatch('toast-error', message: 'Error al procesar venta: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: 'Error al procesar venta: '.$e->getMessage());
         }
     }
 
@@ -5432,12 +5558,14 @@ class NuevaVenta extends Component
         try {
             if (empty($this->items)) {
                 $this->dispatch('toast-error', message: 'El carrito está vacío');
+
                 return;
             }
 
             $sucursal = Sucursal::find($this->sucursalId);
-            if (!$sucursal) {
+            if (! $sucursal) {
                 $this->dispatch('toast-error', message: 'Sucursal no encontrada');
+
                 return;
             }
 
@@ -5447,14 +5575,16 @@ class NuevaVenta extends Component
 
             // Validar cliente si es cuenta corriente
             if ($esCuentaCorriente) {
-                if (!$this->clienteSeleccionado) {
+                if (! $this->clienteSeleccionado) {
                     $this->dispatch('toast-error', message: 'Debe seleccionar un cliente para ventas a cuenta corriente');
+
                     return;
                 }
 
                 $cliente = Cliente::find($this->clienteSeleccionado);
-                if (!$cliente || !$cliente->tiene_cuenta_corriente) {
+                if (! $cliente || ! $cliente->tiene_cuenta_corriente) {
                     $this->dispatch('toast-error', message: 'El cliente no tiene cuenta corriente habilitada');
+
                     return;
                 }
 
@@ -5462,20 +5592,23 @@ class NuevaVenta extends Component
                 $nuevoSaldo = $cliente->saldo_deudor_cache + $totalVenta;
                 if ($cliente->limite_credito > 0 && $nuevoSaldo > $cliente->limite_credito) {
                     $this->dispatch('toast-error', message: 'El cliente excede su límite de crédito');
+
                     return;
                 }
             }
 
             $cajaId = $this->cajaSeleccionada ?? caja_activa();
-            if (!$esCuentaCorriente) {
-                if (!$cajaId) {
+            if (! $esCuentaCorriente) {
+                if (! $cajaId) {
                     $this->dispatch('toast-error', message: 'Debe seleccionar una caja');
+
                     return;
                 }
 
                 $caja = Caja::find($cajaId);
-                if (!$caja || !$caja->estaAbierta()) {
+                if (! $caja || ! $caja->estaAbierta()) {
                     $this->dispatch('toast-error', message: 'La caja debe estar abierta');
+
                     return;
                 }
             }
@@ -5484,7 +5617,7 @@ class NuevaVenta extends Component
             // Se factura si:
             // 1. Automático: sucursal.facturacion_fiscal_automatica = true Y forma de pago tiene factura_fiscal = true
             // 2. Manual: el usuario marcó el checkbox emitirFacturaFiscal
-            $comprobanteFiscalService = new ComprobanteFiscalService();
+            $comprobanteFiscalService = new ComprobanteFiscalService;
             $pagosParaValidar = [[
                 'forma_pago_id' => $this->formaPagoId,
                 'monto_final' => $totalVenta,
@@ -5532,7 +5665,7 @@ class NuevaVenta extends Component
                 $venta = $this->ventaService->crearVenta($datosVenta, $detalles);
 
                 // Crear VentaPago para el pago único
-                $afectaCaja = !$esCuentaCorriente && $cajaId;
+                $afectaCaja = ! $esCuentaCorriente && $cajaId;
                 $movimientoCajaId = null;
 
                 if ($afectaCaja) {
@@ -5566,7 +5699,7 @@ class NuevaVenta extends Component
                 ]);
 
                 // Si la forma de pago tiene cuenta empresa vinculada, registrar movimiento
-                if (!$esCuentaCorriente && $formaPago && $formaPago->cuenta_empresa_id) {
+                if (! $esCuentaCorriente && $formaPago && $formaPago->cuenta_empresa_id) {
                     try {
                         $movCuenta = CuentaEmpresaService::registrarMovimientoAutomatico(
                             CuentaEmpresa::find($formaPago->cuenta_empresa_id),
@@ -5602,7 +5735,8 @@ class NuevaVenta extends Component
                         DB::connection('pymes_tenant')->rollBack();
 
                         // Notificar al usuario del error (sin limpiar carrito para que pueda reintentar)
-                        $this->dispatch('toast-error', message: 'Error al emitir factura fiscal: ' . $e->getMessage());
+                        $this->dispatch('toast-error', message: 'Error al emitir factura fiscal: '.$e->getMessage());
+
                         return;
                     }
                 }
@@ -5612,7 +5746,7 @@ class NuevaVenta extends Component
                 if ($this->clienteSeleccionado) {
                     $clienteCC = Cliente::find($this->clienteSeleccionado);
                     if ($clienteCC && $clienteCC->tiene_cuenta_corriente) {
-                        $ventaService = new \App\Services\VentaService();
+                        $ventaService = new \App\Services\VentaService;
                         $ventaService->procesarPagosCuentaCorriente($venta, auth()->id());
                     }
                 }
@@ -5628,9 +5762,9 @@ class NuevaVenta extends Component
                 $this->dispatch('toast-success', message: $mensaje);
 
                 // Mostrar advertencias de stock si las hay (modo 'advierte')
-                if (!empty($this->ventaService->advertenciasStock)) {
+                if (! empty($this->ventaService->advertenciasStock)) {
                     foreach ($this->ventaService->advertenciasStock as $adv) {
-                        $this->dispatch('toast-warning', message: __('Advertencia de stock') . ': ' . $adv);
+                        $this->dispatch('toast-warning', message: __('Advertencia de stock').': '.$adv);
                     }
                 }
 
@@ -5647,15 +5781,17 @@ class NuevaVenta extends Component
         } catch (Exception $e) {
             Log::error('Error al procesar venta', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
-            $this->dispatch('toast-error', message: 'Error al procesar venta: ' . $e->getMessage());
+            $this->dispatch('toast-error', message: 'Error al procesar venta: '.$e->getMessage());
         }
     }
 
     public function confirmarLimpiarCarrito()
     {
-        if (empty($this->items)) return;
+        if (empty($this->items)) {
+            return;
+        }
         $this->mostrarConfirmLimpiar = true;
     }
 
@@ -5815,7 +5951,7 @@ class NuevaVenta extends Component
             // Imprimir ticket si:
             // - Hay monto no fiscal (venta mixta) Y ticket habilitado
             // - O no hay factura Y ticket habilitado
-            $imprimirTicket = $imprimirTicketConfig && ($tieneMontoNoFiscal || !$comprobanteFiscal);
+            $imprimirTicket = $imprimirTicketConfig && ($tieneMontoNoFiscal || ! $comprobanteFiscal);
 
             // Solo disparar si hay algo que imprimir
             if ($imprimirTicket || $imprimirFactura) {
@@ -5830,7 +5966,7 @@ class NuevaVenta extends Component
             // No interrumpir el flujo si falla la impresion
             \Illuminate\Support\Facades\Log::warning('Error al disparar evento de impresion', [
                 'venta_id' => $venta->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
     }
