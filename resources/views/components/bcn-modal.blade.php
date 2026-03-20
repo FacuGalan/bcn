@@ -28,7 +28,15 @@ $maxWidthClass = [
         dragY: 0,
         dragging: false,
         startY: 0,
-        close() { this.show = false; $wire.{{ $onClose }}(); },
+        vvHeight: null,
+        vvTop: 0,
+        _vvHandler: null,
+        close() {
+            document.activeElement?.blur();
+            this.cleanupViewport();
+            this.show = false;
+            $wire.{{ $onClose }}();
+        },
         onTouchStart(e) {
             const scrollEl = this.$refs.scrollBody;
             if (scrollEl && scrollEl.scrollTop > 0) return;
@@ -49,19 +57,54 @@ $maxWidthClass = [
             this.dragging = false;
             if (this.dragY > 120) { this.close(); }
             this.dragY = 0;
+        },
+        initViewport() {
+            if (!window.visualViewport) return;
+            this._vvHandler = () => {
+                if (!this.show) return;
+                this.vvHeight = window.visualViewport.height;
+                this.vvTop = window.visualViewport.offsetTop;
+            };
+            window.visualViewport.addEventListener('resize', this._vvHandler);
+            window.visualViewport.addEventListener('scroll', this._vvHandler);
+        },
+        cleanupViewport() {
+            if (this._vvHandler && window.visualViewport) {
+                window.visualViewport.removeEventListener('resize', this._vvHandler);
+                window.visualViewport.removeEventListener('scroll', this._vvHandler);
+                this._vvHandler = null;
+            }
+            this.vvHeight = null;
+            this.vvTop = 0;
+        },
+        handleInputFocus(e) {
+            if (!e.target.matches('input, textarea, select, [contenteditable]')) return;
+            const scrollBody = this.$refs.scrollBody;
+            if (!scrollBody) return;
+            setTimeout(() => {
+                const rect = e.target.getBoundingClientRect();
+                const bodyRect = scrollBody.getBoundingClientRect();
+                if (rect.bottom > bodyRect.bottom || rect.top < bodyRect.top) {
+                    const targetTop = rect.top - bodyRect.top + scrollBody.scrollTop;
+                    const centered = targetTop - (bodyRect.height / 3);
+                    scrollBody.scrollTo({ top: Math.max(0, centered), behavior: 'smooth' });
+                }
+            }, 300);
         }
     }"
-    x-init="$nextTick(() => show = true)"
+    x-init="$nextTick(() => { show = true; initViewport(); })"
     x-effect="document.body.classList.toggle('overflow-hidden', show)"
     x-on:remove.window="document.body.classList.remove('overflow-hidden')"
     x-on:keydown.escape.window="show && close()"
-    class="fixed inset-0 {{ $zIndex }} overflow-y-auto"
+    class="fixed inset-0 {{ $zIndex }} overflow-hidden"
     aria-labelledby="modal-title"
     role="dialog"
     aria-modal="true"
 >
     <!-- Layout container -->
-    <div class="fixed inset-0 flex flex-col justify-end sm:items-center sm:justify-center">
+    <div class="fixed inset-0 flex flex-col justify-end sm:items-center sm:justify-center"
+         :style="vvHeight !== null ? `height: ${vvHeight}px; top: ${vvTop}px; bottom: auto;` : ''"
+    >
         <!-- Overlay -->
         <div
             x-show="show"
@@ -86,7 +129,7 @@ $maxWidthClass = [
             x-transition:leave="transition ease-in duration-200"
             x-transition:leave-start="translate-y-0 sm:opacity-100 sm:scale-100"
             x-transition:leave-end="translate-y-full sm:translate-y-0 sm:opacity-0 sm:scale-95"
-            :style="dragY > 0 ? `transform: translateY(${dragY}px); transition: none;` : ''"
+            :style="dragY > 0 ? `transform: translateY(${dragY}px); transition: none;` : (vvHeight !== null ? `max-height: ${vvHeight * 0.92}px;` : '')"
             @touchstart.passive="onTouchStart($event)"
             @touchmove="onTouchMove($event)"
             @touchend="onTouchEnd()"
@@ -113,7 +156,10 @@ $maxWidthClass = [
                 </div>
 
                 <!-- Body (scrolleable) -->
-                <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4 overflow-y-auto flex-1 min-h-0" x-ref="scrollBody">
+                <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4 overflow-y-auto flex-1 min-h-0"
+                     x-ref="scrollBody"
+                     @focusin="handleInputFocus($event)"
+                >
                     {{ $body }}
                 </div>
 
