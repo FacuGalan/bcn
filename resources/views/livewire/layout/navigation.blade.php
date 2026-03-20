@@ -526,17 +526,19 @@ new class extends Component
         @endforeach
     </div>
 
-    {{-- Selectores y opciones en el footer del sidebar --}}
+    {{-- Selectores y opciones en el footer del sidebar (lazy: solo montan al abrir menú) --}}
     <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-bcn-light dark:bg-gray-900 p-4">
-        {{-- Selector de Sucursal para móvil --}}
-        <div class="mb-3">
-            <livewire:sucursal-selector />
-        </div>
+        @if($mobileMenuOpen)
+            {{-- Selector de Sucursal para móvil --}}
+            <div class="mb-3">
+                <livewire:sucursal-selector />
+            </div>
 
-        {{-- Selector de Caja para móvil --}}
-        <div class="mb-3">
-            <livewire:caja-selector :key="'caja-selector-mobile-' . (session('sucursal_id') ?? 'default')" />
-        </div>
+            {{-- Selector de Caja para móvil --}}
+            <div class="mb-3">
+                <livewire:caja-selector :key="'caja-selector-mobile-' . (session('sucursal_id') ?? 'default')" />
+            </div>
+        @endif
 
         <div class="space-y-1">
             <a
