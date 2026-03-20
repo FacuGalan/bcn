@@ -147,13 +147,57 @@ class TurnoActual extends Component
         $this->cajasResumenMovimientos = [];
         $this->cajasOperaciones = [];
 
-        // Calcular totales por caja
+        // Precargar ventasPagos y counts para TODAS las cajas en 2 queries (evita N+1)
+        $cajaIds = $this->cajas->pluck('id');
+        $cajasAbiertas = $this->cajas->reject(fn ($c) => $this->esTurnoCerrado($c));
+        $ventasPagosPorCaja = collect();
+        $operacionesPorCaja = collect();
+
+        if ($cajasAbiertas->isNotEmpty()) {
+            $abiertasData = $cajasAbiertas->mapWithKeys(fn ($c) => [$c->id => $c->fecha_apertura ?? today()]);
+
+            // Una sola query para todos los VentaPago de todas las cajas abiertas
+            $todosVentasPagos = VentaPago::whereHas('venta', function ($q) use ($abiertasData) {
+                    $q->where('estado', 'completada')
+                      ->where(function ($q2) use ($abiertasData) {
+                          foreach ($abiertasData as $cajaId => $fecha) {
+                              $q2->orWhere(fn ($q3) => $q3->where('caja_id', $cajaId)->where('created_at', '>=', $fecha));
+                          }
+                      });
+                })
+                ->with(['conceptoPago', 'formaPago', 'venta:id,caja_id'])
+                ->get();
+
+            $ventasPagosPorCaja = $todosVentasPagos->groupBy(fn ($p) => $p->venta->caja_id);
+
+            // Una sola query para counts de cobros
+            $cobrosCountPorCaja = CobroPago::whereHas('cobro', function ($q) use ($abiertasData) {
+                    $q->where('estado', 'activo')
+                      ->where(function ($q2) use ($abiertasData) {
+                          foreach ($abiertasData as $cajaId => $fecha) {
+                              $q2->orWhere(fn ($q3) => $q3->where('caja_id', $cajaId)->where('created_at', '>=', $fecha));
+                          }
+                      });
+                })
+                ->selectRaw('cobros.caja_id, count(*) as total')
+                ->join('cobros', 'cobro_pagos.cobro_id', '=', 'cobros.id')
+                ->groupBy('cobros.caja_id')
+                ->pluck('total', 'caja_id');
+
+            foreach ($abiertasData as $cajaId => $fecha) {
+                $ventasCount = ($ventasPagosPorCaja[$cajaId] ?? collect())->count();
+                $cobrosCount = $cobrosCountPorCaja[$cajaId] ?? 0;
+                $operacionesPorCaja[$cajaId] = $ventasCount + $cobrosCount;
+            }
+        }
+
+        // Calcular totales por caja (sin queries adicionales)
         foreach ($this->cajas as $caja) {
-            $ventasPagos = $this->esTurnoCerrado($caja) ? collect() : $this->getVentasPagosCaja($caja);
+            $ventasPagos = $ventasPagosPorCaja[$caja->id] ?? collect();
             $totalesPorConcepto = $this->calcularTotalesPorConcepto($caja, $ventasPagos);
             $totalesPorFormaPago = $this->calcularTotalesPorFormaPago($caja, $ventasPagos);
             $resumenMovimientos = $this->calcularResumenMovimientos($caja);
-            $cantidadOperaciones = $this->contarOperaciones($caja);
+            $cantidadOperaciones = $operacionesPorCaja[$caja->id] ?? 0;
 
             // Guardar en arrays separados para persistir entre re-renders
             $this->cajasTotalesPorConcepto[$caja->id] = $totalesPorConcepto;
