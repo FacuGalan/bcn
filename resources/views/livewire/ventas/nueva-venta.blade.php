@@ -685,7 +685,7 @@
                                 <label for="formaVentaId" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5">{{ __('Forma de Venta') }}</label>
                                 <select wire:model.live="formaVentaId" id="formaVentaId" class="block w-full pl-2 pr-6 py-1.5 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md">
                                     <option value="">{{ __('Seleccionar...') }}</option>
-                                    @foreach($formasVenta as $fv)
+                                    @foreach($this->formasVenta as $fv)
                                         <option value="{{ $fv['id'] }}">{{ $fv['nombre'] }}</option>
                                     @endforeach
                                 </select>
@@ -694,7 +694,7 @@
                                 <label for="formaPagoId" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5">{{ __('Forma de Pago') }}</label>
                                 <select wire:model.live="formaPagoId" id="formaPagoId" class="block w-full pl-2 pr-6 py-1.5 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md">
                                     <option value="">{{ __('Seleccionar...') }}</option>
-                                    @foreach($formasPago as $fp)
+                                    @foreach($this->formasPago as $fp)
                                         <option value="{{ $fp['id'] }}">{{ $fp['nombre'] }}</option>
                                     @endforeach
                                 </select>
