@@ -88,6 +88,7 @@ class FormasPagoSeeder extends Seeder
                 'es_mixta' => false,
                 'ajuste_porcentaje' => -5, // 5% descuento en efectivo
                 'activo' => true,
+                'orden' => 1,
             ],
 
             // Tarjeta de Débito
@@ -101,6 +102,7 @@ class FormasPagoSeeder extends Seeder
                 'es_mixta' => false,
                 'ajuste_porcentaje' => 0,
                 'activo' => true,
+                'orden' => 2,
             ],
 
             // Tarjeta de Crédito - permite cuotas
@@ -114,6 +116,7 @@ class FormasPagoSeeder extends Seeder
                 'es_mixta' => false,
                 'ajuste_porcentaje' => 3, // 3% recargo en tarjeta crédito
                 'activo' => true,
+                'orden' => 3,
             ],
 
             // Transferencia
@@ -127,6 +130,7 @@ class FormasPagoSeeder extends Seeder
                 'es_mixta' => false,
                 'ajuste_porcentaje' => 0,
                 'activo' => true,
+                'orden' => 4,
             ],
 
             // MercadoPago
@@ -140,6 +144,7 @@ class FormasPagoSeeder extends Seeder
                 'es_mixta' => false,
                 'ajuste_porcentaje' => 5, // 5% recargo MercadoPago
                 'activo' => true,
+                'orden' => 5,
             ],
 
             // PayPal
@@ -153,6 +158,7 @@ class FormasPagoSeeder extends Seeder
                 'es_mixta' => false,
                 'ajuste_porcentaje' => 7, // 7% recargo PayPal
                 'activo' => true,
+                'orden' => 6,
             ],
 
             // Cheque
@@ -166,6 +172,7 @@ class FormasPagoSeeder extends Seeder
                 'es_mixta' => false,
                 'ajuste_porcentaje' => 0,
                 'activo' => true,
+                'orden' => 7,
             ],
 
             // Cuenta Corriente (crédito al cliente)
@@ -179,6 +186,7 @@ class FormasPagoSeeder extends Seeder
                 'es_mixta' => false,
                 'ajuste_porcentaje' => 0,
                 'activo' => true,
+                'orden' => 8,
             ],
         ];
 
@@ -319,6 +327,7 @@ class FormasPagoSeeder extends Seeder
             'es_mixta' => true,
             'ajuste_porcentaje' => 0, // Sin ajuste propio, usa los de las formas de pago del desglose
             'activo' => true,
+            'orden' => 9,
         ]);
 
         // Asignar los conceptos permitidos para la forma mixta

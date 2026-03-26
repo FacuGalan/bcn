@@ -64,6 +64,7 @@ class FormaPago extends Model
         'ajuste_porcentaje',
         'factura_fiscal',
         'activo',
+        'orden',
         'cuenta_empresa_id',
         'moneda_id',
     ];
@@ -74,6 +75,7 @@ class FormaPago extends Model
         'ajuste_porcentaje' => 'decimal:2',
         'factura_fiscal' => 'boolean',
         'activo' => 'boolean',
+        'orden' => 'integer',
     ];
 
     // ==================== Relaciones ====================

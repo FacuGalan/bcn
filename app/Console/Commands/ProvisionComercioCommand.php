@@ -375,6 +375,7 @@ class ProvisionComercioCommand extends Command
                 'concepto' => 'efectivo',
                 'permite_cuotas' => false,
                 'es_mixta' => false,
+                'orden' => 1,
             ],
             [
                 'nombre' => 'Tarjeta de Débito',
@@ -383,6 +384,7 @@ class ProvisionComercioCommand extends Command
                 'concepto' => 'tarjeta_debito',
                 'permite_cuotas' => false,
                 'es_mixta' => false,
+                'orden' => 2,
             ],
             [
                 'nombre' => 'Tarjeta de Crédito',
@@ -391,6 +393,7 @@ class ProvisionComercioCommand extends Command
                 'concepto' => 'tarjeta_credito',
                 'permite_cuotas' => true,
                 'es_mixta' => false,
+                'orden' => 3,
             ],
             [
                 'nombre' => 'Transferencia',
@@ -399,6 +402,7 @@ class ProvisionComercioCommand extends Command
                 'concepto' => 'transferencia',
                 'permite_cuotas' => false,
                 'es_mixta' => false,
+                'orden' => 4,
             ],
             [
                 'nombre' => 'MercadoPago',
@@ -407,6 +411,7 @@ class ProvisionComercioCommand extends Command
                 'concepto' => 'wallet',
                 'permite_cuotas' => false,
                 'es_mixta' => false,
+                'orden' => 5,
             ],
             [
                 'nombre' => 'Cuenta Corriente',
@@ -415,6 +420,7 @@ class ProvisionComercioCommand extends Command
                 'concepto' => 'otro',
                 'permite_cuotas' => false,
                 'es_mixta' => false,
+                'orden' => 6,
             ],
             [
                 'nombre' => 'Pago Mixto',
@@ -423,6 +429,7 @@ class ProvisionComercioCommand extends Command
                 'concepto' => 'otro',
                 'permite_cuotas' => false,
                 'es_mixta' => true,
+                'orden' => 7,
             ],
         ];
 

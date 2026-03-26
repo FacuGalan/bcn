@@ -417,9 +417,8 @@ class NuevaVenta extends Component
         // Seleccionar lista base por defecto
         $this->listaPrecioId = $this->obtenerIdListaBase();
 
-        // Valores por defecto: Efectivo (ID 1) para forma de pago
-        $efectivo = collect($this->formasPago)->firstWhere('codigo', 'efectivo');
-        $this->formaPagoId = $efectivo['id'] ?? $this->formasPago[0]['id'] ?? 1;
+        // Valores por defecto: primera forma de pago según orden configurado (normalmente Efectivo)
+        $this->formaPagoId = $this->formasPago[0]['id'] ?? 1;
 
         // Valores por defecto: Local (ID 1) para forma de venta
         $local = collect($this->formasVenta)->firstWhere('codigo', 'local');
@@ -3708,7 +3707,7 @@ class NuevaVenta extends Component
 
         $formasPago = FormaPago::with(['conceptoPago', 'conceptosPermitidos', 'cuotas'])
             ->where('activo', true)
-            ->orderBy('nombre')
+            ->orderBy('orden')->orderBy('id')
             ->get();
 
         $this->formasPagoSucursal = $formasPago->map(function ($fp) {
@@ -5924,9 +5923,8 @@ class NuevaVenta extends Component
         $this->clienteRapidoNombre = '';
         $this->clienteRapidoTelefono = '';
 
-        // Volver a valores por defecto de selectores
-        $efectivo = collect($this->formasPago)->firstWhere('codigo', 'efectivo');
-        $this->formaPagoId = $efectivo['id'] ?? $this->formasPago[0]['id'] ?? 1;
+        // Volver a valores por defecto de selectores (primera forma de pago según orden)
+        $this->formaPagoId = $this->formasPago[0]['id'] ?? 1;
 
         if ($mostrarMensaje) {
             $this->dispatch('toast-info', message: 'Carrito limpiado');

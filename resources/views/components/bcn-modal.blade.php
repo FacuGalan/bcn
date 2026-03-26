@@ -33,6 +33,9 @@ $maxWidthClass = [
             this.show = false;
             $wire.{{ $onClose }}();
         },
+        destroy() {
+            document.body.classList.remove('overflow-hidden');
+        },
         onTouchStart(e) {
             const scrollEl = this.$refs.scrollBody;
             if (scrollEl && scrollEl.scrollTop > 0) return;
@@ -57,7 +60,6 @@ $maxWidthClass = [
     }"
     x-init="$nextTick(() => show = true)"
     x-effect="document.body.classList.toggle('overflow-hidden', show)"
-    x-on:remove.window="document.body.classList.remove('overflow-hidden')"
     x-on:keydown.escape.window="show && close()"
     class="fixed inset-0 {{ $zIndex }} overflow-hidden"
     :class="{ 'pointer-events-none': !show }"

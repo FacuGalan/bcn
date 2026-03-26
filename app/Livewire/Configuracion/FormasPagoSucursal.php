@@ -335,7 +335,7 @@ class FormasPagoSucursal extends Component
         $sucursales = Sucursal::orderBy('nombre')->get();
         $formasPago = FormaPago::with(['conceptoPago', 'conceptosPermitidos'])
             ->where('activo', true)
-            ->orderBy('nombre')
+            ->orderBy('orden')->orderBy('id')
             ->get();
 
         // Agregar información de configuración por sucursal a cada forma de pago
