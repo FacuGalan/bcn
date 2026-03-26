@@ -788,6 +788,7 @@ CREATE TABLE `{{PREFIX}}formas_pago` (
   `ajuste_porcentaje` decimal(8,2) NOT NULL DEFAULT '0.00' COMMENT 'Ajuste porcentual: positivo=recargo, negativo=descuento',
   `factura_fiscal` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si esta forma de pago genera factura fiscal por defecto',
   `activo` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Si está activo',
+  `orden` int unsigned NOT NULL DEFAULT '0' COMMENT 'Orden de visualización (menor = primero)',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   `cuenta_empresa_id` bigint unsigned DEFAULT NULL,

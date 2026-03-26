@@ -35,7 +35,7 @@ class ListarFormasPago extends Component
     {
         $this->formasPago = FormaPago::with(['cuotas' => function ($q) {
             $q->orderBy('cantidad_cuotas');
-        }])->orderBy('nombre')->get();
+        }])->orderBy('orden')->orderBy('id')->get();
     }
 
     public function toggleActivo($formaPagoId)

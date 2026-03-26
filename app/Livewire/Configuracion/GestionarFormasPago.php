@@ -67,6 +67,11 @@ class GestionarFormasPago extends Component
 
     public $modoEdicion = false;
 
+    // Modal de ordenar
+    public $mostrarModalOrden = false;
+
+    public array $formasPagoOrden = [];
+
     // Búsqueda y filtros
     public $busqueda = '';
 
@@ -219,6 +224,8 @@ class GestionarFormasPago extends Component
                 $formaPago->update($datos);
                 $message = __('Forma de pago actualizada exitosamente');
             } else {
+                // Asignar orden al final
+                $datos['orden'] = (FormaPago::max('orden') ?? 0) + 1;
                 $formaPago = FormaPago::create($datos);
                 $message = __('Forma de pago creada exitosamente');
             }
@@ -241,6 +248,7 @@ class GestionarFormasPago extends Component
             }
             $formaPago->sucursales()->sync($syncData);
 
+            CatalogoCache::clear();
             $this->dispatch('notify', message: $message, type: 'success');
             $this->cerrarModal();
             $this->resetPage();
@@ -388,6 +396,37 @@ class GestionarFormasPago extends Component
         $this->resetValidation();
     }
 
+    // ==================== Ordenar ====================
+
+    public function abrirModalOrden()
+    {
+        $this->formasPagoOrden = FormaPago::orderBy('orden')->orderBy('id')
+            ->get(['id', 'nombre', 'orden'])
+            ->toArray();
+        $this->mostrarModalOrden = true;
+    }
+
+    public function guardarOrden(array $ids)
+    {
+        try {
+            foreach ($ids as $index => $id) {
+                FormaPago::where('id', $id)->update(['orden' => $index + 1]);
+            }
+
+            CatalogoCache::clear();
+            $this->dispatch('notify', message: __('Orden actualizado exitosamente'), type: 'success');
+            $this->mostrarModalOrden = false;
+        } catch (\Exception $e) {
+            $this->dispatch('notify', message: __('Error al guardar orden: ').$e->getMessage(), type: 'error');
+        }
+    }
+
+    public function cerrarModalOrden()
+    {
+        $this->mostrarModalOrden = false;
+        $this->formasPagoOrden = [];
+    }
+
     public function render()
     {
         $query = FormaPago::with(['sucursales' => function ($query) {
@@ -408,7 +447,7 @@ class GestionarFormasPago extends Component
             $query->where('activo', $this->filtroActivo === 'activos');
         }
 
-        $formasPago = $query->orderBy('nombre')->paginate(10);
+        $formasPago = $query->orderBy('orden')->orderBy('id')->paginate(10);
 
         // Obtener todas las sucursales para el modal
         $sucursales = CatalogoCache::sucursalesTodas();

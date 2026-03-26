@@ -19,6 +19,15 @@
                                 </svg>
                             </a>
                             <button
+                                wire:click="abrirModalOrden"
+                                class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
+                                title="{{ __('Ordenar formas de pago') }}"
+                            >
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                                </svg>
+                            </button>
+                            <button
                                 wire:click="crear"
                                 class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-bcn-primary border border-transparent rounded-md text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
                                 title="{{ __('Crear nueva forma de pago') }}"
@@ -44,6 +53,16 @@
                         </svg>
                         {{ __('Por Sucursal') }}
                     </a>
+                    <button
+                        wire:click="abrirModalOrden"
+                        class="inline-flex items-center justify-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
+                        title="{{ __('Ordenar formas de pago') }}"
+                    >
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                        </svg>
+                        {{ __('Ordenar') }}
+                    </button>
                     <button
                         wire:click="crear"
                         class="inline-flex items-center justify-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
@@ -757,6 +776,97 @@
                     </div>
                 </div>
             </div>
+        @endif
+
+        <!-- Modal Ordenar Formas de Pago -->
+        @if($mostrarModalOrden)
+            <x-bcn-modal
+                :title="__('Ordenar Formas de Pago')"
+                color="bg-bcn-primary"
+                maxWidth="lg"
+                onClose="cerrarModalOrden"
+            >
+                <x-slot:body>
+                    <div
+                        x-data="{
+                            initSortable() {
+                                const loadAndInit = () => {
+                                    const el = this.$refs.sortableList;
+                                    if (!el) return;
+                                    Sortable.create(el, {
+                                        animation: 150,
+                                        ghostClass: 'sortable-ghost',
+                                        chosenClass: 'shadow-lg',
+                                        dragClass: 'opacity-50',
+                                        handle: '.drag-handle',
+                                        onEnd: () => this.updateNumbers()
+                                    });
+                                };
+                                if (typeof Sortable !== 'undefined') {
+                                    this.$nextTick(() => loadAndInit());
+                                } else {
+                                    const script = document.createElement('script');
+                                    script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js';
+                                    script.onload = () => this.$nextTick(() => loadAndInit());
+                                    document.head.appendChild(script);
+                                }
+                            },
+                            updateNumbers() {
+                                this.$refs.sortableList.querySelectorAll('[data-number]').forEach((el, i) => {
+                                    el.textContent = i + 1;
+                                });
+                            },
+                            guardar() {
+                                const ids = [...this.$refs.sortableList.querySelectorAll('[data-id]')].map(el => parseInt(el.dataset.id));
+                                $wire.guardarOrden(ids);
+                            }
+                        }"
+                        x-init="initSortable()"
+                        @guardar-orden.window="guardar()"
+                    >
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                            {{ __('Arrastra las formas de pago para definir el orden en que aparecerán en todo el sistema.') }}
+                        </p>
+
+                        <div x-ref="sortableList" class="space-y-1">
+                            @foreach($formasPagoOrden as $index => $fp)
+                                <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600"
+                                     data-id="{{ $fp['id'] }}">
+                                    <div class="drag-handle flex-shrink-0 text-gray-400 dark:text-gray-500 cursor-grab active:cursor-grabbing">
+                                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
+                                        </svg>
+                                    </div>
+                                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-bcn-primary text-white text-xs font-bold flex-shrink-0"
+                                          data-number>{{ $index + 1 }}</span>
+                                    <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $fp['nombre'] }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <style>
+                        .sortable-ghost {
+                            background-color: rgb(var(--color-bcn-light, 239 246 255)) !important;
+                            opacity: 0.8;
+                        }
+                        .dark .sortable-ghost {
+                            background-color: rgb(55 65 81) !important;
+                        }
+                    </style>
+                </x-slot:body>
+
+                <x-slot:footer>
+                    <button type="button" @click="close()"
+                        class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
+                        {{ __('Cancelar') }}
+                    </button>
+                    <button type="button" @click="$dispatch('guardar-orden')"
+                        class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-sm font-medium text-white hover:bg-opacity-90">
+                        {{ __('Guardar orden') }}
+                    </button>
+                </x-slot:footer>
+            </x-bcn-modal>
         @endif
 
     </div>

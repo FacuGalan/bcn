@@ -46,7 +46,7 @@ class CatalogoCache
     public static function formasPago(): Collection
     {
         return Cache::remember(self::key('formas_pago'), self::TTL,
-            fn () => FormaPago::where('activo', true)->orderBy('nombre')->get()
+            fn () => FormaPago::where('activo', true)->orderBy('orden')->orderBy('id')->get()
         );
     }
 
