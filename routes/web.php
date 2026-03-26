@@ -274,7 +274,6 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
         Route::get('promociones-especiales/nueva', WizardPromocionEspecial::class)->name('promociones-especiales.nueva');
         Route::get('promociones-especiales/{id}/editar', WizardPromocionEspecial::class)->name('promociones-especiales.editar');
 
-
         /**
          * Monedas y Tipos de Cambio
          * Gestión de monedas del sistema y cotizaciones
