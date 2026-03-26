@@ -37,6 +37,7 @@ $maxWidthClass = [
             document.body.classList.remove('overflow-hidden');
         },
         onTouchStart(e) {
+            if (e.target.closest('[data-no-swipe], .drag-handle, .sortable-drag')) return;
             const scrollEl = this.$refs.scrollBody;
             if (scrollEl && scrollEl.scrollTop > 0) return;
             this.dragging = true;
