@@ -70,6 +70,8 @@ class MovimientoTesoreria extends Model
 
     public const REFERENCIA_AJUSTE = 'ajuste';
 
+    public const REFERENCIA_INGRESO_EXTERNO = 'ingreso_externo';
+
     // ==================== RELACIONES ====================
 
     public function tesoreria(): BelongsTo

@@ -6,32 +6,19 @@
     - $resultadosBusqueda (array)
     - $recetaCantidadProducida (float)
     - $recetaNotas (string)
-    - $recetaEsOverride (bool) - si es override de sucursal
-    - $recetaSucursalNombre (string|null) - nombre de la sucursal si es override
 --}}
 
 <div class="space-y-4">
     <!-- Cantidad producida -->
-    <div class="flex items-center gap-4">
-        <div class="flex-1">
-            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Cantidad producida por receta') }}</label>
-            <input
-                type="number"
-                wire:model="recetaCantidadProducida"
-                step="0.001"
-                min="0.001"
-                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-            />
-        </div>
-        @if(isset($recetaEsOverride) && $recetaEsOverride)
-            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
-                {{ __('Override') }}: {{ $recetaSucursalNombre ?? '' }}
-            </span>
-        @else
-            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                {{ __('Default (todas las sucursales)') }}
-            </span>
-        @endif
+    <div>
+        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Cantidad producida por receta') }}</label>
+        <input
+            type="number"
+            wire:model="recetaCantidadProducida"
+            step="0.001"
+            min="0.001"
+            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+        />
     </div>
 
     <!-- Buscar ingrediente -->

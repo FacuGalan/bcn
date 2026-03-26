@@ -3,6 +3,7 @@
 namespace App\Livewire\Articulos;
 
 use App\Models\Categoria;
+use App\Services\CatalogoCache;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -166,6 +167,8 @@ class GestionarCategorias extends Component
             $message = __('Categoría creada correctamente');
         }
 
+        CatalogoCache::clear();
+
         $this->dispatch('notify', message: $message, type: 'success');
         $this->showModal = false;
         $this->reset(['nombre', 'prefijo', 'color', 'icono', 'activo', 'categoriaId']);
@@ -228,6 +231,7 @@ class GestionarCategorias extends Component
         $categoria = Categoria::find($this->categoriaAEliminar);
         if ($categoria) {
             $categoria->delete(); // Soft delete
+            CatalogoCache::clear();
             $this->js("window.notify('".__('Categoría eliminada correctamente')."', 'success')");
         }
 

@@ -9,16 +9,6 @@
                         <!-- Botones de acción - Solo iconos en móviles -->
                         <div class="sm:hidden flex gap-2">
                             <a
-                                href="{{ route('configuracion.articulos-sucursal') }}"
-                                wire:navigate
-                                class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                                :title="__('Configurar por sucursal')"
-                            >
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                </svg>
-                            </a>
-                            <a
                                 href="{{ route('articulos.cambio-masivo-precios') }}"
                                 wire:navigate
                                 class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
@@ -43,17 +33,6 @@
                 </div>
                 <!-- Botones de acciones - Desktop -->
                 <div class="hidden sm:flex gap-3">
-                    <a
-                        href="{{ route('configuracion.articulos-sucursal') }}"
-                        wire:navigate
-                        class="inline-flex items-center justify-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-200 uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                        :title="__('Configurar artículos por sucursal')"
-                    >
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                        </svg>
-                        {{ __('Gestionar') }}
-                    </a>
                     <a
                         href="{{ route('articulos.cambio-masivo-precios') }}"
                         wire:navigate
@@ -94,14 +73,6 @@
                         />
                     </div>
                     <div class="flex gap-2">
-                        <select
-                            wire:model.live="filterStatus"
-                            class="flex-1 sm:flex-none rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                        >
-                            <option value="all">{{ __('Todos') }}</option>
-                            <option value="active">{{ __('Activos') }}</option>
-                            <option value="inactive">{{ __('Inactivos') }}</option>
-                        </select>
                         <select
                             wire:model.live="filterTipo"
                             class="flex-1 sm:flex-none rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
@@ -273,17 +244,25 @@
                                     {{ $articulo->grupos_opcionales_count }} {{ __('Opcionales') }}
                                 </span>
                             @endif
-                            @if($articulo->tiene_receta > 0)
+                            @if($articulo->tiene_receta_override > 0 || ($articulo->tiene_receta_default > 0 && $articulo->receta_anulada == 0))
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                                     {{ __('Receta') }}
                                 </span>
                             @endif
+                            @if($articulo->modo_stock_sucursal && $articulo->modo_stock_sucursal !== 'ninguno')
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    {{ __('Stock') }}: {{ number_format($articulo->stock_cantidad ?? 0, 2) }}
+                                </span>
+                            @endif
                         </div>
+                        @php
+                            $precioEfectivoMobile = $articulo->precio_sucursal !== null ? $articulo->precio_sucursal : ($articulo->precio_base ?? 0);
+                        @endphp
                         <span class="text-sm font-semibold text-gray-900 dark:text-white">
-                            $@precio($articulo->precio_base ?? 0)
+                            ${{ number_format($precioEfectivoMobile, 2) }}
                         </span>
                     </div>
-                    <div class="flex gap-2">
+                    <div class="flex flex-wrap gap-2">
                         <button
                             wire:click="gestionarOpcionales({{ $articulo->id }})"
                             class="inline-flex items-center px-2 py-1 text-xs font-medium rounded border border-indigo-300 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-600 dark:text-indigo-400 dark:hover:bg-indigo-900/20 transition-colors"
@@ -334,8 +313,8 @@
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Código') }}</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Artículo') }}</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Categoría') }}</th>
-                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Precio Base') }}</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Estado') }}</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Precio') }}</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Stock') }}</th>
                             <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Acciones') }}</th>
                         </tr>
                     </thead>
@@ -359,23 +338,26 @@
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right">
+                                    @php
+                                        $precioEfectivo = $articulo->precio_sucursal !== null ? $articulo->precio_sucursal : ($articulo->precio_base ?? 0);
+                                    @endphp
                                     <span class="text-sm font-medium text-gray-900 dark:text-white">
-                                        $@precio($articulo->precio_base ?? 0)
+                                        ${{ number_format($precioEfectivo, 2) }}
                                     </span>
+                                    @if($articulo->precio_sucursal !== null)
+                                        <div class="text-xs text-gray-400" title="{{ __('Precio base genérico') }}">
+                                            ${{ number_format($articulo->precio_base ?? 0, 2) }}
+                                        </div>
+                                    @endif
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <button
-                                        wire:click="toggleStatus({{ $articulo->id }})"
-                                        class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary dark:focus:ring-offset-gray-800 {{ $articulo->activo ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600' }}"
-                                    >
-                                        <span class="sr-only">{{ $articulo->activo ? __('Desactivar') : __('Activar') }} {{ __('artículo') }}</span>
-                                        <span
-                                            class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $articulo->activo ? 'translate-x-5' : 'translate-x-0' }}"
-                                        ></span>
-                                    </button>
-                                    <span class="ml-2 text-xs text-gray-600 dark:text-gray-400">
-                                        {{ $articulo->activo ? __('Activo') : __('Inactivo') }}
-                                    </span>
+                                <td class="px-6 py-4 whitespace-nowrap text-right">
+                                    @if($articulo->modo_stock_sucursal && $articulo->modo_stock_sucursal !== 'ninguno')
+                                        <span class="text-sm font-medium text-gray-900 dark:text-white">
+                                            {{ number_format($articulo->stock_cantidad ?? 0, 2) }}
+                                        </span>
+                                    @else
+                                        <span class="text-xs text-gray-400">—</span>
+                                    @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <div class="flex justify-end gap-1.5">
@@ -395,7 +377,7 @@
                                             title="{{ __('Receta') }}"
                                         >
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
-                                            @if($articulo->tiene_receta > 0)
+                                            @if($articulo->tiene_receta_override > 0 || ($articulo->tiene_receta_default > 0 && $articulo->receta_anulada == 0))
                                                 <span class="ml-1 w-2 h-2 bg-amber-500 rounded-full"></span>
                                             @endif
                                         </button>
@@ -429,7 +411,8 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                <td colspan="6" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400" >
+
                                     <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                                     </svg>
@@ -541,22 +524,6 @@
                                         @error('unidad_medida') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                     </div>
 
-                                    <!-- Modo de Stock -->
-                                    <div>
-                                        <label for="modo_stock" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Modo de stock') }}</label>
-                                        <select
-                                            id="modo_stock"
-                                            wire:model="modo_stock"
-                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                        >
-                                            <option value="ninguno">{{ __('Ninguno') }}</option>
-                                            <option value="unitario">{{ __('Unitario') }}</option>
-                                            <option value="receta">{{ __('Receta') }}</option>
-                                        </select>
-                                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Default para nuevas sucursales. Se puede cambiar por sucursal.') }}</p>
-                                        @error('modo_stock') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                    </div>
-
                                     <!-- Tipo IVA -->
                                     <div>
                                         <label for="tipo_iva_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Tipo de IVA') }} *</label>
@@ -657,34 +624,71 @@
                                     </div>
                                 </div>
 
-                                <!-- Disponibilidad en Sucursales y Etiquetas -->
-                                <div class="pt-4 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    <!-- Sucursales -->
-                                    <div>
+                                <!-- Configuración de stock y sucursal -->
+                                <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
+                                    @multiSucursal
                                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                            {{ __('Disponibilidad en Sucursales') }}
+                                            {{ __('Configuración sucursal activa') }}
                                         </label>
-                                        <div class="grid grid-cols-1 gap-2">
-                                            @foreach($sucursales as $sucursal)
-                                                <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 rounded-md">
-                                                    <label for="sucursal_{{ $sucursal->id }}" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                                                        {{ $sucursal->nombre }}
-                                                    </label>
-                                                    <button
-                                                        type="button"
-                                                        wire:click="$set('sucursales_seleccionadas', {{ in_array($sucursal->id, $sucursales_seleccionadas) ? json_encode(array_values(array_diff($sucursales_seleccionadas, [$sucursal->id]))) : json_encode(array_merge($sucursales_seleccionadas, [$sucursal->id])) }})"
-                                                        class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ in_array($sucursal->id, $sucursales_seleccionadas) ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
-                                                        role="switch"
-                                                        aria-checked="{{ in_array($sucursal->id, $sucursales_seleccionadas) ? 'true' : 'false' }}"
-                                                        id="sucursal_{{ $sucursal->id }}"
-                                                    >
-                                                        <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ in_array($sucursal->id, $sucursales_seleccionadas) ? 'translate-x-5' : 'translate-x-0' }}"></span>
-                                                    </button>
+                                    @endmultiSucursal
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 {{ es_multi_sucursal() ? 'lg:grid-cols-3' : '' }} gap-4">
+                                        <!-- Precio sucursal (solo multi-sucursal) -->
+                                        @multiSucursal
+                                        <div>
+                                            <label for="precio_sucursal" class="block text-xs font-medium text-gray-600 dark:text-gray-400">{{ __('Precio sucursal') }}</label>
+                                            <div class="mt-1 relative rounded-md shadow-sm">
+                                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                    <span class="text-gray-500 dark:text-gray-400 text-xs">$</span>
                                                 </div>
-                                            @endforeach
+                                                <input
+                                                    type="number"
+                                                    id="precio_sucursal"
+                                                    wire:model="precio_sucursal"
+                                                    step="0.01"
+                                                    min="0"
+                                                    class="block w-full pl-7 pr-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                                                    placeholder="{{ __('Usar genérico') }}"
+                                                />
+                                            </div>
+                                            @error('precio_sucursal') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                        </div>
+                                        @endmultiSucursal
+
+                                        <!-- Modo stock -->
+                                        <div>
+                                            <label for="modo_stock" class="block text-xs font-medium text-gray-600 dark:text-gray-400">{{ __('Modo de stock') }}</label>
+                                            <select
+                                                id="modo_stock"
+                                                wire:model="modo_stock"
+                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                                            >
+                                                <option value="ninguno">{{ __('Ninguno') }}</option>
+                                                <option value="unitario">{{ __('Unitario') }}</option>
+                                                <option value="receta">{{ __('Receta') }}</option>
+                                            </select>
+                                            @error('modo_stock') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                        </div>
+
+                                        <!-- Vendible -->
+                                        <div class="flex items-end">
+                                            <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between w-full">
+                                                <label for="vendible" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('Vendible') }}</label>
+                                                <button
+                                                    type="button"
+                                                    wire:click="$toggle('vendible')"
+                                                    class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $vendible ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
+                                                    role="switch"
+                                                    aria-checked="{{ $vendible ? 'true' : 'false' }}"
+                                                >
+                                                    <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $vendible ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
+                                </div>
 
+                                <!-- Etiquetas -->
+                                <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
                                     <!-- Etiquetas -->
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -912,22 +916,46 @@
 
                                     @if(count($grupo['opciones']) > 0)
                                         <div class="px-4 py-2 space-y-1">
-                                            @foreach($grupo['opciones'] as $opcion)
-                                                <div class="flex items-center justify-between text-sm py-1">
-                                                    <span class="text-gray-700 dark:text-gray-300">{{ $opcion['nombre'] }}</span>
-                                                    <span class="text-gray-500 dark:text-gray-400">
-                                                        @if((float)$opcion['precio_extra'] > 0)
-                                                            +${{ number_format($opcion['precio_extra'], 2) }}
-                                                        @else
-                                                            $0.00
-                                                        @endif
-                                                    </span>
+                                            @foreach($grupo['opciones'] as $opIdx => $opcion)
+                                                <div class="flex items-center gap-3 text-sm py-1.5 {{ !$opcion['activo'] ? 'opacity-50' : '' }}">
+                                                    {{-- Toggle activo --}}
+                                                    <button
+                                                        type="button"
+                                                        wire:click="actualizarOpcion({{ $index }}, {{ $opIdx }}, 'activo', null)"
+                                                        class="relative inline-flex flex-shrink-0 h-5 w-9 border-2 border-transparent rounded-full cursor-pointer transition-colors {{ $opcion['activo'] ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
+                                                        title="{{ $opcion['activo'] ? __('Desactivar') : __('Activar') }}"
+                                                    >
+                                                        <span class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition {{ $opcion['activo'] ? 'translate-x-4' : 'translate-x-0' }}"></span>
+                                                    </button>
+                                                    {{-- Nombre --}}
+                                                    <span class="flex-1 text-gray-700 dark:text-gray-300 truncate">{{ $opcion['nombre'] }}</span>
+                                                    {{-- Disponible --}}
+                                                    <button
+                                                        type="button"
+                                                        wire:click="actualizarOpcion({{ $index }}, {{ $opIdx }}, 'disponible', null)"
+                                                        class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium transition-colors {{ $opcion['disponible'] ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' }}"
+                                                        title="{{ $opcion['disponible'] ? __('Marcar como no disponible') : __('Marcar como disponible') }}"
+                                                    >
+                                                        {{ $opcion['disponible'] ? __('Disp.') : __('No disp.') }}
+                                                    </button>
+                                                    {{-- Precio extra --}}
+                                                    <div class="w-24 relative">
+                                                        <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-400 text-xs pointer-events-none">+$</span>
+                                                        <input
+                                                            type="number"
+                                                            wire:change="actualizarOpcion({{ $index }}, {{ $opIdx }}, 'precio_extra', $event.target.value)"
+                                                            value="{{ $opcion['precio_extra'] }}"
+                                                            step="0.01"
+                                                            min="0"
+                                                            class="w-full pl-7 pr-1 py-1 text-xs text-right rounded border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                                        />
+                                                    </div>
                                                 </div>
                                             @endforeach
                                         </div>
                                     @else
                                         <div class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 italic">
-                                            {{ __('Sin opciones activas') }}
+                                            {{ __('Sin opciones') }}
                                         </div>
                                     @endif
                                 </div>

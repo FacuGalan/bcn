@@ -13,25 +13,24 @@ use App\Models\Stock;
 use App\Models\Sucursal;
 use App\Services\CatalogoCache;
 use App\Services\OpcionalService;
+use App\Traits\SucursalAware;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 /**
- * Componente Livewire para gestión de artículos
+ * Componente Livewire para gestión de artículos (sucursal-aware)
  *
- * Permite crear, editar, listar y gestionar el estado de los artículos.
+ * Muestra artículos activos en la sucursal activa con stock y precio efectivo.
  */
 #[Layout('layouts.app')]
 class GestionarArticulos extends Component
 {
-    use WithPagination;
+    use SucursalAware, WithPagination;
 
     // Propiedades de filtros
     public string $search = '';
-
-    public string $filterStatus = 'all'; // all, active, inactive
 
     public string $filterTipo = 'all'; // all, articulo, materia_prima
 
@@ -135,6 +134,10 @@ class GestionarArticulos extends Component
 
     public string $modo_stock = 'ninguno';
 
+    public ?float $precio_sucursal = null;
+
+    public bool $vendible = true;
+
     // Sucursales
     public array $sucursales_seleccionadas = [];
 
@@ -147,14 +150,6 @@ class GestionarArticulos extends Component
      * Actualiza la búsqueda y resetea la paginación
      */
     public function updatingSearch(): void
-    {
-        $this->resetPage();
-    }
-
-    /**
-     * Actualiza el filtro de estado y resetea la paginación
-     */
-    public function updatingFilterStatus(): void
     {
         $this->resetPage();
     }
@@ -242,54 +237,98 @@ class GestionarArticulos extends Component
     }
 
     /**
-     * Obtiene los artículos con filtros aplicados
+     * Hook: al cambiar de sucursal, resetear estado
+     */
+    protected function onSucursalChanged($sucursalId, $sucursalNombre): void
+    {
+        $this->resetPage();
+        $this->showModal = false;
+        $this->showOpcionalesModal = false;
+        $this->showRecetaModal = false;
+        $this->showDeleteModal = false;
+        $this->showHistorialModal = false;
+    }
+
+    /**
+     * Obtiene los artículos activos en la sucursal activa
      */
     protected function getArticulos()
     {
         $sucursalId = sucursal_activa();
 
-        $query = Articulo::with(['categoriaModel', 'tipoIva', 'sucursales' => function ($query) {
-            $query->wherePivot('activo', true);
-        }])
-            ->withCount(['gruposOpcionales as grupos_opcionales_count' => function ($q) use ($sucursalId) {
-                if ($sucursalId) {
-                    $q->where('sucursal_id', $sucursalId);
-                }
-            }])
-            ->withCount(['recetas as tiene_receta' => fn ($q) => $q->whereNull('sucursal_id')->where('activo', true)]);
+        if (! $sucursalId) {
+            return new \Illuminate\Pagination\LengthAwarePaginator([], 0, 10);
+        }
+
+        // Subqueries para datos de sucursal (deben usar la conexión tenant para el prefijo)
+        $tenantDb = DB::connection('pymes_tenant');
+
+        $precioSucursal = $tenantDb->table('articulos_sucursales')
+            ->select('precio_base')
+            ->whereColumn('articulo_id', 'articulos.id')
+            ->where('sucursal_id', $sucursalId)
+            ->limit(1);
+
+        $modoStockSucursal = $tenantDb->table('articulos_sucursales')
+            ->select('modo_stock')
+            ->whereColumn('articulo_id', 'articulos.id')
+            ->where('sucursal_id', $sucursalId)
+            ->limit(1);
+
+        $stockCantidad = $tenantDb->table('stock')
+            ->select('cantidad')
+            ->whereColumn('articulo_id', 'articulos.id')
+            ->where('sucursal_id', $sucursalId)
+            ->limit(1);
+
+        $query = Articulo::query()
+            ->select('articulos.*')
+            ->selectSub($precioSucursal, 'precio_sucursal')
+            ->selectSub($modoStockSucursal, 'modo_stock_sucursal')
+            ->selectSub($stockCantidad, 'stock_cantidad')
+            ->with(['categoriaModel', 'tipoIva'])
+            // Solo artículos activos en la sucursal activa
+            ->whereExists(function ($sub) use ($sucursalId) {
+                $sub->select(DB::raw(1))
+                    ->from('articulos_sucursales')
+                    ->whereColumn('articulos_sucursales.articulo_id', 'articulos.id')
+                    ->where('articulos_sucursales.sucursal_id', $sucursalId)
+                    ->where('articulos_sucursales.activo', true);
+            })
+            ->where('articulos.activo', true)
+            // Conteos por sucursal
+            ->withCount(['gruposOpcionales as grupos_opcionales_count' => fn ($q) => $q->where('sucursal_id', $sucursalId)])
+            ->withCount(['recetas as tiene_receta_override' => fn ($q) => $q->where('sucursal_id', $sucursalId)->where('activo', true)])
+            ->withCount(['recetas as tiene_receta_default' => fn ($q) => $q->whereNull('sucursal_id')->where('activo', true)])
+            ->withCount(['recetas as receta_anulada' => fn ($q) => $q->where('sucursal_id', $sucursalId)->where('activo', false)]);
 
         // Filtro de búsqueda
         if ($this->search) {
             $query->where(function ($q) {
-                $q->where('codigo', 'like', '%'.$this->search.'%')
-                    ->orWhere('nombre', 'like', '%'.$this->search.'%')
-                    ->orWhere('descripcion', 'like', '%'.$this->search.'%');
+                $q->where('articulos.codigo', 'like', '%'.$this->search.'%')
+                    ->orWhere('articulos.nombre', 'like', '%'.$this->search.'%')
+                    ->orWhere('articulos.descripcion', 'like', '%'.$this->search.'%');
             });
-        }
-
-        // Filtro de estado
-        if ($this->filterStatus !== 'all') {
-            $query->where('activo', $this->filterStatus === 'active');
         }
 
         // Filtro de tipo
         if ($this->filterTipo !== 'all') {
-            $query->where('es_materia_prima', $this->filterTipo === 'materia_prima');
+            $query->where('articulos.es_materia_prima', $this->filterTipo === 'materia_prima');
         }
 
-        // Filtro de categorías (checkboxes múltiples)
+        // Filtro de categorías
         if (! empty($this->categoriasSeleccionadas)) {
-            $query->whereIn('categoria_id', $this->categoriasSeleccionadas);
+            $query->whereIn('articulos.categoria_id', $this->categoriasSeleccionadas);
         }
 
-        // Filtro de etiquetas (checkboxes múltiples)
+        // Filtro de etiquetas
         if (! empty($this->etiquetasSeleccionadasFiltro)) {
             $query->whereHas('etiquetas', function ($q) {
                 $q->whereIn('etiquetas.id', $this->etiquetasSeleccionadasFiltro);
             });
         }
 
-        return $query->orderBy('nombre')->paginate(10);
+        return $query->orderBy('articulos.nombre')->paginate(10);
     }
 
     /**
@@ -297,21 +336,19 @@ class GestionarArticulos extends Component
      */
     public function create(): void
     {
-        $this->reset([
-            'codigo', 'codigo_barras', 'nombre', 'descripcion', 'categoria_id',
-            'unidad_medida', 'es_materia_prima', 'tipo_iva_id',
-            'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
-            'etiquetas_seleccionadas', 'busquedaEtiqueta', 'modo_stock',
-        ]);
+        $this->resetFormularioArticulo();
         $this->editMode = false;
         $this->activo = true;
         $this->precio_iva_incluido = true;
         $this->unidad_medida = 'unidad';
         $this->precio_base = null;
         $this->modo_stock = 'ninguno';
+        $this->precio_sucursal = null;
+        $this->vendible = true;
 
-        // Seleccionar todas las sucursales por defecto
-        $this->sucursales_seleccionadas = Sucursal::pluck('id')->toArray();
+        // En creación: solo la sucursal activa preseleccionada (las demás se crean inactivas)
+        $sucursalActiva = sucursal_activa();
+        $this->sucursales_seleccionadas = $sucursalActiva ? [$sucursalActiva] : [];
 
         $this->showModal = true;
     }
@@ -336,9 +373,16 @@ class GestionarArticulos extends Component
         $this->precio_base = $articulo->precio_base;
         $this->activo = $articulo->activo ?? true;
 
-        // Cargar modo_stock del primer registro en articulos_sucursales
-        $primeraSucursal = $articulo->sucursales()->first();
-        $this->modo_stock = $primeraSucursal?->pivot?->modo_stock ?? 'ninguno';
+        // Cargar datos de la sucursal activa
+        $sucursalId = sucursal_activa();
+        $configSucursal = DB::connection('pymes_tenant')->table('articulos_sucursales')
+            ->where('articulo_id', $articuloId)
+            ->where('sucursal_id', $sucursalId)
+            ->first();
+
+        $this->modo_stock = $configSucursal?->modo_stock ?? 'ninguno';
+        $this->precio_sucursal = $configSucursal?->precio_base;
+        $this->vendible = (bool) ($configSucursal?->vendible ?? true);
 
         // Cargar sucursales donde está activo
         $this->sucursales_seleccionadas = $articulo->sucursales()
@@ -372,6 +416,8 @@ class GestionarArticulos extends Component
             'precio_base' => 'required|numeric|min:0',
             'activo' => 'boolean',
             'modo_stock' => 'required|in:ninguno,unitario,receta',
+            'precio_sucursal' => 'nullable|numeric|min:0',
+            'vendible' => 'boolean',
         ];
 
         $this->validate($rules);
@@ -422,41 +468,72 @@ class GestionarArticulos extends Component
 
         // Sincronizar sucursales
         $todasSucursales = Sucursal::pluck('id')->toArray();
+        $sucursalActiva = sucursal_activa();
 
         if ($this->editMode) {
-            // En edición: solo aplicar modo_stock a sucursales nuevas (no pisar las ya configuradas)
+            // En edición: actualizar config de la sucursal activa
+            if ($sucursalActiva) {
+                // Registrar historial si cambió el precio de sucursal
+                $precioSucursalAnterior = DB::connection('pymes_tenant')->table('articulos_sucursales')
+                    ->where('articulo_id', $articulo->id)
+                    ->where('sucursal_id', $sucursalActiva)
+                    ->value('precio_base');
+
+                DB::connection('pymes_tenant')->table('articulos_sucursales')
+                    ->where('articulo_id', $articulo->id)
+                    ->where('sucursal_id', $sucursalActiva)
+                    ->update([
+                        'precio_base' => $this->precio_sucursal,
+                        'modo_stock' => $this->modo_stock,
+                        'vendible' => $this->vendible,
+                    ]);
+
+                if ((float) $precioSucursalAnterior !== (float) $this->precio_sucursal) {
+                    HistorialPrecio::registrar([
+                        'articulo_id' => $articulo->id,
+                        'sucursal_id' => $sucursalActiva,
+                        'precio_anterior' => $precioSucursalAnterior ?? $articulo->precio_base,
+                        'precio_nuevo' => $this->precio_sucursal ?? $articulo->precio_base,
+                        'origen' => 'override_sucursal',
+                    ]);
+                }
+
+                // Auto-crear stock si cambió a modo que lo requiere
+                if ($this->modo_stock !== 'ninguno') {
+                    Stock::firstOrCreate(
+                        ['articulo_id' => $articulo->id, 'sucursal_id' => $sucursalActiva],
+                        ['cantidad' => 0, 'ultima_actualizacion' => now()]
+                    );
+                }
+            }
+
+            // Crear registros en sucursales nuevas (si se agregaron sucursales al comercio)
             $sucursalesExistentes = $articulo->sucursales()->pluck('sucursal_id')->toArray();
-            $syncDataCompleto = [];
-            foreach ($todasSucursales as $sucursalId) {
-                $esSeleccionada = in_array($sucursalId, $this->sucursales_seleccionadas);
-                $esNueva = ! in_array($sucursalId, $sucursalesExistentes);
-                $syncDataCompleto[$sucursalId] = [
-                    'activo' => $esSeleccionada,
-                    'modo_stock' => $esNueva ? $this->modo_stock : DB::connection('pymes_tenant')
-                        ->table('articulos_sucursales')
-                        ->where('articulo_id', $articulo->id)
-                        ->where('sucursal_id', $sucursalId)
-                        ->value('modo_stock') ?? $this->modo_stock,
-                ];
+            $sucursalesNuevas = array_diff($todasSucursales, $sucursalesExistentes);
+            foreach ($sucursalesNuevas as $sucursalId) {
+                $articulo->sucursales()->attach($sucursalId, [
+                    'activo' => false,
+                    'modo_stock' => 'ninguno',
+                ]);
             }
         } else {
-            // En creación: aplicar modo_stock a todas las sucursales
+            // En creación: activar solo en la sucursal activa, inactivo en las demás
             $syncDataCompleto = [];
             foreach ($todasSucursales as $sucursalId) {
+                $esActiva = $sucursalId == $sucursalActiva;
                 $syncDataCompleto[$sucursalId] = [
-                    'activo' => in_array($sucursalId, $this->sucursales_seleccionadas),
-                    'modo_stock' => $this->modo_stock,
+                    'activo' => $esActiva,
+                    'modo_stock' => $esActiva ? $this->modo_stock : 'ninguno',
+                    'vendible' => $esActiva ? $this->vendible : true,
+                    'precio_base' => $esActiva ? $this->precio_sucursal : null,
                 ];
             }
-        }
+            $articulo->sucursales()->sync($syncDataCompleto);
 
-        $articulo->sucursales()->sync($syncDataCompleto);
-
-        // Auto-crear filas en stock si modo_stock != 'ninguno'
-        if ($this->modo_stock !== 'ninguno') {
-            foreach ($this->sucursales_seleccionadas as $sucursalId) {
+            // Auto-crear fila en stock solo para sucursal activa
+            if ($this->modo_stock !== 'ninguno' && $sucursalActiva) {
                 Stock::firstOrCreate(
-                    ['articulo_id' => $articulo->id, 'sucursal_id' => $sucursalId],
+                    ['articulo_id' => $articulo->id, 'sucursal_id' => $sucursalActiva],
                     ['cantidad' => 0, 'ultima_actualizacion' => now()]
                 );
             }
@@ -467,13 +544,7 @@ class GestionarArticulos extends Component
 
         $this->js("window.notify('".addslashes($message)."', 'success')");
         $this->showModal = false;
-        $this->reset([
-            'codigo', 'codigo_barras', 'nombre', 'descripcion', 'categoria_id',
-            'unidad_medida', 'es_materia_prima', 'tipo_iva_id',
-            'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
-            'sucursales_seleccionadas', 'etiquetas_seleccionadas', 'busquedaEtiqueta',
-            'modo_stock',
-        ]);
+        $this->resetFormularioArticulo();
     }
 
     /**
@@ -482,12 +553,17 @@ class GestionarArticulos extends Component
     public function cancel(): void
     {
         $this->showModal = false;
+        $this->resetFormularioArticulo();
+    }
+
+    protected function resetFormularioArticulo(): void
+    {
         $this->reset([
             'codigo', 'codigo_barras', 'nombre', 'descripcion', 'categoria_id',
             'unidad_medida', 'es_materia_prima', 'tipo_iva_id',
             'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
             'sucursales_seleccionadas', 'etiquetas_seleccionadas', 'busquedaEtiqueta',
-            'modo_stock',
+            'modo_stock', 'precio_sucursal', 'vendible',
         ]);
     }
 
@@ -504,16 +580,21 @@ class GestionarArticulos extends Component
     }
 
     /**
-     * Cambia el estado activo/inactivo de un artículo
+     * Desactiva un artículo en la sucursal activa
      */
-    public function toggleStatus(int $articuloId): void
+    public function desactivarEnSucursal(int $articuloId): void
     {
-        $articulo = Articulo::findOrFail($articuloId);
-        $articulo->activo = ! $articulo->activo;
-        $articulo->save();
+        $sucursalId = sucursal_activa();
+        if (! $sucursalId) {
+            return;
+        }
 
-        $status = $articulo->activo ? __('activado') : __('desactivado');
-        $this->js("window.notify('".__('Artículo :status correctamente', ['status' => $status])."', 'success')");
+        DB::connection('pymes_tenant')->table('articulos_sucursales')
+            ->where('articulo_id', $articuloId)
+            ->where('sucursal_id', $sucursalId)
+            ->update(['activo' => false]);
+
+        $this->js("window.notify('".addslashes(__('Artículo desactivado en esta sucursal'))."', 'success')");
     }
 
     /**
@@ -578,7 +659,8 @@ class GestionarArticulos extends Component
         $sucursalId = sucursal_activa();
 
         $asignaciones = ArticuloGrupoOpcional::with([
-            'grupoOpcional.opcionales' => fn ($q) => $q->where('activo', true)->orderBy('orden'),
+            'grupoOpcional',
+            'opciones.opcional' => fn ($q) => $q->orderBy('orden'),
         ])
             ->where('articulo_id', $this->opcionalesArticuloId)
             ->where('sucursal_id', $sucursalId)
@@ -594,13 +676,38 @@ class GestionarArticulos extends Component
                 'obligatorio' => $asig->grupoOpcional->obligatorio,
                 'activo' => $asig->activo,
                 'orden' => $asig->orden,
-                'opciones' => $asig->grupoOpcional->opcionales->map(fn ($op) => [
-                    'id' => $op->id,
-                    'nombre' => $op->nombre,
-                    'precio_extra' => $op->precio_extra,
+                'opciones' => $asig->opciones->map(fn ($op) => [
+                    'opcion_id' => $op->id,
+                    'opcional_id' => $op->opcional_id,
+                    'nombre' => $op->opcional?->nombre ?? __('Opción eliminada'),
+                    'precio_extra' => (string) $op->precio_extra,
+                    'activo' => $op->activo,
+                    'disponible' => $op->disponible,
                 ])->toArray(),
             ];
         })->toArray();
+    }
+
+    public function actualizarOpcion(int $grupoIndex, int $opcionIndex, string $campo, $valor): void
+    {
+        if (! isset($this->gruposAsignados[$grupoIndex]['opciones'][$opcionIndex])) {
+            return;
+        }
+
+        $opcionId = $this->gruposAsignados[$grupoIndex]['opciones'][$opcionIndex]['opcion_id'];
+
+        $opcion = \App\Models\ArticuloGrupoOpcionalOpcion::find($opcionId);
+        if (! $opcion) {
+            return;
+        }
+
+        if ($campo === 'activo' || $campo === 'disponible') {
+            $opcion->update([$campo => ! $opcion->$campo]);
+            $this->gruposAsignados[$grupoIndex]['opciones'][$opcionIndex][$campo] = ! $this->gruposAsignados[$grupoIndex]['opciones'][$opcionIndex][$campo];
+        } elseif ($campo === 'precio_extra') {
+            $opcion->update(['precio_extra' => max(0, (float) $valor)]);
+            $this->gruposAsignados[$grupoIndex]['opciones'][$opcionIndex]['precio_extra'] = (string) max(0, (float) $valor);
+        }
     }
 
     public function abrirAgregarGrupo(): void
@@ -762,34 +869,51 @@ class GestionarArticulos extends Component
     public function editarReceta(int $articuloId): void
     {
         $articulo = Articulo::findOrFail($articuloId);
+        $sucursalId = sucursal_activa();
 
         $this->recetaArticuloId = $articulo->id;
         $this->recetaArticuloNombre = $articulo->nombre;
         $this->recetaEsOverride = false;
         $this->recetaSucursalNombre = null;
 
+        // Buscar override de sucursal primero
         $receta = Receta::where('recetable_type', 'Articulo')
             ->where('recetable_id', $articuloId)
-            ->whereNull('sucursal_id')
+            ->where('sucursal_id', $sucursalId)
             ->with('ingredientes.articulo')
             ->first();
 
         if ($receta) {
+            // Override existe (activo o anulado)
             $this->recetaId = $receta->id;
             $this->recetaCantidadProducida = (string) $receta->cantidad_producida;
             $this->recetaNotas = $receta->notas ?? '';
-            $this->recetaIngredientes = $receta->ingredientes->map(fn ($ing) => [
+            $this->recetaIngredientes = $receta->activo ? $receta->ingredientes->map(fn ($ing) => [
                 'articulo_id' => $ing->articulo_id,
                 'codigo' => $ing->articulo->codigo ?? '',
                 'nombre' => $ing->articulo->nombre ?? __('Artículo eliminado'),
                 'unidad_medida' => $ing->articulo->unidad_medida ?? '',
                 'cantidad' => (string) $ing->cantidad,
-            ])->toArray();
+            ])->toArray() : [];
         } else {
+            // Sin override: buscar default y copiar ingredientes para edición
+            $recetaDefault = Receta::where('recetable_type', 'Articulo')
+                ->where('recetable_id', $articuloId)
+                ->whereNull('sucursal_id')
+                ->where('activo', true)
+                ->with('ingredientes.articulo')
+                ->first();
+
             $this->recetaId = null;
-            $this->recetaCantidadProducida = '1.000';
-            $this->recetaNotas = '';
-            $this->recetaIngredientes = [];
+            $this->recetaCantidadProducida = $recetaDefault ? (string) $recetaDefault->cantidad_producida : '1.000';
+            $this->recetaNotas = $recetaDefault->notas ?? '';
+            $this->recetaIngredientes = $recetaDefault ? $recetaDefault->ingredientes->map(fn ($ing) => [
+                'articulo_id' => $ing->articulo_id,
+                'codigo' => $ing->articulo->codigo ?? '',
+                'nombre' => $ing->articulo->nombre ?? __('Artículo eliminado'),
+                'unidad_medida' => $ing->articulo->unidad_medida ?? '',
+                'cantidad' => (string) $ing->cantidad,
+            ])->toArray() : [];
         }
 
         $this->busquedaIngrediente = '';
@@ -886,18 +1010,21 @@ class GestionarArticulos extends Component
             }
         }
 
-        DB::connection('pymes_tenant')->transaction(function () {
+        $sucursalId = sucursal_activa();
+
+        DB::connection('pymes_tenant')->transaction(function () use ($sucursalId) {
             if ($this->recetaId) {
                 $receta = Receta::findOrFail($this->recetaId);
                 $receta->update([
                     'cantidad_producida' => $this->recetaCantidadProducida,
                     'notas' => $this->recetaNotas ?: null,
+                    'activo' => true,
                 ]);
             } else {
                 $receta = Receta::create([
                     'recetable_type' => 'Articulo',
                     'recetable_id' => $this->recetaArticuloId,
-                    'sucursal_id' => null,
+                    'sucursal_id' => $sucursalId,
                     'cantidad_producida' => $this->recetaCantidadProducida,
                     'notas' => $this->recetaNotas ?: null,
                     'activo' => true,
@@ -932,13 +1059,42 @@ class GestionarArticulos extends Component
         }
 
         $receta = Receta::find($this->recetaId);
-        if ($receta) {
+        if ($receta && $receta->sucursal_id) {
+            // Solo eliminar overrides de sucursal, nunca el default
             $receta->ingredientes()->delete();
             $receta->delete();
         }
 
         $this->js("window.notify('".addslashes(__('Receta eliminada correctamente'))."', 'success')");
         $this->showDeleteRecetaModal = false;
+        $this->showRecetaModal = false;
+        $this->resetReceta();
+    }
+
+    /**
+     * Anula la receta en esta sucursal (crea override inactivo)
+     */
+    public function anularReceta(): void
+    {
+        if (! $this->recetaArticuloId) {
+            return;
+        }
+
+        $sucursalId = sucursal_activa();
+
+        if ($this->recetaId) {
+            Receta::where('id', $this->recetaId)->update(['activo' => false]);
+        } else {
+            Receta::create([
+                'recetable_type' => 'Articulo',
+                'recetable_id' => $this->recetaArticuloId,
+                'sucursal_id' => $sucursalId,
+                'cantidad_producida' => 1,
+                'activo' => false,
+            ]);
+        }
+
+        $this->js("window.notify('".addslashes(__('Receta anulada en esta sucursal'))."', 'success')");
         $this->showRecetaModal = false;
         $this->resetReceta();
     }
@@ -1026,13 +1182,11 @@ class GestionarArticulos extends Component
         // Datos del modal: solo cuando está abierto
         $categorias = collect();
         $tiposIva = collect();
-        $sucursales = collect();
         $gruposEtiquetas = collect();
 
         if ($this->showModal) {
             $categorias = CatalogoCache::categorias();
             $tiposIva = CatalogoCache::tiposIva();
-            $sucursales = CatalogoCache::sucursalesTodas();
 
             $busquedaModal = $this->busquedaEtiqueta;
             $gruposEtiquetasQuery = GrupoEtiqueta::where('activo', true);
@@ -1102,7 +1256,6 @@ class GestionarArticulos extends Component
             'categorias' => $categorias,
             'categoriasFiltro' => $categoriasFiltro,
             'tiposIva' => $tiposIva,
-            'sucursales' => $sucursales,
             'gruposEtiquetas' => $gruposEtiquetas,
             'gruposEtiquetasFiltro' => $gruposEtiquetasFiltro,
         ]);

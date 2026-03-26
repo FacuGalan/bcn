@@ -35,6 +35,17 @@ if (! function_exists('tiene_acceso_sucursal')) {
     }
 }
 
+if (! function_exists('es_multi_sucursal')) {
+    /**
+     * Determina si el comercio actual tiene más de una sucursal activa.
+     * Nivel COMERCIO, no usuario — independiente de permisos.
+     */
+    function es_multi_sucursal(): bool
+    {
+        return SucursalService::esMultiSucursal();
+    }
+}
+
 // =====================================================
 // HELPERS DE CAJAS
 // =====================================================

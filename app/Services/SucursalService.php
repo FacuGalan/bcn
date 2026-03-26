@@ -37,6 +37,11 @@ class SucursalService
     protected static ?Sucursal $sucursalActivaCache = null;
 
     /**
+     * Caché de detección multi-sucursal durante el request
+     */
+    protected static ?bool $esMultiSucursalCache = null;
+
+    /**
      * Obtiene el ID de la sucursal activa de la sesión
      */
     public static function getSucursalActiva(): ?int
@@ -222,6 +227,33 @@ class SucursalService
     }
 
     /**
+     * Determina si el comercio actual tiene más de una sucursal activa.
+     * Esto es a nivel COMERCIO, no a nivel usuario (no depende de permisos).
+     * Cacheado durante el request.
+     */
+    public static function esMultiSucursal(): bool
+    {
+        if (self::$esMultiSucursalCache !== null) {
+            return self::$esMultiSucursalCache;
+        }
+
+        $comercioActivoId = session('comercio_activo_id');
+        if (! $comercioActivoId) {
+            self::$esMultiSucursalCache = false;
+
+            return false;
+        }
+
+        try {
+            self::$esMultiSucursalCache = Sucursal::where('activa', true)->count() > 1;
+        } catch (\Exception $e) {
+            self::$esMultiSucursalCache = false;
+        }
+
+        return self::$esMultiSucursalCache;
+    }
+
+    /**
      * Limpia el caché de sucursales
      * Útil cuando se cambian permisos o se agregan/eliminan sucursales
      */
@@ -230,5 +262,6 @@ class SucursalService
         self::$sucursalesCache = null;
         self::$sucursalIdsCache = null;
         self::$sucursalActivaCache = null;
+        self::$esMultiSucursalCache = null;
     }
 }
