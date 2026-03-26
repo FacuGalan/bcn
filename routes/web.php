@@ -20,7 +20,6 @@ use App\Livewire\Clientes\GestionarClientes;
 use App\Livewire\Clientes\GestionarCobranzas;
 use App\Livewire\ComercioSelector;
 use App\Livewire\Compras\Compras;
-use App\Livewire\Configuracion\ArticulosSucursal;
 use App\Livewire\Configuracion\ConfiguracionEmpresa;
 use App\Livewire\Configuracion\FormasPago\ListarFormasPago;
 use App\Livewire\Configuracion\FormasPagoSucursal;
@@ -275,11 +274,6 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
         Route::get('promociones-especiales/nueva', WizardPromocionEspecial::class)->name('promociones-especiales.nueva');
         Route::get('promociones-especiales/{id}/editar', WizardPromocionEspecial::class)->name('promociones-especiales.editar');
 
-        /**
-         * Artículos por Sucursal
-         * Configuración de disponibilidad de artículos por sucursal
-         */
-        Route::get('articulos-sucursal', ArticulosSucursal::class)->name('articulos-sucursal');
 
         /**
          * Monedas y Tipos de Cambio

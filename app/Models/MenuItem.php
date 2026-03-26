@@ -269,7 +269,6 @@ class MenuItem extends Model
         // Rutas relacionadas: ciertas rutas de configuración pertenecen a sus módulos padre
         $relatedRoutes = [
             'articulos.gestionar' => [
-                'configuracion.articulos-sucursal',
                 'articulos.cambio-masivo-precios',
             ],
             'articulos.etiquetas' => [

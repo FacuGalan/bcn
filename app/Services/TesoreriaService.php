@@ -988,6 +988,44 @@ class TesoreriaService
         }
     }
 
+    // ==================== INGRESO EXTERNO ====================
+
+    /**
+     * Registra un ingreso externo de fondos (capital inicial, aporte de socios, etc.)
+     */
+    public static function registrarIngresoExterno(
+        Tesoreria $tesoreria,
+        float $monto,
+        int $usuarioId,
+        string $concepto,
+        ?string $observaciones = null
+    ): MovimientoTesoreria {
+        if ($monto <= 0) {
+            throw new \Exception(__('El monto debe ser mayor a cero'));
+        }
+
+        return DB::transaction(function () use ($tesoreria, $monto, $usuarioId, $concepto, $observaciones) {
+            $movimiento = $tesoreria->ingreso(
+                $monto,
+                $concepto,
+                $usuarioId,
+                MovimientoTesoreria::REFERENCIA_INGRESO_EXTERNO,
+                null,
+                $observaciones
+            );
+
+            Log::info('Ingreso externo registrado', [
+                'tesoreria_id' => $tesoreria->id,
+                'monto' => $monto,
+                'concepto' => $concepto,
+                'usuario_id' => $usuarioId,
+                'saldo_posterior' => $tesoreria->saldo_actual,
+            ]);
+
+            return $movimiento;
+        });
+    }
+
     // ==================== MÉTODOS DE CONSULTA ====================
 
     /**

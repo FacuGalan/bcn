@@ -121,7 +121,20 @@
     @endif
 
     {{-- Acciones Rapidas --}}
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
+        <button
+            wire:click="abrirModalIngresoExterno"
+            class="flex flex-col items-center justify-center p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-emerald-300 dark:hover:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+        >
+            <div class="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-2">
+                <svg class="w-6 h-6 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+            </div>
+            <span class="text-sm font-medium text-gray-900 dark:text-white">{{ __('Ingreso') }}</span>
+            <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Fondos externos') }}</span>
+        </button>
+
         <button
             wire:click="abrirModalProvision"
             class="flex flex-col items-center justify-center p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -907,6 +920,97 @@
             <button type="submit"
                 class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
                 {{ __('Registrar Deposito') }}
+            </button>
+        </x-slot:footer>
+    </x-bcn-modal>
+    @endif
+
+    {{-- Modal de Ingreso Externo --}}
+    @if($showIngresoExternoModal)
+    <x-bcn-modal
+        :show="$showIngresoExternoModal"
+        :title="__('Ingreso externo de fondos')"
+        color="bg-emerald-600"
+        maxWidth="lg"
+        onClose="cancelIngresoExterno"
+        submit="procesarIngresoExterno"
+    >
+        <x-slot:body>
+            <div class="space-y-4">
+                <div>
+                    <label for="montoIngresoExterno" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Monto') }} *</label>
+                    <div class="mt-1 relative rounded-md shadow-sm">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <span class="text-gray-500 dark:text-gray-400 sm:text-sm">$</span>
+                        </div>
+                        <input
+                            type="number"
+                            id="montoIngresoExterno"
+                            wire:model="montoIngresoExterno"
+                            step="0.01"
+                            min="0.01"
+                            class="block w-full pl-7 pr-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-emerald-500 focus:ring focus:ring-emerald-500 focus:ring-opacity-50"
+                            placeholder="0.00"
+                            autofocus
+                        />
+                    </div>
+                    @error('montoIngresoExterno') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                </div>
+
+                <div>
+                    <label for="conceptoIngresoExterno" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Concepto') }} *</label>
+                    <select
+                        id="conceptoIngresoExterno"
+                        wire:model="conceptoIngresoExterno"
+                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-emerald-500 focus:ring focus:ring-emerald-500 focus:ring-opacity-50"
+                    >
+                        <option value="">{{ __('Seleccionar...') }}</option>
+                        <option value="{{ __('Capital inicial') }}">{{ __('Capital inicial') }}</option>
+                        <option value="{{ __('Aporte de socios') }}">{{ __('Aporte de socios') }}</option>
+                        <option value="{{ __('Préstamo recibido') }}">{{ __('Préstamo recibido') }}</option>
+                        <option value="{{ __('Devolución de proveedor') }}">{{ __('Devolución de proveedor') }}</option>
+                        <option value="{{ __('Otro ingreso') }}">{{ __('Otro ingreso') }}</option>
+                    </select>
+                    @error('conceptoIngresoExterno') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                </div>
+
+                <div>
+                    <label for="observacionesIngresoExterno" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Observaciones') }}</label>
+                    <textarea
+                        id="observacionesIngresoExterno"
+                        wire:model="observacionesIngresoExterno"
+                        rows="2"
+                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-emerald-500 focus:ring focus:ring-emerald-500 focus:ring-opacity-50"
+                        placeholder="{{ __('Detalle opcional...') }}"
+                    ></textarea>
+                </div>
+
+                @if($tesoreria)
+                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600 dark:text-gray-400">{{ __('Saldo actual') }}:</span>
+                            <span class="font-medium text-gray-900 dark:text-white">${{ number_format($tesoreria->saldo_actual, 2) }}</span>
+                        </div>
+                        @if($montoIngresoExterno > 0)
+                            <div class="flex justify-between mt-1">
+                                <span class="text-gray-600 dark:text-gray-400">{{ __('Saldo resultante') }}:</span>
+                                <span class="font-medium text-emerald-600 dark:text-emerald-400">${{ number_format($tesoreria->saldo_actual + $montoIngresoExterno, 2) }}</span>
+                            </div>
+                        @endif
+                    </div>
+                @endif
+            </div>
+        </x-slot:body>
+
+        <x-slot:footer>
+            <button type="button" @click="close()"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                {{ __('Cancelar') }}
+            </button>
+            <button type="submit"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-emerald-600 text-base font-medium text-white hover:bg-emerald-700 sm:w-auto sm:text-sm">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                {{ __('Registrar ingreso') }}
             </button>
         </x-slot:footer>
     </x-bcn-modal>

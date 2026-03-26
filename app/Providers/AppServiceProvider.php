@@ -92,5 +92,10 @@ class AppServiceProvider extends ServiceProvider
         Blade::directive('cantidad', function ($expression) {
             return "<?php echo formato_cantidad($expression); ?>";
         });
+
+        // @multiSucursal / @endMultiSucursal - Solo si el comercio tiene >1 sucursal activa
+        Blade::if('multiSucursal', function () {
+            return es_multi_sucursal();
+        });
     }
 }

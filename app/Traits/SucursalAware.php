@@ -152,4 +152,13 @@ trait SucursalAware
     {
         return \App\Services\SucursalService::getSucursalActivaModel();
     }
+
+    /**
+     * Computed property: ¿el comercio tiene más de una sucursal activa?
+     * Disponible en vistas como $this->esMultiSucursal
+     */
+    public function getEsMultiSucursalProperty(): bool
+    {
+        return \App\Services\SucursalService::esMultiSucursal();
+    }
 }

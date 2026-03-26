@@ -91,6 +91,15 @@ class GestionTesoreria extends Component
 
     public ?int $monedaArqueoId = null;
 
+    // Modal de ingreso externo
+    public bool $showIngresoExternoModal = false;
+
+    public float $montoIngresoExterno = 0;
+
+    public string $conceptoIngresoExterno = '';
+
+    public string $observacionesIngresoExterno = '';
+
     // Datos cargados
     public array $estadisticasHoy = [];
 
@@ -130,6 +139,7 @@ class GestionTesoreria extends Component
         $this->showRendicionModal = false;
         $this->showDepositoModal = false;
         $this->showArqueoModal = false;
+        $this->showIngresoExternoModal = false;
 
         // Recargar datos de la nueva sucursal
         $this->cargarDatos();
@@ -816,6 +826,50 @@ class GestionTesoreria extends Component
         } catch (\Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
         }
+    }
+
+    // ==================== INGRESO EXTERNO ====================
+
+    public function abrirModalIngresoExterno(): void
+    {
+        $this->reset(['montoIngresoExterno', 'conceptoIngresoExterno', 'observacionesIngresoExterno']);
+        $this->showIngresoExternoModal = true;
+    }
+
+    public function procesarIngresoExterno(): void
+    {
+        $this->validate([
+            'montoIngresoExterno' => 'required|numeric|min:0.01',
+            'conceptoIngresoExterno' => 'required|string|max:200',
+        ], [
+            'montoIngresoExterno.required' => __('Ingrese el monto'),
+            'montoIngresoExterno.min' => __('El monto debe ser mayor a cero'),
+            'conceptoIngresoExterno.required' => __('Ingrese un concepto'),
+        ]);
+
+        try {
+            TesoreriaService::registrarIngresoExterno(
+                $this->tesoreria,
+                $this->montoIngresoExterno,
+                auth()->id(),
+                $this->conceptoIngresoExterno,
+                $this->observacionesIngresoExterno ?: null
+            );
+
+            $this->showIngresoExternoModal = false;
+            $this->cargarDatos();
+
+            $this->dispatch('toast-success', message: __('Ingreso externo registrado por $:monto', [
+                'monto' => number_format($this->montoIngresoExterno, 2, ',', '.'),
+            ]));
+        } catch (\Exception $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
+    }
+
+    public function cancelIngresoExterno(): void
+    {
+        $this->showIngresoExternoModal = false;
     }
 
     // ==================== DEPÓSITOS PENDIENTES ====================
