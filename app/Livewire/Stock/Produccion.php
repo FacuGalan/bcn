@@ -9,12 +9,13 @@ use App\Models\Stock;
 use App\Services\ProduccionService;
 use Exception;
 use Illuminate\Support\Facades\Auth;
+use App\Traits\SucursalAware;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 class Produccion extends Component
 {
-    use WithPagination;
+    use SucursalAware, WithPagination;
 
     // Búsqueda de artículos con receta
     public string $search = '';

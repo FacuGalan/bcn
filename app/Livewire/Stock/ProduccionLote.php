@@ -9,10 +9,12 @@ use App\Models\Sucursal;
 use App\Services\ProduccionService;
 use Exception;
 use Illuminate\Support\Facades\Auth;
+use App\Traits\SucursalAware;
 use Livewire\Component;
 
 class ProduccionLote extends Component
 {
+    use SucursalAware;
     // Búsqueda de artículos
     public string $busquedaArticulo = '';
 

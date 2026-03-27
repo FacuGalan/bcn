@@ -42,40 +42,39 @@
             <div class="mb-4 bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-3 sm:p-4">
                     <!-- Header + Filtros -->
-                    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-                        <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Cambios programados') }}</h3>
-                        <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
-                            <!-- Filtro estado -->
-                            <select
-                                wire:model.live="filtroProgramadosEstado"
-                                class="py-1 px-2 text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                            >
-                                <option value="pendiente">{{ __('Pendientes') }}</option>
-                                <option value="procesado">{{ __('Procesados') }}</option>
-                                <option value="cancelado">{{ __('Cancelados') }}</option>
-                                <option value="error">{{ __('Con error') }}</option>
-                                <option value="todos">{{ __('Todos') }}</option>
-                            </select>
-                            <!-- Filtro fecha desde -->
-                            <input
-                                type="date"
-                                wire:model.live="filtroProgramadosFechaDesde"
-                                class="py-1 px-2 text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                :title="__('Desde')"
-                            >
-                            <!-- Filtro fecha hasta -->
-                            <input
-                                type="date"
-                                wire:model.live="filtroProgramadosFechaHasta"
-                                class="py-1 px-2 text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                :title="__('Hasta')"
-                            >
-                            <button wire:click="toggleProgramados" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
+                    <div class="flex items-center justify-between gap-2 mb-3">
+                        <h3 class="text-sm font-semibold text-gray-900 dark:text-white flex-shrink-0">{{ __('Cambios programados') }}</h3>
+                        <button wire:click="toggleProgramados" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 flex-shrink-0">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Filtros -->
+                    <div class="grid grid-cols-3 gap-2 mb-3">
+                        <select
+                            wire:model.live="filtroProgramadosEstado"
+                            class="w-full py-1.5 pl-2 pr-7 text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                        >
+                            <option value="pendiente">{{ __('Pendientes') }}</option>
+                            <option value="procesado">{{ __('Procesados') }}</option>
+                            <option value="cancelado">{{ __('Cancelados') }}</option>
+                            <option value="error">{{ __('Con error') }}</option>
+                            <option value="todos">{{ __('Todos') }}</option>
+                        </select>
+                        <input
+                            type="date"
+                            wire:model.live="filtroProgramadosFechaDesde"
+                            class="w-full py-1.5 px-2 text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                            placeholder="{{ __('Desde') }}"
+                        >
+                        <input
+                            type="date"
+                            wire:model.live="filtroProgramadosFechaHasta"
+                            class="w-full py-1.5 px-2 text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                            placeholder="{{ __('Hasta') }}"
+                        >
                     </div>
 
                     @if($this->cambiosProgramados->isEmpty())
@@ -89,7 +88,6 @@
                                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Fecha programada') }}</th>
                                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Ajuste') }}</th>
                                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Artículos') }}</th>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Alcance') }}</th>
                                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Estado') }}</th>
                                         <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Acciones') }}</th>
                                     </tr>
@@ -105,13 +103,6 @@
                                             </td>
                                             <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-300">
                                                 {{ $programado->total_articulos }}
-                                            </td>
-                                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-300">
-                                                @if($programado->alcance_precio === 'sucursal_actual')
-                                                    {{ __('Sucursal') }} #{{ $programado->sucursal_id }}
-                                                @else
-                                                    {{ __('Global') }}
-                                                @endif
                                             </td>
                                             <td class="px-3 py-2 whitespace-nowrap">
                                                 @switch($programado->estado)
@@ -132,8 +123,7 @@
                                             <td class="px-3 py-2 whitespace-nowrap text-right text-xs">
                                                 @if($programado->estado === 'pendiente')
                                                     <button
-                                                        wire:click="cancelarCambioProgramado({{ $programado->id }})"
-                                                        wire:confirm="{{ __('¿Cancelar este cambio programado?') }}"
+                                                        wire:click="confirmCancelProgramado({{ $programado->id }})"
                                                         class="px-2 py-1 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white rounded-md text-xs font-medium transition-colors"
                                                     >
                                                         {{ __('Cancelar') }}
@@ -152,43 +142,37 @@
                         <div class="sm:hidden space-y-2">
                             @foreach($this->cambiosProgramados as $programado)
                                 <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
-                                    <div class="flex items-center justify-between mb-1">
+                                    <div class="flex items-center justify-between gap-2 mb-1.5">
                                         <span class="text-xs font-medium text-gray-900 dark:text-white">{{ $programado->fecha_programada->format('d/m/Y H:i') }}</span>
                                         @switch($programado->estado)
                                             @case('pendiente')
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">{{ __('Pendiente') }}</span>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 flex-shrink-0">{{ __('Pendiente') }}</span>
                                                 @break
                                             @case('procesado')
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">{{ __('Procesado') }}</span>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 flex-shrink-0">{{ __('Procesado') }}</span>
                                                 @break
                                             @case('cancelado')
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200">{{ __('Cancelado') }}</span>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200 flex-shrink-0">{{ __('Cancelado') }}</span>
                                                 @break
                                             @case('error')
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">{{ __('Error') }}</span>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 flex-shrink-0">{{ __('Error') }}</span>
                                                 @break
                                         @endswitch
                                     </div>
-                                    <div class="text-xs text-gray-600 dark:text-gray-300 space-y-0.5">
-                                        <p>{{ $programado->descripcion_ajuste }} — {{ $programado->total_articulos }} {{ __('artículos') }}</p>
-                                        <p>
-                                            @if($programado->alcance_precio === 'sucursal_actual')
-                                                {{ __('Sucursal') }} #{{ $programado->sucursal_id }}
-                                            @else
-                                                {{ __('Global') }}
-                                            @endif
-                                        </p>
-                                    </div>
+                                    <p class="text-xs text-gray-600 dark:text-gray-300">
+                                        {{ $programado->descripcion_ajuste }} — {{ $programado->total_articulos }} {{ __('artículos') }}
+                                    </p>
                                     @if($programado->estado === 'pendiente')
                                         <div class="mt-2">
                                             <button
-                                                wire:click="cancelarCambioProgramado({{ $programado->id }})"
-                                                wire:confirm="{{ __('¿Cancelar este cambio programado?') }}"
-                                                class="w-full px-2 py-1 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white rounded-md text-xs font-medium transition-colors"
+                                                wire:click="confirmCancelProgramado({{ $programado->id }})"
+                                                class="w-full px-2 py-1.5 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white rounded-md text-xs font-medium transition-colors"
                                             >
                                                 {{ __('Cancelar') }}
                                             </button>
                                         </div>
+                                    @elseif($programado->estado === 'procesado')
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Procesado') }}: {{ $programado->procesado_at?->format('d/m/Y H:i') }}</p>
                                     @endif
                                 </div>
                             @endforeach
@@ -298,23 +282,21 @@
                                 </div>
                             @endif
 
-                            <!-- Alcance del cambio -->
+                            <!-- Tipo de artículo -->
                             <div>
-                                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Alcance del cambio') }}</label>
+                                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipo de artículo') }}</label>
                                 <div class="space-y-1.5">
-                                    <label class="flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors {{ $alcancePrecio === 'global' ? 'border-bcn-primary bg-bcn-primary/5' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
-                                        <input type="radio" wire:model.live="alcancePrecio" value="global" class="text-bcn-primary focus:ring-bcn-primary mt-0.5">
-                                        <div>
-                                            <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Todas las sucursales (precio genérico)') }}</span>
-                                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('Se eliminarán los precios propios de las sucursales') }}</p>
-                                        </div>
+                                    <label class="flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors {{ $filtroTipoArticulo === 'todos' ? 'border-bcn-primary bg-bcn-primary/5' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                                        <input type="radio" wire:model.live="filtroTipoArticulo" value="todos" class="text-bcn-primary focus:ring-bcn-primary">
+                                        <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Todos') }}</span>
                                     </label>
-                                    <label class="flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors {{ $alcancePrecio === 'sucursal_actual' ? 'border-bcn-primary bg-bcn-primary/5' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
-                                        <input type="radio" wire:model.live="alcancePrecio" value="sucursal_actual" class="text-bcn-primary focus:ring-bcn-primary mt-0.5">
-                                        <div>
-                                            <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Sucursal actual') }}</span>
-                                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('Los precios propios no se verán afectados en otras sucursales') }}</p>
-                                        </div>
+                                    <label class="flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors {{ $filtroTipoArticulo === 'articulos' ? 'border-bcn-primary bg-bcn-primary/5' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                                        <input type="radio" wire:model.live="filtroTipoArticulo" value="articulos" class="text-bcn-primary focus:ring-bcn-primary">
+                                        <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Solo artículos') }}</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors {{ $filtroTipoArticulo === 'materia_prima' ? 'border-bcn-primary bg-bcn-primary/5' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                                        <input type="radio" wire:model.live="filtroTipoArticulo" value="materia_prima" class="text-bcn-primary focus:ring-bcn-primary">
+                                        <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Solo materia prima') }}</span>
                                     </label>
                                 </div>
                             </div>
@@ -495,11 +477,13 @@
                                     </span>
                                 @endif
 
-                                <!-- Alcance -->
-                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium {{ $alcancePrecio === 'sucursal_actual' ? 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800' : 'bg-cyan-50 text-cyan-700 border border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300 dark:border-cyan-800' }}">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                                    {{ $alcancePrecio === 'sucursal_actual' ? __('Sucursal actual') : __('Precio genérico') }}
+                                <!-- Tipo artículo -->
+                                @if($filtroTipoArticulo !== 'todos')
+                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                                    {{ $filtroTipoArticulo === 'articulos' ? __('Solo artículos') : __('Solo materia prima') }}
                                 </span>
+                                @endif
                             </div>
 
                             <!-- Botón modificar -->
@@ -865,18 +849,9 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400">
                     {{ __('Estás a punto de modificar el precio de') }} <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $totalArticulos }} {{ __('artículos') }}</span>.
                 </p>
-                @if($alcancePrecio === 'sucursal_actual')
-                    <p class="text-sm text-purple-600 dark:text-purple-400 mt-2 font-medium">
-                        {{ __('Se guardarán como precios propios en') }} {{ __('la sucursal actual') }}.
-                    </p>
-                @else
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                        {{ __('Esta acción también actualizará los precios fijos en las listas de precios donde estos artículos participen.') }}
-                    </p>
-                    <p class="text-sm text-amber-600 dark:text-amber-400 mt-1">
-                        {{ __('Se eliminarán los precios propios de las sucursales') }}.
-                    </p>
-                @endif
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                    {{ __('Los precios se actualizarán en la sucursal activa.') }}
+                </p>
 
                 <!-- Modo de aplicación -->
                 <div class="mt-4 space-y-2">
@@ -952,6 +927,56 @@
                         {{ __('Programar cambio') }}
                     </button>
                 @endif
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
+    <!-- Modal Confirmar Cancelación de Cambio Programado -->
+    @if($showCancelProgramadoModal)
+        <x-bcn-modal
+            :title="__('Cancelar cambio programado')"
+            color="bg-red-600"
+            maxWidth="md"
+            onClose="closeCancelProgramadoModal"
+        >
+            <x-slot:body>
+                <div class="sm:flex sm:items-start">
+                    <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                        <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                            {{ __('¿Estás seguro de cancelar este cambio programado?') }}
+                        </p>
+                        @if($programadoACancelarDesc)
+                            <p class="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {{ $programadoACancelarDesc }}
+                            </p>
+                        @endif
+                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            {{ __('Esta acción no se puede deshacer.') }}
+                        </p>
+                    </div>
+                </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button
+                    type="button"
+                    @click="close()"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                >
+                    {{ __('Volver') }}
+                </button>
+                <button
+                    type="button"
+                    wire:click="cancelarCambioProgramado"
+                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-500 sm:w-auto sm:text-sm"
+                >
+                    {{ __('Cancelar cambio') }}
+                </button>
             </x-slot:footer>
         </x-bcn-modal>
     @endif

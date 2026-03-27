@@ -142,7 +142,8 @@
                             </select>
                         </div>
 
-                        <!-- Sucursal -->
+                        <!-- Sucursal (solo multi-sucursal) -->
+                        @multiSucursal
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Sucursal') }}</label>
                             <select
@@ -155,6 +156,7 @@
                                 @endforeach
                             </select>
                         </div>
+                        @endmultiSucursal
 
                         <!-- Vinculación -->
                         <div>
@@ -241,15 +243,6 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
                                 {{ __('Editar') }}
-                            </button>
-                            <button
-                                wire:click="openSucursalesConfig({{ $cliente->id }})"
-                                class="inline-flex items-center justify-center px-3 py-2 border border-green-300 dark:border-green-600 text-sm font-medium rounded-md text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-gray-700 transition-colors duration-150"
-                                title="{{ __('Configurar sucursales') }}"
-                            >
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                </svg>
                             </button>
                             <button
                                 wire:click="showHistorial({{ $cliente->id }})"
@@ -390,15 +383,6 @@
                                                 {{ __('Restaurar') }}
                                             </button>
                                         @else
-                                            <button
-                                                wire:click="openSucursalesConfig({{ $cliente->id }})"
-                                                class="inline-flex items-center px-3 py-2 border border-green-300 dark:border-green-600 rounded-md text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-gray-700 transition-colors duration-150"
-                                                title="{{ __('Configurar sucursales y precios') }}"
-                                            >
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                                </svg>
-                                            </button>
                                             <button
                                                 wire:click="showHistorial({{ $cliente->id }})"
                                                 class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150"
@@ -650,12 +634,27 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                {{ __('Las listas de precios se configuran por sucursal después de guardar el cliente.') }}
-                            </p>
+                            {{-- Lista de precios de la sucursal activa --}}
+                            <div class="mt-3">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    {{ __('Lista de Precios') }}
+                                    @multiSucursal
+                                    <span class="text-xs font-normal text-gray-500 dark:text-gray-400">({{ __('sucursal activa') }})</span>
+                                    @endmultiSucursal
+                                </label>
+                                <select
+                                    wire:model="lista_precio_id"
+                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm"
+                                >
+                                    <option value="">{{ __('Lista base (por defecto)') }}</option>
+                                    @foreach($listasPrecioSucursal as $lista)
+                                        <option value="{{ $lista->id }}">
+                                            {{ $lista->nombre }}
+                                            @if($lista->es_lista_base) ({{ __('Base') }}) @endif
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
                         </div>
 
                         <!-- Cuenta Corriente -->
@@ -763,7 +762,8 @@
                             </div>
                         </div>
 
-                        <!-- Sucursales -->
+                        <!-- Sucursales (solo multi-sucursal) -->
+                        @multiSucursal
                         @if($sucursales->count() > 0)
                             <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{{ __('Sucursales donde estará disponible') }}</label>
@@ -782,6 +782,7 @@
                                 </div>
                             </div>
                         @endif
+                        @endmultiSucursal
 
                         <!-- Estado activo -->
                         <div class="flex items-center">
@@ -877,7 +878,9 @@
                                 <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0">
                                     <tr>
                                         <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Fecha') }}</th>
+                                        @multiSucursal
                                         <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Sucursal') }}</th>
+                                        @endmultiSucursal
                                         <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Forma Pago') }}</th>
                                         <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Total') }}</th>
                                         <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Estado') }}</th>
@@ -887,7 +890,9 @@
                                     @foreach($ventasHistorial as $venta)
                                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                                             <td class="px-4 py-2 text-sm text-gray-900 dark:text-white">{{ $venta->created_at->format('d/m/Y H:i') }}</td>
+                                            @multiSucursal
                                             <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{{ $venta->sucursal?->nombre ?? '-' }}</td>
+                                            @endmultiSucursal
                                             <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{{ $venta->formaPago?->nombre ?? '-' }}</td>
                                             <td class="px-4 py-2 text-sm text-gray-900 dark:text-white text-right font-medium">${{ number_format($venta->total, 2, ',', '.') }}</td>
                                             <td class="px-4 py-2 text-center">
@@ -920,8 +925,11 @@
             </x-bcn-modal>
         @endif
 
-        {{-- Modal de Configuración de Sucursales (Listas de Precios) --}}
-        @if($showSucursalesModal)
+        {{-- Modal de Configuración de Sucursales — removido de vista operativa, pendiente para Manager --}}
+        {{-- TODO: Reimplementar en componente Manager multi-sucursal --}}
+        {{-- Funcionalidad: activar/desactivar cliente por sucursal + lista de precios por sucursal --}}
+        @if(false && $showSucursalesModal)
+            {{-- Código preservado para referencia del futuro Manager --}}
             <x-bcn-modal
                 :title="__('Configuración por Sucursal') . ' - ' . $clienteConfigNombre"
                 color="bg-bcn-primary"

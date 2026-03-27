@@ -9,7 +9,7 @@ use App\Models\MovimientoCuentaCorriente;
 use App\Models\Sucursal;
 use App\Models\Venta;
 use App\Services\CobroService;
-use App\Traits\SucursalAware;
+use App\Traits\CajaAware;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -24,8 +24,7 @@ use Livewire\WithPagination;
 #[Layout('layouts.app')]
 class GestionarCobranzas extends Component
 {
-    use SucursalAware;
-    use WithPagination;
+    use CajaAware, WithPagination;
 
     // ==================== Propiedades de Filtros ====================
     public string $search = '';
