@@ -31,6 +31,32 @@
 
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+        {{-- Alpine store para awareness de selectores --}}
+        <script>
+            // Crear store temprano (antes de alpine:init de los traits)
+            document.addEventListener('alpine:init', () => {
+                if (!Alpine.store('awareness')) {
+                    Alpine.store('awareness', { sucursal: false, caja: false });
+                }
+            }, { once: true });
+            // Reset para wire:navigate (SPA navigation)
+            document.addEventListener('livewire:navigating', () => {
+                if (window.Alpine && Alpine.store('awareness')) {
+                    Alpine.store('awareness').sucursal = false;
+                    Alpine.store('awareness').caja = false;
+                }
+            });
+            // Capturar dispatches de los traits (funciona tanto en full reload como wire:navigate)
+            document.addEventListener('livewire:init', () => {
+                Livewire.on('page-uses-sucursal', () => {
+                    if (Alpine.store('awareness')) Alpine.store('awareness').sucursal = true;
+                });
+                Livewire.on('page-uses-caja', () => {
+                    if (Alpine.store('awareness')) Alpine.store('awareness').caja = true;
+                });
+            });
+        </script>
     </head>
     <body class="font-sans antialiased bg-gray-100 dark:bg-gray-900">
         <div class="min-h-screen">

@@ -11,6 +11,7 @@ use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Traits\SucursalAware;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -18,7 +19,7 @@ use Livewire\WithPagination;
 #[Layout('layouts.app')]
 class InventarioGeneral extends Component
 {
-    use WithPagination;
+    use SucursalAware, WithPagination;
 
     // Filtros
     public string $search = '';

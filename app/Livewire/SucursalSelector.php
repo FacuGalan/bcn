@@ -73,6 +73,7 @@ class SucursalSelector extends Component
 
             // Limpiar caché del menú dinámico
             cache()->forget('menu_parent_items_'.auth()->id().'_'.session('comercio_activo_id'));
+            cache()->forget('menu_full_'.auth()->id().'_'.session('sucursal_activa_id'));
 
             // Actualizar sucursal actual
             $this->sucursalActual = $sucursal;

@@ -41,6 +41,15 @@ namespace App\Traits;
 trait SucursalAware
 {
     /**
+     * Al montar, notifica a los selectores que esta página usa sucursal
+     */
+    public function mountSucursalAware(): void
+    {
+        $this->js("document.addEventListener('alpine:init',()=>{Alpine.store('awareness').sucursal=true},{once:true}); if(window.Alpine&&Alpine.store('awareness')) Alpine.store('awareness').sucursal=true");
+        $this->dispatch('page-uses-sucursal');
+    }
+
+    /**
      * Registra los listeners para cambio de sucursal
      *
      * Se fusiona con los listeners existentes del componente

@@ -48,6 +48,17 @@ namespace App\Traits;
 trait CajaAware
 {
     /**
+     * Al montar, notifica a los selectores que esta página usa caja
+     */
+    public function mountCajaAware(): void
+    {
+        // Caja implica sucursal (la caja siempre depende de la sucursal)
+        $this->js("document.addEventListener('alpine:init',()=>{Alpine.store('awareness').caja=true;Alpine.store('awareness').sucursal=true},{once:true}); if(window.Alpine&&Alpine.store('awareness')){Alpine.store('awareness').caja=true;Alpine.store('awareness').sucursal=true}");
+        $this->dispatch('page-uses-caja');
+        $this->dispatch('page-uses-sucursal');
+    }
+
+    /**
      * Registra los listeners para cambio de caja
      *
      * Se fusiona con los listeners existentes del componente
@@ -69,10 +80,13 @@ trait CajaAware
         }
 
         // Fusionar con los listeners del trait
+        // CajaAware implica SucursalAware: escucha ambos eventos
         return array_merge(
             $parentListeners,
             [
                 'caja-changed' => 'handleCajaChanged',
+                'sucursal-changed' => 'handleSucursalChangedFromCaja',
+                'sucursal-cambiada' => 'handleSucursalChangedFromCaja',
             ]
         );
     }
@@ -123,6 +137,34 @@ trait CajaAware
         // Si el componente define onCajaChanged(), se llamará aquí
         if (method_exists($this, 'onCajaChanged')) {
             $this->onCajaChanged($cajaId, $cajaNombre);
+        }
+    }
+
+    /**
+     * Maneja el cambio de sucursal (CajaAware implica SucursalAware)
+     * Misma lógica que SucursalAware: resetear paginación, cerrar modales, hook
+     */
+    public function handleSucursalChangedFromCaja($sucursalId = null, $sucursalNombre = null)
+    {
+        if (method_exists($this, 'resetPage')) {
+            $this->resetPage();
+        }
+
+        $modalProperties = [
+            'showModal', 'showCrearModal', 'showEditarModal', 'showDetalleModal',
+            'showEliminarModal', 'showVerModal', 'showConfirmarModal',
+            'showPosModal', 'showMovimientoModal', 'showCierreModal',
+            'showDeleteModal',
+        ];
+
+        foreach ($modalProperties as $prop) {
+            if (property_exists($this, $prop)) {
+                $this->$prop = false;
+            }
+        }
+
+        if (method_exists($this, 'onSucursalChanged')) {
+            $this->onSucursalChanged($sucursalId, $sucursalNombre);
         }
     }
 
