@@ -15,7 +15,7 @@ return new class extends Migration
             try {
                 DB::connection('pymes')->statement("
                     ALTER TABLE `{$prefix}cierre_turno_cajas`
-                    ADD COLUMN `desglose_monedas` json DEFAULT NULL
+                    ADD COLUMN `desglose_monedas` text DEFAULT NULL
                     AFTER `desglose_conceptos`
                 ");
             } catch (\Exception $e) {
