@@ -7,7 +7,6 @@ use App\Models\CambioPrecioProgramado;
 use App\Models\Categoria;
 use App\Models\GrupoEtiqueta;
 use App\Models\HistorialPrecio;
-use App\Models\ListaPrecioArticulo;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -371,52 +370,50 @@ class CambioMasivoPrecios extends Component
             $redondeoLabel = $this->tipoRedondeo !== 'sin_redondeo' ? ', '.__('redondeo').' '.$this->tipoRedondeo : '';
             $detalleMasivo = "{$tipoAjusteLabel} {$this->valorAjuste}{$tipoValorLabel}{$redondeoLabel}";
 
-            {
-                // === Cambio sucursal actual: guardar override en articulos_sucursales ===
-                $sucursalId = sucursal_activa();
+            // === Cambio sucursal actual: guardar override en articulos_sucursales ===
+            $sucursalId = sucursal_activa();
 
-                foreach ($this->articulosPreview as $articuloData) {
-                    $precioNuevo = (float) $articuloData['precio_nuevo'];
+            foreach ($this->articulosPreview as $articuloData) {
+                $precioNuevo = (float) $articuloData['precio_nuevo'];
 
-                    $exists = DB::connection('pymes_tenant')
+                $exists = DB::connection('pymes_tenant')
+                    ->table('articulos_sucursales')
+                    ->where('articulo_id', $articuloData['id'])
+                    ->where('sucursal_id', $sucursalId)
+                    ->exists();
+
+                if ($exists) {
+                    DB::connection('pymes_tenant')
                         ->table('articulos_sucursales')
                         ->where('articulo_id', $articuloData['id'])
                         ->where('sucursal_id', $sucursalId)
-                        ->exists();
-
-                    if ($exists) {
-                        DB::connection('pymes_tenant')
-                            ->table('articulos_sucursales')
-                            ->where('articulo_id', $articuloData['id'])
-                            ->where('sucursal_id', $sucursalId)
-                            ->update(['precio_base' => $precioNuevo, 'updated_at' => now()]);
-                    } else {
-                        DB::connection('pymes_tenant')
-                            ->table('articulos_sucursales')
-                            ->insert([
-                                'articulo_id' => $articuloData['id'],
-                                'sucursal_id' => $sucursalId,
-                                'activo' => true,
-                                'modo_stock' => 'ninguno',
-                                'vendible' => true,
-                                'precio_base' => $precioNuevo,
-                                'created_at' => now(),
-                                'updated_at' => now(),
-                            ]);
-                    }
-
-                    HistorialPrecio::registrar([
-                        'articulo_id' => $articuloData['id'],
-                        'sucursal_id' => $sucursalId,
-                        'precio_anterior' => (float) $articuloData['precio_viejo'],
-                        'precio_nuevo' => $precioNuevo,
-                        'origen' => 'masivo_sucursal',
-                        'porcentaje_cambio' => $this->tipoValor === 'porcentual' ? (float) $this->valorAjuste * ($this->tipoAjuste === 'descuento' ? -1 : 1) : null,
-                        'detalle' => $detalleMasivo,
-                    ]);
-
-                    $articulosActualizados++;
+                        ->update(['precio_base' => $precioNuevo, 'updated_at' => now()]);
+                } else {
+                    DB::connection('pymes_tenant')
+                        ->table('articulos_sucursales')
+                        ->insert([
+                            'articulo_id' => $articuloData['id'],
+                            'sucursal_id' => $sucursalId,
+                            'activo' => true,
+                            'modo_stock' => 'ninguno',
+                            'vendible' => true,
+                            'precio_base' => $precioNuevo,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
                 }
+
+                HistorialPrecio::registrar([
+                    'articulo_id' => $articuloData['id'],
+                    'sucursal_id' => $sucursalId,
+                    'precio_anterior' => (float) $articuloData['precio_viejo'],
+                    'precio_nuevo' => $precioNuevo,
+                    'origen' => 'masivo_sucursal',
+                    'porcentaje_cambio' => $this->tipoValor === 'porcentual' ? (float) $this->valorAjuste * ($this->tipoAjuste === 'descuento' ? -1 : 1) : null,
+                    'detalle' => $detalleMasivo,
+                ]);
+
+                $articulosActualizados++;
             }
 
             DB::connection('pymes_tenant')->commit();

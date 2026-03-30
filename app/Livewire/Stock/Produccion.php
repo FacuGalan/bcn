@@ -7,9 +7,9 @@ use App\Models\Produccion as ProduccionModel;
 use App\Models\Receta;
 use App\Models\Stock;
 use App\Services\ProduccionService;
+use App\Traits\SucursalAware;
 use Exception;
 use Illuminate\Support\Facades\Auth;
-use App\Traits\SucursalAware;
 use Livewire\Component;
 use Livewire\WithPagination;
 

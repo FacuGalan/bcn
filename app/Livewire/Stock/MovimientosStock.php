@@ -6,10 +6,10 @@ use App\Models\Articulo;
 use App\Models\MovimientoStock;
 use App\Models\Stock;
 use App\Services\StockService;
+use App\Traits\SucursalAware;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use App\Traits\SucursalAware;
 use Livewire\Component;
 use Livewire\WithPagination;
 
