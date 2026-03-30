@@ -25,6 +25,9 @@
 - Ref: `.claude/docs/workflows-migraciones.md`
 
 ### Componentes Livewire
+- **Lazy loading**: OBLIGATORIO `#[Lazy]` + `placeholder()` con skeleton en componentes full-page
+  - Skeletons reutilizables: `<x-skeleton.page-table />`, `<x-skeleton.page-dashboard />`, `<x-skeleton.page-form />`
+  - NO aplicar a embebidos (CajaSelector, SucursalSelector) ni sub-componentes
 - **Sucursal-aware**: trait `SucursalAware` + `sucursal_activa()`. NO para catálogos globales
 - **Caja-aware**: trait `CajaAware`, solo ventas/cobranza
 - **Catálogos globales** (GruposOpcionales, Recetas): NO son SucursalAware
@@ -46,7 +49,13 @@
 ### Traducciones
 - 3 archivos: `lang/{es,en,pt}.json`, ordenados alfabéticamente, usar `__()`
 
+### Documentación del sistema
+- Al agregar/modificar funcionalidades, actualizar `docs/manual-usuario.md` (manual humano) y `docs/ai-knowledge-base.md` (base de conocimiento IA)
+- `manual-usuario.md`: funcionalidades por módulo/vista, acciones, filtros, modales, flujos
+- `ai-knowledge-base.md`: modelo de datos, lógica de negocio, patrones de consulta, reglas
+
 ### Gotchas
+- **Transacciones**: SIEMPRE `DB::connection('pymes_tenant')->transaction()`, NUNCA `DB::transaction()` (usa conexión default que no protege escrituras tenant)
 - `comercios.cuit` es NOT NULL UNIQUE → placeholder `'PROV-' . time()`
 - Campo `email` (no 'mail'), pero `$fillable` incluye 'mail' como alias
 - `menu_items.slug` tiene UNIQUE constraint

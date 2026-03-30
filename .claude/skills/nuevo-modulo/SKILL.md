@@ -51,6 +51,7 @@ Preguntar al usuario:
 **E. Componente(s) Livewire**
 - Seguir `.claude/ESTANDARES_PROYECTO.md`
 - Aplicar SucursalAware si corresponde
+- `#[Lazy]` + `placeholder()` con skeleton reutilizable (OBLIGATORIO para full-page)
 - Crear vista Blade correspondiente
 
 **F. Ruta(s)**
@@ -66,7 +67,12 @@ Preguntar al usuario:
 - Ejecutar `php artisan optimize:clear` para limpiar cache de menú
 - Recordar al usuario actualizar `ProvisionComercioCommand` si se asignaron permisos a roles nuevos (Gerente, Vendedor)
 
-### 5. Checklist final
+### 5. Actualizar documentación
+
+- **`docs/manual-usuario.md`**: Agregar nueva sección del módulo con todas las funcionalidades (acciones, filtros, modales, campos, flujos)
+- **`docs/ai-knowledge-base.md`**: Agregar nuevas tablas al modelo de datos (columnas, tipos, FK), nueva lógica de negocio al dominio correspondiente, y queries de ejemplo
+
+### 6. Checklist final
 
 Mostrar:
 ```
@@ -77,6 +83,7 @@ Mostrar:
 [x] Componente(s) Livewire + vista(s)
 [x] Ruta(s) en web.php
 [x] Traducciones en 3 idiomas
+[x] Documentación actualizada (manual-usuario.md + ai-knowledge-base.md)
 [ ] Actualizar ProvisionComercioCommand (si otros roles necesitan acceso)
 [ ] Regenerar tenant_tables.sql (si hubo cambios tenant)
 ```

@@ -112,6 +112,9 @@ class NombreModelo extends Model
 - Booleanos: `'boolean'` para campos activo/inactivo
 - Fechas: `'datetime'` para campos fecha que no sean created_at/updated_at
 
+### Documentación
+- Al crear un modelo nuevo, actualizar `docs/ai-knowledge-base.md` sección "Modelo de Datos" con la tabla, columnas, relaciones y scopes del nuevo modelo
+
 ### Relaciones
 - Usar type hints de retorno: `: BelongsTo`, `: HasMany`, etc.
 - `withTrashed()` en BelongsTo si el modelo relacionado usa SoftDeletes

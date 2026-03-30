@@ -67,3 +67,4 @@ Schema::table('tabla', function (Blueprint $table) { ... });
 - SIEMPRE usar try/catch para migraciones tenant
 - NUNCA usar Schema builder para tablas tenant (usar SQL raw con prefijo)
 - Para tablas tenant, usar `DB::connection('pymes')` (no pymes_tenant)
+- Al crear/modificar tablas, actualizar `docs/ai-knowledge-base.md` sección "Modelo de Datos" con las columnas, tipos y relaciones

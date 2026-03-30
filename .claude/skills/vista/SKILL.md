@@ -72,3 +72,8 @@ Verificar:
 - [ ] Modales usan `<x-modal>`
 - [ ] Focus de inputs usa `bcn-primary`
 - [ ] Paginación con `{{ $items->links() }}`
+
+### 6. Actualizar documentación
+
+Si la vista agrega funcionalidades nuevas (botones, modales, filtros, campos) que no están en la documentación existente:
+- **`docs/manual-usuario.md`**: Actualizar la sección del módulo correspondiente con las nuevas funcionalidades

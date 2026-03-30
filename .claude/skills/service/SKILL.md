@@ -130,3 +130,6 @@ MovimientoStock::create([
 // Actualizar caché
 Stock::where(...)->update(['stock_actual' => DB::raw('stock_actual + ' . $cantidad)]);
 ```
+
+### Documentación
+- Al crear un service nuevo, actualizar `docs/ai-knowledge-base.md` sección "Lógica de Negocio" con los métodos públicos, reglas de negocio y flujos del nuevo service

@@ -43,6 +43,12 @@ Según la complejidad, leer un componente existente como referencia:
 
 **Clase PHP** en `app/Livewire/{Modulo}/{NombreComponente}.php`:
 - Namespace correcto
+- `use Livewire\Attributes\Lazy;` en imports
+- `#[Lazy]` antes de la declaración de clase (OBLIGATORIO si es full-page)
+- Método `placeholder()` antes de `mount()` con skeleton apropiado:
+  - Tabla/listado: `<x-skeleton.page-table :filterCount="N" :columns="N" />`
+  - Dashboard: `<x-skeleton.page-dashboard :statCards="N" :sections="N" />`
+  - Formulario/wizard: `<x-skeleton.page-form :tabs="N" :fields="N" />`
 - Traits según lo definido (SucursalAware, CajaAware, WithPagination)
 - Propiedades para búsqueda, modales, formulario
 - Hook `onSucursalChanged()` si tiene lógica extra al cambiar sucursal
@@ -61,6 +67,7 @@ Según la complejidad, leer un componente existente como referencia:
 
 Antes de terminar, verificar:
 ```
+[ ] #[Lazy] + placeholder() con skeleton (si es full-page)
 [ ] SucursalAware trait aplicado (si corresponde)
 [ ] Usa sucursalActual() / sucursal_activa() en queries
 [ ] Al crear registros incluye sucursal_id
@@ -70,8 +77,15 @@ Antes de terminar, verificar:
 [ ] Validación de acceso a sucursal en operaciones sensibles
 ```
 
+### 6. Actualizar documentación
+
+Después de crear el componente, actualizar:
+- **`docs/manual-usuario.md`**: Agregar sección del nuevo componente en el módulo correspondiente (acciones, filtros, modales, campos)
+- **`docs/ai-knowledge-base.md`**: Si el componente introduce tablas/lógica nueva, agregar al modelo de datos y lógica de negocio
+
 ## Reglas
 - SIEMPRE leer ESTANDARES_PROYECTO.md antes de generar
 - SIEMPRE leer un componente de referencia existente
 - NO inventar patrones nuevos — seguir los existentes
 - Si el componente NO es sucursal-aware, NO agregar SucursalAware
+- SIEMPRE actualizar docs/ al finalizar
