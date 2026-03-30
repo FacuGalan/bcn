@@ -85,7 +85,7 @@ class TesoreriaService
             }
         }
 
-        return DB::transaction(function () use ($tesoreria, $caja, $monto, $usuarioId, $observaciones, $monedaId, $montoOriginal, $esMonedaExtranjera) {
+        return DB::connection('pymes_tenant')->transaction(function () use ($tesoreria, $caja, $monto, $usuarioId, $observaciones, $monedaId, $montoOriginal, $esMonedaExtranjera) {
             // Calcular equivalente ARS para moneda extranjera
             $montoARS = $monto;
             $tipoCambioId = null;
@@ -209,7 +209,7 @@ class TesoreriaService
             throw new \Exception('Saldo insuficiente en tesorería. Disponible: $'.number_format($tesoreria->saldo_actual, 2));
         }
 
-        return DB::transaction(function () use ($tesoreria, $grupo, $monto, $usuarioId, $observaciones) {
+        return DB::connection('pymes_tenant')->transaction(function () use ($tesoreria, $grupo, $monto, $usuarioId, $observaciones) {
             // Usar la primera caja del grupo como referencia para el registro
             $cajaReferencia = $grupo->cajas->first();
 
@@ -268,7 +268,7 @@ class TesoreriaService
         ?string $observaciones = null,
         ?array $desgloseMonedas = null
     ): RendicionFondo {
-        return DB::transaction(function () use ($caja, $tesoreria, $montoDeclarado, $montoSistema, $usuarioId, $cierreTurnoId, $observaciones, $desgloseMonedas) {
+        return DB::connection('pymes_tenant')->transaction(function () use ($caja, $tesoreria, $montoDeclarado, $montoSistema, $usuarioId, $cierreTurnoId, $observaciones, $desgloseMonedas) {
             $diferencia = $montoDeclarado - $montoSistema;
             $montoEntregado = $montoDeclarado; // Se entrega lo declarado
 
@@ -367,7 +367,7 @@ class TesoreriaService
         ?string $observaciones = null,
         ?array $desgloseMonedas = null
     ): RendicionFondo {
-        return DB::transaction(function () use ($grupo, $tesoreria, $montoDeclarado, $montoSistema, $usuarioId, $cierreTurnoId, $observaciones, $desgloseMonedas) {
+        return DB::connection('pymes_tenant')->transaction(function () use ($grupo, $tesoreria, $montoDeclarado, $montoSistema, $usuarioId, $cierreTurnoId, $observaciones, $desgloseMonedas) {
             $diferencia = $montoDeclarado - $montoSistema;
             $montoEntregado = $montoDeclarado;
 
@@ -527,7 +527,7 @@ class TesoreriaService
 
         // ── Ejecutar reversión en transacción ──
 
-        return DB::transaction(function () use ($rendicion, $cierre, $usuarioId, $motivo, $esGrupalConFondoComun) {
+        return DB::connection('pymes_tenant')->transaction(function () use ($rendicion, $cierre, $usuarioId, $motivo, $esGrupalConFondoComun) {
             $tesoreria = $rendicion->tesoreria;
 
             if ($esGrupalConFondoComun) {
@@ -736,7 +736,7 @@ class TesoreriaService
             throw new \Exception('Saldo insuficiente en tesorería');
         }
 
-        return DB::transaction(function () use ($tesoreria, $cuenta, $monto, $fechaDeposito, $usuarioId, $numeroComprobante, $observaciones) {
+        return DB::connection('pymes_tenant')->transaction(function () use ($tesoreria, $cuenta, $monto, $fechaDeposito, $usuarioId, $numeroComprobante, $observaciones) {
             // 1. Crear registro de depósito
             $deposito = DepositoBancario::create([
                 'tesoreria_id' => $tesoreria->id,
@@ -817,7 +817,7 @@ class TesoreriaService
             }
         }
 
-        return DB::transaction(function () use ($tesoreria, $cuenta, $monto, $fechaDeposito, $usuarioId, $numeroComprobante, $observaciones, $moneda, $esMonedaExtranjera) {
+        return DB::connection('pymes_tenant')->transaction(function () use ($tesoreria, $cuenta, $monto, $fechaDeposito, $usuarioId, $numeroComprobante, $observaciones, $moneda, $esMonedaExtranjera) {
             // 1. Crear registro de depósito
             $deposito = DepositoBancario::create([
                 'tesoreria_id' => $tesoreria->id,
@@ -929,7 +929,7 @@ class TesoreriaService
             throw new \Exception('Saldo insuficiente en tesorería origen');
         }
 
-        return DB::transaction(function () use ($origen, $destino, $monto, $usuarioId, $observaciones) {
+        return DB::connection('pymes_tenant')->transaction(function () use ($origen, $destino, $monto, $usuarioId, $observaciones) {
             // Egreso de origen
             $movimientoEgreso = $origen->egreso(
                 $monto,
@@ -1004,7 +1004,7 @@ class TesoreriaService
             throw new \Exception(__('El monto debe ser mayor a cero'));
         }
 
-        return DB::transaction(function () use ($tesoreria, $monto, $usuarioId, $concepto, $observaciones) {
+        return DB::connection('pymes_tenant')->transaction(function () use ($tesoreria, $monto, $usuarioId, $concepto, $observaciones) {
             $movimiento = $tesoreria->ingreso(
                 $monto,
                 $concepto,

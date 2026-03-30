@@ -44,7 +44,7 @@ class CobroService
      */
     public function registrarCobro(array $data, array $ventasAAplicar, array $pagos): Cobro
     {
-        return DB::transaction(function () use ($data, $ventasAAplicar, $pagos) {
+        return DB::connection('pymes_tenant')->transaction(function () use ($data, $ventasAAplicar, $pagos) {
             $usuarioId = auth()->id();
 
             // Determinar tipo de cobro (anticipo si no hay ventas aplicadas)
@@ -470,7 +470,7 @@ class CobroService
      */
     public function anularCobro(int $cobroId, string $motivo): array
     {
-        return DB::transaction(function () use ($cobroId, $motivo) {
+        return DB::connection('pymes_tenant')->transaction(function () use ($cobroId, $motivo) {
             $cobro = Cobro::with(['cobroVentas.venta', 'cobroVentas.ventaPago', 'pagos'])->findOrFail($cobroId);
             $usuarioId = auth()->id();
 
