@@ -4,6 +4,7 @@ namespace App\Livewire\Stock;
 
 use App\Models\Stock;
 use App\Services\StockService;
+use App\Traits\SucursalAware;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +14,7 @@ use Livewire\WithPagination;
 
 class StockInventario extends Component
 {
-    use WithPagination;
+    use SucursalAware, WithPagination;
 
     // Filtros
     public string $search = '';

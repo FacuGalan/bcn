@@ -347,6 +347,12 @@ class GestionarClientes extends Component
         $this->consultaArcaDisponible = PadronARCAService::estaDisponible();
         $this->modoAlta = 'manual';
 
+        // Auto-asignar la sucursal activa
+        $sucursalActiva = sucursal_activa();
+        if ($sucursalActiva) {
+            $this->sucursales_seleccionadas = [$sucursalActiva];
+        }
+
         $this->showModal = true;
     }
 
@@ -372,6 +378,13 @@ class GestionarClientes extends Component
         $this->tasa_interes_mensual = (float) $cliente->tasa_interes_mensual;
         $this->activo = $cliente->activo;
         $this->sucursales_seleccionadas = $cliente->sucursales->pluck('id')->toArray();
+
+        // Cargar lista de precios de la sucursal activa (para single-sucursal se muestra inline)
+        $sucursalId = sucursal_activa();
+        if ($sucursalId) {
+            $configSucursal = $cliente->sucursales->firstWhere('id', $sucursalId);
+            $this->lista_precio_id = $configSucursal?->pivot->lista_precio_id;
+        }
 
         // Verificar si tiene proveedor vinculado
         $proveedor = Proveedor::where('cliente_id', $cliente->id)->first();
@@ -593,17 +606,23 @@ class GestionarClientes extends Component
                 $this->clienteId = $cliente->id;
             }
 
-            // Sincronizar sucursales con lista de precio base de cada una
+            // Sincronizar sucursales con lista de precios
             $sucursalesData = [];
+            $sucursalActiva = sucursal_activa();
             foreach ($this->sucursales_seleccionadas as $sucursalId) {
-                // Obtener lista base de la sucursal
-                $listaBase = ListaPrecio::where('sucursal_id', $sucursalId)
-                    ->where('es_lista_base', true)
-                    ->value('id');
+                // Sucursal activa: usar la lista seleccionada en el modal
+                // Otras sucursales: usar lista base por defecto
+                if ($sucursalId == $sucursalActiva && $this->lista_precio_id) {
+                    $listaPrecioId = $this->lista_precio_id;
+                } else {
+                    $listaPrecioId = ListaPrecio::where('sucursal_id', $sucursalId)
+                        ->where('es_lista_base', true)
+                        ->value('id');
+                }
 
                 $sucursalesData[$sucursalId] = [
                     'activo' => true,
-                    'lista_precio_id' => $listaBase,
+                    'lista_precio_id' => $listaPrecioId,
                 ];
             }
             $cliente->sucursales()->sync($sucursalesData);
@@ -1167,12 +1186,23 @@ class GestionarClientes extends Component
             ->orderBy('nombre')
             ->get();
 
+        // Listas de precios de la sucursal activa (para single-sucursal inline)
+        $sucursalId = sucursal_activa();
+        $listasPrecioSucursal = $sucursalId
+            ? ListaPrecio::where('sucursal_id', $sucursalId)
+                ->where('activo', true)
+                ->orderBy('es_lista_base', 'desc')
+                ->orderBy('nombre')
+                ->get()
+            : collect();
+
         return view('livewire.clientes.gestionar-clientes', [
             'clientes' => $this->getClientes(),
             'sucursales' => CatalogoCache::sucursales(),
             'condicionesIva' => CatalogoCache::condicionesIva(),
             'proveedoresDisponibles' => $proveedoresDisponibles,
             'ventasHistorial' => $this->getVentasHistorial(),
+            'listasPrecioSucursal' => $listasPrecioSucursal,
         ]);
     }
 }

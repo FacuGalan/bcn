@@ -7,12 +7,15 @@ use App\Models\Receta;
 use App\Models\Stock;
 use App\Models\Sucursal;
 use App\Services\ProduccionService;
+use App\Traits\SucursalAware;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
 class ProduccionLote extends Component
 {
+    use SucursalAware;
+
     // Búsqueda de artículos
     public string $busquedaArticulo = '';
 

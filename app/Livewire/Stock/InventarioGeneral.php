@@ -7,6 +7,7 @@ use App\Models\Categoria;
 use App\Models\GrupoEtiqueta;
 use App\Models\Stock;
 use App\Services\StockService;
+use App\Traits\SucursalAware;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +19,7 @@ use Livewire\WithPagination;
 #[Layout('layouts.app')]
 class InventarioGeneral extends Component
 {
-    use WithPagination;
+    use SucursalAware, WithPagination;
 
     // Filtros
     public string $search = '';

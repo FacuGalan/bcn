@@ -19,7 +19,9 @@ new class extends Component
 
     public $allChildrenItems = []; // Estructura: ['parent_id' => [hijos...]]
 
-    protected $listeners = ['sucursal-changed' => 'handleSucursalChanged'];
+    // No listener de sucursal-changed: el menú no cambia entre sucursales
+    // y re-renderizar rompe el estado Alpine (activeParentId).
+    // El caché se limpia al navegar a otra página.
 
     public function mount(): void
     {
@@ -88,15 +90,6 @@ new class extends Component
      * Maneja el cambio de sucursal
      * Limpia el caché y recarga el menú
      */
-    public function handleSucursalChanged($sucursalId, $sucursalNombre): void
-    {
-        // Limpiar caché del menú
-        $cacheKey = 'menu_full_'.auth()->id().'_'.session('sucursal_activa_id');
-        cache()->forget($cacheKey);
-
-        // Recargar todo el menú
-        $this->loadMenuData();
-    }
 
     /**
      * Obtiene los hijos de un padre desde la data pre-cargada

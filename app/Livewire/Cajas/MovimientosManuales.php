@@ -11,7 +11,7 @@ use App\Models\TipoCambio;
 use App\Models\TransferenciaEfectivo;
 use App\Services\CajaService;
 use App\Services\SucursalService;
-use App\Traits\SucursalAware;
+use App\Traits\CajaAware;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Livewire\Component;
@@ -26,7 +26,7 @@ use Livewire\Component;
  */
 class MovimientosManuales extends Component
 {
-    use SucursalAware;
+    use CajaAware;
 
     // Tab activo
     public string $tabActivo = 'transferencia';

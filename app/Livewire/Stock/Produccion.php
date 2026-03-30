@@ -7,6 +7,7 @@ use App\Models\Produccion as ProduccionModel;
 use App\Models\Receta;
 use App\Models\Stock;
 use App\Services\ProduccionService;
+use App\Traits\SucursalAware;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
@@ -14,7 +15,7 @@ use Livewire\WithPagination;
 
 class Produccion extends Component
 {
-    use WithPagination;
+    use SucursalAware, WithPagination;
 
     // Búsqueda de artículos con receta
     public string $search = '';

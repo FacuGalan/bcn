@@ -6,6 +6,7 @@ use App\Models\Articulo;
 use App\Models\MovimientoStock;
 use App\Models\Stock;
 use App\Services\StockService;
+use App\Traits\SucursalAware;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -14,7 +15,7 @@ use Livewire\WithPagination;
 
 class MovimientosStock extends Component
 {
-    use WithPagination;
+    use SucursalAware, WithPagination;
 
     // Filtros
     public $search = '';

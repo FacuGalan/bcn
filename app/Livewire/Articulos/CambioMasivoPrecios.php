@@ -7,7 +7,6 @@ use App\Models\CambioPrecioProgramado;
 use App\Models\Categoria;
 use App\Models\GrupoEtiqueta;
 use App\Models\HistorialPrecio;
-use App\Models\ListaPrecioArticulo;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -61,8 +60,11 @@ class CambioMasivoPrecios extends Component
 
     public string $busquedaArticuloAgregar = '';
 
-    // Alcance del cambio
-    public string $alcancePrecio = 'global'; // 'global' o 'sucursal_actual'
+    // Alcance del cambio: siempre sucursal actual (global → futuro Manager)
+    public string $alcancePrecio = 'sucursal_actual';
+
+    // Filtro tipo de artículo
+    public string $filtroTipoArticulo = 'todos'; // 'todos', 'articulos', 'materia_prima'
 
     // Programación
     public string $modoAplicacion = 'ahora'; // 'ahora' o 'programar'
@@ -72,6 +74,13 @@ class CambioMasivoPrecios extends Component
     public ?string $horaProgramada = null;
 
     public bool $showProgramados = false;
+
+    // Confirmación de cancelación de cambio programado
+    public bool $showCancelProgramadoModal = false;
+
+    public ?int $programadoACancelar = null;
+
+    public ?string $programadoACancelarDesc = null;
 
     // Filtros de cambios programados
     public string $filtroProgramadosEstado = 'pendiente';
@@ -99,6 +108,13 @@ class CambioMasivoPrecios extends Component
         }
     }
 
+    public function updatedFiltroTipoArticulo()
+    {
+        if ($this->paso === 2) {
+            $this->procesarPreview();
+        }
+    }
+
     /**
      * Avanza al siguiente paso
      */
@@ -112,8 +128,8 @@ class CambioMasivoPrecios extends Component
                 return;
             }
 
-            // Validar que haya sucursal activa si el alcance es sucursal actual
-            if ($this->alcancePrecio === 'sucursal_actual' && ! sucursal_activa()) {
+            // Validar que haya sucursal activa
+            if (! sucursal_activa()) {
                 $this->js("window.notify('".__('Selecciona una sucursal primero')."', 'error')");
 
                 return;
@@ -149,6 +165,13 @@ class CambioMasivoPrecios extends Component
     {
         $query = Articulo::with(['categoriaModel', 'etiquetas.grupo'])
             ->where('activo', true);
+
+        // Filtro tipo de artículo
+        if ($this->filtroTipoArticulo === 'articulos') {
+            $query->where('es_materia_prima', false);
+        } elseif ($this->filtroTipoArticulo === 'materia_prima') {
+            $query->where('es_materia_prima', true);
+        }
 
         // Filtro de categorías
         if (! empty($this->categoriasSeleccionadas)) {
@@ -194,8 +217,8 @@ class CambioMasivoPrecios extends Component
         $this->totalPrecioViejo = 0;
         $this->totalPrecioNuevo = 0;
 
-        // Si es sucursal actual, usar precio efectivo de esa sucursal
-        $sucursalId = ($this->alcancePrecio === 'sucursal_actual') ? sucursal_activa() : null;
+        // Siempre usar precio efectivo de la sucursal activa
+        $sucursalId = sucursal_activa();
 
         foreach ($articulos as $articulo) {
             $precioViejo = $sucursalId
@@ -347,127 +370,50 @@ class CambioMasivoPrecios extends Component
             $redondeoLabel = $this->tipoRedondeo !== 'sin_redondeo' ? ', '.__('redondeo').' '.$this->tipoRedondeo : '';
             $detalleMasivo = "{$tipoAjusteLabel} {$this->valorAjuste}{$tipoValorLabel}{$redondeoLabel}";
 
-            if ($this->alcancePrecio === 'sucursal_actual' && sucursal_activa()) {
-                // === Cambio sucursal actual: guardar override en articulos_sucursales ===
-                $sucursalId = sucursal_activa();
+            // === Cambio sucursal actual: guardar override en articulos_sucursales ===
+            $sucursalId = sucursal_activa();
 
-                foreach ($this->articulosPreview as $articuloData) {
-                    $precioNuevo = (float) $articuloData['precio_nuevo'];
+            foreach ($this->articulosPreview as $articuloData) {
+                $precioNuevo = (float) $articuloData['precio_nuevo'];
 
-                    $exists = DB::connection('pymes_tenant')
+                $exists = DB::connection('pymes_tenant')
+                    ->table('articulos_sucursales')
+                    ->where('articulo_id', $articuloData['id'])
+                    ->where('sucursal_id', $sucursalId)
+                    ->exists();
+
+                if ($exists) {
+                    DB::connection('pymes_tenant')
                         ->table('articulos_sucursales')
                         ->where('articulo_id', $articuloData['id'])
                         ->where('sucursal_id', $sucursalId)
-                        ->exists();
-
-                    if ($exists) {
-                        DB::connection('pymes_tenant')
-                            ->table('articulos_sucursales')
-                            ->where('articulo_id', $articuloData['id'])
-                            ->where('sucursal_id', $sucursalId)
-                            ->update(['precio_base' => $precioNuevo, 'updated_at' => now()]);
-                    } else {
-                        DB::connection('pymes_tenant')
-                            ->table('articulos_sucursales')
-                            ->insert([
-                                'articulo_id' => $articuloData['id'],
-                                'sucursal_id' => $sucursalId,
-                                'activo' => true,
-                                'modo_stock' => 'ninguno',
-                                'vendible' => true,
-                                'precio_base' => $precioNuevo,
-                                'created_at' => now(),
-                                'updated_at' => now(),
-                            ]);
-                    }
-
-                    HistorialPrecio::registrar([
-                        'articulo_id' => $articuloData['id'],
-                        'sucursal_id' => $sucursalId,
-                        'precio_anterior' => (float) $articuloData['precio_viejo'],
-                        'precio_nuevo' => $precioNuevo,
-                        'origen' => 'masivo_sucursal',
-                        'porcentaje_cambio' => $this->tipoValor === 'porcentual' ? (float) $this->valorAjuste * ($this->tipoAjuste === 'descuento' ? -1 : 1) : null,
-                        'detalle' => $detalleMasivo,
-                    ]);
-
-                    $articulosActualizados++;
-                }
-            } else {
-                // === Cambio global: actualizar articulos.precio_base + eliminar overrides ===
-                $articuloIds = array_keys($this->articulosPreview);
-
-                foreach ($this->articulosPreview as $articuloData) {
-                    $articulo = Articulo::find($articuloData['id']);
-
-                    if (! $articulo) {
-                        continue;
-                    }
-
-                    $precioViejo = (float) $articulo->precio_base;
-                    $precioNuevo = (float) $articuloData['precio_nuevo'];
-
-                    // Calcular el porcentaje de cambio para aplicar a listas con precio fijo
-                    $porcentajeCambio = $precioViejo > 0
-                        ? (($precioNuevo - $precioViejo) / $precioViejo) * 100
-                        : 0;
-
-                    // Actualizar precio_base del artículo
-                    $articulo->precio_base = $precioNuevo;
-                    $articulo->save();
-                    $articulosActualizados++;
-
-                    HistorialPrecio::registrar([
-                        'articulo_id' => $articulo->id,
-                        'precio_anterior' => $precioViejo,
-                        'precio_nuevo' => $precioNuevo,
-                        'origen' => 'masivo_global',
-                        'porcentaje_cambio' => $this->tipoValor === 'porcentual' ? (float) $this->valorAjuste * ($this->tipoAjuste === 'descuento' ? -1 : 1) : null,
-                        'detalle' => $detalleMasivo,
-                    ]);
-
-                    // Actualizar precios fijos en lista_precio_articulos
-                    $registrosLista = ListaPrecioArticulo::where('articulo_id', $articulo->id)
-                        ->whereNotNull('precio_fijo')
-                        ->get();
-
-                    foreach ($registrosLista as $registro) {
-                        $precioFijoViejo = (float) $registro->precio_fijo;
-                        $precioFijoNuevo = $precioFijoViejo * (1 + ($porcentajeCambio / 100));
-                        $precioFijoNuevo = $this->aplicarRedondeo($precioFijoNuevo);
-
-                        $registro->precio_fijo = $precioFijoNuevo;
-                        $registro->precio_base_original = $precioNuevo;
-                        $registro->save();
-                        $listasActualizadas++;
-                    }
+                        ->update(['precio_base' => $precioNuevo, 'updated_at' => now()]);
+                } else {
+                    DB::connection('pymes_tenant')
+                        ->table('articulos_sucursales')
+                        ->insert([
+                            'articulo_id' => $articuloData['id'],
+                            'sucursal_id' => $sucursalId,
+                            'activo' => true,
+                            'modo_stock' => 'ninguno',
+                            'vendible' => true,
+                            'precio_base' => $precioNuevo,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
                 }
 
-                // Registrar historial para overrides que serán eliminados
-                $overridesExistentes = DB::connection('pymes_tenant')
-                    ->table('articulos_sucursales')
-                    ->whereIn('articulo_id', $articuloIds)
-                    ->whereNotNull('precio_base')
-                    ->get(['articulo_id', 'sucursal_id', 'precio_base']);
+                HistorialPrecio::registrar([
+                    'articulo_id' => $articuloData['id'],
+                    'sucursal_id' => $sucursalId,
+                    'precio_anterior' => (float) $articuloData['precio_viejo'],
+                    'precio_nuevo' => $precioNuevo,
+                    'origen' => 'masivo_sucursal',
+                    'porcentaje_cambio' => $this->tipoValor === 'porcentual' ? (float) $this->valorAjuste * ($this->tipoAjuste === 'descuento' ? -1 : 1) : null,
+                    'detalle' => $detalleMasivo,
+                ]);
 
-                foreach ($overridesExistentes as $override) {
-                    $precioGenericoNuevo = (float) ($this->articulosPreview[$override->articulo_id]['precio_nuevo'] ?? 0);
-                    HistorialPrecio::registrar([
-                        'articulo_id' => $override->articulo_id,
-                        'sucursal_id' => $override->sucursal_id,
-                        'precio_anterior' => (float) $override->precio_base,
-                        'precio_nuevo' => $precioGenericoNuevo,
-                        'origen' => 'masivo_global',
-                        'detalle' => __('Override eliminado por cambio masivo global'),
-                    ]);
-                }
-
-                // Eliminar overrides de precio_base en TODAS las sucursales para artículos afectados
-                DB::connection('pymes_tenant')
-                    ->table('articulos_sucursales')
-                    ->whereIn('articulo_id', $articuloIds)
-                    ->whereNotNull('precio_base')
-                    ->update(['precio_base' => null, 'updated_at' => now()]);
+                $articulosActualizados++;
             }
 
             DB::connection('pymes_tenant')->commit();
@@ -571,7 +517,7 @@ class CambioMasivoPrecios extends Component
             return;
         }
 
-        $sucursalId = ($this->alcancePrecio === 'sucursal_actual') ? sucursal_activa() : null;
+        $sucursalId = sucursal_activa();
 
         $precioViejo = $sucursalId
             ? $articulo->obtenerPrecioBaseEfectivo($sucursalId)
@@ -628,8 +574,8 @@ class CambioMasivoPrecios extends Component
                 'usuario_id' => auth()->id(),
                 'fecha_programada' => $fechaHora,
                 'estado' => 'pendiente',
-                'alcance_precio' => $this->alcancePrecio,
-                'sucursal_id' => $this->alcancePrecio === 'sucursal_actual' ? sucursal_activa() : null,
+                'alcance_precio' => 'sucursal_actual',
+                'sucursal_id' => sucursal_activa(),
                 'tipo_ajuste' => $this->tipoAjuste,
                 'tipo_valor' => $this->tipoValor,
                 'valor_ajuste' => $this->valorAjuste,
@@ -654,7 +600,7 @@ class CambioMasivoPrecios extends Component
     /**
      * Cancela un cambio programado pendiente.
      */
-    public function cancelarCambioProgramado(int $id)
+    public function confirmCancelProgramado(int $id): void
     {
         $cambio = CambioPrecioProgramado::where('id', $id)
             ->where('estado', 'pendiente')
@@ -666,8 +612,34 @@ class CambioMasivoPrecios extends Component
             return;
         }
 
-        $cambio->update(['estado' => 'cancelado']);
-        $this->js("window.notify('".__('Cambio programado cancelado')."', 'success')");
+        $this->programadoACancelar = $cambio->id;
+        $this->programadoACancelarDesc = $cambio->descripcion_ajuste.' — '.$cambio->total_articulos.' '.__('artículos').' — '.$cambio->fecha_programada->format('d/m/Y H:i');
+        $this->showCancelProgramadoModal = true;
+    }
+
+    public function cancelarCambioProgramado(): void
+    {
+        if (! $this->programadoACancelar) {
+            return;
+        }
+
+        $cambio = CambioPrecioProgramado::where('id', $this->programadoACancelar)
+            ->where('estado', 'pendiente')
+            ->first();
+
+        if ($cambio) {
+            $cambio->update(['estado' => 'cancelado']);
+            $this->js("window.notify('".__('Cambio programado cancelado')."', 'success')");
+        }
+
+        $this->closeCancelProgramadoModal();
+    }
+
+    public function closeCancelProgramadoModal(): void
+    {
+        $this->showCancelProgramadoModal = false;
+        $this->programadoACancelar = null;
+        $this->programadoACancelarDesc = null;
     }
 
     /**
