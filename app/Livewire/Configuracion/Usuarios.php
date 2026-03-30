@@ -12,6 +12,7 @@ use App\Services\SucursalService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -21,6 +22,7 @@ use Livewire\WithPagination;
  * Permite crear, editar, listar y gestionar el estado de los usuarios del comercio activo.
  * Incluye asignación de roles y permisos por usuario.
  */
+#[Lazy]
 #[Layout('layouts.app')]
 class Usuarios extends Component
 {
@@ -76,6 +78,13 @@ class Usuarios extends Component
 
     // Comercio actual
     public ?Comercio $comercio = null;
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="2" :columns="5" :rows="6" />
+        HTML;
+    }
 
     /**
      * Inicialización del componente

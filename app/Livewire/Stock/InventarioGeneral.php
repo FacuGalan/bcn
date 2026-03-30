@@ -13,10 +13,12 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 #[Layout('layouts.app')]
+#[Lazy]
 class InventarioGeneral extends Component
 {
     use SucursalAware, WithPagination;
@@ -248,6 +250,13 @@ class InventarioGeneral extends Component
     public function volver()
     {
         return redirect()->route('stock.index');
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="3" :columns="5" :rows="8" />
+        HTML;
     }
 
     public function render()

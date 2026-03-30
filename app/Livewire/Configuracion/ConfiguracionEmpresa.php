@@ -15,9 +15,11 @@ use App\Models\PuntoVentaCaja;
 use App\Models\Sucursal;
 use App\Services\CatalogoCache;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
+#[Lazy]
 #[Layout('layouts.app')]
 class ConfiguracionEmpresa extends Component
 {
@@ -193,6 +195,13 @@ class ConfiguracionEmpresa extends Component
 
     // ==================== DATOS DE REFERENCIA ====================
     public $localidades = [];
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-form :tabs="5" :fields="8" />
+        HTML;
+    }
 
     public function mount()
     {

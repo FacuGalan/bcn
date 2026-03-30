@@ -412,7 +412,7 @@ class CuentaCorrienteService
      */
     public function actualizarCacheCliente(int $clienteId, ?int $sucursalId = null): void
     {
-        DB::transaction(function () use ($clienteId, $sucursalId) {
+        DB::connection('pymes_tenant')->transaction(function () use ($clienteId, $sucursalId) {
             // Lock en el cliente
             $cliente = Cliente::lockForUpdate()->find($clienteId);
 
@@ -468,7 +468,7 @@ class CuentaCorrienteService
             return 0;
         }
 
-        return Carbon::now()->diffInDays(Carbon::parse($ventaPagoMasAntigua->fecha_vencimiento));
+        return max(0, (int) Carbon::parse($ventaPagoMasAntigua->fecha_vencimiento)->diffInDays(Carbon::now(), absolute: false));
     }
 
     // ==================== REPORTES ====================

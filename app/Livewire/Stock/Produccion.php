@@ -10,9 +10,11 @@ use App\Services\ProduccionService;
 use App\Traits\SucursalAware;
 use Exception;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
+#[Lazy]
 class Produccion extends Component
 {
     use SucursalAware, WithPagination;
@@ -69,6 +71,13 @@ class Produccion extends Component
     public function updatingSearch()
     {
         $this->resetPage();
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="2" :columns="5" :rows="6" />
+        HTML;
     }
 
     public function render()

@@ -10,8 +10,10 @@ use App\Services\ProduccionService;
 use App\Traits\SucursalAware;
 use Exception;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 
+#[Lazy]
 class ProduccionLote extends Component
 {
     use SucursalAware;
@@ -51,6 +53,13 @@ class ProduccionLote extends Component
     public bool $hayStockInsuficiente = false;
 
     public bool $confirmando = false;
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="2" :columns="5" :rows="6" />
+        HTML;
+    }
 
     public function mount()
     {

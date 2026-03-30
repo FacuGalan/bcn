@@ -8,6 +8,7 @@ use App\Models\ListaPrecio;
 use App\Models\ListaPrecioArticulo;
 use App\Models\ListaPrecioCondicion;
 use App\Services\CatalogoCache;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 
 /**
@@ -20,6 +21,7 @@ use Livewire\Component;
  * 4. Condiciones (forma pago, forma venta, canal, montos)
  * 5. Artículos específicos (opcional)
  */
+#[Lazy]
 class WizardListaPrecio extends Component
 {
     // Control del wizard
@@ -158,6 +160,13 @@ class WizardListaPrecio extends Component
             'ajustePorcentaje.required' => __('El ajuste porcentual es obligatorio'),
             'ajustePorcentaje.min' => __('El descuento máximo es 100%'),
         ];
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-form :tabs="0" :fields="6" :hasBackButton="true" />
+        HTML;
     }
 
     public function mount($id = null)

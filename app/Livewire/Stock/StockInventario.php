@@ -9,9 +9,11 @@ use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
+#[Lazy]
 class StockInventario extends Component
 {
     use SucursalAware, WithPagination;
@@ -95,6 +97,13 @@ class StockInventario extends Component
     public function toggleFilters(): void
     {
         $this->showFilters = ! $this->showFilters;
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="3" :filterCount="3" :columns="5" :rows="8" />
+        HTML;
     }
 
     public function render()

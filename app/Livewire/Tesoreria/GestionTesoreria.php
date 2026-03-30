@@ -18,6 +18,7 @@ use App\Services\SucursalService;
 use App\Services\TesoreriaService;
 use App\Traits\SucursalAware;
 use Carbon\Carbon;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -32,6 +33,7 @@ use Livewire\WithPagination;
  * - Registrar depósito bancario
  * - Realizar arqueo
  */
+#[Lazy]
 class GestionTesoreria extends Component
 {
     use SucursalAware;
@@ -119,6 +121,13 @@ class GestionTesoreria extends Component
     public string $motivoRechazo = '';
 
     protected $listeners = ['tesoreria-actualizada' => 'cargarDatos'];
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-dashboard :statCards="4" :sections="2" />
+        HTML;
+    }
 
     public function mount(): void
     {

@@ -375,7 +375,7 @@ class CajaService
                 ];
             }
 
-            return DB::transaction(function () use ($caja, $fondoInicial, $usuarioId, $tesoreria) {
+            return DB::connection('pymes_tenant')->transaction(function () use ($caja, $fondoInicial, $usuarioId, $tesoreria) {
                 $provision = null;
 
                 // Buscar tesorería de la sucursal si no se proporciona
@@ -476,7 +476,7 @@ class CajaService
                 ];
             }
 
-            return DB::transaction(function () use ($caja, $saldoDeclarado, $usuarioId, $cierreTurno, $tesoreria, $observaciones, $desgloseMonedas) {
+            return DB::connection('pymes_tenant')->transaction(function () use ($caja, $saldoDeclarado, $usuarioId, $cierreTurno, $tesoreria, $observaciones, $desgloseMonedas) {
                 $rendicion = null;
 
                 // El saldo del sistema es el saldo_actual de la caja (ya refleja todos los movimientos)

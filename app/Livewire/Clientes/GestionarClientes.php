@@ -15,6 +15,7 @@ use App\Traits\SucursalAware;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
@@ -26,6 +27,7 @@ use Livewire\WithPagination;
  * Incluye funcionalidad de vinculación con proveedores.
  */
 #[Layout('layouts.app')]
+#[Lazy]
 class GestionarClientes extends Component
 {
     use SucursalAware, WithFileUploads, WithPagination;
@@ -581,7 +583,7 @@ class GestionarClientes extends Component
     {
         $this->validate();
 
-        DB::transaction(function () {
+        DB::connection('pymes_tenant')->transaction(function () {
             $data = [
                 'nombre' => $this->nombre,
                 'razon_social' => $this->razon_social ?: null,
@@ -1170,6 +1172,13 @@ class GestionarClientes extends Component
         $this->validacionCuitMsg = '';
         $this->validacionCuitTipo = '';
         $this->resetValidation();
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="3" :columns="6" :rows="8" />
+        HTML;
     }
 
     /**

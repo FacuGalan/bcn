@@ -14,6 +14,7 @@ use App\Services\SucursalService;
 use App\Traits\CajaAware;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 
 /**
@@ -24,6 +25,7 @@ use Livewire\Component;
  * - Ingresos manuales (con opción de origen tesorería)
  * - Egresos manuales (con opción de destino tesorería)
  */
+#[Lazy]
 class MovimientosManuales extends Component
 {
     use CajaAware;
@@ -88,6 +90,13 @@ class MovimientosManuales extends Component
         'caja-actualizada' => 'cargarDatos',
         'caja-changed' => 'handleCajaChanged',
     ];
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="3" :columns="5" :rows="6" />
+        HTML;
+    }
 
     public function mount()
     {

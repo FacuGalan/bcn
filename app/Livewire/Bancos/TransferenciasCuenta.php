@@ -8,10 +8,12 @@ use App\Services\CuentaEmpresaService;
 use App\Traits\SucursalAware;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 #[Layout('layouts.app')]
+#[Lazy]
 class TransferenciasCuenta extends Component
 {
     use SucursalAware, WithPagination;
@@ -74,6 +76,13 @@ class TransferenciasCuenta extends Component
         return $this->cuentas->filter(function ($cuenta) use ($origen) {
             return $cuenta->id !== $origen->id && $cuenta->moneda_id === $origen->moneda_id;
         })->values();
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="2" :columns="5" :rows="6" />
+        HTML;
     }
 
     public function render()

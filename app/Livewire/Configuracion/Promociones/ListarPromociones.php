@@ -4,9 +4,11 @@ namespace App\Livewire\Configuracion\Promociones;
 
 use App\Models\Promocion;
 use App\Traits\SucursalAware;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
+#[Lazy]
 class ListarPromociones extends Component
 {
     use SucursalAware, WithPagination;
@@ -26,6 +28,13 @@ class ListarPromociones extends Component
 
     // Tipos de promoci�n disponibles
     public $tiposPromocion = [];
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="2" :columns="5" :rows="6" />
+        HTML;
+    }
 
     public function boot()
     {

@@ -5,6 +5,7 @@ namespace App\Livewire\Articulos;
 use App\Models\Categoria;
 use App\Services\CatalogoCache;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -14,6 +15,7 @@ use Livewire\WithPagination;
  * Permite crear, editar, listar y gestionar el estado de las categorías de artículos.
  */
 #[Layout('layouts.app')]
+#[Lazy]
 class GestionarCategorias extends Component
 {
     use WithPagination;
@@ -236,6 +238,13 @@ class GestionarCategorias extends Component
         }
 
         $this->cancelarEliminar();
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="1" :columns="4" :rows="8" />
+        HTML;
     }
 
     /**

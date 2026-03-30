@@ -9,8 +9,10 @@ use App\Models\Promocion;
 use App\Models\PromocionCondicion;
 use App\Models\PromocionEscala;
 use App\Services\CatalogoCache;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 
+#[Lazy]
 class WizardPromocion extends Component
 {
     // Control del wizard
@@ -146,6 +148,13 @@ class WizardPromocion extends Component
             'sucursalesSeleccionadas.required' => __('Debes seleccionar al menos una sucursal'),
             'sucursalesSeleccionadas.min' => __('Debes seleccionar al menos una sucursal'),
         ];
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-form :tabs="0" :fields="6" :hasBackButton="true" />
+        HTML;
     }
 
     public function mount($id = null)

@@ -9,10 +9,12 @@ use App\Models\ImpresoraTipoDocumento;
 use App\Models\Sucursal;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
 
+#[Lazy]
 #[Layout('layouts.app')]
 class Impresoras extends Component
 {
@@ -79,6 +81,13 @@ class Impresoras extends Component
         'search' => ['except' => ''],
         'filterTipo' => ['except' => 'all'],
     ];
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="1" :columns="4" :rows="4" />
+        HTML;
+    }
 
     public function mount(): void
     {

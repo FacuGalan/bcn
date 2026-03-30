@@ -12,6 +12,7 @@ use App\Models\Tesoreria;
 use App\Services\SucursalService;
 use App\Services\TesoreriaService;
 use Carbon\Carbon;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 
 /**
@@ -23,6 +24,7 @@ use Livewire\Component;
  * - Trazabilidad de efectivo
  * - Conciliación tesorería-banco
  */
+#[Lazy]
 class ReportesTesoreria extends Component
 {
     // Tesorería activa
@@ -44,6 +46,13 @@ class ReportesTesoreria extends Component
     public array $datosReporte = [];
 
     public array $resumen = [];
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="3" :columns="5" :rows="8" />
+        HTML;
+    }
 
     public function mount(): void
     {

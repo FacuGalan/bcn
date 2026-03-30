@@ -11,9 +11,11 @@ use App\Models\Moneda;
 use App\Models\Sucursal;
 use App\Services\CatalogoCache;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
+#[Lazy]
 #[Layout('layouts.app')]
 class GestionarFormasPago extends Component
 {
@@ -118,6 +120,13 @@ class GestionarFormasPago extends Component
             'conceptos_permitidos.required' => __('Debe seleccionar los conceptos permitidos'),
             'conceptos_permitidos.min' => __('Una forma de pago mixta debe permitir al menos 2 conceptos'),
         ];
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="1" :columns="5" :rows="6" />
+        HTML;
     }
 
     /**

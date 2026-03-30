@@ -8,6 +8,7 @@ use App\Models\MovimientoCaja;
 use App\Services\SucursalService;
 use App\Traits\SucursalAware;
 use Carbon\Carbon;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -19,6 +20,7 @@ use Livewire\WithPagination;
  * - Detalle completo de cada cierre
  * - Opción de reimpresión
  */
+#[Lazy]
 class HistorialTurnos extends Component
 {
     use SucursalAware;
@@ -56,6 +58,13 @@ class HistorialTurnos extends Component
         'filtroTipo' => ['except' => ''],
         'filtroEstado' => ['except' => 'activos'],
     ];
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="4" :columns="6" :rows="8" />
+        HTML;
+    }
 
     public function mount()
     {

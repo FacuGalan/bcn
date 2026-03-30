@@ -16,6 +16,7 @@ use App\Services\OpcionalService;
 use App\Traits\SucursalAware;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -25,6 +26,7 @@ use Livewire\WithPagination;
  * Muestra artículos activos en la sucursal activa con stock y precio efectivo.
  */
 #[Layout('layouts.app')]
+#[Lazy]
 class GestionarArticulos extends Component
 {
     use SucursalAware, WithPagination;
@@ -1172,6 +1174,13 @@ class GestionarArticulos extends Component
                 'porcentaje_cambio' => $r->porcentaje_cambio,
             ];
         })->toArray();
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="3" :columns="6" :rows="8" />
+        HTML;
     }
 
     /**

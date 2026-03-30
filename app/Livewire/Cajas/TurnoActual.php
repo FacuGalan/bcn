@@ -19,6 +19,7 @@ use App\Traits\SucursalAware;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 
 /**
@@ -37,6 +38,7 @@ use Livewire\Component;
  * 4. Abrir/cerrar turno con arqueo
  * 5. Mostrar resumen de movimientos e ingresos/egresos
  */
+#[Lazy]
 class TurnoActual extends Component
 {
     use SucursalAware;
@@ -113,6 +115,13 @@ class TurnoActual extends Component
     public array $cajasOperaciones = [];
 
     protected $listeners = ['caja-actualizada' => 'cargarCajas'];
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-dashboard :statCards="4" :sections="2" />
+        HTML;
+    }
 
     public function mount(): void
     {

@@ -9,10 +9,12 @@ use App\Models\GrupoEtiqueta;
 use App\Models\HistorialPrecio;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 #[Layout('layouts.app')]
+#[Lazy]
 class CambioMasivoPrecios extends Component
 {
     use WithPagination;
@@ -88,6 +90,13 @@ class CambioMasivoPrecios extends Component
     public ?string $filtroProgramadosFechaDesde = null;
 
     public ?string $filtroProgramadosFechaHasta = null;
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="3" :columns="5" :rows="8" />
+        HTML;
+    }
 
     public function mount()
     {

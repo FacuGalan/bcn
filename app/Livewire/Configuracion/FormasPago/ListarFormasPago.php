@@ -6,8 +6,10 @@ use App\Models\FormaPago;
 use App\Models\FormaPagoCuota;
 use App\Models\FormaPagoSucursal;
 use App\Models\Sucursal;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 
+#[Lazy]
 class ListarFormasPago extends Component
 {
     public $formasPago = [];
@@ -24,6 +26,13 @@ class ListarFormasPago extends Component
         'interes_porcentaje' => 0,
         'coeficiente' => 1,
     ];
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="1" :columns="5" :rows="6" />
+        HTML;
+    }
 
     public function mount()
     {

@@ -5,9 +5,11 @@ namespace App\Livewire\Configuracion;
 use App\Models\Moneda;
 use App\Models\TipoCambio;
 use App\Services\CatalogoCache;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
+#[Lazy]
 class GestionMonedas extends Component
 {
     use WithPagination;
@@ -79,6 +81,13 @@ class GestionMonedas extends Component
             'fecha.required' => __('Ingrese la fecha'),
             'fecha.date' => __('La fecha no es válida'),
         ];
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="1" :columns="4" :rows="6" />
+        HTML;
     }
 
     // ==================== Monedas - Acciones ====================
