@@ -7,6 +7,7 @@ use App\Models\FormaPagoCuotaSucursal;
 use App\Models\FormaPagoSucursal;
 use App\Models\Sucursal;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 
 /**
@@ -17,6 +18,7 @@ use Livewire\Component;
  * - Definir ajuste porcentual (recargo/descuento) específico por sucursal
  * - Configurar recargos de cuotas específicos por sucursal
  */
+#[Lazy]
 #[Layout('layouts.app')]
 class FormasPagoSucursal extends Component
 {
@@ -42,6 +44,13 @@ class FormasPagoSucursal extends Component
     public ?int $formaPagoCuotasId = null;
 
     public array $cuotasConfig = [];
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="1" :columns="5" :rows="6" />
+        HTML;
+    }
 
     /**
      * Inicializa el componente

@@ -10,9 +10,11 @@ use App\Traits\SucursalAware;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
+#[Lazy]
 class MovimientosStock extends Component
 {
     use SucursalAware, WithPagination;
@@ -77,6 +79,13 @@ class MovimientosStock extends Component
     public function boot(StockService $stockService)
     {
         $this->stockService = $stockService;
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="4" :columns="6" :rows="8" />
+        HTML;
     }
 
     public function mount()

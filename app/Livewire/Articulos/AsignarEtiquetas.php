@@ -6,6 +6,7 @@ use App\Models\Articulo;
 use App\Models\Etiqueta;
 use App\Models\GrupoEtiqueta;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -17,6 +18,7 @@ use Livewire\WithPagination;
  * - articulo_a_etiquetas: Seleccionar un artículo y asignarle múltiples etiquetas
  */
 #[Layout('layouts.app')]
+#[Lazy]
 class AsignarEtiquetas extends Component
 {
     use WithPagination;
@@ -269,6 +271,13 @@ class AsignarEtiquetas extends Component
         }
 
         return $query->get();
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="2" :columns="4" :rows="8" />
+        HTML;
     }
 
     public function render()

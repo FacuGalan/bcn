@@ -5,6 +5,7 @@ namespace App\Livewire\Articulos;
 use App\Models\Etiqueta;
 use App\Models\GrupoEtiqueta;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -15,6 +16,7 @@ use Livewire\WithPagination;
  * Estructura de acordeón donde cada grupo muestra sus etiquetas.
  */
 #[Layout('layouts.app')]
+#[Lazy]
 class GestionarEtiquetas extends Component
 {
     use WithPagination;
@@ -73,6 +75,13 @@ class GestionarEtiquetas extends Component
     public ?int $itemAEliminar = null;
 
     public ?string $nombreItemAEliminar = null;
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="1" :columns="3" :rows="6" />
+        HTML;
+    }
 
     public function mount()
     {

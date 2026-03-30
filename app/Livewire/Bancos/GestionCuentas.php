@@ -7,10 +7,12 @@ use App\Models\Moneda;
 use App\Services\CatalogoCache;
 use App\Traits\SucursalAware;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 #[Layout('layouts.app')]
+#[Lazy]
 class GestionCuentas extends Component
 {
     use SucursalAware, WithPagination;
@@ -201,6 +203,13 @@ class GestionCuentas extends Component
     public function getSucursalesProperty()
     {
         return CatalogoCache::sucursales();
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="2" :columns="5" :rows="6" />
+        HTML;
     }
 
     public function render()

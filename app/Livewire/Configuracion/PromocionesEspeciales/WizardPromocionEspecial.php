@@ -7,8 +7,10 @@ use App\Models\Categoria;
 use App\Models\ListaPrecio;
 use App\Models\PromocionEspecial;
 use App\Services\CatalogoCache;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 
+#[Lazy]
 class WizardPromocionEspecial extends Component
 {
     // Control del wizard
@@ -164,6 +166,13 @@ class WizardPromocionEspecial extends Component
     public $canalesVenta = [];
 
     public $formasPago = [];
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-form :tabs="0" :fields="6" :hasBackButton="true" />
+        HTML;
+    }
 
     public function mount($id = null)
     {

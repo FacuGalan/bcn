@@ -12,6 +12,7 @@ use App\Models\Sucursal;
 use App\Services\OpcionalService;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -23,6 +24,7 @@ use Livewire\WithPagination;
  * la asignación a artículos determina el uso.
  */
 #[Layout('layouts.app')]
+#[Lazy]
 class GestionarGruposOpcionales extends Component
 {
     use WithPagination;
@@ -789,6 +791,13 @@ class GestionarGruposOpcionales extends Component
         $this->activo = true;
         $this->tipo = 'seleccionable';
         $this->nuevaOpcionPrecio = '0.00';
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="1" :columns="4" :rows="6" />
+        HTML;
     }
 
     public function render()

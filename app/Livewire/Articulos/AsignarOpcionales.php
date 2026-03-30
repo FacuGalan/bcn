@@ -7,6 +7,7 @@ use App\Models\ArticuloGrupoOpcional;
 use App\Models\GrupoOpcional;
 use App\Services\OpcionalService;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -20,6 +21,7 @@ use Livewire\WithPagination;
  * - Quitar grupo (elimina de todas las sucursales)
  */
 #[Layout('layouts.app')]
+#[Lazy]
 class AsignarOpcionales extends Component
 {
     use WithPagination;
@@ -310,6 +312,13 @@ class AsignarOpcionales extends Component
     {
         $this->mostrandoAgregarGrupo = false;
         $this->busquedaGrupo = '';
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="2" :columns="4" :rows="6" />
+        HTML;
     }
 
     public function render()

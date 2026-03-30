@@ -11,6 +11,7 @@ use App\Services\CompraService;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -122,6 +123,7 @@ use Livewire\WithPagination;
  *
  * @version 1.0.0
  */
+#[Lazy]
 class Compras extends Component
 {
     use WithPagination;
@@ -351,6 +353,13 @@ class Compras extends Component
     // =========================================
     // MÉTODOS DE CICLO DE VIDA
     // =========================================
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="3" :columns="6" :rows="8" />
+        HTML;
+    }
 
     /**
      * Inicializa el componente

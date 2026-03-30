@@ -7,9 +7,11 @@ use App\Models\MovimientoCuentaEmpresa;
 use App\Services\CuentaEmpresaService;
 use App\Traits\SucursalAware;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
+#[Lazy]
 class ResumenCuentas extends Component
 {
     use SucursalAware;
@@ -19,6 +21,13 @@ class ResumenCuentas extends Component
     public function cancelConciliacion()
     {
         $this->showConciliacionModal = false;
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-dashboard :statCards="3" :sections="1" />
+        HTML;
     }
 
     public function render()

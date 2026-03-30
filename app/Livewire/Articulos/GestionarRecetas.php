@@ -7,6 +7,7 @@ use App\Models\Opcional;
 use App\Models\Receta;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -17,6 +18,7 @@ use Livewire\WithPagination;
  * permite editar, eliminar y copiar recetas entre elementos del mismo tipo.
  */
 #[Layout('layouts.app')]
+#[Lazy]
 class GestionarRecetas extends Component
 {
     use WithPagination;
@@ -676,6 +678,13 @@ class GestionarRecetas extends Component
         $this->recetaNotas = '';
         $this->recetaEsOverride = false;
         $this->recetaSucursalNombre = null;
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="2" :columns="5" :rows="8" />
+        HTML;
     }
 
     public function render()

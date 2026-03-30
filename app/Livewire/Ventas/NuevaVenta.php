@@ -38,6 +38,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Lazy;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -51,6 +52,7 @@ use Livewire\Component;
  * - Aplicación de promociones comunes (descuentos, etc.)
  * - Selectores de forma de venta, canal de venta, forma de pago y lista de precios
  */
+#[Lazy]
 class NuevaVenta extends Component
 {
     use AperturaTurnoTrait;
@@ -399,6 +401,11 @@ class NuevaVenta extends Component
     // =========================================
     // CICLO DE VIDA
     // =========================================
+
+    public function placeholder()
+    {
+        return view('livewire.ventas.nueva-venta-skeleton');
+    }
 
     public function mount()
     {

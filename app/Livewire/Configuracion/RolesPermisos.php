@@ -8,6 +8,7 @@ use App\Models\Permission;
 use App\Models\Role;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -17,6 +18,7 @@ use Livewire\WithPagination;
  * Permite crear, editar, eliminar y listar roles del comercio activo.
  * Incluye asignación de permisos basados en los items del menú y permisos funcionales.
  */
+#[Lazy]
 #[Layout('layouts.app')]
 class RolesPermisos extends Component
 {
@@ -56,6 +58,13 @@ class RolesPermisos extends Component
 
     // IDs de permisos protegidos (se resuelven en mount)
     public array $protectedPermissionIds = [];
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="1" :columns="4" :rows="6" />
+        HTML;
+    }
 
     /**
      * Inicialización del componente

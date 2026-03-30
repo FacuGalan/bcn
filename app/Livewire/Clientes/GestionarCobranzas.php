@@ -12,6 +12,7 @@ use App\Services\CobroService;
 use App\Traits\CajaAware;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -22,6 +23,7 @@ use Livewire\WithPagination;
  * ver cuenta corriente, y generar reportes de antigüedad.
  */
 #[Layout('layouts.app')]
+#[Lazy]
 class GestionarCobranzas extends Component
 {
     use CajaAware, WithPagination;
@@ -1274,6 +1276,13 @@ class GestionarCobranzas extends Component
     }
 
     // ==================== Render ====================
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="3" :columns="6" :rows="8" />
+        HTML;
+    }
 
     public function render()
     {

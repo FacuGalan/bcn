@@ -9,10 +9,12 @@ use App\Services\CuentaEmpresaService;
 use App\Traits\SucursalAware;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 #[Layout('layouts.app')]
+#[Lazy]
 class MovimientosCuenta extends Component
 {
     use SucursalAware, WithPagination;
@@ -49,6 +51,13 @@ class MovimientosCuenta extends Component
     public ?int $anularMovimientoId = null;
 
     public string $motivoAnulacion = '';
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="3" :columns="6" :rows="8" />
+        HTML;
+    }
 
     public function mount()
     {

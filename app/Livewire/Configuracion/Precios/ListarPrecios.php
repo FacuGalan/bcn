@@ -4,6 +4,7 @@ namespace App\Livewire\Configuracion\Precios;
 
 use App\Models\ListaPrecio;
 use App\Traits\SucursalAware;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -12,6 +13,7 @@ use Livewire\WithPagination;
  *
  * FASE 2 - Sistema de Listas de Precios
  */
+#[Lazy]
 class ListarPrecios extends Component
 {
     use SucursalAware, WithPagination;
@@ -43,6 +45,13 @@ class ListarPrecios extends Component
         'ordenarPor' => ['except' => 'prioridad'],
         'ordenDireccion' => ['except' => 'asc'],
     ];
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="2" :columns="5" :rows="6" />
+        HTML;
+    }
 
     public function updatingBusqueda()
     {

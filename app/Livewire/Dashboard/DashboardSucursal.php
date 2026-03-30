@@ -12,6 +12,7 @@ use App\Models\Venta;
 use App\Models\VentaPago;
 use App\Models\VentaPromocion;
 use Carbon\Carbon;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 
 /**
@@ -26,6 +27,7 @@ use Livewire\Component;
  * - Estado de cajas
  * - Alertas de stock
  */
+#[Lazy]
 class DashboardSucursal extends Component
 {
     public $sucursalSeleccionada = null;
@@ -33,6 +35,13 @@ class DashboardSucursal extends Component
     public $periodoSeleccionado = 'hoy'; // hoy, semana, mes
 
     protected $listeners = ['sucursal-changed' => 'handleSucursalChanged'];
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-dashboard :statCards="4" :sections="2" />
+        HTML;
+    }
 
     public function mount()
     {

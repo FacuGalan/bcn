@@ -9,6 +9,7 @@ use App\Services\CajaService;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -42,6 +43,7 @@ use Livewire\WithPagination;
  *
  * @version 1.0.0
  */
+#[Lazy]
 class GestionCajas extends Component
 {
     use WithPagination;
@@ -92,6 +94,13 @@ class GestionCajas extends Component
     public function boot(CajaService $cajaService)
     {
         $this->cajaService = $cajaService;
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="2" :columns="5" :rows="6" />
+        HTML;
     }
 
     public function mount()
