@@ -188,3 +188,4 @@ Ejemplos:
 - Services/Models: `.claude/docs/servicios-referencia.md`
 - Testing: `.claude/docs/testing-patterns.md`
 - Template SDD: `.claude/docs/spec-template.md`
+- Configuración de servidores: `.claude/docs/server-config.md`
