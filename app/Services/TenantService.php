@@ -241,7 +241,7 @@ class TenantService
     protected function resetConnection(): void
     {
         Config::set('database.connections.'.self::TENANT_CONNECTION.'.prefix', '');
-        Config::set('database.connections.'.self::TENANT_CONNECTION.'.database', env('DB_DATABASE', 'pymes'));
+        Config::set('database.connections.'.self::TENANT_CONNECTION.'.database', config('database.connections.pymes.database', 'pymes'));
         DB::purge(self::TENANT_CONNECTION);
     }
 

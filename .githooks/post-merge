@@ -1,0 +1,12 @@
+#!/bin/bash
+# Post-merge hook: se ejecuta automaticamente despues de git pull
+# Regenera caches de Laravel para mantener el rendimiento optimizado
+
+echo "[post-merge] Optimizando caches de Laravel..."
+php artisan optimize --quiet 2>/dev/null
+
+if [ $? -eq 0 ]; then
+    echo "[post-merge] Caches regenerados correctamente."
+else
+    echo "[post-merge] AVISO: No se pudieron regenerar los caches. Ejecuta manualmente: php artisan optimize"
+fi
