@@ -49,8 +49,6 @@ class GestionCuentas extends Component
 
     public ?string $color = null;
 
-    public array $sucursales_seleccionadas = [];
-
     // Confirmación eliminar
     public bool $showConfirmDelete = false;
 
@@ -89,7 +87,7 @@ class GestionCuentas extends Component
 
     public function crear()
     {
-        $this->reset(['cuentaId', 'nombre', 'tipo', 'subtipo', 'banco', 'numero_cuenta', 'cbu', 'alias', 'titular', 'moneda_id', 'color', 'sucursales_seleccionadas']);
+        $this->reset(['cuentaId', 'nombre', 'tipo', 'subtipo', 'banco', 'numero_cuenta', 'cbu', 'alias', 'titular', 'moneda_id', 'color']);
         $this->tipo = 'banco';
         $monedaPrincipal = Moneda::obtenerPrincipal();
         $this->moneda_id = $monedaPrincipal?->id;
@@ -110,7 +108,6 @@ class GestionCuentas extends Component
         $this->titular = $cuenta->titular;
         $this->moneda_id = $cuenta->moneda_id;
         $this->color = $cuenta->color;
-        $this->sucursales_seleccionadas = $cuenta->sucursales()->pluck('sucursal_id')->toArray();
         $this->showModal = true;
     }
 
@@ -137,11 +134,6 @@ class GestionCuentas extends Component
         } else {
             $cuenta = CuentaEmpresa::create($data);
         }
-
-        // Sync sucursales
-        $cuenta->sucursales()->sync(
-            collect($this->sucursales_seleccionadas)->mapWithKeys(fn ($id) => [$id => ['activo' => true]])->toArray()
-        );
 
         $this->showModal = false;
         $this->dispatch('toast-success', message: $this->cuentaId ? __('Cuenta actualizada correctamente') : __('Cuenta creada correctamente'));
@@ -200,11 +192,6 @@ class GestionCuentas extends Component
         return CatalogoCache::monedas();
     }
 
-    public function getSucursalesProperty()
-    {
-        return CatalogoCache::sucursales();
-    }
-
     public function placeholder()
     {
         return <<<'HTML'
@@ -214,7 +201,12 @@ class GestionCuentas extends Component
 
     public function render()
     {
-        $query = CuentaEmpresa::query()->with(['moneda', 'sucursales']);
+        $sucursalId = sucursal_activa();
+        $query = CuentaEmpresa::query()->with('moneda')
+            ->where(function ($q) use ($sucursalId) {
+                $q->whereDoesntHave('sucursales')
+                    ->orWhereHas('sucursales', fn ($sub) => $sub->where('cuenta_empresa_sucursal.sucursal_id', $sucursalId)->where('cuenta_empresa_sucursal.activo', true));
+            });
 
         if ($this->search) {
             $query->where(function ($q) {

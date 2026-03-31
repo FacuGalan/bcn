@@ -37,8 +37,6 @@ class GestionarClientes extends Component
 
     public string $filterStatus = 'all'; // all, active, inactive, deleted
 
-    public string $filterSucursal = 'all';
-
     public string $filterCondicionIva = 'all';
 
     public string $filterCuentaCorriente = 'all'; // all, con_cc, sin_cc, con_deuda
@@ -102,10 +100,7 @@ class GestionarClientes extends Component
 
     public string $proveedor_opcion = 'crear_nuevo'; // 'crear_nuevo' o ID del proveedor existente
 
-    // Sucursales
-    public array $sucursales_seleccionadas = [];
-
-    // Modal de configuración de sucursales (listas de precios)
+    // Modal de configuración de sucursales (listas de precios) — preservado para Manager
     public bool $showSucursalesModal = false;
 
     public ?int $clienteConfigId = null;
@@ -160,7 +155,6 @@ class GestionarClientes extends Component
             'dias_credito' => 'integer|min:0|max:365',
             'tasa_interes_mensual' => 'numeric|min:0|max:100',
             'activo' => 'boolean',
-            'sucursales_seleccionadas' => 'array',
         ];
 
         // Validar CUIT único si se está editando otro cliente
@@ -236,15 +230,19 @@ class GestionarClientes extends Component
     protected function getClientes()
     {
         // Si el filtro es "deleted", buscar solo los eliminados
+        $sucursalId = sucursal_activa();
+
         if ($this->filterStatus === 'deleted') {
-            $query = Cliente::onlyTrashed()->with(['condicionIva', 'listaPrecio', 'proveedor', 'sucursales' => function ($query) {
-                $query->wherePivot('activo', true);
-            }]);
+            $query = Cliente::onlyTrashed()->with(['condicionIva', 'listaPrecio', 'proveedor']);
         } else {
-            $query = Cliente::with(['condicionIva', 'listaPrecio', 'proveedor', 'sucursales' => function ($query) {
-                $query->wherePivot('activo', true);
-            }]);
+            $query = Cliente::with(['condicionIva', 'listaPrecio', 'proveedor']);
         }
+
+        // Filtrar por sucursal activa
+        $query->whereHas('sucursales', function ($q) use ($sucursalId) {
+            $q->where('clientes_sucursales.sucursal_id', $sucursalId)
+                ->where('clientes_sucursales.activo', true);
+        });
 
         // Filtro de búsqueda
         if ($this->search) {
@@ -260,14 +258,6 @@ class GestionarClientes extends Component
         // Filtro de estado (activo/inactivo, no aplica si es "deleted")
         if ($this->filterStatus !== 'all' && $this->filterStatus !== 'deleted') {
             $query->where('activo', $this->filterStatus === 'active');
-        }
-
-        // Filtro de sucursal
-        if ($this->filterSucursal !== 'all') {
-            $query->whereHas('sucursales', function ($q) {
-                $q->where('sucursal_id', $this->filterSucursal)
-                    ->where('clientes_sucursales.activo', true);
-            });
         }
 
         // Filtro de condición IVA
@@ -349,12 +339,6 @@ class GestionarClientes extends Component
         $this->consultaArcaDisponible = PadronARCAService::estaDisponible();
         $this->modoAlta = 'manual';
 
-        // Auto-asignar la sucursal activa
-        $sucursalActiva = sucursal_activa();
-        if ($sucursalActiva) {
-            $this->sucursales_seleccionadas = [$sucursalActiva];
-        }
-
         $this->showModal = true;
     }
 
@@ -379,9 +363,7 @@ class GestionarClientes extends Component
         $this->dias_credito = $cliente->dias_credito;
         $this->tasa_interes_mensual = (float) $cliente->tasa_interes_mensual;
         $this->activo = $cliente->activo;
-        $this->sucursales_seleccionadas = $cliente->sucursales->pluck('id')->toArray();
-
-        // Cargar lista de precios de la sucursal activa (para single-sucursal se muestra inline)
+        // Cargar lista de precios de la sucursal activa
         $sucursalId = sucursal_activa();
         if ($sucursalId) {
             $configSucursal = $cliente->sucursales->firstWhere('id', $sucursalId);
@@ -608,26 +590,20 @@ class GestionarClientes extends Component
                 $this->clienteId = $cliente->id;
             }
 
-            // Sincronizar sucursales con lista de precios
-            $sucursalesData = [];
+            // Asignar sucursal activa al crear; al editar solo actualizar lista de precios
             $sucursalActiva = sucursal_activa();
-            foreach ($this->sucursales_seleccionadas as $sucursalId) {
-                // Sucursal activa: usar la lista seleccionada en el modal
-                // Otras sucursales: usar lista base por defecto
-                if ($sucursalId == $sucursalActiva && $this->lista_precio_id) {
-                    $listaPrecioId = $this->lista_precio_id;
-                } else {
-                    $listaPrecioId = ListaPrecio::where('sucursal_id', $sucursalId)
-                        ->where('es_lista_base', true)
-                        ->value('id');
-                }
-
-                $sucursalesData[$sucursalId] = [
-                    'activo' => true,
-                    'lista_precio_id' => $listaPrecioId,
-                ];
+            if (! $this->editMode) {
+                $listaPrecioId = $this->lista_precio_id ?: ListaPrecio::where('sucursal_id', $sucursalActiva)
+                    ->where('es_lista_base', true)
+                    ->value('id');
+                $cliente->sucursales()->syncWithoutDetaching([
+                    $sucursalActiva => ['activo' => true, 'lista_precio_id' => $listaPrecioId],
+                ]);
+            } else {
+                $cliente->sucursales()->syncWithoutDetaching([
+                    $sucursalActiva => ['lista_precio_id' => $this->lista_precio_id],
+                ]);
             }
-            $cliente->sucursales()->sync($sucursalesData);
 
             // Manejar vinculación con proveedor
             $this->handleProveedorVinculacion($cliente);
@@ -1163,7 +1139,6 @@ class GestionarClientes extends Component
         $this->tambien_es_proveedor = false;
         $this->proveedor_vinculado_id = null;
         $this->proveedor_opcion = 'crear_nuevo';
-        $this->sucursales_seleccionadas = [];
         $this->modoAlta = 'manual';
         $this->consultandoCuit = false;
         $this->errorConsultaCuit = '';

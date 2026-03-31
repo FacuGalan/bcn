@@ -11,6 +11,7 @@ use App\Models\Sucursal;
 use App\Models\Venta;
 use App\Models\VentaPago;
 use App\Models\VentaPromocion;
+use App\Traits\SucursalAware;
 use Carbon\Carbon;
 use Livewire\Attributes\Lazy;
 use Livewire\Component;
@@ -30,11 +31,11 @@ use Livewire\Component;
 #[Lazy]
 class DashboardSucursal extends Component
 {
+    use SucursalAware;
+
     public $sucursalSeleccionada = null;
 
     public $periodoSeleccionado = 'hoy'; // hoy, semana, mes
-
-    protected $listeners = ['sucursal-changed' => 'handleSucursalChanged'];
 
     public function placeholder()
     {
@@ -48,7 +49,7 @@ class DashboardSucursal extends Component
         $this->sucursalSeleccionada = sucursal_activa() ?? Sucursal::activas()->first()->id ?? 1;
     }
 
-    public function handleSucursalChanged($sucursalId, $sucursalNombre = null)
+    protected function onSucursalChanged($sucursalId, $sucursalNombre): void
     {
         $this->sucursalSeleccionada = $sucursalId;
     }
