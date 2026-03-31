@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Session;
  *
  * @author BCN Pymes
  *
- * @version 1.0.0
+ * @version 1.1.0
  */
 class TenantService
 {
@@ -29,6 +29,13 @@ class TenantService
      * @var string
      */
     protected const SESSION_KEY = 'comercio_activo_id';
+
+    /**
+     * Claves de sesión para caché de configuración tenant
+     */
+    protected const SESSION_PREFIX_KEY = 'tenant_prefix';
+
+    protected const SESSION_DATABASE_KEY = 'tenant_database';
 
     /**
      * Nombre de la conexión dinámica para el tenant
@@ -47,6 +54,8 @@ class TenantService
      *
      * Guarda el ID del comercio en la sesión y configura la conexión
      * de base de datos con el prefijo correspondiente.
+     *
+     * Se usa en LOGIN y CAMBIO DE COMERCIO (no en cada request).
      *
      * @param  int|Comercio  $comercio  ID del comercio o instancia de Comercio
      *
@@ -68,8 +77,13 @@ class TenantService
             }
         }
 
-        // Guardar en sesión
+        $prefix = $comercioModel->getTablePrefix();
+        $databaseName = $comercioModel->database_name ?? 'pymes';
+
+        // Guardar en sesión: ID + datos de conexión para evitar query en requests posteriores
         Session::put(self::SESSION_KEY, $comercioId);
+        Session::put(self::SESSION_PREFIX_KEY, $prefix);
+        Session::put(self::SESSION_DATABASE_KEY, $databaseName);
 
         // Cachear en memoria para evitar queries posteriores en este request
         $this->comercioCache = $comercioModel;
@@ -82,6 +96,30 @@ class TenantService
 
         // Configurar la conexión con el prefijo
         $this->configureConnection($comercioModel);
+    }
+
+    /**
+     * Restaura la conexión tenant desde datos de sesión (sin query a BD)
+     *
+     * Se usa en el middleware de cada request. Lee prefix y database
+     * directamente de la sesión, evitando el Comercio::find() por request.
+     *
+     * @return bool True si se restauró correctamente, false si no hay datos en sesión
+     */
+    public function restoreConnection(): bool
+    {
+        $prefix = Session::get(self::SESSION_PREFIX_KEY);
+        $databaseName = Session::get(self::SESSION_DATABASE_KEY);
+
+        // Si no hay datos de conexión en sesión, no se puede restaurar
+        if ($prefix === null || $databaseName === null) {
+            return false;
+        }
+
+        // Configurar directamente sin query a BD
+        $this->configureConnectionFromValues($prefix, $databaseName);
+
+        return true;
     }
 
     /**
@@ -139,7 +177,9 @@ class TenantService
     public function clearComercio(): void
     {
         Session::forget(self::SESSION_KEY);
-        $this->comercioCache = null; // Limpiar caché
+        Session::forget(self::SESSION_PREFIX_KEY);
+        Session::forget(self::SESSION_DATABASE_KEY);
+        $this->comercioCache = null;
         $this->resetConnection();
     }
 
@@ -159,6 +199,16 @@ class TenantService
         $prefix = $comercio->getTablePrefix();
         $databaseName = $comercio->database_name ?? 'pymes';
 
+        $this->configureConnectionFromValues($prefix, $databaseName);
+    }
+
+    /**
+     * Configura la conexión desde valores directos (sin necesitar el modelo)
+     *
+     * Usado tanto por configureConnection() como por restoreConnection()
+     */
+    protected function configureConnectionFromValues(string $prefix, string $databaseName): void
+    {
         // Obtener la configuración actual
         $currentPrefix = Config::get('database.connections.'.self::TENANT_CONNECTION.'.prefix', '');
         $currentDatabase = Config::get('database.connections.'.self::TENANT_CONNECTION.'.database', '');
@@ -202,6 +252,12 @@ class TenantService
      */
     public function getTablePrefix(): ?string
     {
+        // Intentar desde sesión primero (sin query)
+        $prefix = Session::get(self::SESSION_PREFIX_KEY);
+        if ($prefix !== null) {
+            return $prefix;
+        }
+
         $comercio = $this->getComercio();
 
         return $comercio ? $comercio->getTablePrefix() : null;

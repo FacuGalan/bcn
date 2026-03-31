@@ -41,11 +41,11 @@ return new class extends Migration
                 continue;
             }
 
-            // 3. Agregar columna a rendicion_fondos
+            // 3. Agregar columna a rendicion_fondos (text para compatibilidad con MariaDB < 10.2)
             try {
                 DB::connection('pymes')->statement("
                     ALTER TABLE `{$prefix}rendicion_fondos`
-                    ADD COLUMN `desglose_monedas` json DEFAULT NULL AFTER `observaciones`
+                    ADD COLUMN `desglose_monedas` text DEFAULT NULL AFTER `observaciones`
                 ");
             } catch (\Exception $e) {
                 // Columna ya existe
