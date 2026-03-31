@@ -15,10 +15,11 @@ use Symfony\Component\HttpFoundation\Response;
  * Este middleware se ejecuta en TODOS los requests web (después del middleware de sesión)
  * y configura el prefijo de la conexión pymes_tenant si hay un comercio activo.
  *
- * Es crucial para aplicaciones SPA donde los requests AJAX necesitan mantener
- * la configuración del tenant.
+ * OPTIMIZACIÓN v1.1: Usa restoreConnection() que lee prefix/database de sesión
+ * sin hacer query a BD. Solo hace Comercio::find() como fallback cuando
+ * la sesión no tiene los datos de conexión (ej: remember-me con sesión expirada).
  *
- * @version 1.0.0
+ * @version 1.1.0
  */
 class ConfigureTenantMiddleware
 {
@@ -35,16 +36,18 @@ class ConfigureTenantMiddleware
 
             // Solo configurar si hay un comercio en sesión
             if ($tenantService->hasComercio()) {
-                $comercio = $tenantService->getComercio();
-
-                if ($comercio) {
-                    // Reconfigurar la conexión con el prefijo del comercio
-                    // Esto es necesario porque la conexión se resetea entre requests
-                    $tenantService->setComercio($comercio);
-
-                    // Auto-seleccionar caja si no hay una activa
-                    $this->autoSeleccionarCaja();
+                // Camino rápido: restaurar conexión desde datos de sesión (0 queries)
+                if (! $tenantService->restoreConnection()) {
+                    // Fallback: sesión tiene comercio_id pero no prefix/database
+                    // (puede pasar con remember-me o sesiones migradas)
+                    $comercio = $tenantService->getComercio();
+                    if ($comercio) {
+                        $tenantService->setComercio($comercio);
+                    }
                 }
+
+                // Auto-seleccionar caja si no hay una activa
+                $this->autoSeleccionarCaja();
             }
 
             // Marcar como configurado en este request
