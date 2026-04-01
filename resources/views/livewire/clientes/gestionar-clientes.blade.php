@@ -142,22 +142,6 @@
                             </select>
                         </div>
 
-                        <!-- Sucursal (solo multi-sucursal) -->
-                        @multiSucursal
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Sucursal') }}</label>
-                            <select
-                                wire:model.live="filterSucursal"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                            >
-                                <option value="all">{{ __('Todas') }}</option>
-                                @foreach($sucursales as $sucursal)
-                                    <option value="{{ $sucursal->id }}">{{ $sucursal->nombre }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        @endmultiSucursal
-
                         <!-- Vinculación -->
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Vinculación') }}</label>
@@ -761,28 +745,6 @@
                                 @endif
                             </div>
                         </div>
-
-                        <!-- Sucursales (solo multi-sucursal) -->
-                        @multiSucursal
-                        @if($sucursales->count() > 0)
-                            <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{{ __('Sucursales donde estará disponible') }}</label>
-                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                    @foreach($sucursales as $sucursal)
-                                        <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                                            <input
-                                                type="checkbox"
-                                                value="{{ $sucursal->id }}"
-                                                wire:model="sucursales_seleccionadas"
-                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
-                                            />
-                                            <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ $sucursal->nombre }}</span>
-                                        </label>
-                                    @endforeach
-                                </div>
-                            </div>
-                        @endif
-                        @endmultiSucursal
 
                         <!-- Estado activo -->
                         <div class="flex items-center">

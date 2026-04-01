@@ -96,11 +96,6 @@
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
                             {{ $cuenta->moneda?->codigo ?? 'ARS' }}
                         </span>
-                        @if($cuenta->sucursales->count() > 0)
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                            {{ $cuenta->sucursales->count() }} {{ __('sucursales') }}
-                        </span>
-                        @endif
                     </div>
                     <div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                         <div>
@@ -133,7 +128,6 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Tipo') }}</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Moneda') }}</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Saldo') }}</th>
-                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Sucursales') }}</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Estado') }}</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Acciones') }}</th>
                         </tr>
@@ -168,13 +162,6 @@
                             <td class="px-6 py-4 text-sm text-right font-medium whitespace-nowrap {{ $cuenta->saldo_actual >= 0 ? 'text-gray-900 dark:text-white' : 'text-red-600 dark:text-red-400' }}">
                                 {{ $cuenta->moneda?->simbolo ?? '$' }} {{ number_format($cuenta->saldo_actual, 2, ',', '.') }}
                             </td>
-                            <td class="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                                @if($cuenta->sucursales->count() > 0)
-                                    {{ $cuenta->sucursales->count() }}
-                                @else
-                                    <span class="text-xs text-gray-400">{{ __('Todas') }}</span>
-                                @endif
-                            </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <button wire:click="toggleStatus({{ $cuenta->id }})"
                                     class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary {{ $cuenta->activo ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600' }}">
@@ -196,7 +183,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="7" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                            <td colspan="6" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                                 <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z" /></svg>
                                 <p class="mt-2">{{ __('No se encontraron cuentas') }}</p>
                             </td>
@@ -296,20 +283,6 @@
                         <input wire:model="color" type="color" class="mt-1 block h-10 w-20 rounded-md border-gray-300 dark:border-gray-600 cursor-pointer">
                     </div>
 
-                    {{-- Sucursales --}}
-                    <div class="sm:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Sucursales') }}</label>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ __('Si no selecciona ninguna, estará disponible en todas las sucursales') }}</p>
-                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            @foreach($this->sucursales as $sucursal)
-                            <label class="flex items-center space-x-2 p-2 rounded-md border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-                                <input type="checkbox" wire:model="sucursales_seleccionadas" value="{{ $sucursal->id }}"
-                                    class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary">
-                                <span class="text-sm text-gray-700 dark:text-gray-300">{{ $sucursal->nombre }}</span>
-                            </label>
-                            @endforeach
-                        </div>
-                    </div>
                 </div>
             </x-slot:body>
 
