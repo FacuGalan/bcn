@@ -55,6 +55,9 @@ class VentaDetalle extends Model
         'ajuste_manual_tipo',
         'ajuste_manual_valor',
         'precio_sin_ajuste_manual',
+        // Campos de canje con puntos
+        'pagado_con_puntos',
+        'puntos_usados',
     ];
 
     protected $casts = [
@@ -73,6 +76,9 @@ class VentaDetalle extends Model
         // Campos de ajuste manual
         'ajuste_manual_valor' => 'decimal:2',
         'precio_sin_ajuste_manual' => 'decimal:2',
+        // Campos de canje con puntos
+        'pagado_con_puntos' => 'boolean',
+        'puntos_usados' => 'integer',
     ];
 
     // Relaciones

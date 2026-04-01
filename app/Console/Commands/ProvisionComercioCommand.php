@@ -559,7 +559,9 @@ class ProvisionComercioCommand extends Command
                 || $name === 'menu.transferencias-cuenta'
                 || $name === 'menu.configuracion'
                 || $name === 'menu.empresa'
-                || $name === 'menu.monedas';
+                || $name === 'menu.monedas'
+                || $name === 'menu.programa-puntos'
+                || $name === 'menu.cupones';
         });
         if ($gerentePerms->isNotEmpty()) {
             $db->table('role_has_permissions')->insert(
