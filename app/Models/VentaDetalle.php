@@ -47,6 +47,7 @@ class VentaDetalle extends Model
         'precio_sin_iva',
         'descuento',
         'descuento_promocion',    // Descuento aplicado por promociones
+        'descuento_cupon',        // Descuento aplicado por cupón
         'tiene_promocion',        // Si tiene promoción aplicada
         'iva_monto',
         'subtotal',
@@ -69,6 +70,7 @@ class VentaDetalle extends Model
         'precio_sin_iva' => 'decimal:2',
         'descuento' => 'decimal:2',
         'descuento_promocion' => 'decimal:2',
+        'descuento_cupon' => 'decimal:2',
         'tiene_promocion' => 'boolean',
         'iva_monto' => 'decimal:2',
         'subtotal' => 'decimal:2',

@@ -434,6 +434,22 @@
             </div>
         @endif
 
+        {{-- Descuento general --}}
+        @if($venta->descuento_general_monto > 0)
+            <div class="total-linea descuento">
+                <span>Desc. general ({{ $venta->descuento_general_tipo === 'porcentaje' ? $venta->descuento_general_valor . '%' : '$' . number_format($venta->descuento_general_valor, 2, ',', '.') }}):</span>
+                <span>-${{ number_format($venta->descuento_general_monto, 2, ',', '.') }}</span>
+            </div>
+        @endif
+
+        {{-- Cupón --}}
+        @if($venta->monto_cupon > 0)
+            <div class="total-linea descuento">
+                <span>Cupón {{ $venta->cupon?->codigo ?? '' }}:</span>
+                <span>-${{ number_format($venta->monto_cupon, 2, ',', '.') }}</span>
+            </div>
+        @endif
+
         {{-- Ajuste por forma de pago --}}
         @if($venta->ajuste_forma_pago != 0)
             <div class="total-linea {{ $venta->ajuste_forma_pago > 0 ? 'recargo' : 'descuento' }}">
@@ -509,6 +525,25 @@
                 <div style="font-size: 9px; color: #666;">
                     Vence: {{ $venta->fecha_vencimiento->format('d/m/Y') }}
                 </div>
+            @endif
+        </div>
+    @endif
+
+    {{-- Puntos de fidelización (RF-30) --}}
+    @if($venta->puntos_ganados > 0 || $venta->puntos_usados > 0)
+        <div style="text-align: center; padding: 4px 0; border-top: 1px dashed #ccc; border-bottom: 1px dashed #ccc; margin: 4px 0; font-size: 10px;">
+            @if($venta->puntos_ganados > 0)
+                <div style="color: #16a34a;">&#9733; {{ __('Puntos ganados en esta venta') }}: <strong>+{{ $venta->puntos_ganados }}</strong></div>
+            @endif
+            @if($venta->puntos_usados > 0)
+                <div style="color: #dc2626;">{{ __('Puntos usados') }}: <strong>-{{ $venta->puntos_usados }}</strong></div>
+            @endif
+            @if($venta->cliente_id)
+                @php
+                    $clientePuntos = $venta->cliente;
+                    $saldoPuntos = $clientePuntos?->puntos_saldo_cache ?? 0;
+                @endphp
+                <div style="font-weight: bold;">{{ __('Saldo de puntos') }}: {{ number_format($saldoPuntos) }}</div>
             @endif
         </div>
     @endif

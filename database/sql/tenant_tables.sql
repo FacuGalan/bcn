@@ -768,6 +768,7 @@ CREATE TABLE `{{PREFIX}}cupon_articulos` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `cupon_id` bigint(20) unsigned NOT NULL,
   `articulo_id` bigint(20) unsigned NOT NULL,
+  `cantidad` int(10) unsigned DEFAULT NULL COMMENT 'Cantidad de unidades que cubre (NULL = todas)',
   `created_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_cupon_articulo` (`cupon_id`,`articulo_id`),
@@ -796,6 +797,18 @@ CREATE TABLE `{{PREFIX}}cupon_usos` (
   CONSTRAINT `{{PREFIX}}fk_cu_cupon` FOREIGN KEY (`cupon_id`) REFERENCES `{{PREFIX}}cupones` (`id`) ON DELETE CASCADE,
   CONSTRAINT `{{PREFIX}}fk_cu_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`),
   CONSTRAINT `{{PREFIX}}fk_cu_venta` FOREIGN KEY (`venta_id`) REFERENCES `{{PREFIX}}ventas` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}cupon_formas_pago`;
+CREATE TABLE `{{PREFIX}}cupon_formas_pago` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `cupon_id` bigint(20) unsigned NOT NULL,
+  `forma_pago_id` bigint(20) unsigned NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_cupon_forma` (`cupon_id`,`forma_pago_id`),
+  KEY `idx_cfp_forma_pago` (`forma_pago_id`),
+  CONSTRAINT `{{PREFIX}}fk_cfp_cupon` FOREIGN KEY (`cupon_id`) REFERENCES `{{PREFIX}}cupones` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_cfp_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}depositos_bancarios`;
 CREATE TABLE `{{PREFIX}}depositos_bancarios` (
@@ -2002,6 +2015,7 @@ CREATE TABLE `{{PREFIX}}ventas_detalle` (
   `descuento_porcentaje` decimal(5,2) DEFAULT '0.00',
   `descuento_monto` decimal(12,2) DEFAULT '0.00',
   `descuento_promocion` decimal(12,2) NOT NULL DEFAULT '0.00' COMMENT 'Descuento aplicado por promociones automáticas',
+  `descuento_cupon` decimal(12,2) NOT NULL DEFAULT '0.00' COMMENT 'Descuento aplicado por cupón en este item',
   `descuento_lista` decimal(12,2) NOT NULL DEFAULT '0.00' COMMENT 'Descuento por lista de precios asignada al cliente',
   `tiene_promocion` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Indica si se aplicó alguna promoción',
   `total` decimal(12,2) NOT NULL DEFAULT '0.00',

@@ -53,12 +53,17 @@ class Cupon extends Model
     public function articulos(): BelongsToMany
     {
         return $this->belongsToMany(Articulo::class, 'cupon_articulos')
-            ->withTimestamps();
+            ->withPivot('cantidad', 'created_at');
     }
 
     public function cuponArticulos(): HasMany
     {
         return $this->hasMany(CuponArticulo::class);
+    }
+
+    public function formasPago(): BelongsToMany
+    {
+        return $this->belongsToMany(FormaPago::class, 'cupon_formas_pago');
     }
 
     public function usos(): HasMany
@@ -159,5 +164,27 @@ class Cupon extends Model
 
         // Cupón de puntos: solo el cliente dueño
         return $this->cliente_id === $clienteId;
+    }
+
+    public function tieneRestriccionFormasPago(): bool
+    {
+        return $this->formasPago()->count() > 0;
+    }
+
+    public function aceptaTodasFormasPago(array $formaPagoIds): bool
+    {
+        if (! $this->tieneRestriccionFormasPago()) {
+            return true;
+        }
+
+        $permitidas = $this->formasPago()->pluck('formas_pago.id')->toArray();
+
+        foreach ($formaPagoIds as $id) {
+            if (! in_array($id, $permitidas)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

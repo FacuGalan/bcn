@@ -16,6 +16,11 @@ class CuponArticulo extends Model
     protected $fillable = [
         'cupon_id',
         'articulo_id',
+        'cantidad',
+    ];
+
+    protected $casts = [
+        'cantidad' => 'integer',
     ];
 
     // --- Relaciones ---

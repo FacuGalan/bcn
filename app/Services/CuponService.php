@@ -52,8 +52,13 @@ class CuponService
             ]);
 
             // Vincular artículos si aplica a artículos específicos
-            if ($cupon->aplicaAArticulos() && ! empty($data['articulo_ids'])) {
-                $cupon->articulos()->attach($data['articulo_ids']);
+            if ($cupon->aplicaAArticulos()) {
+                $this->attachArticulosConCantidad($cupon, $data);
+            }
+
+            // Vincular formas de pago permitidas
+            if (! empty($data['forma_pago_ids'])) {
+                $cupon->formasPago()->attach($data['forma_pago_ids']);
             }
 
             // Descontar puntos (crea movimiento negativo en ledger)
@@ -101,8 +106,13 @@ class CuponService
             ]);
 
             // Vincular artículos si aplica a artículos específicos
-            if ($cupon->aplicaAArticulos() && ! empty($data['articulo_ids'])) {
-                $cupon->articulos()->attach($data['articulo_ids']);
+            if ($cupon->aplicaAArticulos()) {
+                $this->attachArticulosConCantidad($cupon, $data);
+            }
+
+            // Vincular formas de pago permitidas
+            if (! empty($data['forma_pago_ids'])) {
+                $cupon->formasPago()->attach($data['forma_pago_ids']);
             }
 
             Log::info('Cupón promocional creado', [
@@ -149,8 +159,10 @@ class CuponService
 
     /**
      * Calcula el descuento que aplicaría un cupón en una venta.
+     *
+     * @param  array  $itemsCarrito  Opcional: items del carrito con ['articulo_id' => int, 'precio' => float, 'cantidad' => int]
      */
-    public function calcularDescuento(Cupon $cupon, float $totalVenta, array $articuloIdsEnCarrito = []): array
+    public function calcularDescuento(Cupon $cupon, float $totalVenta, array $articuloIdsEnCarrito = [], array $itemsCarrito = []): array
     {
         $montoDescuento = 0;
         $articulosBonificados = [];
@@ -161,18 +173,57 @@ class CuponService
             } else {
                 $montoDescuento = (float) $cupon->valor_descuento;
             }
-            // Limitar al total (no genera saldo a favor)
             $montoDescuento = min($montoDescuento, $totalVenta);
         } elseif ($cupon->aplicaAArticulos()) {
-            $articulosCupon = $cupon->articulos()->pluck('articulos.id')->toArray();
-            $articulosBonificados = array_intersect($articulosCupon, $articuloIdsEnCarrito);
-            // El descuento real por artículo se calcula en NuevaVenta con los precios reales
+            $articulosCupon = $cupon->articulos()->get()->keyBy('id');
+            $idsEnCupon = $articulosCupon->keys()->toArray();
+            $articulosBonificados = array_intersect($idsEnCupon, $articuloIdsEnCarrito);
+
+            // Si tenemos items con precios, calcular con límite de cantidad
+            if (! empty($itemsCarrito)) {
+                $montoDescuento = $this->calcularDescuentoPorArticulos($cupon, $articulosCupon, $itemsCarrito);
+                $montoDescuento = min($montoDescuento, $totalVenta);
+            }
         }
 
         return [
             'monto_descuento' => round($montoDescuento, 2),
             'articulos_bonificados' => $articulosBonificados,
         ];
+    }
+
+    /**
+     * Calcula el descuento para artículos específicos respetando cantidad por artículo.
+     */
+    private function calcularDescuentoPorArticulos(Cupon $cupon, $articulosCupon, array $itemsCarrito): float
+    {
+        $montoElegible = 0;
+
+        foreach ($itemsCarrito as $item) {
+            $articuloId = (int) ($item['articulo_id'] ?? 0);
+
+            if (! $articulosCupon->has($articuloId)) {
+                continue;
+            }
+
+            $pivotCantidad = $articulosCupon->get($articuloId)->pivot->cantidad;
+            $cantidadEnCarrito = (int) ($item['cantidad'] ?? 1);
+            $precioUnitario = (float) ($item['precio'] ?? 0);
+
+            // Si pivot cantidad es null → aplica a todas las unidades
+            $cantidadElegible = $pivotCantidad !== null
+                ? min($cantidadEnCarrito, $pivotCantidad)
+                : $cantidadEnCarrito;
+
+            $montoElegible += $precioUnitario * $cantidadElegible;
+        }
+
+        if ($cupon->esPorcentaje()) {
+            return $montoElegible * ((float) $cupon->valor_descuento / 100);
+        }
+
+        // Monto fijo: el descuento es el valor fijo, limitado al monto elegible
+        return min((float) $cupon->valor_descuento, $montoElegible);
     }
 
     /**
@@ -234,6 +285,33 @@ class CuponService
     }
 
     /**
+     * Valida que las formas de pago de la venta sean compatibles con el cupón.
+     */
+    public function validarFormasPagoCupon(Cupon $cupon, array $formaPagoIds): array
+    {
+        if (! $cupon->tieneRestriccionFormasPago()) {
+            return ['valid' => true, 'message' => '', 'formas_pago_permitidas' => []];
+        }
+
+        $permitidas = $cupon->formasPago()->pluck('nombre', 'formas_pago.id')->toArray();
+
+        if ($cupon->aceptaTodasFormasPago($formaPagoIds)) {
+            return ['valid' => true, 'message' => '', 'formas_pago_permitidas' => $permitidas];
+        }
+
+        $nombresPermitidas = implode(', ', $permitidas);
+
+        return [
+            'valid' => false,
+            'message' => __('El cupón :code solo es válido para: :methods', [
+                'code' => $cupon->codigo,
+                'methods' => $nombresPermitidas,
+            ]),
+            'formas_pago_permitidas' => $permitidas,
+        ];
+    }
+
+    /**
      * Genera un código único para cupón con formato CUP-XXXXXX.
      */
     public function generarCodigo(): string
@@ -243,5 +321,27 @@ class CuponService
         } while (Cupon::where('codigo', $codigo)->exists());
 
         return $codigo;
+    }
+
+    /**
+     * Vincula artículos al cupón con cantidad opcional desde el array de data.
+     */
+    private function attachArticulosConCantidad(Cupon $cupon, array $data): void
+    {
+        // Formato nuevo: articulo_cantidades => [id => cantidad|null]
+        if (! empty($data['articulo_cantidades'])) {
+            foreach ($data['articulo_cantidades'] as $articuloId => $cantidad) {
+                $cupon->articulos()->attach($articuloId, [
+                    'cantidad' => $cantidad ?: null,
+                ]);
+            }
+
+            return;
+        }
+
+        // Formato legacy: articulo_ids => [id, id, ...]
+        if (! empty($data['articulo_ids'])) {
+            $cupon->articulos()->attach($data['articulo_ids']);
+        }
     }
 }

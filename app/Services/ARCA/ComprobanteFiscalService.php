@@ -393,7 +393,7 @@ class ComprobanteFiscalService
         }
 
         // Determinar tipo de documento (códigos AFIP)
-        $docTipo = '96';  // DNI por defecto
+        $docTipo = '99';  // Sin identificar (por defecto)
         $docNro = '0';
 
         if ($cliente->cuit) {
@@ -402,6 +402,11 @@ class ComprobanteFiscalService
         } elseif ($cliente->dni) {
             $docTipo = '96';  // DNI
             $docNro = preg_replace('/\D/', '', $cliente->dni);
+        }
+        // Si es Consumidor Final sin documento, usar tipo 99 (Sin identificar)
+        $condicionCliente = $cliente->condicionIva;
+        if ($docNro === '0' && ($condicionCliente?->codigo ?? null) == CondicionIva::CONSUMIDOR_FINAL) {
+            $docTipo = '99';
         }
 
         // Obtener condición IVA del cliente a través de la relación

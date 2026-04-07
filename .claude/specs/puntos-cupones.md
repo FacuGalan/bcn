@@ -1,6 +1,6 @@
 # Sistema de Puntos y Cupones de Fidelización - Especificación
 
-## Estado: EN REVISIÓN
+## Estado: COMPLETO
 
 > Spec completo para programa de fidelización: acumulación de puntos por compras, canje como descuento o por artículos, cupones de descuento (desde puntos o promocionales). Multi-sucursal configurable.
 
@@ -364,8 +364,20 @@ Los comercios necesitan un programa de fidelización para incentivar la recurren
 | `id` | bigint PK | auto | |
 | `cupon_id` | bigint unsigned | — | FK a cupones |
 | `articulo_id` | bigint unsigned | — | FK a articulos |
+| `cantidad` | int unsigned | NULL | Cantidad de unidades que cubre (NULL = todas) |
 | `created_at` | timestamp | | |
 | | UNIQUE | | `(cupon_id, articulo_id)` |
+
+#### `cupon_formas_pago`
+| Campo | Tipo | Default | Descripción |
+|-------|------|---------|-------------|
+| `id` | bigint PK | auto | |
+| `cupon_id` | bigint unsigned | — | FK a cupones |
+| `forma_pago_id` | bigint unsigned | — | FK a formas_pago |
+| `created_at` | timestamp | | |
+| | UNIQUE | | `(cupon_id, forma_pago_id)` |
+
+Si vacía → cupón aplica a todas las formas de pago. Si tiene registros → venta debe ser 100% con formas permitidas.
 
 #### `cupon_usos`
 | Campo | Tipo | Default | Descripción |

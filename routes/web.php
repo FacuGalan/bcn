@@ -80,7 +80,7 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
      */
     Route::get('ventas', Ventas::class)->name('ventas.index');
     Route::get('ventas/nueva', NuevaVenta::class)->name('ventas.create');
-    Route::get('ventas/programa-puntos', ProgramaPuntos::class)->name('ventas.puntos');
+    Route::get('configuracion/puntos', ProgramaPuntos::class)->name('configuracion.puntos');
     Route::get('ventas/cupones', GestionCupones::class)->name('ventas.cupones');
 
     /**

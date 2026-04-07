@@ -777,6 +777,11 @@
                                                     @if($detalle->es_concepto)
                                                         <span class="text-xs text-gray-500">({{ __('Concepto') }})</span>
                                                     @endif
+                                                    @if($detalle->descuento_cupon > 0)
+                                                        <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                                            {{ __('Cupón') }} -$@precio($detalle->descuento_cupon)
+                                                        </span>
+                                                    @endif
                                                 </td>
                                                 <td class="px-4 py-2.5 text-sm text-gray-900 dark:text-white text-right">{{ $detalle->cantidad }}</td>
                                                 <td class="px-4 py-2.5 text-sm text-gray-900 dark:text-white text-right">$@precio($detalle->precio_unitario)</td>
@@ -809,6 +814,32 @@
                                             <span class="text-sm font-semibold text-red-600 dark:text-red-400">-$@precio($promo->descuento_aplicado)</span>
                                         </div>
                                     @endforeach
+                                </div>
+                            </div>
+                        @endif
+
+                        {{-- Cupón aplicado --}}
+                        @if($ventaDetalle->cupon_id && $ventaDetalle->monto_cupon > 0)
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Cupón aplicado') }}</label>
+                                <div class="flex items-center justify-between bg-amber-50 dark:bg-amber-900/20 rounded-lg px-4 py-2 border border-amber-200 dark:border-amber-800">
+                                    <div class="flex items-center gap-2">
+                                        <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/>
+                                        </svg>
+                                        <div>
+                                            <span class="text-sm font-medium text-amber-800 dark:text-amber-200">
+                                                {{ $ventaDetalle->cupon->codigo ?? __('Cupón') }}
+                                            </span>
+                                            @if($ventaDetalle->cupon)
+                                                <span class="text-xs text-amber-600 dark:text-amber-400 ml-2">
+                                                    ({{ $ventaDetalle->cupon->esPorcentaje() ? $ventaDetalle->cupon->valor_descuento . '%' : '$' . number_format($ventaDetalle->cupon->valor_descuento, 2, ',', '.') }}
+                                                    {{ $ventaDetalle->cupon->aplicaATotal() ? __('sobre el total') : __('en artículos específicos') }})
+                                                </span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-semibold text-red-600 dark:text-red-400">-$@precio($ventaDetalle->monto_cupon)</span>
                                 </div>
                             </div>
                         @endif
@@ -919,6 +950,18 @@
                                 <div class="flex justify-between text-sm">
                                     <span class="text-gray-600 dark:text-gray-400">{{ __('Descuento promociones') }}:</span>
                                     <span class="font-medium text-red-600">-$@precio($ventaDetalle->descuento)</span>
+                                </div>
+                            @endif
+                            @if($ventaDetalle->descuento_general_monto > 0)
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-600 dark:text-gray-400">{{ __('Descuento general') }} ({{ $ventaDetalle->descuento_general_tipo === 'porcentaje' ? $ventaDetalle->descuento_general_valor . '%' : '$' . number_format($ventaDetalle->descuento_general_valor, 2, ',', '.') }}):</span>
+                                    <span class="font-medium text-red-600">-$@precio($ventaDetalle->descuento_general_monto)</span>
+                                </div>
+                            @endif
+                            @if($ventaDetalle->monto_cupon > 0)
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-600 dark:text-gray-400">{{ __('Cupón') }} ({{ $ventaDetalle->cupon->codigo ?? '' }}):</span>
+                                    <span class="font-medium text-red-600">-$@precio($ventaDetalle->monto_cupon)</span>
                                 </div>
                             @endif
                             @if($ventaDetalle->iva > 0)

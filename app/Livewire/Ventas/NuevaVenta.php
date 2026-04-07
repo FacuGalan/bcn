@@ -9,6 +9,7 @@ use App\Models\Cliente;
 use App\Models\ConceptoPago;
 use App\Models\CondicionIva;
 use App\Models\CuentaEmpresa;
+use App\Models\Cupon;
 use App\Models\FormaPago;
 use App\Models\FormaPagoCuota;
 use App\Models\FormaPagoCuotaSucursal;
@@ -29,7 +30,9 @@ use App\Services\ARCA\ComprobanteFiscalService;
 use App\Services\CajaService;
 use App\Services\CatalogoCache;
 use App\Services\CuentaEmpresaService;
+use App\Services\CuponService;
 use App\Services\OpcionalService;
+use App\Services\PuntosService;
 use App\Services\VentaService;
 use App\Traits\AperturaTurnoTrait;
 use App\Traits\CajaAware;
@@ -328,6 +331,81 @@ class NuevaVenta extends Component
     public $ajusteManualValor = null;
 
     // =========================================
+    // PROPIEDADES DE DESCUENTO GENERAL
+    // =========================================
+
+    /** @var bool Modal de descuentos y beneficios visible */
+    public bool $showModalDescuentos = false;
+
+    /** @var bool Si hay un descuento general activo */
+    public bool $descuentoGeneralActivo = false;
+
+    /** @var string|null Tipo de descuento general: 'porcentaje' o 'monto_fijo' */
+    public ?string $descuentoGeneralTipo = null;
+
+    /** @var float|null Valor del descuento general (% o $) */
+    public ?float $descuentoGeneralValor = null;
+
+    /** @var float Monto efectivo descontado por descuento general (calculado) */
+    public float $descuentoGeneralMonto = 0;
+
+    /** @var float|null Tope de descuento % del usuario (MAX de sus roles, null = sin tope) */
+    public ?float $topeDescuentoUsuario = null;
+
+    /** @var float|null Valor temporal del input en el modal */
+    public ?float $descuentoGeneralInputValor = null;
+
+    /** @var string Tipo temporal del input en el modal */
+    public string $descuentoGeneralInputTipo = 'porcentaje';
+
+    // =========================================
+    // PROPIEDADES DE CUPÓN
+    // =========================================
+
+    /** @var string Código de cupón ingresado en el modal */
+    public string $cuponCodigoInput = '';
+
+    /** @var bool Si hay un cupón aplicado en la venta */
+    public bool $cuponAplicado = false;
+
+    /** @var array|null Info del cupón validado para mostrar en UI */
+    public ?array $cuponInfo = null;
+
+    /** @var float Monto de descuento del cupón (calculado) */
+    public float $cuponMontoDescuento = 0;
+
+    /** @var array IDs de artículos bonificados por el cupón */
+    public array $cuponArticulosBonificados = [];
+
+    // =========================================
+    // PROPIEDADES DE CANJE DE PUNTOS
+    // =========================================
+
+    /** @var bool Si el programa de puntos está activo para esta venta */
+    public bool $puntosDisponibles = false;
+
+    /** @var int Saldo de puntos del cliente seleccionado */
+    public int $puntosSaldoCliente = 0;
+
+    /** @var bool Si hay un canje de puntos como pago activo */
+    public bool $canjePuntosActivo = false;
+
+    /** @var float|null Monto $ que el cliente quiere pagar con puntos */
+    public ?float $canjePuntosMonto = null;
+
+    /** @var int Puntos que se consumirán con el canje */
+    public int $canjePuntosUnidades = 0;
+
+    /** @var float Valor máximo canjeable en $ según saldo */
+    public float $canjePuntosMaximo = 0;
+
+    /** @var int Mínimo de puntos para habilitar canje */
+    public int $puntosMinimoCanje = 0;
+
+    /** @var float|null Input temporal en el modal */
+    public ?float $canjePuntosInputMonto = null;
+
+    // =========================================
     // PROPIEDADES DE FACTURACIÓN FISCAL
     // =========================================
 
@@ -392,10 +470,16 @@ class NuevaVenta extends Component
 
     protected $opcionalService;
 
-    public function boot(VentaService $ventaService, OpcionalService $opcionalService)
+    protected $cuponService;
+
+    protected $puntosService;
+
+    public function boot(VentaService $ventaService, OpcionalService $opcionalService, CuponService $cuponService, PuntosService $puntosService)
     {
         $this->ventaService = $ventaService;
         $this->opcionalService = $opcionalService;
+        $this->cuponService = $cuponService;
+        $this->puntosService = $puntosService;
     }
 
     // =========================================
@@ -437,6 +521,9 @@ class NuevaVenta extends Component
 
         // Establecer factura fiscal según la forma de pago por defecto
         $this->actualizarFacturaFiscalSegunFP();
+
+        // Cargar tope de descuento del usuario (MAX de sus roles)
+        $this->cargarTopeDescuentoUsuario();
     }
 
     public function render()
@@ -894,6 +981,7 @@ class NuevaVenta extends Component
                 'iva_porcentaje' => $ivaInfo['porcentaje'],
                 'iva_nombre' => $ivaInfo['nombre'],
                 'precio_iva_incluido' => $articulo->precio_iva_incluido ?? true,
+                'puntos_canje' => $articulo->puntos_canje,
             ];
             $this->wizardGrupos = $grupos;
             $this->wizardPasoActual = 0;
@@ -951,7 +1039,25 @@ class NuevaVenta extends Component
                 // Opcionales (vacío para items sin opcionales)
                 'opcionales' => [],
                 'precio_opcionales' => 0,
+                // Canje por puntos (RF-25)
+                'puntos_canje' => $articulo->puntos_canje,
+                'pagado_con_puntos' => false,
             ];
+
+            // RF-34: Herencia de descuento general % a items nuevos
+            if ($this->descuentoGeneralActivo && $this->descuentoGeneralTipo === 'porcentaje') {
+                $lastIndex = count($this->items) - 1;
+                $precioBase = (float) $precioInfo['precio_base'];
+                $nuevoPrecio = round($precioBase - ($precioBase * $this->descuentoGeneralValor / 100), 2);
+                if ($nuevoPrecio < 0) {
+                    $nuevoPrecio = 0;
+                }
+                $this->items[$lastIndex]['precio_sin_ajuste_manual'] = $precioInfo['precio'];
+                $this->items[$lastIndex]['precio'] = $nuevoPrecio;
+                $this->items[$lastIndex]['ajuste_manual_tipo'] = 'porcentaje';
+                $this->items[$lastIndex]['ajuste_manual_valor'] = $this->descuentoGeneralValor;
+                $this->items[$lastIndex]['tiene_ajuste'] = true;
+            }
         }
 
         $this->busquedaArticulo = '';
@@ -1420,7 +1526,25 @@ class NuevaVenta extends Component
                 'precio_sin_ajuste_manual' => null,
                 'opcionales' => $opcionalesItem,
                 'precio_opcionales' => $precioOpcionalesTotal,
+                // Canje por puntos (RF-25)
+                'puntos_canje' => $data['puntos_canje'] ?? null,
+                'pagado_con_puntos' => false,
             ];
+
+            // RF-34: Herencia de descuento general % a items nuevos
+            if ($this->descuentoGeneralActivo && $this->descuentoGeneralTipo === 'porcentaje') {
+                $lastIndex = count($this->items) - 1;
+                $precioBase = (float) $data['precio_base'] + $precioOpcionalesTotal;
+                $nuevoPrecio = round($precioBase - ($precioBase * $this->descuentoGeneralValor / 100), 2);
+                if ($nuevoPrecio < 0) {
+                    $nuevoPrecio = 0;
+                }
+                $this->items[$lastIndex]['precio_sin_ajuste_manual'] = $precioConOpcionales;
+                $this->items[$lastIndex]['precio'] = $nuevoPrecio;
+                $this->items[$lastIndex]['ajuste_manual_tipo'] = 'porcentaje';
+                $this->items[$lastIndex]['ajuste_manual_valor'] = $this->descuentoGeneralValor;
+                $this->items[$lastIndex]['tiene_ajuste'] = true;
+            }
         }
 
         $this->cerrarWizardOpcionales();
@@ -1573,7 +1697,28 @@ class NuevaVenta extends Component
             'iva_porcentaje' => $ivaInfo['porcentaje'],
             'iva_nombre' => $ivaInfo['nombre'],
             'precio_iva_incluido' => true, // Los conceptos siempre tienen IVA incluido
+            // Campos para ajuste manual (necesarios para descuento general)
+            'ajuste_manual_tipo' => null,
+            'ajuste_manual_valor' => null,
+            'precio_sin_ajuste_manual' => null,
+            'opcionales' => [],
+            'precio_opcionales' => 0,
         ];
+
+        // RF-34: Herencia de descuento general % a conceptos nuevos
+        if ($this->descuentoGeneralActivo && $this->descuentoGeneralTipo === 'porcentaje') {
+            $lastIndex = count($this->items) - 1;
+            $precioBase = (float) $this->conceptoImporte;
+            $nuevoPrecio = round($precioBase - ($precioBase * $this->descuentoGeneralValor / 100), 2);
+            if ($nuevoPrecio < 0) {
+                $nuevoPrecio = 0;
+            }
+            $this->items[$lastIndex]['precio_sin_ajuste_manual'] = $precioBase;
+            $this->items[$lastIndex]['precio'] = $nuevoPrecio;
+            $this->items[$lastIndex]['ajuste_manual_tipo'] = 'porcentaje';
+            $this->items[$lastIndex]['ajuste_manual_valor'] = $this->descuentoGeneralValor;
+            $this->items[$lastIndex]['tiene_ajuste'] = true;
+        }
 
         $this->calcularVenta();
         $this->cerrarModalConcepto();
@@ -1656,6 +1801,9 @@ class NuevaVenta extends Component
             // Cargar condición IVA del cliente
             $this->clienteCondicionIva = $cliente->condicionIva?->nombre ?? 'Consumidor Final';
             $this->determinarTipoFacturaCliente($cliente);
+
+            // Cargar saldo de puntos del cliente (RF-23)
+            $this->cargarSaldoPuntosCliente($cliente);
 
             // Si el cliente tiene lista de precios asignada, actualizarla
             if ($cliente->lista_precio_id) {
@@ -2437,6 +2585,617 @@ class NuevaVenta extends Component
     }
 
     // =========================================
+    // DESCUENTO GENERAL
+    // =========================================
+
+    /**
+     * Abre el modal de Descuentos y Beneficios
+     */
+    public function abrirModalDescuentos(): void
+    {
+        // Inicializar inputs del modal con los valores activos (si hay)
+        if ($this->descuentoGeneralActivo) {
+            $this->descuentoGeneralInputTipo = $this->descuentoGeneralTipo;
+            $this->descuentoGeneralInputValor = $this->descuentoGeneralValor;
+        } else {
+            $this->descuentoGeneralInputTipo = 'porcentaje';
+            $this->descuentoGeneralInputValor = null;
+        }
+
+        $this->showModalDescuentos = true;
+    }
+
+    /**
+     * Cierra el modal de Descuentos y Beneficios
+     */
+    public function cerrarModalDescuentos(): void
+    {
+        $this->showModalDescuentos = false;
+    }
+
+    /**
+     * Carga el tope de descuento del usuario (MAX de sus roles)
+     */
+    protected function cargarTopeDescuentoUsuario(): void
+    {
+        $user = Auth::user();
+        if (! $user) {
+            return;
+        }
+
+        $tope = DB::connection('pymes_tenant')
+            ->table('roles')
+            ->join('model_has_roles', function ($join) use ($user) {
+                $join->on('roles.id', '=', 'model_has_roles.role_id')
+                    ->where('model_has_roles.model_type', 'App\\Models\\User')
+                    ->where('model_has_roles.model_id', $user->id);
+            })
+            ->whereNotNull('roles.descuento_maximo_porcentaje')
+            ->max('roles.descuento_maximo_porcentaje');
+
+        $this->topeDescuentoUsuario = $tope !== null ? (float) $tope : null;
+    }
+
+    /**
+     * Aplica descuento general al carrito.
+     * % → aplica ajuste_manual masivo a todos los items
+     * $ → se resta del total en calcularVenta()
+     */
+    public function aplicarDescuentoGeneral(): void
+    {
+        $tipo = $this->descuentoGeneralInputTipo;
+        $valor = $this->descuentoGeneralInputValor;
+
+        if ($valor === null || $valor === '' || (float) $valor <= 0) {
+            $this->dispatch('toast-error', message: __('Ingrese un valor mayor a cero'));
+
+            return;
+        }
+
+        $valor = (float) $valor;
+
+        // Verificar permiso
+        $user = Auth::user();
+        if (! $user || ! $user->hasPermissionTo('func.descuento_general')) {
+            $this->dispatch('toast-error', message: __('No tiene permiso para aplicar descuento general'));
+
+            return;
+        }
+
+        // Validar tope por rol
+        if ($this->topeDescuentoUsuario !== null) {
+            if ($tipo === 'porcentaje' && $valor > $this->topeDescuentoUsuario) {
+                $this->dispatch('toast-error', message: __('El descuento supera el máximo permitido para su rol')." ({$this->topeDescuentoUsuario}%)");
+
+                return;
+            }
+
+            if ($tipo === 'monto_fijo') {
+                // El monto fijo no puede superar el % tope del total pre-descuento
+                $totalPreDescuento = $this->resultado['subtotal'] ?? 0;
+                $maxMonto = round($totalPreDescuento * $this->topeDescuentoUsuario / 100, 2);
+                if ($valor > $maxMonto) {
+                    $this->dispatch('toast-error', message: __('El descuento supera el máximo permitido para su rol')." (\${$maxMonto})");
+
+                    return;
+                }
+            }
+        }
+
+        if ($tipo === 'porcentaje') {
+            if ($valor > 100) {
+                $this->dispatch('toast-error', message: __('El porcentaje no puede superar 100%'));
+
+                return;
+            }
+        }
+
+        // RF-33: Exclusividad % / $ — si ya hay uno activo, quitar primero
+        // RF-35: Re-aplicar % pisa ajustes individuales previos
+        if ($this->descuentoGeneralActivo) {
+            if ($this->descuentoGeneralTipo === 'porcentaje') {
+                $this->restaurarPreciosOriginalesItems();
+            }
+            $this->descuentoGeneralActivo = false;
+        }
+
+        if ($tipo === 'porcentaje') {
+            $this->aplicarDescuentoPorcentajeATodosLosItems($valor);
+        }
+
+        // Guardar estado del descuento general
+        $this->descuentoGeneralActivo = true;
+        $this->descuentoGeneralTipo = $tipo;
+        $this->descuentoGeneralValor = $valor;
+
+        $this->calcularVenta();
+
+        $etiqueta = $tipo === 'porcentaje' ? "{$valor}%" : "\${$valor}";
+        $this->dispatch('toast-success', message: __('Descuento general aplicado').": {$etiqueta}");
+    }
+
+    /**
+     * Quita el descuento general, restaurando precios originales si era porcentaje
+     */
+    public function quitarDescuentoGeneral(): void
+    {
+        if (! $this->descuentoGeneralActivo) {
+            return;
+        }
+
+        // Si era porcentaje, restaurar precios de todos los items
+        if ($this->descuentoGeneralTipo === 'porcentaje') {
+            $this->restaurarPreciosOriginalesItems();
+        }
+
+        $this->descuentoGeneralActivo = false;
+        $this->descuentoGeneralTipo = null;
+        $this->descuentoGeneralValor = null;
+        $this->descuentoGeneralMonto = 0;
+        $this->descuentoGeneralInputValor = null;
+        $this->descuentoGeneralInputTipo = 'porcentaje';
+
+        $this->calcularVenta();
+        $this->dispatch('toast-info', message: __('Descuento general eliminado'));
+    }
+
+    /**
+     * Aplica ajuste_manual porcentaje a todos los items del carrito (RF-31)
+     */
+    protected function aplicarDescuentoPorcentajeATodosLosItems(float $porcentaje): void
+    {
+        foreach ($this->items as $index => $item) {
+            $precioBase = (float) $item['precio_base'];
+            $nuevoPrecio = round($precioBase - ($precioBase * $porcentaje / 100), 2);
+
+            if ($nuevoPrecio < 0) {
+                $nuevoPrecio = 0;
+            }
+
+            $this->items[$index]['precio_sin_ajuste_manual'] = $item['precio_base'];
+            $this->items[$index]['precio'] = $nuevoPrecio;
+            $this->items[$index]['ajuste_manual_tipo'] = 'porcentaje';
+            $this->items[$index]['ajuste_manual_valor'] = $porcentaje;
+            $this->items[$index]['tiene_ajuste'] = true;
+        }
+    }
+
+    /**
+     * Restaura precios originales de todos los items (quita ajuste manual masivo)
+     */
+    protected function restaurarPreciosOriginalesItems(): void
+    {
+        foreach ($this->items as $index => $item) {
+            if ($item['ajuste_manual_tipo'] === null) {
+                continue;
+            }
+
+            $articuloId = $item['articulo_id'] ?? null;
+            if ($articuloId) {
+                $articulo = Articulo::find($articuloId);
+                if ($articulo) {
+                    $precioInfo = $this->obtenerPrecioConLista($articulo);
+                    $this->items[$index]['precio'] = $precioInfo['precio'];
+                    $this->items[$index]['precio_base'] = $precioInfo['precio_base'];
+                    $this->items[$index]['tiene_ajuste'] = $precioInfo['tiene_ajuste'];
+                }
+            } else {
+                // Concepto: restaurar precio original
+                $this->items[$index]['precio'] = $item['precio_sin_ajuste_manual'] ?? $item['precio'];
+                $this->items[$index]['tiene_ajuste'] = false;
+            }
+
+            $this->items[$index]['ajuste_manual_tipo'] = null;
+            $this->items[$index]['ajuste_manual_valor'] = null;
+            $this->items[$index]['precio_sin_ajuste_manual'] = null;
+        }
+    }
+
+    // =========================================
+    // CUPÓN EN VENTA
+    // =========================================
+
+    /**
+     * Valida un cupón por código ingresado en el modal.
+     */
+    public function validarCupon(): void
+    {
+        $codigo = trim($this->cuponCodigoInput);
+        if (empty($codigo)) {
+            $this->dispatch('toast-error', message: __('Ingrese un código de cupón'));
+
+            return;
+        }
+
+        $resultado = $this->cuponService->validarCupon($codigo, $this->clienteSeleccionado);
+
+        if (! $resultado['valid']) {
+            $this->cuponInfo = null;
+            $this->dispatch('toast-error', message: $resultado['message']);
+
+            return;
+        }
+
+        $cupon = $resultado['cupon'];
+
+        // Calcular descuento preview
+        $totalParaCupon = $this->resultado['total_final'] ?? 0;
+        $articuloIdsEnCarrito = collect($this->items)->pluck('articulo_id')->filter()->values()->toArray();
+        $descuento = $this->cuponService->calcularDescuento($cupon, $totalParaCupon, $articuloIdsEnCarrito);
+
+        // Guardar info para mostrar en UI
+        $formasPagoPermitidas = $cupon->formasPago()->pluck('nombre', 'formas_pago.id')->toArray();
+
+        $this->cuponInfo = [
+            'id' => $cupon->id,
+            'codigo' => $cupon->codigo,
+            'tipo' => $cupon->tipo,
+            'descripcion' => $cupon->descripcion,
+            'modo_descuento' => $cupon->modo_descuento,
+            'valor_descuento' => (float) $cupon->valor_descuento,
+            'aplica_a' => $cupon->aplica_a,
+            'uso_actual' => $cupon->uso_actual,
+            'uso_maximo' => $cupon->uso_maximo,
+            'fecha_vencimiento' => $cupon->fecha_vencimiento?->format('d/m/Y'),
+            'monto_descuento' => $descuento['monto_descuento'],
+            'articulos_bonificados' => $descuento['articulos_bonificados'],
+            'formas_pago_permitidas' => $formasPagoPermitidas,
+        ];
+
+        $this->dispatch('toast-success', message: __('Cupón válido'));
+    }
+
+    /**
+     * Aplica el cupón validado a la venta actual.
+     */
+    public function aplicarCupon(): void
+    {
+        if (! $this->cuponInfo) {
+            $this->dispatch('toast-error', message: __('Primero valide un cupón'));
+
+            return;
+        }
+
+        // Re-validar por seguridad
+        $cupon = Cupon::find($this->cuponInfo['id']);
+        if (! $cupon || ! $cupon->estaVigente() || ! $cupon->tieneUsosDisponibles()) {
+            $this->cuponInfo = null;
+            $this->dispatch('toast-error', message: __('Cupón inválido'));
+
+            return;
+        }
+
+        if (! $cupon->puedeSerUsadoPor($this->clienteSeleccionado)) {
+            $this->dispatch('toast-error', message: __('Este cupón pertenece a otro cliente'));
+
+            return;
+        }
+
+        $this->cuponAplicado = true;
+
+        // Recalcular descuento con artículos bonificados (respetando cantidad del pivot)
+        if ($cupon->aplicaAArticulos()) {
+            $articulosCupon = $cupon->articulos()->get()->keyBy('id');
+            $bonificados = [];
+            $itemsParaCalculo = [];
+
+            foreach ($this->items as $item) {
+                $articuloId = $item['articulo_id'] ?? null;
+                if ($articuloId && $articulosCupon->has($articuloId)) {
+                    $bonificados[] = $articuloId;
+                    $itemsParaCalculo[] = $item;
+                }
+            }
+            $this->cuponArticulosBonificados = $bonificados;
+
+            $totalParaCupon = $this->resultado['total_final'] ?? 0;
+            $descuento = $this->cuponService->calcularDescuento($cupon, $totalParaCupon, $bonificados, $itemsParaCalculo);
+            $this->cuponMontoDescuento = $descuento['monto_descuento'];
+            $this->cuponInfo['monto_descuento'] = $this->cuponMontoDescuento;
+        } else {
+            $this->cuponArticulosBonificados = [];
+        }
+
+        $this->calcularVenta();
+
+        $this->dispatch('toast-success', message: __('Cupón aplicado').": {$cupon->codigo}");
+    }
+
+    /**
+     * Quita el cupón aplicado de la venta.
+     */
+    public function quitarCupon(): void
+    {
+        $this->cuponAplicado = false;
+        $this->cuponInfo = null;
+        $this->cuponMontoDescuento = 0;
+        $this->cuponArticulosBonificados = [];
+        $this->cuponCodigoInput = '';
+
+        $this->calcularVenta();
+        $this->dispatch('toast-info', message: __('Cupón eliminado'));
+    }
+
+    /**
+     * Calcula el descuento del cupón por cada item del carrito para trazabilidad.
+     * Retorna array indexado por posición del item.
+     */
+    private function calcularDescuentoCuponPorItem(): array
+    {
+        $resultado = [];
+
+        if (! $this->cuponAplicado || ! $this->cuponInfo || $this->cuponMontoDescuento <= 0) {
+            return $resultado;
+        }
+
+        $cupon = Cupon::find($this->cuponInfo['id']);
+        if (! $cupon) {
+            return $resultado;
+        }
+
+        if ($cupon->aplicaAArticulos()) {
+            $articulosCupon = $cupon->articulos()->get()->keyBy('id');
+            $montoElegibleTotal = 0;
+            $elegiblesPorItem = [];
+
+            // Calcular monto elegible por item
+            foreach ($this->items as $index => $item) {
+                $articuloId = (int) ($item['articulo_id'] ?? 0);
+                if (! $articulosCupon->has($articuloId)) {
+                    continue;
+                }
+
+                $pivotCantidad = $articulosCupon->get($articuloId)->pivot->cantidad;
+                $cantidadEnCarrito = (int) ($item['cantidad'] ?? 1);
+                $precioUnitario = (float) ($item['precio'] ?? 0);
+                $cantidadElegible = $pivotCantidad !== null
+                    ? min($cantidadEnCarrito, $pivotCantidad)
+                    : $cantidadEnCarrito;
+
+                $montoElegible = $precioUnitario * $cantidadElegible;
+                $elegiblesPorItem[$index] = $montoElegible;
+                $montoElegibleTotal += $montoElegible;
+            }
+
+            if ($montoElegibleTotal <= 0) {
+                return $resultado;
+            }
+
+            // Distribuir el descuento total proporcionalmente
+            foreach ($elegiblesPorItem as $index => $montoElegible) {
+                if ($cupon->esPorcentaje()) {
+                    $resultado[$index] = round($montoElegible * ((float) $cupon->valor_descuento / 100), 2);
+                } else {
+                    // Monto fijo: prorratear proporcionalmente
+                    $proporcion = $montoElegible / $montoElegibleTotal;
+                    $resultado[$index] = round(min((float) $cupon->valor_descuento, $montoElegibleTotal) * $proporcion, 2);
+                }
+            }
+        }
+        // Para aplica_a = 'total', no se desglosa por item (queda en ventas.monto_cupon)
+
+        return $resultado;
+    }
+
+    // =========================================
+    // CANJE DE PUNTOS COMO PAGO
+    // =========================================
+
+    /**
+     * Carga saldo de puntos al seleccionar un cliente (RF-23).
+     */
+    protected function cargarSaldoPuntosCliente(?Cliente $cliente = null): void
+    {
+        $this->puntosDisponibles = false;
+        $this->puntosSaldoCliente = 0;
+        $this->canjePuntosMaximo = 0;
+        $this->puntosMinimoCanje = 0;
+
+        if (! $cliente || ! $cliente->programa_puntos_activo) {
+            return;
+        }
+
+        if (! $this->puntosService->isProgramaActivo($this->sucursalId)) {
+            return;
+        }
+
+        $config = $this->puntosService->getConfiguracion();
+        if (! $config) {
+            return;
+        }
+
+        $sucursalIdParaSaldo = $config->esPorSucursal() ? $this->sucursalId : null;
+        $saldo = $this->puntosService->obtenerSaldo($cliente->id, $sucursalIdParaSaldo);
+
+        $this->puntosSaldoCliente = $saldo;
+        $this->puntosMinimoCanje = $config->minimo_canje;
+        $this->puntosDisponibles = $saldo >= $config->minimo_canje;
+
+        // Calcular máximo canjeable en $
+        if ($this->puntosDisponibles && $config->valor_punto_canje > 0) {
+            $this->canjePuntosMaximo = round($saldo * (float) $config->valor_punto_canje, 2);
+        }
+    }
+
+    /**
+     * Aplica canje de puntos como pago (RF-24).
+     */
+    public function aplicarCanjePuntos(): void
+    {
+        $monto = $this->canjePuntosInputMonto;
+
+        if ($monto === null || $monto <= 0) {
+            $this->dispatch('toast-error', message: __('Ingrese un monto mayor a cero'));
+
+            return;
+        }
+
+        $monto = (float) $monto;
+
+        if (! $this->clienteSeleccionado || ! $this->puntosDisponibles) {
+            $this->dispatch('toast-error', message: __('Puntos insuficientes'));
+
+            return;
+        }
+
+        // Limitar al máximo canjeable
+        if ($monto > $this->canjePuntosMaximo) {
+            $monto = $this->canjePuntosMaximo;
+        }
+
+        // Limitar al total de la venta
+        $totalVenta = $this->resultado['total_final'] ?? 0;
+        if ($monto > $totalVenta) {
+            $monto = $totalVenta;
+        }
+
+        $config = $this->puntosService->getConfiguracion();
+        if (! $config || $config->valor_punto_canje <= 0) {
+            $this->dispatch('toast-error', message: __('Programa de puntos no configurado'));
+
+            return;
+        }
+
+        $puntosNecesarios = (int) ceil($monto / (float) $config->valor_punto_canje);
+
+        if ($puntosNecesarios > $this->puntosSaldoCliente) {
+            $this->dispatch('toast-error', message: __('Puntos insuficientes'));
+
+            return;
+        }
+
+        $this->canjePuntosActivo = true;
+        $this->canjePuntosMonto = round($monto, 2);
+        $this->canjePuntosUnidades = $puntosNecesarios;
+
+        $this->calcularVenta();
+
+        $this->dispatch('toast-success', message: __('Canje de puntos aplicado').": \${$this->canjePuntosMonto} ({$puntosNecesarios} pts)");
+    }
+
+    /**
+     * Quita el canje de puntos.
+     */
+    public function quitarCanjePuntos(): void
+    {
+        $this->canjePuntosActivo = false;
+        $this->canjePuntosMonto = null;
+        $this->canjePuntosUnidades = 0;
+        $this->canjePuntosInputMonto = null;
+
+        $this->calcularVenta();
+        $this->dispatch('toast-info', message: __('Canje de puntos eliminado'));
+    }
+
+    /**
+     * Canjea un artículo del carrito por puntos (RF-10, RF-25).
+     * El artículo se marca como pagado_con_puntos y se descuenta del total.
+     */
+    public function canjearArticuloConPuntos(int $index): void
+    {
+        if (! isset($this->items[$index])) {
+            return;
+        }
+
+        $item = $this->items[$index];
+        $puntosNecesarios = $item['puntos_canje'] ?? null;
+
+        if (! $puntosNecesarios || $puntosNecesarios <= 0) {
+            $this->dispatch('toast-error', message: __('Este artículo no es canjeable con puntos'));
+
+            return;
+        }
+
+        if (! $this->clienteSeleccionado || ! $this->puntosDisponibles) {
+            $this->dispatch('toast-error', message: __('Puntos insuficientes'));
+
+            return;
+        }
+
+        // Calcular puntos totales necesarios (puntos_canje × cantidad)
+        $cantidad = (int) ($item['cantidad'] ?? 1);
+        $puntosTotal = $puntosNecesarios * $cantidad;
+
+        // Verificar saldo disponible (descontando otros canjes de artículos ya marcados)
+        $puntosYaUsadosEnArticulos = $this->calcularPuntosUsadosEnArticulos();
+        $puntosLibres = $this->puntosSaldoCliente - $puntosYaUsadosEnArticulos;
+
+        if ($puntosTotal > $puntosLibres) {
+            $this->dispatch('toast-error', message: __('Puntos insuficientes').". {$puntosTotal} pts necesarios, {$puntosLibres} pts disponibles");
+
+            return;
+        }
+
+        $this->items[$index]['pagado_con_puntos'] = true;
+        $this->calcularVenta();
+
+        $this->dispatch('toast-success', message: __('Canjeado con puntos').": {$item['nombre']} ({$puntosTotal} pts)");
+    }
+
+    /**
+     * Quita el canje por puntos de un artículo del carrito.
+     */
+    public function quitarCanjeArticulo(int $index): void
+    {
+        if (! isset($this->items[$index])) {
+            return;
+        }
+
+        $this->items[$index]['pagado_con_puntos'] = false;
+        $this->calcularVenta();
+        $this->dispatch('toast-info', message: __('Canje de artículo eliminado'));
+    }
+
+    /**
+     * Calcula los puntos totales usados en artículos canjeados del carrito.
+     */
+    protected function calcularPuntosUsadosEnArticulos(): int
+    {
+        $total = 0;
+        foreach ($this->items as $item) {
+            if (($item['pagado_con_puntos'] ?? false) && ($item['puntos_canje'] ?? 0) > 0) {
+                $total += (int) $item['puntos_canje'] * (int) ($item['cantidad'] ?? 1);
+            }
+        }
+
+        return $total;
+    }
+
+    /**
+     * Acumula puntos de fidelización después de completar la venta (RF-05).
+     * Se ejecuta post-commit — si falla, la venta ya se creó.
+     */
+    protected function acumularPuntosPostVenta($venta): void
+    {
+        if (! $venta->cliente_id) {
+            return;
+        }
+
+        try {
+            // Obtener los pagos reales de la venta con su multiplicador
+            $pagos = VentaPago::where('venta_id', $venta->id)
+                ->get()
+                ->map(function ($pago) {
+                    $fp = FormaPago::find($pago->forma_pago_id);
+
+                    return [
+                        'monto_final' => (float) $pago->monto_final,
+                        'es_pago_puntos' => (bool) $pago->es_pago_puntos,
+                        'es_cuenta_corriente' => (bool) $pago->es_cuenta_corriente,
+                        'multiplicador_puntos' => (float) ($fp->multiplicador_puntos ?? 1.00),
+                    ];
+                });
+
+            $this->puntosService->acumularPuntosPorVenta($venta, $pagos, Auth::id());
+        } catch (Exception $e) {
+            Log::warning('Error al acumular puntos post-venta', [
+                'venta_id' => $venta->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    // =========================================
     // CÁLCULO DE VENTA CON PROMOCIONES
     // =========================================
 
@@ -2649,13 +3408,94 @@ class NuevaVenta extends Component
             }
         }
 
-        // Calcular total final
+        // Calcular total final (después de descuentos de promociones)
         $resultado['total_final'] = max(0, $resultado['subtotal'] - $resultado['total_descuentos']);
 
-        // Calcular desglose de IVA
+        // Aplicar descuento general monto_fijo (RF-32): se resta del total DESPUÉS de promociones
+        $resultado['descuento_general_monto'] = 0;
+        if ($this->descuentoGeneralActivo) {
+            if ($this->descuentoGeneralTipo === 'monto_fijo') {
+                $montoFijo = min($this->descuentoGeneralValor, $resultado['total_final']);
+                $resultado['descuento_general_monto'] = round($montoFijo, 2);
+                $resultado['total_final'] = max(0, $resultado['total_final'] - $montoFijo);
+            } elseif ($this->descuentoGeneralTipo === 'porcentaje') {
+                // Para %: el monto es la suma de los descuentos aplicados por renglón (ya está en los precios)
+                $montoTotal = 0;
+                foreach ($this->items as $item) {
+                    if ($item['ajuste_manual_tipo'] === 'porcentaje' && $item['precio_sin_ajuste_manual'] !== null) {
+                        $precioOriginal = (float) $item['precio_sin_ajuste_manual'];
+                        $precioActual = (float) $item['precio'];
+                        $montoTotal += ($precioOriginal - $precioActual) * (int) ($item['cantidad'] ?? 1);
+                    }
+                }
+                $resultado['descuento_general_monto'] = round($montoTotal, 2);
+            }
+            $this->descuentoGeneralMonto = $resultado['descuento_general_monto'];
+        }
+
+        // Aplicar cupón (RF-17, RF-18): se resta del total DESPUÉS de desc. general
+        $resultado['monto_cupon'] = 0;
+        if ($this->cuponAplicado && $this->cuponInfo) {
+            $cuponId = $this->cuponInfo['id'];
+            $cupon = Cupon::find($cuponId);
+            if ($cupon) {
+                if ($cupon->aplicaATotal()) {
+                    $descuento = $this->cuponService->calcularDescuento($cupon, $resultado['total_final']);
+                    $this->cuponMontoDescuento = $descuento['monto_descuento'];
+                } elseif ($cupon->aplicaAArticulos()) {
+                    // Recalcular con límite de cantidad por artículo
+                    $articulosCupon = $cupon->articulos()->get()->keyBy('id');
+                    $bonificados = [];
+                    $itemsParaCalculo = [];
+                    foreach ($this->items as $item) {
+                        $articuloId = $item['articulo_id'] ?? null;
+                        if ($articuloId && $articulosCupon->has($articuloId)) {
+                            $bonificados[] = $articuloId;
+                            $itemsParaCalculo[] = $item;
+                        }
+                    }
+                    $descuento = $this->cuponService->calcularDescuento(
+                        $cupon, $resultado['total_final'], $bonificados, $itemsParaCalculo
+                    );
+                    $this->cuponMontoDescuento = $descuento['monto_descuento'];
+                    $this->cuponArticulosBonificados = $bonificados;
+                }
+                $resultado['monto_cupon'] = $this->cuponMontoDescuento;
+                $resultado['total_final'] = max(0, $resultado['total_final'] - $this->cuponMontoDescuento);
+                $this->cuponInfo['monto_descuento'] = $this->cuponMontoDescuento;
+            }
+        }
+
+        // Aplicar artículos canjeados con puntos (RF-10, RF-11): se restan del total
+        $resultado['articulos_canjeados_monto'] = 0;
+        foreach ($this->items as $item) {
+            if ($item['pagado_con_puntos'] ?? false) {
+                $resultado['articulos_canjeados_monto'] += (float) ($item['precio'] ?? 0) * (int) ($item['cantidad'] ?? 1);
+            }
+        }
+        if ($resultado['articulos_canjeados_monto'] > 0) {
+            $resultado['total_final'] = max(0, $resultado['total_final'] - $resultado['articulos_canjeados_monto']);
+        }
+
+        // Aplicar canje de puntos como pago (RF-09): se resta del total
+        $resultado['puntos_usados_monto'] = 0;
+        if ($this->canjePuntosActivo && $this->canjePuntosMonto > 0) {
+            $montoCanje = min($this->canjePuntosMonto, $resultado['total_final']);
+            $resultado['puntos_usados_monto'] = round($montoCanje, 2);
+            $resultado['total_final'] = max(0, $resultado['total_final'] - $montoCanje);
+        }
+
+        // Calcular desglose de IVA (incluye todos los descuentos)
+        $totalDescuentosParaIva = $resultado['total_descuentos'];
+        if ($this->descuentoGeneralActivo && $this->descuentoGeneralTipo === 'monto_fijo') {
+            $totalDescuentosParaIva += $resultado['descuento_general_monto'];
+        }
+        $totalDescuentosParaIva += $resultado['monto_cupon'];
+        $totalDescuentosParaIva += $resultado['articulos_canjeados_monto'];
+        $totalDescuentosParaIva += $resultado['puntos_usados_monto'];
         $resultado['desglose_iva'] = $this->calcularDesgloseIva(
             $resultado['items'],
-            $resultado['total_descuentos'],
+            $totalDescuentosParaIva,
             $resultado['subtotal']
         );
 
@@ -5150,6 +5990,20 @@ class NuevaVenta extends Component
 
             $cajaId = $this->cajaSeleccionada ?? caja_activa();
 
+            // Validar formas de pago del cupón (Opción C: 100% formas válidas)
+            if ($this->cuponAplicado && $this->cuponInfo) {
+                $cuponValidar = Cupon::find($this->cuponInfo['id']);
+                if ($cuponValidar && $cuponValidar->tieneRestriccionFormasPago()) {
+                    $fpIds = collect($this->desglosePagos)->pluck('forma_pago_id')->unique()->toArray();
+                    $validacionFP = $this->cuponService->validarFormasPagoCupon($cuponValidar, $fpIds);
+                    if (! $validacionFP['valid']) {
+                        $this->dispatch('toast-error', message: $validacionFP['message']);
+
+                        return;
+                    }
+                }
+            }
+
             // Verificar si hay pagos a cuenta corriente (usar el flag o verificar código)
             $tieneCuentaCorriente = false;
             $montoCuentaCorriente = 0;
@@ -5287,7 +6141,19 @@ class NuevaVenta extends Component
                     // Promociones aplicadas para guardar en tablas de promociones
                     '_promociones_comunes' => $this->resultado['promociones_comunes_aplicadas'] ?? [],
                     '_promociones_especiales' => $this->resultado['promociones_especiales_aplicadas'] ?? [],
+                    // Descuento general (RF-38)
+                    'descuento_general_tipo' => $this->descuentoGeneralActivo ? $this->descuentoGeneralTipo : null,
+                    'descuento_general_valor' => $this->descuentoGeneralActivo ? $this->descuentoGeneralValor : null,
+                    'descuento_general_monto' => $this->descuentoGeneralMonto,
+                    // Cupón (RF-19)
+                    'cupon_id' => $this->cuponAplicado && $this->cuponInfo ? $this->cuponInfo['id'] : null,
+                    'monto_cupon' => $this->cuponMontoDescuento,
+                    // Puntos (RF-09)
+                    'puntos_usados' => $this->canjePuntosActivo ? $this->canjePuntosUnidades : 0,
                 ];
+
+                // Calcular descuento cupón por item para trazabilidad
+                $descuentoCuponPorItem = $this->calcularDescuentoCuponPorItem();
 
                 // Construir detalles con información de promociones
                 $detalles = [];
@@ -5306,6 +6172,7 @@ class NuevaVenta extends Component
                         'lista_precio_id' => $this->listaPrecioId, // Lista de precios usada
                         'descuento' => 0, // Descuento manual (no promoción)
                         'descuento_promocion' => $descuentoPromocion,
+                        'descuento_cupon' => $descuentoCuponPorItem[$index] ?? 0,
                         'tiene_promocion' => $tienePromocion,
                         // Info de IVA del item
                         'iva_porcentaje' => $item['iva_porcentaje'] ?? 21,
@@ -5322,6 +6189,11 @@ class NuevaVenta extends Component
                             'promociones_comunes' => $promocionesComunes,
                             'promociones_especiales' => $promocionesEspeciales,
                         ],
+                        // Canje por puntos (RF-10)
+                        'pagado_con_puntos' => $item['pagado_con_puntos'] ?? false,
+                        'puntos_usados' => ($item['pagado_con_puntos'] ?? false)
+                            ? (int) ($item['puntos_canje'] ?? 0) * (int) ($item['cantidad'] ?? 1)
+                            : 0,
                     ];
                 }
 
@@ -5514,6 +6386,70 @@ class NuevaVenta extends Component
                     }
                 }
 
+                // Registrar uso de cupón si se aplicó uno (RF-19)
+                if ($this->cuponAplicado && $this->cuponInfo && $this->cuponMontoDescuento > 0) {
+                    $cuponObj = Cupon::find($this->cuponInfo['id']);
+                    if ($cuponObj) {
+                        $this->cuponService->aplicarCuponEnVenta(
+                            $cuponObj,
+                            $venta,
+                            $this->cuponMontoDescuento,
+                            Auth::id()
+                        );
+                    }
+                }
+
+                // Registrar canje de puntos como pago (RF-09)
+                if ($this->canjePuntosActivo && $this->canjePuntosMonto > 0 && $this->clienteSeleccionado) {
+                    // Crear VentaPago especial para puntos
+                    $ventaPagoPuntos = VentaPago::create([
+                        'venta_id' => $venta->id,
+                        'forma_pago_id' => $this->formaPagoId, // Se usa la FP principal como referencia
+                        'monto_base' => $this->canjePuntosMonto,
+                        'ajuste_porcentaje' => 0,
+                        'monto_ajuste' => 0,
+                        'monto_final' => $this->canjePuntosMonto,
+                        'es_pago_puntos' => true,
+                        'puntos_usados' => $this->canjePuntosUnidades,
+                        'afecta_caja' => false,
+                        'estado' => 'activo',
+                    ]);
+
+                    $this->puntosService->canjearPuntosComoDescuento(
+                        $this->clienteSeleccionado,
+                        $this->sucursalId,
+                        $this->canjePuntosMonto,
+                        $ventaPagoPuntos->id,
+                        $venta->id,
+                        Auth::id()
+                    );
+
+                    $this->puntosService->actualizarCacheCliente($this->clienteSeleccionado);
+                    $venta->update(['puntos_usados' => $this->canjePuntosUnidades]);
+                }
+
+                // Registrar canjes de artículos por puntos (RF-10)
+                $puntosArticulosCanjeados = $this->calcularPuntosUsadosEnArticulos();
+                if ($puntosArticulosCanjeados > 0 && $this->clienteSeleccionado) {
+                    foreach ($this->items as $item) {
+                        if (($item['pagado_con_puntos'] ?? false) && ($item['puntos_canje'] ?? 0) > 0) {
+                            $puntosItem = (int) $item['puntos_canje'] * (int) ($item['cantidad'] ?? 1);
+                            $this->puntosService->canjearArticuloConPuntos(
+                                $this->clienteSeleccionado,
+                                $item['articulo_id'],
+                                $this->sucursalId,
+                                $puntosItem,
+                                $venta->id,
+                                Auth::id()
+                            );
+                        }
+                    }
+                    $this->puntosService->actualizarCacheCliente($this->clienteSeleccionado);
+                    // Sumar puntos de artículos a los ya registrados
+                    $puntosUsadosTotal = ($venta->puntos_usados ?? 0) + $puntosArticulosCanjeados;
+                    $venta->update(['puntos_usados' => $puntosUsadosTotal]);
+                }
+
                 // Registrar movimientos de cuenta corriente si el cliente tiene CC habilitada
                 // Se hace DESPUÉS de la facturación para que los comprobantes fiscales ya existan
                 if ($this->clienteSeleccionado) {
@@ -5533,6 +6469,9 @@ class NuevaVenta extends Component
                 }
 
                 $this->dispatch('toast-success', message: $mensaje);
+
+                // Acumular puntos de fidelización (post-commit, no crítico)
+                $this->acumularPuntosPostVenta($venta);
 
                 // Mostrar advertencias de stock si las hay (modo 'advierte')
                 if (! empty($this->ventaService->advertenciasStock)) {
@@ -5661,17 +6600,34 @@ class NuevaVenta extends Component
                     'fecha_vencimiento' => $esCuentaCorriente
                         ? now()->addDays($cliente->dias_credito ?? 30)->toDateString()
                         : null,
+                    // Descuento general (RF-38)
+                    'descuento_general_tipo' => $this->descuentoGeneralActivo ? $this->descuentoGeneralTipo : null,
+                    'descuento_general_valor' => $this->descuentoGeneralActivo ? $this->descuentoGeneralValor : null,
+                    'descuento_general_monto' => $this->descuentoGeneralMonto,
+                    // Cupón (RF-19)
+                    'cupon_id' => $this->cuponAplicado && $this->cuponInfo ? $this->cuponInfo['id'] : null,
+                    'monto_cupon' => $this->cuponMontoDescuento,
+                    // Puntos (RF-09)
+                    'puntos_usados' => $this->canjePuntosActivo ? $this->canjePuntosUnidades : 0,
                 ];
 
+                $descuentoCuponPorItem = $this->calcularDescuentoCuponPorItem();
+
                 $detalles = [];
-                foreach ($this->items as $item) {
+                foreach ($this->items as $index => $item) {
                     $detalles[] = [
                         'articulo_id' => $item['articulo_id'],
                         'cantidad' => $item['cantidad'],
                         'precio_unitario' => $item['precio'],
                         'descuento' => 0,
+                        'descuento_cupon' => $descuentoCuponPorItem[$index] ?? 0,
                         'opcionales' => $item['opcionales'] ?? [],
                         'precio_opcionales' => $item['precio_opcionales'] ?? 0,
+                        // Canje por puntos (RF-10)
+                        'pagado_con_puntos' => $item['pagado_con_puntos'] ?? false,
+                        'puntos_usados' => ($item['pagado_con_puntos'] ?? false)
+                            ? (int) ($item['puntos_canje'] ?? 0) * (int) ($item['cantidad'] ?? 1)
+                            : 0,
                     ];
                 }
 
@@ -5754,6 +6710,70 @@ class NuevaVenta extends Component
                     }
                 }
 
+                // Registrar uso de cupón si se aplicó uno (RF-19)
+                if ($this->cuponAplicado && $this->cuponInfo && $this->cuponMontoDescuento > 0) {
+                    $cuponObj = Cupon::find($this->cuponInfo['id']);
+                    if ($cuponObj) {
+                        $this->cuponService->aplicarCuponEnVenta(
+                            $cuponObj,
+                            $venta,
+                            $this->cuponMontoDescuento,
+                            Auth::id()
+                        );
+                    }
+                }
+
+                // Registrar canje de puntos como pago (RF-09)
+                if ($this->canjePuntosActivo && $this->canjePuntosMonto > 0 && $this->clienteSeleccionado) {
+                    // Crear VentaPago especial para puntos
+                    $ventaPagoPuntos = VentaPago::create([
+                        'venta_id' => $venta->id,
+                        'forma_pago_id' => $this->formaPagoId, // Se usa la FP principal como referencia
+                        'monto_base' => $this->canjePuntosMonto,
+                        'ajuste_porcentaje' => 0,
+                        'monto_ajuste' => 0,
+                        'monto_final' => $this->canjePuntosMonto,
+                        'es_pago_puntos' => true,
+                        'puntos_usados' => $this->canjePuntosUnidades,
+                        'afecta_caja' => false,
+                        'estado' => 'activo',
+                    ]);
+
+                    $this->puntosService->canjearPuntosComoDescuento(
+                        $this->clienteSeleccionado,
+                        $this->sucursalId,
+                        $this->canjePuntosMonto,
+                        $ventaPagoPuntos->id,
+                        $venta->id,
+                        Auth::id()
+                    );
+
+                    $this->puntosService->actualizarCacheCliente($this->clienteSeleccionado);
+                    $venta->update(['puntos_usados' => $this->canjePuntosUnidades]);
+                }
+
+                // Registrar canjes de artículos por puntos (RF-10)
+                $puntosArticulosCanjeados = $this->calcularPuntosUsadosEnArticulos();
+                if ($puntosArticulosCanjeados > 0 && $this->clienteSeleccionado) {
+                    foreach ($this->items as $item) {
+                        if (($item['pagado_con_puntos'] ?? false) && ($item['puntos_canje'] ?? 0) > 0) {
+                            $puntosItem = (int) $item['puntos_canje'] * (int) ($item['cantidad'] ?? 1);
+                            $this->puntosService->canjearArticuloConPuntos(
+                                $this->clienteSeleccionado,
+                                $item['articulo_id'],
+                                $this->sucursalId,
+                                $puntosItem,
+                                $venta->id,
+                                Auth::id()
+                            );
+                        }
+                    }
+                    $this->puntosService->actualizarCacheCliente($this->clienteSeleccionado);
+                    // Sumar puntos de artículos a los ya registrados
+                    $puntosUsadosTotal = ($venta->puntos_usados ?? 0) + $puntosArticulosCanjeados;
+                    $venta->update(['puntos_usados' => $puntosUsadosTotal]);
+                }
+
                 // Registrar movimientos de cuenta corriente si el cliente tiene CC habilitada
                 // Se hace DESPUÉS de la facturación para que los comprobantes fiscales ya existan
                 if ($this->clienteSeleccionado) {
@@ -5773,6 +6793,9 @@ class NuevaVenta extends Component
                 }
 
                 $this->dispatch('toast-success', message: $mensaje);
+
+                // Acumular puntos de fidelización (post-commit, no crítico)
+                $this->acumularPuntosPostVenta($venta);
 
                 // Mostrar advertencias de stock si las hay (modo 'advierte')
                 if (! empty($this->ventaService->advertenciasStock)) {
@@ -5880,6 +6903,32 @@ class NuevaVenta extends Component
         $this->ajusteManualPopoverIndex = null;
         $this->ajusteManualTipo = 'monto';
         $this->ajusteManualValor = null;
+
+        // Resetear descuento general
+        $this->showModalDescuentos = false;
+        $this->descuentoGeneralActivo = false;
+        $this->descuentoGeneralTipo = null;
+        $this->descuentoGeneralValor = null;
+        $this->descuentoGeneralMonto = 0;
+        $this->descuentoGeneralInputValor = null;
+        $this->descuentoGeneralInputTipo = 'porcentaje';
+
+        // Resetear cupón
+        $this->cuponCodigoInput = '';
+        $this->cuponAplicado = false;
+        $this->cuponInfo = null;
+        $this->cuponMontoDescuento = 0;
+        $this->cuponArticulosBonificados = [];
+
+        // Resetear canje de puntos
+        $this->puntosDisponibles = false;
+        $this->puntosSaldoCliente = 0;
+        $this->canjePuntosActivo = false;
+        $this->canjePuntosMonto = null;
+        $this->canjePuntosUnidades = 0;
+        $this->canjePuntosMaximo = 0;
+        $this->puntosMinimoCanje = 0;
+        $this->canjePuntosInputMonto = null;
 
         // Resetear facturación fiscal (pero mantener la config de sucursal)
         $this->montoFacturaFiscal = 0;

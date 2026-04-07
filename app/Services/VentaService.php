@@ -123,6 +123,15 @@ class VentaService
                 'saldo_pendiente_cache' => $data['saldo_pendiente_cache'] ?? 0,
                 'fecha_vencimiento' => $data['fecha_vencimiento'] ?? null,
                 'observaciones' => $data['observaciones'] ?? null,
+                // Descuento general
+                'descuento_general_tipo' => $data['descuento_general_tipo'] ?? null,
+                'descuento_general_valor' => $data['descuento_general_valor'] ?? null,
+                'descuento_general_monto' => $data['descuento_general_monto'] ?? 0,
+                // Cupón
+                'cupon_id' => $data['cupon_id'] ?? null,
+                'monto_cupon' => $data['monto_cupon'] ?? 0,
+                // Puntos
+                'puntos_usados' => $data['puntos_usados'] ?? 0,
             ]);
 
             // Guardar promociones aplicadas si vienen en los datos
@@ -160,15 +169,8 @@ class VentaService
                 $ccService->actualizarCacheCliente($venta->cliente_id, $venta->sucursal_id);
             }
 
-            // Acumular puntos de fidelización (después del commit, no crítico)
-            if ($venta->cliente_id && ! empty($data['_pagos_para_puntos'])) {
-                $puntosService = new PuntosService;
-                $puntosService->acumularPuntosPorVenta(
-                    $venta,
-                    collect($data['_pagos_para_puntos']),
-                    $data['usuario_id']
-                );
-            }
+            // NOTA: La acumulación de puntos se hace desde NuevaVenta::acumularPuntosPostVenta()
+            // después de crear los VentaPago (necesita los multiplicadores reales)
 
             Log::info('Venta creada exitosamente', [
                 'venta_id' => $venta->id,
@@ -242,6 +244,7 @@ class VentaService
                 'precio_sin_iva' => round($precioSinIva, 2),
                 'descuento' => $detalle['descuento'] ?? 0,
                 'descuento_promocion' => round($descuentoPromocion, 2),
+                'descuento_cupon' => round($detalle['descuento_cupon'] ?? 0, 2),
                 'tiene_promocion' => $detalle['tiene_promocion'] ?? false,
                 'iva_monto' => round($ivaMonto, 2),
                 'subtotal' => round($subtotal, 2),
@@ -250,6 +253,9 @@ class VentaService
                 'ajuste_manual_tipo' => $detalle['ajuste_manual_tipo'] ?? null,
                 'ajuste_manual_valor' => $detalle['ajuste_manual_valor'] ?? null,
                 'precio_sin_ajuste_manual' => $detalle['precio_sin_ajuste_manual'] ?? null,
+                // Canje por puntos
+                'pagado_con_puntos' => $detalle['pagado_con_puntos'] ?? false,
+                'puntos_usados' => $detalle['puntos_usados'] ?? 0,
             ]);
 
             // Guardar promociones aplicadas al detalle
