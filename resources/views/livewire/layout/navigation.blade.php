@@ -526,20 +526,18 @@ new class extends Component
 
     {{-- Selectores y opciones en el footer del sidebar (lazy: solo montan al abrir menú) --}}
     <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-bcn-light dark:bg-gray-900 p-4">
-        @if($mobileMenuOpen)
-            {{-- Forzar awareness para que los selectores siempre muestren el nombre en el menú móvil --}}
-            <div x-init="$store.awareness.sucursal = true; $store.awareness.caja = true;">
-                {{-- Selector de Sucursal para móvil --}}
-                <div class="mb-3">
-                    <livewire:sucursal-selector />
-                </div>
-
-                {{-- Selector de Caja para móvil --}}
-                <div class="mb-3">
-                    <livewire:caja-selector :key="'caja-selector-mobile-' . (session('sucursal_id') ?? 'default')" />
-                </div>
+        {{-- Forzar awareness para que los selectores siempre muestren el nombre en el menú móvil --}}
+        <div x-init="$store.awareness.sucursal = true; $store.awareness.caja = true;">
+            {{-- Selector de Sucursal para móvil --}}
+            <div class="mb-3">
+                <livewire:sucursal-selector />
             </div>
-        @endif
+
+            {{-- Selector de Caja para móvil --}}
+            <div class="mb-3">
+                <livewire:caja-selector :key="'caja-selector-mobile-' . (session('sucursal_id') ?? 'default')" />
+            </div>
+        </div>
 
         <div class="space-y-1">
             <a
