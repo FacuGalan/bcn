@@ -12,6 +12,8 @@
 - [3. Ventas](#3-ventas)
   - [3.1 Nueva Venta (Punto de Venta)](#31-nueva-venta-punto-de-venta)
   - [3.2 Listado de Ventas](#32-listado-de-ventas)
+  - [3.3 Programa de Puntos](#33-programa-de-puntos)
+  - [3.4 Cupones](#34-cupones)
 - [4. Compras](#4-compras)
 - [5. Stock e Inventario](#5-stock-e-inventario)
   - [5.1 Inventario por Sucursal](#51-inventario-por-sucursal)
@@ -390,6 +392,65 @@ Para cada venta en la lista, puede:
   - La venta queda marcada como "Cancelada".
 
 > **Importante**: La anulacion de una venta es irreversible. Verifique cuidadosamente antes de confirmar.
+
+### 3.3 Programa de Puntos
+
+**Ruta**: Ventas → Programa de Puntos
+
+Sistema de fidelizacion que permite a los clientes acumular puntos con sus compras y canjearlos como descuento o por articulos especificos.
+
+#### Configuracion (Tab Configuracion)
+- **Activar/desactivar** el programa globalmente
+- **Modo**: Global (saldo unico) o Por Sucursal (saldo independiente por sucursal)
+- **Monto por punto**: Cuantos $ debe gastar el cliente para ganar 1 punto
+- **Valor del punto**: Cuanto vale 1 punto en $ al momento de canjear
+- **Minimo para canje**: Cantidad minima de puntos para habilitar el canje
+- **Redondeo**: Como se redondean los puntos fraccionarios (hacia abajo, al mas cercano, hacia arriba)
+- **Activacion por sucursal**: Cada sucursal puede tener el programa activo o inactivo
+
+#### Consulta de Puntos (Tab Consulta)
+- Buscar un cliente por nombre, CUIT o telefono
+- Ver saldo actual, puntos acumulados historicos y puntos canjeados historicos
+- Historial de movimientos paginado con filtros por tipo y rango de fechas
+
+#### Ajustes Manuales (Tab Ajustes)
+- Requiere permiso especial "Ajuste manual de puntos"
+- Permite sumar o restar puntos a un cliente con motivo obligatorio
+- Queda registro de quien hizo el ajuste y por que
+
+#### Como funcionan los puntos en el POS
+- Al seleccionar un cliente en Nueva Venta, aparece un badge con su saldo de puntos
+- Boton **Descuentos** (F4) abre el modal de Descuentos y Beneficios:
+  - **Descuento general**: Aplicar un % o monto fijo de descuento a toda la venta
+  - **Aplicar cupon**: Ingresar codigo de cupon para validar y aplicar descuento
+  - **Canjear puntos**: Indicar monto $ a pagar con puntos
+- Boton **Pts** en cada renglon: para articulos canjeables con puntos
+- Los puntos se acumulan automaticamente al completar la venta
+- El ticket muestra puntos ganados, usados y saldo actual
+
+### 3.4 Cupones
+
+**Ruta**: Ventas → Cupones
+
+Gestion de cupones de descuento para clientes.
+
+#### Listado (Tab Listado)
+- Ver todos los cupones con filtros por tipo (puntos/promocional), estado (vigente/inactivo/vencido/agotado) y busqueda por codigo
+- Editar, activar o desactivar cupones existentes
+
+#### Crear Cupon (Tab Crear)
+- **Tipo Promocional**: Cupon libre, lo puede usar cualquier cliente
+- **Tipo Desde Puntos**: El cliente "compra" el cupon con sus puntos. Solo el puede usarlo.
+- **Modo descuento**: Porcentaje o monto fijo
+- **Aplica a**: Total de la venta o articulos especificos
+  - Si aplica a articulos especificos, se puede definir la **cantidad** de unidades que cubre por articulo (vacio = todas las unidades)
+  - Ejemplo: cupon "1 hamburguesa gratis" → si hay 3 hamburguesas en la venta, solo descuenta 1
+- **Formas de pago validas**: Se puede restringir a que formas de pago aplica (ej: solo efectivo y transferencia). Si no se selecciona ninguna, aplica a todas. Si la venta se paga con una forma no valida, el cupon no se puede usar.
+- **Uso maximo**: Ilimitado o cantidad fija de usos
+- **Fecha vencimiento**: Opcional
+
+#### Historial de Uso (Tab Historial)
+- Ver todos los usos de cupones con fecha, venta, cliente, sucursal y monto descontado
 
 ---
 

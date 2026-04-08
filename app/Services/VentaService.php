@@ -7,6 +7,7 @@ use App\Models\Caja;
 use App\Models\Cliente;
 use App\Models\ComprobanteFiscal;
 use App\Models\ConceptoPago;
+use App\Models\CuponUso;
 use App\Models\FormaPago;
 use App\Models\MovimientoCaja;
 use App\Models\MovimientoStock;
@@ -122,6 +123,15 @@ class VentaService
                 'saldo_pendiente_cache' => $data['saldo_pendiente_cache'] ?? 0,
                 'fecha_vencimiento' => $data['fecha_vencimiento'] ?? null,
                 'observaciones' => $data['observaciones'] ?? null,
+                // Descuento general
+                'descuento_general_tipo' => $data['descuento_general_tipo'] ?? null,
+                'descuento_general_valor' => $data['descuento_general_valor'] ?? null,
+                'descuento_general_monto' => $data['descuento_general_monto'] ?? 0,
+                // Cupón
+                'cupon_id' => $data['cupon_id'] ?? null,
+                'monto_cupon' => $data['monto_cupon'] ?? 0,
+                // Puntos
+                'puntos_usados' => $data['puntos_usados'] ?? 0,
             ]);
 
             // Guardar promociones aplicadas si vienen en los datos
@@ -158,6 +168,9 @@ class VentaService
                 $ccService = new CuentaCorrienteService;
                 $ccService->actualizarCacheCliente($venta->cliente_id, $venta->sucursal_id);
             }
+
+            // NOTA: La acumulación de puntos se hace desde NuevaVenta::acumularPuntosPostVenta()
+            // después de crear los VentaPago (necesita los multiplicadores reales)
 
             Log::info('Venta creada exitosamente', [
                 'venta_id' => $venta->id,
@@ -231,6 +244,7 @@ class VentaService
                 'precio_sin_iva' => round($precioSinIva, 2),
                 'descuento' => $detalle['descuento'] ?? 0,
                 'descuento_promocion' => round($descuentoPromocion, 2),
+                'descuento_cupon' => round($detalle['descuento_cupon'] ?? 0, 2),
                 'tiene_promocion' => $detalle['tiene_promocion'] ?? false,
                 'iva_monto' => round($ivaMonto, 2),
                 'subtotal' => round($subtotal, 2),
@@ -239,6 +253,9 @@ class VentaService
                 'ajuste_manual_tipo' => $detalle['ajuste_manual_tipo'] ?? null,
                 'ajuste_manual_valor' => $detalle['ajuste_manual_valor'] ?? null,
                 'precio_sin_ajuste_manual' => $detalle['precio_sin_ajuste_manual'] ?? null,
+                // Canje por puntos
+                'pagado_con_puntos' => $detalle['pagado_con_puntos'] ?? false,
+                'puntos_usados' => $detalle['puntos_usados'] ?? 0,
             ]);
 
             // Guardar promociones aplicadas al detalle
@@ -791,6 +808,15 @@ class VentaService
      */
     public function cancelarVentaCompleta(int $ventaId, ?string $motivo = null, bool $emitirNotaCredito = true): array
     {
+        // Validar puntos ANTES de iniciar transacción (RF-14)
+        $ventaParaValidar = Venta::find($ventaId);
+        if ($ventaParaValidar && $ventaParaValidar->puntos_ganados > 0) {
+            $puntosService = new PuntosService;
+            if (! $puntosService->validarAnulacionVenta($ventaParaValidar)) {
+                throw new Exception(__('No se puede anular: el cliente ya canjeó los puntos ganados en esta venta'));
+            }
+        }
+
         DB::connection('pymes_tenant')->beginTransaction();
 
         try {
@@ -934,6 +960,21 @@ class VentaService
             if ($venta->es_cuenta_corriente && $venta->cliente_id) {
                 $ccService = new CuentaCorrienteService;
                 $ccService->anularMovimientosVenta($venta, $motivo ?? 'Cancelación de venta', $usuarioId);
+            }
+
+            // 6. Revertir puntos de fidelización con contraasientos (patrón append-only)
+            if ($venta->cliente_id && ($venta->puntos_ganados > 0 || $venta->puntos_usados > 0)) {
+                $puntosService = new PuntosService;
+                $puntosService->crearContraasientosVenta($venta, $usuarioId);
+            }
+
+            // 7. Revertir uso de cupón (decrementa uso_actual para que pueda reutilizarse)
+            if ($venta->cupon_id) {
+                $usosCupon = CuponUso::where('venta_id', $venta->id)->get();
+                $cuponService = new CuponService;
+                foreach ($usosCupon as $uso) {
+                    $cuponService->revertirUsoCupon($uso);
+                }
             }
 
             Log::info('Venta cancelada completamente', [

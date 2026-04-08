@@ -519,6 +519,7 @@ class Ventas extends Component
                 'promociones',
                 'comprobantesFiscales',
                 'usuario',
+                'cupon',
             ])->find($this->ventaDetalleId) : null,
         ]);
     }

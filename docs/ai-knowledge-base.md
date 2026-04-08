@@ -1098,6 +1098,73 @@ Tasas de cambio entre monedas.
 - **`cuit_sucursal`**: Asignacion de CUITs a sucursales.
 - **`punto_venta_caja`**: Asignacion de puntos de venta a cajas.
 
+### 2.11 Puntos y Cupones de Fidelizacion
+
+#### Tabla: `configuracion_puntos`
+Una fila por comercio. Controla el programa de fidelizacion.
+| Campo | Tipo | Descripcion |
+|-------|------|-------------|
+| `activo` | tinyint(1) | Programa habilitado globalmente |
+| `modo_acumulacion` | enum(global, por_sucursal) | Modo de saldo |
+| `monto_por_punto` | decimal(12,2) | Cuantos $ para ganar 1 punto |
+| `valor_punto_canje` | decimal(12,2) | Cuanto vale 1 punto en $ al canjear |
+| `minimo_canje` | int | Minimo puntos para habilitar canje |
+| `redondeo` | enum(floor, round, ceil) | Redondeo de puntos fraccionarios |
+
+#### Tabla: `configuracion_puntos_sucursales`
+Activacion por sucursal: `sucursal_id` + `activo`.
+
+#### Tabla: `movimientos_puntos`
+Ledger append-only (patron MovimientoCuentaCorriente). Contraasientos para anulaciones.
+| Campo | Tipo | Descripcion |
+|-------|------|-------------|
+| `cliente_id` | bigint | FK clientes |
+| `sucursal_id` | bigint | FK sucursales |
+| `tipo` | enum | acumulacion, canje_descuento, canje_articulo, canje_cupon, ajuste_manual, anulacion |
+| `puntos` | int | Positivo = acumulacion, negativo = consumo |
+| `monto_asociado` | decimal(12,2) | Monto de la transaccion |
+| `venta_id` | bigint | FK ventas (shortcut) |
+| `estado` | enum(activo, anulado) | |
+| `anulado_por_movimiento_id` | bigint | FK al contraasiento |
+
+#### Tabla: `cupones`
+| Campo | Tipo | Descripcion |
+|-------|------|-------------|
+| `codigo` | varchar(50) | Codigo unico (CUP-XXXXXX) |
+| `tipo` | enum(puntos, promocional) | Origen del cupon |
+| `cliente_id` | bigint NULL | Solo para tipo=puntos |
+| `modo_descuento` | enum(monto_fijo, porcentaje) | Tipo de descuento |
+| `valor_descuento` | decimal(12,2) | Monto o porcentaje |
+| `aplica_a` | enum(total, articulos) | A que aplica |
+| `uso_maximo` | int | 0 = ilimitado |
+| `uso_actual` | int | Contador |
+| `fecha_vencimiento` | date NULL | NULL = no vence |
+
+#### Tabla: `cupon_articulos`
+Vincula cupon con articulos especificos: `cupon_id` + `articulo_id` + `cantidad` (NULL = todas las unidades).
+Cuando `cantidad` tiene valor, el descuento se aplica a max esa cantidad de unidades del articulo.
+
+#### Tabla: `cupon_formas_pago`
+Restriccion de formas de pago validas para un cupon: `cupon_id` + `forma_pago_id`.
+Si la tabla esta vacia para un cupon, aplica a todas las formas de pago.
+Validacion: al finalizar venta, TODAS las formas de pago usadas deben estar en la lista permitida (Opcion C).
+
+#### Tabla: `cupon_usos`
+Registra cada uso: `cupon_id`, `venta_id`, `cliente_id`, `sucursal_id`, `monto_descontado`, `usuario_id`.
+
+#### Campos agregados a tablas existentes
+- **clientes**: `programa_puntos_activo`, `puntos_acumulados_cache`, `puntos_canjeados_cache`, `puntos_saldo_cache`, `ultimo_movimiento_puntos_at`
+- **formas_pago**: `multiplicador_puntos` (0=no suma, 2=doble)
+- **articulos**: `puntos_canje` (NULL=no canjeable)
+- **ventas**: `descuento_general_tipo/valor/monto`, `cupon_id`, `monto_cupon`, `puntos_ganados`, `puntos_usados`
+- **ventas_detalle**: `pagado_con_puntos`, `puntos_usados`
+- **venta_pagos**: `es_pago_puntos`, `puntos_usados`
+- **roles**: `descuento_maximo_porcentaje` (tope por rol)
+
+#### Services
+- **PuntosService**: Acumulacion, canje, contraasientos, saldos, cache. Patron ledger.
+- **CuponService**: Creacion (desde puntos o promocional), validacion, aplicacion, reversion.
+
 ---
 
 ## 3. Logica de Negocio
@@ -1382,6 +1449,49 @@ Flujo de compra (via `CompraService`):
 3. Se envia a AFIP via webservice (entorno testing o produccion segun configuracion del CUIT)
 4. AFIP devuelve CAE y fecha de vencimiento
 5. Se almacena el comprobante con la respuesta completa
+
+### 3.10 Puntos y Cupones
+
+#### Acumulacion de puntos
+1. Al completar una venta con cliente asignado + programa activo + sucursal activa
+2. Formula: `SUM(monto_pago * multiplicador_forma_pago) / monto_por_punto`
+3. Pagos con puntos y cuenta corriente NO generan nuevos puntos
+4. Se registra movimiento tipo `acumulacion` en `movimientos_puntos`
+5. Se actualiza cache en `clientes` (puntos_saldo_cache, etc.)
+
+#### Canje de puntos como pago (RF-09)
+1. Cliente indica monto $ a pagar con puntos
+2. Sistema convierte: `puntos_necesarios = ceil(monto / valor_punto_canje)`
+3. Se crea VentaPago con `es_pago_puntos=true`, `afecta_caja=false`
+4. Se registra movimiento tipo `canje_descuento` (negativo)
+
+#### Canje de articulo por puntos (RF-10)
+1. Articulos con `puntos_canje` definido son canjeables
+2. Canje todo-o-nada: puntos_canje * cantidad
+3. El valor del articulo se descuenta del total a pagar
+4. Stock se descuenta normalmente
+5. Se registra movimiento tipo `canje_articulo` (negativo)
+
+#### Descuento general (RF-31 a RF-38)
+1. **Porcentaje (%)**: Aplica `ajuste_manual` masivo a todos los items del carrito
+2. **Monto fijo ($)**: Se resta del total despues de promociones
+3. % y $ son mutuamente excluyentes
+4. Items nuevos heredan el descuento % activo
+5. Tope por rol: `MAX(roles.descuento_maximo_porcentaje)` de los roles del usuario
+6. Requiere permiso funcional `func.descuento_general`
+
+#### Cupones (RF-15 a RF-21)
+- Tipo `puntos`: atado a un cliente, puntos se descuentan al crear (no al usar)
+- Tipo `promocional`: sin cliente, cualquiera lo puede usar
+- Aplica a `total` (monto_fijo o porcentaje) o a `articulos` especificos
+- **Cantidad por articulo**: pivot `cupon_articulos.cantidad` (NULL=todas). Si definido, descuento aplica a `min(qty_carrito, cantidad_cupon)` unidades. Para monto fijo: `min(valor_descuento, precio_unit * cant_elegible)`. Para porcentaje: `precio_unit * cant_elegible * %`.
+- **Formas de pago**: tabla `cupon_formas_pago`. Si vacia → todas validas. Si tiene registros → la venta debe ser 100% con formas permitidas (se valida en `procesarVentaConDesglose`).
+- Control de uso: `uso_actual < uso_maximo` (0=ilimitado)
+- Al anular venta con cupon: se revierte el uso (uso_actual--)
+
+#### Anulacion
+- Contraasientos ledger para revertir acumulacion y devolver canjes
+- Si el saldo quedaria negativo, la anulacion se bloquea (RF-14)
 
 ---
 

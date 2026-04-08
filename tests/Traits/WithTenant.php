@@ -186,6 +186,11 @@ trait WithTenant
         DB::connection('pymes')->statement('SET FOREIGN_KEY_CHECKS = 0');
 
         foreach ($statements as $statement) {
+            // Saltar fragmentos de vistas mysqldump (placeholders rotos por explode ';')
+            if (preg_match('/^\s*\d+\s+AS\s+`/i', $statement)) {
+                continue;
+            }
+
             try {
                 DB::connection('pymes')->statement($statement);
             } catch (\Exception $e) {

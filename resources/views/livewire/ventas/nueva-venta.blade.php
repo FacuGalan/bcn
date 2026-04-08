@@ -30,6 +30,7 @@
         }
         if ($event.key === 'F2' && !$wire.mostrarModalMonedaExtranjera && !$wire.mostrarModalVuelto) { $event.preventDefault(); $wire.iniciarCobro(); }
         if ($event.key === 'F3') { $event.preventDefault(); $wire.confirmarLimpiarCarrito(); }
+        if ($event.key === 'F4' && !$wire.showModalDescuentos) { $event.preventDefault(); $wire.abrirModalDescuentos(); }
      ">
 
     {{-- Overlay de Caja Operativa Requerida --}}
@@ -420,10 +421,23 @@
                                                             <div class="text-xs text-gray-900 dark:text-white">$@precio($item['precio'])</div>
                                                         @endif
                                                     </td>
-                                                    {{-- Ajuste Manual --}}
+                                                    {{-- Ajuste Manual / Canje Puntos --}}
                                                     <td class="px-1 py-1.5 relative">
-                                                        @if(!$tieneAjusteManual)
-                                                            {{-- Botones de ajuste $ y % --}}
+                                                        @if($item['pagado_con_puntos'] ?? false)
+                                                            {{-- Badge canjeado con puntos --}}
+                                                            @php
+                                                                $vpc = $this->valorPuntoCanje;
+                                                                $ptsCanje = $vpc > 0 ? (int) ceil(($item['precio'] ?? 0) / $vpc) * ($item['cantidad'] ?? 1) : 0;
+                                                            @endphp
+                                                            <button
+                                                                wire:click="quitarCanjeArticulo({{ $index }})"
+                                                                class="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border border-yellow-300 cursor-pointer"
+                                                                title="{{ __('Clic para quitar canje') }}">
+                                                                <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                                                                {{ $ptsCanje }}pts
+                                                            </button>
+                                                        @elseif(!$tieneAjusteManual)
+                                                            {{-- Botones de ajuste $ y % (+ Pts si aplica) --}}
                                                             <div class="flex flex-col gap-0.5">
                                                                 <button
                                                                     wire:click="abrirAjusteManual({{ $index }}, 'monto')"
@@ -437,6 +451,18 @@
                                                                     :title="__('Aplicar descuento %')">
                                                                     %
                                                                 </button>
+                                                                @if($clienteSeleccionado && $puntosDisponibles && $this->valorPuntoCanje > 0)
+                                                                    @php
+                                                                        $vpcBtn = $this->valorPuntoCanje;
+                                                                        $ptsNecesarios = (int) ceil(($item['precio'] ?? 0) / $vpcBtn) * ($item['cantidad'] ?? 1);
+                                                                    @endphp
+                                                                    <button
+                                                                        wire:click="canjearArticuloConPuntos({{ $index }})"
+                                                                        class="w-5 h-4 flex items-center justify-center text-[8px] font-bold rounded bg-yellow-100 hover:bg-yellow-200 text-yellow-700 border border-yellow-300"
+                                                                        title="{{ __('Canjear con puntos') }} ({{ $ptsNecesarios }} pts)">
+                                                                        Pts
+                                                                    </button>
+                                                                @endif
                                                             </div>
                                                         @else
                                                             {{-- Badge Manual (clickeable para quitar) --}}
@@ -583,12 +609,18 @@
                                 <div class="flex items-center gap-2 px-2 py-1.5 bg-indigo-50 dark:bg-indigo-900 border border-indigo-300 dark:border-indigo-700 rounded-md">
                                     <div class="flex-1 min-w-0">
                                         <span class="text-sm text-indigo-800 dark:text-indigo-200 truncate block">{{ $clienteNombre }}</span>
-                                        <div class="flex items-center gap-2 text-xs">
+                                        <div class="flex items-center gap-2 text-xs flex-wrap">
                                             <span class="text-indigo-600 dark:text-indigo-400">{{ $clienteCondicionIva }}</span>
                                             <span class="px-1.5 py-0.5 rounded text-white font-medium
                                                 {{ $tipoFacturaCliente === 'A' ? 'bg-green-600' : ($tipoFacturaCliente === 'B' ? 'bg-blue-600' : 'bg-gray-500') }}">
                                                 {{ __('Fact.') }} {{ $tipoFacturaCliente }}
                                             </span>
+                                            @if($puntosDisponibles)
+                                                <span class="px-1.5 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 font-medium">
+                                                    <svg class="w-3 h-3 inline -mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                                                    {{ number_format($puntosSaldoCliente) }} pts
+                                                </span>
+                                            @endif
                                         </div>
                                     </div>
                                     <button
@@ -832,6 +864,42 @@
                                     </div>
                                 @endif
 
+                                @if($descuentoGeneralActivo && $descuentoGeneralTipo === 'monto_fijo' && $descuentoGeneralMonto > 0)
+                                    <div class="flex justify-between items-center text-purple-600">
+                                        <span class="text-xs">{{ __('Descuento general') }}:</span>
+                                        <span class="text-sm font-medium">-$@precio($descuentoGeneralMonto)</span>
+                                    </div>
+                                @elseif($descuentoGeneralActivo && $descuentoGeneralTipo === 'porcentaje')
+                                    <div class="flex justify-between items-center text-purple-600">
+                                        <span class="text-xs">{{ __('Descuento general') }} ({{ $descuentoGeneralValor }}%):</span>
+                                        <span class="text-sm font-medium">-$@precio($descuentoGeneralMonto)</span>
+                                    </div>
+                                @endif
+
+                                @if($cuponAplicado && $cuponMontoDescuento > 0)
+                                    <div class="flex justify-between items-center text-amber-600">
+                                        <span class="text-xs">{{ __('Cupón') }} ({{ $cuponInfo['codigo'] ?? '' }}):</span>
+                                        <span class="text-sm font-medium">-$@precio($cuponMontoDescuento)</span>
+                                    </div>
+                                @endif
+
+                                @php
+                                    $articulosCanjeadosMonto = $resultado['articulos_canjeados_monto'] ?? 0;
+                                @endphp
+                                @if($articulosCanjeadosMonto > 0)
+                                    <div class="flex justify-between items-center text-yellow-600">
+                                        <span class="text-xs">{{ __('Canjeado con puntos') }}:</span>
+                                        <span class="text-sm font-medium">-$@precio($articulosCanjeadosMonto)</span>
+                                    </div>
+                                @endif
+
+                                @if($canjePuntosActivo && $canjePuntosMonto > 0)
+                                    <div class="flex justify-between items-center text-yellow-600">
+                                        <span class="text-xs">{{ __('Pagar con puntos') }} ({{ $canjePuntosUnidades }} pts):</span>
+                                        <span class="text-sm font-medium">-$@precio($canjePuntosMonto)</span>
+                                    </div>
+                                @endif
+
                                 <div class="flex justify-between items-center font-semibold border-t border-gray-200 dark:border-gray-700 pt-1 mt-1">
                                     <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Total productos') }}:</span>
                                     <span class="text-sm text-gray-900 dark:text-white">$@precio($resultado['total_final'] ?? 0)</span>
@@ -1058,6 +1126,38 @@
                                 </div>
                             @endif
 
+                            {{-- Botón de Descuentos y Beneficios (si tiene items) --}}
+                            @if(!empty($items))
+                                <button
+                                    wire:click="abrirModalDescuentos"
+                                    type="button"
+                                    class="w-full inline-flex justify-center items-center px-2 py-1.5 border rounded-md shadow-sm text-xs font-medium
+                                        {{ ($descuentoGeneralActivo || $cuponAplicado || $canjePuntosActivo)
+                                            ? 'border-purple-400 dark:border-purple-500 text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50'
+                                            : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600' }}">
+                                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                                    </svg>
+                                    {{ __('Descuentos') }}
+                                    @if($descuentoGeneralActivo)
+                                        <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-purple-200 dark:bg-purple-700 text-purple-800 dark:text-purple-200 rounded">
+                                            {{ $descuentoGeneralTipo === 'porcentaje' ? $descuentoGeneralValor . '%' : '$' . number_format($descuentoGeneralValor, 2, ',', '.') }}
+                                        </span>
+                                    @endif
+                                    @if($cuponAplicado && $cuponInfo)
+                                        <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-200 dark:bg-amber-700 text-amber-800 dark:text-amber-200 rounded">
+                                            {{ $cuponInfo['codigo'] }}
+                                        </span>
+                                    @endif
+                                    @if($canjePuntosActivo)
+                                        <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-yellow-200 dark:bg-yellow-700 text-yellow-800 dark:text-yellow-200 rounded">
+                                            {{ $canjePuntosUnidades }}pts
+                                        </span>
+                                    @endif
+                                    <kbd class="ml-auto px-1 py-0.5 text-[9px] bg-gray-200 dark:bg-gray-600 rounded">F4</kbd>
+                                </button>
+                            @endif
+
                             <div class="flex gap-2 w-full">
                                 <button
                                     wire:click="confirmarLimpiarCarrito"
@@ -1091,7 +1191,7 @@
                             {{-- Barra de atajos de teclado --}}
                             <div class="w-full mt-1.5 py-1 bg-gray-100 dark:bg-gray-900/40 rounded text-[10px] text-gray-400 dark:text-gray-500 leading-snug text-center select-none">
                                 Ctrl: <span class="text-gray-500 dark:text-gray-400">1</span>{{ __('Buscar') }} · <span class="text-gray-500 dark:text-gray-400">2</span>{{ __('Cód.Barra') }} · <span class="text-gray-500 dark:text-gray-400">3</span>{{ __('Consultar') }} · <span class="text-gray-500 dark:text-gray-400">4</span>{{ __('Buscar det.') }} · <span class="text-gray-500 dark:text-gray-400">5</span>{{ __('Concepto') }} · <span class="text-gray-500 dark:text-gray-400">6</span>{{ __('Cliente') }} · <span class="text-gray-500 dark:text-gray-400">7</span>{{ __('Lista') }} · <span class="text-gray-500 dark:text-gray-400">8</span>{{ __('F.Venta') }} · <span class="text-gray-500 dark:text-gray-400">9</span>{{ __('F.Pago') }}
-                                | <span class="text-gray-500 dark:text-gray-400">F2</span>{{ __('Cobrar') }} · <span class="text-gray-500 dark:text-gray-400">F3</span>{{ __('Limpiar') }} · <span class="text-gray-500 dark:text-gray-400">*</span>{{ __('Cantidad') }}
+                                | <span class="text-gray-500 dark:text-gray-400">F2</span>{{ __('Cobrar') }} · <span class="text-gray-500 dark:text-gray-400">F3</span>{{ __('Limpiar') }} · <span class="text-gray-500 dark:text-gray-400">F4</span>{{ __('Desc.') }} · <span class="text-gray-500 dark:text-gray-400">*</span>{{ __('Cantidad') }}
                             </div>
                         </div>
                     </div>
@@ -2438,6 +2538,9 @@
 
     {{-- Wizard de Opcionales --}}
     @include('livewire.ventas._wizard-opcionales')
+
+    {{-- Modal de Descuentos y Beneficios --}}
+    @include('livewire.ventas._modal-descuentos')
 
     {{-- Modal de Apertura de Turno (desde AperturaTurnoTrait) --}}
     @include('components.modal-apertura-turno')

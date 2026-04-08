@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $sucursal_id ID de la sucursal
  * @property bool $activo Si esta forma de pago está activa en esta sucursal
  * @property float|null $ajuste_porcentaje Ajuste específico para esta sucursal (null = usar el de la forma de pago)
+ * @property float|null $multiplicador_puntos Multiplicador de puntos específico (null = usar el de la forma de pago)
  * @property bool|null $factura_fiscal Si genera factura fiscal (null = usar el de la forma de pago)
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
@@ -35,12 +36,14 @@ class FormaPagoSucursal extends Model
         'sucursal_id',
         'activo',
         'ajuste_porcentaje',
+        'multiplicador_puntos',
         'factura_fiscal',
     ];
 
     protected $casts = [
         'activo' => 'boolean',
         'ajuste_porcentaje' => 'decimal:2',
+        'multiplicador_puntos' => 'decimal:2',
         'factura_fiscal' => 'boolean',
     ];
 
@@ -138,6 +141,26 @@ class FormaPagoSucursal extends Model
     public function tieneAjusteEspecifico(): bool
     {
         return $this->ajuste_porcentaje !== null;
+    }
+
+    /**
+     * Obtiene el multiplicador de puntos efectivo (el de la sucursal o el de la forma de pago si es null)
+     */
+    public function getMultiplicadorEfectivo(): float
+    {
+        if ($this->multiplicador_puntos !== null) {
+            return (float) $this->multiplicador_puntos;
+        }
+
+        return (float) ($this->formaPago->multiplicador_puntos ?? 1.00);
+    }
+
+    /**
+     * Verifica si tiene un multiplicador de puntos específico para esta sucursal
+     */
+    public function tieneMultiplicadorEspecifico(): bool
+    {
+        return $this->multiplicador_puntos !== null;
     }
 
     /**

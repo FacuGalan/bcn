@@ -34,7 +34,9 @@ use App\Livewire\Configuracion\PromocionesEspeciales\ListarPromocionesEspeciales
 use App\Livewire\Configuracion\PromocionesEspeciales\WizardPromocionEspecial;
 use App\Livewire\Configuracion\RolesPermisos;
 use App\Livewire\Configuracion\Usuarios;
+use App\Livewire\Cupones\GestionCupones;
 use App\Livewire\Dashboard\DashboardSucursal;
+use App\Livewire\Puntos\ProgramaPuntos;
 use App\Livewire\Stock\InventarioGeneral;
 use App\Livewire\Stock\MovimientosStock;
 use App\Livewire\Stock\Produccion;
@@ -78,6 +80,8 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
      */
     Route::get('ventas', Ventas::class)->name('ventas.index');
     Route::get('ventas/nueva', NuevaVenta::class)->name('ventas.create');
+    Route::get('configuracion/puntos', ProgramaPuntos::class)->name('configuracion.puntos');
+    Route::get('ventas/cupones', GestionCupones::class)->name('ventas.cupones');
 
     /**
      * Compras

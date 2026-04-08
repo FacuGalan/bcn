@@ -67,6 +67,7 @@ class Articulo extends Model
         'categoria', // Legacy - deprecado
         'unidad_medida',
         'precio_base',
+        'puntos_canje',
         'es_materia_prima',
         'activo',
         'tipo_iva_id',
@@ -75,6 +76,7 @@ class Articulo extends Model
 
     protected $casts = [
         'precio_base' => 'decimal:2',
+        'puntos_canje' => 'integer',
         'es_materia_prima' => 'boolean',
         'activo' => 'boolean',
         'precio_iva_incluido' => 'boolean',

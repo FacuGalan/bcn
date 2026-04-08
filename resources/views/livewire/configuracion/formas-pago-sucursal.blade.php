@@ -139,6 +139,17 @@
                                             @endif
                                         </span>
                                     @endif
+                                    @if($puntosActivo && $fp['multiplicador_efectivo'] != 1)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded {{ $fp['tiene_multiplicador_especifico'] ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' }}">
+                                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                                            x{{ $fp['multiplicador_efectivo'] }} {{ __('puntos') }}
+                                            @if($fp['tiene_multiplicador_especifico'])
+                                                <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20" title="{{ __('Específico para esta sucursal') }}">
+                                                    <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+                                                </svg>
+                                            @endif
+                                        </span>
+                                    @endif
                                 </div>
                             </div>
 
@@ -282,6 +293,19 @@
                                         @if(!$fp['es_mixta'] && $fp['tiene_ajuste_especifico'] && $fp['ajuste_general'] != 0)
                                             <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">
                                                 {{ __('General') }}: {{ $fp['ajuste_general'] > 0 ? '+' : '' }}{{ $fp['ajuste_general'] }}%
+                                            </div>
+                                        @endif
+                                        @if($puntosActivo && !$fp['es_mixta'] && $fp['multiplicador_efectivo'] != 1)
+                                            <div class="mt-1">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $fp['tiene_multiplicador_especifico'] ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' }}">
+                                                    <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                                                    x{{ $fp['multiplicador_efectivo'] }} {{ __('puntos') }}
+                                                    @if($fp['tiene_multiplicador_especifico'])
+                                                        <svg class="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20" title="{{ __('Específico') }}">
+                                                            <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+                                                        </svg>
+                                                    @endif
+                                                </span>
                                             </div>
                                         @endif
                                     </td>
@@ -435,6 +459,46 @@
                                         </p>
                                     </div>
                                 </div>
+
+                                <!-- Sección: Multiplicador de Puntos -->
+                                @if($puntosActivo)
+                                    <div class="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg space-y-4">
+                                        <h4 class="text-sm font-medium text-gray-900 dark:text-white">{{ __('Multiplicador de Puntos') }}</h4>
+
+                                        <!-- Checkbox usar multiplicador general -->
+                                        <div class="flex items-center">
+                                            <input
+                                                type="checkbox"
+                                                id="usar_multiplicador_general"
+                                                wire:model.live="usar_multiplicador_general"
+                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
+                                            />
+                                            <label for="usar_multiplicador_general" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                                                {{ __('Usar multiplicador general de la forma de pago') }}
+                                            </label>
+                                        </div>
+
+                                        <!-- Campo de multiplicador específico -->
+                                        <div class="{{ $usar_multiplicador_general ? 'opacity-50' : '' }}">
+                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                {{ __('Multiplicador específico para esta sucursal') }}
+                                            </label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                max="99.99"
+                                                wire:model="multiplicador_puntos_sucursal"
+                                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
+                                                placeholder="1.00"
+                                                {{ $usar_multiplicador_general ? 'disabled' : '' }}
+                                            />
+                                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                {{ __('0 = no suma puntos, 1 = normal, 2 = doble') }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                @endif
                             </div>
                         </div>
 

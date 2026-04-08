@@ -190,7 +190,7 @@
                             @endif
                             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $cliente->condicionIva?->nombre ?? __('Consumidor Final') }}</p>
 
-                            @if($cliente->tiene_cuenta_corriente || $cliente->proveedor)
+                            @if($cliente->tiene_cuenta_corriente || $cliente->proveedor || ($puntosActivo && $cliente->puntos_saldo_cache > 0))
                                 <div class="mt-2 flex flex-wrap gap-2">
                                     @if($cliente->tiene_cuenta_corriente)
                                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
@@ -201,6 +201,12 @@
                                                 {{ __('Deuda') }}: ${{ number_format($cliente->saldo_deudor_sucursal, 2, ',', '.') }}
                                             </span>
                                         @endif
+                                    @endif
+                                    @if($puntosActivo && $cliente->puntos_saldo_cache > 0)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
+                                            <svg class="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                                            {{ number_format($cliente->puntos_saldo_cache) }} pts
+                                        </span>
                                     @endif
                                 </div>
                             @endif
@@ -237,6 +243,17 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                                 </svg>
                             </button>
+                            @if($puntosActivo)
+                            <button
+                                wire:click="showPuntos({{ $cliente->id }})"
+                                class="inline-flex items-center justify-center px-3 py-2 border border-yellow-400 dark:border-yellow-600 text-sm font-medium rounded-md text-yellow-600 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-gray-700 transition-colors duration-150"
+                                title="{{ __('Ver puntos') }}"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+                                </svg>
+                            </button>
+                            @endif
                         @endif
                     </div>
                 </div>
@@ -273,6 +290,11 @@
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                 {{ __('Cuenta Corriente') }}
                             </th>
+                            @if($puntosActivo)
+                            <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                {{ __('Puntos') }}
+                            </th>
+                            @endif
                             <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                 {{ __('Estado') }}
                             </th>
@@ -338,6 +360,18 @@
                                         <span class="text-xs text-gray-400">{{ __('No habilitada') }}</span>
                                     @endif
                                 </td>
+                                @if($puntosActivo)
+                                <td class="px-6 py-4 whitespace-nowrap text-center">
+                                    @if($cliente->puntos_saldo_cache > 0)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
+                                            <svg class="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                                            {{ number_format($cliente->puntos_saldo_cache) }}
+                                        </span>
+                                    @else
+                                        <span class="text-xs text-gray-400">0</span>
+                                    @endif
+                                </td>
+                                @endif
                                 <td class="px-6 py-4 whitespace-nowrap text-center">
                                     @if($filterStatus === 'deleted')
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">
@@ -376,6 +410,17 @@
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                                                 </svg>
                                             </button>
+                                            @if($puntosActivo)
+                                            <button
+                                                wire:click="showPuntos({{ $cliente->id }})"
+                                                class="inline-flex items-center px-3 py-2 border border-yellow-400 dark:border-yellow-600 rounded-md text-yellow-600 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-gray-700 transition-colors duration-150"
+                                                title="{{ __('Ver puntos') }}"
+                                            >
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+                                                </svg>
+                                            </button>
+                                            @endif
                                             <button
                                                 wire:click="edit({{ $cliente->id }})"
                                                 class="inline-flex items-center px-3 py-2 border border-bcn-primary rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white transition-colors duration-150"
@@ -699,6 +744,80 @@
                             @endif
                         </div>
 
+                        <!-- Puntos y Cupones (RF-29) -->
+                        @if($editMode)
+                        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                            <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                <svg class="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                                {{ __('Puntos y Cupones') }}
+                            </h4>
+
+                            {{-- Toggle programa de puntos --}}
+                            <div class="flex items-center mb-3">
+                                <input type="checkbox" id="programa_puntos_activo" wire:model="programa_puntos_activo"
+                                    class="rounded border-gray-300 dark:border-gray-600 text-yellow-500 focus:ring-yellow-500">
+                                <label for="programa_puntos_activo" class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                                    {{ __('Activar programa de puntos') }}
+                                </label>
+                            </div>
+
+                            {{-- Stats cards --}}
+                            @if($puntos_saldo > 0 || $puntos_acumulados_total > 0)
+                                <div class="grid grid-cols-3 gap-2 mb-3">
+                                    <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-2 text-center">
+                                        <div class="text-lg font-bold text-yellow-700 dark:text-yellow-300">{{ number_format($puntos_saldo) }}</div>
+                                        <div class="text-[10px] text-yellow-600 dark:text-yellow-400">{{ __('Saldo de puntos') }}</div>
+                                    </div>
+                                    <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-2 text-center">
+                                        <div class="text-lg font-bold text-green-700 dark:text-green-300">{{ number_format($puntos_acumulados_total) }}</div>
+                                        <div class="text-[10px] text-green-600 dark:text-green-400">{{ __('Puntos acumulados') }}</div>
+                                    </div>
+                                    <div class="bg-red-50 dark:bg-red-900/20 rounded-lg p-2 text-center">
+                                        <div class="text-lg font-bold text-red-700 dark:text-red-300">{{ number_format($puntos_canjeados_total) }}</div>
+                                        <div class="text-[10px] text-red-600 dark:text-red-400">{{ __('Puntos canjeados') }}</div>
+                                    </div>
+                                </div>
+                            @endif
+
+                            {{-- Últimos movimientos --}}
+                            @if(!empty($puntos_ultimos_movimientos))
+                                <div class="mb-3">
+                                    <p class="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Últimos movimientos') }}</p>
+                                    <div class="max-h-32 overflow-y-auto rounded border border-gray-200 dark:border-gray-700">
+                                        <table class="w-full text-xs">
+                                            @foreach($puntos_ultimos_movimientos as $mov)
+                                                <tr class="border-b border-gray-100 dark:border-gray-700 last:border-0">
+                                                    <td class="px-2 py-1 text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ $mov['fecha'] }}</td>
+                                                    <td class="px-2 py-1 font-medium {{ $mov['puntos'] > 0 ? 'text-green-600' : 'text-red-600' }}">
+                                                        {{ $mov['puntos'] > 0 ? '+' : '' }}{{ $mov['puntos'] }}
+                                                    </td>
+                                                    <td class="px-2 py-1 text-gray-700 dark:text-gray-300 truncate max-w-[150px]">{{ $mov['concepto'] }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </table>
+                                    </div>
+                                </div>
+                            @endif
+
+                            {{-- Cupones del cliente --}}
+                            @if(!empty($cupones_cliente))
+                                <div>
+                                    <p class="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Cupones') }}</p>
+                                    <div class="flex flex-wrap gap-1">
+                                        @foreach($cupones_cliente as $cupon)
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium
+                                                {{ $cupon['activo'] ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' }}">
+                                                {{ $cupon['codigo'] }}
+                                                ({{ $cupon['modo_descuento'] === 'porcentaje' ? $cupon['valor_descuento'] . '%' : '$' . number_format($cupon['valor_descuento'], 0) }})
+                                                {{ $cupon['uso_actual'] }}/{{ $cupon['uso_maximo'] == 0 ? '∞' : $cupon['uso_maximo'] }}
+                                            </span>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+                        @endif
+
                         <!-- Vinculación Proveedor -->
                         <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
                             <div class="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
@@ -882,6 +1001,194 @@
                             @click="close()"
                             class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
                         {{ __('Cerrar') }}
+                    </button>
+                </x-slot:footer>
+            </x-bcn-modal>
+        @endif
+
+        {{-- Modal Puntos del Cliente --}}
+        @if($showPuntosModal)
+            <x-bcn-modal
+                :show="$showPuntosModal"
+                :title="__('Puntos del cliente') . ' ' . $nombreClientePuntos"
+                color="bg-bcn-primary"
+                maxWidth="4xl"
+                onClose="closePuntosModal"
+            >
+                <x-slot:body>
+                    <div class="space-y-5">
+                        {{-- Stats cards --}}
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-center">
+                                <p class="text-xs text-green-600 dark:text-green-400 font-medium">{{ __('Acumulados') }}</p>
+                                <p class="text-xl font-bold text-green-700 dark:text-green-300">{{ number_format($totalesPuntos['acumulados']) }}</p>
+                            </div>
+                            <div class="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3 text-center">
+                                <p class="text-xs text-orange-600 dark:text-orange-400 font-medium">{{ __('Canjeados') }}</p>
+                                <p class="text-xl font-bold text-orange-700 dark:text-orange-300">{{ number_format($totalesPuntos['canjeados']) }}</p>
+                            </div>
+                            <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-center">
+                                <p class="text-xs text-blue-600 dark:text-blue-400 font-medium">{{ __('Saldo') }}</p>
+                                <p class="text-xl font-bold text-blue-700 dark:text-blue-300">{{ number_format($totalesPuntos['saldo']) }}</p>
+                            </div>
+                        </div>
+
+                        {{-- Filtros de movimientos --}}
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('Tipo') }}</label>
+                                <select wire:model.live="filtroTipoMovPuntos"
+                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    <option value="">{{ __('Todos') }}</option>
+                                    <option value="acumulacion">{{ __('Acumulación') }}</option>
+                                    <option value="canje_descuento">{{ __('Canje descuento') }}</option>
+                                    <option value="canje_articulo">{{ __('Canje artículo') }}</option>
+                                    <option value="canje_cupon">{{ __('Canje cupón') }}</option>
+                                    <option value="ajuste_manual">{{ __('Ajuste manual') }}</option>
+                                    <option value="anulacion">{{ __('Anulación') }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('Desde') }}</label>
+                                <input type="date" wire:model.live="filtroFechaDesdePuntos"
+                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('Hasta') }}</label>
+                                <input type="date" wire:model.live="filtroFechaHastaPuntos"
+                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            </div>
+                        </div>
+
+                        {{-- Tabla de movimientos --}}
+                        <div class="overflow-x-auto">
+                            @if($movimientosPuntos->count() > 0)
+                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Fecha') }}</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Tipo') }}</th>
+                                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Puntos') }}</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Concepto') }}</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Venta') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                    @foreach($movimientosPuntos as $mov)
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 {{ $mov->estaAnulado() ? 'opacity-50 line-through' : '' }}">
+                                        <td class="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{{ $mov->fecha->format('d/m/Y H:i') }}</td>
+                                        <td class="px-4 py-2 text-sm whitespace-nowrap">
+                                            @php
+                                                $tipoBadges = [
+                                                    'acumulacion' => ['label' => 'Acumulación', 'class' => 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'],
+                                                    'canje_descuento' => ['label' => 'Canje descuento', 'class' => 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'],
+                                                    'canje_articulo' => ['label' => 'Canje artículo', 'class' => 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'],
+                                                    'canje_cupon' => ['label' => 'Canje cupón', 'class' => 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'],
+                                                    'ajuste_manual' => ['label' => 'Ajuste manual', 'class' => 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'],
+                                                    'anulacion' => ['label' => 'Anulación', 'class' => 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'],
+                                                ];
+                                                $tipo = $tipoBadges[$mov->tipo] ?? ['label' => $mov->tipo, 'class' => 'bg-gray-100 text-gray-800'];
+                                            @endphp
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $tipo['class'] }}">
+                                                {{ __($tipo['label']) }}
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-2 text-sm font-bold text-right whitespace-nowrap {{ $mov->puntos > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
+                                            {{ $mov->puntos > 0 ? '+' : '' }}{{ $mov->puntos }}
+                                        </td>
+                                        <td class="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 max-w-xs truncate">{{ $mov->concepto }}</td>
+                                        <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ $mov->venta_id ? '#' . $mov->venta_id : '-' }}</td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                            @else
+                            <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                                <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+                                </svg>
+                                <p class="mt-2 text-sm">{{ __('No hay movimientos de puntos') }}</p>
+                            </div>
+                            @endif
+                        </div>
+
+                        {{-- Ajuste manual --}}
+                        @if($tienePermisoAjustePuntos)
+                        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                            <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">{{ __('Ajuste manual') }}</h4>
+                            <div class="flex flex-col sm:flex-row gap-3">
+                                <div class="sm:w-32">
+                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('Puntos') }}</label>
+                                    <input type="number" wire:model="ajustePuntos"
+                                        placeholder="+/- puntos"
+                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                </div>
+                                <div class="flex-1">
+                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{{ __('Motivo del ajuste') }}</label>
+                                    <input type="text" wire:model="ajusteMotivo"
+                                        placeholder="{{ __('Motivo obligatorio...') }}"
+                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                </div>
+                                <div class="flex items-end">
+                                    <button type="button" wire:click="confirmarAjustePuntos"
+                                        class="px-4 py-2 bg-bcn-primary text-white text-sm font-medium rounded-md hover:bg-bcn-primary/90 whitespace-nowrap">
+                                        {{ __('Ajustar') }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        @endif
+                    </div>
+                </x-slot:body>
+
+                <x-slot:footer>
+                    <button type="button"
+                            @click="close()"
+                            class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                        {{ __('Cerrar') }}
+                    </button>
+                </x-slot:footer>
+            </x-bcn-modal>
+        @endif
+
+        {{-- Modal confirmar ajuste puntos --}}
+        @if($showConfirmarAjustePuntos)
+            <x-bcn-modal
+                :title="__('Confirmar ajuste de puntos')"
+                color="bg-bcn-primary"
+                maxWidth="md"
+                onClose="cancelarAjustePuntos"
+                submit="ejecutarAjustePuntos"
+            >
+                <x-slot:body>
+                    <div class="space-y-4">
+                        <p class="text-gray-700 dark:text-gray-300">{{ __('Se realizará el siguiente ajuste:') }}</p>
+                        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2">
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-500 dark:text-gray-400">{{ __('Cliente') }}</span>
+                                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $nombreClientePuntos }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-500 dark:text-gray-400">{{ __('Puntos') }}</span>
+                                <span class="text-sm font-bold {{ $ajustePuntos > 0 ? 'text-green-600' : 'text-red-600' }}">
+                                    {{ $ajustePuntos > 0 ? '+' : '' }}{{ $ajustePuntos }}
+                                </span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-500 dark:text-gray-400">{{ __('Motivo del ajuste') }}</span>
+                                <span class="text-sm text-gray-900 dark:text-white">{{ $ajusteMotivo }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </x-slot:body>
+                <x-slot:footer>
+                    <button type="button" wire:click="cancelarAjustePuntos"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 dark:bg-gray-600 dark:text-gray-200 dark:border-gray-500 dark:hover:bg-gray-500">
+                        {{ __('Cancelar') }}
+                    </button>
+                    <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-bcn-primary border border-transparent rounded-md shadow-sm hover:bg-bcn-primary/90">
+                        {{ __('Confirmar ajuste') }}
                     </button>
                 </x-slot:footer>
             </x-bcn-modal>

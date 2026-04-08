@@ -47,6 +47,7 @@ class VentaDetalle extends Model
         'precio_sin_iva',
         'descuento',
         'descuento_promocion',    // Descuento aplicado por promociones
+        'descuento_cupon',        // Descuento aplicado por cupón
         'tiene_promocion',        // Si tiene promoción aplicada
         'iva_monto',
         'subtotal',
@@ -55,6 +56,9 @@ class VentaDetalle extends Model
         'ajuste_manual_tipo',
         'ajuste_manual_valor',
         'precio_sin_ajuste_manual',
+        // Campos de canje con puntos
+        'pagado_con_puntos',
+        'puntos_usados',
     ];
 
     protected $casts = [
@@ -66,6 +70,7 @@ class VentaDetalle extends Model
         'precio_sin_iva' => 'decimal:2',
         'descuento' => 'decimal:2',
         'descuento_promocion' => 'decimal:2',
+        'descuento_cupon' => 'decimal:2',
         'tiene_promocion' => 'boolean',
         'iva_monto' => 'decimal:2',
         'subtotal' => 'decimal:2',
@@ -73,6 +78,9 @@ class VentaDetalle extends Model
         // Campos de ajuste manual
         'ajuste_manual_valor' => 'decimal:2',
         'precio_sin_ajuste_manual' => 'decimal:2',
+        // Campos de canje con puntos
+        'pagado_con_puntos' => 'boolean',
+        'puntos_usados' => 'integer',
     ];
 
     // Relaciones

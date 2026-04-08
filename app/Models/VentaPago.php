@@ -57,6 +57,8 @@ class VentaPago extends Model
         'referencia',
         'observaciones',
         'es_cuenta_corriente',
+        'es_pago_puntos',
+        'puntos_usados',
         'afecta_caja',
         'estado',
         'movimiento_caja_id',
@@ -88,6 +90,8 @@ class VentaPago extends Model
         'tipo_cambio_tasa' => 'decimal:6',
         'monto_facturado' => 'decimal:2',
         'es_cuenta_corriente' => 'boolean',
+        'es_pago_puntos' => 'boolean',
+        'puntos_usados' => 'integer',
         'afecta_caja' => 'boolean',
         'anulado_at' => 'datetime',
     ];

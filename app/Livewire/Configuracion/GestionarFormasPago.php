@@ -10,6 +10,7 @@ use App\Models\FormaPagoSucursal;
 use App\Models\Moneda;
 use App\Models\Sucursal;
 use App\Services\CatalogoCache;
+use App\Services\PuntosService;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
 use Livewire\Component;
@@ -33,6 +34,8 @@ class GestionarFormasPago extends Component
     public $permite_cuotas = false;
 
     public $ajuste_porcentaje = 0; // positivo=recargo, negativo=descuento
+
+    public $multiplicador_puntos = 1; // multiplicador para cálculo de puntos
 
     public $factura_fiscal = false; // si genera factura fiscal por defecto
 
@@ -102,6 +105,7 @@ class GestionarFormasPago extends Component
             $rules['concepto_pago_id'] = 'required|exists:pymes_tenant.conceptos_pago,id';
             $rules['permite_cuotas'] = 'boolean';
             $rules['ajuste_porcentaje'] = 'nullable|numeric|min:-100|max:100';
+            $rules['multiplicador_puntos'] = 'nullable|numeric|min:0|max:99.99';
             $rules['factura_fiscal'] = 'boolean';
         }
 
@@ -139,6 +143,7 @@ class GestionarFormasPago extends Component
             $this->concepto_pago_id = null;
             $this->permite_cuotas = false;
             $this->ajuste_porcentaje = 0;
+            $this->multiplicador_puntos = 1;
             $this->factura_fiscal = false;
         } else {
             // No es mixta: limpiar conceptos permitidos
@@ -176,6 +181,7 @@ class GestionarFormasPago extends Component
             $this->concepto_pago_id = null;
             $this->permite_cuotas = false;
             $this->ajuste_porcentaje = 0;
+            $this->multiplicador_puntos = 1;
             $this->factura_fiscal = false;
             $this->conceptos_permitidos = $formaPago->conceptosPermitidos->pluck('id')->toArray();
         } else {
@@ -183,6 +189,7 @@ class GestionarFormasPago extends Component
             $this->concepto_pago_id = $formaPago->concepto_pago_id;
             $this->permite_cuotas = $formaPago->permite_cuotas;
             $this->ajuste_porcentaje = $formaPago->ajuste_porcentaje ?? 0;
+            $this->multiplicador_puntos = $formaPago->multiplicador_puntos ?? 1;
             $this->factura_fiscal = $formaPago->factura_fiscal ?? false;
             $this->conceptos_permitidos = [];
         }
@@ -222,6 +229,7 @@ class GestionarFormasPago extends Component
                 'descripcion' => $this->descripcion,
                 'permite_cuotas' => $this->es_mixta ? false : $this->permite_cuotas,
                 'ajuste_porcentaje' => $this->es_mixta ? 0 : ($this->ajuste_porcentaje ?: 0),
+                'multiplicador_puntos' => $this->es_mixta ? 1 : ($this->multiplicador_puntos ?: 1),
                 'factura_fiscal' => $this->es_mixta ? false : $this->factura_fiscal,
                 'activo' => $this->activo,
                 'cuenta_empresa_id' => $this->cuenta_empresa_id ?: null,
@@ -395,6 +403,7 @@ class GestionarFormasPago extends Component
         $this->descripcion = '';
         $this->permite_cuotas = false;
         $this->ajuste_porcentaje = 0;
+        $this->multiplicador_puntos = 1;
         $this->factura_fiscal = false;
         $this->activo = true;
         $this->es_mixta = false;
@@ -474,6 +483,7 @@ class GestionarFormasPago extends Component
             'conceptosPago' => $conceptosPago,
             'cuentasEmpresa' => $cuentasEmpresa,
             'monedas' => $monedas,
+            'puntosActivo' => app(PuntosService::class)->isProgramaActivo(),
         ]);
     }
 }

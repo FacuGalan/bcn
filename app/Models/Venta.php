@@ -92,6 +92,15 @@ class Venta extends Model
         'anulado_at',
         'motivo_anulacion',
         'observaciones',
+        // Campos de descuento general
+        'descuento_general_tipo',
+        'descuento_general_valor',
+        'descuento_general_monto',
+        // Campos de cupones y puntos
+        'cupon_id',
+        'monto_cupon',
+        'puntos_ganados',
+        'puntos_usados',
         'cierre_turno_id',
     ];
 
@@ -109,6 +118,11 @@ class Venta extends Model
         'monto_fiscal_cache' => 'decimal:2',
         'monto_no_fiscal_cache' => 'decimal:2',
         'es_cuenta_corriente' => 'boolean',
+        'descuento_general_valor' => 'decimal:2',
+        'descuento_general_monto' => 'decimal:2',
+        'monto_cupon' => 'decimal:2',
+        'puntos_ganados' => 'integer',
+        'puntos_usados' => 'integer',
     ];
 
     // Relaciones
@@ -203,6 +217,16 @@ class Venta extends Model
     {
         return $this->belongsToMany(ComprobanteFiscal::class, 'comprobante_fiscal_ventas')
             ->withPivot(['monto', 'es_anulacion', 'created_at']);
+    }
+
+    public function cupon(): BelongsTo
+    {
+        return $this->belongsTo(Cupon::class);
+    }
+
+    public function movimientosPuntos(): HasMany
+    {
+        return $this->hasMany(MovimientoPunto::class);
     }
 
     // Scopes

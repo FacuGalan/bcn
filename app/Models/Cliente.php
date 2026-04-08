@@ -77,6 +77,12 @@ class Cliente extends Model
         'tasa_interes_mensual',
         'bloqueado_por_mora',
         'dias_mora_max',
+        // Campos de programa de puntos
+        'programa_puntos_activo',
+        'puntos_acumulados_cache',
+        'puntos_canjeados_cache',
+        'puntos_saldo_cache',
+        'ultimo_movimiento_puntos_at',
         // Campos de cache de cuenta corriente
         'saldo_deudor_cache',
         'saldo_a_favor_cache',
@@ -92,6 +98,11 @@ class Cliente extends Model
         'saldo_a_favor_cache' => 'decimal:2',
         'bloqueado_por_mora' => 'boolean',
         'ultimo_movimiento_cc_at' => 'datetime',
+        'programa_puntos_activo' => 'boolean',
+        'puntos_acumulados_cache' => 'integer',
+        'puntos_canjeados_cache' => 'integer',
+        'puntos_saldo_cache' => 'integer',
+        'ultimo_movimiento_puntos_at' => 'datetime',
     ];
 
     // Relaciones
@@ -148,6 +159,16 @@ class Cliente extends Model
     public function proveedor(): HasOne
     {
         return $this->hasOne(Proveedor::class, 'cliente_id');
+    }
+
+    public function movimientosPuntos(): HasMany
+    {
+        return $this->hasMany(MovimientoPunto::class);
+    }
+
+    public function cupones(): HasMany
+    {
+        return $this->hasMany(Cupon::class);
     }
 
     // Scopes

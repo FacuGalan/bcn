@@ -6,6 +6,7 @@ use App\Models\FormaPago;
 use App\Models\FormaPagoCuotaSucursal;
 use App\Models\FormaPagoSucursal;
 use App\Models\Sucursal;
+use App\Services\PuntosService;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
 use Livewire\Component;
@@ -37,6 +38,10 @@ class FormasPagoSucursal extends Component
     public bool $factura_fiscal_sucursal = false;
 
     public bool $usar_factura_fiscal_general = true;
+
+    public ?float $multiplicador_puntos_sucursal = null;
+
+    public bool $usar_multiplicador_general = true;
 
     // Modal de configuración de cuotas
     public bool $mostrarModalCuotas = false;
@@ -159,6 +164,15 @@ class FormasPagoSucursal extends Component
             $this->usar_factura_fiscal_general = true;
         }
 
+        // Configurar multiplicador de puntos
+        if ($config && $config->multiplicador_puntos !== null) {
+            $this->multiplicador_puntos_sucursal = (float) $config->multiplicador_puntos;
+            $this->usar_multiplicador_general = false;
+        } else {
+            $this->multiplicador_puntos_sucursal = (float) ($formaPago->multiplicador_puntos ?? 1.00);
+            $this->usar_multiplicador_general = true;
+        }
+
         $this->mostrarModalConfig = true;
     }
 
@@ -190,6 +204,13 @@ class FormasPagoSucursal extends Component
             $config->factura_fiscal = $this->factura_fiscal_sucursal;
         }
 
+        // Guardar multiplicador de puntos
+        if ($this->usar_multiplicador_general) {
+            $config->multiplicador_puntos = null;
+        } else {
+            $config->multiplicador_puntos = $this->multiplicador_puntos_sucursal;
+        }
+
         if (! $config->exists) {
             $config->activo = true;
         }
@@ -211,6 +232,8 @@ class FormasPagoSucursal extends Component
         $this->usar_ajuste_general = true;
         $this->factura_fiscal_sucursal = false;
         $this->usar_factura_fiscal_general = true;
+        $this->multiplicador_puntos_sucursal = null;
+        $this->usar_multiplicador_general = true;
     }
 
     /**
@@ -376,12 +399,20 @@ class FormasPagoSucursal extends Component
                 'factura_fiscal_efectivo' => $config && $config->factura_fiscal !== null
                     ? $config->factura_fiscal
                     : ($formaPago->factura_fiscal ?? false),
+                // Campos de multiplicador de puntos
+                'multiplicador_general' => (float) ($formaPago->multiplicador_puntos ?? 1.00),
+                'multiplicador_sucursal' => $config ? $config->multiplicador_puntos : null,
+                'tiene_multiplicador_especifico' => $config && $config->multiplicador_puntos !== null,
+                'multiplicador_efectivo' => $config && $config->multiplicador_puntos !== null
+                    ? (float) $config->multiplicador_puntos
+                    : (float) ($formaPago->multiplicador_puntos ?? 1.00),
             ];
         });
 
         return view('livewire.configuracion.formas-pago-sucursal', [
             'sucursales' => $sucursales,
             'formasPago' => $formasPagoConConfig,
+            'puntosActivo' => app(PuntosService::class)->isProgramaActivo($this->sucursal_id),
         ]);
     }
 }

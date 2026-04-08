@@ -66,6 +66,26 @@ class GestionarClientes extends Component
 
     public ?string $nombreClienteHistorial = null;
 
+    // Modal de puntos
+    public bool $showPuntosModal = false;
+
+    public ?int $clientePuntosId = null;
+
+    public ?string $nombreClientePuntos = null;
+
+    public string $filtroTipoMovPuntos = '';
+
+    public string $filtroFechaDesdePuntos = '';
+
+    public string $filtroFechaHastaPuntos = '';
+
+    // Ajuste manual de puntos
+    public int $ajustePuntos = 0;
+
+    public string $ajusteMotivo = '';
+
+    public bool $showConfirmarAjustePuntos = false;
+
     // Propiedades del formulario
     public string $nombre = '';
 
@@ -92,6 +112,19 @@ class GestionarClientes extends Component
     public float $tasa_interes_mensual = 0;
 
     public bool $activo = true;
+
+    // Programa de puntos
+    public bool $programa_puntos_activo = true;
+
+    public int $puntos_saldo = 0;
+
+    public int $puntos_acumulados_total = 0;
+
+    public int $puntos_canjeados_total = 0;
+
+    public array $puntos_ultimos_movimientos = [];
+
+    public array $cupones_cliente = [];
 
     // Vinculación con proveedor
     public bool $tambien_es_proveedor = false;
@@ -376,8 +409,52 @@ class GestionarClientes extends Component
         $this->proveedor_vinculado_id = $proveedor?->id;
         $this->proveedor_opcion = $proveedor ? (string) $proveedor->id : 'crear_nuevo';
 
+        // Cargar datos de puntos y cupones (RF-29)
+        $this->programa_puntos_activo = $cliente->programa_puntos_activo ?? true;
+        $this->puntos_saldo = $cliente->puntos_saldo_cache ?? 0;
+        $this->puntos_acumulados_total = $cliente->puntos_acumulados_cache ?? 0;
+        $this->puntos_canjeados_total = $cliente->puntos_canjeados_cache ?? 0;
+        $this->cargarDatosPuntosCliente($cliente->id);
+
         $this->editMode = true;
         $this->showModal = true;
+    }
+
+    /**
+     * Carga últimos movimientos de puntos y cupones del cliente (RF-29).
+     */
+    protected function cargarDatosPuntosCliente(int $clienteId): void
+    {
+        // Últimos 10 movimientos de puntos
+        $this->puntos_ultimos_movimientos = \App\Models\MovimientoPunto::where('cliente_id', $clienteId)
+            ->where('estado', 'activo')
+            ->orderByDesc('fecha')
+            ->limit(10)
+            ->get()
+            ->map(fn ($m) => [
+                'fecha' => $m->fecha->format('d/m/Y H:i'),
+                'tipo' => $m->tipo,
+                'puntos' => $m->puntos,
+                'concepto' => $m->concepto,
+            ])
+            ->toArray();
+
+        // Cupones del cliente (activos + últimos usados)
+        $this->cupones_cliente = \App\Models\Cupon::where('cliente_id', $clienteId)
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get()
+            ->map(fn ($c) => [
+                'codigo' => $c->codigo,
+                'tipo' => $c->tipo,
+                'modo_descuento' => $c->modo_descuento,
+                'valor_descuento' => (float) $c->valor_descuento,
+                'uso_actual' => $c->uso_actual,
+                'uso_maximo' => $c->uso_maximo,
+                'activo' => $c->activo && $c->estaVigente(),
+                'fecha_vencimiento' => $c->fecha_vencimiento?->format('d/m/Y'),
+            ])
+            ->toArray();
     }
 
     /**
@@ -580,6 +657,7 @@ class GestionarClientes extends Component
                 'dias_credito' => $this->tiene_cuenta_corriente ? $this->dias_credito : 30,
                 'tasa_interes_mensual' => $this->tiene_cuenta_corriente ? $this->tasa_interes_mensual : 0,
                 'activo' => $this->activo,
+                'programa_puntos_activo' => $this->programa_puntos_activo,
             ];
 
             if ($this->editMode) {
@@ -839,6 +917,104 @@ class GestionarClientes extends Component
             ->orderBy('created_at', 'desc')
             ->take(20)
             ->get();
+    }
+
+    // ==================== MODAL PUNTOS ====================
+
+    public function showPuntos(int $id): void
+    {
+        $cliente = Cliente::findOrFail($id);
+        $this->clientePuntosId = $cliente->id;
+        $this->nombreClientePuntos = $cliente->nombre;
+        $this->filtroTipoMovPuntos = '';
+        $this->filtroFechaDesdePuntos = '';
+        $this->filtroFechaHastaPuntos = '';
+        $this->ajustePuntos = 0;
+        $this->ajusteMotivo = '';
+        $this->showPuntosModal = true;
+    }
+
+    public function closePuntosModal(): void
+    {
+        $this->showPuntosModal = false;
+        $this->clientePuntosId = null;
+        $this->nombreClientePuntos = null;
+        $this->showConfirmarAjustePuntos = false;
+    }
+
+    public function getTotalesPuntosProperty(): array
+    {
+        if (! $this->clientePuntosId) {
+            return ['acumulados' => 0, 'canjeados' => 0, 'saldo' => 0];
+        }
+
+        return \App\Models\MovimientoPunto::calcularTotales($this->clientePuntosId);
+    }
+
+    public function getMovimientosPuntosProperty()
+    {
+        if (! $this->clientePuntosId) {
+            return collect();
+        }
+
+        $query = \App\Models\MovimientoPunto::where('cliente_id', $this->clientePuntosId)
+            ->where('estado', 'activo')
+            ->with(['sucursal', 'venta']);
+
+        if ($this->filtroTipoMovPuntos) {
+            $query->where('tipo', $this->filtroTipoMovPuntos);
+        }
+
+        if ($this->filtroFechaDesdePuntos) {
+            $query->whereDate('fecha', '>=', $this->filtroFechaDesdePuntos);
+        }
+
+        if ($this->filtroFechaHastaPuntos) {
+            $query->whereDate('fecha', '<=', $this->filtroFechaHastaPuntos);
+        }
+
+        return $query->orderByDesc('fecha')->take(50)->get();
+    }
+
+    public function confirmarAjustePuntos(): void
+    {
+        $this->validate([
+            'ajustePuntos' => 'required|integer|not_in:0',
+            'ajusteMotivo' => 'required|string|min:3|max:255',
+        ]);
+
+        $this->showConfirmarAjustePuntos = true;
+    }
+
+    public function ejecutarAjustePuntos(): void
+    {
+        if (! $this->clientePuntosId) {
+            return;
+        }
+
+        try {
+            $puntosService = app(\App\Services\PuntosService::class);
+            $puntosService->ajustarPuntos(
+                $this->clientePuntosId,
+                sucursal_activa(),
+                $this->ajustePuntos,
+                $this->ajusteMotivo,
+                \Illuminate\Support\Facades\Auth::id()
+            );
+
+            $this->dispatch('notify', type: 'success', message: __('Ajuste de puntos realizado correctamente'));
+            $this->showConfirmarAjustePuntos = false;
+            $this->ajustePuntos = 0;
+            $this->ajusteMotivo = '';
+        } catch (\Exception $e) {
+            $this->dispatch('notify', type: 'error', message: $e->getMessage());
+            $this->showConfirmarAjustePuntos = false;
+        }
+    }
+
+    public function cancelarAjustePuntos(): void
+    {
+        $this->showConfirmarAjustePuntos = false;
     }
 
     /**
@@ -1136,6 +1312,12 @@ class GestionarClientes extends Component
         $this->dias_credito = 30;
         $this->tasa_interes_mensual = 0;
         $this->activo = true;
+        $this->programa_puntos_activo = true;
+        $this->puntos_saldo = 0;
+        $this->puntos_acumulados_total = 0;
+        $this->puntos_canjeados_total = 0;
+        $this->puntos_ultimos_movimientos = [];
+        $this->cupones_cliente = [];
         $this->tambien_es_proveedor = false;
         $this->proveedor_vinculado_id = null;
         $this->proveedor_opcion = 'crear_nuevo';
@@ -1186,6 +1368,10 @@ class GestionarClientes extends Component
             'condicionesIva' => CatalogoCache::condicionesIva(),
             'proveedoresDisponibles' => $proveedoresDisponibles,
             'ventasHistorial' => $this->getVentasHistorial(),
+            'puntosActivo' => app(\App\Services\PuntosService::class)->isProgramaActivo(sucursal_activa()),
+            'movimientosPuntos' => $this->movimientosPuntos,
+            'totalesPuntos' => $this->totalesPuntos,
+            'tienePermisoAjustePuntos' => \Illuminate\Support\Facades\Auth::user()?->can('func.puntos_ajuste_manual'),
             'listasPrecioSucursal' => $listasPrecioSucursal,
         ]);
     }
