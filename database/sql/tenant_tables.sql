@@ -925,6 +925,7 @@ CREATE TABLE `{{PREFIX}}formas_pago_sucursales` (
   `sucursal_id` bigint(20) unsigned NOT NULL,
   `activo` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Si está disponible en esta sucursal',
   `ajuste_porcentaje` decimal(8,2) DEFAULT NULL COMMENT 'Ajuste porcentual específico para esta sucursal: positivo=recargo, negativo=descuento. NULL = usar el de la forma de pago',
+  `multiplicador_puntos` decimal(4,2) DEFAULT NULL COMMENT 'Multiplicador de puntos específico para esta sucursal (NULL = usar el de la forma de pago)',
   `factura_fiscal` tinyint(1) DEFAULT NULL COMMENT 'Factura fiscal específico para esta sucursal (null = usar el de empresa)',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,

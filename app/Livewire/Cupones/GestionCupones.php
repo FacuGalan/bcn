@@ -80,6 +80,8 @@ class GestionCupones extends Component
 
     public ?int $cuponEditarId = null;
 
+    public bool $editCuponFueUsado = false;
+
     public bool $editActivo = true;
 
     public string $editDescripcion = '';
@@ -89,6 +91,17 @@ class GestionCupones extends Component
     public int $editUsoMaximo = 1;
 
     public array $editFormasPagoSeleccionadas = [];
+
+    // Campos editables solo si el cupón no fue usado
+    public string $editModoDescuento = 'porcentaje';
+
+    public string $editValorDescuento = '';
+
+    public string $editAplicaA = 'total';
+
+    public array $editArticulosSeleccionados = [];
+
+    public string $editSearchArticulo = '';
 
     public function placeholder()
     {
@@ -191,11 +204,32 @@ class GestionCupones extends Component
         }
 
         $this->cuponEditarId = $cuponId;
+        $this->editCuponFueUsado = $cupon->uso_actual > 0;
         $this->editActivo = $cupon->activo;
         $this->editDescripcion = $cupon->descripcion ?? '';
         $this->editFechaVencimiento = $cupon->fecha_vencimiento?->format('Y-m-d') ?? '';
         $this->editUsoMaximo = $cupon->uso_maximo;
         $this->editFormasPagoSeleccionadas = $cupon->formasPago()->pluck('formas_pago.id')->map(fn ($id) => (string) $id)->toArray();
+
+        // Campos adicionales (editables solo si no fue usado)
+        $this->editModoDescuento = $cupon->modo_descuento;
+        $this->editValorDescuento = (string) $cupon->valor_descuento;
+        $this->editAplicaA = $cupon->aplica_a;
+        $this->editSearchArticulo = '';
+
+        // Cargar artículos vinculados
+        $this->editArticulosSeleccionados = [];
+        if ($cupon->aplicaAArticulos()) {
+            foreach ($cupon->articulos()->get() as $art) {
+                $this->editArticulosSeleccionados[$art->id] = [
+                    'id' => $art->id,
+                    'nombre' => $art->nombre,
+                    'codigo' => $art->codigo,
+                    'cantidad' => $art->pivot->cantidad,
+                ];
+            }
+        }
+
         $this->showEditarModal = true;
     }
 
@@ -206,16 +240,54 @@ class GestionCupones extends Component
             return;
         }
 
-        $this->validate([
+        $rules = [
             'editUsoMaximo' => 'required|integer|min:0',
-        ]);
+        ];
 
-        $cupon->update([
+        // Validar campos adicionales si no fue usado
+        if (! $this->editCuponFueUsado) {
+            $rules['editModoDescuento'] = 'required|in:porcentaje,monto_fijo';
+            $rules['editValorDescuento'] = 'required|numeric|min:0.01';
+            $rules['editAplicaA'] = 'required|in:total,articulos';
+
+            if ($this->editModoDescuento === 'porcentaje') {
+                $rules['editValorDescuento'] = 'required|numeric|min:0.01|max:100';
+            }
+        }
+
+        $this->validate($rules);
+
+        $updateData = [
             'activo' => $this->editActivo,
             'descripcion' => $this->editDescripcion ?: null,
             'fecha_vencimiento' => $this->editFechaVencimiento ?: null,
             'uso_maximo' => $this->editUsoMaximo,
-        ]);
+        ];
+
+        // Guardar campos adicionales si no fue usado
+        if (! $this->editCuponFueUsado) {
+            $updateData['modo_descuento'] = $this->editModoDescuento;
+            $updateData['valor_descuento'] = $this->editValorDescuento;
+            $updateData['aplica_a'] = $this->editAplicaA;
+        }
+
+        $cupon->update($updateData);
+
+        // Sincronizar artículos si no fue usado
+        if (! $this->editCuponFueUsado) {
+            if ($this->editAplicaA === 'articulos') {
+                $syncData = [];
+                foreach ($this->editArticulosSeleccionados as $artId => $art) {
+                    $cantidad = isset($art['cantidad']) && $art['cantidad'] !== '' && $art['cantidad'] !== null
+                        ? (int) $art['cantidad']
+                        : null;
+                    $syncData[$artId] = ['cantidad' => $cantidad];
+                }
+                $cupon->articulos()->sync($syncData);
+            } else {
+                $cupon->articulos()->detach();
+            }
+        }
 
         // Sincronizar formas de pago
         $fpIds = array_map('intval', $this->editFormasPagoSeleccionadas);
@@ -223,6 +295,55 @@ class GestionCupones extends Component
 
         $this->showEditarModal = false;
         $this->dispatch('toast-success', message: __('Cupón actualizado'));
+    }
+
+    public function getResultadosBusquedaEditArticuloProperty()
+    {
+        if (strlen($this->editSearchArticulo) < 2) {
+            return collect();
+        }
+
+        $busqueda = $this->editSearchArticulo;
+
+        return Articulo::where(function ($q) use ($busqueda) {
+            $q->where('nombre', 'like', "%{$busqueda}%")
+                ->orWhere('codigo', 'like', "%{$busqueda}%")
+                ->orWhere('codigo_barras', 'like', "%{$busqueda}%");
+        })
+            ->where('activo', true)
+            ->limit(10)
+            ->get(['id', 'nombre', 'codigo', 'precio_base']);
+    }
+
+    public function editAgregarArticulo(int $articuloId): void
+    {
+        if (isset($this->editArticulosSeleccionados[$articuloId])) {
+            return;
+        }
+
+        $articulo = Articulo::find($articuloId, ['id', 'nombre', 'codigo']);
+        if ($articulo) {
+            $this->editArticulosSeleccionados[$articuloId] = [
+                'id' => $articulo->id,
+                'nombre' => $articulo->nombre,
+                'codigo' => $articulo->codigo,
+                'cantidad' => null,
+            ];
+        }
+        $this->editSearchArticulo = '';
+    }
+
+    public function editAgregarPrimerArticulo(): void
+    {
+        $resultados = $this->resultadosBusquedaEditArticulo;
+        if ($resultados->isNotEmpty()) {
+            $this->editAgregarArticulo($resultados->first()->id);
+        }
+    }
+
+    public function editQuitarArticulo(int $articuloId): void
+    {
+        unset($this->editArticulosSeleccionados[$articuloId]);
     }
 
     public function cancelarEdicion(): void

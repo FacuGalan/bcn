@@ -2220,8 +2220,8 @@ class NuevaVenta extends Component
 
         $totalBase = $this->resultado['total_final'] ?? 0;
         $ajustePorcentaje = $fp['ajuste_porcentaje'] ?? 0;
-        $montoAjuste = round($totalBase * ($ajustePorcentaje / 100), 2);
-        $totalConAjuste = round($totalBase + $montoAjuste, 2);
+        $montoAjuste = round($totalBase * ($ajustePorcentaje / 100), 2) + 0;
+        $totalConAjuste = round($totalBase + $montoAjuste, 2) + 0;
 
         // Variables para cuotas
         $cantidadCuotas = 1;
@@ -2938,23 +2938,47 @@ class NuevaVenta extends Component
             $montoElegibleTotal = 0;
             $elegiblesPorItem = [];
 
-            // Calcular monto elegible por item
+            // Agrupar índices por articulo_id para respetar cantidad global
+            $indicesPorArticulo = [];
             foreach ($this->items as $index => $item) {
                 $articuloId = (int) ($item['articulo_id'] ?? 0);
                 if (! $articulosCupon->has($articuloId)) {
                     continue;
                 }
+                $indicesPorArticulo[$articuloId][] = $index;
+            }
 
+            // Calcular monto elegible respetando cantidad global por artículo
+            foreach ($indicesPorArticulo as $articuloId => $indices) {
                 $pivotCantidad = $articulosCupon->get($articuloId)->pivot->cantidad;
-                $cantidadEnCarrito = (int) ($item['cantidad'] ?? 1);
-                $precioUnitario = (float) ($item['precio'] ?? 0);
-                $cantidadElegible = $pivotCantidad !== null
-                    ? min($cantidadEnCarrito, $pivotCantidad)
-                    : $cantidadEnCarrito;
 
-                $montoElegible = $precioUnitario * $cantidadElegible;
-                $elegiblesPorItem[$index] = $montoElegible;
-                $montoElegibleTotal += $montoElegible;
+                if ($pivotCantidad === null) {
+                    // Sin límite: todas las unidades elegibles
+                    foreach ($indices as $index) {
+                        $item = $this->items[$index];
+                        $montoElegible = (float) ($item['precio'] ?? 0) * (int) ($item['cantidad'] ?? 1);
+                        $elegiblesPorItem[$index] = $montoElegible;
+                        $montoElegibleTotal += $montoElegible;
+                    }
+                } else {
+                    // Con límite: ordenar por precio DESC para priorizar más caros
+                    $indicesOrdenados = $indices;
+                    usort($indicesOrdenados, fn ($a, $b) => ((float) ($this->items[$b]['precio'] ?? 0)) <=> ((float) ($this->items[$a]['precio'] ?? 0)));
+
+                    $cantidadRestante = $pivotCantidad;
+                    foreach ($indicesOrdenados as $index) {
+                        if ($cantidadRestante <= 0) {
+                            break;
+                        }
+                        $item = $this->items[$index];
+                        $cantidadEnCarrito = (int) ($item['cantidad'] ?? 1);
+                        $cantidadElegible = min($cantidadEnCarrito, $cantidadRestante);
+                        $montoElegible = (float) ($item['precio'] ?? 0) * $cantidadElegible;
+                        $elegiblesPorItem[$index] = $montoElegible;
+                        $montoElegibleTotal += $montoElegible;
+                        $cantidadRestante -= $cantidadElegible;
+                    }
+                }
             }
 
             if ($montoElegibleTotal <= 0) {
@@ -3038,9 +3062,18 @@ class NuevaVenta extends Component
             return;
         }
 
-        // Limitar al máximo canjeable
-        if ($monto > $this->canjePuntosMaximo) {
-            $monto = $this->canjePuntosMaximo;
+        // Calcular máximo real (descontando artículos canjeados)
+        $maximoCanjeable = $this->canjePuntosMaximoReal;
+
+        if ($maximoCanjeable <= 0) {
+            $this->dispatch('toast-error', message: __('Puntos insuficientes'));
+
+            return;
+        }
+
+        // Limitar al máximo canjeable con puntos libres
+        if ($monto > $maximoCanjeable) {
+            $monto = $maximoCanjeable;
         }
 
         // Limitar al total de la venta
@@ -3057,9 +3090,10 @@ class NuevaVenta extends Component
         }
 
         $puntosNecesarios = (int) ceil($monto / (float) $config->valor_punto_canje);
+        $puntosLibres = max(0, $this->puntosSaldoCliente - $this->calcularPuntosUsadosEnArticulos());
 
-        if ($puntosNecesarios > $this->puntosSaldoCliente) {
-            $this->dispatch('toast-error', message: __('Puntos insuficientes'));
+        if ($puntosNecesarios > $puntosLibres) {
+            $this->dispatch('toast-error', message: __('Puntos insuficientes').". {$puntosNecesarios} pts necesarios, {$puntosLibres} pts disponibles");
 
             return;
         }
@@ -3097,28 +3131,29 @@ class NuevaVenta extends Component
             return;
         }
 
-        $item = $this->items[$index];
-        $puntosNecesarios = $item['puntos_canje'] ?? null;
-
-        if (! $puntosNecesarios || $puntosNecesarios <= 0) {
-            $this->dispatch('toast-error', message: __('Este artículo no es canjeable con puntos'));
-
-            return;
-        }
-
         if (! $this->clienteSeleccionado || ! $this->puntosDisponibles) {
             $this->dispatch('toast-error', message: __('Puntos insuficientes'));
 
             return;
         }
 
-        // Calcular puntos totales necesarios (puntos_canje × cantidad)
-        $cantidad = (int) ($item['cantidad'] ?? 1);
-        $puntosTotal = $puntosNecesarios * $cantidad;
+        $valorPunto = $this->valorPuntoCanje;
+        if ($valorPunto <= 0) {
+            $this->dispatch('toast-error', message: __('Configuración de puntos incompleta'));
 
-        // Verificar saldo disponible (descontando otros canjes de artículos ya marcados)
-        $puntosYaUsadosEnArticulos = $this->calcularPuntosUsadosEnArticulos();
-        $puntosLibres = $this->puntosSaldoCliente - $puntosYaUsadosEnArticulos;
+            return;
+        }
+
+        $item = $this->items[$index];
+        $precioUnitario = (float) ($item['precio'] ?? 0);
+        $cantidad = (int) ($item['cantidad'] ?? 1);
+
+        // Calcular puntos desde el precio del artículo usando la configuración
+        $puntosTotal = $this->calcularPuntosCanjePorPrecio($precioUnitario) * $cantidad;
+
+        // Verificar saldo disponible (descontando artículos canjeados + canje como descuento)
+        $puntosYaUsados = $this->calcularPuntosUsadosEnArticulos() + $this->canjePuntosUnidades;
+        $puntosLibres = $this->puntosSaldoCliente - $puntosYaUsados;
 
         if ($puntosTotal > $puntosLibres) {
             $this->dispatch('toast-error', message: __('Puntos insuficientes').". {$puntosTotal} pts necesarios, {$puntosLibres} pts disponibles");
@@ -3147,14 +3182,60 @@ class NuevaVenta extends Component
     }
 
     /**
+     * Obtiene el valor de 1 punto en $ desde la configuración (no serializado por Livewire).
+     */
+    #[Computed]
+    public function valorPuntoCanje(): float
+    {
+        $config = $this->puntosService->getConfiguracion();
+
+        return $config ? (float) $config->valor_punto_canje : 0;
+    }
+
+    /**
+     * Puntos libres del cliente (saldo - artículos canjeados - canje como descuento).
+     */
+    #[Computed]
+    public function puntosLibres(): int
+    {
+        return max(0, $this->puntosSaldoCliente - $this->calcularPuntosUsadosEnArticulos() - $this->canjePuntosUnidades);
+    }
+
+    /**
+     * Máximo canjeable en $ considerando puntos ya usados en artículos.
+     */
+    #[Computed]
+    public function canjePuntosMaximoReal(): float
+    {
+        $puntosLibres = max(0, $this->puntosSaldoCliente - $this->calcularPuntosUsadosEnArticulos());
+        $valorPunto = $this->valorPuntoCanje;
+
+        return $valorPunto > 0 ? round($puntosLibres * $valorPunto, 2) : 0;
+    }
+
+    /**
+     * Calcula puntos necesarios para canjear un artículo desde su precio.
+     */
+    protected function calcularPuntosCanjePorPrecio(float $precio): int
+    {
+        $valorPunto = $this->valorPuntoCanje;
+        if ($valorPunto <= 0) {
+            return 0;
+        }
+
+        return (int) ceil($precio / $valorPunto);
+    }
+
+    /**
      * Calcula los puntos totales usados en artículos canjeados del carrito.
      */
     protected function calcularPuntosUsadosEnArticulos(): int
     {
         $total = 0;
         foreach ($this->items as $item) {
-            if (($item['pagado_con_puntos'] ?? false) && ($item['puntos_canje'] ?? 0) > 0) {
-                $total += (int) $item['puntos_canje'] * (int) ($item['cantidad'] ?? 1);
+            if ($item['pagado_con_puntos'] ?? false) {
+                $puntos = $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0));
+                $total += $puntos * (int) ($item['cantidad'] ?? 1);
             }
         }
 
@@ -3172,17 +3253,29 @@ class NuevaVenta extends Component
         }
 
         try {
-            // Obtener los pagos reales de la venta con su multiplicador
+            // Obtener los pagos reales de la venta con su multiplicador (sucursal > genérico)
+            $sucursalId = $venta->sucursal_id;
             $pagos = VentaPago::where('venta_id', $venta->id)
                 ->get()
-                ->map(function ($pago) {
+                ->map(function ($pago) use ($sucursalId) {
                     $fp = FormaPago::find($pago->forma_pago_id);
+                    $multiplicador = (float) ($fp->multiplicador_puntos ?? 1.00);
+
+                    // Override por sucursal si existe
+                    if ($sucursalId && $fp) {
+                        $fpSucursal = \App\Models\FormaPagoSucursal::where('forma_pago_id', $fp->id)
+                            ->where('sucursal_id', $sucursalId)
+                            ->first();
+                        if ($fpSucursal && $fpSucursal->multiplicador_puntos !== null) {
+                            $multiplicador = (float) $fpSucursal->multiplicador_puntos;
+                        }
+                    }
 
                     return [
                         'monto_final' => (float) $pago->monto_final,
                         'es_pago_puntos' => (bool) $pago->es_pago_puntos,
                         'es_cuenta_corriente' => (bool) $pago->es_cuenta_corriente,
-                        'multiplicador_puntos' => (float) ($fp->multiplicador_puntos ?? 1.00),
+                        'multiplicador_puntos' => $multiplicador,
                     ];
                 });
 
@@ -6192,7 +6285,7 @@ class NuevaVenta extends Component
                         // Canje por puntos (RF-10)
                         'pagado_con_puntos' => $item['pagado_con_puntos'] ?? false,
                         'puntos_usados' => ($item['pagado_con_puntos'] ?? false)
-                            ? (int) ($item['puntos_canje'] ?? 0) * (int) ($item['cantidad'] ?? 1)
+                            ? $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (int) ($item['cantidad'] ?? 1)
                             : 0,
                     ];
                 }
@@ -6432,8 +6525,8 @@ class NuevaVenta extends Component
                 $puntosArticulosCanjeados = $this->calcularPuntosUsadosEnArticulos();
                 if ($puntosArticulosCanjeados > 0 && $this->clienteSeleccionado) {
                     foreach ($this->items as $item) {
-                        if (($item['pagado_con_puntos'] ?? false) && ($item['puntos_canje'] ?? 0) > 0) {
-                            $puntosItem = (int) $item['puntos_canje'] * (int) ($item['cantidad'] ?? 1);
+                        if ($item['pagado_con_puntos'] ?? false) {
+                            $puntosItem = $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (int) ($item['cantidad'] ?? 1);
                             $this->puntosService->canjearArticuloConPuntos(
                                 $this->clienteSeleccionado,
                                 $item['articulo_id'],
@@ -6626,7 +6719,7 @@ class NuevaVenta extends Component
                         // Canje por puntos (RF-10)
                         'pagado_con_puntos' => $item['pagado_con_puntos'] ?? false,
                         'puntos_usados' => ($item['pagado_con_puntos'] ?? false)
-                            ? (int) ($item['puntos_canje'] ?? 0) * (int) ($item['cantidad'] ?? 1)
+                            ? $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (int) ($item['cantidad'] ?? 1)
                             : 0,
                     ];
                 }
@@ -6756,8 +6849,8 @@ class NuevaVenta extends Component
                 $puntosArticulosCanjeados = $this->calcularPuntosUsadosEnArticulos();
                 if ($puntosArticulosCanjeados > 0 && $this->clienteSeleccionado) {
                     foreach ($this->items as $item) {
-                        if (($item['pagado_con_puntos'] ?? false) && ($item['puntos_canje'] ?? 0) > 0) {
-                            $puntosItem = (int) $item['puntos_canje'] * (int) ($item['cantidad'] ?? 1);
+                        if ($item['pagado_con_puntos'] ?? false) {
+                            $puntosItem = $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (int) ($item['cantidad'] ?? 1);
                             $this->puntosService->canjearArticuloConPuntos(
                                 $this->clienteSeleccionado,
                                 $item['articulo_id'],

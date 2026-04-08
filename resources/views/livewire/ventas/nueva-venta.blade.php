@@ -425,12 +425,16 @@
                                                     <td class="px-1 py-1.5 relative">
                                                         @if($item['pagado_con_puntos'] ?? false)
                                                             {{-- Badge canjeado con puntos --}}
+                                                            @php
+                                                                $vpc = $this->valorPuntoCanje;
+                                                                $ptsCanje = $vpc > 0 ? (int) ceil(($item['precio'] ?? 0) / $vpc) * ($item['cantidad'] ?? 1) : 0;
+                                                            @endphp
                                                             <button
                                                                 wire:click="quitarCanjeArticulo({{ $index }})"
                                                                 class="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border border-yellow-300 cursor-pointer"
-                                                                :title="__('Clic para quitar canje')">
+                                                                title="{{ __('Clic para quitar canje') }}">
                                                                 <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-                                                                {{ ($item['puntos_canje'] ?? 0) * ($item['cantidad'] ?? 1) }}pts
+                                                                {{ $ptsCanje }}pts
                                                             </button>
                                                         @elseif(!$tieneAjusteManual)
                                                             {{-- Botones de ajuste $ y % (+ Pts si aplica) --}}
@@ -447,11 +451,15 @@
                                                                     :title="__('Aplicar descuento %')">
                                                                     %
                                                                 </button>
-                                                                @if(($item['puntos_canje'] ?? null) && $clienteSeleccionado && $puntosDisponibles)
+                                                                @if($clienteSeleccionado && $puntosDisponibles && $this->valorPuntoCanje > 0)
+                                                                    @php
+                                                                        $vpcBtn = $this->valorPuntoCanje;
+                                                                        $ptsNecesarios = (int) ceil(($item['precio'] ?? 0) / $vpcBtn) * ($item['cantidad'] ?? 1);
+                                                                    @endphp
                                                                     <button
                                                                         wire:click="canjearArticuloConPuntos({{ $index }})"
                                                                         class="w-5 h-4 flex items-center justify-center text-[8px] font-bold rounded bg-yellow-100 hover:bg-yellow-200 text-yellow-700 border border-yellow-300"
-                                                                        :title="__('Canjear con puntos') + ' ({{ $item['puntos_canje'] * ($item['cantidad'] ?? 1) }} pts)'">
+                                                                        title="{{ __('Canjear con puntos') }} ({{ $ptsNecesarios }} pts)">
                                                                         Pts
                                                                     </button>
                                                                 @endif

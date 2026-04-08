@@ -294,7 +294,7 @@
                                 </span>
                             @elseif($puntosDisponibles)
                                 <span class="px-1.5 py-0.5 text-[10px] bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 rounded font-medium">
-                                    {{ number_format($puntosSaldoCliente) }} pts
+                                    {{ number_format($this->puntosLibres) }} pts
                                 </span>
                             @elseif(!$clienteSeleccionado)
                                 <span class="px-1.5 py-0.5 text-[10px] bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-400 rounded">{{ __('Seleccione cliente') }}</span>
@@ -339,8 +339,8 @@
                                 @endif
 
                                 <div class="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 mb-2">
-                                    <span>{{ __('Saldo disponible') }}: <span class="font-medium text-yellow-600 dark:text-yellow-400">{{ number_format($puntosSaldoCliente) }} pts</span></span>
-                                    <span>{{ __('Máx. canjeable') }}: <span class="font-medium">${{ number_format($canjePuntosMaximo, 2, ',', '.') }}</span></span>
+                                    <span>{{ __('Saldo disponible') }}: <span class="font-medium text-yellow-600 dark:text-yellow-400">{{ number_format($this->puntosLibres) }} pts</span></span>
+                                    <span>{{ __('Máx. canjeable') }}: <span class="font-medium">${{ number_format($this->canjePuntosMaximoReal, 2, ',', '.') }}</span></span>
                                 </div>
 
                                 <div class="flex items-end gap-2">
@@ -355,7 +355,7 @@
                                                 type="number"
                                                 step="0.01"
                                                 min="0"
-                                                max="{{ $canjePuntosMaximo }}"
+                                                max="{{ $this->canjePuntosMaximoReal }}"
                                                 class="block w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 text-sm"
                                                 placeholder="0.00"
                                                 @keydown.enter="$wire.aplicarCanjePuntos()"

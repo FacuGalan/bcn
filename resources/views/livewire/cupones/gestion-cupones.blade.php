@@ -73,7 +73,7 @@
         <x-bcn-modal
             :title="__('Editar cupón')"
             color="bg-bcn-primary"
-            maxWidth="md"
+            :maxWidth="$editCuponFueUsado ? 'md' : '2xl'"
             onClose="cancelarEdicion"
             submit="guardarEdicion"
         >
@@ -92,6 +92,98 @@
                         <input type="text" wire:model="editDescripcion"
                             class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                     </div>
+
+                    {{-- Campos editables solo si el cupón NO fue usado --}}
+                    @if(!$editCuponFueUsado)
+                        {{-- Modo descuento y valor --}}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipo de descuento') }}</label>
+                                <select wire:model.live="editModoDescuento"
+                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    <option value="porcentaje">{{ __('Porcentaje') }} (%)</option>
+                                    <option value="monto_fijo">{{ __('Monto fijo') }} ($)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    {{ $editModoDescuento === 'porcentaje' ? __('Porcentaje') : __('Monto') }}
+                                </label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">
+                                        {{ $editModoDescuento === 'porcentaje' ? '%' : '$' }}
+                                    </span>
+                                    <input type="number" wire:model="editValorDescuento" step="0.01"
+                                        min="0.01" {{ $editModoDescuento === 'porcentaje' ? 'max=100' : '' }}
+                                        class="pl-7 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                </div>
+                                @error('editValorDescuento') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                            </div>
+                        </div>
+
+                        {{-- Aplica a --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Aplica a') }}</label>
+                            <select wire:model.live="editAplicaA"
+                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="total">{{ __('Total de la venta') }}</option>
+                                <option value="articulos">{{ __('Artículos específicos') }}</option>
+                            </select>
+                        </div>
+
+                        {{-- Artículos específicos --}}
+                        @if($editAplicaA === 'articulos')
+                        <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-4 space-y-3">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Artículos que bonifica') }}</label>
+                            <div class="relative">
+                                <input type="text" wire:model.live.debounce.300ms="editSearchArticulo"
+                                    placeholder="{{ __('Buscar artículo por nombre, código o cód. barras...') }}"
+                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    @keydown.enter.prevent="$wire.editAgregarPrimerArticulo()">
+                                @if(strlen($editSearchArticulo) >= 2)
+                                <div class="absolute z-50 mt-1 w-full bg-white dark:bg-gray-700 rounded-md shadow-lg border border-gray-200 dark:border-gray-600 max-h-48 overflow-y-auto">
+                                    @forelse($this->resultadosBusquedaEditArticulo as $articulo)
+                                    <button type="button" wire:click="editAgregarArticulo({{ $articulo->id }})"
+                                        class="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-600 border-b border-gray-100 dark:border-gray-600 last:border-0 text-sm">
+                                        <span class="font-medium text-gray-900 dark:text-white">{{ $articulo->nombre }}</span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">{{ $articulo->codigo }}</span>
+                                    </button>
+                                    @empty
+                                    <div class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{{ __('No se encontraron artículos') }}</div>
+                                    @endforelse
+                                </div>
+                                @endif
+                            </div>
+                            @if(count($editArticulosSeleccionados) > 0)
+                            <div class="space-y-2">
+                                @foreach($editArticulosSeleccionados as $artId => $art)
+                                <div class="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-600 rounded">
+                                    <div class="flex-1">
+                                        <span class="text-sm text-gray-900 dark:text-white">{{ $art['nombre'] }}</span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">{{ $art['codigo'] }}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <label class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ __('Cant.') }}</label>
+                                        <input type="number" wire:model="editArticulosSeleccionados.{{ $artId }}.cantidad" min="1"
+                                            placeholder="&#8734;"
+                                            class="w-16 text-center rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm dark:bg-gray-700 dark:border-gray-500 dark:text-white">
+                                    </div>
+                                    <button type="button" wire:click="editQuitarArticulo({{ $artId }})" class="text-red-400 hover:text-red-600 flex-shrink-0">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                                @endforeach
+                            </div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Cantidad vacía = aplica a todas las unidades') }}</p>
+                            @else
+                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Agrega al menos un artículo') }}</p>
+                            @endif
+                        </div>
+                        @endif
+                    @endif
+
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Fecha de vencimiento') }}</label>
                         <input type="date" wire:model="editFechaVencimiento"

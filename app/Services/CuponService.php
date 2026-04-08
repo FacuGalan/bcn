@@ -194,28 +194,46 @@ class CuponService
 
     /**
      * Calcula el descuento para artículos específicos respetando cantidad por artículo.
+     * Cuando hay múltiples items del mismo artículo con precios distintos (ej: opcionales),
+     * prioriza los más caros para maximizar el beneficio del cupón.
      */
     private function calcularDescuentoPorArticulos(Cupon $cupon, $articulosCupon, array $itemsCarrito): float
     {
-        $montoElegible = 0;
-
+        // Agrupar items por articulo_id
+        $itemsPorArticulo = [];
         foreach ($itemsCarrito as $item) {
             $articuloId = (int) ($item['articulo_id'] ?? 0);
-
             if (! $articulosCupon->has($articuloId)) {
                 continue;
             }
+            $itemsPorArticulo[$articuloId][] = $item;
+        }
 
+        $montoElegible = 0;
+
+        foreach ($itemsPorArticulo as $articuloId => $items) {
             $pivotCantidad = $articulosCupon->get($articuloId)->pivot->cantidad;
-            $cantidadEnCarrito = (int) ($item['cantidad'] ?? 1);
-            $precioUnitario = (float) ($item['precio'] ?? 0);
 
-            // Si pivot cantidad es null → aplica a todas las unidades
-            $cantidadElegible = $pivotCantidad !== null
-                ? min($cantidadEnCarrito, $pivotCantidad)
-                : $cantidadEnCarrito;
+            if ($pivotCantidad === null) {
+                // Sin límite: aplica a todas las unidades
+                foreach ($items as $item) {
+                    $montoElegible += (float) ($item['precio'] ?? 0) * (int) ($item['cantidad'] ?? 1);
+                }
+            } else {
+                // Con límite: ordenar por precio DESC para priorizar los más caros
+                usort($items, fn ($a, $b) => ((float) ($b['precio'] ?? 0)) <=> ((float) ($a['precio'] ?? 0)));
 
-            $montoElegible += $precioUnitario * $cantidadElegible;
+                $cantidadRestante = $pivotCantidad;
+                foreach ($items as $item) {
+                    if ($cantidadRestante <= 0) {
+                        break;
+                    }
+                    $cantidadEnCarrito = (int) ($item['cantidad'] ?? 1);
+                    $cantidadElegible = min($cantidadEnCarrito, $cantidadRestante);
+                    $montoElegible += (float) ($item['precio'] ?? 0) * $cantidadElegible;
+                    $cantidadRestante -= $cantidadElegible;
+                }
+            }
         }
 
         if ($cupon->esPorcentaje()) {
