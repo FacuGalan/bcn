@@ -527,14 +527,17 @@ new class extends Component
     {{-- Selectores y opciones en el footer del sidebar (lazy: solo montan al abrir menú) --}}
     <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-bcn-light dark:bg-gray-900 p-4">
         @if($mobileMenuOpen)
-            {{-- Selector de Sucursal para móvil --}}
-            <div class="mb-3">
-                <livewire:sucursal-selector />
-            </div>
+            {{-- Forzar awareness para que los selectores siempre muestren el nombre en el menú móvil --}}
+            <div x-init="$store.awareness.sucursal = true; $store.awareness.caja = true;">
+                {{-- Selector de Sucursal para móvil --}}
+                <div class="mb-3">
+                    <livewire:sucursal-selector />
+                </div>
 
-            {{-- Selector de Caja para móvil --}}
-            <div class="mb-3">
-                <livewire:caja-selector :key="'caja-selector-mobile-' . (session('sucursal_id') ?? 'default')" />
+                {{-- Selector de Caja para móvil --}}
+                <div class="mb-3">
+                    <livewire:caja-selector :key="'caja-selector-mobile-' . (session('sucursal_id') ?? 'default')" />
+                </div>
             </div>
         @endif
 
@@ -583,24 +586,6 @@ new class extends Component
                     </svg>
                     {{ __('Instalar App') }}
                 </button>
-            </div>
-
-            <!-- Language Selector (Mobile) -->
-            <div class="px-3 py-2 border-t border-gray-200 dark:border-gray-600 mt-1">
-                <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('Idioma') }}</p>
-                <div class="flex gap-1">
-                    @foreach(['es' => 'ES', 'en' => 'EN', 'pt' => 'PT'] as $code => $label)
-                        <button
-                            wire:click="changeLocale('{{ $code }}')"
-                            class="px-2 py-1 text-xs font-medium rounded transition-colors duration-150
-                                {{ app()->getLocale() === $code
-                                    ? 'bg-bcn-primary text-white'
-                                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600' }}"
-                        >
-                            {{ $label }}
-                        </button>
-                    @endforeach
-                </div>
             </div>
 
             <button
