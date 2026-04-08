@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.1.5](https://github.com/FacuGalan/bcn/compare/v0.1.4...v0.1.5) (2026-04-08)
+
+
+### Funcionalidades
+
+* **puntos-cupones:** sistema completo de puntos y cupones ([#29](https://github.com/FacuGalan/bcn/issues/29)) ([e745971](https://github.com/FacuGalan/bcn/commit/e745971f654daf6497765f9f655628c0c8914184))
+
+
+### Correcciones
+
+* **migrations:** compatibilidad MariaDB para columnas json ([#24](https://github.com/FacuGalan/bcn/issues/24)) ([1312ed0](https://github.com/FacuGalan/bcn/commit/1312ed02704c3e4616084874263fc5eca950e40a))
+* **ui:** filtrar cuentas y clientes por sucursal activa ([#28](https://github.com/FacuGalan/bcn/issues/28)) ([84c09e4](https://github.com/FacuGalan/bcn/commit/84c09e43413d6aa7179c06d59fb6a0cc68574440))
+
+
+### Rendimiento
+
+* **cache:** optimizar caches de config, rutas y store ([#26](https://github.com/FacuGalan/bcn/issues/26)) ([dd3f1c2](https://github.com/FacuGalan/bcn/commit/dd3f1c22474780ec3af2e7495b7be69ce60dec3e))
+* **tenant:** eliminar query por request en middleware ([#23](https://github.com/FacuGalan/bcn/issues/23)) ([7bdc795](https://github.com/FacuGalan/bcn/commit/7bdc795394e68a8d226d0b5393341420a35ec813))
+
+
+### Documentación
+
+* guía de configuración de servidores ([#27](https://github.com/FacuGalan/bcn/issues/27)) ([5f2ab6d](https://github.com/FacuGalan/bcn/commit/5f2ab6d0e08be0a5fa17c349d060bb3011d263fb))
+
 ## [0.1.4](https://github.com/FacuGalan/bcn/compare/v0.1.3...v0.1.4) (2026-03-30)
 
 
