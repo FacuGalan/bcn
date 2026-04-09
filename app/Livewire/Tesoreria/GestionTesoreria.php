@@ -14,10 +14,12 @@ use App\Models\ProvisionFondo;
 use App\Models\RendicionFondo;
 use App\Models\Tesoreria;
 use App\Models\TesoreriaSaldoMoneda;
+use App\Services\CuentaEmpresaService;
 use App\Services\SucursalService;
 use App\Services\TesoreriaService;
 use App\Traits\SucursalAware;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Lazy;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -93,8 +95,10 @@ class GestionTesoreria extends Component
 
     public ?int $monedaArqueoId = null;
 
-    // Modal de ingreso externo
+    // Modal de ingreso
     public bool $showIngresoExternoModal = false;
+
+    public ?int $cuentaIngresoId = null;
 
     public float $montoIngresoExterno = 0;
 
@@ -837,40 +841,85 @@ class GestionTesoreria extends Component
         }
     }
 
-    // ==================== INGRESO EXTERNO ====================
+    // ==================== INGRESO A TESORERÍA ====================
 
     public function abrirModalIngresoExterno(): void
     {
-        $this->reset(['montoIngresoExterno', 'conceptoIngresoExterno', 'observacionesIngresoExterno']);
+        $this->reset(['cuentaIngresoId', 'montoIngresoExterno', 'conceptoIngresoExterno', 'observacionesIngresoExterno']);
         $this->showIngresoExternoModal = true;
     }
 
     public function procesarIngresoExterno(): void
     {
-        $this->validate([
+        $rules = [
             'montoIngresoExterno' => 'required|numeric|min:0.01',
-            'conceptoIngresoExterno' => 'required|string|max:200',
-        ], [
+        ];
+        $messages = [
             'montoIngresoExterno.required' => __('Ingrese el monto'),
             'montoIngresoExterno.min' => __('El monto debe ser mayor a cero'),
-            'conceptoIngresoExterno.required' => __('Ingrese un concepto'),
-        ]);
+        ];
+
+        // Si no se selecciona cuenta, es ingreso externo y requiere concepto
+        if (! $this->cuentaIngresoId) {
+            $rules['conceptoIngresoExterno'] = 'required|string|max:200';
+            $messages['conceptoIngresoExterno.required'] = __('Ingrese un concepto');
+        }
+
+        $this->validate($rules, $messages);
 
         try {
-            TesoreriaService::registrarIngresoExterno(
-                $this->tesoreria,
-                $this->montoIngresoExterno,
-                auth()->id(),
-                $this->conceptoIngresoExterno,
-                $this->observacionesIngresoExterno ?: null
-            );
+            if ($this->cuentaIngresoId) {
+                // Transferencia desde cuenta → tesorería (inverso de depósito)
+                $cuenta = CuentaEmpresa::with('moneda')->findOrFail($this->cuentaIngresoId);
 
-            $this->showIngresoExternoModal = false;
-            $this->cargarDatos();
+                DB::connection('pymes_tenant')->transaction(function () use ($cuenta) {
+                    // 1. Egreso de la cuenta empresa
+                    CuentaEmpresaService::registrarMovimientoAutomatico(
+                        $cuenta,
+                        'egreso',
+                        $this->montoIngresoExterno,
+                        'retiro_a_tesoreria',
+                        'Tesoreria',
+                        $this->tesoreria->id,
+                        __('Transferencia a tesorería'),
+                        auth()->id()
+                    );
 
-            $this->dispatch('toast-success', message: __('Ingreso externo registrado por $:monto', [
-                'monto' => number_format($this->montoIngresoExterno, 2, ',', '.'),
-            ]));
+                    // 2. Ingreso en tesorería
+                    $this->tesoreria->ingreso(
+                        $this->montoIngresoExterno,
+                        __('Transferencia desde :cuenta', ['cuenta' => $cuenta->nombre_completo]),
+                        auth()->id(),
+                        'transferencia_cuenta',
+                        $cuenta->id,
+                        $this->observacionesIngresoExterno ?: null
+                    );
+                });
+
+                $this->showIngresoExternoModal = false;
+                $this->cargarDatos();
+
+                $this->dispatch('toast-success', message: __('Transferencia de $:monto desde :cuenta registrada', [
+                    'monto' => number_format($this->montoIngresoExterno, 2, ',', '.'),
+                    'cuenta' => $cuenta->nombre_completo,
+                ]));
+            } else {
+                // Ingreso externo (sin cuenta origen)
+                TesoreriaService::registrarIngresoExterno(
+                    $this->tesoreria,
+                    $this->montoIngresoExterno,
+                    auth()->id(),
+                    $this->conceptoIngresoExterno,
+                    $this->observacionesIngresoExterno ?: null
+                );
+
+                $this->showIngresoExternoModal = false;
+                $this->cargarDatos();
+
+                $this->dispatch('toast-success', message: __('Ingreso externo registrado por $:monto', [
+                    'monto' => number_format($this->montoIngresoExterno, 2, ',', '.'),
+                ]));
+            }
         } catch (\Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
         }
@@ -950,6 +999,7 @@ class GestionTesoreria extends Component
 
             $this->showArqueoDetalleModal = false;
             $this->arqueoDetalle = null;
+            $this->cargarDatos();
 
             $mensaje = $aplicarAjuste && $arqueo->diferencia != 0
                 ? __('Arqueo aprobado y ajuste aplicado')
