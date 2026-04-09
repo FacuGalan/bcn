@@ -457,20 +457,195 @@
                                 </div>
 
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <!-- Categoría -->
+                                    <!-- Categoría (combobox con búsqueda) -->
                                     <div>
-                                        <label for="categoria_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Categoría') }}</label>
-                                        <select
-                                            id="categoria_id"
-                                            wire:model.live="categoria_id"
-                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                        >
-                                            <option value="">{{ __('Sin categoría') }}</option>
-                                            @foreach($categorias as $categoria)
-                                                <option value="{{ $categoria->id }}">{{ $categoria->nombre }}</option>
-                                            @endforeach
-                                        </select>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Categoría') }}</label>
+                                        <div class="mt-1 flex">
+                                            <div
+                                                class="relative w-full"
+                                                x-data="{
+                                                    open: false,
+                                                    search: '',
+                                                    highlightIndex: -1,
+                                                    categorias: @js($categorias->map(fn($c) => ['id' => $c->id, 'nombre' => $c->nombre, 'color' => $c->color])->values()),
+                                                    get filtered() {
+                                                        if (!this.search) return this.categorias;
+                                                        const terms = this.search.toLowerCase().split(/\s+/);
+                                                        return this.categorias.filter(c => {
+                                                            const nombre = c.nombre.toLowerCase();
+                                                            return terms.every(t => nombre.includes(t));
+                                                        });
+                                                    },
+                                                    select(cat) {
+                                                        $wire.set('categoria_id', cat.id);
+                                                        this.search = cat.nombre;
+                                                        this.open = false;
+                                                        this.highlightIndex = -1;
+                                                    },
+                                                    clear() {
+                                                        $wire.set('categoria_id', null);
+                                                        this.search = '';
+                                                        this.open = false;
+                                                        this.highlightIndex = -1;
+                                                    },
+                                                    scrollToHighlighted() {
+                                                        this.$nextTick(() => {
+                                                            const dd = this.$refs.catDropdown;
+                                                            if (!dd) return;
+                                                            const items = dd.querySelectorAll('button');
+                                                            if (items[this.highlightIndex]) items[this.highlightIndex].scrollIntoView({ block: 'nearest' });
+                                                        });
+                                                    },
+                                                    handleKey(e) {
+                                                        if (!this.open) { this.open = true; return; }
+                                                        if (e.key === 'ArrowDown') {
+                                                            e.preventDefault();
+                                                            this.highlightIndex = Math.min(this.highlightIndex + 1, this.filtered.length - 1);
+                                                            this.scrollToHighlighted();
+                                                        } else if (e.key === 'ArrowUp') {
+                                                            e.preventDefault();
+                                                            this.highlightIndex = Math.max(this.highlightIndex - 1, 0);
+                                                            this.scrollToHighlighted();
+                                                        } else if (e.key === 'Enter') {
+                                                            e.preventDefault();
+                                                            const idx = this.highlightIndex >= 0 ? this.highlightIndex : 0;
+                                                            if (this.filtered[idx]) {
+                                                                this.select(this.filtered[idx]);
+                                                            }
+                                                        } else if (e.key === 'Escape') {
+                                                            this.open = false;
+                                                        }
+                                                    }
+                                                }"
+                                                x-init="
+                                                    const selId = $wire.get('categoria_id');
+                                                    if (selId) {
+                                                        const found = categorias.find(c => c.id == selId);
+                                                        if (found) search = found.nombre;
+                                                    }
+                                                    $watch('$wire.categoria_id', (val) => {
+                                                        if (val) {
+                                                            const found = categorias.find(c => c.id == val);
+                                                            if (found) search = found.nombre;
+                                                        } else {
+                                                            search = '';
+                                                        }
+                                                    });
+                                                "
+                                                @categoria-creada.window="
+                                                    categorias.push({ id: $event.detail.id, nombre: $event.detail.nombre, color: $event.detail.color });
+                                                    categorias.sort((a, b) => a.nombre.localeCompare(b.nombre));
+                                                    search = $event.detail.nombre;
+                                                "
+                                                @click.away="open = false; if (!$wire.get('categoria_id')) search = ''; else { const f = categorias.find(c => c.id == $wire.get('categoria_id')); if (f) search = f.nombre; }"
+                                            >
+                                                <div class="relative">
+                                                    <input
+                                                        type="text"
+                                                        x-model="search"
+                                                        @focus="open = true; highlightIndex = -1; if ($wire.get('categoria_id')) search = '';"
+                                                        @keydown="handleKey($event)"
+                                                        placeholder="{{ __('Buscar categoría...') }}"
+                                                        autocomplete="off"
+                                                        class="block w-full rounded-l-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 pr-8"
+                                                    />
+                                                    {{-- Botón limpiar --}}
+                                                    <button
+                                                        type="button"
+                                                        x-show="$wire.get('categoria_id')"
+                                                        @click="clear()"
+                                                        class="absolute inset-y-0 right-0 flex items-center pr-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                                    >
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                                    </button>
+                                                </div>
+                                                {{-- Dropdown de resultados --}}
+                                                <div
+                                                    x-show="open && filtered.length > 0"
+                                                    x-transition:enter="transition ease-out duration-100"
+                                                    x-transition:enter-start="opacity-0 scale-95"
+                                                    x-transition:enter-end="opacity-100 scale-100"
+                                                    x-transition:leave="transition ease-in duration-75"
+                                                    x-transition:leave-start="opacity-100 scale-100"
+                                                    x-transition:leave-end="opacity-0 scale-95"
+                                                    x-ref="catDropdown"
+                                                    class="absolute z-50 mt-1 w-full max-h-48 overflow-auto bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg"
+                                                    style="display: none;"
+                                                >
+                                                    <template x-for="(cat, index) in filtered" :key="cat.id">
+                                                        <button
+                                                            type="button"
+                                                            @click="select(cat)"
+                                                            @mouseenter="highlightIndex = index"
+                                                            :class="highlightIndex === index ? 'bg-bcn-primary/10 dark:bg-bcn-primary/20' : 'hover:bg-gray-100 dark:hover:bg-gray-700'"
+                                                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 dark:text-gray-300"
+                                                        >
+                                                            <span
+                                                                class="w-3 h-3 rounded-full flex-shrink-0"
+                                                                :style="'background-color: ' + (cat.color || '#9CA3AF')"
+                                                            ></span>
+                                                            <span x-text="cat.nombre"></span>
+                                                        </button>
+                                                    </template>
+                                                </div>
+                                                {{-- Sin resultados --}}
+                                                <div
+                                                    x-show="open && search && filtered.length === 0"
+                                                    class="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg px-3 py-2 text-sm text-gray-500 dark:text-gray-400"
+                                                    style="display: none;"
+                                                >
+                                                    {{ __('Sin resultados') }}
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                wire:click="$toggle('showAltaRapidaCategoria')"
+                                                class="flex-shrink-0 inline-flex items-center justify-center px-2 self-stretch bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                title="{{ __('Alta rápida de categoría') }}"
+                                            >
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                            </button>
+                                        </div>
                                         @error('categoria_id') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+
+                                        {{-- Mini-formulario alta rápida de categoría --}}
+                                        @if($showAltaRapidaCategoria)
+                                            <div class="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md space-y-2" x-init="$nextTick(() => $refs.nuevaCategoriaNombre.focus())">
+                                                <p class="text-xs font-medium text-blue-700 dark:text-blue-300">{{ __('Nueva categoría') }}</p>
+                                                <input
+                                                    type="text"
+                                                    x-ref="nuevaCategoriaNombre"
+                                                    wire:model="nuevaCategoriaNombre"
+                                                    wire:keydown.enter.prevent="crearCategoriaRapida"
+                                                    placeholder="{{ __('Nombre') }}"
+                                                    class="block w-full text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                                />
+                                                @error('nuevaCategoriaNombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                                <input
+                                                    type="text"
+                                                    wire:model="nuevaCategoriaPrefijo"
+                                                    wire:keydown.enter.prevent="crearCategoriaRapida"
+                                                    placeholder="{{ __('Prefijo (opcional, ej: BEB)') }}"
+                                                    class="block w-full text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                                />
+                                                <div class="flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        wire:click="crearCategoriaRapida"
+                                                        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    >
+                                                        {{ __('Crear') }}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        wire:click="$set('showAltaRapidaCategoria', false)"
+                                                        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400"
+                                                    >
+                                                        {{ __('Cancelar') }}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        @endif
                                     </div>
 
                                     <!-- Código -->
