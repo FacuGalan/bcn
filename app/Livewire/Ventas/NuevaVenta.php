@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Ventas;
 
+use App\Models\Cuit;
 use App\Models\Articulo;
 use App\Models\Caja;
 use App\Models\Categoria;
@@ -27,6 +28,7 @@ use App\Models\Sucursal;
 use App\Models\TipoCambio;
 use App\Models\VentaPago;
 use App\Services\ARCA\ComprobanteFiscalService;
+use App\Services\ARCA\PadronARCAService;
 use App\Services\CajaService;
 use App\Services\CatalogoCache;
 use App\Services\CuentaEmpresaService;
@@ -138,11 +140,37 @@ class NuevaVenta extends Component
     /** @var bool Modal de confirmación para limpiar carrito */
     public bool $mostrarConfirmLimpiar = false;
 
-    /** @var string Nombre para alta rápida de cliente */
-    public $clienteRapidoNombre = '';
+    // Campos del modal de alta de cliente
+    public string $clienteRapidoNombre = '';
 
-    /** @var string Teléfono para alta rápida de cliente */
-    public $clienteRapidoTelefono = '';
+    public string $clienteRapidoRazonSocial = '';
+
+    public string $clienteRapidoCuit = '';
+
+    public string $clienteRapidoEmail = '';
+
+    public string $clienteRapidoTelefono = '';
+
+    public string $clienteRapidoDireccion = '';
+
+    public ?int $clienteRapidoCondicionIvaId = null;
+
+    // CUIT / ARCA
+    public string $clienteRapidoModoAlta = 'manual';
+
+    public bool $clienteRapidoArcaDisponible = false;
+
+    public bool $clienteRapidoConsultandoCuit = false;
+
+    public string $clienteRapidoErrorCuit = '';
+
+    public string $clienteRapidoExitoCuit = '';
+
+    public bool $clienteRapidoDatosDesdeArca = false;
+
+    public string $clienteRapidoValidacionCuitMsg = '';
+
+    public string $clienteRapidoValidacionCuitTipo = '';
 
     // =========================================
     // PROPIEDADES DE CONTEXTO DE VENTA
@@ -528,7 +556,9 @@ class NuevaVenta extends Component
 
     public function render()
     {
-        return view('livewire.ventas.nueva-venta');
+        return view('livewire.ventas.nueva-venta', [
+            'condicionesIvaCliente' => $this->mostrarModalClienteRapido ? CatalogoCache::condicionesIva() : collect(),
+        ]);
     }
 
     // =========================================
@@ -1902,49 +1932,230 @@ class NuevaVenta extends Component
     }
 
     /**
-     * Abre el modal de alta rápida de cliente
+     * Abre el modal de alta de cliente
      */
     public function abrirModalClienteRapido()
     {
-        $this->clienteRapidoNombre = '';
-        $this->clienteRapidoTelefono = '';
+        $this->resetClienteRapido();
+        $consumidorFinal = CondicionIva::where('codigo', CondicionIva::CONSUMIDOR_FINAL)->first();
+        $this->clienteRapidoCondicionIvaId = $consumidorFinal?->id;
+        $this->clienteRapidoArcaDisponible = PadronARCAService::estaDisponible();
         $this->mostrarModalClienteRapido = true;
     }
 
     /**
-     * Cierra el modal de alta rápida de cliente
+     * Cierra el modal de alta de cliente
      */
     public function cerrarModalClienteRapido()
     {
         $this->mostrarModalClienteRapido = false;
-        $this->clienteRapidoNombre = '';
-        $this->clienteRapidoTelefono = '';
+        $this->resetClienteRapido();
     }
 
     /**
-     * Guarda un cliente desde el alta rápida y lo selecciona
+     * Resetea campos del modal de cliente
+     */
+    protected function resetClienteRapido(): void
+    {
+        $this->clienteRapidoNombre = '';
+        $this->clienteRapidoRazonSocial = '';
+        $this->clienteRapidoCuit = '';
+        $this->clienteRapidoEmail = '';
+        $this->clienteRapidoTelefono = '';
+        $this->clienteRapidoDireccion = '';
+        $this->clienteRapidoCondicionIvaId = null;
+        $this->clienteRapidoModoAlta = 'manual';
+        $this->clienteRapidoConsultandoCuit = false;
+        $this->clienteRapidoErrorCuit = '';
+        $this->clienteRapidoExitoCuit = '';
+        $this->clienteRapidoDatosDesdeArca = false;
+        $this->clienteRapidoValidacionCuitMsg = '';
+        $this->clienteRapidoValidacionCuitTipo = '';
+    }
+
+    /**
+     * Validación en tiempo real del CUIT (modo manual)
+     */
+    public function updatedClienteRapidoCuit(): void
+    {
+        if ($this->clienteRapidoModoAlta !== 'manual') {
+            return;
+        }
+
+        $this->clienteRapidoDatosDesdeArca = false;
+        $this->clienteRapidoValidacionCuitMsg = '';
+        $this->clienteRapidoValidacionCuitTipo = '';
+
+        if (empty($this->clienteRapidoCuit)) {
+            return;
+        }
+
+        $cuitLimpio = preg_replace('/\D/', '', $this->clienteRapidoCuit);
+
+        if (strlen($cuitLimpio) < 11) {
+            return;
+        }
+
+        if (strlen($cuitLimpio) > 11) {
+            $this->clienteRapidoValidacionCuitMsg = __('El CUIT debe tener 11 dígitos');
+            $this->clienteRapidoValidacionCuitTipo = 'error';
+
+            return;
+        }
+
+        if (! Cuit::validarCuit($cuitLimpio)) {
+            $this->clienteRapidoValidacionCuitMsg = __('CUIT inválido (dígito verificador incorrecto)');
+            $this->clienteRapidoValidacionCuitTipo = 'error';
+
+            return;
+        }
+
+        $existente = Cliente::withTrashed()->where(function ($q) use ($cuitLimpio) {
+            $q->where('cuit', $this->clienteRapidoCuit)->orWhere('cuit', $cuitLimpio);
+        })->first();
+
+        if ($existente) {
+            $this->clienteRapidoValidacionCuitMsg = $existente->trashed()
+                ? __('Existe un cliente eliminado con este CUIT: :nombre', ['nombre' => $existente->nombre])
+                : __('Ya existe un cliente con este CUIT: :nombre', ['nombre' => $existente->nombre]);
+            $this->clienteRapidoValidacionCuitTipo = 'error';
+
+            return;
+        }
+
+        if ($this->clienteRapidoArcaDisponible) {
+            try {
+                $cuitComercio = PadronARCAService::obtenerCuitDisponible();
+                if ($cuitComercio) {
+                    $servicio = new PadronARCAService($cuitComercio);
+                    $datos = $servicio->consultarCuit($cuitLimpio);
+                    if ($datos['condicion_iva_id']) {
+                        $this->clienteRapidoCondicionIvaId = $datos['condicion_iva_id'];
+                        $this->clienteRapidoDatosDesdeArca = true;
+                        $condicion = CondicionIva::find($datos['condicion_iva_id']);
+                        $this->clienteRapidoValidacionCuitMsg = __('CUIT válido — :condicion (según ARCA)', ['condicion' => $condicion->nombre ?? '']);
+                        $this->clienteRapidoValidacionCuitTipo = 'success';
+                    }
+
+                    return;
+                }
+            } catch (\Exception $e) {
+                Log::info('Validación ARCA en modo manual falló', ['error' => $e->getMessage()]);
+            }
+        }
+
+        $this->clienteRapidoValidacionCuitMsg = __('CUIT válido');
+        $this->clienteRapidoValidacionCuitTipo = 'success';
+    }
+
+    /**
+     * Consulta CUIT en ARCA (modo CUIT)
+     */
+    public function consultarCuitClienteRapido(): void
+    {
+        $this->clienteRapidoErrorCuit = '';
+        $this->clienteRapidoExitoCuit = '';
+
+        if (empty($this->clienteRapidoCuit)) {
+            $this->clienteRapidoErrorCuit = __('Ingrese un CUIT para consultar');
+
+            return;
+        }
+
+        $cuitLimpio = preg_replace('/\D/', '', $this->clienteRapidoCuit);
+
+        if (! Cuit::validarCuit($cuitLimpio)) {
+            $this->clienteRapidoErrorCuit = __('El CUIT ingresado no es válido. Verifique el número.');
+
+            return;
+        }
+
+        $existente = Cliente::withTrashed()->where(function ($q) use ($cuitLimpio) {
+            $q->where('cuit', $this->clienteRapidoCuit)->orWhere('cuit', $cuitLimpio);
+        })->first();
+
+        if ($existente) {
+            $this->clienteRapidoErrorCuit = $existente->trashed()
+                ? __('Existe un cliente eliminado con este CUIT: :nombre', ['nombre' => $existente->nombre])
+                : __('Ya existe un cliente con el CUIT :cuit: :nombre', ['cuit' => $this->clienteRapidoCuit, 'nombre' => $existente->nombre]);
+
+            return;
+        }
+
+        $this->clienteRapidoConsultandoCuit = true;
+
+        try {
+            $cuitComercio = PadronARCAService::obtenerCuitDisponible();
+            if (! $cuitComercio) {
+                $this->clienteRapidoErrorCuit = __('No hay certificados ARCA configurados para realizar la consulta');
+                $this->clienteRapidoConsultandoCuit = false;
+
+                return;
+            }
+
+            $servicio = new PadronARCAService($cuitComercio);
+            $datos = $servicio->consultarCuit($cuitLimpio);
+
+            $this->clienteRapidoRazonSocial = $datos['denominacion'] ?? '';
+            $this->clienteRapidoNombre = $datos['denominacion'] ?? '';
+            $this->clienteRapidoDireccion = $datos['direccion'] ?? '';
+            $this->clienteRapidoCuit = $cuitLimpio;
+
+            if ($datos['condicion_iva_id']) {
+                $this->clienteRapidoCondicionIvaId = $datos['condicion_iva_id'];
+            }
+
+            $this->clienteRapidoDatosDesdeArca = true;
+
+            $estadoTexto = $datos['estado_activo'] ? __('Activo') : __('Inactivo');
+            $this->clienteRapidoExitoCuit = __('Datos obtenidos correctamente. Estado: :estado', ['estado' => $estadoTexto]);
+
+        } catch (\Exception $e) {
+            $this->clienteRapidoErrorCuit = $e->getMessage();
+            Log::error('Error al consultar padrón ARCA', ['cuit' => $cuitLimpio, 'error' => $e->getMessage()]);
+        }
+
+        $this->clienteRapidoConsultandoCuit = false;
+    }
+
+    /**
+     * Guarda un cliente y lo selecciona
      */
     public function guardarClienteRapido()
     {
         $this->validate([
             'clienteRapidoNombre' => 'required|min:2|max:255',
+            'clienteRapidoEmail' => 'nullable|email|max:191',
             'clienteRapidoTelefono' => 'nullable|max:50',
+            'clienteRapidoCuit' => 'nullable|string|max:20',
         ], [
-            'clienteRapidoNombre.required' => 'El nombre es obligatorio',
-            'clienteRapidoNombre.min' => 'El nombre debe tener al menos 2 caracteres',
+            'clienteRapidoNombre.required' => __('El nombre es obligatorio'),
+            'clienteRapidoNombre.min' => __('El nombre debe tener al menos 2 caracteres'),
+            'clienteRapidoEmail.email' => __('Ingrese un email válido'),
         ]);
 
         try {
-            // Obtener el ID de Consumidor Final desde la tabla de condiciones
-            $consumidorFinal = CondicionIva::where('codigo', CondicionIva::CONSUMIDOR_FINAL)->first();
-
-            // Crear el cliente con los campos que existen en la tabla
             $cliente = Cliente::create([
                 'nombre' => $this->clienteRapidoNombre,
+                'razon_social' => $this->clienteRapidoRazonSocial ?: null,
+                'cuit' => $this->clienteRapidoCuit ?: null,
+                'email' => $this->clienteRapidoEmail ?: null,
                 'telefono' => $this->clienteRapidoTelefono ?: null,
-                'condicion_iva_id' => $consumidorFinal?->id,
+                'direccion' => $this->clienteRapidoDireccion ?: null,
+                'condicion_iva_id' => $this->clienteRapidoCondicionIvaId,
                 'activo' => true,
             ]);
+
+            // Asignar sucursal activa con lista base
+            $sucursalActiva = sucursal_activa();
+            if ($sucursalActiva) {
+                $listaPrecioId = ListaPrecio::where('sucursal_id', $sucursalActiva)
+                    ->where('es_lista_base', true)
+                    ->value('id');
+                $cliente->sucursales()->syncWithoutDetaching([
+                    $sucursalActiva => ['activo' => true, 'lista_precio_id' => $listaPrecioId],
+                ]);
+            }
 
             // Seleccionar el cliente recién creado
             $this->clienteSeleccionado = $cliente->id;
@@ -1952,18 +2163,17 @@ class NuevaVenta extends Component
             $this->busquedaCliente = '';
             $this->clientesResultados = [];
 
-            // Cerrar modal
             $this->cerrarModalClienteRapido();
 
             $this->dispatch('notify',
-                message: 'Cliente "'.$cliente->nombre.'" creado correctamente',
+                message: __('Cliente ":nombre" creado correctamente', ['nombre' => $cliente->nombre]),
                 type: 'success'
             );
 
         } catch (Exception $e) {
-            Log::error('Error al crear cliente rápido: '.$e->getMessage());
+            Log::error('Error al crear cliente: '.$e->getMessage());
             $this->dispatch('notify',
-                message: 'Error al crear el cliente',
+                message: __('Error al crear el cliente'),
                 type: 'error'
             );
         }
@@ -7069,8 +7279,7 @@ class NuevaVenta extends Component
         $this->conceptoImporte = 0;
 
         // Resetear cliente rápido
-        $this->clienteRapidoNombre = '';
-        $this->clienteRapidoTelefono = '';
+        $this->resetClienteRapido();
 
         // Volver a valores por defecto de selectores (primera forma de pago según orden)
         $this->formaPagoId = $this->formasPago[0]['id'] ?? 1;

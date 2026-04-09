@@ -865,16 +865,6 @@
                             </div>
                         </div>
 
-                        <!-- Estado activo -->
-                        <div class="flex items-center">
-                            <input
-                                type="checkbox"
-                                id="activo"
-                                wire:model="activo"
-                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
-                            />
-                            <label for="activo" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">{{ __('Cliente activo') }}</label>
-                        </div>
                     </div>
                 </x-slot:body>
 
