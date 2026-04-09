@@ -122,6 +122,13 @@ class GestionarArticulos extends Component
 
     public ?int $categoria_id = null;
 
+    // Alta rápida de categoría
+    public bool $showAltaRapidaCategoria = false;
+
+    public string $nuevaCategoriaNombre = '';
+
+    public string $nuevaCategoriaPrefijo = '';
+
     public string $unidad_medida = 'unidad';
 
     public bool $es_materia_prima = false;
@@ -228,6 +235,50 @@ class GestionarArticulos extends Component
             ->max() ?? 0;
 
         return $prefijo.str_pad($ultimoNumero + 1, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Alta rápida de categoría desde el modal de artículos
+     */
+    public function crearCategoriaRapida(): void
+    {
+        $this->validate([
+            'nuevaCategoriaNombre' => 'required|string|max:100',
+            'nuevaCategoriaPrefijo' => 'nullable|string|max:10',
+        ]);
+
+        $categoria = Categoria::create([
+            'nombre' => $this->nuevaCategoriaNombre,
+            'prefijo' => $this->nuevaCategoriaPrefijo ?: null,
+            'color' => '#3B82F6',
+            'activo' => true,
+        ]);
+
+        // Limpiar caché de catálogos para que aparezca en el select
+        CatalogoCache::clear();
+
+        // Seleccionar la nueva categoría y cerrar el mini-formulario
+        $this->categoria_id = $categoria->id;
+        $this->showAltaRapidaCategoria = false;
+        $this->nuevaCategoriaNombre = '';
+        $this->nuevaCategoriaPrefijo = '';
+
+        // Disparar auto-código si tiene prefijo
+        if ($categoria->prefijo) {
+            $this->updatedCategoriaId($categoria->id);
+        }
+
+        // Notificar a Alpine para que agregue la categoría al listado local
+        $this->dispatch('categoria-creada',
+            id: $categoria->id,
+            nombre: $categoria->nombre,
+            color: $categoria->color,
+        );
+
+        $this->dispatch('notify',
+            message: __('Categoría ":nombre" creada', ['nombre' => $categoria->nombre]),
+            type: 'success'
+        );
     }
 
     /**
@@ -566,6 +617,7 @@ class GestionarArticulos extends Component
             'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
             'sucursales_seleccionadas', 'etiquetas_seleccionadas', 'busquedaEtiqueta',
             'modo_stock', 'precio_sucursal', 'vendible',
+            'showAltaRapidaCategoria', 'nuevaCategoriaNombre', 'nuevaCategoriaPrefijo',
         ]);
     }
 
