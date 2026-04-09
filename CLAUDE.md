@@ -54,6 +54,18 @@
 - `manual-usuario.md`: funcionalidades por módulo/vista, acciones, filtros, modales, flujos
 - `ai-knowledge-base.md`: modelo de datos, lógica de negocio, patrones de consulta, reglas
 
+### Awareness de selectores (Alpine store global)
+- El navbar usa un Alpine store `awareness = { sucursal: false, caja: false }` para mostrar/ocultar labels en selectores desktop
+- Los traits `SucursalAware` y `CajaAware` setean `awareness.sucursal/caja = true` al montar
+- En `livewire:navigating` se resetea a `false` para que cada página controle qué muestra
+- **PROHIBIDO**: Forzar el store global desde el menú móvil o cualquier otro lugar. Usar la prop `show-labels` del componente selector en su lugar
+- Los selectores móviles usan `<livewire:sucursal-selector :show-labels="true" />` para siempre mostrar labels sin afectar desktop
+
+### No romper funcionalidad existente
+- **Todo cambio en móvil debe verificarse en desktop y viceversa**
+- Antes de modificar componentes compartidos (navigation, selectores, modales), entender cómo se usan en AMBOS contextos
+- Si un componente tiene comportamiento condicional (x-show, awareness, responsive), NO forzar valores globales — usar props o clases CSS scoped
+
 ### Gotchas
 - **Transacciones**: SIEMPRE `DB::connection('pymes_tenant')->transaction()`, NUNCA `DB::transaction()` (usa conexión default que no protege escrituras tenant)
 - `comercios.cuit` es NOT NULL UNIQUE → placeholder `'PROV-' . time()`
@@ -64,24 +76,36 @@
 
 ---
 
-## Skills (Slash Commands)
+## Skills — USO OBLIGATORIO
 
-| Trigger | Skill | Descripción |
-|---------|-------|-------------|
-| Nuevo feature complejo | `/sdd-init` | Iniciar workflow Spec-Driven Development |
-| Explorar código | `/sdd-explore` | Explorar codebase antes de especificar |
-| Crear especificación | `/sdd-spec` | Escribir spec en `.claude/specs/` |
-| Implementar desde spec | `/sdd-apply` | Implementar fase por fase |
-| Verificar implementación | `/sdd-verify` | Validar contra criterios del spec |
-| Crear migración | `/migration` | Migración tenant-aware con templates |
-| Módulo completo | `/nuevo-modulo` | Menu + permisos + modelo + service + componente + ruta |
-| Componente Livewire | `/nuevo-componente` | Componente con estándares del proyecto |
-| Vista Blade | `/vista` | Vista responsive con design system (dark mode, cards+tabla) |
-| Service PHP | `/service` | Service con transacciones, logging, excepciones |
-| Modelo Eloquent | `/modelo` | Modelo con conexión tenant, scopes, casts, relaciones |
-| Agregar traducciones | `/traducir` | Agregar a 3 archivos manteniendo orden |
-| Generar tests | `/test` | Tests para Service, Model o Livewire (PHPUnit + tenant) |
-| Suite de tests | `/test-suite` | Suite completa de tests para un módulo entero |
+**REGLA ABSOLUTA: NUNCA escribir archivos a mano si existe un skill para ese tipo de archivo.** ANTES de crear/modificar cualquier artefacto, verificar esta tabla. Invocar el skill correspondiente SIN EXCEPCIÓN:
+
+| ANTES de... | INVOCAR | Qué garantiza |
+|-------------|---------|---------------|
+| Crear/modificar migración | `/migration` | Iteración por comercios, prefijo, try/catch, regenera tenant_tables.sql |
+| Crear modelo Eloquent | `/modelo` | Conexión correcta, casts, scopes, relaciones, fillable |
+| Crear componente Livewire | `/nuevo-componente` | Traits correctos, lazy loading, skeleton, eventos |
+| Crear vista Blade | `/vista` | Design system exacto, responsive, dark mode, `<x-bcn-modal>` |
+| Crear service PHP | `/service` | Transacciones tenant, logging, excepciones |
+| Crear módulo completo | `/nuevo-modulo` | Menu + permisos + modelo + service + componente + ruta + traducciones |
+| Combobox con búsqueda + alta rápida | `/combobox-alta-rapida` | Input+botón unidos, búsqueda inteligente, teclado, alta inline |
+| Agregar traducciones | `/traducir` | 3 archivos (es/en/pt), orden alfabético |
+| Generar tests | `/test` | PHPUnit + multi-tenant + traits |
+| Suite de tests completa | `/test-suite` | Unit + feature + integration para módulo entero |
+| Feature grande (módulo nuevo, +3 archivos) | `/sdd-init` | Workflow Spec-Driven Development completo |
+| Explorar código antes de spec | `/sdd-explore` | Identifica código relacionado, tablas, services |
+| Escribir especificación | `/sdd-spec` | Spec en `.claude/specs/` con template |
+| Implementar desde spec | `/sdd-apply` | Implementación fase por fase |
+| Verificar implementación | `/sdd-verify` | Tests reales + Spec Compliance Matrix |
+
+### Reglas de UI/Vistas (OBLIGATORIO)
+
+- **Modales**: SIEMPRE usar `<x-bcn-modal>`. PROHIBIDO `<x-modal>` (deprecado). Color de header = color del botón que abre el modal
+- **Vistas**: Estructura obligatoria → header + filtros + cards móvil (`sm:hidden`) + tabla desktop (`hidden sm:block`)
+- **Dark mode**: TODA clase de color DEBE tener su variante `dark:`
+- **CSS exacto**: Copiar clases del `.claude/docs/design-system.md`, NUNCA improvisar clases similares
+- **Botones responsive**: Móvil solo icono, desktop icono + texto
+- Ref: `.claude/docs/design-system.md`
 
 ## Workflow SDD (Spec-Driven Development)
 
@@ -91,7 +115,7 @@
 |-------------------|-----------|---------|
 | **Chico**: fix, ajuste, cambio puntual | Implementar directo | "Arreglá el bug en el login", "Cambiá el color del botón" |
 | **Mediano**: feature nuevo acotado, 2-3 archivos | Explorar → planificar → implementar (usar plan mode) | "Agregá un filtro por fecha en ventas" |
-| **Grande**: módulo nuevo, cambio estructural, +3 archivos | Flujo SDD completo con spec escrito | "Quiero un módulo de compras", "Implementar facturación electrónica" |
+| **Grande**: módulo nuevo, cambio estructural, +3 archivos | OBLIGATORIO flujo SDD completo con spec escrito | "Quiero un módulo de compras", "Implementar facturación electrónica" |
 
 Para features grandes, seguir este flujo:
 ```
@@ -104,6 +128,17 @@ Para features grandes, seguir este flujo:
 
 ---
 
+### Verificación post-implementación (OBLIGATORIO)
+
+Después de CADA implementación, verificar:
+
+1. **Lint**: `php vendor/bin/pint --test` (archivos modificados)
+2. **Tests**: `php artisan test --filter=NombreRelacionado` si existen tests del área
+3. **Tenant**: Si se tocó migraciones → regenerar `database/sql/tenant_tables.sql`
+4. **Traducciones**: Si se agregaron strings → verificar en los 3 archivos (es/en/pt)
+5. **Regresión UI**: Si se tocó componentes compartidos → verificar que no se rompió desktop NI móvil
+6. **Documentación**: Si se agregó/modificó funcionalidad → actualizar `docs/manual-usuario.md` y `docs/ai-knowledge-base.md`
+
 ### Testing
 - BDs dedicadas: `config_test`, `pymes_test` (MySQL, no SQLite)
 - Traits: `WithTenant`, `WithSucursal`, `WithCaja` para contexto multi-tenant en tests
@@ -115,60 +150,12 @@ Para features grandes, seguir este flujo:
 
 ## Git & CI/CD
 
-### Conventional Commits (OBLIGATORIO)
-Todos los commits DEBEN seguir el formato [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-<tipo>[scope opcional]: <descripción>
-
-[cuerpo opcional]
-
-[footer opcional]
-```
-
-| Tipo | Cuándo usar | Bump |
-|------|-------------|------|
-| `feat:` | Nueva funcionalidad | minor |
-| `fix:` | Corrección de bug | patch |
-| `refactor:` | Refactoring sin cambio funcional | — |
-| `perf:` | Mejora de rendimiento | patch |
-| `test:` | Agregar o modificar tests | — |
-| `docs:` | Documentación | — |
-| `ci:` | Cambios en CI/CD workflows | — |
-| `chore:` | Mantenimiento, dependencias | — |
-| `feat!:` o `BREAKING CHANGE:` | Cambio incompatible | major |
-
-Ejemplos:
-- `feat(ventas): agregar filtro por fecha en listado`
-- `fix(stock): corregir cálculo de stock al anular venta`
-- `refactor(auth): extraer lógica de permisos a PermissionService`
-
-### Workflow de branches
-- **Al iniciar sesión**: verificar en qué rama estamos. Si no estamos trabajando sobre una rama específica en curso, hacer `git checkout master && git pull` antes de crear la nueva rama. Esto evita trabajar sobre código desactualizado.
-- **Nunca push directo a master** — todo vía Pull Request
-- Cada PR ejecuta automáticamente: Lint (Pint) + Tests (PHPUnit)
-- Si algo falla, el PR queda bloqueado
-- `master` siempre lista para producción
-
-### GitHub Actions (`.github/workflows/`)
-- `ci.yml` — Lint con Pint + Tests con PHPUnit en cada PR
-- `release-please.yml` — Versionado automático con Release Please
-
-### Release Please
-- Tras merge en master → crea/actualiza un único Release PR con los cambios acumulados
-- Al mergear Release PR → crea tag `vX.Y.Z` + GitHub Release + CHANGELOG
-- **No mergear el Release PR después de cada PR** — dejar acumular cambios
-- Mergear el Release PR cuando hay un conjunto coherente (feature completo, grupo de fixes)
-- Config: `release-please-config.json` (tipo PHP)
-- Manifest: `.release-please-manifest.json` (versión actual)
-- Usa `RELEASE_PLEASE_TOKEN` (PAT) para que los PRs de release disparen CI
-- CI skipea automáticamente los PRs de release (no tocan código PHP)
-
-### Semver
-- `patch` (0.1.**X**) — fixes y ajustes menores
-- `minor` (0.**X**.0) — funcionalidad nueva
-- `major` (**X**.0.0) — cambios incompatibles (reservar para producción)
-- Proyecto en `0.x.x` hasta estar listo para producción → entonces `1.0.0`
+- **Conventional Commits OBLIGATORIO**: `feat:`, `fix:`, `refactor:`, `perf:`, `test:`, `docs:`, `ci:`, `chore:` — ver detalle en ref
+- **Nunca push directo a master** — todo vía branch + Pull Request
+- **Al iniciar sesión**: verificar rama actual. Si no hay trabajo en curso, `git checkout master && git pull` antes de crear rama nueva
+- CI automático en cada PR: Lint (Pint) + Tests (PHPUnit). Si falla, PR bloqueado
+- Release Please: no mergear Release PR tras cada PR, acumular cambios coherentes
+- Ref completa: `.claude/docs/git-workflow.md`
 
 ---
 
@@ -188,4 +175,5 @@ Ejemplos:
 - Services/Models: `.claude/docs/servicios-referencia.md`
 - Testing: `.claude/docs/testing-patterns.md`
 - Template SDD: `.claude/docs/spec-template.md`
+- Git & CI/CD: `.claude/docs/git-workflow.md`
 - Configuración de servidores: `.claude/docs/server-config.md`

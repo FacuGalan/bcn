@@ -123,19 +123,6 @@
     {{-- Acciones Rapidas --}}
     <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
         <button
-            wire:click="abrirModalIngresoExterno"
-            class="flex flex-col items-center justify-center p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-emerald-300 dark:hover:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
-        >
-            <div class="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-2">
-                <svg class="w-6 h-6 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                </svg>
-            </div>
-            <span class="text-sm font-medium text-gray-900 dark:text-white">{{ __('Ingreso') }}</span>
-            <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Fondos externos') }}</span>
-        </button>
-
-        <button
             wire:click="abrirModalProvision"
             class="flex flex-col items-center justify-center p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-red-300 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
         >
@@ -164,6 +151,19 @@
             </div>
             <span class="text-sm font-medium text-gray-900 dark:text-white">{{ __('Rendiciones') }}</span>
             <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Desde cajas') }}</span>
+        </button>
+
+        <button
+            wire:click="abrirModalIngresoExterno"
+            class="flex flex-col items-center justify-center p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-emerald-300 dark:hover:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+        >
+            <div class="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-2">
+                <svg class="w-6 h-6 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+            </div>
+            <span class="text-sm font-medium text-gray-900 dark:text-white">{{ __('Ingreso') }}</span>
+            <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Fondos a tesorería') }}</span>
         </button>
 
         <button
@@ -929,7 +929,7 @@
     @if($showIngresoExternoModal)
     <x-bcn-modal
         :show="$showIngresoExternoModal"
-        :title="__('Ingreso externo de fondos')"
+        :title="__('Ingreso de fondos a tesorería')"
         color="bg-emerald-600"
         maxWidth="lg"
         onClose="cancelIngresoExterno"
@@ -937,6 +937,30 @@
     >
         <x-slot:body>
             <div class="space-y-4">
+                {{-- Origen del ingreso --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Origen') }}</label>
+                    <select
+                        wire:model.live="cuentaIngresoId"
+                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-emerald-500 focus:ring focus:ring-emerald-500 focus:ring-opacity-50"
+                    >
+                        <option value="">{{ __('Ingreso externo (sin cuenta)') }}</option>
+                        @foreach($this->cuentasEmpresa as $cuenta)
+                            <option value="{{ $cuenta->id }}">
+                                {{ $cuenta->nombre_completo }}
+                                - ${{ number_format($cuenta->saldo_actual, 2, ',', '.') }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        @if($cuentaIngresoId)
+                            {{ __('Se transferirán fondos desde la cuenta seleccionada a tesorería') }}
+                        @else
+                            {{ __('Ingreso de fondos externos (capital, aportes, préstamos, etc.)') }}
+                        @endif
+                    </p>
+                </div>
+
                 <div>
                     <label for="montoIngresoExterno" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Monto') }} *</label>
                     <div class="mt-1 relative rounded-md shadow-sm">
@@ -957,6 +981,8 @@
                     @error('montoIngresoExterno') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                 </div>
 
+                {{-- Concepto: solo para ingreso externo --}}
+                @if(!$cuentaIngresoId)
                 <div>
                     <label for="conceptoIngresoExterno" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Concepto') }} *</label>
                     <select
@@ -973,6 +999,7 @@
                     </select>
                     @error('conceptoIngresoExterno') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                 </div>
+                @endif
 
                 <div>
                     <label for="observacionesIngresoExterno" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Observaciones') }}</label>
@@ -988,7 +1015,7 @@
                 @if($tesoreria)
                     <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-sm">
                         <div class="flex justify-between">
-                            <span class="text-gray-600 dark:text-gray-400">{{ __('Saldo actual') }}:</span>
+                            <span class="text-gray-600 dark:text-gray-400">{{ __('Saldo tesorería') }}:</span>
                             <span class="font-medium text-gray-900 dark:text-white">${{ number_format($tesoreria->saldo_actual, 2) }}</span>
                         </div>
                         @if($montoIngresoExterno > 0)
@@ -1010,7 +1037,7 @@
             <button type="submit"
                     class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-emerald-600 text-base font-medium text-white hover:bg-emerald-700 sm:w-auto sm:text-sm">
                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
-                {{ __('Registrar ingreso') }}
+                {{ $cuentaIngresoId ? __('Transferir a tesorería') : __('Registrar ingreso') }}
             </button>
         </x-slot:footer>
     </x-bcn-modal>
