@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Ventas;
 
-use App\Models\Cuit;
 use App\Models\Articulo;
 use App\Models\Caja;
 use App\Models\Categoria;
@@ -10,6 +9,7 @@ use App\Models\Cliente;
 use App\Models\ConceptoPago;
 use App\Models\CondicionIva;
 use App\Models\CuentaEmpresa;
+use App\Models\Cuit;
 use App\Models\Cupon;
 use App\Models\FormaPago;
 use App\Models\FormaPagoCuota;
