@@ -30,6 +30,8 @@ class SucursalSelector extends Component
 
     public $mostrarDropdown = false;
 
+    public bool $showLabels = false;
+
     public function mount()
     {
         $this->cargarSucursales();
