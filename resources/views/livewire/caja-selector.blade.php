@@ -12,7 +12,7 @@
             </svg>
 
             <!-- Nombre de la caja actual (visible solo si la página usa caja) -->
-            <span x-show="$store.awareness.caja" x-cloak>
+            <span x-show="$wire.showLabels || $store.awareness.caja" x-cloak>
                 {{ $cajaActual ? $cajaActual->nombre : __('Seleccionar Caja') }}
             </span>
 
@@ -22,15 +22,15 @@
                     $estadoOp = $cajaActual->estado_operativo ?? ($cajaActual->estado === 'abierta' ? 'operativa' : 'sin_turno');
                 @endphp
                 @if($estadoOp === 'operativa')
-                    <span x-show="$store.awareness.caja" x-cloak class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-green-800 bg-green-100 dark:text-green-200 dark:bg-green-900/50 rounded-full" title="Operativa">
+                    <span x-show="$wire.showLabels || $store.awareness.caja" x-cloak class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-green-800 bg-green-100 dark:text-green-200 dark:bg-green-900/50 rounded-full" title="Operativa">
                         <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
                     </span>
                 @elseif($estadoOp === 'pausada')
-                    <span x-show="$store.awareness.caja" x-cloak class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-amber-800 bg-amber-100 dark:text-amber-200 dark:bg-amber-900/50 rounded-full" title="Pausada">
+                    <span x-show="$wire.showLabels || $store.awareness.caja" x-cloak class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-amber-800 bg-amber-100 dark:text-amber-200 dark:bg-amber-900/50 rounded-full" title="Pausada">
                         <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
                     </span>
                 @else
-                    <span x-show="$store.awareness.caja" x-cloak class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700 rounded-full" title="Sin turno">
+                    <span x-show="$wire.showLabels || $store.awareness.caja" x-cloak class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700 rounded-full" title="Sin turno">
                         <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clip-rule="evenodd"></path></svg>
                     </span>
                 @endif
@@ -94,21 +94,21 @@
             <svg class="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
             </svg>
-            <span x-show="$store.awareness.caja" x-cloak>{{ $cajaActual->nombre }}</span>
+            <span x-show="$wire.showLabels || $store.awareness.caja" x-cloak>{{ $cajaActual->nombre }}</span>
 
             @php
                 $estadoOpUnica = $cajaActual->estado_operativo ?? ($cajaActual->estado === 'abierta' ? 'operativa' : 'sin_turno');
             @endphp
             @if($estadoOpUnica === 'operativa')
-                <span x-show="$store.awareness.caja" x-cloak class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-green-800 bg-green-100 dark:text-green-200 dark:bg-green-900/50 rounded-full" title="Operativa">
+                <span x-show="$wire.showLabels || $store.awareness.caja" x-cloak class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-green-800 bg-green-100 dark:text-green-200 dark:bg-green-900/50 rounded-full" title="Operativa">
                     <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
                 </span>
             @elseif($estadoOpUnica === 'pausada')
-                <span x-show="$store.awareness.caja" x-cloak class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-amber-800 bg-amber-100 dark:text-amber-200 dark:bg-amber-900/50 rounded-full" title="Pausada">
+                <span x-show="$wire.showLabels || $store.awareness.caja" x-cloak class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-amber-800 bg-amber-100 dark:text-amber-200 dark:bg-amber-900/50 rounded-full" title="Pausada">
                     <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
                 </span>
             @else
-                <span x-show="$store.awareness.caja" x-cloak class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700 rounded-full" title="Sin turno">
+                <span x-show="$wire.showLabels || $store.awareness.caja" x-cloak class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700 rounded-full" title="Sin turno">
                     <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clip-rule="evenodd"></path></svg>
                 </span>
             @endif

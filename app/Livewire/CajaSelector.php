@@ -39,6 +39,8 @@ class CajaSelector extends Component
 
     public $mostrarDropdown = false;
 
+    public bool $showLabels = false;
+
     /**
      * Escuchar eventos de cambio de sucursal y actualización de cajas
      */
