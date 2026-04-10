@@ -218,6 +218,10 @@ class ProvisionComercioCommand extends Command
         // Limpiar AUTO_INCREMENT=N para que empiecen en 1
         $sql = preg_replace('/\s*AUTO_INCREMENT=\d+/', '', $sql);
 
+        // Desactivar FK checks: el dump está en orden alfabético y hay FKs
+        // que apuntan a tablas que aún no fueron creadas en ese punto del SQL.
+        $sql = "SET FOREIGN_KEY_CHECKS=0;\n".$sql."\nSET FOREIGN_KEY_CHECKS=1;\n";
+
         // Ejecutar contra la BD indicada
         DB::connection('pymes')->unprepared($sql);
     }
