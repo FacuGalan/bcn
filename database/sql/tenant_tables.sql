@@ -2157,21 +2157,25 @@ CREATE TABLE `{{PREFIX}}venta_promociones` (
   CONSTRAINT `fk_vp_promocion_especial` FOREIGN KEY (`promocion_especial_id`) REFERENCES `{{PREFIX}}promociones_especiales` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_vp_venta` FOREIGN KEY (`venta_id`) REFERENCES `{{PREFIX}}ventas` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=300 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-DROP TABLE IF EXISTS `{{PREFIX}}v_saldos_cliente_global`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
- 1 AS `cliente_id`,
-  1 AS `saldo_deudor_total`,
-  1 AS `saldo_a_favor_total`,
-  1 AS `sucursales_con_movimientos`,
-  1 AS `ultimo_movimiento` */;
-SET character_set_client = @saved_cs_client;
-DROP TABLE IF EXISTS `{{PREFIX}}v_saldos_cuenta_corriente`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
- 1 AS `cliente_id`,
-  1 AS `sucursal_id`,
-  1 AS `saldo_deudor`,
-  1 AS `saldo_a_favor`,
-  1 AS `ultimo_movimiento` */;
-SET character_set_client = @saved_cs_client;
+DROP VIEW IF EXISTS `{{PREFIX}}v_saldos_cliente_global`;
+CREATE OR REPLACE VIEW `{{PREFIX}}v_saldos_cliente_global` AS
+SELECT
+    cliente_id,
+    COALESCE(SUM(debe), 0) - COALESCE(SUM(haber), 0) AS saldo_deudor_total,
+    COALESCE(SUM(saldo_favor_haber), 0) - COALESCE(SUM(saldo_favor_debe), 0) AS saldo_a_favor_total,
+    COUNT(DISTINCT sucursal_id) AS sucursales_con_movimientos,
+    MAX(created_at) AS ultimo_movimiento
+FROM `{{PREFIX}}movimientos_cuenta_corriente`
+WHERE estado = 'activo'
+GROUP BY cliente_id;
+DROP VIEW IF EXISTS `{{PREFIX}}v_saldos_cuenta_corriente`;
+CREATE OR REPLACE VIEW `{{PREFIX}}v_saldos_cuenta_corriente` AS
+SELECT
+    cliente_id,
+    sucursal_id,
+    COALESCE(SUM(debe), 0) - COALESCE(SUM(haber), 0) AS saldo_deudor,
+    COALESCE(SUM(saldo_favor_haber), 0) - COALESCE(SUM(saldo_favor_debe), 0) AS saldo_a_favor,
+    MAX(created_at) AS ultimo_movimiento
+FROM `{{PREFIX}}movimientos_cuenta_corriente`
+WHERE estado = 'activo'
+GROUP BY cliente_id, sucursal_id;
