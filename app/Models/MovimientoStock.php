@@ -113,9 +113,9 @@ class MovimientoStock extends Model
 
     protected $casts = [
         'fecha' => 'date',
-        'entrada' => 'decimal:2',
-        'salida' => 'decimal:2',
-        'stock_resultante' => 'decimal:2',
+        'entrada' => 'decimal:3',
+        'salida' => 'decimal:3',
+        'stock_resultante' => 'decimal:3',
         'costo_unitario' => 'decimal:4',
     ];
 

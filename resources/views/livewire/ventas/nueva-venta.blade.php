@@ -2,7 +2,7 @@
     Vista Livewire: Nueva Venta (POS)
 
     Sistema completo de punto de venta con:
-    - Búsqueda de artículos por nombre, código y código de barras
+    - Búsqueda unificada de artículos por nombre, código y código de barras (con detección automática de scanner)
     - Cálculo de precios según lista de precios
     - Aplicación de promociones especiales y comunes
     - Selectores de forma de venta, canal de venta, forma de pago y lista de precios
@@ -17,14 +17,14 @@
             $event.preventDefault();
             const actions = {
                 '1': () => $dispatch('focus-busqueda'),
-                '2': () => $dispatch('focus-codigo-barras'),
+                '2': () => $dispatch('focus-cantidad'),
                 '3': () => $wire.activarModoConsulta(),
                 '4': () => $wire.activarModoBusqueda(),
                 '5': () => $wire.abrirModalConcepto(),
                 '6': () => $dispatch('focus-cliente'),
                 '7': () => document.getElementById('listaPrecioId')?.focus(),
-                '8': () => document.getElementById('formaVentaId')?.focus(),
-                '9': () => document.getElementById('formaPagoId')?.focus(),
+                '8': () => $wire.abrirModalBusquedaArticulos(),
+                '9': () => $wire.abrirModalArticuloRapido(),
             };
             actions[$event.key]?.();
         }
@@ -49,6 +49,12 @@
                              x-data="{
                                 inputFocused: false,
                                 selectedIndex: 0,
+                                lastKeyTime: 0,
+                                scannerDetected: false,
+                                scanKeyCount: 0,
+                                searchTimeout: null,
+                                scanQueue: [],
+                                processingScan: false,
                                 init() {
                                     this.$nextTick(() => this.$refs.inputBusqueda.focus());
                                     this.$watch('inputFocused', (v) => { if (!v) this.selectedIndex = 0; });
@@ -79,30 +85,78 @@
                                     } else {
                                         $wire.agregarPrimerArticulo();
                                     }
+                                },
+                                handleKeydown(e) {
+                                    const now = Date.now();
+                                    const elapsed = now - this.lastKeyTime;
+                                    this.lastKeyTime = now;
+                                    if (e.key.length === 1 && elapsed < 50) {
+                                        this.scanKeyCount++;
+                                        if (this.scanKeyCount >= 3) {
+                                            this.scannerDetected = true;
+                                        }
+                                    } else if (e.key.length === 1) {
+                                        this.scanKeyCount = 1;
+                                    }
+                                },
+                                handleInput() {
+                                    this.selectedIndex = 0;
+                                    clearTimeout(this.searchTimeout);
+                                    if (this.scannerDetected) return;
+                                    this.searchTimeout = setTimeout(() => {
+                                        $wire.$refresh();
+                                    }, 350);
+                                },
+                                handleEnter() {
+                                    clearTimeout(this.searchTimeout);
+                                    if (this.scannerDetected) {
+                                        this.scannerDetected = false;
+                                        this.scanKeyCount = 0;
+                                        const codigo = this.$refs.inputBusqueda.value.trim();
+                                        this.$refs.inputBusqueda.value = '';
+                                        if (codigo) {
+                                            this.scanQueue.push(codigo);
+                                            this.processScanQueue();
+                                        }
+                                        return;
+                                    }
+                                    this.selectCurrent();
+                                },
+                                async processScanQueue() {
+                                    if (this.processingScan) return;
+                                    this.processingScan = true;
+                                    while (this.scanQueue.length > 0) {
+                                        const codigo = this.scanQueue.shift();
+                                        await $wire.agregarPorCodigo(codigo);
+                                    }
+                                    this.processingScan = false;
+                                    this.$refs.inputBusqueda.focus();
                                 }
                              }"
                              @click.outside="inputFocused = false"
                              x-on:focus-busqueda.window="$refs.inputBusqueda.focus()">
-                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar Artículo') }}</label>
-                            <div class="flex gap-2 items-end">
-                                {{-- Input de búsqueda --}}
-                                <div class="relative flex-1">
-                                    <input
-                                        x-ref="inputBusqueda"
-                                        wire:model.live="busquedaArticulo"
-                                        wire:keydown.escape="desactivarModos"
-                                        @keydown.enter.prevent="selectCurrent()"
-                                        @keydown.arrow-up.prevent="moveUp()"
-                                        @keydown.arrow-down.prevent="moveDown()"
-                                        @keydown="if($event.key === '*') { $event.preventDefault(); $dispatch('focus-cantidad'); }"
-                                        @focus="inputFocused = true"
-                                        @input="selectedIndex = 0"
-                                        type="text"
-                                        autocomplete="off"
-                                        class="block w-full pl-10 pr-3 py-2 border rounded-md leading-5 bg-white dark:bg-gray-700 dark:text-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:border-indigo-500 text-sm
-                                            {{ $modoConsulta ? 'border-amber-500 ring-2 ring-amber-200 focus:ring-amber-500' : ($modoBusqueda ? 'border-blue-500 ring-2 ring-blue-200 focus:ring-blue-500' : 'border-gray-300 dark:border-gray-600 focus:ring-indigo-500') }}"
-                                        placeholder="{{ $modoConsulta ? __('Buscar artículo para CONSULTAR PRECIOS...') : ($modoBusqueda ? __('Buscar artículo en el DETALLE...') : __('Buscar por nombre, código o código de barras (mín. 3 caracteres)...')) }}">
-                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <div class="flex gap-2">
+                                {{-- Input de búsqueda con botones integrados --}}
+                                <div class="flex-1">
+                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar Artículo') }}</label>
+                                    <div class="flex">
+                                        <div class="relative flex-1">
+                                            <input
+                                                x-ref="inputBusqueda"
+                                                wire:model="busquedaArticulo"
+                                                wire:keydown.escape="desactivarModos"
+                                                @keydown.enter.prevent="handleEnter()"
+                                                @keydown.arrow-up.prevent="moveUp()"
+                                                @keydown.arrow-down.prevent="moveDown()"
+                                                @keydown="handleKeydown($event); if($event.key === '*') { $event.preventDefault(); $dispatch('focus-cantidad'); }"
+                                                @focus="inputFocused = true"
+                                                @input="handleInput()"
+                                                type="text"
+                                                autocomplete="off"
+                                                class="block w-full pl-10 pr-3 py-2 border rounded-l-md leading-5 bg-white dark:bg-gray-700 dark:text-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:border-indigo-500 text-sm
+                                                    {{ $modoConsulta ? 'border-amber-500 ring-2 ring-amber-200 focus:ring-amber-500' : ($modoBusqueda ? 'border-blue-500 ring-2 ring-blue-200 focus:ring-blue-500' : 'border-gray-300 dark:border-gray-600 focus:ring-indigo-500') }}"
+                                                placeholder="{{ $modoConsulta ? __('Buscar artículo para CONSULTAR PRECIOS...') : ($modoBusqueda ? __('Buscar artículo en el DETALLE...') : __('Buscar por nombre, código o código de barras...')) }}">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         @if($modoConsulta)
                                             <svg class="h-5 w-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -145,29 +199,27 @@
                                             </button>
                                         @endif
                                     </div>
-                                </div>
-
-                                {{-- Input para lector de código de barras --}}
-                                <div class="w-36"
-                                     x-data="{ focused: false }"
-                                     x-on:focus-codigo-barras.window="$refs.inputCodigoBarras.focus()">
-                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cód. Barra') }}</label>
-                                    <div class="relative">
-                                        <input
-                                            x-ref="inputCodigoBarras"
-                                            wire:model="codigoBarrasInput"
-                                            wire:keydown.enter="agregarPorCodigoBarras"
-                                            @keydown="if($event.key === '*') { $event.preventDefault(); $dispatch('focus-cantidad'); }"
-                                            @focus="focused = true"
-                                            @blur="focused = false"
-                                            type="text"
-                                            autocomplete="off"
-                                            class="block w-full pl-8 pr-2 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm">
-                                        <div class="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                                            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
-                                            </svg>
                                         </div>
+                                        {{-- Botón buscar artículos --}}
+                                        <button
+                                            wire:click="abrirModalBusquedaArticulos"
+                                            type="button"
+                                            class="flex-shrink-0 px-2 py-2 bg-gray-500 hover:bg-gray-600 text-white transition-colors border border-gray-500"
+                                            title="{{ __('Buscar artículos') }}">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                            </svg>
+                                        </button>
+                                        {{-- Botón alta rápida de artículo --}}
+                                        <button
+                                            wire:click="abrirModalArticuloRapido"
+                                            type="button"
+                                            class="flex-shrink-0 px-2 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md transition-colors border border-indigo-600"
+                                            title="{{ __('Alta rápida de artículo') }}">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                            </svg>
+                                        </button>
                                     </div>
                                 </div>
 
@@ -242,11 +294,6 @@
                                     </div>
                                 </div>
                             </div>
-
-                            {{-- Indicador de búsqueda --}}
-                            @if(strlen($busquedaArticulo) > 0 && strlen($busquedaArticulo) < 3)
-                                <p class="mt-1 text-xs text-gray-500">{{ __('Escribe al menos 3 caracteres para buscar...') }}</p>
-                            @endif
 
                             {{-- Dropdown de resultados --}}
                             @if(count($articulosResultados) > 0)
@@ -325,7 +372,10 @@
                                     <p class="text-xs">{{ __('Agrega artículos para comenzar') }}</p>
                                 </div>
                             @else
-                                <div class="flex-1 overflow-y-auto min-h-0">
+                                <div class="flex-1 overflow-y-auto min-h-0"
+                                     x-ref="carritoScroll"
+                                     @scroll-carrito-abajo.window="$nextTick(() => $el.scrollTop = $el.scrollHeight)"
+                                     @auto-clear-resaltado.window="setTimeout(() => $wire.limpiarResaltado(), 5000)">
                                     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                         <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0">
                                             <tr>
@@ -362,8 +412,49 @@
                                                         </button>
                                                     </td>
                                                     {{-- Artículo --}}
-                                                    <td class="px-2 py-1.5">
-                                                        <div class="text-xs font-medium text-gray-900 dark:text-white truncate max-w-[200px]" title="{{ $item['nombre'] }}">{{ $item['nombre'] }}</div>
+                                                    <td class="px-2 py-1.5 relative">
+                                                        <div class="flex items-center gap-0.5 group">
+                                                            <div class="text-xs font-medium text-gray-900 dark:text-white truncate max-w-[180px]" title="{{ $item['nombre'] }}">{{ $item['nombre'] }}</div>
+                                                            <button
+                                                                wire:click="abrirEditarNombre({{ $index }})"
+                                                                class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity flex-shrink-0"
+                                                                title="{{ __('Editar nombre') }}">
+                                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                                            </button>
+                                                        </div>
+                                                        {{-- Popover editar nombre --}}
+                                                        @if($editarNombreIndex === $index)
+                                                            <div class="fixed z-[100] w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-2"
+                                                                 x-data="{
+                                                                     init() {
+                                                                         this.$nextTick(() => {
+                                                                             const rect = this.$el.parentElement.getBoundingClientRect();
+                                                                             this.$el.style.top = (rect.bottom) + 'px';
+                                                                             this.$el.style.left = rect.left + 'px';
+                                                                             this.$refs.nombreInput.focus();
+                                                                             this.$refs.nombreInput.select();
+                                                                         });
+                                                                     }
+                                                                 }"
+                                                                 @click.outside="$wire.cerrarEditarNombre()">
+                                                                <div class="text-[10px] font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Editar nombre') }}</div>
+                                                                <div class="flex gap-1">
+                                                                    <input
+                                                                        x-ref="nombreInput"
+                                                                        type="text"
+                                                                        wire:model="editarNombreValor"
+                                                                        wire:keydown.enter="aplicarEditarNombre"
+                                                                        wire:keydown.escape="cerrarEditarNombre"
+                                                                        class="flex-1 text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                                                    />
+                                                                    <button
+                                                                        wire:click="aplicarEditarNombre"
+                                                                        class="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded">
+                                                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        @endif
                                                         <div class="text-[10px] text-gray-500 dark:text-gray-400">{{ $item['codigo'] }}@if($item['categoria_nombre']) <span class="text-indigo-600 dark:text-indigo-400">| {{ $item['categoria_nombre'] }}</span>@endif</div>
                                                         @if(!empty($item['opcionales']))
                                                             @php
@@ -1194,7 +1285,7 @@
                             </div>
                             {{-- Barra de atajos de teclado --}}
                             <div class="w-full mt-1.5 py-1 bg-gray-100 dark:bg-gray-900/40 rounded text-[10px] text-gray-400 dark:text-gray-500 leading-snug text-center select-none">
-                                Ctrl: <span class="text-gray-500 dark:text-gray-400">1</span>{{ __('Buscar') }} · <span class="text-gray-500 dark:text-gray-400">2</span>{{ __('Cód.Barra') }} · <span class="text-gray-500 dark:text-gray-400">3</span>{{ __('Consultar') }} · <span class="text-gray-500 dark:text-gray-400">4</span>{{ __('Buscar det.') }} · <span class="text-gray-500 dark:text-gray-400">5</span>{{ __('Concepto') }} · <span class="text-gray-500 dark:text-gray-400">6</span>{{ __('Cliente') }} · <span class="text-gray-500 dark:text-gray-400">7</span>{{ __('Lista') }} · <span class="text-gray-500 dark:text-gray-400">8</span>{{ __('F.Venta') }} · <span class="text-gray-500 dark:text-gray-400">9</span>{{ __('F.Pago') }}
+                                Ctrl: <span class="text-gray-500 dark:text-gray-400">1</span>{{ __('Buscar') }} · <span class="text-gray-500 dark:text-gray-400">2</span>{{ __('Cantidad') }} · <span class="text-gray-500 dark:text-gray-400">3</span>{{ __('Consultar') }} · <span class="text-gray-500 dark:text-gray-400">4</span>{{ __('Buscar det.') }} · <span class="text-gray-500 dark:text-gray-400">5</span>{{ __('Concepto') }} · <span class="text-gray-500 dark:text-gray-400">6</span>{{ __('Cliente') }} · <span class="text-gray-500 dark:text-gray-400">7</span>{{ __('Lista') }} · <span class="text-gray-500 dark:text-gray-400">8</span>{{ __('Buscar art.') }} · <span class="text-gray-500 dark:text-gray-400">9</span>{{ __('Nuevo art.') }}
                                 | <span class="text-gray-500 dark:text-gray-400">F2</span>{{ __('Cobrar') }} · <span class="text-gray-500 dark:text-gray-400">F3</span>{{ __('Limpiar') }} · <span class="text-gray-500 dark:text-gray-400">F4</span>{{ __('Desc.') }} · <span class="text-gray-500 dark:text-gray-400">*</span>{{ __('Cantidad') }}
                             </div>
                         </div>
@@ -2663,6 +2754,357 @@
     @endif
 
     </x-caja-operativa-requerida>
+
+    {{-- Modal de Artículo Pesable --}}
+    @if($mostrarModalPesable)
+        <x-bcn-modal
+            :show="$mostrarModalPesable"
+            :title="__('Artículo Pesable')"
+            color="bg-amber-500"
+            maxWidth="md"
+            onClose="cerrarModalPesable"
+        >
+            <x-slot:body>
+                <div x-data="{
+                    precio: {{ $pesablePrecioUnitario }},
+                    cantidad: null,
+                    valor: null,
+                    editando: null,
+                    calcDesdeQty() {
+                        if (this.editando !== 'cantidad') return;
+                        if (this.cantidad > 0 && this.precio > 0) {
+                            this.valor = Math.round(this.cantidad * this.precio * 100) / 100;
+                        } else {
+                            this.valor = null;
+                        }
+                    },
+                    calcDesdeValor() {
+                        if (this.editando !== 'valor') return;
+                        if (this.valor > 0 && this.precio > 0) {
+                            this.cantidad = Math.round(this.valor / this.precio * 1000) / 1000;
+                        } else {
+                            this.cantidad = null;
+                        }
+                    },
+                    confirmar() {
+                        if (!this.cantidad || this.cantidad <= 0) return;
+                        $wire.confirmarPesable(this.cantidad);
+                    }
+                }" class="space-y-4">
+                    {{-- Info del artículo --}}
+                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+                        <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $pesableNombreArticulo }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {{ __('Precio unitario') }}: <span class="font-medium text-gray-900 dark:text-white">${{ number_format($pesablePrecioUnitario, 2, ',', '.') }} / {{ $pesableUnidadMedida }}</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        {{-- Cantidad --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {{ __('Cantidad') }} ({{ $pesableUnidadMedida }})
+                            </label>
+                            <input
+                                type="number"
+                                x-model.number="cantidad"
+                                @input="calcDesdeQty()"
+                                @focus="editando = 'cantidad'"
+                                @keydown.enter.prevent="confirmar()"
+                                step="0.001"
+                                min="0.001"
+                                x-init="setTimeout(() => $el.focus(), 350)"
+                                class="block w-full text-lg text-center rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-amber-500 focus:ring focus:ring-amber-500 focus:ring-opacity-50"
+                                placeholder="0.000"
+                            />
+                        </div>
+
+                        {{-- Valor --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {{ __('Valor') }} ($)
+                            </label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <span class="text-gray-500 dark:text-gray-400 text-lg">$</span>
+                                </div>
+                                <input
+                                    type="number"
+                                    x-model.number="valor"
+                                    @input="calcDesdeValor()"
+                                    @focus="editando = 'valor'"
+                                    @keydown.enter.prevent="confirmar()"
+                                    step="0.01"
+                                    min="0.01"
+                                    class="block w-full pl-8 text-lg text-center rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-amber-500 focus:ring focus:ring-amber-500 focus:ring-opacity-50"
+                                    placeholder="0.00"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="text-xs text-gray-500 dark:text-gray-400 text-center">
+                        {{ __('Ingrese la cantidad o el valor y el otro se calculará automáticamente') }}
+                    </p>
+                </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button type="button" @click="close()" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="button" @click="confirmar()" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    {{ __('Agregar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
+    {{-- Modal de Alta Rápida de Artículo --}}
+    @if($mostrarModalArticuloRapido)
+        <x-bcn-modal
+            :show="$mostrarModalArticuloRapido"
+            :title="__('Nuevo Artículo')"
+            color="bg-indigo-600"
+            maxWidth="2xl"
+            onClose="cerrarModalArticuloRapido"
+            submit="guardarArticuloRapido"
+        >
+            <x-slot:body>
+                <div class="space-y-4">
+                    {{-- Nombre --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
+                        <input type="text" wire:model="artRapidoNombre" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50" placeholder="{{ __('Ej: Coca Cola 500ml') }}" />
+                        @error('artRapidoNombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {{-- Categoría --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Categoría') }}</label>
+                            <select wire:model.live="artRapidoCategoriaId" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
+                                <option value="">{{ __('Sin categoría') }}</option>
+                                @foreach($artRapidoCategorias as $cat)
+                                    <option value="{{ $cat->id }}">{{ $cat->nombre }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        {{-- Código --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Código') }} *</label>
+                            <input type="text" wire:model="artRapidoCodigo" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50" placeholder="Ej: ART-001" />
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Se propone automáticamente si la categoría tiene prefijo') }}</p>
+                            @error('artRapidoCodigo') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        {{-- Código de barras --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Código de barras') }}</label>
+                            <input type="text" wire:model="artRapidoCodigoBarras" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50" placeholder="EAN-13, UPC..." maxlength="50" />
+                        </div>
+
+                        {{-- Unidad de Medida --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Unidad de Medida') }} *</label>
+                            <select wire:model="artRapidoUnidadMedida" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
+                                <option value="unidad">{{ __('Unidad') }}</option>
+                                <option value="kg">{{ __('Kilogramo (kg)') }}</option>
+                                <option value="gr">{{ __('Gramo (gr)') }}</option>
+                                <option value="lt">{{ __('Litro (lt)') }}</option>
+                                <option value="ml">{{ __('Mililitro (ml)') }}</option>
+                                <option value="mt">{{ __('Metro (mt)') }}</option>
+                                <option value="cm">{{ __('Centímetro (cm)') }}</option>
+                                <option value="caja">{{ __('Caja') }}</option>
+                                <option value="paquete">{{ __('Paquete') }}</option>
+                            </select>
+                        </div>
+
+                        {{-- Tipo IVA --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Tipo de IVA') }} *</label>
+                            <select wire:model="artRapidoTipoIvaId" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
+                                <option value="">{{ __('Seleccionar...') }}</option>
+                                @foreach($artRapidoTiposIva as $tipoIva)
+                                    <option value="{{ $tipoIva->id }}">{{ $tipoIva->nombre }} ({{ $tipoIva->porcentaje }}%)</option>
+                                @endforeach
+                            </select>
+                            @error('artRapidoTipoIvaId') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        {{-- Precio Base --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Precio Base') }} *</label>
+                            <div class="mt-1 relative rounded-md shadow-sm">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <span class="text-gray-500 dark:text-gray-400 sm:text-sm">$</span>
+                                </div>
+                                <input type="number" wire:model="artRapidoPrecioBase" step="0.01" min="0" class="block w-full pl-7 pr-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50" placeholder="0.00" />
+                            </div>
+                            @error('artRapidoPrecioBase') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
+                </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button type="button" @click="close()" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    {{ __('Crear y Agregar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
+    {{-- Modal de Búsqueda de Artículos --}}
+    @if($mostrarModalBusquedaArticulos)
+        <x-bcn-modal
+            :show="$mostrarModalBusquedaArticulos"
+            :title="__('Buscar Artículo')"
+            color="bg-gray-500"
+            maxWidth="7xl"
+            onClose="cerrarModalBusquedaArticulos"
+        >
+            <x-slot:body>
+                <div x-data="{
+                    hlIdx: 0,
+                    get rowCount() {
+                        return this.$refs.tablaArticulos ? this.$refs.tablaArticulos.querySelectorAll('tr[data-row]').length : 0;
+                    },
+                    scrollToRow() {
+                        this.$nextTick(() => {
+                            const rows = this.$refs.tablaArticulos?.querySelectorAll('tr[data-row]');
+                            if (rows && rows[this.hlIdx]) rows[this.hlIdx].scrollIntoView({ block: 'nearest' });
+                        });
+                    },
+                    selectRow() {
+                        const rows = this.$refs.tablaArticulos?.querySelectorAll('tr[data-row]');
+                        if (rows && rows[this.hlIdx]) rows[this.hlIdx].click();
+                    }
+                }" class="flex gap-4">
+                    {{-- Sidebar: Filtro de etiquetas --}}
+                    @if(count($gruposEtiquetasModal) > 0)
+                        <div class="w-56 flex-shrink-0 flex flex-col">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                {{ __('Etiquetas') }}
+                                @if(count($etiquetasModalSeleccionadas) > 0)
+                                    <span class="ml-1 px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs rounded-full">
+                                        {{ count($etiquetasModalSeleccionadas) }}
+                                    </span>
+                                @endif
+                            </label>
+                            <div class="flex-1 max-h-[26rem] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md">
+                                @foreach($gruposEtiquetasModal as $grupo)
+                                    @if($grupo->etiquetas->count() > 0)
+                                        <div class="border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                                            <div class="px-3 py-2 bg-gray-50 dark:bg-gray-700 flex items-center gap-2 sticky top-0">
+                                                <span class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: {{ $grupo->color }}"></span>
+                                                <span class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ $grupo->nombre }}</span>
+                                            </div>
+                                            <div class="p-1.5 space-y-0.5">
+                                                @foreach($grupo->etiquetas as $etiqueta)
+                                                    <label class="flex items-center gap-2 px-2 py-1 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            wire:model.live="etiquetasModalSeleccionadas"
+                                                            value="{{ $etiqueta->id }}"
+                                                            class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-600 w-3.5 h-3.5"
+                                                        />
+                                                        <div class="w-2 h-2 rounded-full flex-shrink-0" style="background-color: {{ $etiqueta->color ?? $grupo->color }}"></div>
+                                                        <span class="text-xs text-gray-700 dark:text-gray-300">{{ $etiqueta->nombre }}</span>
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    @endif
+                                @endforeach
+                            </div>
+                            @if(count($etiquetasModalSeleccionadas) > 0)
+                                <button
+                                    type="button"
+                                    wire:click="$set('etiquetasModalSeleccionadas', [])"
+                                    class="mt-1.5 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                >
+                                    {{ __('Limpiar filtros') }}
+                                </button>
+                            @endif
+                        </div>
+                    @endif
+
+                    {{-- Contenido principal: búsqueda + tabla --}}
+                    <div class="flex-1 min-w-0">
+                        {{-- Input de búsqueda --}}
+                        <div class="mb-3">
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                    </svg>
+                                </div>
+                                <input
+                                    type="text"
+                                    wire:model.live.debounce.300ms="busquedaArticuloModal"
+                                    @keydown.arrow-down.prevent="hlIdx = Math.min(hlIdx + 1, rowCount - 1); scrollToRow()"
+                                    @keydown.arrow-up.prevent="hlIdx = Math.max(hlIdx - 1, 0); scrollToRow()"
+                                    @keydown.enter.prevent="selectRow()"
+                                    x-init="setTimeout(() => $el.focus(), 350)"
+                                    class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500 text-sm"
+                                    placeholder="{{ __('Filtrar por nombre, código, código de barras o categoría...') }}"
+                                />
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                {{ __(':count artículos', ['count' => count($articulosModalResultados)]) }}
+                                · {{ __('↑↓ navegar · Enter seleccionar') }}
+                            </p>
+                        </div>
+
+                        {{-- Tabla de artículos --}}
+                        <div class="overflow-auto max-h-96 border border-gray-200 dark:border-gray-700 rounded-lg">
+                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Código') }}</th>
+                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Nombre') }}</th>
+                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden sm:table-cell">{{ __('Categoría') }}</th>
+                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Precio') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody x-ref="tablaArticulos" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                    @forelse($articulosModalResultados as $idx => $art)
+                                        <tr
+                                            data-row
+                                            wire:click="seleccionarArticuloModal({{ $art['id'] }})"
+                                            @dblclick="$wire.seleccionarArticuloModal({{ $art['id'] }})"
+                                            @mouseenter="hlIdx = {{ $idx }}"
+                                            :class="hlIdx === {{ $idx }} ? 'bg-indigo-50 dark:bg-indigo-900/30' : ''"
+                                            class="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                        >
+                                            <td class="px-3 py-2 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">{{ $art['codigo'] }}</td>
+                                            <td class="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white">{{ $art['nombre'] }}</td>
+                                            <td class="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 hidden sm:table-cell">{{ $art['categoria'] ?? '—' }}</td>
+                                            <td class="px-3 py-2 text-sm text-right text-gray-900 dark:text-white font-medium whitespace-nowrap">$@precio($art['precio_base'])</td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="4" class="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                                                {{ __('No se encontraron artículos') }}
+                                            </td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button type="button" @click="close()" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400">
+                    {{ __('Cerrar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
 
     {{-- Wizard de Opcionales --}}
     @include('livewire.ventas._wizard-opcionales')

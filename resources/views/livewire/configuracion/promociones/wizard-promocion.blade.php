@@ -312,72 +312,70 @@
                                 {{ __('Todos los artículos') }}
                             </label>
                             <label class="flex items-center text-gray-700 dark:text-gray-300">
-                                <input type="radio" wire:model.live="alcanceArticulos" value="categoria" class="mr-2 text-bcn-primary">
-                                {{ __('Por categoría') }}
-                            </label>
-                            <label class="flex items-center text-gray-700 dark:text-gray-300">
-                                <input type="radio" wire:model.live="alcanceArticulos" value="articulo" class="mr-2 text-bcn-primary">
-                                {{ __('Artículo específico') }}
+                                <input type="radio" wire:model.live="alcanceArticulos" value="seleccion" class="mr-2 text-bcn-primary">
+                                {{ __('Categorías y/o artículos específicos') }}
                             </label>
                         </div>
                     @endif
                 </div>
 
-                @if($alcanceArticulos === 'categoria')
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                        @foreach($categorias as $categoria)
-                            <button wire:click="$set('categoriaId', {{ $categoria->id }})"
-                                    class="p-4 border-2 rounded-lg text-left transition {{ $categoriaId == $categoria->id ? 'border-bcn-primary bg-blue-50 dark:bg-blue-900/30' : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500' }}">
-                                <div class="text-2xl mb-1">
-                                    @if($categoria->icono)
-                                        @php
-                                            $iconParts = explode('.', $categoria->icono);
-                                            $iconType = $iconParts[0] ?? 'icon';
-                                            $iconName = $iconParts[1] ?? 'tag';
-                                        @endphp
-                                        <x-dynamic-component :component="$iconType . '.' . $iconName" class="w-8 h-8" style="color: {{ $categoria->color ?? '#6B7280' }}" />
-                                    @else
-                                        <x-icon.tag class="w-8 h-8" style="color: {{ $categoria->color ?? '#6B7280' }}" />
+                @if($alcanceArticulos === 'seleccion' || $tipo === 'precio_fijo')
+                    <div class="space-y-4">
+                        {{-- Categorías (checkboxes) --}}
+                        @if($tipo !== 'precio_fijo')
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    {{ __('Categorías') }}
+                                    @if(count($categoriasIds) > 0)
+                                        <span class="ml-1 px-2 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">{{ count($categoriasIds) }}</span>
                                     @endif
+                                </label>
+                                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                    @foreach($categorias as $categoria)
+                                        <label class="flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition {{ in_array($categoria->id, $categoriasIds) ? 'border-bcn-primary bg-blue-50 dark:bg-blue-900/30' : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500' }}">
+                                            <input type="checkbox" wire:model.live="categoriasIds" value="{{ $categoria->id }}" class="rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary">
+                                            <span class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: {{ $categoria->color ?? '#6B7280' }}"></span>
+                                            <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $categoria->nombre }}</span>
+                                        </label>
+                                    @endforeach
                                 </div>
-                                <div class="font-medium text-sm text-gray-900 dark:text-white">{{ $categoria->nombre }}</div>
-                            </button>
-                        @endforeach
-                    </div>
-                @endif
-
-                @if($alcanceArticulos === 'articulo' || $tipo === 'precio_fijo')
-                    <div>
-                        @if($articuloId)
-                            {{-- Artículo seleccionado --}}
-                            <div class="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900 border border-green-200 dark:border-green-700 rounded-lg">
-                                <div class="flex-1">
-                                    <span class="text-xs text-green-600 dark:text-green-400 font-medium">{{ __('Artículo seleccionado') }}</span>
-                                    <p class="font-semibold text-gray-900 dark:text-white">{{ $busquedaArticulo }}</p>
-                                </div>
-                                <button type="button" wire:click="limpiarArticulo"
-                                        class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                                        :title="__('Quitar selección')"
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                    </svg>
-                                </button>
                             </div>
-                        @else
-                            {{-- Buscador de artículos estilo simulador --}}
-                            <div class="relative">
-                                <div class="flex items-center gap-2">
-                                    <button type="button"
-                                            wire:click="abrirBuscadorArticuloAlcance"
-                                            class="flex-1 flex items-center gap-2 px-3 py-2 text-sm text-left text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:border-bcn-primary transition">
-                                        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                                        </svg>
-                                        <span>{{ __('Buscar artículo...') }}</span>
-                                    </button>
-                                </div>
+                        @endif
 
-                                {{-- Modal/Dropdown de búsqueda --}}
+                        {{-- Artículos seleccionados --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                {{ __('Artículos') }}
+                                @if(count($articulosIds) > 0)
+                                    <span class="ml-1 px-2 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">{{ count($articulosIds) }}</span>
+                                @endif
+                            </label>
+
+                            {{-- Lista de artículos seleccionados --}}
+                            @if(count($articulosSeleccionados) > 0)
+                                <div class="flex flex-wrap gap-2 mb-2">
+                                    @foreach($articulosSeleccionados as $art)
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 text-sm rounded-full border border-green-200 dark:border-green-700">
+                                            {{ $art['nombre'] }}
+                                            <button type="button" wire:click="quitarArticulo({{ $art['id'] }})" class="text-green-600 hover:text-red-600 transition">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                            </button>
+                                        </span>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            {{-- Buscador de artículos --}}
+                            <div class="relative">
+                                <button type="button"
+                                        wire:click="abrirBuscadorArticuloAlcance"
+                                        class="flex items-center gap-2 px-3 py-2 text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:border-bcn-primary transition w-full">
+                                    <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                    </svg>
+                                    <span>{{ __('Buscar y agregar artículo...') }}</span>
+                                </button>
+
                                 @if($mostrarBuscadorArticuloAlcance)
                                     <div class="absolute z-20 left-0 right-0 mt-1 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-xl">
                                         <div class="p-2 border-b dark:border-gray-700">
@@ -393,16 +391,18 @@
                                             @forelse($articulos as $articulo)
                                                 <button type="button"
                                                         wire:click="seleccionarArticulo({{ $articulo->id }})"
-                                                        class="w-full px-3 py-2 text-left hover:bg-blue-50 dark:hover:bg-gray-700 border-b dark:border-gray-700 last:border-b-0 flex items-center justify-between text-sm">
+                                                        class="w-full px-3 py-2 text-left hover:bg-blue-50 dark:hover:bg-gray-700 border-b dark:border-gray-700 last:border-b-0 flex items-center justify-between text-sm {{ in_array($articulo->id, $articulosIds) ? 'bg-green-50 dark:bg-green-900/20' : '' }}">
                                                     <div class="flex-1 min-w-0">
                                                         <span class="font-medium text-gray-900 dark:text-white">{{ $articulo->nombre }}</span>
                                                         @if($articulo->codigo)
                                                             <span class="text-gray-400 text-xs ml-1">({{ $articulo->codigo }})</span>
                                                         @endif
                                                     </div>
-                                                    <svg class="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                                                    </svg>
+                                                    @if(in_array($articulo->id, $articulosIds))
+                                                        <svg class="w-4 h-4 text-green-600 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                                    @else
+                                                        <svg class="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                                    @endif
                                                 </button>
                                             @empty
                                                 <div class="px-3 py-4 text-center text-gray-500 dark:text-gray-400 text-sm">
@@ -415,7 +415,7 @@
                                             @endforelse
                                         </div>
                                         <div class="p-2 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-between">
-                                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ __('Enter para seleccionar primero') }}</span>
+                                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ __('Selecciona uno o más artículos') }}</span>
                                             <button type="button"
                                                     wire:click="cerrarBuscadorArticuloAlcance"
                                                     class="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition">
@@ -425,6 +425,10 @@
                                     </div>
                                 @endif
                             </div>
+                        </div>
+
+                        @if(empty($categoriasIds) && empty($articulosIds) && $tipo !== 'precio_fijo')
+                            <p class="text-xs text-amber-600 dark:text-amber-400">{{ __('Seleccione al menos una categoría o un artículo, o cambie a "Todos los artículos".') }}</p>
                         @endif
                     </div>
                 @endif
@@ -459,13 +463,23 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Forma de Pago') }}</label>
-                        <select wire:model="formaPagoId" class="w-full rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
-                            <option value="">Todas</option>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            {{ __('Formas de Pago') }}
+                            @if(count($formasPagoIds) > 0)
+                                <span class="ml-1 px-2 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">{{ count($formasPagoIds) }}</span>
+                            @else
+                                <span class="text-xs font-normal text-gray-400 ml-1">({{ __('sin restricción') }})</span>
+                            @endif
+                        </label>
+                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg max-h-48 overflow-y-auto">
                             @foreach($formasPago as $fp)
-                                <option value="{{ $fp->id }}">{{ $fp->nombre }}</option>
+                                <label class="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                                    <input type="checkbox" wire:model.live="formasPagoIds" value="{{ $fp->id }}" class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-600">
+                                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ $fp->nombre }}</span>
+                                </label>
                             @endforeach
-                        </select>
+                        </div>
+                        <p class="mt-1.5 text-xs text-gray-400 dark:text-gray-500">{{ __('Si no se selecciona ninguna, aplica a todas') }}</p>
                     </div>
                 </div>
 
@@ -1349,32 +1363,23 @@
                                     <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('Aplica a') }}</label>
                                     <select wire:model.live="alcanceArticulos" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
                                         <option value="todos">{{ __('Todos los artículos') }}</option>
-                                        <option value="categoria">{{ __('Una categoría específica') }}</option>
-                                        <option value="articulo">{{ __('Un artículo específico') }}</option>
+                                        <option value="seleccion">{{ __('Categorías y/o artículos específicos') }}</option>
                                     </select>
                                 </div>
 
-                                @if($alcanceArticulos === 'categoria')
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('Categoría') }}</label>
-                                        <select wire:model.live="categoriaId" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                            <option value="">{{ __('Seleccionar...') }}</option>
-                                            @foreach($categorias as $cat)
-                                                <option value="{{ $cat->id }}">{{ $cat->nombre }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                @endif
-
-                                @if($alcanceArticulos === 'articulo')
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('Artículo') }}</label>
-                                        <select wire:model.live="articuloId" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                            <option value="">{{ __('Seleccionar...') }}</option>
-                                            @foreach($articulos as $art)
-                                                <option value="{{ $art->id }}">{{ $art->nombre }} ({{ $art->codigo }})</option>
-                                            @endforeach
-                                        </select>
+                                @if($alcanceArticulos === 'seleccion')
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                                        @if(count($categoriasIds) > 0 || count($articulosIds) > 0)
+                                            @if(count($categoriasIds) > 0)
+                                                <span>{{ count($categoriasIds) }} {{ __('categoría(s)') }}</span>
+                                            @endif
+                                            @if(count($articulosIds) > 0)
+                                                @if(count($categoriasIds) > 0) + @endif
+                                                <span>{{ count($articulosIds) }} {{ __('artículo(s)') }}</span>
+                                            @endif
+                                        @else
+                                            <span class="text-amber-600">{{ __('Sin selección — vuelva al paso 3 para configurar') }}</span>
+                                        @endif
                                     </div>
                                 @endif
 
@@ -1383,15 +1388,24 @@
                                     <h5 class="text-sm font-medium text-gray-700 mb-3">{{ __('Condiciones') }} <span class="text-gray-400">({{ __('opcional') }})</span></h5>
 
                                     <div class="grid grid-cols-2 gap-3">
-                                        {{-- Forma de Pago --}}
-                                        <div>
-                                            <label class="block text-xs text-gray-500 mb-1">{{ __('Forma de Pago') }}</label>
-                                            <select wire:model.live="formaPagoId" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                                                <option value="">Todas</option>
+                                        {{-- Formas de Pago --}}
+                                        <div class="col-span-2">
+                                            <label class="block text-xs text-gray-500 mb-1">
+                                                {{ __('Formas de Pago') }}
+                                                @if(count($formasPagoIds) > 0)
+                                                    <span class="ml-1 text-bcn-primary">({{ count($formasPagoIds) }})</span>
+                                                @else
+                                                    <span class="text-gray-400">({{ __('todas') }})</span>
+                                                @endif
+                                            </label>
+                                            <div class="border border-gray-200 dark:border-gray-600 rounded max-h-32 overflow-y-auto">
                                                 @foreach($formasPago as $fp)
-                                                    <option value="{{ $fp->id }}">{{ $fp->nombre }}</option>
+                                                    <label class="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                                                        <input type="checkbox" wire:model.live="formasPagoIds" value="{{ $fp->id }}" class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-600 w-3.5 h-3.5">
+                                                        <span class="text-xs text-gray-700 dark:text-gray-300">{{ $fp->nombre }}</span>
+                                                    </label>
                                                 @endforeach
-                                            </select>
+                                            </div>
                                         </div>
 
                                         {{-- Forma de Venta --}}

@@ -62,7 +62,7 @@ class VentaDetalle extends Model
     ];
 
     protected $casts = [
-        'cantidad' => 'decimal:2',
+        'cantidad' => 'decimal:3',
         'precio_unitario' => 'decimal:2',
         'precio_lista' => 'decimal:2',
         'precio_opcionales' => 'decimal:2',

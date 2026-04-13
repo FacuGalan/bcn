@@ -48,7 +48,7 @@
                     </div>
                     <div>
                         <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Entradas Hoy') }}</p>
-                        <p class="text-lg sm:text-xl font-bold text-green-600 dark:text-green-400">{{ number_format($totalEntradasHoy, 2) }}</p>
+                        <p class="text-lg sm:text-xl font-bold text-green-600 dark:text-green-400">{{ number_format($totalEntradasHoy, 3) }}</p>
                     </div>
                 </div>
             </div>
@@ -59,7 +59,7 @@
                     </div>
                     <div>
                         <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Salidas Hoy') }}</p>
-                        <p class="text-lg sm:text-xl font-bold text-red-600 dark:text-red-400">{{ number_format($totalSalidasHoy, 2) }}</p>
+                        <p class="text-lg sm:text-xl font-bold text-red-600 dark:text-red-400">{{ number_format($totalSalidasHoy, 3) }}</p>
                     </div>
                 </div>
             </div>
@@ -157,12 +157,12 @@
                         <span class="text-gray-500 dark:text-gray-400">{{ $mov->fecha->format('d/m/Y') }} {{ $mov->created_at->format('H:i') }}</span>
                         <div class="flex gap-3">
                             @if($mov->entrada > 0)
-                                <span class="text-green-600 dark:text-green-400 font-semibold">+{{ number_format($mov->entrada, 2) }}</span>
+                                <span class="text-green-600 dark:text-green-400 font-semibold">+{{ number_format($mov->entrada, 3) }}</span>
                             @endif
                             @if($mov->salida > 0)
-                                <span class="text-red-600 dark:text-red-400 font-semibold">-{{ number_format($mov->salida, 2) }}</span>
+                                <span class="text-red-600 dark:text-red-400 font-semibold">-{{ number_format($mov->salida, 3) }}</span>
                             @endif
-                            <span class="font-medium text-gray-700 dark:text-gray-300">= {{ number_format($mov->stock_resultante, 2) }}</span>
+                            <span class="font-medium text-gray-700 dark:text-gray-300">= {{ number_format($mov->stock_resultante, 3) }}</span>
                         </div>
                     </div>
                     <p class="text-xs text-gray-700 dark:text-gray-300 mb-1">{{ $mov->concepto }}</p>
@@ -226,20 +226,20 @@
                                 </td>
                                 <td class="px-4 py-3 text-right whitespace-nowrap">
                                     @if($mov->entrada > 0)
-                                        <span class="text-green-600 dark:text-green-400 font-semibold">+{{ number_format($mov->entrada, 2) }}</span>
+                                        <span class="text-green-600 dark:text-green-400 font-semibold">+{{ number_format($mov->entrada, 3) }}</span>
                                     @else
                                         <span class="text-gray-300 dark:text-gray-600">-</span>
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 text-right whitespace-nowrap">
                                     @if($mov->salida > 0)
-                                        <span class="text-red-600 dark:text-red-400 font-semibold">-{{ number_format($mov->salida, 2) }}</span>
+                                        <span class="text-red-600 dark:text-red-400 font-semibold">-{{ number_format($mov->salida, 3) }}</span>
                                     @else
                                         <span class="text-gray-300 dark:text-gray-600">-</span>
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 text-right whitespace-nowrap">
-                                    <span class="font-medium text-gray-900 dark:text-white">{{ number_format($mov->stock_resultante, 2) }}</span>
+                                    <span class="font-medium text-gray-900 dark:text-white">{{ number_format($mov->stock_resultante, 3) }}</span>
                                 </td>
                                 <td class="px-4 py-3">
                                     <div class="text-sm text-gray-900 dark:text-white">{{ $mov->concepto }}</div>
@@ -389,7 +389,7 @@
                     @if($inventarioArticuloId)
                         <div class="bg-gray-50 dark:bg-gray-700/50 rounded-md p-3">
                             <p class="text-sm text-gray-700 dark:text-gray-300">
-                                {{ __('Stock actual en sistema') }}: <strong class="text-gray-900 dark:text-white">{{ number_format($inventarioStockActual, 2) }}</strong>
+                                {{ __('Stock actual en sistema') }}: <strong class="text-gray-900 dark:text-white">{{ number_format($inventarioStockActual, 3) }}</strong>
                             </p>
                         </div>
                     @endif
@@ -403,7 +403,7 @@
                             @php $diferencia = $inventarioCantidadFisica - $inventarioStockActual; @endphp
                             @if($diferencia != 0)
                                 <p class="text-xs mt-1 {{ $diferencia > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                                    {{ __('Diferencia') }}: {{ $diferencia > 0 ? '+' : '' }}{{ number_format($diferencia, 2) }}
+                                    {{ __('Diferencia') }}: {{ $diferencia > 0 ? '+' : '' }}{{ number_format($diferencia, 3) }}
                                     ({{ $diferencia > 0 ? __('Sobrante') : __('Faltante') }})
                                 </p>
                             @endif

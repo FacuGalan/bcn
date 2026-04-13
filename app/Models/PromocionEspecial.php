@@ -59,6 +59,9 @@ class PromocionEspecial extends Model
         'forma_venta_id',
         'canal_venta_id',
         'forma_pago_id',
+        'formas_pago_ids',
+        'nxm_articulos_ids',
+        'nxm_categorias_ids',
         'usos_maximos',
         'usos_actuales',
     ];
@@ -66,6 +69,9 @@ class PromocionEspecial extends Model
     protected $casts = [
         'activo' => 'boolean',
         'usa_escalas' => 'boolean',
+        'formas_pago_ids' => 'array',
+        'nxm_articulos_ids' => 'array',
+        'nxm_categorias_ids' => 'array',
         'vigencia_desde' => 'date',
         'vigencia_hasta' => 'date',
         'dias_semana' => 'array',

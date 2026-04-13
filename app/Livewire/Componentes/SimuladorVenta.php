@@ -506,7 +506,7 @@ class SimuladorVenta extends Component
         $cantidadTotalVenta = 0;
         foreach ($this->itemsSimulador as $item) {
             $precio = (float) ($item['precio'] ?? 0);
-            $cantidad = (int) ($item['cantidad'] ?? 1);
+            $cantidad = (float) ($item['cantidad'] ?? 1);
             $subtotalVenta += $precio * $cantidad;
             $cantidadTotalVenta += $cantidad;
         }
@@ -603,11 +603,14 @@ class SimuladorVenta extends Component
         // Agregar promociones existentes
         foreach ($this->promocionesCompetidoras as $promo) {
             $condiciones = $promo->condiciones;
-            $condicionArticulo = $condiciones->firstWhere('tipo_condicion', 'por_articulo');
-            $condicionCategoria = $condiciones->firstWhere('tipo_condicion', 'por_categoria');
+            $articulosIds = $condiciones->where('tipo_condicion', 'por_articulo')
+                ->pluck('articulo_id')->filter()->values()->toArray();
+            $categoriasIds = $condiciones->where('tipo_condicion', 'por_categoria')
+                ->pluck('categoria_id')->filter()->values()->toArray();
             $condicionMontoMinimo = $condiciones->firstWhere('tipo_condicion', 'por_total_compra');
             $condicionCantidadMinima = $condiciones->firstWhere('tipo_condicion', 'por_cantidad');
-            $condicionFormaPago = $condiciones->firstWhere('tipo_condicion', 'por_forma_pago');
+            $formasPagoIds = $condiciones->where('tipo_condicion', 'por_forma_pago')
+                ->pluck('forma_pago_id')->filter()->values()->toArray();
             $condicionFormaVenta = $condiciones->firstWhere('tipo_condicion', 'por_forma_venta');
             $condicionCanalVenta = $condiciones->firstWhere('tipo_condicion', 'por_canal');
 
@@ -620,11 +623,11 @@ class SimuladorVenta extends Component
                 'combinable' => $promo->combinable,
                 'es_nueva' => false,
                 'escalas' => $promo->escalas->toArray(),
-                'articulo_id' => $condicionArticulo?->articulo_id,
-                'categoria_id' => $condicionCategoria?->categoria_id,
+                'articulos_ids' => $articulosIds,
+                'categorias_ids' => $categoriasIds,
                 'monto_minimo' => $condicionMontoMinimo?->monto_minimo,
                 'cantidad_minima' => $condicionCantidadMinima?->cantidad_minima,
-                'forma_pago_id' => $condicionFormaPago?->forma_pago_id,
+                'formas_pago_ids' => $formasPagoIds,
                 'forma_venta_id' => $condicionFormaVenta?->forma_venta_id,
                 'canal_venta_id' => $condicionCanalVenta?->canal_venta_id,
             ];
@@ -641,15 +644,11 @@ class SimuladorVenta extends Component
                 'combinable' => $this->promocionPreview['combinable'] ?? false,
                 'es_nueva' => true,
                 'escalas' => $this->promocionPreview['escalas'] ?? [],
-                'articulo_id' => ($this->promocionPreview['alcance_articulos'] ?? 'todos') === 'articulo'
-                    ? ($this->promocionPreview['articulo_id'] ?? null)
-                    : null,
-                'categoria_id' => ($this->promocionPreview['alcance_articulos'] ?? 'todos') === 'categoria'
-                    ? ($this->promocionPreview['categoria_id'] ?? null)
-                    : null,
+                'articulos_ids' => $this->promocionPreview['articulos_ids'] ?? [],
+                'categorias_ids' => $this->promocionPreview['categorias_ids'] ?? [],
                 'monto_minimo' => $this->promocionPreview['monto_minimo'] ?? null,
                 'cantidad_minima' => $this->promocionPreview['cantidad_minima'] ?? null,
-                'forma_pago_id' => $this->promocionPreview['forma_pago_id'] ?? null,
+                'formas_pago_ids' => $this->promocionPreview['formas_pago_ids'] ?? [],
                 'forma_venta_id' => $this->promocionPreview['forma_venta_id'] ?? null,
                 'canal_venta_id' => $this->promocionPreview['canal_venta_id'] ?? null,
             ];
@@ -661,7 +660,7 @@ class SimuladorVenta extends Component
     private function procesarItemSimulacion(array $item, array $todasPromociones, array $contextoVenta): array
     {
         $precio = (float) ($item['precio'] ?? 0);
-        $cantidad = (int) ($item['cantidad'] ?? 1);
+        $cantidad = (float) ($item['cantidad'] ?? 1);
         $subtotalOriginal = $precio * $cantidad;
         $articuloId = $item['articulo_id'] ?? null;
         $categoriaId = $item['categoria_id'] ?? null;
@@ -728,15 +727,21 @@ class SimuladorVenta extends Component
 
     private function promocionAplicaAItem(array $promo, ?int $articuloId, ?int $categoriaId): bool
     {
-        if ($promo['articulo_id'] !== null) {
-            return $promo['articulo_id'] == $articuloId;
+        $tieneRestriccion = ! empty($promo['articulos_ids']) || ! empty($promo['categorias_ids']);
+
+        if (! $tieneRestriccion) {
+            return true;
         }
 
-        if ($promo['categoria_id'] !== null) {
-            return $promo['categoria_id'] == $categoriaId;
+        if (! empty($promo['articulos_ids']) && in_array($articuloId, $promo['articulos_ids'])) {
+            return true;
         }
 
-        return true;
+        if (! empty($promo['categorias_ids']) && in_array($categoriaId, $promo['categorias_ids'])) {
+            return true;
+        }
+
+        return false;
     }
 
     private function promocionCumpleCondiciones(array $promo, array $contextoVenta): bool
@@ -748,14 +753,14 @@ class SimuladorVenta extends Component
         }
 
         if (! empty($promo['cantidad_minima'])) {
-            if ($contextoVenta['cantidad_total'] < (int) $promo['cantidad_minima']) {
+            if ($contextoVenta['cantidad_total'] < (float) $promo['cantidad_minima']) {
                 return false;
             }
         }
 
-        if (! empty($promo['forma_pago_id'])) {
+        if (! empty($promo['formas_pago_ids'])) {
             if (! empty($contextoVenta['forma_pago_id'])) {
-                if ($promo['forma_pago_id'] != $contextoVenta['forma_pago_id']) {
+                if (! in_array($contextoVenta['forma_pago_id'], $promo['formas_pago_ids'])) {
                     return false;
                 }
             } else {
@@ -962,11 +967,11 @@ class SimuladorVenta extends Component
 
     private function determinarRazonNoAplicada(array $promo, array $items, array $contextoVenta): string
     {
-        if (! empty($promo['forma_pago_id'])) {
+        if (! empty($promo['formas_pago_ids'])) {
             if (empty($contextoVenta['forma_pago_id'])) {
                 return __('Requiere forma de pago específica');
             }
-            if ($promo['forma_pago_id'] != $contextoVenta['forma_pago_id']) {
+            if (! in_array($contextoVenta['forma_pago_id'], $promo['formas_pago_ids'])) {
                 return __('No aplica a esta forma de pago');
             }
         }
@@ -999,7 +1004,7 @@ class SimuladorVenta extends Component
         }
 
         if (! empty($promo['cantidad_minima'])) {
-            $cantidadMinima = (int) $promo['cantidad_minima'];
+            $cantidadMinima = (float) $promo['cantidad_minima'];
             if ($contextoVenta['cantidad_total'] < $cantidadMinima) {
                 $faltante = $cantidadMinima - $contextoVenta['cantidad_total'];
 

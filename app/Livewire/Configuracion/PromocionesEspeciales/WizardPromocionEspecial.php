@@ -3,7 +3,6 @@
 namespace App\Livewire\Configuracion\PromocionesEspeciales;
 
 use App\Models\Articulo;
-use App\Models\Categoria;
 use App\Models\ListaPrecio;
 use App\Models\PromocionEspecial;
 use App\Services\CatalogoCache;
@@ -45,11 +44,13 @@ class WizardPromocionEspecial extends Component
 
     public $beneficioPorcentaje = 50;
 
-    public $nxmAplicaA = 'articulo'; // 'articulo' o 'categoria'
+    public $nxmAplicaA = 'todos'; // 'todos' o 'seleccion'
 
-    public $nxmArticuloId = null;
+    public array $nxmArticulosIds = [];
 
-    public $nxmCategoriaId = null;
+    public array $nxmArticulosSeleccionados = [];
+
+    public array $nxmCategoriasIds = [];
 
     public $busquedaArticuloNxM = '';
 
@@ -125,7 +126,7 @@ class WizardPromocionEspecial extends Component
 
     public $canalVentaId = null;
 
-    public $formaPagoId = null;
+    public array $formasPagoIds = [];
 
     public $usosMaximos = null;
 
@@ -213,14 +214,18 @@ class WizardPromocionEspecial extends Component
             $this->beneficioPorcentaje = $promo->beneficio_porcentaje ?? 50;
             $this->usarEscalas = $promo->usa_escalas;
 
-            if ($promo->nxm_articulo_id) {
-                $this->nxmAplicaA = 'articulo';
-                $this->nxmArticuloId = $promo->nxm_articulo_id;
-                $articulo = Articulo::find($promo->nxm_articulo_id);
-                $this->busquedaArticuloNxM = $articulo?->nombre;
-            } elseif ($promo->nxm_categoria_id) {
-                $this->nxmAplicaA = 'categoria';
-                $this->nxmCategoriaId = $promo->nxm_categoria_id;
+            // Cargar artículos y categorías (JSON arrays o fallback a columnas legacy)
+            $artIds = $promo->nxm_articulos_ids ?? ($promo->nxm_articulo_id ? [$promo->nxm_articulo_id] : []);
+            $catIds = $promo->nxm_categorias_ids ?? ($promo->nxm_categoria_id ? [$promo->nxm_categoria_id] : []);
+
+            if (! empty($artIds) || ! empty($catIds)) {
+                $this->nxmAplicaA = 'seleccion';
+                $this->nxmArticulosIds = array_map('intval', $artIds);
+                $this->nxmCategoriasIds = array_map('intval', $catIds);
+                $this->nxmArticulosSeleccionados = Articulo::whereIn('id', $this->nxmArticulosIds)
+                    ->get(['id', 'nombre', 'codigo'])
+                    ->map(fn ($a) => ['id' => $a->id, 'nombre' => $a->nombre, 'codigo' => $a->codigo])
+                    ->toArray();
             }
 
             if ($promo->usa_escalas) {
@@ -339,7 +344,7 @@ class WizardPromocionEspecial extends Component
         $this->horaHasta = $promo->hora_hasta;
         $this->formaVentaId = $promo->forma_venta_id;
         $this->canalVentaId = $promo->canal_venta_id;
-        $this->formaPagoId = $promo->forma_pago_id;
+        $this->formasPagoIds = array_map('intval', $promo->formas_pago_ids ?? ($promo->forma_pago_id ? [$promo->forma_pago_id] : []));
         $this->usosMaximos = $promo->usos_maximos;
     }
 
@@ -660,17 +665,37 @@ class WizardPromocionEspecial extends Component
 
     public function seleccionarArticuloNxM($articuloId)
     {
+        if (in_array($articuloId, $this->nxmArticulosIds)) {
+            return;
+        }
+
         $articulo = Articulo::find($articuloId);
         if ($articulo) {
-            $this->nxmArticuloId = $articuloId;
-            $this->busquedaArticuloNxM = $articulo->nombre;
-            $this->mostrarBuscadorNxM = false;
+            $this->nxmArticulosIds[] = $articulo->id;
+            $this->nxmArticulosSeleccionados[] = [
+                'id' => $articulo->id,
+                'nombre' => $articulo->nombre,
+                'codigo' => $articulo->codigo,
+            ];
         }
+        $this->busquedaArticuloNxM = '';
+        $this->articulosNxMResultados = [];
+        $this->mostrarBuscadorNxM = false;
+    }
+
+    public function quitarArticuloNxM($articuloId)
+    {
+        $this->nxmArticulosIds = array_values(array_diff($this->nxmArticulosIds, [$articuloId]));
+        $this->nxmArticulosSeleccionados = array_values(array_filter(
+            $this->nxmArticulosSeleccionados,
+            fn ($a) => $a['id'] != $articuloId
+        ));
     }
 
     public function limpiarArticuloNxM()
     {
-        $this->nxmArticuloId = null;
+        $this->nxmArticulosIds = [];
+        $this->nxmArticulosSeleccionados = [];
         $this->busquedaArticuloNxM = '';
     }
 
@@ -1238,8 +1263,10 @@ class WizardPromocionEspecial extends Component
                 'nxm_bonifica' => $this->esNxM() && ! $this->usarEscalas ? $this->nxmBonifica : null,
                 'beneficio_tipo' => $this->esNxM() && ! $this->usarEscalas ? $this->beneficioTipo : 'gratis',
                 'beneficio_porcentaje' => $this->esNxM() && ! $this->usarEscalas && $this->beneficioTipo === 'descuento' ? $this->beneficioPorcentaje : null,
-                'nxm_articulo_id' => $this->tipo === 'nxm' && $this->nxmAplicaA === 'articulo' ? $this->nxmArticuloId : null,
-                'nxm_categoria_id' => $this->tipo === 'nxm' && $this->nxmAplicaA === 'categoria' ? $this->nxmCategoriaId : null,
+                'nxm_articulo_id' => $this->tipo === 'nxm' && $this->nxmAplicaA === 'seleccion' && count($this->nxmArticulosIds) === 1 ? $this->nxmArticulosIds[0] : null,
+                'nxm_categoria_id' => $this->tipo === 'nxm' && $this->nxmAplicaA === 'seleccion' && count($this->nxmCategoriasIds) === 1 && empty($this->nxmArticulosIds) ? $this->nxmCategoriasIds[0] : null,
+                'nxm_articulos_ids' => $this->tipo === 'nxm' && $this->nxmAplicaA === 'seleccion' && ! empty($this->nxmArticulosIds) ? $this->nxmArticulosIds : null,
+                'nxm_categorias_ids' => $this->tipo === 'nxm' && $this->nxmAplicaA === 'seleccion' && ! empty($this->nxmCategoriasIds) ? $this->nxmCategoriasIds : null,
                 'usa_escalas' => $this->esNxM() ? $this->usarEscalas : false,
                 'precio_tipo' => $this->esComboOMenu() ? $this->precioTipo : 'fijo',
                 'precio_valor' => $this->esComboOMenu() ? $this->precioValor : null,
@@ -1252,7 +1279,8 @@ class WizardPromocionEspecial extends Component
                 'hora_hasta' => $this->horaHasta,
                 'forma_venta_id' => $this->formaVentaId,
                 'canal_venta_id' => $this->canalVentaId,
-                'forma_pago_id' => $this->formaPagoId,
+                'forma_pago_id' => ! empty($this->formasPagoIds) ? $this->formasPagoIds[0] : null,
+                'formas_pago_ids' => ! empty($this->formasPagoIds) ? $this->formasPagoIds : null,
                 'usos_maximos' => $this->usosMaximos,
             ]);
 
@@ -1276,8 +1304,10 @@ class WizardPromocionEspecial extends Component
             'nxm_bonifica' => $this->esNxM() && ! $this->usarEscalas ? $this->nxmBonifica : null,
             'beneficio_tipo' => $this->esNxM() && ! $this->usarEscalas ? $this->beneficioTipo : 'gratis',
             'beneficio_porcentaje' => $this->esNxM() && ! $this->usarEscalas && $this->beneficioTipo === 'descuento' ? $this->beneficioPorcentaje : null,
-            'nxm_articulo_id' => $this->tipo === 'nxm' && $this->nxmAplicaA === 'articulo' ? $this->nxmArticuloId : null,
-            'nxm_categoria_id' => $this->tipo === 'nxm' && $this->nxmAplicaA === 'categoria' ? $this->nxmCategoriaId : null,
+            'nxm_articulo_id' => $this->tipo === 'nxm' && $this->nxmAplicaA === 'seleccion' && count($this->nxmArticulosIds) === 1 ? $this->nxmArticulosIds[0] : null,
+            'nxm_categoria_id' => $this->tipo === 'nxm' && $this->nxmAplicaA === 'seleccion' && count($this->nxmCategoriasIds) === 1 && empty($this->nxmArticulosIds) ? $this->nxmCategoriasIds[0] : null,
+            'nxm_articulos_ids' => $this->tipo === 'nxm' && $this->nxmAplicaA === 'seleccion' && ! empty($this->nxmArticulosIds) ? $this->nxmArticulosIds : null,
+            'nxm_categorias_ids' => $this->tipo === 'nxm' && $this->nxmAplicaA === 'seleccion' && ! empty($this->nxmCategoriasIds) ? $this->nxmCategoriasIds : null,
             'usa_escalas' => $this->esNxM() ? $this->usarEscalas : false,
             'precio_tipo' => $this->esComboOMenu() ? $this->precioTipo : 'fijo',
             'precio_valor' => $this->esComboOMenu() ? $this->precioValor : null,
@@ -1290,7 +1320,8 @@ class WizardPromocionEspecial extends Component
             'hora_hasta' => $this->horaHasta,
             'forma_venta_id' => $this->formaVentaId,
             'canal_venta_id' => $this->canalVentaId,
-            'forma_pago_id' => $this->formaPagoId,
+            'forma_pago_id' => ! empty($this->formasPagoIds) ? $this->formasPagoIds[0] : null,
+            'formas_pago_ids' => ! empty($this->formasPagoIds) ? $this->formasPagoIds : null,
             'usos_maximos' => $this->usosMaximos,
         ]);
 
@@ -2077,7 +2108,9 @@ class WizardPromocionEspecial extends Component
             // Condiciones
             'forma_venta_id' => $promo->forma_venta_id,
             'canal_venta_id' => $promo->canal_venta_id,
-            'forma_pago_id' => $promo->forma_pago_id,
+            'formas_pago_ids' => $promo->formas_pago_ids ?? ($promo->forma_pago_id ? [$promo->forma_pago_id] : []),
+            'nxm_articulos_ids' => $promo->nxm_articulos_ids ?? ($promo->nxm_articulo_id ? [$promo->nxm_articulo_id] : []),
+            'nxm_categorias_ids' => $promo->nxm_categorias_ids ?? ($promo->nxm_categoria_id ? [$promo->nxm_categoria_id] : []),
             'vigencia_desde' => $promo->vigencia_desde,
             'vigencia_hasta' => $promo->vigencia_hasta,
             'dias_semana' => $promo->dias_semana ?? [],
@@ -2135,8 +2168,8 @@ class WizardPromocionEspecial extends Component
             // NxM básico
             'nxm_lleva' => $this->usarEscalas ? null : $this->nxmLleva,
             'nxm_bonifica' => $this->usarEscalas ? null : ($this->beneficioTipo === 'descuento' ? 1 : $this->nxmBonifica),
-            'nxm_articulo_id' => ($this->tipo === 'nxm' && $this->nxmAplicaA === 'articulo') ? $this->nxmArticuloId : null,
-            'nxm_categoria_id' => ($this->tipo === 'nxm' && $this->nxmAplicaA === 'categoria') ? $this->nxmCategoriaId : null,
+            'nxm_articulos_ids' => ($this->tipo === 'nxm' && $this->nxmAplicaA === 'seleccion') ? $this->nxmArticulosIds : [],
+            'nxm_categorias_ids' => ($this->tipo === 'nxm' && $this->nxmAplicaA === 'seleccion') ? $this->nxmCategoriasIds : [],
             'beneficio_tipo' => $this->beneficioTipo ?? 'gratis',
             'beneficio_porcentaje' => $this->beneficioPorcentaje ?? 100,
             'usa_escalas' => $this->usarEscalas,
@@ -2151,7 +2184,7 @@ class WizardPromocionEspecial extends Component
             // Condiciones
             'forma_venta_id' => $this->formaVentaId,
             'canal_venta_id' => $this->canalVentaId,
-            'forma_pago_id' => $this->formaPagoId,
+            'formas_pago_ids' => $this->formasPagoIds,
             'vigencia_desde' => $this->vigenciaDesde,
             'vigencia_hasta' => $this->vigenciaHasta,
             'dias_semana' => $this->diasSemana ?? [],
@@ -2176,7 +2209,7 @@ class WizardPromocionEspecial extends Component
         }
 
         // Verificar forma de pago
-        if ($promo['forma_pago_id'] && $contexto['forma_pago_id'] && $promo['forma_pago_id'] != $contexto['forma_pago_id']) {
+        if (! empty($promo['formas_pago_ids']) && ! empty($contexto['forma_pago_id']) && ! in_array($contexto['forma_pago_id'], $promo['formas_pago_ids'])) {
             return false;
         }
 
@@ -2229,11 +2262,18 @@ class WizardPromocionEspecial extends Component
     {
         // Filtrar unidades que aplican a esta promoción
         $unidadesAplicables = array_filter($unidadesDisponibles, function ($u) use ($promo) {
-            if ($promo['nxm_articulo_id']) {
-                return $u['articulo_id'] == $promo['nxm_articulo_id'];
+            $tieneRestriccion = ! empty($promo['nxm_articulos_ids']) || ! empty($promo['nxm_categorias_ids']);
+
+            if (! $tieneRestriccion) {
+                return false;
             }
-            if ($promo['nxm_categoria_id']) {
-                return $u['categoria_id'] == $promo['nxm_categoria_id'];
+
+            if (! empty($promo['nxm_articulos_ids']) && in_array($u['articulo_id'], $promo['nxm_articulos_ids'])) {
+                return true;
+            }
+
+            if (! empty($promo['nxm_categorias_ids']) && in_array($u['categoria_id'], $promo['nxm_categorias_ids'])) {
+                return true;
             }
 
             return false;

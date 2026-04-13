@@ -69,6 +69,7 @@ class Articulo extends Model
         'precio_base',
         'puntos_canje',
         'es_materia_prima',
+        'pesable',
         'activo',
         'tipo_iva_id',
         'precio_iva_incluido',
@@ -78,6 +79,7 @@ class Articulo extends Model
         'precio_base' => 'decimal:2',
         'puntos_canje' => 'integer',
         'es_materia_prima' => 'boolean',
+        'pesable' => 'boolean',
         'activo' => 'boolean',
         'precio_iva_incluido' => 'boolean',
     ];

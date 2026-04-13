@@ -138,7 +138,7 @@ if (! function_exists('formato_cantidad')) {
      *
      * @param  float|int|string|null  $valor
      */
-    function formato_cantidad($valor, int $decimales = 2): string
+    function formato_cantidad($valor, int $decimales = 3): string
     {
         $valor = floatval($valor ?? 0);
         // Si es un número entero, no mostrar decimales

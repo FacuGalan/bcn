@@ -297,7 +297,7 @@
                                 <tr class="{{ $faltante ? 'bg-red-50 dark:bg-red-900/10' : '' }}">
                                     <td class="px-3 py-2 text-gray-900 dark:text-white">{{ $ing['nombre'] }}</td>
                                     <td class="px-3 py-2 text-right font-medium text-gray-900 dark:text-white">{{ number_format($ing['total_necesario'], 3) }}</td>
-                                    <td class="px-3 py-2 text-right text-gray-500 dark:text-gray-400">{{ number_format($ing['stock_disponible'], 2) }}</td>
+                                    <td class="px-3 py-2 text-right text-gray-500 dark:text-gray-400">{{ number_format($ing['stock_disponible'], 3) }}</td>
                                     <td class="px-3 py-2 text-right font-semibold {{ $faltante ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' }}">
                                         {{ $faltante ? '' : '+' }}{{ number_format($ing['diferencia'], 3) }}
                                     </td>

@@ -301,36 +301,60 @@
                                     <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Aplica a:') }}</label>
                                     <div class="flex gap-3 mb-2">
                                         <label class="flex items-center gap-1 cursor-pointer text-sm">
-                                            <input type="radio" wire:model.live="nxmAplicaA" value="articulo" class="text-purple-600 focus:ring-purple-500">
-                                            <span class="text-gray-700 dark:text-gray-300">{{ __('Artículo') }}</span>
+                                            <input type="radio" wire:model.live="nxmAplicaA" value="todos" class="text-purple-600 focus:ring-purple-500">
+                                            <span class="text-gray-700 dark:text-gray-300">{{ __('Todos') }}</span>
                                         </label>
                                         <label class="flex items-center gap-1 cursor-pointer text-sm">
-                                            <input type="radio" wire:model.live="nxmAplicaA" value="categoria" class="text-purple-600 focus:ring-purple-500">
-                                            <span class="text-gray-700 dark:text-gray-300">{{ __('Categoría') }}</span>
+                                            <input type="radio" wire:model.live="nxmAplicaA" value="seleccion" class="text-purple-600 focus:ring-purple-500">
+                                            <span class="text-gray-700 dark:text-gray-300">{{ __('Categorías y/o artículos') }}</span>
                                         </label>
                                     </div>
 
-                                    @if($nxmAplicaA === 'articulo')
-                                        @include('livewire.configuracion.promociones-especiales.partials.buscador-articulo', [
-                                            'articuloId' => $nxmArticuloId,
-                                            'busqueda' => $busquedaArticuloNxM,
-                                            'resultados' => $articulosNxMResultados,
-                                            'mostrar' => $mostrarBuscadorNxM,
-                                            'abrirMethod' => 'abrirBuscadorNxM',
-                                            'cerrarMethod' => 'cerrarBuscadorNxM',
-                                            'seleccionarMethod' => 'seleccionarArticuloNxM',
-                                            'limpiarMethod' => 'limpiarArticuloNxM',
-                                            'busquedaModel' => 'busquedaArticuloNxM',
-                                            'color' => 'purple',
-                                        ])
-                                    @else
-                                        <select wire:model="nxmCategoriaId"
-                                                class="w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm">
-                                            <option value="">{{ __('Seleccionar categoría...') }}</option>
-                                            @foreach($categorias as $categoria)
-                                                <option value="{{ $categoria->id }}">{{ $categoria->nombre }}</option>
-                                            @endforeach
-                                        </select>
+                                    @if($nxmAplicaA === 'seleccion')
+                                        {{-- Categorías --}}
+                                        <div class="mb-2">
+                                            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('Categorías') }}</label>
+                                            <div class="border border-gray-200 dark:border-gray-700 rounded-lg max-h-32 overflow-y-auto">
+                                                @foreach($categorias as $categoria)
+                                                    <label class="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                                                        <input type="checkbox" wire:model.live="nxmCategoriasIds" value="{{ $categoria->id }}" class="rounded border-gray-300 dark:border-gray-600 text-purple-600 focus:ring-purple-500 dark:bg-gray-600 w-3.5 h-3.5">
+                                                        <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: {{ $categoria->color ?? '#6B7280' }}"></span>
+                                                        <span class="text-sm text-gray-700 dark:text-gray-300">{{ $categoria->nombre }}</span>
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                        </div>
+
+                                        {{-- Artículos --}}
+                                        <div>
+                                            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('Artículos') }}
+                                                @if(count($nxmArticulosIds) > 0)
+                                                    <span class="ml-1 text-purple-600">({{ count($nxmArticulosIds) }})</span>
+                                                @endif
+                                            </label>
+                                            @if(count($nxmArticulosSeleccionados) > 0)
+                                                <div class="flex flex-wrap gap-1.5 mb-2">
+                                                    @foreach($nxmArticulosSeleccionados as $art)
+                                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 text-xs rounded-full border border-purple-200 dark:border-purple-700">
+                                                            {{ $art['nombre'] }}
+                                                            <button type="button" wire:click="quitarArticuloNxM({{ $art['id'] }})" class="text-purple-600 hover:text-red-600"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                                                        </span>
+                                                    @endforeach
+                                                </div>
+                                            @endif
+                                            @include('livewire.configuracion.promociones-especiales.partials.buscador-articulo', [
+                                                'articuloId' => null,
+                                                'busqueda' => $busquedaArticuloNxM,
+                                                'resultados' => $articulosNxMResultados,
+                                                'mostrar' => $mostrarBuscadorNxM,
+                                                'abrirMethod' => 'abrirBuscadorNxM',
+                                                'cerrarMethod' => 'cerrarBuscadorNxM',
+                                                'seleccionarMethod' => 'seleccionarArticuloNxM',
+                                                'limpiarMethod' => 'limpiarArticuloNxM',
+                                                'busquedaModel' => 'busquedaArticuloNxM',
+                                                'color' => 'purple',
+                                            ])
+                                        </div>
                                     @endif
                                 </div>
                             </div>
@@ -860,14 +884,22 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Forma de pago</label>
-                                <select wire:model="formaPagoId"
-                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                    <option value="">Todas</option>
+                                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                    {{ __('Formas de pago') }}
+                                    @if(count($formasPagoIds) > 0)
+                                        <span class="ml-1 px-1.5 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">{{ count($formasPagoIds) }}</span>
+                                    @else
+                                        <span class="text-xs text-gray-400 ml-1">({{ __('todas') }})</span>
+                                    @endif
+                                </label>
+                                <div class="border border-gray-200 dark:border-gray-700 rounded-lg max-h-36 overflow-y-auto">
                                     @foreach($formasPago as $fp)
-                                        <option value="{{ $fp->id }}">{{ $fp->nombre }}</option>
+                                        <label class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                                            <input type="checkbox" wire:model.live="formasPagoIds" value="{{ $fp->id }}" class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-600">
+                                            <span class="text-sm text-gray-700 dark:text-gray-300">{{ $fp->nombre }}</span>
+                                        </label>
                                     @endforeach
-                                </select>
+                                </div>
                             </div>
                         </div>
                     </div>

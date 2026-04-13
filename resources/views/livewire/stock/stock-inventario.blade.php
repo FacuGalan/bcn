@@ -148,9 +148,9 @@
 
                     <div class="flex items-center justify-between mb-3">
                         <div class="text-xs text-gray-500 dark:text-gray-400">
-                            <span>{{ __('Mín:') }} {{ $stock->cantidad_minima !== null ? number_format($stock->cantidad_minima, 2, ',', '.') : '-' }}</span>
+                            <span>{{ __('Mín:') }} {{ $stock->cantidad_minima !== null ? number_format($stock->cantidad_minima, 3, ',', '.') : '-' }}</span>
                             <span class="mx-1">|</span>
-                            <span>{{ __('Máx:') }} {{ $stock->cantidad_maxima !== null ? number_format($stock->cantidad_maxima, 2, ',', '.') : '-' }}</span>
+                            <span>{{ __('Máx:') }} {{ $stock->cantidad_maxima !== null ? number_format($stock->cantidad_maxima, 3, ',', '.') : '-' }}</span>
                         </div>
                         <span class="text-base font-bold {{ $stock->cantidad <= 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white' }}">
                             @cantidad($stock->cantidad)
@@ -225,10 +225,10 @@
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 text-right whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                    {{ $stock->cantidad_minima !== null ? number_format($stock->cantidad_minima, 2, ',', '.') : '-' }}
+                                    {{ $stock->cantidad_minima !== null ? number_format($stock->cantidad_minima, 3, ',', '.') : '-' }}
                                 </td>
                                 <td class="px-6 py-4 text-right whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                    {{ $stock->cantidad_maxima !== null ? number_format($stock->cantidad_maxima, 2, ',', '.') : '-' }}
+                                    {{ $stock->cantidad_maxima !== null ? number_format($stock->cantidad_maxima, 3, ',', '.') : '-' }}
                                 </td>
                                 <td class="px-6 py-4 text-center whitespace-nowrap">
                                     @if($stock->estaBajoMinimo())
