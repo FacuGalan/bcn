@@ -755,7 +755,7 @@
                                 </div>
 
                                 <!-- Toggles -->
-                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
                                     <!-- Materia Prima -->
                                     <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between">
                                         <label for="es_materia_prima" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('Es Materia Prima') }}</label>
@@ -781,6 +781,20 @@
                                             aria-checked="{{ $precio_iva_incluido ? 'true' : 'false' }}"
                                         >
                                             <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $precio_iva_incluido ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                                        </button>
+                                    </div>
+
+                                    <!-- Pesable -->
+                                    <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between">
+                                        <label for="pesable" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('Pesable') }}</label>
+                                        <button
+                                            type="button"
+                                            wire:click="$toggle('pesable')"
+                                            class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $pesable ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
+                                            role="switch"
+                                            aria-checked="{{ $pesable ? 'true' : 'false' }}"
+                                        >
+                                            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $pesable ? 'translate-x-5' : 'translate-x-0' }}"></span>
                                         </button>
                                     </div>
 

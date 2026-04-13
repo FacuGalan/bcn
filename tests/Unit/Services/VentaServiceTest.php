@@ -456,7 +456,7 @@ class VentaServiceTest extends TestCase
             ->where('sucursal_id', $this->sucursalId)
             ->first();
 
-        $this->assertEquals('7.00', $stock->cantidad);
+        $this->assertEquals('7.000', $stock->cantidad);
     }
 
     public function test_descuenta_stock_receta_ingredientes()
@@ -480,7 +480,7 @@ class VentaServiceTest extends TestCase
             ->first();
 
         // Se vendieron 2, receta requiere 5 por producción → 10 descontados
-        $this->assertEquals('10.00', $stockIngrediente->cantidad);
+        $this->assertEquals('10.000', $stockIngrediente->cantidad);
     }
 
     public function test_descuenta_stock_opcionales()
@@ -500,7 +500,7 @@ class VentaServiceTest extends TestCase
             ->where('sucursal_id', $this->sucursalId)
             ->first();
 
-        $this->assertEquals('9.00', $stock->cantidad);
+        $this->assertEquals('9.000', $stock->cantidad);
     }
 
     public function test_no_descuenta_stock_modo_ninguno()
@@ -539,7 +539,7 @@ class VentaServiceTest extends TestCase
             ->first();
 
         $this->assertNotNull($movimiento);
-        $this->assertEquals('2.00', $movimiento->salida);
+        $this->assertEquals('2.000', $movimiento->salida);
         $this->assertEquals($venta->id, $movimiento->venta_id);
     }
 
@@ -558,7 +558,7 @@ class VentaServiceTest extends TestCase
             ->where('sucursal_id', $this->sucursalId)
             ->first();
 
-        $this->assertEquals('-5.00', $stock->cantidad);
+        $this->assertEquals('-5.000', $stock->cantidad);
     }
 
     public function test_permite_stock_negativo_en_no_controla()
@@ -576,7 +576,7 @@ class VentaServiceTest extends TestCase
             ->where('sucursal_id', $this->sucursalId)
             ->first();
 
-        $this->assertEquals('-5.00', $stock->cantidad);
+        $this->assertEquals('-5.000', $stock->cantidad);
     }
 
     // ====================================================================
@@ -1062,7 +1062,7 @@ class VentaServiceTest extends TestCase
         $venta = $this->ventaService->crearVenta($data, $detalles);
 
         $detalle = VentaDetalle::where('venta_id', $venta->id)->first();
-        $this->assertEquals('1.50', $detalle->cantidad);
+        $this->assertEquals('1.500', $detalle->cantidad);
     }
 
     public function test_venta_con_iva_cero()

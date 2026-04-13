@@ -46,7 +46,7 @@ class CompraDetalle extends Model
     ];
 
     protected $casts = [
-        'cantidad' => 'decimal:2',
+        'cantidad' => 'decimal:3',
         'precio_unitario' => 'decimal:2',
         'iva_porcentaje' => 'decimal:2',
         'precio_sin_iva' => 'decimal:2',

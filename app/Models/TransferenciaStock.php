@@ -63,7 +63,7 @@ class TransferenciaStock extends Model
     ];
 
     protected $casts = [
-        'cantidad' => 'decimal:2',
+        'cantidad' => 'decimal:3',
         'fecha_solicitud' => 'datetime',
         'fecha_aprobacion' => 'datetime',
         'fecha_recepcion' => 'datetime',

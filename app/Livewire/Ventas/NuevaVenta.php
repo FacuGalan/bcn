@@ -15,6 +15,8 @@ use App\Models\FormaPago;
 use App\Models\FormaPagoCuota;
 use App\Models\FormaPagoCuotaSucursal;
 use App\Models\FormaPagoSucursal;
+use App\Models\GrupoEtiqueta;
+use App\Models\HistorialPrecio;
 use App\Models\ListaPrecio;
 use App\Models\ListaPrecioArticulo;
 use App\Models\Moneda;
@@ -26,6 +28,7 @@ use App\Models\Receta;
 use App\Models\Stock;
 use App\Models\Sucursal;
 use App\Models\TipoCambio;
+use App\Models\TipoIva;
 use App\Models\VentaPago;
 use App\Services\ARCA\ComprobanteFiscalService;
 use App\Services\ARCA\PadronARCAService;
@@ -76,11 +79,8 @@ class NuevaVenta extends Component
     /** @var string Búsqueda de artículos */
     public $busquedaArticulo = '';
 
-    /** @var string Input para lector de código de barras */
-    public $codigoBarrasInput = '';
-
     /** @var int Cantidad a agregar al seleccionar un artículo */
-    public int $cantidadAgregar = 1;
+    public $cantidadAgregar = 1;
 
     /** @var array Artículos encontrados en la búsqueda */
     public $articulosResultados = [];
@@ -114,6 +114,44 @@ class NuevaVenta extends Component
 
     /** @var array Categorías disponibles para conceptos */
     public $categoriasDisponibles = [];
+
+    // =========================================
+    // PROPIEDADES DE ALTA RÁPIDA DE ARTÍCULO
+    // =========================================
+
+    public bool $mostrarModalArticuloRapido = false;
+
+    public string $artRapidoNombre = '';
+
+    public ?int $artRapidoCategoriaId = null;
+
+    public string $artRapidoCodigo = '';
+
+    public string $artRapidoCodigoBarras = '';
+
+    public string $artRapidoUnidadMedida = 'unidad';
+
+    public ?int $artRapidoTipoIvaId = null;
+
+    public ?float $artRapidoPrecioBase = null;
+
+    public $artRapidoCategorias = [];
+
+    public $artRapidoTiposIva = [];
+
+    // =========================================
+    // PROPIEDADES DE MODAL BÚSQUEDA ARTÍCULOS
+    // =========================================
+
+    public bool $mostrarModalBusquedaArticulos = false;
+
+    public string $busquedaArticuloModal = '';
+
+    public array $articulosModalResultados = [];
+
+    public array $etiquetasModalSeleccionadas = [];
+
+    public $gruposEtiquetasModal = [];
 
     // =========================================
     // PROPIEDADES DE BÚSQUEDA DE CLIENTES
@@ -357,6 +395,26 @@ class NuevaVenta extends Component
 
     /** @var float|null Valor ingresado en el popover de ajuste */
     public $ajusteManualValor = null;
+
+    /** @var int|null Índice del item con popover de edición de nombre */
+    public ?int $editarNombreIndex = null;
+
+    /** @var string Nombre temporal en el popover */
+    public string $editarNombreValor = '';
+
+    // =========================================
+    // PROPIEDADES MODAL PESABLE
+    // =========================================
+
+    public bool $mostrarModalPesable = false;
+
+    public ?int $pesableArticuloId = null;
+
+    public float $pesablePrecioUnitario = 0;
+
+    public string $pesableUnidadMedida = 'kg';
+
+    public string $pesableNombreArticulo = '';
 
     // =========================================
     // PROPIEDADES DE DESCUENTO GENERAL
@@ -742,8 +800,7 @@ class NuevaVenta extends Component
     {
         $value = trim($value);
 
-        // Solo mostrar resultados si hay al menos 3 caracteres
-        if (strlen($value) < 3) {
+        if (empty($value)) {
             $this->articulosResultados = [];
 
             return;
@@ -984,6 +1041,20 @@ class NuevaVenta extends Component
             return;
         }
 
+        // Si es pesable, abrir modal para ingresar cantidad/valor
+        if ($articulo->pesable) {
+            $precioInfo = $this->obtenerPrecioConLista($articulo);
+            $this->pesableArticuloId = $articulo->id;
+            $this->pesablePrecioUnitario = (float) $precioInfo['precio'];
+            $this->pesableUnidadMedida = $articulo->unidad_medida ?? 'kg';
+            $this->pesableNombreArticulo = $articulo->nombre;
+            $this->pesableCantidad = null;
+            $this->pesableValor = null;
+            $this->mostrarModalPesable = true;
+
+            return;
+        }
+
         $precioInfo = $this->obtenerPrecioConLista($articulo);
 
         // Obtener información de IVA del artículo
@@ -1094,6 +1165,7 @@ class NuevaVenta extends Component
         $this->articulosResultados = [];
         $this->cantidadAgregar = 1;
         $this->calcularVenta();
+        $this->dispatch('scroll-carrito-abajo');
     }
 
     /**
@@ -1148,18 +1220,16 @@ class NuevaVenta extends Component
     }
 
     /**
-     * Agrega un artículo por código de barras (para lector)
-     * Sin debounce, busca coincidencia exacta
+     * Agrega artículo por código directo (usado por scanner para evitar race conditions).
+     * El código se captura en Alpine y se pasa como parámetro, sin depender de wire:model.
      */
-    public function agregarPorCodigoBarras()
+    public function agregarPorCodigo(string $codigo)
     {
-        $codigo = trim($this->codigoBarrasInput);
-
+        $codigo = trim($codigo);
         if (empty($codigo)) {
             return;
         }
 
-        // Buscar coincidencia exacta por código de barras o código
         $articulo = Articulo::where('activo', true)
             ->where(function ($q) use ($codigo) {
                 $q->where('codigo_barras', $codigo)
@@ -1167,13 +1237,25 @@ class NuevaVenta extends Component
             })
             ->first();
 
-        if ($articulo) {
-            $this->agregarArticulo($articulo->id);
-            $this->codigoBarrasInput = '';
-        } else {
-            $this->dispatch('toast-error', message: __('No se encontró artículo con código: :codigo', ['codigo' => $codigo]));
-            $this->codigoBarrasInput = '';
+        if (! $articulo) {
+            return;
         }
+
+        if ($this->modoConsulta) {
+            $this->consultarPrecios($articulo->id);
+
+            return;
+        }
+
+        if ($this->modoBusqueda) {
+            $this->buscarEnDetalle($articulo->id);
+
+            return;
+        }
+
+        $this->busquedaArticulo = '';
+        $this->articulosResultados = [];
+        $this->agregarArticulo($articulo->id);
     }
 
     public function eliminarItem($index)
@@ -1185,11 +1267,245 @@ class NuevaVenta extends Component
 
     public function actualizarCantidad($index, $cantidad)
     {
-        $cantidad = max(1, (int) $cantidad);
+        $cantidad = max(0.001, (float) $cantidad);
         if (isset($this->items[$index])) {
             $this->items[$index]['cantidad'] = $cantidad;
             $this->calcularVenta();
         }
+    }
+
+    // =========================================
+    // ALTA RÁPIDA DE ARTÍCULO
+    // =========================================
+
+    public function abrirModalArticuloRapido(): void
+    {
+        $this->resetArticuloRapido();
+
+        $this->artRapidoCategorias = Categoria::where('activo', true)
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'color', 'prefijo']);
+
+        $this->artRapidoTiposIva = TipoIva::orderBy('nombre')
+            ->get(['id', 'nombre', 'porcentaje']);
+
+        // Preseleccionar IVA 21% por defecto
+        $iva21 = $this->artRapidoTiposIva->firstWhere('porcentaje', 21);
+        $this->artRapidoTipoIvaId = $iva21?->id;
+
+        // Pre-llenar con lo que el usuario escribió en la búsqueda
+        $busqueda = trim($this->busquedaArticulo);
+        if (! empty($busqueda)) {
+            $this->artRapidoNombre = $busqueda;
+        }
+
+        $this->mostrarModalArticuloRapido = true;
+    }
+
+    public function cerrarModalArticuloRapido(): void
+    {
+        $this->mostrarModalArticuloRapido = false;
+        $this->resetArticuloRapido();
+        $this->dispatch('focus-busqueda');
+    }
+
+    protected function resetArticuloRapido(): void
+    {
+        $this->artRapidoNombre = '';
+        $this->artRapidoCategoriaId = null;
+        $this->artRapidoCodigo = '';
+        $this->artRapidoCodigoBarras = '';
+        $this->artRapidoUnidadMedida = 'unidad';
+        $this->artRapidoTipoIvaId = null;
+        $this->artRapidoPrecioBase = null;
+        $this->artRapidoCategorias = [];
+        $this->artRapidoTiposIva = [];
+    }
+
+    public function updatedArtRapidoCategoriaId($value): void
+    {
+        if (! $value) {
+            return;
+        }
+
+        $categoria = Categoria::find($value);
+        if ($categoria && $categoria->prefijo) {
+            $ultimoCodigo = Articulo::where('codigo', 'like', $categoria->prefijo.'-%')
+                ->orderByRaw('CAST(SUBSTRING_INDEX(codigo, "-", -1) AS UNSIGNED) DESC')
+                ->value('codigo');
+
+            if ($ultimoCodigo) {
+                $numero = (int) last(explode('-', $ultimoCodigo)) + 1;
+            } else {
+                $numero = 1;
+            }
+
+            $this->artRapidoCodigo = $categoria->prefijo.'-'.str_pad($numero, 3, '0', STR_PAD_LEFT);
+        }
+    }
+
+    public function guardarArticuloRapido(): void
+    {
+        $this->validate([
+            'artRapidoNombre' => 'required|string|min:2|max:200',
+            'artRapidoCodigo' => 'required|string|max:50|unique:pymes_tenant.articulos,codigo',
+            'artRapidoCodigoBarras' => 'nullable|string|max:50',
+            'artRapidoCategoriaId' => 'nullable|exists:pymes_tenant.categorias,id',
+            'artRapidoUnidadMedida' => 'required|string|max:50',
+            'artRapidoTipoIvaId' => 'required|exists:pymes_tenant.tipos_iva,id',
+            'artRapidoPrecioBase' => 'required|numeric|min:0',
+        ], [
+            'artRapidoNombre.required' => __('El nombre es obligatorio'),
+            'artRapidoNombre.min' => __('El nombre debe tener al menos 2 caracteres'),
+            'artRapidoCodigo.required' => __('El código es obligatorio'),
+            'artRapidoCodigo.unique' => __('Ya existe un artículo con este código'),
+            'artRapidoTipoIvaId.required' => __('Seleccione un tipo de IVA'),
+            'artRapidoPrecioBase.required' => __('El precio es obligatorio'),
+        ]);
+
+        try {
+            $articulo = Articulo::create([
+                'nombre' => $this->artRapidoNombre,
+                'codigo' => $this->artRapidoCodigo,
+                'codigo_barras' => $this->artRapidoCodigoBarras ?: null,
+                'categoria_id' => $this->artRapidoCategoriaId,
+                'unidad_medida' => $this->artRapidoUnidadMedida,
+                'tipo_iva_id' => $this->artRapidoTipoIvaId,
+                'precio_iva_incluido' => true,
+                'precio_base' => $this->artRapidoPrecioBase,
+                'es_materia_prima' => false,
+                'activo' => true,
+            ]);
+
+            HistorialPrecio::registrar([
+                'articulo_id' => $articulo->id,
+                'precio_anterior' => 0,
+                'precio_nuevo' => $this->artRapidoPrecioBase,
+                'origen' => 'articulo_crear',
+            ]);
+
+            // Sincronizar con todas las sucursales (activo solo en la actual)
+            $todasSucursales = Sucursal::pluck('id')->toArray();
+            $sucursalActiva = sucursal_activa();
+            $syncData = [];
+            foreach ($todasSucursales as $sucursalId) {
+                $esActiva = $sucursalId == $sucursalActiva;
+                $syncData[$sucursalId] = [
+                    'activo' => $esActiva,
+                    'modo_stock' => 'ninguno',
+                    'vendible' => true,
+                    'precio_base' => null,
+                ];
+            }
+            $articulo->sucursales()->sync($syncData);
+
+            // Agregar el artículo recién creado al carrito
+            $this->agregarArticulo($articulo->id);
+
+            $this->cerrarModalArticuloRapido();
+
+            $this->dispatch('notify',
+                message: __('Artículo ":nombre" creado y agregado', ['nombre' => $articulo->nombre]),
+                type: 'success'
+            );
+        } catch (\Exception $e) {
+            \Log::error('Error al crear artículo rápido: '.$e->getMessage());
+            $this->dispatch('notify',
+                message: __('Error al crear el artículo'),
+                type: 'error'
+            );
+        }
+    }
+
+    // =========================================
+    // MODAL DE BÚSQUEDA DE ARTÍCULOS
+    // =========================================
+
+    public function abrirModalBusquedaArticulos(): void
+    {
+        $this->busquedaArticuloModal = '';
+        $this->etiquetasModalSeleccionadas = [];
+        $this->gruposEtiquetasModal = GrupoEtiqueta::where('activo', true)
+            ->with(['etiquetas' => fn ($q) => $q->where('activo', true)->orderBy('orden')->orderBy('nombre')])
+            ->orderBy('orden')
+            ->orderBy('nombre')
+            ->get();
+        $this->cargarArticulosModal();
+        $this->mostrarModalBusquedaArticulos = true;
+    }
+
+    public function cerrarModalBusquedaArticulos(): void
+    {
+        $this->mostrarModalBusquedaArticulos = false;
+        $this->busquedaArticuloModal = '';
+        $this->articulosModalResultados = [];
+        $this->etiquetasModalSeleccionadas = [];
+        $this->gruposEtiquetasModal = [];
+        $this->dispatch('focus-busqueda');
+    }
+
+    public function updatedBusquedaArticuloModal(): void
+    {
+        $this->cargarArticulosModal();
+    }
+
+    public function updatedEtiquetasModalSeleccionadas(): void
+    {
+        $this->cargarArticulosModal();
+    }
+
+    protected function cargarArticulosModal(): void
+    {
+        $query = Articulo::with('categoriaModel')
+            ->where('activo', true);
+
+        // Filtrar por sucursal activa
+        if ($this->sucursalId) {
+            $query->whereHas('sucursales', function ($q) {
+                $q->where('sucursal_id', $this->sucursalId)
+                    ->where('articulos_sucursales.activo', 1);
+            });
+        }
+
+        // Filtrar por etiquetas seleccionadas
+        if (! empty($this->etiquetasModalSeleccionadas)) {
+            $query->whereHas('etiquetas', function ($q) {
+                $q->whereIn('etiquetas.id', $this->etiquetasModalSeleccionadas);
+            });
+        }
+
+        // Filtrar por búsqueda (nombre, código, código de barras, categoría)
+        $busqueda = trim($this->busquedaArticuloModal);
+        if (! empty($busqueda)) {
+            $palabras = preg_split('/\s+/', $busqueda, -1, PREG_SPLIT_NO_EMPTY);
+            foreach ($palabras as $palabra) {
+                $query->where(function ($q) use ($palabra) {
+                    $q->where('nombre', 'like', '%'.$palabra.'%')
+                        ->orWhere('codigo', 'like', '%'.$palabra.'%')
+                        ->orWhere('codigo_barras', 'like', '%'.$palabra.'%')
+                        ->orWhereHas('categoriaModel', function ($subQ) use ($palabra) {
+                            $subQ->where('nombre', 'like', '%'.$palabra.'%');
+                        });
+                });
+            }
+        }
+
+        $articulos = $query->orderBy('nombre')->limit(100)->get();
+
+        $this->articulosModalResultados = $articulos->map(fn ($a) => [
+            'id' => $a->id,
+            'nombre' => $a->nombre,
+            'codigo' => $a->codigo,
+            'codigo_barras' => $a->codigo_barras,
+            'categoria' => $a->categoriaModel?->nombre,
+            'precio_base' => $a->precio_base,
+        ])->toArray();
+    }
+
+    public function seleccionarArticuloModal(int $articuloId): void
+    {
+        $this->cerrarModalBusquedaArticulos();
+        $this->seleccionarArticulo($articuloId);
     }
 
     // =========================================
@@ -1331,6 +1647,7 @@ class NuevaVenta extends Component
         if ($indiceEncontrado !== null) {
             $this->itemResaltado = $indiceEncontrado;
             $this->dispatch('scroll-to-item', index: $indiceEncontrado);
+            $this->dispatch('auto-clear-resaltado');
             $this->dispatch('toast-success', message: __('Artículo encontrado en el detalle'));
         } else {
             $this->dispatch('toast-warning', message: 'El artículo no está en el detalle de la venta');
@@ -1347,6 +1664,119 @@ class NuevaVenta extends Component
     public function limpiarResaltado()
     {
         $this->itemResaltado = null;
+    }
+
+    // =========================================
+    // EDITAR NOMBRE DE ITEM
+    // =========================================
+
+    public function abrirEditarNombre(int $index): void
+    {
+        $this->editarNombreIndex = $index;
+        $this->editarNombreValor = $this->items[$index]['nombre'] ?? '';
+    }
+
+    public function cerrarEditarNombre(): void
+    {
+        $this->editarNombreIndex = null;
+        $this->editarNombreValor = '';
+        $this->dispatch('focus-busqueda');
+    }
+
+    public function aplicarEditarNombre(): void
+    {
+        $index = $this->editarNombreIndex;
+        $nombre = trim($this->editarNombreValor);
+
+        if ($index === null || ! isset($this->items[$index]) || empty($nombre)) {
+            $this->cerrarEditarNombre();
+
+            return;
+        }
+
+        $this->items[$index]['nombre'] = $nombre;
+        $this->cerrarEditarNombre();
+    }
+
+    // =========================================
+    // MODAL PESABLE
+    // =========================================
+
+    public function confirmarPesable(float $cantidad): void
+    {
+        if (! $this->pesableArticuloId || $cantidad <= 0) {
+            $this->dispatch('toast-error', message: __('Ingrese una cantidad válida'));
+
+            return;
+        }
+
+        $this->mostrarModalPesable = false;
+        $articuloId = $this->pesableArticuloId;
+        $this->pesableArticuloId = null;
+
+        $articulo = Articulo::with(['categoriaModel', 'tipoIva'])->find($articuloId);
+        if (! $articulo) {
+            return;
+        }
+
+        $precioInfo = $this->obtenerPrecioConLista($articulo);
+        $tipoIva = $articulo->tipoIva;
+        $ivaInfo = [
+            'codigo' => $tipoIva?->codigo ?? 5,
+            'porcentaje' => (float) ($tipoIva?->porcentaje ?? 21),
+            'nombre' => $tipoIva?->nombre ?? 'IVA 21%',
+        ];
+
+        $this->verificarStockAlAgregar($articulo, $cantidad);
+
+        $this->items[] = [
+            'articulo_id' => $articulo->id,
+            'nombre' => $articulo->nombre,
+            'codigo' => $articulo->codigo,
+            'categoria_id' => $articulo->categoria_id,
+            'categoria_nombre' => $articulo->categoriaModel?->nombre,
+            'precio_base' => $precioInfo['precio_base'],
+            'precio' => $precioInfo['precio'],
+            'tiene_ajuste' => $precioInfo['tiene_ajuste'],
+            'cantidad' => $cantidad,
+            'iva_codigo' => $ivaInfo['codigo'],
+            'iva_porcentaje' => $ivaInfo['porcentaje'],
+            'iva_nombre' => $ivaInfo['nombre'],
+            'precio_iva_incluido' => $articulo->precio_iva_incluido ?? true,
+            'ajuste_manual_tipo' => null,
+            'ajuste_manual_valor' => null,
+            'precio_sin_ajuste_manual' => null,
+            'opcionales' => [],
+            'precio_opcionales' => 0,
+            'puntos_canje' => $articulo->puntos_canje,
+            'pagado_con_puntos' => false,
+        ];
+
+        // Herencia de descuento general % a items nuevos
+        if ($this->descuentoGeneralActivo && $this->descuentoGeneralTipo === 'porcentaje') {
+            $lastIndex = count($this->items) - 1;
+            $precioBase = (float) $precioInfo['precio_base'];
+            $nuevoPrecio = round($precioBase - ($precioBase * $this->descuentoGeneralValor / 100), 2);
+            $this->items[$lastIndex]['precio_sin_ajuste_manual'] = $precioInfo['precio'];
+            $this->items[$lastIndex]['precio'] = $nuevoPrecio;
+            $this->items[$lastIndex]['ajuste_manual_tipo'] = 'porcentaje';
+            $this->items[$lastIndex]['ajuste_manual_valor'] = $this->descuentoGeneralValor;
+            $this->items[$lastIndex]['tiene_ajuste'] = true;
+        }
+
+        $this->busquedaArticulo = '';
+        $this->articulosResultados = [];
+        $this->cantidadAgregar = 1;
+        $this->calcularVenta();
+        $this->dispatch('scroll-carrito-abajo');
+        $this->dispatch('focus-busqueda');
+    }
+
+    public function cerrarModalPesable(): void
+    {
+        $this->mostrarModalPesable = false;
+        $this->pesableArticuloId = null;
+        $this->dispatch('focus-busqueda');
     }
 
     // =========================================
@@ -3166,7 +3596,7 @@ class NuevaVenta extends Component
                     // Sin límite: todas las unidades elegibles
                     foreach ($indices as $index) {
                         $item = $this->items[$index];
-                        $montoElegible = (float) ($item['precio'] ?? 0) * (int) ($item['cantidad'] ?? 1);
+                        $montoElegible = (float) ($item['precio'] ?? 0) * (float) ($item['cantidad'] ?? 1);
                         $elegiblesPorItem[$index] = $montoElegible;
                         $montoElegibleTotal += $montoElegible;
                     }
@@ -3181,7 +3611,7 @@ class NuevaVenta extends Component
                             break;
                         }
                         $item = $this->items[$index];
-                        $cantidadEnCarrito = (int) ($item['cantidad'] ?? 1);
+                        $cantidadEnCarrito = (float) ($item['cantidad'] ?? 1);
                         $cantidadElegible = min($cantidadEnCarrito, $cantidadRestante);
                         $montoElegible = (float) ($item['precio'] ?? 0) * $cantidadElegible;
                         $elegiblesPorItem[$index] = $montoElegible;
@@ -3356,7 +3786,7 @@ class NuevaVenta extends Component
 
         $item = $this->items[$index];
         $precioUnitario = (float) ($item['precio'] ?? 0);
-        $cantidad = (int) ($item['cantidad'] ?? 1);
+        $cantidad = (float) ($item['cantidad'] ?? 1);
 
         // Calcular puntos desde el precio del artículo usando la configuración
         $puntosTotal = $this->calcularPuntosCanjePorPrecio($precioUnitario) * $cantidad;
@@ -3445,7 +3875,7 @@ class NuevaVenta extends Component
         foreach ($this->items as $item) {
             if ($item['pagado_con_puntos'] ?? false) {
                 $puntos = $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0));
-                $total += $puntos * (int) ($item['cantidad'] ?? 1);
+                $total += $puntos * (float) ($item['cantidad'] ?? 1);
             }
         }
 
@@ -3558,7 +3988,7 @@ class NuevaVenta extends Component
         // Calcular subtotal
         foreach ($this->items as $item) {
             $precio = (float) ($item['precio'] ?? 0);
-            $cantidad = (int) ($item['cantidad'] ?? 1);
+            $cantidad = (float) ($item['cantidad'] ?? 1);
             $resultado['subtotal'] += $precio * $cantidad;
         }
 
@@ -3582,7 +4012,7 @@ class NuevaVenta extends Component
                 'categoria_id' => $item['categoria_id'] ?? null,
                 'nombre' => $item['nombre'],
                 'precio' => (float) ($item['precio'] ?? 0),
-                'cantidad' => (int) ($item['cantidad'] ?? 1),
+                'cantidad' => (float) ($item['cantidad'] ?? 1),
                 'excluido_promociones' => isset($articulosExcluidos[$articuloId]),
             ];
         }
@@ -3690,8 +4120,8 @@ class NuevaVenta extends Component
                 'nombre' => $item['nombre'],
                 'precio_base' => (float) ($item['precio_base'] ?? $item['precio'] ?? 0),
                 'precio_lista' => (float) ($item['precio'] ?? 0),
-                'cantidad' => (int) ($item['cantidad'] ?? 1),
-                'subtotal' => (float) ($item['precio'] ?? 0) * (int) ($item['cantidad'] ?? 1),
+                'cantidad' => (float) ($item['cantidad'] ?? 1),
+                'subtotal' => (float) ($item['precio'] ?? 0) * (float) ($item['cantidad'] ?? 1),
                 'unidades_consumidas' => count($unidadesConsumidas),
                 'unidades_libres' => count($unidadesLibres),
                 'excluido_promociones' => $excluido,
@@ -3728,7 +4158,7 @@ class NuevaVenta extends Component
                     if ($item['ajuste_manual_tipo'] === 'porcentaje' && $item['precio_sin_ajuste_manual'] !== null) {
                         $precioOriginal = (float) $item['precio_sin_ajuste_manual'];
                         $precioActual = (float) $item['precio'];
-                        $montoTotal += ($precioOriginal - $precioActual) * (int) ($item['cantidad'] ?? 1);
+                        $montoTotal += ($precioOriginal - $precioActual) * (float) ($item['cantidad'] ?? 1);
                     }
                 }
                 $resultado['descuento_general_monto'] = round($montoTotal, 2);
@@ -3773,7 +4203,7 @@ class NuevaVenta extends Component
         $resultado['articulos_canjeados_monto'] = 0;
         foreach ($this->items as $item) {
             if ($item['pagado_con_puntos'] ?? false) {
-                $resultado['articulos_canjeados_monto'] += (float) ($item['precio'] ?? 0) * (int) ($item['cantidad'] ?? 1);
+                $resultado['articulos_canjeados_monto'] += (float) ($item['precio'] ?? 0) * (float) ($item['cantidad'] ?? 1);
             }
         }
         if ($resultado['articulos_canjeados_monto'] > 0) {
@@ -3837,7 +4267,7 @@ class NuevaVenta extends Component
         // Calcular neto e IVA de cada item y agrupar
         foreach ($this->items as $index => $item) {
             $precio = (float) ($item['precio'] ?? 0);
-            $cantidad = (int) ($item['cantidad'] ?? 1);
+            $cantidad = (float) ($item['cantidad'] ?? 1);
             $ivaCodigo = $item['iva_codigo'] ?? 5;
             $ivaPorcentaje = (float) ($item['iva_porcentaje'] ?? 21);
             $ivaNombre = $item['iva_nombre'] ?? 'IVA 21%';
@@ -3962,7 +4392,7 @@ class NuevaVenta extends Component
         $idCounter = 0;
 
         foreach ($this->items as $itemIndex => $item) {
-            $cantidad = (int) ($item['cantidad'] ?? 1);
+            $cantidad = max(1, (float) ($item['cantidad'] ?? 1));
 
             for ($i = 0; $i < $cantidad; $i++) {
                 $pool[] = [
@@ -4050,9 +4480,10 @@ class NuevaVenta extends Component
             }
         }
 
-        // Verificar forma de pago
-        if ($promo->forma_pago_id) {
-            if (empty($contexto['forma_pago_id']) || $promo->forma_pago_id != $contexto['forma_pago_id']) {
+        // Verificar formas de pago
+        $fpIds = $promo->formas_pago_ids ?? ($promo->forma_pago_id ? [$promo->forma_pago_id] : []);
+        if (! empty($fpIds)) {
+            if (empty($contexto['forma_pago_id']) || ! in_array($contexto['forma_pago_id'], $fpIds)) {
                 return false;
             }
         }
@@ -4083,8 +4514,8 @@ class NuevaVenta extends Component
             // NxM básico
             'nxm_lleva' => $promo->nxm_lleva,
             'nxm_bonifica' => $promo->nxm_bonifica,
-            'nxm_articulo_id' => $promo->nxm_articulo_id,
-            'nxm_categoria_id' => $promo->nxm_categoria_id,
+            'nxm_articulos_ids' => $promo->nxm_articulos_ids ?? ($promo->nxm_articulo_id ? [$promo->nxm_articulo_id] : []),
+            'nxm_categorias_ids' => $promo->nxm_categorias_ids ?? ($promo->nxm_categoria_id ? [$promo->nxm_categoria_id] : []),
             'beneficio_tipo' => $promo->beneficio_tipo ?? 'gratis',
             'beneficio_porcentaje' => $promo->beneficio_porcentaje ?? 100,
             'usa_escalas' => $promo->usa_escalas,
@@ -4130,11 +4561,18 @@ class NuevaVenta extends Component
     {
         // Filtrar unidades que aplican a esta promoción
         $unidadesAplicables = array_filter($unidadesDisponibles, function ($u) use ($promo) {
-            if ($promo['nxm_articulo_id']) {
-                return $u['articulo_id'] == $promo['nxm_articulo_id'];
+            $tieneRestriccion = ! empty($promo['nxm_articulos_ids']) || ! empty($promo['nxm_categorias_ids']);
+
+            if (! $tieneRestriccion) {
+                return false;
             }
-            if ($promo['nxm_categoria_id']) {
-                return $u['categoria_id'] == $promo['nxm_categoria_id'];
+
+            if (! empty($promo['nxm_articulos_ids']) && in_array($u['articulo_id'], $promo['nxm_articulos_ids'])) {
+                return true;
+            }
+
+            if (! empty($promo['nxm_categorias_ids']) && in_array($u['categoria_id'], $promo['nxm_categorias_ids'])) {
+                return true;
             }
 
             return false;
@@ -4151,8 +4589,8 @@ class NuevaVenta extends Component
         if ($promo['usa_escalas'] && ! empty($promo['escalas'])) {
             $escalaAplicable = null;
             foreach ($promo['escalas'] as $escala) {
-                $desde = (int) ($escala['cantidad_desde'] ?? 0);
-                $hasta = (int) ($escala['cantidad_hasta'] ?? PHP_INT_MAX);
+                $desde = (float) ($escala['cantidad_desde'] ?? 0);
+                $hasta = (float) ($escala['cantidad_hasta'] ?? PHP_INT_MAX);
                 if ($cantidadDisponible >= $desde && ($hasta === 0 || $cantidadDisponible <= $hasta)) {
                     $escalaAplicable = $escala;
                     break;
@@ -4234,8 +4672,8 @@ class NuevaVenta extends Component
             $cantidadTrigger = count($unidadesTrigger);
             $escalaAplicable = null;
             foreach ($promo['escalas'] as $escala) {
-                $desde = (int) ($escala['cantidad_desde'] ?? 0);
-                $hasta = (int) ($escala['cantidad_hasta'] ?? PHP_INT_MAX);
+                $desde = (float) ($escala['cantidad_desde'] ?? 0);
+                $hasta = (float) ($escala['cantidad_hasta'] ?? PHP_INT_MAX);
                 if ($cantidadTrigger >= $desde && ($hasta === 0 || $cantidadTrigger <= $hasta)) {
                     $escalaAplicable = $escala;
                     break;
@@ -4315,7 +4753,7 @@ class NuevaVenta extends Component
         $precioNormal = 0;
 
         foreach ($promo['grupos'] as $grupo) {
-            $cantidadRequerida = (int) ($grupo['cantidad'] ?? 1);
+            $cantidadRequerida = (float) ($grupo['cantidad'] ?? 1);
             $articulosDelGrupo = $grupo['articulos'] ?? [];
 
             if (empty($articulosDelGrupo)) {
@@ -4378,7 +4816,7 @@ class NuevaVenta extends Component
         $precioNormal = 0;
 
         foreach ($promo['grupos'] as $grupo) {
-            $cantidadRequerida = (int) ($grupo['cantidad'] ?? 1);
+            $cantidadRequerida = (float) ($grupo['cantidad'] ?? 1);
             $articulosDelGrupo = array_column($grupo['articulos'] ?? [], 'id');
 
             if (empty($articulosDelGrupo)) {
@@ -4461,11 +4899,14 @@ class NuevaVenta extends Component
     protected function convertirPromocionComunAArray($promo): array
     {
         $condiciones = $promo->condiciones;
-        $condicionArticulo = $condiciones->firstWhere('tipo_condicion', 'por_articulo');
-        $condicionCategoria = $condiciones->firstWhere('tipo_condicion', 'por_categoria');
+        $articulosIds = $condiciones->where('tipo_condicion', 'por_articulo')
+            ->pluck('articulo_id')->filter()->values()->toArray();
+        $categoriasIds = $condiciones->where('tipo_condicion', 'por_categoria')
+            ->pluck('categoria_id')->filter()->values()->toArray();
         $condicionMontoMinimo = $condiciones->firstWhere('tipo_condicion', 'por_total_compra');
         $condicionCantidadMinima = $condiciones->firstWhere('tipo_condicion', 'por_cantidad');
-        $condicionFormaPago = $condiciones->firstWhere('tipo_condicion', 'por_forma_pago');
+        $formasPagoIds = $condiciones->where('tipo_condicion', 'por_forma_pago')
+            ->pluck('forma_pago_id')->filter()->values()->toArray();
         $condicionFormaVenta = $condiciones->firstWhere('tipo_condicion', 'por_forma_venta');
         $condicionCanalVenta = $condiciones->firstWhere('tipo_condicion', 'por_canal');
 
@@ -4477,11 +4918,11 @@ class NuevaVenta extends Component
             'prioridad' => $promo->prioridad,
             'combinable' => $promo->combinable,
             'escalas' => $promo->escalas->toArray(),
-            'articulo_id' => $condicionArticulo?->articulo_id,
-            'categoria_id' => $condicionCategoria?->categoria_id,
+            'articulos_ids' => $articulosIds,
+            'categorias_ids' => $categoriasIds,
             'monto_minimo' => $condicionMontoMinimo?->monto_minimo,
             'cantidad_minima' => $condicionCantidadMinima?->cantidad_minima,
-            'forma_pago_id' => $condicionFormaPago?->forma_pago_id,
+            'formas_pago_ids' => $formasPagoIds,
             'forma_venta_id' => $condicionFormaVenta?->forma_venta_id,
             'canal_venta_id' => $condicionCanalVenta?->canal_venta_id,
             'dias_semana' => $promo->dias_semana,
@@ -4504,20 +4945,18 @@ class NuevaVenta extends Component
 
         // Verificar cantidad mínima
         if (! empty($promo['cantidad_minima'])) {
-            if (($contexto['cantidad_total'] ?? 0) < (int) $promo['cantidad_minima']) {
+            if (($contexto['cantidad_total'] ?? 0) < (float) $promo['cantidad_minima']) {
                 return false;
             }
         }
 
-        // Verificar forma de pago: si la promoción requiere una forma de pago específica
-        if (! empty($promo['forma_pago_id'])) {
-            // Si el contexto tiene una forma de pago seleccionada, debe coincidir
+        // Verificar forma de pago: si la promoción requiere formas de pago específicas
+        if (! empty($promo['formas_pago_ids'])) {
             if (! empty($contexto['forma_pago_id'])) {
-                if ($promo['forma_pago_id'] != $contexto['forma_pago_id']) {
+                if (! in_array($contexto['forma_pago_id'], $promo['formas_pago_ids'])) {
                     return false;
                 }
             } else {
-                // Si no hay forma de pago seleccionada pero la promo requiere una, no aplica
                 return false;
             }
         }
@@ -4565,18 +5004,22 @@ class NuevaVenta extends Component
      */
     protected function promocionAplicaAItem(array $promo, ?int $articuloId, ?int $categoriaId): bool
     {
-        // Si la promoción es para un artículo específico
-        if (! empty($promo['articulo_id'])) {
-            return $promo['articulo_id'] == $articuloId;
+        $tieneRestriccion = ! empty($promo['articulos_ids']) || ! empty($promo['categorias_ids']);
+
+        if (! $tieneRestriccion) {
+            return true;
         }
 
-        // Si la promoción es para una categoría específica
-        if (! empty($promo['categoria_id'])) {
-            return $promo['categoria_id'] == $categoriaId;
+        // Aplica si el artículo está en la lista O pertenece a una categoría seleccionada
+        if (! empty($promo['articulos_ids']) && in_array($articuloId, $promo['articulos_ids'])) {
+            return true;
         }
 
-        // Si no tiene restricción de artículo ni categoría, aplica a todos
-        return true;
+        if (! empty($promo['categorias_ids']) && in_array($categoriaId, $promo['categorias_ids'])) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -4600,7 +5043,7 @@ class NuevaVenta extends Component
         foreach ($items as $itemIndex => &$item) {
             $articuloId = $item['articulo_id'];
             $categoriaId = $item['categoria_id'] ?? null;
-            $cantidad = (int) $item['cantidad'];
+            $cantidad = (float) $item['cantidad'];
             $precioUnitario = (float) $item['precio'];
             $subtotalItem = $precioUnitario * $cantidad;
 
@@ -6495,7 +6938,7 @@ class NuevaVenta extends Component
                         // Canje por puntos (RF-10)
                         'pagado_con_puntos' => $item['pagado_con_puntos'] ?? false,
                         'puntos_usados' => ($item['pagado_con_puntos'] ?? false)
-                            ? $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (int) ($item['cantidad'] ?? 1)
+                            ? $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (float) ($item['cantidad'] ?? 1)
                             : 0,
                     ];
                 }
@@ -6736,7 +7179,7 @@ class NuevaVenta extends Component
                 if ($puntosArticulosCanjeados > 0 && $this->clienteSeleccionado) {
                     foreach ($this->items as $item) {
                         if ($item['pagado_con_puntos'] ?? false) {
-                            $puntosItem = $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (int) ($item['cantidad'] ?? 1);
+                            $puntosItem = $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (float) ($item['cantidad'] ?? 1);
                             $this->puntosService->canjearArticuloConPuntos(
                                 $this->clienteSeleccionado,
                                 $item['articulo_id'],
@@ -6929,7 +7372,7 @@ class NuevaVenta extends Component
                         // Canje por puntos (RF-10)
                         'pagado_con_puntos' => $item['pagado_con_puntos'] ?? false,
                         'puntos_usados' => ($item['pagado_con_puntos'] ?? false)
-                            ? $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (int) ($item['cantidad'] ?? 1)
+                            ? $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (float) ($item['cantidad'] ?? 1)
                             : 0,
                     ];
                 }
@@ -7060,7 +7503,7 @@ class NuevaVenta extends Component
                 if ($puntosArticulosCanjeados > 0 && $this->clienteSeleccionado) {
                     foreach ($this->items as $item) {
                         if ($item['pagado_con_puntos'] ?? false) {
-                            $puntosItem = $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (int) ($item['cantidad'] ?? 1);
+                            $puntosItem = $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (float) ($item['cantidad'] ?? 1);
                             $this->puntosService->canjearArticuloConPuntos(
                                 $this->clienteSeleccionado,
                                 $item['articulo_id'],
@@ -7159,9 +7602,14 @@ class NuevaVenta extends Component
 
         // Resetear búsqueda de artículos
         $this->busquedaArticulo = '';
-        $this->codigoBarrasInput = '';
         $this->articulosResultados = [];
         $this->cantidadAgregar = 1;
+        $this->mostrarModalArticuloRapido = false;
+        $this->mostrarModalBusquedaArticulos = false;
+        $this->busquedaArticuloModal = '';
+        $this->articulosModalResultados = [];
+        $this->etiquetasModalSeleccionadas = [];
+        $this->gruposEtiquetasModal = [];
 
         // Resetear observaciones
         $this->observaciones = null;

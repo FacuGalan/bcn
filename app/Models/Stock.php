@@ -40,9 +40,9 @@ class Stock extends Model
     ];
 
     protected $casts = [
-        'cantidad' => 'decimal:2',
-        'cantidad_minima' => 'decimal:2',
-        'cantidad_maxima' => 'decimal:2',
+        'cantidad' => 'decimal:3',
+        'cantidad_minima' => 'decimal:3',
+        'cantidad_maxima' => 'decimal:3',
         'ultima_actualizacion' => 'datetime',
     ];
 

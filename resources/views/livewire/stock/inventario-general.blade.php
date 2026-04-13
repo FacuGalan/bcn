@@ -174,10 +174,10 @@
                             <div class="flex items-center gap-2 mt-0.5">
                                 <span class="text-xs text-gray-500 dark:text-gray-400">{{ $articulo->codigo }}</span>
                                 <span class="text-xs text-gray-400 dark:text-gray-500">|</span>
-                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Sist.') }} <span class="font-semibold text-gray-700 dark:text-gray-200">{{ number_format($stockSistema, 2, ',', '.') }}</span></span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Sist.') }} <span class="font-semibold text-gray-700 dark:text-gray-200">{{ number_format($stockSistema, 3, ',', '.') }}</span></span>
                                 @if($tieneConteo && $diferencia !== null)
                                     <span class="text-xs font-semibold {{ $diferencia > 0 ? 'text-yellow-600' : ($diferencia < 0 ? 'text-red-600' : 'text-green-600') }}">
-                                        {{ $diferencia >= 0 ? '+' : '' }}{{ number_format($diferencia, 2, ',', '.') }}
+                                        {{ $diferencia >= 0 ? '+' : '' }}{{ number_format($diferencia, 3, ',', '.') }}
                                     </span>
                                 @endif
                             </div>
@@ -252,7 +252,7 @@
                                     <span class="text-xs text-gray-500 dark:text-gray-400">{{ $articulo->unidad_medida ?? 'u' }}</span>
                                 </td>
                                 <td class="px-4 py-3 text-right whitespace-nowrap">
-                                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ number_format($stockSistema, 2, ',', '.') }}</span>
+                                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ number_format($stockSistema, 3, ',', '.') }}</span>
                                 </td>
                                 <td class="px-4 py-3 text-center whitespace-nowrap">
                                     <input
@@ -272,7 +272,7 @@
                                 <td class="px-4 py-3 text-right whitespace-nowrap">
                                     @if($tieneConteo && $diferencia !== null)
                                         <span class="text-sm font-semibold {{ $diferencia > 0 ? 'text-yellow-600 dark:text-yellow-400' : ($diferencia < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400') }}">
-                                            {{ $diferencia >= 0 ? '+' : '' }}{{ number_format($diferencia, 2, ',', '.') }}
+                                            {{ $diferencia >= 0 ? '+' : '' }}{{ number_format($diferencia, 3, ',', '.') }}
                                         </span>
                                     @else
                                         <span class="text-sm text-gray-400">-</span>

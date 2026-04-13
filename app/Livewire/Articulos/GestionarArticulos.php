@@ -133,6 +133,8 @@ class GestionarArticulos extends Component
 
     public bool $es_materia_prima = false;
 
+    public bool $pesable = false;
+
     public ?int $tipo_iva_id = null;
 
     public bool $precio_iva_incluido = true;
@@ -384,6 +386,13 @@ class GestionarArticulos extends Component
         return $query->orderBy('articulos.nombre')->paginate(10);
     }
 
+    public function updatedPesable($value): void
+    {
+        if ($value) {
+            $this->modo_stock = 'unitario';
+        }
+    }
+
     /**
      * Abre el modal para crear un nuevo artículo
      */
@@ -421,6 +430,7 @@ class GestionarArticulos extends Component
         $this->categoria_id = $articulo->categoria_id;
         $this->unidad_medida = $articulo->unidad_medida ?? 'unidad';
         $this->es_materia_prima = $articulo->es_materia_prima ?? false;
+        $this->pesable = $articulo->pesable ?? false;
         $this->tipo_iva_id = $articulo->tipo_iva_id;
         $this->precio_iva_incluido = $articulo->precio_iva_incluido ?? true;
         $this->precio_base = $articulo->precio_base;
@@ -464,6 +474,7 @@ class GestionarArticulos extends Component
             'categoria_id' => 'nullable|exists:pymes_tenant.categorias,id',
             'unidad_medida' => 'required|string|max:50',
             'es_materia_prima' => 'boolean',
+            'pesable' => 'boolean',
             'tipo_iva_id' => 'required|exists:pymes_tenant.tipos_iva,id',
             'precio_iva_incluido' => 'boolean',
             'precio_base' => 'required|numeric|min:0',
@@ -483,6 +494,7 @@ class GestionarArticulos extends Component
             'categoria_id' => $this->categoria_id,
             'unidad_medida' => $this->unidad_medida,
             'es_materia_prima' => $this->es_materia_prima,
+            'pesable' => $this->pesable,
             'tipo_iva_id' => $this->tipo_iva_id,
             'precio_iva_incluido' => $this->precio_iva_incluido,
             'precio_base' => $this->precio_base,
@@ -613,7 +625,7 @@ class GestionarArticulos extends Component
     {
         $this->reset([
             'codigo', 'codigo_barras', 'nombre', 'descripcion', 'categoria_id',
-            'unidad_medida', 'es_materia_prima', 'tipo_iva_id',
+            'unidad_medida', 'es_materia_prima', 'pesable', 'tipo_iva_id',
             'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
             'sucursales_seleccionadas', 'etiquetas_seleccionadas', 'busquedaEtiqueta',
             'modo_stock', 'precio_sucursal', 'vendible',
