@@ -47,7 +47,7 @@ class StockTest extends TestCase
 
         $this->assertTrue($resultado);
         $stock->refresh();
-        $this->assertEquals('15.00', $stock->cantidad);
+        $this->assertEquals('15.000', $stock->cantidad);
     }
 
     public function test_disminuir_decrementa_stock(): void
@@ -59,7 +59,7 @@ class StockTest extends TestCase
 
         $this->assertTrue($resultado);
         $stock->refresh();
-        $this->assertEquals('7.00', $stock->cantidad);
+        $this->assertEquals('7.000', $stock->cantidad);
     }
 
     public function test_disminuir_falla_sin_stock(): void
@@ -71,7 +71,7 @@ class StockTest extends TestCase
 
         $this->assertFalse($resultado);
         $stock->refresh();
-        $this->assertEquals('5.00', $stock->cantidad);
+        $this->assertEquals('5.000', $stock->cantidad);
     }
 
     public function test_disminuir_permite_negativo(): void
@@ -83,7 +83,7 @@ class StockTest extends TestCase
 
         $this->assertTrue($resultado);
         $stock->refresh();
-        $this->assertEquals('-5.00', $stock->cantidad);
+        $this->assertEquals('-5.000', $stock->cantidad);
     }
 
     public function test_hay_suficiente_true_con_stock(): void

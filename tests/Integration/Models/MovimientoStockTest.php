@@ -46,8 +46,8 @@ class MovimientoStockTest extends TestCase
             1
         );
 
-        $this->assertEquals('0.00', $movimiento->entrada);
-        $this->assertEquals('5.00', $movimiento->salida);
+        $this->assertEquals('0.000', $movimiento->entrada);
+        $this->assertEquals('5.000', $movimiento->salida);
         $this->assertEquals(MovimientoStock::TIPO_VENTA, $movimiento->tipo);
         $this->assertEquals('activo', $movimiento->estado);
         $this->assertEquals($venta->id, $movimiento->venta_id);
@@ -70,8 +70,8 @@ class MovimientoStockTest extends TestCase
             1
         );
 
-        $this->assertEquals('5.00', $movimiento->entrada);
-        $this->assertEquals('0.00', $movimiento->salida);
+        $this->assertEquals('5.000', $movimiento->entrada);
+        $this->assertEquals('0.000', $movimiento->salida);
         $this->assertEquals(MovimientoStock::TIPO_ANULACION_VENTA, $movimiento->tipo);
         $this->assertEquals('activo', $movimiento->estado);
     }
@@ -88,8 +88,8 @@ class MovimientoStockTest extends TestCase
             1
         );
 
-        $this->assertEquals('5.00', $movimiento->entrada);
-        $this->assertEquals('0.00', $movimiento->salida);
+        $this->assertEquals('5.000', $movimiento->entrada);
+        $this->assertEquals('0.000', $movimiento->salida);
         $this->assertEquals(MovimientoStock::TIPO_AJUSTE_MANUAL, $movimiento->tipo);
     }
 
@@ -105,8 +105,8 @@ class MovimientoStockTest extends TestCase
             1
         );
 
-        $this->assertEquals('0.00', $movimiento->entrada);
-        $this->assertEquals('3.00', $movimiento->salida);
+        $this->assertEquals('0.000', $movimiento->entrada);
+        $this->assertEquals('3.000', $movimiento->salida);
         $this->assertEquals(MovimientoStock::TIPO_AJUSTE_MANUAL, $movimiento->tipo);
     }
 
@@ -200,8 +200,8 @@ class MovimientoStockTest extends TestCase
             1
         );
 
-        $this->assertEquals('0.00', $movOriginal->entrada);
-        $this->assertEquals('5.00', $movOriginal->salida);
+        $this->assertEquals('0.000', $movOriginal->entrada);
+        $this->assertEquals('5.000', $movOriginal->salida);
 
         // Crear contraasiento
         $contraasiento = MovimientoStock::crearContraasiento(
@@ -211,8 +211,8 @@ class MovimientoStockTest extends TestCase
         );
 
         // Contraasiento invierte: entrada=5, salida=0
-        $this->assertEquals('5.00', $contraasiento->entrada);
-        $this->assertEquals('0.00', $contraasiento->salida);
+        $this->assertEquals('5.000', $contraasiento->entrada);
+        $this->assertEquals('0.000', $contraasiento->salida);
         $this->assertEquals(MovimientoStock::TIPO_ANULACION_VENTA, $contraasiento->tipo);
 
         // El original queda vinculado al contraasiento
