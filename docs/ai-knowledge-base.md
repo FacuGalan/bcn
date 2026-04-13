@@ -146,7 +146,7 @@ Cada linea/item de una venta.
 | `articulo_id` | bigint FK | Articulo vendido |
 | `tipo_iva_id` | bigint FK | Tipo de IVA aplicado |
 | `lista_precio_id` | bigint FK nullable | Lista de precios usada para este item |
-| `cantidad` | decimal(12,2) | Cantidad vendida |
+| `cantidad` | decimal(12,3) | Cantidad vendida |
 | `precio_unitario` | decimal(12,2) | Precio unitario final (con IVA incluido si corresponde) |
 | `precio_lista` | decimal(12,2) | Precio original de lista (antes de promociones) |
 | `precio_opcionales` | decimal(12,2) | Suma del precio extra de opcionales seleccionados |
@@ -316,6 +316,7 @@ Catalogo maestro de articulos/productos del comercio.
 | `categoria_id` | bigint FK nullable | Categoria del articulo |
 | `unidad_medida` | varchar(20) | Unidad de medida (default: 'unidad') |
 | `es_materia_prima` | boolean | Si es materia prima (para filtrado) |
+| `pesable` | tinyint(1) | Si se vende por peso (abre modal de ingreso por peso/valor en POS) |
 | `tipo_iva_id` | bigint FK nullable | Tipo de IVA aplicable |
 | `precio_iva_incluido` | boolean | Si los precios incluyen IVA (default: true) |
 | `precio_base` | decimal(12,2) | Precio base del articulo |
@@ -496,9 +497,9 @@ Pivot articulo-etiqueta.
 | `id` | bigint PK | ID unico |
 | `articulo_id` | bigint FK | Articulo |
 | `sucursal_id` | bigint FK | Sucursal |
-| `cantidad` | decimal(10,2) | Cantidad actual en stock |
-| `cantidad_minima` | decimal(10,2) nullable | Stock minimo (para alertas) |
-| `cantidad_maxima` | decimal(10,2) nullable | Stock maximo |
+| `cantidad` | decimal(12,3) | Cantidad actual en stock |
+| `cantidad_minima` | decimal(12,3) nullable | Stock minimo (para alertas) |
+| `cantidad_maxima` | decimal(12,3) nullable | Stock maximo |
 | `ultima_actualizacion` | timestamp nullable | Ultima vez que se actualizo |
 | `created_at`, `updated_at` | timestamp | Timestamps |
 
@@ -512,9 +513,9 @@ Pivot articulo-etiqueta.
 | `sucursal_id` | bigint FK | Sucursal |
 | `fecha` | date | Fecha del movimiento |
 | `tipo` | varchar(50) | Tipo: `venta`, `compra`, `ajuste_manual`, `inventario_fisico`, `transferencia_salida`, `transferencia_entrada`, `devolucion`, `anulacion_venta`, `anulacion_compra`, `carga_inicial`, `produccion_entrada`, `produccion_salida`, `anulacion_produccion` |
-| `entrada` | decimal(10,2) | Cantidad que entra (0 si es salida) |
-| `salida` | decimal(10,2) | Cantidad que sale (0 si es entrada) |
-| `stock_resultante` | decimal(10,2) | Stock despues del movimiento |
+| `entrada` | decimal(12,3) | Cantidad que entra (0 si es salida) |
+| `salida` | decimal(12,3) | Cantidad que sale (0 si es entrada) |
+| `stock_resultante` | decimal(12,3) | Stock despues del movimiento |
 | `documento_tipo` | varchar(50) nullable | Tipo de documento origen (venta, compra, etc.) |
 | `documento_id` | bigint nullable | ID del documento origen |
 | `venta_id` | bigint FK nullable | FK a venta (si es movimiento por venta) |
@@ -1056,13 +1057,16 @@ Promociones de tipo NxM (lleva 3 paga 2), Combo y Menu.
 | `beneficio_tipo` | enum | `gratis` o `descuento` |
 | `beneficio_porcentaje` | decimal(5,2) nullable | Porcentaje de descuento (si no es gratis) |
 | `nxm_articulo_id` | bigint FK nullable | Articulo especifico para NxM basico |
+| `nxm_articulos_ids` | text nullable | Array JSON de IDs de articulos para NxM (seleccion multiple) |
 | `nxm_categoria_id` | bigint FK nullable | Categoria para NxM basico |
+| `nxm_categorias_ids` | text nullable | Array JSON de IDs de categorias para NxM (seleccion multiple) |
 | `usa_escalas` | boolean | Si usa escalas variables |
 | `precio_tipo` | enum | `fijo` o `porcentaje` (para combos) |
 | `precio_valor` | decimal(12,2) nullable | Valor del combo/menu |
 | `prioridad` | int | Prioridad |
 | Vigencia, dias_semana, horas | ... | Igual que promociones |
 | `forma_venta_id`, `canal_venta_id`, `forma_pago_id` | bigint FK nullable | Condiciones de aplicacion |
+| `formas_pago_ids` | text nullable | Array JSON de IDs de formas de pago (seleccion multiple) |
 | `usos_maximos`, `usos_actuales` | int | Control de usos |
 
 #### Tabla: `tipos_iva`
@@ -1199,6 +1203,8 @@ Paso a paso completo desde que el usuario abre la pantalla de Nueva Venta hasta 
      - Limite maximo de descuento: 70%
    - Se buscan y aplican **promociones especiales** (NxM, combos, menus)
    - Si el articulo tiene **opcionales**, se muestran para que el cliente elija
+   - **Articulos pesables**: Si el articulo tiene `pesable = true`, se abre un modal para ingresar cantidad (peso) o valor ($). Los campos estan sincronizados bidireccional: `valor = cantidad * precio_unitario`. El articulo se agrega con la cantidad decimal ingresada.
+   - **Scanner buffer**: El frontend detecta escaneo rapido (3+ teclas en <50ms) y encola codigos en `scanQueue`. El metodo `agregarPorCodigo($codigo)` procesa cada codigo secuencialmente sin depender de wire:model, evitando race conditions al escanear rapido.
 
 5. **Calculo de totales**:
    - Subtotal = suma de (precio_unitario * cantidad) de todos los items
@@ -1259,6 +1265,9 @@ El sistema de precios tiene **4 niveles de especificidad** (de mayor a menor):
 - Las promociones pueden ser **combinables** o **excluyentes**
 - Para combinables, se busca la mejor combinacion posible (exhaustiva 2^n para <=15 promos)
 - Limite de descuento: 70% maximo
+- Promociones comunes ahora soportan multiples articulos, categorias y formas de pago como condiciones (tabla `promocion_condiciones` con multiples rows por tipo)
+- Promociones especiales tienen columnas `formas_pago_ids`, `nxm_articulos_ids`, `nxm_categorias_ids` (TEXT con JSON arrays) para seleccion multiple. Se mantiene retrocompatibilidad con las columnas singulares (`forma_pago_id`, `nxm_articulo_id`, `nxm_categoria_id`)
+- Las validaciones usan `in_array()` en vez de comparacion directa para soportar seleccion multiple
 
 **Ajustes por forma de pago**: Cada forma de pago puede tener un `ajuste_porcentaje` (recargo o descuento). Tambien puede tener planes de cuotas con recargo.
 
@@ -1683,6 +1692,16 @@ ORDER BY mcc.fecha DESC, mcc.id DESC
 LIMIT 50;
 ```
 
+#### Articulos pesables
+
+```sql
+SELECT id, nombre, codigo, unidad_medida, precio_base
+FROM {PREFIX}articulos
+WHERE pesable = 1 AND activo = 1
+  AND deleted_at IS NULL
+ORDER BY nombre;
+```
+
 ### 4.2 Convenciones de Datos
 
 **Estados posibles de cada entidad:**
@@ -1708,8 +1727,9 @@ LIMIT 50;
 - Fechas de creacion/actualizacion: `created_at`, `updated_at` (timezone del servidor).
 - Fechas de negocio (`venta.fecha`, `cobro.fecha`): generalmente `date` o `timestamp`.
 
-**Formatos de moneda:**
-- Montos se almacenan como `decimal(12,2)` (2 decimales).
+**Formatos de moneda y cantidades:**
+- **Cantidades de stock**: `decimal(12,3)` -- 3 decimales para soportar articulos pesables (kg, gr, lt)
+- **Montos monetarios**: `decimal(12,2)` -- 2 decimales
 - Costos unitarios como `decimal(10,4)` (4 decimales).
 - Porcentajes como `decimal(5,2)` o `decimal(8,2)`.
 - Tasas de cambio como `decimal(14,6)` (6 decimales).
