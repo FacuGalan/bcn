@@ -8,6 +8,7 @@ use App\Models\ListaPrecio;
 use App\Models\ListaPrecioArticulo;
 use App\Models\ListaPrecioCondicion;
 use App\Services\CatalogoCache;
+use App\Services\CongelarPreciosListaService;
 use Livewire\Attributes\Lazy;
 use Livewire\Component;
 
@@ -59,6 +60,8 @@ class WizardListaPrecio extends Component
 
     public $promocionesAlcance = 'todos';
 
+    public $estatica = false;
+
     // Paso 3: Vigencia
     public $vigenciaDesde = null;
 
@@ -97,6 +100,8 @@ class WizardListaPrecio extends Component
     public $articulosEncontrados = [];
 
     public $categoriasSeleccionadas = [];
+
+    public $categoriaSeleccionadaId = null;
 
     // Opciones
     public $opcionesRedondeo = [];
@@ -235,6 +240,7 @@ class WizardListaPrecio extends Component
         $this->redondeo = $lista->redondeo;
         $this->aplicaPromociones = $lista->aplica_promociones;
         $this->promocionesAlcance = $lista->promociones_alcance;
+        $this->estatica = (bool) $lista->estatica;
 
         // Paso 3
         $this->vigenciaDesde = $lista->vigencia_desde?->format('Y-m-d');
@@ -259,19 +265,23 @@ class WizardListaPrecio extends Component
             ];
         })->toArray();
 
-        // Paso 5: Artículos específicos
-        $this->articulosEspecificos = $lista->articulos->map(function ($a) {
-            return [
-                'id' => $a->id,
-                'articulo_id' => $a->articulo_id,
-                'categoria_id' => $a->categoria_id,
-                'nombre' => $a->obtenerNombre(),
-                'tipo' => $a->obtenerTipo(),
-                'precio_fijo' => $a->precio_fijo,
-                'ajuste_porcentaje' => $a->ajuste_porcentaje,
-                'precio_base_original' => $a->precio_base_original,
-            ];
-        })->toArray();
+        // Paso 5: Artículos específicos (solo filas manuales, excluye snapshots auto-generados)
+        $this->articulosEspecificos = $lista->articulos
+            ->where('origen', 'manual')
+            ->map(function ($a) {
+                return [
+                    'id' => $a->id,
+                    'articulo_id' => $a->articulo_id,
+                    'categoria_id' => $a->categoria_id,
+                    'nombre' => $a->obtenerNombre(),
+                    'tipo' => $a->obtenerTipo(),
+                    'precio_fijo' => $a->precio_fijo,
+                    'ajuste_porcentaje' => $a->ajuste_porcentaje,
+                    'precio_base_original' => $a->precio_base_original,
+                ];
+            })
+            ->values()
+            ->toArray();
     }
 
     public function updatedBusquedaArticulo($value)
@@ -511,11 +521,24 @@ class WizardListaPrecio extends Component
         $this->js("window.notify('".__('Artículo agregado')."', 'success')");
     }
 
+    public function agregarCategoriaSeleccionada()
+    {
+        if (! $this->categoriaSeleccionadaId) {
+            $this->js("window.notify('".__('Seleccioná una categoría')."', 'warning')");
+
+            return;
+        }
+
+        $this->agregarCategoria($this->categoriaSeleccionadaId);
+        $this->categoriaSeleccionadaId = null;
+    }
+
     public function agregarCategoria($categoriaId)
     {
-        // Verificar que no esté ya agregada
+        $categoriaId = (int) $categoriaId;
+
         foreach ($this->articulosEspecificos as $art) {
-            if ($art['categoria_id'] == $categoriaId) {
+            if ((int) ($art['categoria_id'] ?? 0) === $categoriaId) {
                 $this->js("window.notify('".__('Esta categoría ya está agregada')."', 'warning')");
 
                 return;
@@ -524,6 +547,8 @@ class WizardListaPrecio extends Component
 
         $categoria = Categoria::find($categoriaId);
         if (! $categoria) {
+            $this->js("window.notify('".__('Categoría no encontrada')."', 'error')");
+
             return;
         }
 
@@ -627,11 +652,13 @@ class WizardListaPrecio extends Component
                     'cantidad_minima' => $this->cantidadMinima ?: null,
                     'cantidad_maxima' => $this->cantidadMaxima ?: null,
                     'es_lista_base' => false,
+                    'estatica' => (bool) $this->estatica,
                     'prioridad' => $this->prioridad,
                     'activo' => true,
                 ]);
             }
 
+            $eraEstatica = $this->modoEdicion && $lista->getOriginal('estatica');
             $lista->save();
 
             // Solo guardar condiciones y artículos si NO es lista base
@@ -641,6 +668,17 @@ class WizardListaPrecio extends Component
 
                 // Guardar artículos específicos
                 $this->guardarArticulosEspecificos($lista);
+
+                // Si dejó de ser estática, limpiar snapshots previos
+                if ($eraEstatica && ! $this->estatica) {
+                    $lista->articulos()->where('origen', 'snapshot')->delete();
+                    $lista->forceFill(['precios_congelados_at' => null])->save();
+                }
+
+                // Si es estática, congelar precios (snapshot o re-snapshot)
+                if ($this->estatica) {
+                    app(CongelarPreciosListaService::class)->congelar($lista->fresh());
+                }
             }
 
             \DB::commit();
@@ -711,8 +749,9 @@ class WizardListaPrecio extends Component
             ->filter()
             ->toArray();
 
-        // Eliminar artículos que ya no están
+        // Eliminar solo filas manuales que ya no están (las de snapshot las maneja el service)
         $lista->articulos()
+            ->where('origen', 'manual')
             ->whereNotIn('id', $idsExistentes)
             ->delete();
 
@@ -725,6 +764,7 @@ class WizardListaPrecio extends Component
                 'precio_fijo' => $art['precio_fijo'],
                 'ajuste_porcentaje' => $art['ajuste_porcentaje'],
                 'precio_base_original' => $art['precio_base_original'],
+                'origen' => 'manual',
             ];
 
             if ($art['id']) {

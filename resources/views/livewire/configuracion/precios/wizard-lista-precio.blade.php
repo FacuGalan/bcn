@@ -202,6 +202,28 @@
                                 </div>
                             </div>
 
+                            {{-- Lista estática (congelar precios) --}}
+                            <div class="sm:col-span-2 pt-2 border-t">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Lista estática (congelar precios)') }}</span>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Los precios se calculan al grabar y quedan fijos aunque cambie el precio base del artículo') }}</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" wire:model.live="estatica" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-bcn-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:bg-gray-800 after:border-gray-300 dark:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bcn-primary"></div>
+                                    </label>
+                                </div>
+                                @if($estatica)
+                                    <div class="mt-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-md p-3">
+                                        <p class="text-xs text-amber-800 dark:text-amber-200">
+                                            <strong>{{ __('Importante') }}:</strong>
+                                            {{ __('Al grabar se generará un snapshot de precios para todos los artículos de la sucursal. Los artículos nuevos creados después quedarán fuera de esta lista.') }}
+                                        </p>
+                                    </div>
+                                @endif
+                            </div>
+
                             {{-- Alcance Promociones --}}
                             @if($aplicaPromociones)
                                 <div class="sm:col-span-2">
@@ -510,14 +532,15 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('O agregar por categoria') }}</label>
                         <div class="flex gap-2">
-                            <select id="selectCategoria"
+                            <select wire:model="categoriaSeleccionadaId"
                                     class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                 <option value="">{{ __('Seleccionar categoria...') }}</option>
                                 @foreach($this->categorias as $cat)
                                     <option value="{{ $cat->id }}">{{ $cat->nombre }}</option>
                                 @endforeach
                             </select>
-                            <button onclick="agregarCategoriaSeleccionada()"
+                            <button type="button"
+                                    wire:click="agregarCategoriaSeleccionada"
                                     class="px-4 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
                                 {{ __('Agregar') }}
                             </button>
@@ -655,14 +678,4 @@
         </div>
     </div>
 
-    <script>
-        function agregarCategoriaSeleccionada() {
-            const select = document.getElementById('selectCategoria');
-            const categoriaId = select.value;
-            if (categoriaId) {
-                @this.call('agregarCategoria', categoriaId);
-                select.value = '';
-            }
-        }
-    </script>
 </div>

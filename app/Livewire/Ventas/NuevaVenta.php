@@ -910,6 +910,15 @@ class NuevaVenta extends Component
             ];
         }
 
+        // Lista estática que no cubre este artículo → caer a lista base
+        if ($listaPrecio->estatica && ! $listaPrecio->cubreArticulo($articulo)) {
+            return [
+                'precio' => $precioListaBase,
+                'precio_base' => $precioBaseArticulo,
+                'tiene_ajuste' => false,
+            ];
+        }
+
         // Lista diferente a la base y cumple condiciones
         $precioInfo = $listaPrecio->obtenerPrecioArticulo($articulo, $precioBaseArticulo);
 

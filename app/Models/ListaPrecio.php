@@ -86,8 +86,10 @@ class ListaPrecio extends Model
         'cantidad_minima',
         'cantidad_maxima',
         'es_lista_base',
+        'estatica',
         'prioridad',
         'activo',
+        'precios_congelados_at',
     ];
 
     protected $casts = [
@@ -99,8 +101,10 @@ class ListaPrecio extends Model
         'cantidad_minima' => 'decimal:3',
         'cantidad_maxima' => 'decimal:3',
         'es_lista_base' => 'boolean',
+        'estatica' => 'boolean',
         'prioridad' => 'integer',
         'activo' => 'boolean',
+        'precios_congelados_at' => 'datetime',
     ];
 
     // ==================== Relaciones ====================
@@ -365,6 +369,17 @@ class ListaPrecio extends Model
             }
         }
 
+        // Lista estática sin cobertura para este artículo → precio base sin ajuste
+        if ($this->estatica) {
+            return [
+                'precio' => $this->aplicarRedondeo($precioBase),
+                'precio_sin_redondeo' => $precioBase,
+                'ajuste_porcentaje' => 0.0,
+                'origen' => 'fuera_de_lista_estatica',
+                'precio_base' => $precioBase,
+            ];
+        }
+
         // 3. Usar ajuste del encabezado
         $ajuste = (float) $this->ajuste_porcentaje;
         $precioAjustado = $precioBase * (1 + ($ajuste / 100));
@@ -409,6 +424,25 @@ class ListaPrecio extends Model
             'origen' => $origen.'_ajuste',
             'precio_base' => $precioBase,
         ];
+    }
+
+    /**
+     * Indica si esta lista tiene un detalle que cubra al artículo
+     * (fila específica del artículo o de su categoría en lista_precio_articulos)
+     */
+    public function cubreArticulo(Articulo $articulo): bool
+    {
+        $cubre = $this->articulos()->where('articulo_id', $articulo->id)->exists();
+
+        if ($cubre) {
+            return true;
+        }
+
+        if ($articulo->categoria_id) {
+            return $this->articulos()->where('categoria_id', $articulo->categoria_id)->exists();
+        }
+
+        return false;
     }
 
     /**

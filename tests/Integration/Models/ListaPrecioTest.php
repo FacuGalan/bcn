@@ -215,6 +215,88 @@ class ListaPrecioTest extends TestCase
         $this->assertTrue($lista->validarCondiciones([]));
     }
 
+    // ==================== Lista estática ====================
+
+    public function test_cubre_articulo_por_fila_especifica(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 10, 'unitario', [
+            'precio_base' => 1000,
+        ]);
+
+        $lista = $this->crearLista(['estatica' => true]);
+        ListaPrecioArticulo::create([
+            'lista_precio_id' => $lista->id,
+            'articulo_id' => $articulo->id,
+            'precio_fijo' => 1200,
+        ]);
+
+        $this->assertTrue($lista->cubreArticulo($articulo));
+    }
+
+    public function test_cubre_articulo_por_categoria(): void
+    {
+        $categoria = Categoria::create(['nombre' => 'Cat Test '.uniqid(), 'activo' => true]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 10, 'unitario', [
+            'precio_base' => 1000,
+            'categoria_id' => $categoria->id,
+        ]);
+
+        $lista = $this->crearLista(['estatica' => true]);
+        ListaPrecioArticulo::create([
+            'lista_precio_id' => $lista->id,
+            'categoria_id' => $categoria->id,
+            'ajuste_porcentaje' => 10,
+        ]);
+
+        $this->assertTrue($lista->cubreArticulo($articulo));
+    }
+
+    public function test_cubre_articulo_devuelve_false_cuando_no_cubre(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 10, 'unitario', [
+            'precio_base' => 1000,
+        ]);
+
+        $lista = $this->crearLista(['estatica' => true]);
+
+        $this->assertFalse($lista->cubreArticulo($articulo));
+    }
+
+    public function test_lista_estatica_sin_cobertura_devuelve_precio_base_sin_ajuste(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 10, 'unitario', [
+            'precio_base' => 1000,
+        ]);
+
+        $lista = $this->crearLista([
+            'estatica' => true,
+            'ajuste_porcentaje' => 50, // el header tiene 50% pero NO debe aplicarse en estática sin cobertura
+        ]);
+
+        $resultado = $lista->obtenerPrecioArticulo($articulo);
+
+        $this->assertEquals(1000, $resultado['precio']);
+        $this->assertEquals(0.0, $resultado['ajuste_porcentaje']);
+        $this->assertEquals('fuera_de_lista_estatica', $resultado['origen']);
+    }
+
+    public function test_lista_no_estatica_aplica_header_sin_cobertura(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 10, 'unitario', [
+            'precio_base' => 1000,
+        ]);
+
+        $lista = $this->crearLista([
+            'estatica' => false,
+            'ajuste_porcentaje' => 50,
+        ]);
+
+        $resultado = $lista->obtenerPrecioArticulo($articulo);
+
+        $this->assertEquals(1500, $resultado['precio']);
+        $this->assertEquals('encabezado', $resultado['origen']);
+    }
+
     public function test_obtener_precio_detalle_ajuste_porcentaje(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, 10, 'unitario', [

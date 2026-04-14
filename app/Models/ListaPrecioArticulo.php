@@ -50,6 +50,7 @@ class ListaPrecioArticulo extends Model
         'precio_fijo',
         'ajuste_porcentaje',
         'precio_base_original',
+        'origen',
     ];
 
     protected $casts = [
