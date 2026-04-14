@@ -6,6 +6,9 @@
     'onClose' => 'cancel',
     'submit' => null,
     'zIndex' => 'z-50',
+    // Si true (default): Enter salta al siguiente campo en vez de enviar el form.
+    // Textareas, botones y campos con data-enter-default conservan el comportamiento nativo.
+    'enterAsTab' => true,
 ])
 
 @php
@@ -58,9 +61,46 @@ $maxWidthClass = [
             this.dragging = false;
             if (this.dragY > 120) { this.close(); }
             this.dragY = 0;
+        },
+        focusFirst() {
+            // Esperar a que la transición arranque y el input esté visible
+            setTimeout(() => {
+                const body = this.$refs.modalBody;
+                if (!body) return;
+                const first = body.querySelector(
+                    'input:not([type=hidden]):not([disabled]):not([readonly]),select:not([disabled]),textarea:not([disabled])'
+                );
+                if (first && first.offsetParent !== null) {
+                    first.focus();
+                    if (typeof first.select === 'function') first.select();
+                }
+            }, 100);
+        },
+        enterAsTab(e) {
+            if (e.key !== 'Enter' || e.defaultPrevented) return;
+            const t = e.target;
+            if (t.tagName === 'TEXTAREA') return;
+            if (t.tagName === 'BUTTON') return;
+            if (t.type === 'submit') return;
+            if (t.isContentEditable) return;
+            if (t.hasAttribute('data-enter-default')) return;
+            if (t.tagName !== 'INPUT' && t.tagName !== 'SELECT') return;
+
+            e.preventDefault();
+            const root = this.$refs.modalBody || e.currentTarget;
+            // Solo campos de formulario (inputs, selects, textareas). NO botones.
+            const tabbables = Array.from(root.querySelectorAll(
+                'input:not([type=hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled])'
+            )).filter(el => el.offsetParent !== null && !el.hasAttribute('data-enter-default'));
+            const idx = tabbables.indexOf(t);
+            if (idx >= 0 && idx < tabbables.length - 1) {
+                const next = tabbables[idx + 1];
+                next.focus();
+                if (typeof next.select === 'function') next.select();
+            }
         }
     }"
-    x-init="$nextTick(() => show = true)"
+    x-init="$nextTick(() => { show = true; $nextTick(() => focusFirst()); })"
     x-effect="document.body.classList.toggle('overflow-hidden', show)"
     x-on:keydown.escape.window="show && close()"
     class="fixed inset-0 {{ $zIndex }} overflow-hidden"
@@ -87,6 +127,7 @@ $maxWidthClass = [
 
         {{-- Mobile: bottom sheet | Desktop: modal centrado --}}
         <div
+            x-ref="modalBody"
             class="relative z-10 w-full max-h-[92vh] sm:max-h-[90vh] flex flex-col bg-white dark:bg-gray-800 rounded-t-xl sm:rounded-lg text-left overflow-hidden shadow-xl sm:my-4 {{ $maxWidthClass }} sm:w-full"
             x-show="show"
             x-transition:enter="transition ease-out duration-300"
@@ -99,6 +140,7 @@ $maxWidthClass = [
             @touchstart.passive="onTouchStart($event)"
             @touchmove="onTouchMove($event)"
             @touchend="onTouchEnd()"
+            @if($enterAsTab) x-on:keydown="enterAsTab($event)" @endif
         >
             @if($submit)
             <form wire:submit="{{ $submit }}" class="flex flex-col max-h-[92vh] sm:max-h-[90vh]">

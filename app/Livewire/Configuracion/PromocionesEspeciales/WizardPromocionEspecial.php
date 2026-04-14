@@ -33,6 +33,8 @@ class WizardPromocionEspecial extends Component
 
     public $prioridad = 1;
 
+    public $modoAplicacion = 'automatica'; // 'automatica' o 'forzada'
+
     public $activo = true;
 
     // ===== Para NxM básico =====
@@ -204,6 +206,7 @@ class WizardPromocionEspecial extends Component
         $this->descripcion = $promo->descripcion ?? '';
         $this->sucursalesSeleccionadas = [$promo->sucursal_id];
         $this->prioridad = $promo->prioridad;
+        $this->modoAplicacion = $promo->modo_aplicacion ?? 'automatica';
         $this->activo = $promo->activo;
 
         // NxM básico
@@ -1271,6 +1274,7 @@ class WizardPromocionEspecial extends Component
                 'precio_tipo' => $this->esComboOMenu() ? $this->precioTipo : 'fijo',
                 'precio_valor' => $this->esComboOMenu() ? $this->precioValor : null,
                 'prioridad' => $this->prioridad,
+                'modo_aplicacion' => $this->modoAplicacion,
                 'activo' => true,
                 'vigencia_desde' => $this->vigenciaDesde,
                 'vigencia_hasta' => $this->vigenciaHasta,
@@ -1312,6 +1316,7 @@ class WizardPromocionEspecial extends Component
             'precio_tipo' => $this->esComboOMenu() ? $this->precioTipo : 'fijo',
             'precio_valor' => $this->esComboOMenu() ? $this->precioValor : null,
             'prioridad' => $this->prioridad,
+            'modo_aplicacion' => $this->modoAplicacion,
             'activo' => $this->activo,
             'vigencia_desde' => $this->vigenciaDesde,
             'vigencia_hasta' => $this->vigenciaHasta,

@@ -198,33 +198,45 @@
                     </span>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-10 gap-6">
-                    {{-- COLUMNA IZQUIERDA: Datos básicos (30%) --}}
-                    <div class="lg:col-span-3 space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Nombre') }} *</label>
-                            <input type="text" wire:model="nombre" :placeholder="__('Ej: 2x1 en Bebidas')"
-                                   class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Descripción') }}</label>
-                            <textarea wire:model="descripcion" rows="2" :placeholder="__('Descripción opcional...')"
-                                      class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"></textarea>
-                        </div>
-
-                        @if($modoEdicion)
-                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                <label class="flex items-center gap-2 cursor-pointer">
-                                    <input type="checkbox" wire:model="activo" class="rounded text-bcn-primary focus:ring-bcn-primary w-5 h-5">
-                                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Promoción activa') }}</span>
-                                </label>
+                <div class="space-y-4">
+                    {{-- CARD: Datos de la promoción --}}
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-5 border border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center gap-2">
+                                <svg class="w-5 h-5 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                </svg>
+                                <h3 class="font-semibold text-gray-900 dark:text-white">{{ __('Datos de la promoción') }}</h3>
                             </div>
-                        @endif
+                            @if($modoEdicion)
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ __('Activa') }}</span>
+                                    <div class="relative">
+                                        <input type="checkbox" wire:model="activo" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-gray-200 dark:bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-bcn-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-500 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-bcn-primary"></div>
+                                    </div>
+                                </label>
+                            @endif
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Nombre') }} *</label>
+                                <input type="text" wire:model="nombre" :placeholder="__('Ej: 2x1 en Bebidas')"
+                                       class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Descripción') }}
+                                    <span class="text-gray-400 dark:text-gray-500 font-normal">{{ __('(opcional)') }}</span>
+                                </label>
+                                <input type="text" wire:model="descripcion" :placeholder="__('Descripción breve...')"
+                                       class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                            </div>
+                        </div>
                     </div>
 
-                    {{-- COLUMNA DERECHA: Configuración específica (70%) --}}
-                    <div class="lg:col-span-7">
+                    {{-- CARD: Configuración específica del tipo --}}
+                    <div>
                         {{-- NxM BÁSICO --}}
                         @if($tipo === 'nxm')
                             <div class="bg-purple-50 dark:bg-purple-900/20 dark:bg-purple-900/20 rounded-lg p-4 space-y-4">
@@ -806,93 +818,104 @@
 
             {{-- PASO 3: Condiciones --}}
             @if($pasoActual == 3)
-                <h2 class="text-xl font-semibold mb-6">{{ $modoEdicion ? 'Condiciones' : 'Paso 3: Condiciones' }}</h2>
+                <h2 class="text-xl font-semibold mb-6 text-gray-900 dark:text-white">{{ $modoEdicion ? __('Condiciones') : __('Paso 3: Condiciones') }}</h2>
 
-                <div class="space-y-6">
-                    {{-- Vigencia --}}
-                    <div>
-                        <h3 class="font-medium text-gray-900 dark:text-white mb-3">Vigencia</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Desde</label>
-                                <input type="date" wire:model="vigenciaDesde"
-                                       class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                            </div>
-                            <div>
-                                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Hasta</label>
-                                <input type="date" wire:model="vigenciaHasta"
-                                       class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                            </div>
+                <div class="space-y-4">
+                    {{-- CARD 1: Vigencia y horarios --}}
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-5 border border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center gap-2 mb-4">
+                            <svg class="w-5 h-5 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <h3 class="font-semibold text-gray-900 dark:text-white">{{ __('Vigencia y horarios') }}</h3>
+                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ __('(Cuándo se aplica)') }}</span>
                         </div>
-                    </div>
 
-                    {{-- Días de la semana --}}
-                    <div>
-                        <h3 class="font-medium text-gray-900 dark:text-white mb-3">Días de la semana</h3>
-                        <div class="flex flex-wrap gap-2">
-                            @foreach(['lunes' => 'Lun', 'martes' => 'Mar', 'miercoles' => 'Mié', 'jueves' => 'Jue', 'viernes' => 'Vie', 'sabado' => 'Sáb', 'domingo' => 'Dom'] as $valor => $etiqueta)
-                                @php $isSelected = in_array($valor, $diasSemana); @endphp
-                                <label class="relative inline-flex items-center justify-center min-w-[60px] px-3 py-2 rounded-lg border-2 cursor-pointer transition-all duration-200
-                                    {{ $isSelected ? 'bg-bcn-primary text-white border-bcn-primary shadow-md' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-bcn-primary' }}">
-                                    <input type="checkbox" wire:model.live="diasSemana" value="{{ $valor }}" class="sr-only">
-                                    <span class="font-semibold text-sm">{{ $etiqueta }}</span>
+                        <div class="space-y-4">
+                            {{-- Fechas + Horas en un solo grid --}}
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Fecha desde') }}</label>
+                                    <input type="date" wire:model="vigenciaDesde"
+                                           class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Fecha hasta') }}</label>
+                                    <input type="date" wire:model="vigenciaHasta"
+                                           class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Hora desde') }}</label>
+                                    <input type="time" wire:model="horaDesde"
+                                           class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Hora hasta') }}</label>
+                                    <input type="time" wire:model="horaHasta"
+                                           class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                </div>
+                            </div>
+
+                            {{-- Días de la semana --}}
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">{{ __('Días de la semana') }}
+                                    <span class="text-gray-400 dark:text-gray-500 font-normal">{{ __('(vacío = todos)') }}</span>
                                 </label>
-                            @endforeach
-                        </div>
-                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">Deja vacío para aplicar todos los días</p>
-                    </div>
-
-                    {{-- Horario --}}
-                    <div>
-                        <h3 class="font-medium text-gray-900 dark:text-white mb-3">Horario</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Desde</label>
-                                <input type="time" wire:model="horaDesde"
-                                       class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                            </div>
-                            <div>
-                                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Hasta</label>
-                                <input type="time" wire:model="horaHasta"
-                                       class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                <div class="flex gap-1.5">
+                                    @foreach(['lunes' => __('Lun'), 'martes' => __('Mar'), 'miercoles' => __('Mié'), 'jueves' => __('Jue'), 'viernes' => __('Vie'), 'sabado' => __('Sáb'), 'domingo' => __('Dom')] as $valor => $etiqueta)
+                                        @php $isSelected = in_array($valor, $diasSemana); @endphp
+                                        <label class="relative inline-flex items-center justify-center flex-1 min-w-[42px] h-[42px] rounded-lg border-2 cursor-pointer transition-all duration-200
+                                            {{ $isSelected ? 'bg-bcn-primary text-white border-bcn-primary shadow-md' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-bcn-primary' }}">
+                                            <input type="checkbox" wire:model.live="diasSemana" value="{{ $valor }}" class="sr-only">
+                                            <span class="font-semibold text-xs">{{ $etiqueta }}</span>
+                                        </label>
+                                    @endforeach
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    {{-- Condiciones de venta --}}
-                    <div>
-                        <h3 class="font-medium text-gray-900 dark:text-white mb-3">Condiciones de venta</h3>
+                    {{-- CARD 2: Aplicabilidad --}}
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-5 border border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center gap-2 mb-4">
+                            <svg class="w-5 h-5 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M3 12h18M3 17h18"/>
+                            </svg>
+                            <h3 class="font-semibold text-gray-900 dark:text-white">{{ __('Aplicabilidad') }}</h3>
+                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ __('(En qué contexto)') }}</span>
+                        </div>
+
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Forma de venta</label>
+                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Forma de venta') }}</label>
                                 <select wire:model="formaVentaId"
-                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                    <option value="">Todas</option>
+                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                    <option value="">{{ __('Todas') }}</option>
                                     @foreach($formasVenta as $fv)
                                         <option value="{{ $fv->id }}">{{ $fv->nombre }}</option>
                                     @endforeach
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">Canal de venta</label>
+                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Canal de venta') }}</label>
                                 <select wire:model="canalVentaId"
-                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                    <option value="">Todos</option>
+                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                    <option value="">{{ __('Todos') }}</option>
                                     @foreach($canalesVenta as $cv)
                                         <option value="{{ $cv->id }}">{{ $cv->nombre }}</option>
                                     @endforeach
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                                     {{ __('Formas de pago') }}
                                     @if(count($formasPagoIds) > 0)
                                         <span class="ml-1 px-1.5 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">{{ count($formasPagoIds) }}</span>
                                     @else
-                                        <span class="text-xs text-gray-400 ml-1">({{ __('todas') }})</span>
+                                        <span class="text-xs text-gray-400 dark:text-gray-500 font-normal">({{ __('todas') }})</span>
                                     @endif
                                 </label>
-                                <div class="border border-gray-200 dark:border-gray-700 rounded-lg max-h-36 overflow-y-auto">
+                                <div class="border border-gray-300 dark:border-gray-600 rounded-lg max-h-32 overflow-y-auto bg-white dark:bg-gray-800">
                                     @foreach($formasPago as $fp)
                                         <label class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0">
                                             <input type="checkbox" wire:model.live="formasPagoIds" value="{{ $fp->id }}" class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-600">
@@ -904,13 +927,21 @@
                         </div>
                     </div>
 
-                    {{-- Límite de usos --}}
-                    <div>
-                        <h3 class="font-medium text-gray-900 dark:text-white mb-3">Límite de usos</h3>
+                    {{-- CARD 3: Límites --}}
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-5 border border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center gap-2 mb-4">
+                            <svg class="w-5 h-5 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <h3 class="font-semibold text-gray-900 dark:text-white">{{ __('Límites') }}</h3>
+                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ __('(Control de uso)') }}</span>
+                        </div>
+
                         <div class="max-w-xs">
-                            <input type="number" wire:model="usosMaximos" min="1" placeholder="Sin límite"
-                                   class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Dejar vacío para uso ilimitado</p>
+                            <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Usos máximos') }}</label>
+                            <input type="number" wire:model="usosMaximos" min="1" :placeholder="__('Sin límite')"
+                                   class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Dejar vacío para uso ilimitado') }}</p>
                         </div>
                     </div>
                 </div>
@@ -945,15 +976,52 @@
                             @endif
                         </div>
 
+                        {{-- Modo de aplicación --}}
+                        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                            <h3 class="font-medium text-gray-900 dark:text-white mb-3">{{ __('Modo de aplicación') }}</h3>
+                            <div class="space-y-2">
+                                <label class="flex items-start gap-3 cursor-pointer rounded-lg border-2 p-3 transition
+                                    {{ $modoAplicacion === 'automatica' ? 'border-bcn-primary bg-white dark:bg-gray-800' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500' }}">
+                                    <input type="radio" wire:model.live="modoAplicacion" value="automatica"
+                                           class="mt-1 text-bcn-primary focus:ring-bcn-primary">
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-medium text-sm text-gray-900 dark:text-white">{{ __('Automática') }}</span>
+                                            <span class="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 px-2 py-0.5 rounded">{{ __('Recomendado') }}</span>
+                                        </div>
+                                        <p class="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                                            {{ __('El sistema elige la combinación de promociones que MÁS le ahorra al cliente. Si esta promoción no conviene frente a otras aplicables, no se aplica.') }}
+                                        </p>
+                                    </div>
+                                </label>
+                                <label class="flex items-start gap-3 cursor-pointer rounded-lg border-2 p-3 transition
+                                    {{ $modoAplicacion === 'forzada' ? 'border-bcn-primary bg-white dark:bg-gray-800' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500' }}">
+                                    <input type="radio" wire:model.live="modoAplicacion" value="forzada"
+                                           class="mt-1 text-bcn-primary focus:ring-bcn-primary">
+                                    <div class="flex-1">
+                                        <span class="font-medium text-sm text-gray-900 dark:text-white">{{ __('Forzada') }}</span>
+                                        <p class="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                                            {{ __('Se aplica SIEMPRE que se cumplan sus condiciones, antes de evaluar otras. Útil para liquidar stock o campañas específicas donde querés garantizar que esta promoción entre sí o sí.') }}
+                                        </p>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
                         {{-- Prioridad --}}
                         <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                            <h3 class="font-medium text-gray-900 dark:text-white mb-3">Prioridad</h3>
+                            <h3 class="font-medium text-gray-900 dark:text-white mb-3">{{ __('Prioridad') }}</h3>
                             <div class="flex items-center gap-3">
                                 <input type="number" wire:model.live="prioridad" min="1" max="999"
                                        class="w-20 text-center rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-lg font-bold">
                                 <div class="flex-1">
-                                    <p class="text-xs text-gray-600 dark:text-gray-300">Menor = mayor prioridad</p>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400">Se aplican primero las de menor número</p>
+                                    @if($modoAplicacion === 'forzada')
+                                        <p class="text-xs text-gray-600 dark:text-gray-300">{{ __('Menor = se aplica primero') }}</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Ordena las promociones forzadas entre sí') }}</p>
+                                    @else
+                                        <p class="text-xs text-gray-600 dark:text-gray-300">{{ __('Solo se usa como desempate') }}</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('En modo automático, el sistema optimiza por ahorro del cliente') }}</p>
+                                    @endif
                                 </div>
                             </div>
                         </div>

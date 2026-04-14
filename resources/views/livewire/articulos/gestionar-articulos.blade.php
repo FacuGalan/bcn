@@ -217,6 +217,15 @@
                                 </svg>
                             </button>
                             <button
+                                wire:click="abrirDuplicar({{ $articulo->id }})"
+                                class="inline-flex items-center justify-center px-3 py-2 border border-indigo-600 text-sm font-medium rounded-md text-indigo-600 hover:bg-indigo-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 transition-colors duration-150"
+                                :title="__('Duplicar artículo')"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                </svg>
+                            </button>
+                            <button
                                 wire:click="confirmarEliminar({{ $articulo->id }})"
                                 class="inline-flex items-center justify-center px-3 py-2 border border-red-600 text-sm font-medium rounded-md text-red-600 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 transition-colors duration-150"
                                 :title="__('Eliminar artículo')"
@@ -398,6 +407,15 @@
                                             </svg>
                                         </button>
                                         <button
+                                            wire:click="abrirDuplicar({{ $articulo->id }})"
+                                            class="inline-flex items-center justify-center px-2 py-1.5 border border-indigo-600 text-xs font-medium rounded text-indigo-600 hover:bg-indigo-600 hover:text-white transition-colors duration-150"
+                                            title="{{ __('Duplicar') }}"
+                                        >
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                            </svg>
+                                        </button>
+                                        <button
                                             wire:click="confirmarEliminar({{ $articulo->id }})"
                                             class="inline-flex items-center justify-center px-2 py-1.5 border border-red-600 text-xs font-medium rounded text-red-600 hover:bg-red-600 hover:text-white transition-colors duration-150"
                                             title="{{ __('Eliminar') }}"
@@ -481,6 +499,11 @@
                                                         this.search = cat.nombre;
                                                         this.open = false;
                                                         this.highlightIndex = -1;
+                                                        // Pasar foco al campo código tras seleccionar
+                                                        this.$nextTick(() => {
+                                                            const codigoInput = document.getElementById('codigo');
+                                                            if (codigoInput) { codigoInput.focus(); codigoInput.select(); }
+                                                        });
                                                     },
                                                     clear() {
                                                         $wire.set('categoria_id', null);
@@ -508,6 +531,19 @@
                                                             this.scrollToHighlighted();
                                                         } else if (e.key === 'Enter') {
                                                             e.preventDefault();
+                                                            // Si ya hay categoría seleccionada y el search coincide, saltar al código sin reseleccionar
+                                                            const currentId = $wire.get('categoria_id');
+                                                            if (currentId && this.highlightIndex < 0) {
+                                                                const current = this.categorias.find(c => c.id == currentId);
+                                                                if (current && this.search === current.nombre) {
+                                                                    this.open = false;
+                                                                    this.$nextTick(() => {
+                                                                        const codigoInput = document.getElementById('codigo');
+                                                                        if (codigoInput) { codigoInput.focus(); codigoInput.select(); }
+                                                                    });
+                                                                    return;
+                                                                }
+                                                            }
                                                             const idx = this.highlightIndex >= 0 ? this.highlightIndex : 0;
                                                             if (this.filtered[idx]) {
                                                                 this.select(this.filtered[idx]);
@@ -543,7 +579,7 @@
                                                     <input
                                                         type="text"
                                                         x-model="search"
-                                                        @focus="open = true; highlightIndex = -1; if ($wire.get('categoria_id')) search = '';"
+                                                        @focus="open = true; highlightIndex = -1;"
                                                         @keydown="handleKey($event)"
                                                         placeholder="{{ __('Buscar categoría...') }}"
                                                         autocomplete="off"
@@ -1408,6 +1444,226 @@
                         @click="close()"
                         class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
                     {{ __('Cerrar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
+    {{-- Modal Duplicar Artículo --}}
+    @if($showDuplicarModal)
+        <x-bcn-modal
+            :show="$showDuplicarModal"
+            :title="__('Duplicar artículo')"
+            color="bg-indigo-600"
+            maxWidth="lg"
+            onClose="cancelarDuplicar"
+            submit="duplicarArticulo"
+        >
+            <x-slot:body>
+                <div class="space-y-4">
+                    {{-- Aviso del origen --}}
+                    <div class="bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg p-3">
+                        <div class="flex items-start gap-2">
+                            <svg class="w-4 h-4 text-indigo-600 dark:text-indigo-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <p class="text-xs text-indigo-800 dark:text-indigo-200">
+                                {{ __('Se duplicará') }} <strong>{{ $duplicarOrigenNombre }}</strong>
+                                {{ __('con todos sus datos: precio, sucursales, recetas, opcionales, etiquetas y precios en listas. El stock arranca en 0.') }}
+                            </p>
+                        </div>
+                    </div>
+
+                    {{-- Nombre --}}
+                    <div>
+                        <label for="duplicar_nombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
+                        <input
+                            type="text"
+                            id="duplicar_nombre"
+                            wire:model="duplicarNombre"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50"
+                            required
+                        />
+                        @error('duplicarNombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                    </div>
+
+                    {{-- Categoría (combobox con búsqueda) --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Categoría') }}</label>
+                        <div
+                            class="relative mt-1"
+                            x-data="{
+                                open: false,
+                                search: '',
+                                highlightIndex: -1,
+                                categorias: @js($categorias->map(fn($c) => ['id' => $c->id, 'nombre' => $c->nombre, 'color' => $c->color])->values()),
+                                get filtered() {
+                                    if (!this.search) return this.categorias;
+                                    const terms = this.search.toLowerCase().split(/\s+/);
+                                    return this.categorias.filter(c => {
+                                        const nombre = c.nombre.toLowerCase();
+                                        return terms.every(t => nombre.includes(t));
+                                    });
+                                },
+                                select(cat) {
+                                    $wire.set('duplicarCategoriaId', cat.id);
+                                    this.search = cat.nombre;
+                                    this.open = false;
+                                    this.highlightIndex = -1;
+                                    this.$nextTick(() => {
+                                        const codigoInput = document.getElementById('duplicar_codigo');
+                                        if (codigoInput) { codigoInput.focus(); codigoInput.select(); }
+                                    });
+                                },
+                                clear() {
+                                    $wire.set('duplicarCategoriaId', null);
+                                    this.search = '';
+                                    this.open = false;
+                                    this.highlightIndex = -1;
+                                },
+                                scrollToHighlighted() {
+                                    this.$nextTick(() => {
+                                        const dd = this.$refs.catDropdown;
+                                        if (!dd) return;
+                                        const items = dd.querySelectorAll('button');
+                                        if (items[this.highlightIndex]) items[this.highlightIndex].scrollIntoView({ block: 'nearest' });
+                                    });
+                                },
+                                handleKey(e) {
+                                    if (!this.open) { this.open = true; return; }
+                                    if (e.key === 'ArrowDown') {
+                                        e.preventDefault();
+                                        this.highlightIndex = Math.min(this.highlightIndex + 1, this.filtered.length - 1);
+                                        this.scrollToHighlighted();
+                                    } else if (e.key === 'ArrowUp') {
+                                        e.preventDefault();
+                                        this.highlightIndex = Math.max(this.highlightIndex - 1, 0);
+                                        this.scrollToHighlighted();
+                                    } else if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        const currentId = $wire.get('duplicarCategoriaId');
+                                        if (currentId && this.highlightIndex < 0) {
+                                            const current = this.categorias.find(c => c.id == currentId);
+                                            if (current && this.search === current.nombre) {
+                                                this.open = false;
+                                                this.$nextTick(() => {
+                                                    const codigoInput = document.getElementById('duplicar_codigo');
+                                                    if (codigoInput) { codigoInput.focus(); codigoInput.select(); }
+                                                });
+                                                return;
+                                            }
+                                        }
+                                        const idx = this.highlightIndex >= 0 ? this.highlightIndex : 0;
+                                        if (this.filtered[idx]) {
+                                            this.select(this.filtered[idx]);
+                                        }
+                                    } else if (e.key === 'Escape') {
+                                        this.open = false;
+                                    }
+                                }
+                            }"
+                            x-init="
+                                const selId = $wire.get('duplicarCategoriaId');
+                                if (selId) {
+                                    const found = categorias.find(c => c.id == selId);
+                                    if (found) search = found.nombre;
+                                }
+                                $watch('$wire.duplicarCategoriaId', (val) => {
+                                    if (val) {
+                                        const found = categorias.find(c => c.id == val);
+                                        if (found) search = found.nombre;
+                                    } else {
+                                        search = '';
+                                    }
+                                });
+                            "
+                            @click.away="open = false; if (!$wire.get('duplicarCategoriaId')) search = ''; else { const f = categorias.find(c => c.id == $wire.get('duplicarCategoriaId')); if (f) search = f.nombre; }"
+                        >
+                            <div class="relative">
+                                <input
+                                    type="text"
+                                    x-model="search"
+                                    @focus="open = true; highlightIndex = -1;"
+                                    @keydown="handleKey($event)"
+                                    placeholder="{{ __('Buscar categoría...') }}"
+                                    autocomplete="off"
+                                    class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 pr-8"
+                                />
+                                <button
+                                    type="button"
+                                    x-show="$wire.get('duplicarCategoriaId')"
+                                    @click="clear()"
+                                    class="absolute inset-y-0 right-0 flex items-center pr-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                >
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                            {{-- Dropdown de resultados --}}
+                            <div
+                                x-show="open && filtered.length > 0"
+                                x-transition:enter="transition ease-out duration-100"
+                                x-transition:enter-start="opacity-0 scale-95"
+                                x-transition:enter-end="opacity-100 scale-100"
+                                x-transition:leave="transition ease-in duration-75"
+                                x-transition:leave-start="opacity-100 scale-100"
+                                x-transition:leave-end="opacity-0 scale-95"
+                                x-ref="catDropdown"
+                                class="absolute z-50 mt-1 w-full max-h-48 overflow-auto bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg"
+                                style="display: none;"
+                            >
+                                <template x-for="(cat, index) in filtered" :key="cat.id">
+                                    <button
+                                        type="button"
+                                        @click="select(cat)"
+                                        @mouseenter="highlightIndex = index"
+                                        :class="highlightIndex === index ? 'bg-indigo-500/10 dark:bg-indigo-500/20' : 'hover:bg-gray-100 dark:hover:bg-gray-700'"
+                                        class="flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 dark:text-gray-300"
+                                    >
+                                        <span
+                                            class="w-3 h-3 rounded-full flex-shrink-0"
+                                            :style="'background-color: ' + (cat.color || '#9CA3AF')"
+                                        ></span>
+                                        <span x-text="cat.nombre"></span>
+                                    </button>
+                                </template>
+                            </div>
+                            {{-- Sin resultados --}}
+                            <div
+                                x-show="open && search && filtered.length === 0"
+                                class="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg px-3 py-2 text-sm text-gray-500 dark:text-gray-400"
+                                style="display: none;"
+                            >
+                                {{ __('Sin resultados') }}
+                            </div>
+                        </div>
+                        @error('duplicarCategoriaId') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                    </div>
+
+                    {{-- Código --}}
+                    <div>
+                        <label for="duplicar_codigo" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Código') }} *</label>
+                        <input
+                            type="text"
+                            id="duplicar_codigo"
+                            wire:model="duplicarCodigo"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50"
+                            required
+                        />
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Se propone automáticamente según la categoría') }}</p>
+                        @error('duplicarCodigo') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                    </div>
+                </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="submit"
+                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-500 sm:w-auto sm:text-sm">
+                    {{ __('Duplicar') }}
                 </button>
             </x-slot:footer>
         </x-bcn-modal>
