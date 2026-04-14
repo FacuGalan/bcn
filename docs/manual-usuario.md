@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-03-30
+> Version: 0.1.x | Ultima actualizacion: 2026-04-13
 
 ---
 
@@ -202,6 +202,8 @@ En la parte superior izquierda encontrara el campo **"Buscar Articulo"**. Puede 
 
 Al escribir, aparecera un desplegable con los resultados. Use las flechas del teclado para navegar entre los resultados y presione **Enter** para seleccionar el articulo resaltado.
 
+**Uso con scanner de codigos de barras:** El sistema detecta automaticamente cuando se esta usando un scanner (por la velocidad de ingreso). Los codigos escaneados se procesan en una cola interna, lo que permite escanear multiples productos rapidamente sin esperar a que el sistema procese cada uno. Si escanea el mismo producto dos veces seguidas, ambas lecturas se registran correctamente.
+
 #### Como agregar al carrito
 
 1. Busque el articulo como se describio anteriormente.
@@ -209,6 +211,11 @@ Al escribir, aparecera un desplegable con los resultados. Use las flechas del te
 3. Haga clic en el articulo del desplegable de resultados o presione Enter.
 4. El articulo se agregara al carrito con la cantidad indicada.
 5. Si el articulo tiene **opcionales** configurados (por ejemplo, "Con queso", "Tamano grande"), se abrira automaticamente un wizard paso a paso para que usted seleccione las opciones deseadas para cada grupo de opcionales.
+
+**Articulos pesables:** Si el articulo esta marcado como pesable (productos que se venden por peso como carnes, frutas, quesos), al seleccionarlo se abrira un modal especial donde puede:
+- Ingresar la **cantidad** (en la unidad de medida del articulo: kg, gr, lt, etc.) y el sistema calcula automaticamente el valor.
+- O ingresar el **valor** ($) y el sistema calcula automaticamente la cantidad.
+Los dos campos estan sincronizados: al modificar uno, el otro se actualiza en tiempo real. Presione Enter o el boton "Agregar" para confirmar.
 
 **En el carrito, para cada articulo puede:**
 
@@ -241,7 +248,9 @@ En la columna derecha, el campo **"Cliente"** le permite buscar y seleccionar un
 3. Una vez seleccionado, vera el nombre, la condicion de IVA y el tipo de factura que se emitira (A, B o C).
 4. Si no selecciona ningun cliente, la venta se registra como "Consumidor Final".
 
-El boton **"+"** junto al campo de busqueda permite dar de alta un cliente rapido (solo nombre y telefono) sin salir del punto de venta.
+El boton **"+"** junto al campo de busqueda permite dar de alta un nuevo cliente sin salir del punto de venta. El formulario de alta rapida ofrece dos modos:
+- **Manual**: Ingrese nombre, razon social, CUIT, email, telefono, direccion y condicion de IVA.
+- **Por CUIT (consulta ARCA)**: Ingrese el CUIT y el sistema consultara automaticamente el padron de ARCA para completar los datos fiscales (razon social, condicion de IVA).
 
 Para quitar el cliente seleccionado, haga clic en la X junto a su nombre.
 
@@ -326,16 +335,17 @@ El boton con icono de billete verde (o **Ctrl+5**) permite agregar un concepto l
 | Atajo | Accion |
 |-------|--------|
 | **Ctrl+1** | Enfocar busqueda de articulos |
-| **Ctrl+2** | Enfocar campo de codigo de barras |
+| **Ctrl+2** | Enfocar campo de cantidad |
 | **Ctrl+3** | Activar modo consulta de precios |
 | **Ctrl+4** | Activar busqueda en detalle |
 | **Ctrl+5** | Agregar concepto |
 | **Ctrl+6** | Enfocar busqueda de cliente |
 | **Ctrl+7** | Enfocar lista de precios |
-| **Ctrl+8** | Enfocar forma de venta |
-| **Ctrl+9** | Enfocar forma de pago |
+| **Ctrl+8** | Abrir buscador avanzado de articulos |
+| **Ctrl+9** | Agregar articulo rapido |
 | **F2** | Iniciar cobro |
 | **F3** | Limpiar carrito |
+| **F4** | Abrir modal de descuentos |
 | **\*** (asterisco) | Saltar entre campo de busqueda y campo de cantidad |
 | **Flechas arriba/abajo** | Navegar resultados de busqueda |
 | **Enter** | Seleccionar articulo resaltado |
@@ -502,6 +512,8 @@ El modulo de Compras permite registrar las compras a proveedores, lo cual actual
 ---
 
 ## 5. Stock e Inventario
+
+> **Nota:** Todas las cantidades de stock soportan hasta 3 decimales, lo que permite manejar articulos pesables (por ejemplo, 1.500 kg) y fracciones de unidades.
 
 ### 5.1 Inventario por Sucursal
 
@@ -937,7 +949,9 @@ Historial de depositos bancarios realizados desde tesoreria.
 
 - **Realizar arqueo**: Declara el saldo real contado en tesoreria. El sistema calcula la diferencia con el saldo registrado. Soporta arqueo en multiples monedas.
 
-- **Ingreso externo**: Registra un ingreso de efectivo que no proviene de cajas (por ejemplo, un aporte del propietario).
+- **Ingreso**: Registra un ingreso de efectivo a la tesoreria. Puede ser:
+  - **Desde cuenta empresa**: Seleccione una cuenta bancaria o billetera como origen. El monto se descuenta automaticamente de esa cuenta.
+  - **Ingreso externo**: Sin cuenta de origen (por ejemplo, un aporte del propietario o efectivo que no proviene de cajas ni cuentas).
 
 ---
 
@@ -1096,9 +1110,10 @@ Haga clic en **"Nuevo Articulo"** y complete el formulario:
 - **Codigo de Barras** (opcional): Para uso con lectores de codigo de barras.
 - **Nombre**: Nombre del articulo.
 - **Descripcion** (opcional).
-- **Categoria**: Seleccione la categoria a la que pertenece.
+- **Categoria**: Busque y seleccione la categoria. El selector tiene busqueda inteligente (escriba parte del nombre para filtrar). Si la categoria no existe, puede crearla al instante con el boton **"+"** junto al selector (ingrese nombre y prefijo opcional).
 - **Unidad de Medida**: Unidad, Kilogramo, Litro, etc.
 - **Es materia prima**: Marque si el articulo es una materia prima (se usa en recetas pero no se vende directamente).
+- **Pesable**: Marque si el articulo se vende por peso (kg, gr, lt, etc.). Al agregarlo en el punto de venta se abrira un modal para ingresar la cantidad o el valor. Los articulos pesables usan modo de stock "unitario" automaticamente.
 - **Vendible**: Si el articulo aparece en el punto de venta.
 - **Tipo de IVA**: Seleccione la alicuota de IVA (21%, 10.5%, exento, etc.).
 - **Precio IVA Incluido**: Indica si el precio que ingresa ya incluye IVA.
@@ -1665,12 +1680,12 @@ Seleccione el tipo de promocion.
 
 **Paso 3 - Alcance:**
 - Sucursales donde aplica.
-- Alcance de articulos: Todos los articulos, una categoria especifica, o un articulo individual.
+- Alcance de articulos: Todos los articulos, o una seleccion especifica de articulos y/o categorias (permite seleccion multiple).
 
 **Paso 4 - Condiciones:**
 - Forma de venta.
 - Canal de venta.
-- Forma de pago.
+- Formas de pago (seleccion multiple).
 - Monto minimo de la venta.
 - Cantidad minima y maxima de articulos.
 - Vigencia (fechas, dias de la semana, horarios).
@@ -1690,7 +1705,7 @@ Las promociones especiales permiten configurar mecanicas avanzadas como NxM (lle
 
 #### Tipos de promocion especial
 
-- **NxM basico**: El cliente lleva N unidades del mismo articulo o categoria y se bonifica M unidades (gratis o con descuento). Ejemplo: "Lleva 3, paga 2".
+- **NxM basico**: El cliente lleva N unidades de uno o mas articulos y/o categorias seleccionadas y se bonifica M unidades (gratis o con descuento). Ejemplo: "Lleva 3, paga 2". Soporta seleccion multiple de articulos y categorias.
 - **NxM avanzado**: Permite definir grupos "trigger" (que disparan la promo) y grupos "reward" (que se bonifican) con articulos diferentes.
 - **Combo**: Un conjunto de articulos con un precio especial (fijo o con descuento porcentual). Ejemplo: "Hamburguesa + papas + bebida por $5000".
 - **Menu**: Similar al combo pero con opciones en cada grupo. Ejemplo: "Menu ejecutivo: elija 1 entrada, 1 plato principal y 1 postre".
@@ -1702,12 +1717,12 @@ Seleccione el tipo de promocion especial.
 
 **Paso 2 - Configuracion:**
 Depende del tipo:
-- Para NxM: Cantidad que lleva, cantidad que se bonifica, tipo de beneficio (gratis o descuento porcentual), articulo o categoria aplicable. Puede configurar escalas (ej: lleva 3 bonifica 1, lleva 6 bonifica 2).
+- Para NxM: Cantidad que lleva, cantidad que se bonifica, tipo de beneficio (gratis o descuento porcentual), articulos y/o categorias aplicables (seleccion multiple). Puede configurar escalas (ej: lleva 3 bonifica 1, lleva 6 bonifica 2).
 - Para Combo: Articulos que componen el combo con sus cantidades y un precio total.
 - Para Menu: Grupos de opciones (ej: "Entrada", "Plato principal", "Postre"), con los articulos disponibles en cada grupo, la cantidad a elegir y el precio total del menu.
 
 **Paso 3 - Condiciones:**
-Similar a las promociones comunes: vigencia, dias, horarios, forma de venta, canal, forma de pago, usos maximos.
+Similar a las promociones comunes: vigencia, dias, horarios, forma de venta, canal, formas de pago (seleccion multiple), usos maximos.
 
 **Paso 4 - Prioridad y simulador:**
 Prioridad de la promocion y simulador para probarla antes de activarla.

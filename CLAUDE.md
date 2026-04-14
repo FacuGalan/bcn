@@ -50,7 +50,8 @@
 - 3 archivos: `lang/{es,en,pt}.json`, ordenados alfabéticamente, usar `__()`
 
 ### Documentación del sistema
-- Al agregar/modificar funcionalidades, actualizar `docs/manual-usuario.md` (manual humano) y `docs/ai-knowledge-base.md` (base de conocimiento IA)
+- Actualizar `docs/manual-usuario.md` y `docs/ai-knowledge-base.md` **al crear un PR** (no en cada commit individual), para tener contexto completo de todos los cambios del branch
+- Usar el agente `@docs-sync` para actualizar automáticamente ambos archivos analizando el diff del branch
 - `manual-usuario.md`: funcionalidades por módulo/vista, acciones, filtros, modales, flujos
 - `ai-knowledge-base.md`: modelo de datos, lógica de negocio, patrones de consulta, reglas
 
@@ -137,7 +138,7 @@ Después de CADA implementación, verificar:
 3. **Tenant**: Si se tocó migraciones → regenerar `database/sql/tenant_tables.sql`
 4. **Traducciones**: Si se agregaron strings → verificar en los 3 archivos (es/en/pt)
 5. **Regresión UI**: Si se tocó componentes compartidos → verificar que no se rompió desktop NI móvil
-6. **Documentación**: Si se agregó/modificó funcionalidad → actualizar `docs/manual-usuario.md` y `docs/ai-knowledge-base.md`
+6. **Documentación**: Al crear PR, si se agregó/modificó funcionalidad → invocar `@docs-sync` para actualizar docs automáticamente
 
 ### Testing
 - BDs dedicadas: `config_test`, `pymes_test` (MySQL, no SQLite)
