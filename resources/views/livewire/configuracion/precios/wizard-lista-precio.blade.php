@@ -1,5 +1,5 @@
-<div class="py-6 sm:py-12">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="py-4">
+    <div class="px-4 sm:px-6 lg:px-8">
         {{-- Header --}}
         <div class="mb-6">
             <div class="flex items-center gap-3">
@@ -94,7 +94,7 @@
             {{-- PASO 1: Datos basicos --}}
             @if($pasoActual == 1)
                 <div class="space-y-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">{{ __('Datos Basicos') }}</h3>
+                    <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">{{ __('Datos Basicos') }}</h2>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {{-- Nombre --}}
@@ -143,7 +143,7 @@
             {{-- PASO 2: Configuracion de precios --}}
             @if($pasoActual == 2)
                 <div class="space-y-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">{{ __('Configuracion de Precios') }}</h3>
+                    <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">{{ __('Configuracion de Precios') }}</h2>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {{-- Tipo de Ajuste + Porcentaje --}}
@@ -271,7 +271,7 @@
             {{-- PASO 3: Vigencia --}}
             @if($pasoActual == 3)
                 <div class="space-y-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">{{ __('Vigencia y Restricciones Horarias') }}</h3>
+                    <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">{{ __('Vigencia y Restricciones Horarias') }}</h2>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {{-- Fecha desde --}}
@@ -357,7 +357,7 @@
             {{-- PASO 4: Condiciones --}}
             @if($pasoActual == 4)
                 <div class="space-y-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">{{ __('Condiciones de Aplicacion') }}</h3>
+                    <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">{{ __('Condiciones de Aplicacion') }}</h2>
                     <p class="text-sm text-gray-600 dark:text-gray-300">{{ __('Define cuando debe aplicarse esta lista. Todas las condiciones deben cumplirse (AND).') }}</p>
 
                     {{-- Lista de condiciones existentes --}}
@@ -483,7 +483,7 @@
             {{-- PASO 5: Articulos especificos --}}
             @if($pasoActual == 5)
                 <div class="space-y-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white border-b pb-2">{{ __('Articulos y Categorias Especificos') }}</h3>
+                    <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">{{ __('Articulos y Categorias Especificos') }}</h2>
 
                     {{-- Mensaje informativo --}}
                     <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
@@ -549,14 +549,20 @@
 
                     {{-- Lista de articulos/categorias agregados --}}
                     @if(count($articulosEspecificos) > 0)
-                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+                             x-data="{
+                                focus(index, col) {
+                                    const el = document.querySelector('[data-cell=\"'+col+'-'+index+'\"]');
+                                    if (el) { el.focus(); el.select && el.select(); }
+                                }
+                             }">
                             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                 <thead class="bg-gray-50 dark:bg-gray-700">
                                     <tr>
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Articulo/Categoria') }}</th>
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Precio Base') }}</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Precio Fijo') }}</th>
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Ajuste %') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Precio Final') }}</th>
                                         <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase"></th>
                                     </tr>
                                 </thead>
@@ -583,26 +589,32 @@
                                                 @endif
                                             </td>
                                             <td class="px-4 py-3">
+                                                <div class="flex items-center gap-1">
+                                                    <input type="number"
+                                                           data-cell="pct-{{ $index }}"
+                                                           wire:model.blur="articulosEspecificos.{{ $index }}.ajuste_porcentaje"
+                                                           wire:change="recalcularPrecioFinalDesdePorcentaje({{ $index }})"
+                                                           x-on:keydown.arrow-up.prevent="focus({{ $index - 1 }}, 'pct')"
+                                                           x-on:keydown.arrow-down.prevent="focus({{ $index + 1 }}, 'pct')"
+                                                           step="0.01"
+                                                           class="w-24 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                                    <span class="text-gray-500 dark:text-gray-400">%</span>
+                                                </div>
+                                            </td>
+                                            <td class="px-4 py-3">
                                                 @if($art['tipo'] == 'articulo')
                                                     <input type="number"
+                                                           data-cell="final-{{ $index }}"
                                                            wire:model.blur="articulosEspecificos.{{ $index }}.precio_fijo"
                                                            wire:change="recalcularPorcentajeDesdeMontoFijo({{ $index }})"
+                                                           x-on:keydown.arrow-up.prevent="focus({{ $index - 1 }}, 'final')"
+                                                           x-on:keydown.arrow-down.prevent="focus({{ $index + 1 }}, 'final')"
                                                            step="0.01"
                                                            min="0"
-                                                           :placeholder="__('Auto')"
-                                                           class="w-24 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                                           class="w-28 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                                 @else
                                                     <span class="text-gray-400 dark:text-gray-500 text-sm">{{ __('N/A') }}</span>
                                                 @endif
-                                            </td>
-                                            <td class="px-4 py-3">
-                                                <div class="flex items-center gap-1">
-                                                    <input type="number"
-                                                           wire:model.blur="articulosEspecificos.{{ $index }}.ajuste_porcentaje"
-                                                           step="0.01"
-                                                           class="w-20 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                                    <span class="text-gray-500 dark:text-gray-400">%</span>
-                                                </div>
                                             </td>
                                             <td class="px-4 py-3 text-right">
                                                 <button type="button"
@@ -639,8 +651,8 @@
             <div class="flex justify-between mt-8 pt-6 border-t">
                 <div>
                     @if($pasoActual > 1)
-                        <button wire:click="anterior"
-                                class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150">
+                        <button type="button" wire:click="anterior"
+                                class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                             </svg>
@@ -649,24 +661,24 @@
                     @endif
                 </div>
 
-                <div class="flex gap-3">
+                <div class="flex gap-2">
                     <a href="{{ route('configuracion.precios') }}"
                        wire:navigate
-                       class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150">
+                       class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         {{ __('Cancelar') }}
                     </a>
 
                     @if($pasoActual < $totalPasos)
-                        <button wire:click="siguiente"
-                                class="inline-flex items-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150">
+                        <button type="button" wire:click="siguiente"
+                                class="inline-flex items-center px-6 py-2 bg-bcn-primary text-white rounded-lg hover:bg-bcn-primary/90 font-medium transition">
                             {{ __('Siguiente') }}
                             <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                             </svg>
                         </button>
                     @else
-                        <button wire:click="guardar"
-                                class="inline-flex items-center px-6 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150">
+                        <button type="button" wire:click="guardar"
+                                class="inline-flex items-center px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                             </svg>

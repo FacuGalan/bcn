@@ -269,15 +269,27 @@ class WizardListaPrecio extends Component
         $this->articulosEspecificos = $lista->articulos
             ->where('origen', 'manual')
             ->map(function ($a) {
+                $precioBase = $a->precio_base_original !== null
+                    ? (float) $a->precio_base_original
+                    : ($a->articulo?->precio_base !== null ? (float) $a->articulo->precio_base : null);
+
+                $ajuste = $a->ajuste_porcentaje !== null ? (float) $a->ajuste_porcentaje : null;
+
+                // Calcular precio final visual desde % (para filas sin precio_fijo persistido)
+                $precioFinal = $a->precio_fijo !== null ? (float) $a->precio_fijo : null;
+                if ($precioFinal === null && $ajuste !== null && $precioBase !== null && $precioBase > 0) {
+                    $precioFinal = round($precioBase * (1 + ($ajuste / 100)), 2);
+                }
+
                 return [
                     'id' => $a->id,
                     'articulo_id' => $a->articulo_id,
                     'categoria_id' => $a->categoria_id,
                     'nombre' => $a->obtenerNombre(),
                     'tipo' => $a->obtenerTipo(),
-                    'precio_fijo' => $a->precio_fijo,
-                    'ajuste_porcentaje' => $a->ajuste_porcentaje,
-                    'precio_base_original' => $a->precio_base_original,
+                    'precio_fijo' => $precioFinal,
+                    'ajuste_porcentaje' => $ajuste,
+                    'precio_base_original' => $precioBase,
                 ];
             })
             ->values()
@@ -505,15 +517,19 @@ class WizardListaPrecio extends Component
             return;
         }
 
+        $precioBase = (float) $articulo->precio_base;
+        $ajuste = (float) $this->ajustePorcentaje;
+        $precioFinal = $precioBase > 0 ? round($precioBase * (1 + ($ajuste / 100)), 2) : null;
+
         $this->articulosEspecificos[] = [
             'id' => null,
             'articulo_id' => $articulo->id,
             'categoria_id' => null,
             'nombre' => $articulo->nombre,
             'tipo' => 'articulo',
-            'precio_fijo' => null,
-            'ajuste_porcentaje' => $this->ajustePorcentaje, // Usa el ajuste de la lista por defecto
-            'precio_base_original' => $articulo->precio_base,
+            'precio_fijo' => $precioFinal,
+            'ajuste_porcentaje' => $ajuste,
+            'precio_base_original' => $precioBase,
         ];
 
         $this->busquedaArticulo = '';
@@ -586,9 +602,27 @@ class WizardListaPrecio extends Component
         $precioBase = $art['precio_base_original'];
 
         if ($precioFijo !== null && $precioFijo !== '' && $precioBase > 0) {
-            // Calcular el porcentaje: ((nuevo - base) / base) * 100
             $porcentaje = (((float) $precioFijo - $precioBase) / $precioBase) * 100;
             $this->articulosEspecificos[$index]['ajuste_porcentaje'] = round($porcentaje, 2);
+        }
+    }
+
+    /**
+     * Recalcula el precio final cuando se cambia el porcentaje
+     */
+    public function recalcularPrecioFinalDesdePorcentaje($index)
+    {
+        if (! isset($this->articulosEspecificos[$index])) {
+            return;
+        }
+
+        $art = &$this->articulosEspecificos[$index];
+        $porcentaje = $art['ajuste_porcentaje'];
+        $precioBase = $art['precio_base_original'];
+
+        if ($porcentaje !== null && $porcentaje !== '' && $precioBase > 0) {
+            $precioFinal = $precioBase * (1 + ((float) $porcentaje / 100));
+            $this->articulosEspecificos[$index]['precio_fijo'] = round($precioFinal, 2);
         }
     }
 
@@ -755,13 +789,14 @@ class WizardListaPrecio extends Component
             ->whereNotIn('id', $idsExistentes)
             ->delete();
 
-        // Crear o actualizar artículos
+        // Crear o actualizar artículos — siempre guardamos solo ajuste_porcentaje.
+        // El precio_fijo solo lo escribe el service de snapshot (listas estáticas).
         foreach ($this->articulosEspecificos as $art) {
             $data = [
                 'lista_precio_id' => $lista->id,
                 'articulo_id' => $art['articulo_id'],
                 'categoria_id' => $art['categoria_id'],
-                'precio_fijo' => $art['precio_fijo'],
+                'precio_fijo' => null,
                 'ajuste_porcentaje' => $art['ajuste_porcentaje'],
                 'precio_base_original' => $art['precio_base_original'],
                 'origen' => 'manual',

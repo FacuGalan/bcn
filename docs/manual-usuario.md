@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-04-13
+> Version: 0.1.x | Ultima actualizacion: 2026-04-14
 
 ---
 
@@ -1629,6 +1629,7 @@ El wizard de creacion tiene 5 pasos:
 - Redondeo: Sin redondeo, Entero, Decena o Centena mas cercana.
 - Aplicar promociones: Si las promociones se aplican a ventas con esta lista.
 - Alcance de promociones: A toda la venta o excluyendo articulos con precio especifico en esta lista.
+- **Lista estatica (congelar precios)**: Toggle disponible solo en listas no-base. Al activarlo, los precios se calculan una sola vez al grabar y quedan congelados: no cambian aunque varie el precio base de los articulos. Ver seccion "Listas estaticas" mas abajo.
 
 **Paso 3 - Vigencia:**
 - Fecha desde y hasta (opcional).
@@ -1649,6 +1650,18 @@ Opcionalmente, defina precios especificos para articulos individuales que difier
 #### Acciones
 
 - Editar, Activar/Desactivar, Eliminar.
+- **Actualizar precios** (icono de recarga, color ambar, solo en listas estaticas): Abre un modal de confirmacion y, al aceptar, regenera el snapshot de precios aplicando los precios base actuales de los articulos. Los precios ingresados manualmente por el usuario se preservan; solo se recalculan los que surgieron del ajuste porcentual de la lista.
+
+#### Listas estaticas
+
+Una lista estatica congela sus precios en un snapshot calculado al momento de grabar. A diferencia de una lista dinamica, los cambios posteriores al precio base de los articulos no se reflejan automaticamente en esta lista.
+
+**Comportamiento:**
+- Al grabar o editar una lista con el toggle estatico activado, el sistema aplica la jerarquia completa de ajustes (precio especifico por articulo > ajuste por articulo > ajuste por categoria > ajuste del encabezado) sobre todos los articulos activos de la sucursal y persiste el precio resultante como precio fijo.
+- En el listado, las listas estaticas muestran un badge **Estatica** color ambar y la leyenda "Actualizada: hace X" (tiempo desde el ultimo snapshot).
+- Articulos incorporados al catalogo despues del snapshot no quedan cubiertos por la lista estatica. En ventas, si el articulo no esta en el snapshot, el sistema usa automaticamente el precio de la lista base.
+- Al actualizar precios (boton de recarga), solo se recalculan los articulos cuyo precio proviene del ajuste porcentual; los precios cargados manualmente en el paso 5 se mantienen.
+- Si se edita una lista y se desactiva el toggle "estatica", los snapshots previos se eliminan y la lista pasa a operar de forma dinamica.
 
 > **Nota**: La **lista base** es la lista de precios por defecto y no puede ser desactivada ni eliminada. Los precios base de los articulos pertenecen a esta lista.
 

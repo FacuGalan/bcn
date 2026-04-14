@@ -990,6 +990,8 @@ Listas de precios por sucursal con vigencia temporal y condiciones.
 | `es_lista_base` | boolean | Si es la lista base (obligatoria, no eliminable) |
 | `prioridad` | int | Menor numero = mayor prioridad |
 | `activo` | boolean | Si esta activa |
+| `estatica` | boolean | Si los precios estan congelados en un snapshot |
+| `precios_congelados_at` | timestamp nullable | Fecha y hora del ultimo snapshot de precios |
 | `created_at`, `updated_at`, `deleted_at` | timestamp | Timestamps + soft delete |
 
 #### Tabla: `lista_precio_articulos`
@@ -1004,6 +1006,7 @@ Ajustes por articulo o categoria dentro de una lista.
 | `precio_fijo` | decimal(12,2) nullable | Precio fijo (pisa al precio base) |
 | `ajuste_porcentaje` | decimal(8,2) nullable | Ajuste porcentual |
 | `precio_base_original` | decimal(12,2) nullable | Precio base al momento de crear |
+| `origen` | enum nullable | `manual` (ingresado por el usuario) o `snapshot` (calculado por CongelarPreciosListaService) |
 
 #### Tabla: `lista_precio_condiciones`
 Condiciones que deben cumplirse para que aplique una lista.
@@ -1268,6 +1271,15 @@ El sistema de precios tiene **4 niveles de especificidad** (de mayor a menor):
 - Promociones comunes ahora soportan multiples articulos, categorias y formas de pago como condiciones (tabla `promocion_condiciones` con multiples rows por tipo)
 - Promociones especiales tienen columnas `formas_pago_ids`, `nxm_articulos_ids`, `nxm_categorias_ids` (TEXT con JSON arrays) para seleccion multiple. Se mantiene retrocompatibilidad con las columnas singulares (`forma_pago_id`, `nxm_articulo_id`, `nxm_categoria_id`)
 - Las validaciones usan `in_array()` en vez de comparacion directa para soportar seleccion multiple
+
+**Listas estaticas** (`estatica = true`):
+- Al grabar o actualizar una lista estatica, `CongelarPreciosListaService::congelar(ListaPrecio): int` itera todos los articulos activos de la sucursal y aplica la jerarquia completa de ajustes (nivel articulo > nivel categoria > ajuste del encabezado), persistiendo el resultado como `precio_fijo` en `lista_precio_articulos`.
+- Las filas con `origen = 'manual'` (precio ingresado a mano por el usuario en el paso 5) se preservan durante el re-snapshot; solo se recalculan las filas con `origen = 'snapshot'`.
+- `ListaPrecio::cubreArticulo(Articulo): bool` devuelve `true` si existe una fila en `lista_precio_articulos` para ese articulo.
+- `ListaPrecio::obtenerPrecioArticulo(Articulo)` devuelve `['precio' => ..., 'origen' => ...]`. Si la lista es estatica y el articulo no tiene fila, devuelve `['origen' => 'fuera_de_lista_estatica']`.
+- En `NuevaVenta::obtenerPrecioConLista`: si la lista aplicable es estatica y `cubreArticulo` devuelve `false`, el sistema usa el precio de la lista base en lugar del precio de la lista estatica.
+- El campo `precios_congelados_at` registra la fecha y hora del ultimo snapshot; `diffForHumans()` sobre este campo se muestra en la UI como "Actualizada: hace X".
+- Al editar una lista y desactivar el flag `estatica`, el wizard elimina todos los registros `origen = 'snapshot'` de `lista_precio_articulos`.
 
 **Ajustes por forma de pago**: Cada forma de pago puede tener un `ajuste_porcentaje` (recargo o descuento). Tambien puede tener planes de cuotas con recargo.
 

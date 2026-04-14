@@ -165,6 +165,20 @@
                                 </div>
                             </div>
                         @endif
+
+                        @if($lista->vigencia_desde || $lista->vigencia_hasta)
+                            <div class="flex justify-between">
+                                <span class="text-gray-500 dark:text-gray-400">{{ __('Vigencia') }}:</span>
+                                <span class="text-gray-900 dark:text-white">
+                                    {{ $lista->vigencia_desde?->format('d/m/Y') ?? '—' }} → {{ $lista->vigencia_hasta?->format('d/m/Y') ?? '—' }}
+                                </span>
+                            </div>
+                        @endif
+
+                        <div class="flex justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">{{ __('Creada') }}:</span>
+                            <span class="text-gray-900 dark:text-white">{{ $lista->created_at?->format('d/m/Y') ?? '—' }}</span>
+                        </div>
                     </div>
 
                     {{-- Acciones movil --}}
@@ -251,7 +265,13 @@
                                 {{ __('Detalles') }}
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                {{ __('Vigencia') }}
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                 {{ __('Estado') }}
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                {{ __('Creada') }}
                             </th>
                             <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                 {{ __('Acciones') }}
@@ -335,6 +355,22 @@
                                     </div>
                                 </td>
 
+                                {{-- Vigencia --}}
+                                <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">
+                                    @if($lista->vigencia_desde || $lista->vigencia_hasta)
+                                        <div>
+                                            <span class="text-gray-500 dark:text-gray-400">{{ __('Desde') }}:</span>
+                                            {{ $lista->vigencia_desde?->format('d/m/Y') ?? '—' }}
+                                        </div>
+                                        <div>
+                                            <span class="text-gray-500 dark:text-gray-400">{{ __('Hasta') }}:</span>
+                                            {{ $lista->vigencia_hasta?->format('d/m/Y') ?? '—' }}
+                                        </div>
+                                    @else
+                                        <span class="text-gray-400 dark:text-gray-500 italic">{{ __('Sin restricción') }}</span>
+                                    @endif
+                                </td>
+
                                 {{-- Estado --}}
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <button wire:click="toggleActivo({{ $lista->id }})"
@@ -346,6 +382,11 @@
                                     <span class="ml-2 text-xs text-gray-600 dark:text-gray-300">
                                         {{ $lista->activo ? __('Activa') : __('Inactiva') }}
                                     </span>
+                                </td>
+
+                                {{-- Creada --}}
+                                <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-600 dark:text-gray-300" title="{{ $lista->created_at?->format('Y-m-d H:i') }}">
+                                    {{ $lista->created_at?->format('d/m/Y') ?? '—' }}
                                 </td>
 
                                 {{-- Acciones --}}
