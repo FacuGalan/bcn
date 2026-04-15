@@ -298,17 +298,50 @@ class WizardListaPrecio extends Component
 
     public function updatedBusquedaArticulo($value)
     {
-        if (strlen($value) >= 2) {
-            $this->articulosEncontrados = Articulo::where(function ($q) use ($value) {
-                $q->where('nombre', 'like', '%'.$value.'%')
-                    ->orWhere('codigo', 'like', '%'.$value.'%');
-            })
-                ->limit(15)
-                ->get()
-                ->toArray();
-        } else {
+        $value = trim($value);
+
+        if (strlen($value) < 2) {
             $this->articulosEncontrados = [];
+
+            return;
         }
+
+        // Separar la búsqueda en palabras individuales para búsqueda inteligente
+        $palabras = preg_split('/\s+/', $value, -1, PREG_SPLIT_NO_EMPTY);
+
+        $query = Articulo::with('categoriaModel')->where('activo', true);
+
+        // Cada palabra debe coincidir en nombre, código, código de barras O nombre de categoría
+        foreach ($palabras as $palabra) {
+            $query->where(function ($q) use ($palabra) {
+                $q->where('nombre', 'like', '%'.$palabra.'%')
+                    ->orWhere('codigo', 'like', '%'.$palabra.'%')
+                    ->orWhere('codigo_barras', 'like', '%'.$palabra.'%')
+                    ->orWhereHas('categoriaModel', function ($subQ) use ($palabra) {
+                        $subQ->where('nombre', 'like', '%'.$palabra.'%');
+                    });
+            });
+        }
+
+        $this->articulosEncontrados = $query->orderBy('nombre')->limit(15)->get()->map(function ($art) {
+            return [
+                'id' => $art->id,
+                'nombre' => $art->nombre,
+                'codigo' => $art->codigo,
+                'codigo_barras' => $art->codigo_barras,
+                'categoria_nombre' => $art->categoriaModel?->nombre,
+                'precio_base' => $art->precio_base,
+            ];
+        })->toArray();
+    }
+
+    public function agregarPrimerArticuloBusqueda()
+    {
+        if (empty($this->articulosEncontrados)) {
+            return;
+        }
+
+        $this->agregarArticulo($this->articulosEncontrados[0]['id']);
     }
 
     /**
@@ -361,6 +394,7 @@ class WizardListaPrecio extends Component
 
         if ($this->pasoActual < $this->totalPasos) {
             $this->pasoActual++;
+            $this->dispatch('paso-cambiado');
         }
     }
 
@@ -368,6 +402,7 @@ class WizardListaPrecio extends Component
     {
         if ($this->pasoActual > 1) {
             $this->pasoActual--;
+            $this->dispatch('paso-cambiado');
         }
     }
 
@@ -377,7 +412,10 @@ class WizardListaPrecio extends Component
         // En modo creación, solo permitir ir a pasos anteriores o al actual
         if ($paso >= 1 && $paso <= $this->totalPasos) {
             if ($this->modoEdicion || $paso <= $this->pasoActual) {
-                $this->pasoActual = $paso;
+                if ($this->pasoActual !== $paso) {
+                    $this->pasoActual = $paso;
+                    $this->dispatch('paso-cambiado');
+                }
             }
         }
     }
