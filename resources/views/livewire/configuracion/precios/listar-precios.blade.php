@@ -110,9 +110,19 @@
                                         {{ __('Base') }}
                                     </span>
                                 @endif
+                                @if($lista->estatica)
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200">
+                                        {{ __('Estática') }}
+                                    </span>
+                                @endif
                             </div>
                             @if($lista->codigo)
                                 <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ $lista->codigo }}</div>
+                            @endif
+                            @if($lista->estatica && $lista->precios_congelados_at)
+                                <div class="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                                    {{ __('Actualizada') }}: {{ $lista->precios_congelados_at->diffForHumans() }}
+                                </div>
                             @endif
                         </div>
                         <div class="ml-2">
@@ -155,6 +165,20 @@
                                 </div>
                             </div>
                         @endif
+
+                        @if($lista->vigencia_desde || $lista->vigencia_hasta)
+                            <div class="flex justify-between">
+                                <span class="text-gray-500 dark:text-gray-400">{{ __('Vigencia') }}:</span>
+                                <span class="text-gray-900 dark:text-white">
+                                    {{ $lista->vigencia_desde?->format('d/m/Y') ?? '—' }} → {{ $lista->vigencia_hasta?->format('d/m/Y') ?? '—' }}
+                                </span>
+                            </div>
+                        @endif
+
+                        <div class="flex justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">{{ __('Creada') }}:</span>
+                            <span class="text-gray-900 dark:text-white">{{ $lista->created_at?->format('d/m/Y') ?? '—' }}</span>
+                        </div>
                     </div>
 
                     {{-- Acciones movil --}}
@@ -174,6 +198,15 @@
                             </svg>
                             {{ __('Duplicar') }}
                         </button>
+                        @if($lista->estatica)
+                            <button wire:click="confirmarRecongelar({{ $lista->id }})"
+                                    class="inline-flex items-center justify-center px-3 py-2 border border-amber-600 text-sm font-medium rounded-md text-amber-600 hover:bg-amber-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-amber-600 transition-colors duration-150"
+                                    title="{{ __('Actualizar precios congelados') }}">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                </svg>
+                            </button>
+                        @endif
                         @unless($lista->es_lista_base)
                             <button wire:click="confirmarEliminar({{ $lista->id }})"
                                     class="inline-flex items-center justify-center px-3 py-2 border border-red-600 text-sm font-medium rounded-md text-red-600 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-red-600 transition-colors duration-150">
@@ -232,7 +265,13 @@
                                 {{ __('Detalles') }}
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                {{ __('Vigencia') }}
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                 {{ __('Estado') }}
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                {{ __('Creada') }}
                             </th>
                             <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                 {{ __('Acciones') }}
@@ -251,12 +290,22 @@
                                                 {{ __('Base') }}
                                             </span>
                                         @endif
+                                        @if($lista->estatica)
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200">
+                                                {{ __('Estática') }}
+                                            </span>
+                                        @endif
                                     </div>
                                     @if($lista->codigo)
                                         <div class="text-xs text-gray-500 dark:text-gray-400">{{ $lista->codigo }}</div>
                                     @endif
                                     @if($lista->descripcion)
                                         <div class="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate max-w-xs" title="{{ $lista->descripcion }}">{{ $lista->descripcion }}</div>
+                                    @endif
+                                    @if($lista->estatica && $lista->precios_congelados_at)
+                                        <div class="text-xs text-amber-700 dark:text-amber-300 mt-1" title="{{ $lista->precios_congelados_at->format('Y-m-d H:i') }}">
+                                            {{ __('Actualizada') }}: {{ $lista->precios_congelados_at->diffForHumans() }}
+                                        </div>
                                     @endif
                                 </td>
 
@@ -306,6 +355,22 @@
                                     </div>
                                 </td>
 
+                                {{-- Vigencia --}}
+                                <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">
+                                    @if($lista->vigencia_desde || $lista->vigencia_hasta)
+                                        <div>
+                                            <span class="text-gray-500 dark:text-gray-400">{{ __('Desde') }}:</span>
+                                            {{ $lista->vigencia_desde?->format('d/m/Y') ?? '—' }}
+                                        </div>
+                                        <div>
+                                            <span class="text-gray-500 dark:text-gray-400">{{ __('Hasta') }}:</span>
+                                            {{ $lista->vigencia_hasta?->format('d/m/Y') ?? '—' }}
+                                        </div>
+                                    @else
+                                        <span class="text-gray-400 dark:text-gray-500 italic">{{ __('Sin restricción') }}</span>
+                                    @endif
+                                </td>
+
                                 {{-- Estado --}}
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <button wire:click="toggleActivo({{ $lista->id }})"
@@ -317,6 +382,11 @@
                                     <span class="ml-2 text-xs text-gray-600 dark:text-gray-300">
                                         {{ $lista->activo ? __('Activa') : __('Inactiva') }}
                                     </span>
+                                </td>
+
+                                {{-- Creada --}}
+                                <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-600 dark:text-gray-300" title="{{ $lista->created_at?->format('Y-m-d H:i') }}">
+                                    {{ $lista->created_at?->format('d/m/Y') ?? '—' }}
                                 </td>
 
                                 {{-- Acciones --}}
@@ -338,6 +408,15 @@
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
                                             </svg>
                                         </button>
+                                        @if($lista->estatica)
+                                            <button wire:click="confirmarRecongelar({{ $lista->id }})"
+                                                    :title="__('Actualizar precios congelados')"
+                                                    class="inline-flex items-center justify-center px-3 py-2 border border-amber-600 text-sm font-medium rounded-md text-amber-600 hover:bg-amber-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-amber-600 transition-colors duration-150">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                                </svg>
+                                            </button>
+                                        @endif
                                         @unless($lista->es_lista_base)
                                             <button wire:click="confirmarEliminar({{ $lista->id }})"
                                                     :title="__('Eliminar')"
@@ -436,6 +515,57 @@
                         </button>
                         <button type="button"
                                 wire:click="cancelarEliminar"
+                                class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 sm:mt-0 sm:w-auto transition-colors">
+                            {{ __('Cancelar') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Modal de confirmación de recongelar --}}
+    @if($showRecongelarModal)
+        <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-recongelar-title" role="dialog" aria-modal="true">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+                 wire:click="cancelarRecongelar"></div>
+
+            <div class="flex min-h-full items-center justify-center p-4">
+                <div class="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                    <div class="bg-white dark:bg-gray-800 px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
+                        <div class="sm:flex sm:items-start">
+                            <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-amber-100 sm:mx-0 sm:h-10 sm:w-10">
+                                <svg class="h-6 w-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                </svg>
+                            </div>
+                            <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                                <h3 class="text-lg font-semibold leading-6 text-gray-900 dark:text-white" id="modal-recongelar-title">
+                                    {{ __('Actualizar precios congelados') }}
+                                </h3>
+                                <div class="mt-2">
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                                        {{ __('Se recalcularán los precios de la lista') }} <span class="font-semibold text-gray-700 dark:text-gray-300">"{{ $nombreListaARecongelar }}"</span>
+                                        {{ __('usando los precios base actuales de los artículos.') }}
+                                    </p>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                                        {{ __('Los precios puestos manualmente (sin porcentaje) se mantendrán sin cambios.') }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
+                        <button type="button"
+                                wire:click="recongelar"
+                                class="inline-flex w-full justify-center rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-500 sm:w-auto transition-colors">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                            {{ __('Actualizar precios') }}
+                        </button>
+                        <button type="button"
+                                wire:click="cancelarRecongelar"
                                 class="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 sm:mt-0 sm:w-auto transition-colors">
                             {{ __('Cancelar') }}
                         </button>

@@ -3,6 +3,7 @@
 namespace App\Livewire\Configuracion\Precios;
 
 use App\Models\ListaPrecio;
+use App\Services\CongelarPreciosListaService;
 use App\Traits\SucursalAware;
 use Livewire\Attributes\Lazy;
 use Livewire\Component;
@@ -39,6 +40,13 @@ class ListarPrecios extends Component
     public ?int $listaAEliminar = null;
 
     public ?string $nombreListaAEliminar = null;
+
+    // Modal de confirmación de recongelar
+    public bool $showRecongelarModal = false;
+
+    public ?int $listaARecongelar = null;
+
+    public ?string $nombreListaARecongelar = null;
 
     protected $queryString = [
         'busqueda' => ['except' => ''],
@@ -152,6 +160,50 @@ class ListarPrecios extends Component
         }
 
         $this->cancelarEliminar();
+    }
+
+    public function confirmarRecongelar($listaId)
+    {
+        $lista = ListaPrecio::find($listaId);
+        if (! $lista || ! $lista->estatica) {
+            $this->js("window.notify('".__('Solo las listas estáticas pueden recongelarse')."', 'error')");
+
+            return;
+        }
+
+        $this->listaARecongelar = $lista->id;
+        $this->nombreListaARecongelar = $lista->nombre;
+        $this->showRecongelarModal = true;
+    }
+
+    public function cancelarRecongelar()
+    {
+        $this->showRecongelarModal = false;
+        $this->listaARecongelar = null;
+        $this->nombreListaARecongelar = null;
+    }
+
+    public function recongelar(CongelarPreciosListaService $service)
+    {
+        if (! $this->listaARecongelar) {
+            return;
+        }
+
+        $lista = ListaPrecio::find($this->listaARecongelar);
+        if (! $lista || ! $lista->estatica) {
+            $this->cancelarRecongelar();
+
+            return;
+        }
+
+        try {
+            $cantidad = $service->congelar($lista);
+            $this->js("window.notify('".addslashes(__('Precios actualizados').": {$cantidad}")."', 'success')");
+        } catch (\Exception $e) {
+            $this->js("window.notify('".addslashes(__('Error al actualizar precios').': '.$e->getMessage())."', 'error', 7000)");
+        }
+
+        $this->cancelarRecongelar();
     }
 
     public function duplicar($listaId)

@@ -154,6 +154,9 @@ Después de CADA implementación, verificar:
 - **Conventional Commits OBLIGATORIO**: `feat:`, `fix:`, `refactor:`, `perf:`, `test:`, `docs:`, `ci:`, `chore:` — ver detalle en ref
 - **Nunca push directo a master** — todo vía branch + Pull Request
 - **Al iniciar sesión**: verificar rama actual. Si no hay trabajo en curso, `git checkout master && git pull` antes de crear rama nueva
+- **ANTES de crear rama nueva desde master** (OBLIGATORIO): ejecutar `gh pr list --state open --author @me`. Si hay PRs abiertos:
+  - Listarlos al usuario y preguntar: ¿mergear primero?, ¿basar nueva rama en el PR abierto?, ¿o continuar desde master a sabiendas?
+  - **NUNCA** crear rama nueva silenciosamente si hay PRs propios abiertos sin mergear — se pierde visibilidad de cambios ya hechos y aparecen conflictos evitables
 - CI automático en cada PR: Lint (Pint) + Tests (PHPUnit). Si falla, PR bloqueado
 - Release Please: no mergear Release PR tras cada PR, acumular cambios coherentes
 - Ref completa: `.claude/docs/git-workflow.md`

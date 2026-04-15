@@ -8,6 +8,7 @@ use App\Models\ListaPrecio;
 use App\Models\ListaPrecioArticulo;
 use App\Models\ListaPrecioCondicion;
 use App\Services\CatalogoCache;
+use App\Services\CongelarPreciosListaService;
 use Livewire\Attributes\Lazy;
 use Livewire\Component;
 
@@ -59,6 +60,8 @@ class WizardListaPrecio extends Component
 
     public $promocionesAlcance = 'todos';
 
+    public $estatica = false;
+
     // Paso 3: Vigencia
     public $vigenciaDesde = null;
 
@@ -97,6 +100,8 @@ class WizardListaPrecio extends Component
     public $articulosEncontrados = [];
 
     public $categoriasSeleccionadas = [];
+
+    public $categoriaSeleccionadaId = null;
 
     // Opciones
     public $opcionesRedondeo = [];
@@ -235,6 +240,7 @@ class WizardListaPrecio extends Component
         $this->redondeo = $lista->redondeo;
         $this->aplicaPromociones = $lista->aplica_promociones;
         $this->promocionesAlcance = $lista->promociones_alcance;
+        $this->estatica = (bool) $lista->estatica;
 
         // Paso 3
         $this->vigenciaDesde = $lista->vigencia_desde?->format('Y-m-d');
@@ -259,34 +265,83 @@ class WizardListaPrecio extends Component
             ];
         })->toArray();
 
-        // Paso 5: Artículos específicos
-        $this->articulosEspecificos = $lista->articulos->map(function ($a) {
-            return [
-                'id' => $a->id,
-                'articulo_id' => $a->articulo_id,
-                'categoria_id' => $a->categoria_id,
-                'nombre' => $a->obtenerNombre(),
-                'tipo' => $a->obtenerTipo(),
-                'precio_fijo' => $a->precio_fijo,
-                'ajuste_porcentaje' => $a->ajuste_porcentaje,
-                'precio_base_original' => $a->precio_base_original,
-            ];
-        })->toArray();
+        // Paso 5: Artículos específicos (solo filas manuales, excluye snapshots auto-generados)
+        $this->articulosEspecificos = $lista->articulos
+            ->where('origen', 'manual')
+            ->map(function ($a) {
+                $precioBase = $a->precio_base_original !== null
+                    ? (float) $a->precio_base_original
+                    : ($a->articulo?->precio_base !== null ? (float) $a->articulo->precio_base : null);
+
+                $ajuste = $a->ajuste_porcentaje !== null ? (float) $a->ajuste_porcentaje : null;
+
+                // Calcular precio final visual desde % (para filas sin precio_fijo persistido)
+                $precioFinal = $a->precio_fijo !== null ? (float) $a->precio_fijo : null;
+                if ($precioFinal === null && $ajuste !== null && $precioBase !== null && $precioBase > 0) {
+                    $precioFinal = round($precioBase * (1 + ($ajuste / 100)), 2);
+                }
+
+                return [
+                    'id' => $a->id,
+                    'articulo_id' => $a->articulo_id,
+                    'categoria_id' => $a->categoria_id,
+                    'nombre' => $a->obtenerNombre(),
+                    'tipo' => $a->obtenerTipo(),
+                    'precio_fijo' => $precioFinal,
+                    'ajuste_porcentaje' => $ajuste,
+                    'precio_base_original' => $precioBase,
+                ];
+            })
+            ->values()
+            ->toArray();
     }
 
     public function updatedBusquedaArticulo($value)
     {
-        if (strlen($value) >= 2) {
-            $this->articulosEncontrados = Articulo::where(function ($q) use ($value) {
-                $q->where('nombre', 'like', '%'.$value.'%')
-                    ->orWhere('codigo', 'like', '%'.$value.'%');
-            })
-                ->limit(15)
-                ->get()
-                ->toArray();
-        } else {
+        $value = trim($value);
+
+        if (strlen($value) < 2) {
             $this->articulosEncontrados = [];
+
+            return;
         }
+
+        // Separar la búsqueda en palabras individuales para búsqueda inteligente
+        $palabras = preg_split('/\s+/', $value, -1, PREG_SPLIT_NO_EMPTY);
+
+        $query = Articulo::with('categoriaModel')->where('activo', true);
+
+        // Cada palabra debe coincidir en nombre, código, código de barras O nombre de categoría
+        foreach ($palabras as $palabra) {
+            $query->where(function ($q) use ($palabra) {
+                $q->where('nombre', 'like', '%'.$palabra.'%')
+                    ->orWhere('codigo', 'like', '%'.$palabra.'%')
+                    ->orWhere('codigo_barras', 'like', '%'.$palabra.'%')
+                    ->orWhereHas('categoriaModel', function ($subQ) use ($palabra) {
+                        $subQ->where('nombre', 'like', '%'.$palabra.'%');
+                    });
+            });
+        }
+
+        $this->articulosEncontrados = $query->orderBy('nombre')->limit(15)->get()->map(function ($art) {
+            return [
+                'id' => $art->id,
+                'nombre' => $art->nombre,
+                'codigo' => $art->codigo,
+                'codigo_barras' => $art->codigo_barras,
+                'categoria_nombre' => $art->categoriaModel?->nombre,
+                'precio_base' => $art->precio_base,
+            ];
+        })->toArray();
+    }
+
+    public function agregarPrimerArticuloBusqueda()
+    {
+        if (empty($this->articulosEncontrados)) {
+            return;
+        }
+
+        $this->agregarArticulo($this->articulosEncontrados[0]['id']);
     }
 
     /**
@@ -339,6 +394,7 @@ class WizardListaPrecio extends Component
 
         if ($this->pasoActual < $this->totalPasos) {
             $this->pasoActual++;
+            $this->dispatch('paso-cambiado');
         }
     }
 
@@ -346,6 +402,7 @@ class WizardListaPrecio extends Component
     {
         if ($this->pasoActual > 1) {
             $this->pasoActual--;
+            $this->dispatch('paso-cambiado');
         }
     }
 
@@ -355,7 +412,10 @@ class WizardListaPrecio extends Component
         // En modo creación, solo permitir ir a pasos anteriores o al actual
         if ($paso >= 1 && $paso <= $this->totalPasos) {
             if ($this->modoEdicion || $paso <= $this->pasoActual) {
-                $this->pasoActual = $paso;
+                if ($this->pasoActual !== $paso) {
+                    $this->pasoActual = $paso;
+                    $this->dispatch('paso-cambiado');
+                }
             }
         }
     }
@@ -495,15 +555,19 @@ class WizardListaPrecio extends Component
             return;
         }
 
+        $precioBase = (float) $articulo->precio_base;
+        $ajuste = (float) $this->ajustePorcentaje;
+        $precioFinal = $precioBase > 0 ? round($precioBase * (1 + ($ajuste / 100)), 2) : null;
+
         $this->articulosEspecificos[] = [
             'id' => null,
             'articulo_id' => $articulo->id,
             'categoria_id' => null,
             'nombre' => $articulo->nombre,
             'tipo' => 'articulo',
-            'precio_fijo' => null,
-            'ajuste_porcentaje' => $this->ajustePorcentaje, // Usa el ajuste de la lista por defecto
-            'precio_base_original' => $articulo->precio_base,
+            'precio_fijo' => $precioFinal,
+            'ajuste_porcentaje' => $ajuste,
+            'precio_base_original' => $precioBase,
         ];
 
         $this->busquedaArticulo = '';
@@ -511,11 +575,24 @@ class WizardListaPrecio extends Component
         $this->js("window.notify('".__('Artículo agregado')."', 'success')");
     }
 
+    public function agregarCategoriaSeleccionada()
+    {
+        if (! $this->categoriaSeleccionadaId) {
+            $this->js("window.notify('".__('Seleccioná una categoría')."', 'warning')");
+
+            return;
+        }
+
+        $this->agregarCategoria($this->categoriaSeleccionadaId);
+        $this->categoriaSeleccionadaId = null;
+    }
+
     public function agregarCategoria($categoriaId)
     {
-        // Verificar que no esté ya agregada
+        $categoriaId = (int) $categoriaId;
+
         foreach ($this->articulosEspecificos as $art) {
-            if ($art['categoria_id'] == $categoriaId) {
+            if ((int) ($art['categoria_id'] ?? 0) === $categoriaId) {
                 $this->js("window.notify('".__('Esta categoría ya está agregada')."', 'warning')");
 
                 return;
@@ -524,6 +601,8 @@ class WizardListaPrecio extends Component
 
         $categoria = Categoria::find($categoriaId);
         if (! $categoria) {
+            $this->js("window.notify('".__('Categoría no encontrada')."', 'error')");
+
             return;
         }
 
@@ -561,9 +640,27 @@ class WizardListaPrecio extends Component
         $precioBase = $art['precio_base_original'];
 
         if ($precioFijo !== null && $precioFijo !== '' && $precioBase > 0) {
-            // Calcular el porcentaje: ((nuevo - base) / base) * 100
             $porcentaje = (((float) $precioFijo - $precioBase) / $precioBase) * 100;
             $this->articulosEspecificos[$index]['ajuste_porcentaje'] = round($porcentaje, 2);
+        }
+    }
+
+    /**
+     * Recalcula el precio final cuando se cambia el porcentaje
+     */
+    public function recalcularPrecioFinalDesdePorcentaje($index)
+    {
+        if (! isset($this->articulosEspecificos[$index])) {
+            return;
+        }
+
+        $art = &$this->articulosEspecificos[$index];
+        $porcentaje = $art['ajuste_porcentaje'];
+        $precioBase = $art['precio_base_original'];
+
+        if ($porcentaje !== null && $porcentaje !== '' && $precioBase > 0) {
+            $precioFinal = $precioBase * (1 + ((float) $porcentaje / 100));
+            $this->articulosEspecificos[$index]['precio_fijo'] = round($precioFinal, 2);
         }
     }
 
@@ -627,11 +724,13 @@ class WizardListaPrecio extends Component
                     'cantidad_minima' => $this->cantidadMinima ?: null,
                     'cantidad_maxima' => $this->cantidadMaxima ?: null,
                     'es_lista_base' => false,
+                    'estatica' => (bool) $this->estatica,
                     'prioridad' => $this->prioridad,
                     'activo' => true,
                 ]);
             }
 
+            $eraEstatica = $this->modoEdicion && $lista->getOriginal('estatica');
             $lista->save();
 
             // Solo guardar condiciones y artículos si NO es lista base
@@ -641,6 +740,17 @@ class WizardListaPrecio extends Component
 
                 // Guardar artículos específicos
                 $this->guardarArticulosEspecificos($lista);
+
+                // Si dejó de ser estática, limpiar snapshots previos
+                if ($eraEstatica && ! $this->estatica) {
+                    $lista->articulos()->where('origen', 'snapshot')->delete();
+                    $lista->forceFill(['precios_congelados_at' => null])->save();
+                }
+
+                // Si es estática, congelar precios (snapshot o re-snapshot)
+                if ($this->estatica) {
+                    app(CongelarPreciosListaService::class)->congelar($lista->fresh());
+                }
             }
 
             \DB::commit();
@@ -711,20 +821,23 @@ class WizardListaPrecio extends Component
             ->filter()
             ->toArray();
 
-        // Eliminar artículos que ya no están
+        // Eliminar solo filas manuales que ya no están (las de snapshot las maneja el service)
         $lista->articulos()
+            ->where('origen', 'manual')
             ->whereNotIn('id', $idsExistentes)
             ->delete();
 
-        // Crear o actualizar artículos
+        // Crear o actualizar artículos — siempre guardamos solo ajuste_porcentaje.
+        // El precio_fijo solo lo escribe el service de snapshot (listas estáticas).
         foreach ($this->articulosEspecificos as $art) {
             $data = [
                 'lista_precio_id' => $lista->id,
                 'articulo_id' => $art['articulo_id'],
                 'categoria_id' => $art['categoria_id'],
-                'precio_fijo' => $art['precio_fijo'],
+                'precio_fijo' => null,
                 'ajuste_porcentaje' => $art['ajuste_porcentaje'],
                 'precio_base_original' => $art['precio_base_original'],
+                'origen' => 'manual',
             ];
 
             if ($art['id']) {
