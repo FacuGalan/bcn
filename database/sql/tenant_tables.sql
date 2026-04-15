@@ -1532,6 +1532,7 @@ CREATE TABLE `{{PREFIX}}promociones_especiales` (
   `precio_tipo` enum('fijo','porcentaje') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'fijo',
   `precio_valor` decimal(12,2) DEFAULT NULL,
   `prioridad` int(11) NOT NULL DEFAULT '1',
+  `modo_aplicacion` enum('automatica','forzada') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'automatica',
   `activo` tinyint(1) NOT NULL DEFAULT '1',
   `vigencia_desde` date DEFAULT NULL,
   `vigencia_hasta` date DEFAULT NULL,

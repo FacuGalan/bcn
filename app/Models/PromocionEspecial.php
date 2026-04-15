@@ -34,6 +34,13 @@ class PromocionEspecial extends Model
 
     const BENEFICIO_DESCUENTO = 'descuento';
 
+    // Modos de aplicación
+    // AUTOMATICA: entra al pool de optimización (el sistema elige la combinación que más ahorra al cliente)
+    // FORZADA: se aplica siempre por prioridad, antes del pool de optimización
+    const MODO_AUTOMATICA = 'automatica';
+
+    const MODO_FORZADA = 'forzada';
+
     protected $fillable = [
         'sucursal_id',
         'nombre',
@@ -50,6 +57,7 @@ class PromocionEspecial extends Model
         'precio_tipo',
         'precio_valor',
         'prioridad',
+        'modo_aplicacion',
         'activo',
         'vigencia_desde',
         'vigencia_hasta',

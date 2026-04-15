@@ -111,6 +111,19 @@ class GestionarArticulos extends Component
     // Submodal confirmar eliminar receta
     public bool $showDeleteRecetaModal = false;
 
+    // Modal de duplicar artículo
+    public bool $showDuplicarModal = false;
+
+    public ?int $duplicarOrigenId = null;
+
+    public string $duplicarOrigenNombre = '';
+
+    public string $duplicarNombre = '';
+
+    public ?int $duplicarCategoriaId = null;
+
+    public string $duplicarCodigo = '';
+
     // Propiedades del formulario
     public string $codigo = '';
 
@@ -196,21 +209,25 @@ class GestionarArticulos extends Component
         }
 
         $categoria = Categoria::find($value);
-        if (! $categoria || ! $categoria->prefijo) {
+        if (! $categoria) {
             return;
         }
 
-        // Solo proponer si el código está vacío o ya es un código autogenerado de alguna categoría
+        // Solo proponer si el código está vacío o ya es un código autogenerado
         $debeProponerCodigo = empty($this->codigo);
 
         if (! $debeProponerCodigo) {
-            // Verificar si el código actual matchea patrón de alguna categoría con prefijo
+            // Matchea patrón de alguna categoría con prefijo
             $prefijos = Categoria::whereNotNull('prefijo')->pluck('prefijo')->toArray();
             foreach ($prefijos as $pref) {
                 if (preg_match('/^'.preg_quote($pref, '/').'\d+$/', $this->codigo)) {
                     $debeProponerCodigo = true;
                     break;
                 }
+            }
+            // También matchea patrón numérico puro (sin prefijo)
+            if (! $debeProponerCodigo && preg_match('/^\d+$/', $this->codigo)) {
+                $debeProponerCodigo = true;
             }
         }
 
@@ -220,13 +237,25 @@ class GestionarArticulos extends Component
     }
 
     /**
-     * Calcula el siguiente código disponible para un prefijo dado
+     * Calcula el siguiente código disponible.
+     * - Con prefijo: PREFIJO + 4 dígitos (ej: ABC0001).
+     * - Sin prefijo: 6 dígitos con cero a la izquierda (ej: 000001).
      */
-    protected function calcularSiguienteCodigo(string $prefijo): string
+    protected function calcularSiguienteCodigo(?string $prefijo): string
     {
-        $prefijo = strtoupper(trim($prefijo));
+        $prefijo = $prefijo !== null ? strtoupper(trim($prefijo)) : '';
 
-        // Buscar artículos cuyo código empiece con el prefijo
+        if ($prefijo === '') {
+            // Sin prefijo: buscar códigos puramente numéricos
+            $ultimoNumero = Articulo::where('codigo', 'REGEXP', '^[0-9]+$')
+                ->get(['codigo'])
+                ->map(fn ($a) => (int) $a->codigo)
+                ->max() ?? 0;
+
+            return str_pad($ultimoNumero + 1, 6, '0', STR_PAD_LEFT);
+        }
+
+        // Con prefijo: buscar artículos cuyo código empiece con el prefijo
         $ultimoNumero = Articulo::where('codigo', 'LIKE', $prefijo.'%')
             ->get(['codigo'])
             ->map(function ($articulo) use ($prefijo) {
@@ -237,6 +266,155 @@ class GestionarArticulos extends Component
             ->max() ?? 0;
 
         return $prefijo.str_pad($ultimoNumero + 1, 4, '0', STR_PAD_LEFT);
+    }
+
+    // ============================================================
+    //  DUPLICAR ARTÍCULO
+    // ============================================================
+
+    /**
+     * Abre el modal de duplicación con datos precargados del origen
+     */
+    public function abrirDuplicar(int $id): void
+    {
+        $articulo = Articulo::findOrFail($id);
+
+        $this->duplicarOrigenId = $id;
+        $this->duplicarOrigenNombre = $articulo->nombre;
+        $this->duplicarNombre = $articulo->nombre.' (copia)';
+        $this->duplicarCategoriaId = $articulo->categoria_id;
+
+        // Proponer código automático según categoría (si tiene prefijo o sin prefijo)
+        $categoria = $articulo->categoria_id ? Categoria::find($articulo->categoria_id) : null;
+        $this->duplicarCodigo = $this->calcularSiguienteCodigo($categoria?->prefijo);
+
+        $this->showDuplicarModal = true;
+    }
+
+    /**
+     * Hook: al cambiar categoría en el modal de duplicar, recalcular código automático
+     */
+    public function updatedDuplicarCategoriaId($value): void
+    {
+        $categoria = $value ? Categoria::find($value) : null;
+        $this->duplicarCodigo = $this->calcularSiguienteCodigo($categoria?->prefijo);
+    }
+
+    /**
+     * Cierra el modal de duplicar
+     */
+    public function cancelarDuplicar(): void
+    {
+        $this->showDuplicarModal = false;
+        $this->duplicarOrigenId = null;
+        $this->duplicarOrigenNombre = '';
+        $this->duplicarNombre = '';
+        $this->duplicarCategoriaId = null;
+        $this->duplicarCodigo = '';
+    }
+
+    /**
+     * Duplica el artículo origen con nombre/categoría/código nuevos,
+     * incluyendo sucursales, recetas (con ingredientes), grupos opcionales,
+     * etiquetas y precios en listas. Stock arranca en 0.
+     */
+    public function duplicarArticulo(): void
+    {
+        $this->validate([
+            'duplicarNombre' => 'required|string|max:200',
+            'duplicarCodigo' => 'required|string|max:50|unique:pymes_tenant.articulos,codigo',
+            'duplicarCategoriaId' => 'nullable|exists:pymes_tenant.categorias,id',
+            'duplicarOrigenId' => 'required|exists:pymes_tenant.articulos,id',
+        ], [], [
+            'duplicarNombre' => __('Nombre'),
+            'duplicarCodigo' => __('Código'),
+            'duplicarCategoriaId' => __('Categoría'),
+        ]);
+
+        DB::connection('pymes_tenant')->transaction(function () {
+            /** @var Articulo $origen */
+            $origen = Articulo::with([
+                'sucursales',
+                'recetas.ingredientes',
+                'gruposOpcionales.opciones',
+                'etiquetas',
+                'listaPrecioArticulos',
+            ])->findOrFail($this->duplicarOrigenId);
+
+            // 1. Crear nuevo artículo copiando atributos base
+            $nuevo = $origen->replicate([
+                'id', 'created_at', 'updated_at', 'deleted_at',
+            ]);
+            $nuevo->codigo = $this->duplicarCodigo;
+            $nuevo->nombre = $this->duplicarNombre;
+            $nuevo->categoria_id = $this->duplicarCategoriaId;
+            $nuevo->save();
+
+            // 2. Clonar vínculos de sucursales con pivot (activo, modo_stock, vendible, precio_base)
+            foreach ($origen->sucursales as $suc) {
+                $nuevo->sucursales()->attach($suc->id, [
+                    'activo' => $suc->pivot->activo,
+                    'modo_stock' => $suc->pivot->modo_stock,
+                    'vendible' => $suc->pivot->vendible ?? true,
+                    'precio_base' => $suc->pivot->precio_base,
+                ]);
+
+                // Stock arranca en 0 para cada sucursal con modo_stock != ninguno
+                if ($suc->pivot->modo_stock !== 'ninguno') {
+                    Stock::firstOrCreate(
+                        ['articulo_id' => $nuevo->id, 'sucursal_id' => $suc->id],
+                        ['cantidad' => 0, 'ultima_actualizacion' => now()]
+                    );
+                }
+            }
+
+            // 3. Clonar recetas con sus ingredientes
+            foreach ($origen->recetas as $recetaOrig) {
+                $nuevaReceta = $recetaOrig->replicate(['id', 'created_at', 'updated_at']);
+                $nuevaReceta->recetable_id = $nuevo->id;
+                $nuevaReceta->save();
+
+                foreach ($recetaOrig->ingredientes as $ing) {
+                    $nuevoIng = $ing->replicate(['id', 'created_at', 'updated_at']);
+                    $nuevoIng->receta_id = $nuevaReceta->id;
+                    $nuevoIng->save();
+                }
+            }
+
+            // 4. Clonar grupos opcionales con sus opciones
+            foreach ($origen->gruposOpcionales as $ago) {
+                $nuevoAgo = $ago->replicate(['id', 'created_at', 'updated_at']);
+                $nuevoAgo->articulo_id = $nuevo->id;
+                $nuevoAgo->save();
+
+                foreach ($ago->opciones as $op) {
+                    $nuevaOp = $op->replicate(['id', 'created_at', 'updated_at']);
+                    $nuevaOp->articulo_grupo_opcional_id = $nuevoAgo->id;
+                    $nuevaOp->save();
+                }
+            }
+
+            // 5. Clonar etiquetas
+            $nuevo->etiquetas()->attach($origen->etiquetas->pluck('id')->toArray());
+
+            // 6. Clonar precios en listas
+            foreach ($origen->listaPrecioArticulos as $lpa) {
+                $nuevoLpa = $lpa->replicate(['id', 'created_at', 'updated_at']);
+                $nuevoLpa->articulo_id = $nuevo->id;
+                $nuevoLpa->save();
+            }
+
+            // 7. Historial de precio inicial
+            HistorialPrecio::registrar([
+                'articulo_id' => $nuevo->id,
+                'precio_anterior' => 0,
+                'precio_nuevo' => $nuevo->precio_base,
+                'origen' => 'articulo_crear',
+            ]);
+        });
+
+        $this->js("window.notify('".addslashes(__('Artículo duplicado correctamente'))."', 'success')");
+        $this->cancelarDuplicar();
     }
 
     /**
@@ -1256,6 +1434,11 @@ class GestionarArticulos extends Component
         $categorias = collect();
         $tiposIva = collect();
         $gruposEtiquetas = collect();
+
+        // Duplicar también necesita categorías
+        if ($this->showDuplicarModal) {
+            $categorias = CatalogoCache::categorias();
+        }
 
         if ($this->showModal) {
             $categorias = CatalogoCache::categorias();

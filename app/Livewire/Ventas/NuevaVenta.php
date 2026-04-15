@@ -4017,42 +4017,39 @@ class NuevaVenta extends Component
             ];
         }
 
-        // 1. Aplicar promociones especiales primero (NxM, Combo, Menú)
+        // 1. Aplicar promociones especiales (NxM, Combo, Menú)
+        //    a) Forzadas: se aplican siempre por orden de prioridad (ej: liquidar stock).
+        //    b) Automáticas: el sistema elige la combinación que MÁS ahorra al cliente.
         if ($infoPromos['aplica_promociones']) {
             $promocionesEspeciales = $this->obtenerPromocionesEspeciales($contexto);
 
-            foreach ($promocionesEspeciales as $promo) {
+            $forzadas = array_values(array_filter(
+                $promocionesEspeciales,
+                fn ($p) => ($p['modo_aplicacion'] ?? 'automatica') === 'forzada'
+            ));
+            $automaticas = array_values(array_filter(
+                $promocionesEspeciales,
+                fn ($p) => ($p['modo_aplicacion'] ?? 'automatica') === 'automatica'
+            ));
+
+            // a) Aplicar forzadas secuencialmente (comportamiento legacy: greedy por prioridad)
+            foreach ($forzadas as $promo) {
                 $aplicacion = $this->intentarAplicarPromocionEspecial($promo, $poolUnidades);
-
                 if ($aplicacion['aplicada']) {
-                    // Marcar unidades como consumidas usando índice para modificar el array original
-                    foreach ($aplicacion['unidades_consumidas'] as $unidadIdConsumida) {
-                        foreach ($poolUnidades as $idx => $unidad) {
-                            if ($unidad['id'] === $unidadIdConsumida) {
-                                $poolUnidades[$idx]['consumida'] = true;
-                                $poolUnidades[$idx]['consumida_por'] = $promo['nombre'];
-                                // Guardar info completa de la promo para trazabilidad
-                                $poolUnidades[$idx]['promo_especial_info'] = [
-                                    'id' => $promo['id'],
-                                    'promocion_especial_id' => $promo['id'],
-                                    'nombre' => $promo['nombre'],
-                                    'tipo' => $promo['tipo'],
-                                    'descuento' => $aplicacion['descuento'],
-                                ];
-                            }
-                        }
-                    }
+                    $this->consumirUnidadesPromoEspecial($poolUnidades, $promo, $aplicacion);
+                    $resultado['promociones_especiales_aplicadas'][] = $this->armarResultadoPromoEspecial($promo, $aplicacion);
+                    $resultado['total_descuentos'] += $aplicacion['descuento'];
+                }
+            }
 
-                    $resultado['promociones_especiales_aplicadas'][] = [
-                        'id' => $promo['id'],
-                        'promocion_especial_id' => $promo['id'], // ID explícito para BD
-                        'nombre' => $promo['nombre'],
-                        'tipo' => $promo['tipo'],
-                        'descuento' => $aplicacion['descuento'],
-                        'descripcion' => $aplicacion['descripcion'],
-                        'unidades_usadas' => count($aplicacion['unidades_consumidas']),
-                    ];
-
+            // b) Aplicar automáticas: elegir el subset que maximiza el ahorro sobre el pool restante
+            if (! empty($automaticas)) {
+                $mejor = $this->encontrarMejorCombinacionEspeciales($automaticas, $poolUnidades);
+                foreach ($mejor['aplicaciones'] as $aplicacionGanadora) {
+                    $promo = $aplicacionGanadora['promo'];
+                    $aplicacion = $aplicacionGanadora['aplicacion'];
+                    $this->consumirUnidadesPromoEspecial($poolUnidades, $promo, $aplicacion);
+                    $resultado['promociones_especiales_aplicadas'][] = $this->armarResultadoPromoEspecial($promo, $aplicacion);
                     $resultado['total_descuentos'] += $aplicacion['descuento'];
                 }
             }
@@ -4511,6 +4508,7 @@ class NuevaVenta extends Component
             'nombre' => $promo->nombre,
             'tipo' => $promo->tipo,
             'prioridad' => $promo->prioridad,
+            'modo_aplicacion' => $promo->modo_aplicacion ?? 'automatica',
             // NxM básico
             'nxm_lleva' => $promo->nxm_lleva,
             'nxm_bonifica' => $promo->nxm_bonifica,
@@ -4555,6 +4553,127 @@ class NuevaVenta extends Component
             'menu' => $this->aplicarMenu($promo, $unidadesDisponibles),
             default => ['aplicada' => false, 'razon' => 'Tipo de promoción no soportado'],
         };
+    }
+
+    /**
+     * Marca las unidades consumidas por una promo especial sobre el pool pasado por referencia.
+     */
+    protected function consumirUnidadesPromoEspecial(array &$poolUnidades, array $promo, array $aplicacion): void
+    {
+        foreach ($aplicacion['unidades_consumidas'] as $unidadIdConsumida) {
+            foreach ($poolUnidades as $idx => $unidad) {
+                if ($unidad['id'] === $unidadIdConsumida) {
+                    $poolUnidades[$idx]['consumida'] = true;
+                    $poolUnidades[$idx]['consumida_por'] = $promo['nombre'];
+                    $poolUnidades[$idx]['promo_especial_info'] = [
+                        'id' => $promo['id'],
+                        'promocion_especial_id' => $promo['id'],
+                        'nombre' => $promo['nombre'],
+                        'tipo' => $promo['tipo'],
+                        'descuento' => $aplicacion['descuento'],
+                    ];
+                }
+            }
+        }
+    }
+
+    /**
+     * Arma el objeto "promoción aplicada" para el array de resultado.
+     */
+    protected function armarResultadoPromoEspecial(array $promo, array $aplicacion): array
+    {
+        return [
+            'id' => $promo['id'],
+            'promocion_especial_id' => $promo['id'],
+            'nombre' => $promo['nombre'],
+            'tipo' => $promo['tipo'],
+            'descuento' => $aplicacion['descuento'],
+            'descripcion' => $aplicacion['descripcion'],
+            'unidades_usadas' => count($aplicacion['unidades_consumidas']),
+        ];
+    }
+
+    /**
+     * Encuentra la mejor combinación de promociones especiales AUTOMÁTICAS que maximiza
+     * el ahorro total del cliente. Evalúa subsets exhaustivamente si hay ≤10 promos,
+     * greedy por descuento estimado si hay más.
+     *
+     * Dentro de cada subset, las promos se aplican en orden de prioridad.
+     *
+     * Retorna: ['descuento_total' => float, 'aplicaciones' => [['promo' => ..., 'aplicacion' => ...], ...]]
+     */
+    protected function encontrarMejorCombinacionEspeciales(array $promociones, array $poolInicial): array
+    {
+        $mejor = ['descuento_total' => 0.0, 'aplicaciones' => []];
+
+        if (empty($promociones)) {
+            return $mejor;
+        }
+
+        $n = count($promociones);
+
+        if ($n <= 10) {
+            // Exhaustivo: probar todos los subsets no vacíos (2^n - 1)
+            $totalSubsets = 1 << $n;
+            for ($mask = 1; $mask < $totalSubsets; $mask++) {
+                $subset = [];
+                for ($j = 0; $j < $n; $j++) {
+                    if ($mask & (1 << $j)) {
+                        $subset[] = $promociones[$j];
+                    }
+                }
+
+                $resultado = $this->evaluarSubsetEspeciales($subset, $poolInicial);
+
+                if ($resultado['descuento_total'] > $mejor['descuento_total']) {
+                    $mejor = $resultado;
+                }
+            }
+        } else {
+            // Greedy: ordenar por descuento estimado DESC y aplicar secuencialmente
+            $conDescuento = [];
+            foreach ($promociones as $promo) {
+                $prueba = $this->intentarAplicarPromocionEspecial($promo, $poolInicial);
+                $conDescuento[] = [
+                    'promo' => $promo,
+                    'descuento' => $prueba['aplicada'] ? (float) $prueba['descuento'] : 0.0,
+                ];
+            }
+            usort($conDescuento, fn ($a, $b) => $b['descuento'] <=> $a['descuento']);
+            $ordenadas = array_map(fn ($item) => $item['promo'], $conDescuento);
+
+            $mejor = $this->evaluarSubsetEspeciales($ordenadas, $poolInicial);
+        }
+
+        return $mejor;
+    }
+
+    /**
+     * Aplica un subset de promociones especiales sobre una copia del pool y
+     * retorna el descuento total acumulado + las aplicaciones efectivas.
+     * Las promos se evalúan en orden de prioridad; si una no puede aplicarse, se salta.
+     */
+    protected function evaluarSubsetEspeciales(array $subset, array $poolInicial): array
+    {
+        usort($subset, fn ($a, $b) => $a['prioridad'] <=> $b['prioridad']);
+
+        $pool = $poolInicial;
+        $descuentoTotal = 0.0;
+        $aplicaciones = [];
+
+        foreach ($subset as $promo) {
+            $aplicacion = $this->intentarAplicarPromocionEspecial($promo, $pool);
+            if ($aplicacion['aplicada']) {
+                $this->consumirUnidadesPromoEspecial($pool, $promo, $aplicacion);
+                $descuentoTotal += (float) $aplicacion['descuento'];
+                $aplicaciones[] = ['promo' => $promo, 'aplicacion' => $aplicacion];
+            }
+        }
+
+        return [
+            'descuento_total' => $descuentoTotal,
+            'aplicaciones' => $aplicaciones,
+        ];
     }
 
     protected function aplicarNxMBasico(array $promo, array $unidadesDisponibles): array
