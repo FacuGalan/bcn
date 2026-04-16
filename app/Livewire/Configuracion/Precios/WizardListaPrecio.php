@@ -151,6 +151,31 @@ class WizardListaPrecio extends Component
         ];
     }
 
+    /**
+     * Precio preview del paso 2 con redondeo aplicado (base $1000).
+     */
+    public function getPrecioPreviewProperty(): float
+    {
+        $base = 1000.0;
+        $ajustado = $base * (1 + ($this->ajustePorcentaje / 100));
+
+        return match ($this->redondeo) {
+            'entero' => round($ajustado),
+            'decena' => round($ajustado / 10) * 10,
+            'centena' => round($ajustado / 100) * 100,
+            default => round($ajustado, 2),
+        };
+    }
+
+    /**
+     * Precio preview sin redondeo (para mostrar el valor crudo cuando
+     * el redondeo lo modifica).
+     */
+    public function getPrecioPreviewSinRedondeoProperty(): float
+    {
+        return round(1000.0 * (1 + ($this->ajustePorcentaje / 100)), 2);
+    }
+
     protected $rules = [
         'sucursalId' => 'required',
         'nombre' => 'required|min:3|max:100',
@@ -864,6 +889,8 @@ class WizardListaPrecio extends Component
             'opcionesPromocionesAlcance' => $this->opcionesPromocionesAlcance,
             'opcionesDiasSemana' => $this->opcionesDiasSemana,
             'opcionesTipoCondicion' => $this->opcionesTipoCondicion,
+            'precioPreview' => $this->precioPreview,
+            'precioPreviewSinRedondeo' => $this->precioPreviewSinRedondeo,
         ]);
     }
 }

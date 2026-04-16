@@ -312,9 +312,6 @@
                     @endif
 
                     {{-- Preview del precio --}}
-                    @php
-                        $precioPreview = 1000 * (1 + ($ajustePorcentaje / 100));
-                    @endphp
                     <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                         <div class="flex items-center gap-2 mb-3">
                             <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -333,6 +330,11 @@
                             <span class="font-mono font-bold text-lg {{ $ajustePorcentaje > 0 ? 'text-red-600 dark:text-red-400' : ($ajustePorcentaje < 0 ? 'text-green-600 dark:text-green-400' : 'text-bcn-primary') }}">
                                 $@precio($precioPreview)
                             </span>
+                            @if($redondeo !== 'ninguno' && abs($precioPreview - $precioPreviewSinRedondeo) > 0.001)
+                                <span class="text-xs text-gray-500 dark:text-gray-400">
+                                    ({{ __('sin redondeo') }}: <span class="line-through">$@precio($precioPreviewSinRedondeo)</span>)
+                                </span>
+                            @endif
                         </div>
                     </div>
                 </div>
