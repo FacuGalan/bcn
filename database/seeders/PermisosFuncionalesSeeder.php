@@ -37,6 +37,16 @@ class PermisosFuncionalesSeeder extends Seeder
                 'etiqueta' => 'Emitir notas de débito',
                 'descripcion' => 'Permite emitir notas de débito fiscales',
             ],
+            [
+                'codigo' => 'modificar_pagos_sin_nc',
+                'etiqueta' => 'Modificar pagos fiscales sin emitir NC',
+                'descripcion' => 'Permite saltar la emisión de Nota de Crédito cuando la configuración lo permite (solo casos de preguntar)',
+            ],
+            [
+                'codigo' => 'reintentar_facturacion',
+                'etiqueta' => 'Reintentar emisión de factura pendiente',
+                'descripcion' => 'Permite reintentar la emisión de factura sobre pagos que quedaron pendientes de facturar por falla de ARCA',
+            ],
         ],
         'Ventas' => [
             [
@@ -69,6 +79,16 @@ class PermisosFuncionalesSeeder extends Seeder
                 'etiqueta' => 'Vender sin stock',
                 'descripcion' => 'Permite vender artículos que no tienen stock disponible',
             ],
+            [
+                'codigo' => 'cambiar_forma_pago_venta',
+                'etiqueta' => 'Cambiar forma de pago en ventas registradas',
+                'descripcion' => 'Permite modificar, agregar o eliminar formas de pago en ventas ya registradas',
+            ],
+            [
+                'codigo' => 'cambiar_forma_pago_turno_cerrado',
+                'etiqueta' => 'Cambiar forma de pago sobre turnos cerrados',
+                'descripcion' => 'Permite modificar pagos de ventas pertenecientes a turnos ya cerrados (se registra como ajuste post-cierre)',
+            ],
         ],
         'Caja' => [
             [
@@ -100,6 +120,16 @@ class PermisosFuncionalesSeeder extends Seeder
                 'codigo' => 'cerrar_caja_individual',
                 'etiqueta' => 'Cerrar caja individual',
                 'descripcion' => 'Permite cerrar una caja individualmente aunque pertenezca a un grupo de cierre',
+            ],
+            [
+                'codigo' => 'ver_ajustes_post_cierre',
+                'etiqueta' => 'Ver reporte de ajustes post-cierre',
+                'descripcion' => 'Permite acceder al reporte de cambios de pago aplicados sobre turnos ya cerrados',
+            ],
+            [
+                'codigo' => 'ver_pagos_pendientes_facturacion',
+                'etiqueta' => 'Ver reporte de pagos pendientes de facturar',
+                'descripcion' => 'Permite acceder al reporte de pagos que quedaron pendientes de facturación por falla de ARCA',
             ],
         ],
         'Artículos' => [

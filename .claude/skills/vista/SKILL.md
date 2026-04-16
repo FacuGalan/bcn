@@ -214,7 +214,9 @@ Verificar CADA punto. Si alguno falla, corregir antes de entregar:
 - [ ] Todos los textos usan `{{ __('...') }}`
 - [ ] Dark mode en TODOS los elementos (bg, text, border)
 - [ ] Modales usan `<x-bcn-modal>` (NO `<x-modal>`)
+- [ ] Contenido del modal envuelto en `<x-slot:body>...</x-slot:body>` y botones en `<x-slot:footer>...</x-slot:footer>` — bcn-modal requiere slots con nombre, contenido directo rompe con `Undefined variable $body`
 - [ ] Focus de inputs usa `bcn-primary`
+- [ ] Permisos: `auth()->user()?->hasPermissionTo('func.X')` — NUNCA `@can()`, `auth()->user()?->can()`, `Gate::allows()` (User no usa HasRoles trait, can() siempre da false)
 
 ### 7. Actualizar documentación
 

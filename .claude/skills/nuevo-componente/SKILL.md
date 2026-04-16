@@ -89,3 +89,6 @@ Después de crear el componente, actualizar:
 - NO inventar patrones nuevos — seguir los existentes
 - Si el componente NO es sucursal-aware, NO agregar SucursalAware
 - SIEMPRE actualizar docs/ al finalizar
+- **Test mínimo obligatorio antes de confirmar al usuario**: agregar `Livewire::test(Componente::class)->assertOk()` (con `Livewire::withoutLazyLoading()` antes si el componente tiene `#[Lazy]`). Esto atrapa bugs de `render()` (método inexistente, variable indefinida, slot roto) que pint y `Livewire::test()` cerrado NO detectan
+- Permisos: usar `auth()->user()?->hasPermissionTo('func.X')`, NUNCA `can()` (User no usa HasRoles trait)
+- `SucursalAware`: el método del trait se llama `$this->sucursalActual()` — NO `obtenerSucursalActual()` (ese es propio del componente `Ventas.php` y no está en el trait)

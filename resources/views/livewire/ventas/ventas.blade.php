@@ -100,11 +100,11 @@
             </div>
 
             <!-- Contenedor de filtros -->
-            <div class="{{ $showFilters ? 'block' : 'hidden' }} sm:block p-4 sm:p-6">
-                {{-- Primera fila: Búsqueda y selects --}}
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+            <div x-data="{ showAdvanced: false }" class="{{ $showFilters ? 'block' : 'hidden' }} sm:block p-4 sm:p-6">
+                {{-- Filtros principales --}}
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                     <!-- Búsqueda -->
-                    <div class="sm:col-span-2 lg:col-span-2">
+                    <div class="sm:col-span-2 lg:col-span-1">
                         <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar') }}</label>
                         <input
                             type="text"
@@ -113,6 +113,28 @@
                             :placeholder="__('ID venta, ticket, cliente, factura...')"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         />
+                    </div>
+
+                    <!-- Filtro Fecha Desde -->
+                    <div>
+                        <label for="filterFechaDesde" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Fecha Desde') }}</label>
+                        <input
+                            wire:model.live="filterFechaDesde"
+                            type="date"
+                            id="filterFechaDesde"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                        >
+                    </div>
+
+                    <!-- Filtro Fecha Hasta -->
+                    <div>
+                        <label for="filterFechaHasta" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Fecha Hasta') }}</label>
+                        <input
+                            wire:model.live="filterFechaHasta"
+                            type="date"
+                            id="filterFechaHasta"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                        >
                     </div>
 
                     <!-- Filtro Estado -->
@@ -144,73 +166,69 @@
                             @endforeach
                         </select>
                     </div>
+                </div>
 
-                    <!-- Filtro Comprobante Fiscal -->
-                    <div>
-                        <label for="filterComprobanteFiscal" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Comprobante Fiscal') }}</label>
-                        <select
-                            wire:model.live="filterComprobanteFiscal"
-                            id="filterComprobanteFiscal"
-                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                        >
-                            <option value="all">{{ __('Todas') }}</option>
-                            <option value="con">{{ __('Con factura') }}</option>
-                            <option value="sin">{{ __('Sin factura') }}</option>
-                        </select>
-                    </div>
+                {{-- Filtros avanzados (colapsables) --}}
+                <div x-show="showAdvanced" x-collapse>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mt-4">
+                        <!-- Filtro Comprobante Fiscal -->
+                        <div>
+                            <label for="filterComprobanteFiscal" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Comprobante Fiscal') }}</label>
+                            <select
+                                wire:model.live="filterComprobanteFiscal"
+                                id="filterComprobanteFiscal"
+                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                            >
+                                <option value="all">{{ __('Todas') }}</option>
+                                <option value="con">{{ __('Con factura') }}</option>
+                                <option value="sin">{{ __('Sin factura') }}</option>
+                            </select>
+                        </div>
 
-                    <!-- Filtro Caja -->
-                    <div>
-                        <label for="filterCaja" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Caja') }}</label>
-                        <select
-                            wire:model.live="filterCaja"
-                            id="filterCaja"
-                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                        >
-                            <option value="actual">{{ __('Caja actual') }}</option>
-                            <option value="all">{{ __('Todas mis cajas') }}</option>
-                        </select>
+                        <!-- Filtro Caja -->
+                        <div>
+                            <label for="filterCaja" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Caja') }}</label>
+                            <select
+                                wire:model.live="filterCaja"
+                                id="filterCaja"
+                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                            >
+                                <option value="actual">{{ __('Caja actual') }}</option>
+                                <option value="all">{{ __('Todas mis cajas') }}</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
-                {{-- Segunda fila: Fechas y botón limpiar --}}
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mt-4">
-                    <!-- Filtro Fecha Desde -->
-                    <div>
-                        <label for="filterFechaDesde" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Fecha Desde') }}</label>
-                        <input
-                            wire:model.live="filterFechaDesde"
-                            type="date"
-                            id="filterFechaDesde"
-                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                        >
-                    </div>
-
-                    <!-- Filtro Fecha Hasta -->
-                    <div>
-                        <label for="filterFechaHasta" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Fecha Hasta') }}</label>
-                        <input
-                            wire:model.live="filterFechaHasta"
-                            type="date"
-                            id="filterFechaHasta"
-                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                        >
-                    </div>
-
-                    <!-- Espaciador y botón limpiar -->
-                    <div class="lg:col-span-3 flex items-end justify-end">
-                        @if($search || $filterEstado !== 'all' || $filterFormaPago !== 'all' || $filterCaja !== 'actual' || $filterComprobanteFiscal !== 'all' || $filterFechaDesde || $filterFechaHasta)
-                            <button
-                                wire:click="resetFilters"
-                                class="text-sm text-bcn-primary hover:text-bcn-secondary font-medium inline-flex items-center px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                            >
-                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                {{ __('Limpiar filtros') }}
-                            </button>
+                {{-- Acciones: toggle avanzados + limpiar --}}
+                <div class="flex items-center justify-between gap-2 mt-4">
+                    <button
+                        type="button"
+                        @click="showAdvanced = !showAdvanced"
+                        class="inline-flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-bcn-primary transition-colors"
+                    >
+                        <svg class="w-4 h-4 mr-1 transition-transform" :class="{ 'rotate-180': showAdvanced }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                        <span x-text="showAdvanced ? '{{ __('Ocultar filtros avanzados') }}' : '{{ __('Mostrar filtros avanzados') }}'"></span>
+                        @if($filterComprobanteFiscal !== 'all' || $filterCaja !== 'actual')
+                            <span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-bcn-primary text-white">
+                                {{ __('Activos') }}
+                            </span>
                         @endif
-                    </div>
+                    </button>
+
+                    @if($search || $filterEstado !== 'all' || $filterFormaPago !== 'all' || $filterCaja !== 'actual' || $filterComprobanteFiscal !== 'all' || $filterFechaDesde || $filterFechaHasta)
+                        <button
+                            wire:click="resetFilters"
+                            class="text-sm text-bcn-primary hover:text-bcn-secondary font-medium inline-flex items-center px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            {{ __('Limpiar filtros') }}
+                        </button>
+                    @endif
                 </div>
             </div>
         </div>
@@ -901,8 +919,116 @@
                         {{-- Formas de Pago (Desglose) --}}
                         @if($ventaDetalle->pagos->count() > 0)
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Desglose de Pagos') }}</label>
-                                <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                <div class="flex items-center justify-between mb-2">
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Desglose de Pagos') }}</label>
+                                </div>
+
+                                {{-- Cards móvil --}}
+                                <div class="sm:hidden space-y-2">
+                                    @foreach($ventaDetalle->pagos as $pago)
+                                        @php
+                                            $pagoAnulado = $pago->estado === 'anulado';
+                                            $tieneCobros = $pago->cobrosAplicados->filter(fn($c) => $c->cobro && $c->cobro->estado !== 'anulado')->isNotEmpty();
+                                            $turnoCerrado = $pago->cierre_turno_id !== null;
+                                            $bloqueoTooltip = '';
+                                            if ($tieneCobros) {
+                                                $bloqueoTooltip = __('Este pago tiene cobranzas aplicadas');
+                                            } elseif ($turnoCerrado && !auth()->user()?->hasPermissionTo('func.cambiar_forma_pago_turno_cerrado')) {
+                                                $bloqueoTooltip = __('No tenés permiso para modificar pagos de turnos cerrados');
+                                            }
+                                        @endphp
+                                        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 {{ $pagoAnulado ? 'opacity-60' : '' }}">
+                                            {{-- Encabezado card: FP + total --}}
+                                            <div class="flex items-start justify-between gap-2 mb-2">
+                                                <div class="min-w-0 flex-1">
+                                                    <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ $pago->formaPago->nombre ?? 'N/A' }}</p>
+                                                    @if($pago->tieneCuotas())
+                                                        <p class="text-xs text-gray-500">{{ $pago->cuotas }} {{ __('cuotas') }}</p>
+                                                    @endif
+                                                </div>
+                                                <div class="text-right">
+                                                    <p class="text-sm font-bold text-gray-900 dark:text-white">$@precio($pago->monto_final)</p>
+                                                </div>
+                                            </div>
+
+                                            {{-- Badges de estado --}}
+                                            <div class="flex items-center gap-1 flex-wrap mb-2">
+                                                @if($pagoAnulado)
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">{{ __('Anulado') }}</span>
+                                                @endif
+                                                @if($pago->es_pago_puntos)
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">{{ $pago->puntos_utilizados }} pts</span>
+                                                @endif
+                                                @if($turnoCerrado && !$pagoAnulado)
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{{ __('Turno cerrado') }}</span>
+                                                @endif
+                                                @if(!$pagoAnulado && $pago->estado_facturacion === 'pendiente_de_facturar')
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">{{ __('Pendiente de facturar') }}</span>
+                                                @elseif(!$pagoAnulado && $pago->estado_facturacion === 'error_arca')
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">{{ __('Error ARCA') }}</span>
+                                                @endif
+                                                @if($pago->comprobante_fiscal_id)
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">{{ __('Factura') }} {{ $pago->comprobanteFiscal->letra ?? 'F' }}</span>
+                                                @endif
+                                            </div>
+
+                                            {{-- Detalles: base + ajuste --}}
+                                            <div class="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-400 mb-2">
+                                                <div>
+                                                    <span class="block text-[10px] uppercase">{{ __('Monto base') }}</span>
+                                                    <span class="text-gray-900 dark:text-white font-medium">$@precio($pago->monto_base)</span>
+                                                </div>
+                                                <div>
+                                                    <span class="block text-[10px] uppercase">{{ __('Ajuste') }}</span>
+                                                    @if($pago->monto_ajuste != 0)
+                                                        <span class="font-medium {{ $pago->monto_ajuste > 0 ? 'text-red-600' : 'text-green-600' }}">
+                                                            {{ $pago->monto_ajuste > 0 ? '+' : '' }}$@precio($pago->monto_ajuste)
+                                                            <span class="text-[10px]">({{ $pago->ajuste_porcentaje }}%)</span>
+                                                        </span>
+                                                    @else
+                                                        <span class="text-gray-400">-</span>
+                                                    @endif
+                                                </div>
+                                            </div>
+
+                                            {{-- Acciones --}}
+                                            @if(!$pagoAnulado && !$ventaDetalle->estaCancelada() && auth()->user()?->hasPermissionTo('func.cambiar_forma_pago_venta'))
+                                                <div class="flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                                                    <button type="button" wire:click="abrirCambiarPago({{ $pago->id }})"
+                                                        @if($bloqueoTooltip) disabled title="{{ $bloqueoTooltip }}" @endif
+                                                        class="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-900/50 disabled:opacity-40 disabled:cursor-not-allowed">
+                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                                        {{ __('Modificar') }}
+                                                    </button>
+                                                    @if($pago->estado_facturacion === 'pendiente_de_facturar' && auth()->user()?->hasPermissionTo('func.reintentar_facturacion'))
+                                                        <button type="button" wire:click="reintentarFacturacionPago({{ $pago->id }})"
+                                                            class="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700 dark:hover:bg-yellow-900/50">
+                                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                                            {{ __('Reintentar') }}
+                                                        </button>
+                                                    @endif
+                                                </div>
+                                            @endif
+
+                                            {{-- Cobros aplicados --}}
+                                            @if($tieneCobros)
+                                                <div class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                                                    <p class="text-[10px] uppercase text-gray-500 mb-1">{{ __('Ver cobros aplicados') }}</p>
+                                                    <ul class="space-y-0.5 text-xs text-gray-700 dark:text-gray-300">
+                                                        @foreach($pago->cobrosAplicados->filter(fn($c) => $c->cobro && $c->cobro->estado !== 'anulado') as $cv)
+                                                            <li>
+                                                                {{ $cv->cobro?->fecha?->format('d/m/Y') ?? '-' }} — {{ __('Recibo') }} {{ $cv->cobro?->numero_recibo ?? '-' }} — $@precio($cv->monto_aplicado)
+                                                            </li>
+                                                        @endforeach
+                                                    </ul>
+                                                </div>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+
+                                {{-- Tabla desktop --}}
+                                <div class="hidden sm:block border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                                     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                         <thead class="bg-gray-50 dark:bg-gray-700">
                                             <tr>
@@ -911,13 +1037,24 @@
                                                 <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Ajuste') }}</th>
                                                 <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Total') }}</th>
                                                 <th class="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Facturado') }}</th>
+                                                @if(!$ventaDetalle->estaCancelada() && auth()->user()?->hasPermissionTo('func.cambiar_forma_pago_venta'))
+                                                    <th class="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Acciones') }}</th>
+                                                @endif
                                             </tr>
                                         </thead>
                                         <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                             @foreach($ventaDetalle->pagos as $pago)
-                                                <tr>
+                                                @php
+                                                    $pagoAnulado = $pago->estado === 'anulado';
+                                                    $tieneCobros = $pago->cobrosAplicados->filter(fn($c) => $c->cobro && $c->cobro->estado !== 'anulado')->isNotEmpty();
+                                                    $turnoCerrado = $pago->cierre_turno_id !== null;
+                                                @endphp
+                                                <tr class="{{ $pagoAnulado ? 'opacity-60 bg-gray-50 dark:bg-gray-900/50' : '' }}">
                                                     <td class="px-4 py-2.5 text-sm text-gray-900 dark:text-white">
                                                         {{ $pago->formaPago->nombre ?? 'N/A' }}
+                                                        @if($pagoAnulado)
+                                                            <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">{{ __('Anulado') }}</span>
+                                                        @endif
                                                         @if($pago->es_pago_puntos)
                                                             <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
                                                                 {{ $pago->puntos_utilizados }} pts
@@ -925,6 +1062,20 @@
                                                         @endif
                                                         @if($pago->tieneCuotas())
                                                             <span class="text-xs text-gray-500">({{ $pago->cuotas }} cuotas)</span>
+                                                        @endif
+                                                        @if($turnoCerrado && !$pagoAnulado)
+                                                            <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" title="{{ __('Pertenece a turno cerrado') }}">
+                                                                {{ __('Turno cerrado') }}
+                                                            </span>
+                                                        @endif
+                                                        @if(!$pagoAnulado && $pago->estado_facturacion === 'pendiente_de_facturar')
+                                                            <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" title="{{ __('La emisión de factura falló y quedó pendiente') }}">
+                                                                {{ __('Pendiente de facturar') }}
+                                                            </span>
+                                                        @elseif(!$pagoAnulado && $pago->estado_facturacion === 'error_arca')
+                                                            <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" title="{{ __('Marcado como error ARCA') }}">
+                                                                {{ __('Error ARCA') }}
+                                                            </span>
                                                         @endif
                                                     </td>
                                                     <td class="px-4 py-2.5 text-sm text-gray-900 dark:text-white text-right">$@precio($pago->monto_base)</td>
@@ -948,10 +1099,97 @@
                                                             <span class="text-gray-400">-</span>
                                                         @endif
                                                     </td>
+                                                    @if(!$ventaDetalle->estaCancelada() && auth()->user()?->hasPermissionTo('func.cambiar_forma_pago_venta'))
+                                                        <td class="px-2 py-2.5 text-center whitespace-nowrap">
+                                                            @if(!$pagoAnulado)
+                                                                @php
+                                                                    $bloqueoTooltip = '';
+                                                                    if ($tieneCobros) {
+                                                                        $bloqueoTooltip = __('Este pago tiene cobranzas aplicadas');
+                                                                    } elseif ($turnoCerrado && !auth()->user()->hasPermissionTo('func.cambiar_forma_pago_turno_cerrado')) {
+                                                                        $bloqueoTooltip = __('No tenés permiso para modificar pagos de turnos cerrados');
+                                                                    }
+                                                                @endphp
+                                                                <button type="button" wire:click="abrirCambiarPago({{ $pago->id }})"
+                                                                    @if($bloqueoTooltip) disabled title="{{ $bloqueoTooltip }}" @else title="{{ __('Cambiar forma de pago') }}" @endif
+                                                                    class="inline-flex items-center p-1.5 rounded text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed">
+                                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                                                </button>
+                                                                @if($pago->estado_facturacion === 'pendiente_de_facturar' && auth()->user()?->hasPermissionTo('func.reintentar_facturacion'))
+                                                                    <button type="button" wire:click="reintentarFacturacionPago({{ $pago->id }})"
+                                                                        title="{{ __('Reintentar facturación') }}"
+                                                                        class="inline-flex items-center p-1.5 rounded text-yellow-600 hover:bg-yellow-50 dark:text-yellow-400 dark:hover:bg-yellow-900/30">
+                                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                                                    </button>
+                                                                @endif
+                                                            @else
+                                                                <span class="text-xs text-gray-400">-</span>
+                                                            @endif
+                                                        </td>
+                                                    @endif
                                                 </tr>
+                                                @if($tieneCobros)
+                                                    <tr class="bg-gray-50 dark:bg-gray-900/30">
+                                                        <td colspan="{{ (!$ventaDetalle->estaCancelada() && auth()->user()?->hasPermissionTo('func.cambiar_forma_pago_venta')) ? 6 : 5 }}" class="px-4 py-2 text-xs">
+                                                            <div class="font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Ver cobros aplicados') }}:</div>
+                                                            <ul class="space-y-1 text-gray-700 dark:text-gray-300">
+                                                                @foreach($pago->cobrosAplicados->filter(fn($c) => $c->cobro && $c->cobro->estado !== 'anulado') as $cv)
+                                                                    <li>
+                                                                        {{ $cv->cobro?->fecha?->format('d/m/Y') ?? '-' }} —
+                                                                        {{ __('Recibo') }} {{ $cv->cobro?->numero_recibo ?? '-' }} —
+                                                                        $@precio($cv->monto_aplicado)
+                                                                        @if($cv->interes_aplicado > 0)
+                                                                            <span class="text-orange-600">(+$@precio($cv->interes_aplicado) int.)</span>
+                                                                        @endif
+                                                                    </li>
+                                                                @endforeach
+                                                            </ul>
+                                                        </td>
+                                                    </tr>
+                                                @endif
                                             @endforeach
                                         </tbody>
                                     </table>
+                                </div>
+                            </div>
+                        @endif
+
+                        {{-- Historial de ajustes de pagos --}}
+                        @if($ajustesPagos && $ajustesPagos->count() > 0)
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Historial de cambios en pagos') }}</label>
+                                <div class="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
+                                    @foreach($ajustesPagos as $aj)
+                                        <div class="p-3 text-sm">
+                                            <div class="flex items-start justify-between gap-2 flex-wrap">
+                                                <div class="flex-1 min-w-0">
+                                                    <p class="font-medium text-gray-900 dark:text-white">{{ $aj->descripcion_auto }}</p>
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                        {{ $aj->created_at->format('d/m/Y H:i') }} —
+                                                        {{ $aj->usuario->name ?? __('Usuario') }}
+                                                    </p>
+                                                    @if($aj->motivo)
+                                                        <p class="text-xs text-gray-600 dark:text-gray-400 italic mt-1">"{{ $aj->motivo }}"</p>
+                                                    @endif
+                                                </div>
+                                                <div class="flex items-center gap-1 flex-wrap justify-end">
+                                                    @if($aj->es_post_cierre)
+                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">{{ __('Post-cierre') }}</span>
+                                                    @endif
+                                                    @if($aj->nc_emitida_flag && $aj->ncEmitida)
+                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                                                            NC {{ $aj->ncEmitida->numero_formateado ?? '' }}
+                                                        </span>
+                                                    @endif
+                                                    @if($aj->delta_total != 0)
+                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium {{ $aj->delta_total > 0 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' }}">
+                                                            ΔTotal: {{ $aj->delta_total > 0 ? '+' : '' }}$@precio($aj->delta_total)
+                                                        </span>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endforeach
                                 </div>
                             </div>
                         @endif
@@ -1021,12 +1259,6 @@
                                 <div class="flex justify-between text-sm">
                                     <span class="text-gray-600 dark:text-gray-400">{{ __('Cupón') }} ({{ $ventaDetalle->cupon->codigo ?? '' }}):</span>
                                     <span class="font-medium text-red-600">-$@precio($ventaDetalle->monto_cupon)</span>
-                                </div>
-                            @endif
-                            @if($ventaDetalle->iva > 0)
-                                <div class="flex justify-between text-sm">
-                                    <span class="text-gray-600 dark:text-gray-400">{{ __('IVA') }}:</span>
-                                    <span class="font-medium text-gray-900 dark:text-white">$@precio($ventaDetalle->iva)</span>
                                 </div>
                             @endif
                             <div class="flex justify-between text-sm">
@@ -1156,23 +1388,52 @@
                     <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
                         <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">{{ __('Formas de Pago') }}</h4>
                         @if(!empty($cancelarVentaInfo['pagos']))
-                            <div class="space-y-1.5 max-h-24 overflow-y-auto">
+                            <div class="space-y-2 max-h-48 overflow-y-auto">
                                 @foreach($cancelarVentaInfo['pagos'] as $pago)
-                                    <div class="flex items-center justify-between text-sm">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-gray-700 dark:text-gray-300">{{ $pago['forma_pago'] }}</span>
-                                            @if($pago['facturado'])
-                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                                                    <svg class="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-                                                    {{ __('Facturado') }}
-                                                </span>
-                                            @else
-                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-300">
-                                                    {{ __('Sin facturar') }}
+                                    <div class="flex items-start justify-between text-sm gap-2 {{ $pago['anulado'] ? 'opacity-60' : '' }}">
+                                        <div class="flex flex-col gap-0.5 min-w-0 flex-1">
+                                            <div class="flex items-center gap-1.5 flex-wrap">
+                                                <span class="text-gray-700 dark:text-gray-300 font-medium">{{ $pago['forma_pago'] }}</span>
+
+                                                {{-- Estado del pago --}}
+                                                @if($pago['anulado'])
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                                                        {{ __('Anulado') }}
+                                                    </span>
+                                                @endif
+
+                                                {{-- Estado de facturación --}}
+                                                @if($pago['facturado'])
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                                                        <svg class="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                                        {{ __('Facturado') }}
+                                                    </span>
+                                                @elseif($pago['estado_facturacion'] === 'pendiente_de_facturar')
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+                                                        {{ __('Pendiente de facturar') }}
+                                                    </span>
+                                                @elseif($pago['estado_facturacion'] === 'error_arca')
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                                                        {{ __('Error ARCA') }}
+                                                    </span>
+                                                @else
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-300">
+                                                        {{ __('Sin facturar') }}
+                                                    </span>
+                                                @endif
+                                            </div>
+
+                                            {{-- Comprobante asociado --}}
+                                            @if($pago['comprobante_numero'])
+                                                <span class="text-[11px] text-gray-500 dark:text-gray-400">
+                                                    {{ __('Comprobante') }}: {{ $pago['comprobante_numero'] }}
+                                                    @if($pago['monto_facturado'] > 0 && abs($pago['monto_facturado'] - $pago['monto']) > 0.01)
+                                                        — {{ __('facturado') }}: ${{ number_format($pago['monto_facturado'], 2, ',', '.') }}
+                                                    @endif
                                                 </span>
                                             @endif
                                         </div>
-                                        <span class="font-medium text-gray-900 dark:text-white">${{ number_format($pago['monto'], 2, ',', '.') }}</span>
+                                        <span class="font-semibold text-gray-900 dark:text-white whitespace-nowrap">${{ number_format($pago['monto'], 2, ',', '.') }}</span>
                                     </div>
                                 @endforeach
                             </div>
@@ -1436,4 +1697,307 @@
         });
     </script>
     @endscript
+
+    {{-- ======================================================= --}}
+    {{-- MODAL: CAMBIAR FORMA DE PAGO (mixto)                       --}}
+    {{-- ======================================================= --}}
+    @if($showCambiarPagoModal && $pagoEditandoId)
+        @php
+            $pagoViejo = \App\Models\VentaPago::with('formaPago','comprobanteFiscal','cierreTurno')->find($pagoEditandoId);
+            $formasPagoCambio = $this->obtenerFormasPagoConCuotas();
+            $previewC = $previewCambio ?? [];
+            $pendienteC = (float) ($previewC['pendiente'] ?? ($pagoViejo->monto_final ?? 0));
+            $sumaActualC = (float) ($previewC['suma_nueva'] ?? 0);
+            $completoC = (bool) ($previewC['completo'] ?? false);
+            $cuotasFpSeleccionada = collect($formasPagoCambio)->firstWhere('id', (int) ($nuevoPagoForm['forma_pago_id'] ?? 0))['cuotas'] ?? [];
+        @endphp
+        @if($pagoViejo)
+            <x-bcn-modal :show="$showCambiarPagoModal" :title="__('Modificar forma de pago')" color="bg-blue-600" max-width="3xl" onClose="cerrarCambiarPago" wire:model="showCambiarPagoModal">
+                <x-slot:body>
+                <div class="space-y-3">
+                    {{-- Banner turno cerrado --}}
+                    @if($pagoViejo->cierre_turno_id)
+                        <div class="flex items-start gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800">
+                            <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                            <div class="text-sm text-amber-800 dark:text-amber-200">
+                                <p class="font-medium">{{ __('Esta venta pertenece a un turno cerrado') }}</p>
+                                <p class="text-xs mt-0.5">{{ __('Se registrará como movimiento post-cierre. El cierre histórico no se modifica; los contraasientos irán al turno actual.') }}</p>
+                            </div>
+                        </div>
+                    @endif
+
+                    {{-- A. Pago original --}}
+                    <div class="bg-gray-50 dark:bg-gray-900/40 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="text-sm">
+                                <h4 class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">{{ __('Pago original') }}</h4>
+                                <p class="font-medium text-gray-900 dark:text-white">{{ $pagoViejo->formaPago->nombre ?? '-' }}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    {{ __('Facturado') }}: {{ $pagoViejo->comprobante_fiscal_id ? 'Sí ('.$pagoViejo->comprobanteFiscal?->numero_formateado.')' : 'No' }}
+                                </p>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-xs text-gray-500 dark:text-gray-400 block">{{ __('Monto a cubrir') }}</span>
+                                <span class="text-2xl font-bold text-gray-900 dark:text-white">$@precio($pagoViejo->monto_final)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- B. Resumen pendiente / cubierto --}}
+                    <div class="rounded-lg border-2 {{ $completoC ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20' : 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20' }} p-3">
+                        <div class="flex items-center justify-between text-sm">
+                            <div>
+                                <span class="text-gray-600 dark:text-gray-300">{{ __('Cubierto') }}: </span>
+                                <span class="font-bold text-gray-900 dark:text-white">$@precio($sumaActualC)</span>
+                            </div>
+                            <div>
+                                @if($completoC)
+                                    <span class="inline-flex items-center gap-1 text-green-700 dark:text-green-300 font-medium">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                        {{ __('Cubierto completamente') }}
+                                    </span>
+                                @else
+                                    <span class="text-blue-700 dark:text-blue-300 font-medium">{{ __('Pendiente') }}: $@precio($pendienteC)</span>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- C. Lista de pagos agregados --}}
+                    @if(count($desglosePagosNuevos) > 0)
+                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                            <div class="divide-y divide-gray-200 dark:divide-gray-700">
+                                @foreach($desglosePagosNuevos as $idx => $pn)
+                                    <div class="flex items-center justify-between gap-2 p-2.5 bg-white dark:bg-gray-800">
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex items-center gap-2 flex-wrap">
+                                                <span class="font-medium text-sm text-gray-900 dark:text-white">{{ $pn['fp_nombre'] ?? '-' }}</span>
+                                                @if(($pn['fp_ajuste_porcentaje'] ?? 0) != 0 && ($pn['aplicar_ajuste'] ?? false))
+                                                    <span class="text-xs {{ $pn['fp_ajuste_porcentaje'] > 0 ? 'text-red-600' : 'text-green-600' }}">
+                                                        ({{ $pn['fp_ajuste_porcentaje'] > 0 ? '+' : '' }}{{ $pn['fp_ajuste_porcentaje'] }}%)
+                                                    </span>
+                                                @endif
+                                                @if(($pn['cuotas'] ?? 1) > 1)
+                                                    <span class="text-xs text-gray-500">({{ $pn['cuotas'] }} cuotas{{ ($pn['recargo_cuotas_porcentaje'] ?? 0) > 0 ? ' +'.$pn['recargo_cuotas_porcentaje'].'%' : '' }})</span>
+                                                @endif
+                                                <button type="button" wire:click="toggleFacturarEnDesglose({{ $idx }})"
+                                                    class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors
+                                                        {{ ($pn['facturar'] ?? false) ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700' : 'bg-gray-100 text-gray-500 border-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:border-gray-600' }}">
+                                                    {{ ($pn['facturar'] ?? false) ? '✓ ' . __('Facturar') : __('No facturar') }}
+                                                </button>
+                                            </div>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ __('Base') }} $@precio($pn['monto_base'])</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <span class="block text-sm font-bold text-gray-900 dark:text-white">$@precio($pn['monto_final'])</span>
+                                        </div>
+                                        <button type="button" wire:click="eliminarDelDesgloseCambio({{ $idx }})"
+                                            class="p-1 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30" :title="__('Quitar')">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                        </button>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
+                    {{-- D. Form para agregar nuevo pago (Alpine search + grid) --}}
+                    @if($pendienteC > 0.01)
+                        <div class="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-gray-50 dark:bg-gray-700/50"
+                            x-data="{
+                                busqueda: '',
+                                fpSeleccionadaId: @entangle('nuevoPagoForm.forma_pago_id').live,
+                                aplicarAjuste: @entangle('nuevoPagoForm.aplicar_ajuste').live,
+                                facturar: @entangle('nuevoPagoForm.facturar').live,
+                                formasPago: @js($formasPagoCambio),
+                                navIndex: -1,
+                                cols: window.innerWidth >= 640 ? 4 : 3,
+                                get filtradas() {
+                                    if (!this.busqueda) return this.formasPago;
+                                    const q = this.busqueda.trim().toLowerCase();
+                                    return this.formasPago.filter(fp =>
+                                        String(fp.id) === q ||
+                                        fp.nombre.toLowerCase().includes(q) ||
+                                        (fp.codigo && fp.codigo.toLowerCase().includes(q))
+                                    );
+                                },
+                                seleccionar(fp) {
+                                    // Seteo inmediato de los defaults en cliente (sin flash visual)
+                                    this.aplicarAjuste = false;
+                                    this.facturar = !!fp.factura_fiscal;
+                                    this.fpSeleccionadaId = fp.id;
+                                    this.busqueda = '';
+                                    this.navIndex = -1;
+                                },
+                                limpiar() {
+                                    this.fpSeleccionadaId = null;
+                                    this.busqueda = '';
+                                    this.navIndex = -1;
+                                    this.$nextTick(() => { if (this.$refs.inputBusquedaFP) this.$refs.inputBusquedaFP.focus(); });
+                                },
+                                handleBusquedaKeydown(e) {
+                                    const len = this.filtradas.length;
+                                    if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation();
+                                        if (this.navIndex < 0) { this.navIndex = 0; }
+                                        else { this.navIndex = Math.min(this.navIndex + this.cols, len - 1); }
+                                    } else if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation();
+                                        if (this.navIndex >= this.cols) { this.navIndex -= this.cols; }
+                                        else { this.navIndex = -1; this.$refs.inputBusquedaFP?.focus(); }
+                                    } else if (e.key === 'ArrowRight') {
+                                        if (this.navIndex >= 0) { e.preventDefault(); this.navIndex = Math.min(this.navIndex + 1, len - 1); }
+                                    } else if (e.key === 'ArrowLeft') {
+                                        if (this.navIndex >= 0) { e.preventDefault(); this.navIndex = Math.max(this.navIndex - 1, 0); }
+                                    } else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation();
+                                        if (this.navIndex >= 0 && this.navIndex < len) { this.seleccionar(this.filtradas[this.navIndex]); }
+                                        else if (len > 0) { this.seleccionar(this.filtradas[0]); }
+                                    } else { this.navIndex = -1; }
+                                },
+                                handleMontoKeydown(e) {
+                                    if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); $wire.agregarAlDesgloseCambio(); }
+                                }
+                            }"
+                            x-init="$nextTick(() => { if (!fpSeleccionadaId && $refs.inputBusquedaFP) $refs.inputBusquedaFP.focus(); })">
+
+                            {{-- Selector FP por botones --}}
+                            <template x-if="!fpSeleccionadaId">
+                                <div>
+                                    <div class="relative mb-2">
+                                        <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-gray-400">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                        </span>
+                                        <input type="text" x-ref="inputBusquedaFP" x-model="busqueda" @keydown="handleBusquedaKeydown($event)"
+                                            class="w-full pl-8 pr-3 py-2 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                            placeholder="{{ __('Buscar por ID, código o nombre...') }}">
+                                    </div>
+                                    <div class="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-40 overflow-y-auto">
+                                        <template x-for="(fp, idx) in filtradas" :key="fp.id">
+                                            <button type="button" @click="seleccionar(fp)"
+                                                class="flex flex-col items-center justify-center p-2 rounded-lg border-2 transition-all text-center min-h-[52px]"
+                                                :class="navIndex === idx
+                                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-400'
+                                                    : 'border-gray-200 dark:border-gray-600 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'">
+                                                <span class="text-[10px] text-gray-400 dark:text-gray-500 font-mono leading-none" x-text="fp.id"></span>
+                                                <span class="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wide leading-tight" x-text="fp.codigo || fp.nombre.substring(0, 3).toUpperCase()"></span>
+                                                <span class="text-[10px] text-gray-600 dark:text-gray-400 leading-tight mt-0.5 truncate w-full" x-text="fp.nombre"></span>
+                                                <template x-if="fp.ajuste_porcentaje != 0">
+                                                    <span class="text-[9px] font-medium mt-0.5"
+                                                        :class="fp.ajuste_porcentaje > 0 ? 'text-red-600' : 'text-green-600'"
+                                                        x-text="(fp.ajuste_porcentaje > 0 ? '+' : '') + fp.ajuste_porcentaje + '%'"></span>
+                                                </template>
+                                            </button>
+                                        </template>
+                                    </div>
+                                    <template x-if="busqueda && filtradas.length === 0">
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 text-center py-2">{{ __('No se encontraron formas de pago') }}</p>
+                                    </template>
+                                </div>
+                            </template>
+
+                            {{-- FP seleccionada: chip + monto + agregar --}}
+                            <template x-if="fpSeleccionadaId">
+                                <div x-data="{ get fpActual() { return formasPago.find(fp => fp.id == fpSeleccionadaId) || null; } }" x-init="$nextTick(() => $refs.inputMontoCambio?.focus())">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <div class="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-100 dark:bg-blue-900/40 border border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-300 rounded-lg text-sm font-medium">
+                                            <span class="font-bold uppercase" x-text="fpActual?.codigo || fpActual?.nombre?.substring(0,3).toUpperCase()"></span>
+                                            <span x-text="fpActual?.nombre"></span>
+                                            <button type="button" @click="limpiar()" class="ml-0.5 hover:text-blue-900">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                            </button>
+                                        </div>
+                                        <div class="relative flex-1 min-w-[120px]">
+                                            <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 text-xs">$</span>
+                                            <input type="number" step="0.01" x-ref="inputMontoCambio"
+                                                wire:model="nuevoPagoForm.monto_base" @keydown="handleMontoKeydown($event)"
+                                                class="w-full pl-6 pr-2 py-1.5 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                                placeholder="{{ number_format($pendienteC, 2, ',', '.') }}">
+                                        </div>
+                                        <button wire:click="agregarAlDesgloseCambio" type="button"
+                                            class="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                            {{ __('Agregar') }}
+                                        </button>
+                                    </div>
+
+                                    {{-- Aplicar ajuste + facturar (toggles) --}}
+                                    <div class="flex flex-wrap items-center gap-3 mt-2">
+                                        <template x-if="fpActual && fpActual.ajuste_porcentaje != 0">
+                                            <label class="inline-flex items-center text-xs text-gray-700 dark:text-gray-300">
+                                                <input type="checkbox" x-model="aplicarAjuste" class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
+                                                <span class="ml-1.5">{{ __('Aplicar ajuste') }} <span x-text="(fpActual?.ajuste_porcentaje > 0 ? '+' : '') + fpActual?.ajuste_porcentaje + '%'"></span></span>
+                                            </label>
+                                        </template>
+                                        <label class="inline-flex items-center text-xs text-gray-700 dark:text-gray-300">
+                                            <input type="checkbox" x-model="facturar" class="rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500">
+                                            <span class="ml-1.5">{{ __('Facturar este pago') }}</span>
+                                        </label>
+                                    </div>
+
+                                    {{-- Cuotas --}}
+                                    @if(count($cuotasFpSeleccionada) > 0)
+                                        <div class="mt-2">
+                                            <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Cuotas') }}</label>
+                                            <select wire:change="seleccionarCuotasCambio($event.target.value, $event.target.options[$event.target.selectedIndex].dataset.recargo)"
+                                                class="w-full text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+                                                <option value="1" data-recargo="0">{{ __('1 pago (sin financiación)') }}</option>
+                                                @foreach($cuotasFpSeleccionada as $cuota)
+                                                    <option value="{{ $cuota['cantidad'] }}" data-recargo="{{ $cuota['recargo'] }}"
+                                                        {{ $nuevoPagoForm['cuotas'] == $cuota['cantidad'] ? 'selected' : '' }}>
+                                                        {{ $cuota['cantidad'] }} cuotas{{ $cuota['recargo'] > 0 ? ' (+'.$cuota['recargo'].'%)' : '' }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                    @endif
+                                </div>
+                            </template>
+                        </div>
+                    @endif
+
+                    {{-- E. Preview fiscal --}}
+                    @if(! empty($previewC) && ! empty($previewC['preview_texto']))
+                        @php
+                            $colorP = 'gray';
+                            if ($previewC['emitir_nc'] === true) $colorP = 'blue';
+                            elseif ($previewC['emitir_nc'] === 'preguntar' || ($previewC['emitir_fc_nueva'] ?? false) === 'preguntar') $colorP = 'amber';
+                            elseif (($previewC['emitir_fc_nueva'] ?? false) === true) $colorP = 'emerald';
+                        @endphp
+                        <div class="rounded-lg p-2.5 border border-{{ $colorP }}-200 dark:border-{{ $colorP }}-800 bg-{{ $colorP }}-50 dark:bg-{{ $colorP }}-900/20 text-sm text-{{ $colorP }}-800 dark:text-{{ $colorP }}-200">
+                            <p>{{ $previewC['preview_texto'] }}</p>
+                            @if($previewC['emitir_nc'] === 'preguntar')
+                                <label class="inline-flex items-center text-xs text-gray-700 dark:text-gray-300 mt-1.5">
+                                    <input type="checkbox" wire:model="opcionesFiscales.emitir_nc" class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-1.5">{{ __('Confirmo emitir Nota de Crédito') }}</span>
+                                </label>
+                            @endif
+                        </div>
+                    @endif
+
+                    {{-- F. Motivo --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo del cambio') }} <span class="text-red-500">*</span></label>
+                        <textarea wire:model="motivoCambio" rows="2" minlength="10" maxlength="500"
+                            placeholder="{{ __('Ej: Cajero tildó débito por error, era transferencia') }}"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm shadow-sm focus:ring-blue-500 focus:border-blue-500"></textarea>
+                        @error('motivoCambio') <p class="text-xs text-red-500 mt-1">{{ $message }}</p> @enderror
+                    </div>
+                </div>
+                </x-slot:body>
+
+                <x-slot:footer>
+                    <button type="button" wire:click="cerrarCambiarPago" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600">
+                        {{ __('Cancelar') }}
+                    </button>
+                    <button type="button" wire:click="confirmarCambioPago" wire:loading.attr="disabled"
+                        @if(!$completoC) disabled @endif
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span wire:loading.remove wire:target="confirmarCambioPago">
+                            @if($completoC) {{ __('Confirmar cambio') }} @else {{ __('Falta cubrir $').number_format($pendienteC, 2, ',', '.') }} @endif
+                        </span>
+                        <span wire:loading wire:target="confirmarCambioPago">{{ __('Procesando...') }}</span>
+                    </button>
+                </x-slot:footer>
+            </x-bcn-modal>
+        @endif
+    @endif
+
 </div>

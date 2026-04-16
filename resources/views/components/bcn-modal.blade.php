@@ -32,13 +32,35 @@ $maxWidthClass = [
         dragY: 0,
         dragging: false,
         startY: 0,
+        _stackId: null,
+        registerInStack() {
+            window._bcnModalStack = window._bcnModalStack || [];
+            this._stackId = Symbol();
+            window._bcnModalStack.push(this._stackId);
+            this.syncBodyScroll();
+        },
+        removeFromStack() {
+            if (!this._stackId || !window._bcnModalStack) return;
+            window._bcnModalStack = window._bcnModalStack.filter(id => id !== this._stackId);
+            this.syncBodyScroll();
+        },
+        syncBodyScroll() {
+            const hasModals = (window._bcnModalStack || []).length > 0;
+            document.body.classList.toggle('overflow-hidden', hasModals);
+        },
+        isTopOfStack() {
+            const stack = window._bcnModalStack || [];
+            return stack.length > 0 && stack[stack.length - 1] === this._stackId;
+        },
         close() {
+            if (!this.isTopOfStack()) return;
             document.activeElement?.blur();
             this.show = false;
+            this.removeFromStack();
             $wire.{{ $onClose }}();
         },
         destroy() {
-            document.body.classList.remove('overflow-hidden');
+            this.removeFromStack();
         },
         onTouchStart(e) {
             if (e.target.closest('[data-no-swipe], .drag-handle, .sortable-drag')) return;
@@ -100,9 +122,8 @@ $maxWidthClass = [
             }
         }
     }"
-    x-init="$nextTick(() => { show = true; $nextTick(() => focusFirst()); })"
-    x-effect="document.body.classList.toggle('overflow-hidden', show)"
-    x-on:keydown.escape.window="show && close()"
+    x-init="registerInStack(); $nextTick(() => { show = true; $nextTick(() => focusFirst()); })"
+    x-on:keydown.escape.window="show && isTopOfStack() && close()"
     class="fixed inset-0 {{ $zIndex }} overflow-hidden"
     :class="{ 'pointer-events-none': !show }"
     aria-labelledby="modal-title"

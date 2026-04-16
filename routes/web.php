@@ -118,6 +118,12 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
 
         // Movimientos manuales - ingresos/egresos manuales, transferencias
         Route::get('movimientos-manuales', MovimientosManuales::class)->name('movimientos-manuales');
+
+        // Ajustes post-cierre - reporte de cambios de pago sobre turnos cerrados
+        Route::get('ajustes-post-cierre', \App\Livewire\Cajas\AjustesPostCierre::class)->name('ajustes-post-cierre');
+
+        // Pagos pendientes de facturar - cuando falla ARCA al emitir FC nueva
+        Route::get('pagos-pendientes-facturacion', \App\Livewire\Cajas\PagosPendientesFacturacion::class)->name('pagos-pendientes-facturacion');
     });
 
     // =========================================

@@ -5,8 +5,12 @@ namespace App\Livewire\Ventas;
 use App\Models\Articulo;
 use App\Models\Caja;
 use App\Models\Cliente;
+use App\Models\FormaPago;
 use App\Models\Sucursal;
 use App\Models\Venta;
+use App\Models\VentaPago;
+use App\Models\VentaPagoAjuste;
+use App\Services\Ventas\CambioFormaPagoService;
 use App\Services\VentaService;
 use App\Traits\CajaAware;
 use Exception;
@@ -393,6 +397,42 @@ class Ventas extends Component
     public $ventaDetalleId = null;
 
     // =========================================
+    // PROPIEDADES: Cambio de forma de pago
+    // =========================================
+
+    /** Modal de cambio de forma de pago */
+    public bool $showCambiarPagoModal = false;
+
+    /** ID del venta_pago en edición */
+    public $pagoEditandoId = null;
+
+    /** Form del pago que se está por agregar al desglose (modal mixto) */
+    public array $nuevoPagoForm = [
+        'forma_pago_id' => null,
+        'monto_base' => null,
+        'aplicar_ajuste' => true,
+        'cuotas' => 1,
+        'recargo_cuotas_porcentaje' => 0,
+        'facturar' => null, // null = default por FP; bool = decisión usuario
+        'referencia' => null,
+        'observaciones' => null,
+    ];
+
+    /** Desglose de pagos nuevos en construcción (modal mixto) */
+    public array $desglosePagosNuevos = [];
+
+    /** Preview del cambio (suma, pendiente, fiscalidad, completo) */
+    public array $previewCambio = [];
+
+    /** Decisiones del usuario sobre fiscalidad (solo si la matriz dice "preguntar") */
+    public array $opcionesFiscales = [
+        'emitir_nc' => null,
+    ];
+
+    /** Motivo del cambio (obligatorio, mín 10 chars) */
+    public string $motivoCambio = '';
+
+    // =========================================
     // INYECCIÓN DE DEPENDENCIAS
     // =========================================
 
@@ -516,11 +556,19 @@ class Ventas extends Component
                 'formaPago',
                 'pagos.formaPago',
                 'pagos.comprobanteFiscal',
+                'pagos.cobrosAplicados.cobro',
+                'pagos.notaCreditoGenerada',
+                'pagos.pagoReemplazado.formaPago',
                 'promociones',
                 'comprobantesFiscales',
                 'usuario',
                 'cupon',
             ])->find($this->ventaDetalleId) : null,
+            'ajustesPagos' => $this->ventaDetalleId ? VentaPagoAjuste::with([
+                'formaPagoAnterior', 'formaPagoNueva', 'ncEmitida', 'usuario', 'turnoOriginal',
+            ])->where('venta_id', $this->ventaDetalleId)
+                ->orderByDesc('created_at')
+                ->get() : collect(),
         ]);
     }
 
@@ -1026,14 +1074,20 @@ class Ventas extends Component
             $this->cancelarTieneComprobanteFiscal = $saldoFiscal > 0.01; // tolerancia para decimales
             $this->cancelarComprobantesFiscales = $this->cancelarTieneComprobanteFiscal ? $facturasPendientes : [];
 
-            // Preparar información de pagos
+            // Preparar información de pagos (incluye estado_facturacion + CF asociado)
+            $venta->load('pagos.formaPago', 'pagos.comprobanteFiscal');
             $pagosInfo = $venta->pagos->map(function ($pago) {
                 return [
                     'id' => $pago->id,
                     'forma_pago' => $pago->formaPago?->nombre ?? __('Sin especificar'),
-                    'monto' => $pago->monto_final,
+                    'monto' => (float) $pago->monto_final,
+                    'monto_facturado' => (float) ($pago->monto_facturado ?? 0),
                     'facturado' => $pago->comprobante_fiscal_id !== null,
+                    'comprobante_numero' => $pago->comprobanteFiscal?->numero_formateado
+                        ?? ($pago->comprobanteFiscal ? $pago->comprobanteFiscal->letra.'-'.str_pad((string) $pago->comprobanteFiscal->numero_comprobante, 8, '0', STR_PAD_LEFT) : null),
                     'estado' => $pago->estado,
+                    'estado_facturacion' => $pago->estado_facturacion,
+                    'anulado' => $pago->estado === \App\Models\VentaPago::ESTADO_ANULADO,
                 ];
             })->toArray();
 
@@ -1306,5 +1360,365 @@ class Ventas extends Component
         if ($comprobante) {
             $this->confirmarReimprimirFiscal($comprobanteId, $comprobante->tipo_legible, $comprobante->numero_formateado);
         }
+    }
+
+    // =========================================
+    // CAMBIO DE FORMA DE PAGO (RF-01 a RF-18)
+    // =========================================
+
+    /**
+     * Abre el modal de cambio de forma de pago para un venta_pago específico.
+     * El modal es tipo "mixto": el usuario arma un desglose de N pagos nuevos
+     * que sumados deben igualar el monto del pago original.
+     */
+    public function abrirCambiarPago(int $ventaPagoId): void
+    {
+        $service = new CambioFormaPagoService;
+        $val = $service->puedeModificarVentaPago($ventaPagoId, Auth::id() ?? 0);
+
+        if (! $val['puede']) {
+            $this->dispatch('toast-error', message: $val['razon']);
+
+            return;
+        }
+
+        $this->pagoEditandoId = $ventaPagoId;
+        $this->desglosePagosNuevos = [];
+        $this->resetNuevoPagoForm();
+        $this->motivoCambio = '';
+        $this->opcionesFiscales = ['emitir_nc' => null];
+        $this->actualizarPreviewCambio();
+        $this->showCambiarPagoModal = true;
+    }
+
+    private function resetNuevoPagoForm(): void
+    {
+        $this->nuevoPagoForm = [
+            'forma_pago_id' => null,
+            'monto_base' => null,
+            'aplicar_ajuste' => true,
+            'cuotas' => 1,
+            'recargo_cuotas_porcentaje' => 0,
+            'facturar' => null,
+            'referencia' => null,
+            'observaciones' => null,
+        ];
+    }
+
+    /**
+     * Selecciona un plan de cuotas para el form del modal mixto.
+     */
+    public function seleccionarCuotasCambio(int $cuotas, float $recargo = 0): void
+    {
+        $this->nuevoPagoForm['cuotas'] = max(1, $cuotas);
+        $this->nuevoPagoForm['recargo_cuotas_porcentaje'] = $cuotas > 1 ? $recargo : 0;
+    }
+
+    /**
+     * Toggle del flag "facturar" del form (antes de agregar al desglose).
+     */
+    public function toggleFacturarForm(): void
+    {
+        $this->nuevoPagoForm['facturar'] = ! (bool) ($this->nuevoPagoForm['facturar'] ?? false);
+    }
+
+    /**
+     * Toggle del flag "facturar" de un pago ya agregado al desglose.
+     */
+    public function toggleFacturarEnDesglose(int $index): void
+    {
+        if (! isset($this->desglosePagosNuevos[$index])) {
+            return;
+        }
+        $this->desglosePagosNuevos[$index]['facturar'] = ! (bool) ($this->desglosePagosNuevos[$index]['facturar'] ?? false);
+        $this->actualizarPreviewCambio();
+    }
+
+    /**
+     * Agrega el form actual al desglose de pagos nuevos.
+     */
+    public function agregarAlDesgloseCambio(): void
+    {
+        $this->validate([
+            'nuevoPagoForm.forma_pago_id' => 'required|integer',
+            'nuevoPagoForm.monto_base' => 'required|numeric|min:0.01',
+        ], [], [
+            'nuevoPagoForm.forma_pago_id' => __('Forma de pago'),
+            'nuevoPagoForm.monto_base' => __('Monto base'),
+        ]);
+
+        // Validar que no excedamos el pendiente (con tolerancia)
+        $pendiente = (float) ($this->previewCambio['pendiente'] ?? 0);
+        $fp = FormaPago::find($this->nuevoPagoForm['forma_pago_id']);
+        if (! $fp) {
+            $this->dispatch('toast-error', message: __('Forma de pago no válida'));
+
+            return;
+        }
+
+        $aplicarAjuste = (bool) $this->nuevoPagoForm['aplicar_ajuste'];
+        $montoBase = (float) $this->nuevoPagoForm['monto_base'];
+        $ajusteData = $aplicarAjuste
+            ? VentaPago::calcularMontoConAjuste($montoBase, (float) $fp->ajuste_porcentaje)
+            : ['monto_final' => $montoBase];
+
+        $cuotas = (int) ($this->nuevoPagoForm['cuotas'] ?? 1);
+        $recargoCuotasPct = (float) ($this->nuevoPagoForm['recargo_cuotas_porcentaje'] ?? 0);
+        if ($cuotas > 1 && $recargoCuotasPct > 0) {
+            $cuotasData = VentaPago::calcularMontoConCuotas($ajusteData['monto_final'], $cuotas, $recargoCuotasPct);
+            $ajusteData['monto_final'] = $cuotasData['monto_total'];
+        }
+
+        if ($ajusteData['monto_final'] > $pendiente + 0.01) {
+            $this->dispatch('toast-error', message: __('El monto excede el pendiente. Reduce el monto o ajusta los pagos ya agregados.'));
+
+            return;
+        }
+
+        $this->desglosePagosNuevos[] = array_merge($this->nuevoPagoForm, [
+            'fp_nombre' => $fp->nombre,
+            'fp_ajuste_porcentaje' => (float) $fp->ajuste_porcentaje,
+            'monto_final' => round($ajusteData['monto_final'], 2),
+        ]);
+
+        $this->resetNuevoPagoForm();
+        $this->actualizarPreviewCambio();
+    }
+
+    /**
+     * Quita un pago del desglose.
+     */
+    public function eliminarDelDesgloseCambio(int $index): void
+    {
+        if (! isset($this->desglosePagosNuevos[$index])) {
+            return;
+        }
+        unset($this->desglosePagosNuevos[$index]);
+        $this->desglosePagosNuevos = array_values($this->desglosePagosNuevos);
+        $this->actualizarPreviewCambio();
+    }
+
+    /**
+     * Recalcula el preview (pendiente, suma, fiscalidad) del cambio.
+     */
+    public function actualizarPreviewCambio(): void
+    {
+        if (! $this->pagoEditandoId) {
+            $this->previewCambio = [];
+
+            return;
+        }
+
+        $pago = VentaPago::find($this->pagoEditandoId);
+        if (! $pago) {
+            $this->previewCambio = [];
+
+            return;
+        }
+
+        try {
+            $service = new CambioFormaPagoService;
+            $this->previewCambio = $service->calcularPreviewCambio($pago, $this->desglosePagosNuevos);
+        } catch (Exception $e) {
+            $this->previewCambio = [];
+        }
+    }
+
+    /**
+     * Hook: cuando cambia forma_pago_id, resetea cuotas y prefill de monto_base.
+     * `aplicar_ajuste` y `facturar` se setean en Alpine al seleccionar la FP
+     * para evitar flash visual (los checkboxes aparecen ya con el estado correcto).
+     */
+    public function updatedNuevoPagoFormFormaPagoId($value): void
+    {
+        if (! $value) {
+            return;
+        }
+
+        $this->nuevoPagoForm['cuotas'] = 1;
+        $this->nuevoPagoForm['recargo_cuotas_porcentaje'] = 0;
+
+        // Prefill monto con el pendiente actual
+        $pendiente = (float) ($this->previewCambio['pendiente'] ?? 0);
+        if ($pendiente > 0.01) {
+            $this->nuevoPagoForm['monto_base'] = round($pendiente, 2);
+        }
+    }
+
+    /**
+     * Reintenta la emisión de FC nueva sobre un pago en estado 'pendiente_de_facturar'.
+     */
+    public function reintentarFacturacionPago(int $ventaPagoId): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.reintentar_facturacion')) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para reintentar facturación'));
+
+            return;
+        }
+
+        $pago = VentaPago::find($ventaPagoId);
+        if (! $pago) {
+            $this->dispatch('toast-error', message: __('Pago no encontrado'));
+
+            return;
+        }
+
+        try {
+            $service = new CambioFormaPagoService;
+            $fc = $service->reintentarFacturacionPago($pago, Auth::id() ?? 0);
+
+            $this->dispatch('toast-exito', message: __('Factura emitida correctamente: :num', ['num' => $fc->numero_formateado ?? $fc->id]));
+
+            if ($this->showDetalleModal && $this->ventaDetalleId) {
+                $this->verDetalle($this->ventaDetalleId);
+            }
+        } catch (Exception $e) {
+            $this->dispatch('toast-error', message: __('Error al reintentar: :msg', ['msg' => $e->getMessage()]));
+        }
+    }
+
+    /**
+     * Confirma y ejecuta el cambio de forma de pago (modal mixto).
+     */
+    public function confirmarCambioPago(): void
+    {
+        $this->validate([
+            'motivoCambio' => 'required|string|min:10',
+        ], [
+            'motivoCambio.min' => __('El motivo debe tener al menos 10 caracteres'),
+        ]);
+
+        if (empty($this->desglosePagosNuevos)) {
+            $this->dispatch('toast-error', message: __('Debe agregar al menos un pago nuevo'));
+
+            return;
+        }
+
+        if (! ($this->previewCambio['completo'] ?? false)) {
+            $this->dispatch('toast-error', message: __('El monto de los pagos nuevos no coincide con el del pago original'));
+
+            return;
+        }
+
+        try {
+            $service = new CambioFormaPagoService;
+            $result = $service->cambiarFormaPago(
+                $this->pagoEditandoId,
+                $this->desglosePagosNuevos,
+                $this->motivoCambio,
+                Auth::id(),
+                $this->opcionesFiscales
+            );
+
+            $this->showCambiarPagoModal = false;
+            $this->resetCambioPagoState();
+
+            $msg = __('Cambio de pago ejecutado correctamente');
+            if ($result['nc_emitida'] ?? null) {
+                $msg .= '. '.__('Se emitió Nota de Crédito').' '.$result['nc_emitida']->numero_formateado;
+            }
+            if ($result['fc_nueva'] ?? null) {
+                $msg .= '. '.__('Se emitió Factura nueva').' '.$result['fc_nueva']->numero_formateado;
+            }
+
+            if (! empty($result['fc_nueva_error'])) {
+                $this->dispatch('toast-error', message: __('La nueva factura quedó pendiente: :msg', ['msg' => $result['fc_nueva_error']]));
+            } else {
+                $this->dispatch('toast-success', message: $msg);
+            }
+        } catch (Exception $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
+    }
+
+    /**
+     * Cierra el sub-modal de cambio de pago y limpia el estado.
+     */
+    public function cerrarCambiarPago(): void
+    {
+        $this->showCambiarPagoModal = false;
+        $this->resetCambioPagoState();
+    }
+
+    private function resetCambioPagoState(): void
+    {
+        $this->pagoEditandoId = null;
+        $this->desglosePagosNuevos = [];
+        $this->resetNuevoPagoForm();
+        $this->previewCambio = [];
+        $this->opcionesFiscales = ['emitir_nc' => null];
+        $this->motivoCambio = '';
+    }
+
+    /**
+     * Devuelve las formas de pago de la sucursal con sus cuotas disponibles,
+     * para alimentar el modal mixto de cambio de pago.
+     */
+    public function obtenerFormasPagoConCuotas(): array
+    {
+        $sucursalId = $this->obtenerSucursalActual();
+        if (! $sucursalId) {
+            return [];
+        }
+
+        $formasPago = FormaPago::with(['conceptoPago', 'cuotas'])
+            ->where('activo', true)
+            ->where('es_mixta', false)
+            ->orderBy('orden')->orderBy('id')
+            ->get();
+
+        return $formasPago->map(function ($fp) use ($sucursalId) {
+            $configSucursal = \App\Models\FormaPagoSucursal::where('forma_pago_id', $fp->id)
+                ->where('sucursal_id', $sucursalId)
+                ->first();
+
+            $activaEnSucursal = $configSucursal ? $configSucursal->activo : true;
+            if (! $activaEnSucursal) {
+                return null;
+            }
+
+            $ajustePorcentaje = $configSucursal && $configSucursal->ajuste_porcentaje !== null
+                ? $configSucursal->ajuste_porcentaje
+                : $fp->ajuste_porcentaje;
+
+            $facturaFiscal = $configSucursal && $configSucursal->factura_fiscal !== null
+                ? $configSucursal->factura_fiscal
+                : ($fp->factura_fiscal ?? false);
+
+            $cuotasDisponibles = [];
+            if ($fp->permite_cuotas) {
+                foreach ($fp->cuotas as $cuota) {
+                    $cuotaSucursal = \App\Models\FormaPagoCuotaSucursal::where('forma_pago_cuota_id', $cuota->id)
+                        ->where('sucursal_id', $sucursalId)
+                        ->first();
+
+                    $activa = $cuotaSucursal ? $cuotaSucursal->activo : true;
+                    if (! $activa) {
+                        continue;
+                    }
+
+                    $recargo = $cuotaSucursal && $cuotaSucursal->recargo_porcentaje !== null
+                        ? $cuotaSucursal->recargo_porcentaje
+                        : $cuota->recargo_porcentaje;
+
+                    $cuotasDisponibles[] = [
+                        'id' => $cuota->id,
+                        'cantidad' => (int) $cuota->cantidad_cuotas,
+                        'recargo' => (float) $recargo,
+                        'descripcion' => $cuota->descripcion,
+                    ];
+                }
+            }
+
+            return [
+                'id' => $fp->id,
+                'nombre' => $fp->nombre,
+                'codigo' => $fp->codigo,
+                'permite_cuotas' => (bool) $fp->permite_cuotas,
+                'ajuste_porcentaje' => (float) ($ajustePorcentaje ?? 0),
+                'factura_fiscal' => (bool) $facturaFiscal,
+                'cuotas' => $cuotasDisponibles,
+            ];
+        })->filter()->values()->toArray();
     }
 }

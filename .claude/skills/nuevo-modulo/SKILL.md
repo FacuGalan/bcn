@@ -36,6 +36,14 @@ Preguntar al usuario:
 - Crear permisos `menu.{slug}` en `pymes.permissions`
 - Asignar permisos a roles por cada comercio
 - CUIDADO: `slug` tiene UNIQUE constraint
+- Si se agregan permisos funcionales nuevos a `permisos_funcionales`, llamar `\App\Models\PermisoFuncional::syncAllToSpatie()` en la migración para crear los `permissions` Spatie correspondientes
+- Para asignar los permisos nuevos a roles existentes en TODOS los comercios, crear migración separada que itere comercios y haga INSERT en `{prefix}role_has_permissions` (ver patrón en `2026_04_06_000012_assign_puntos_cupones_permissions.php`)
+- También actualizar `database/seeders/PermisosFuncionalesSeeder.php` para que comercios nuevos provisionados los reciban automáticamente
+
+**A.1 Chequeo de permisos en código** (CRÍTICO)
+- En vistas Blade y código PHP usar SIEMPRE `auth()->user()?->hasPermissionTo('func.X')` o `$user->hasPermissionTo('func.X')`
+- **NUNCA** `$user->can(...)`, `Gate::allows(...)`, `@can(...)`, `auth()->user()?->can(...)` — el modelo `App\Models\User` NO usa el trait `HasRoles` de Spatie, entonces el `Gate::before` de Spatie no engancha y `can()` siempre retorna `false`
+- Patrón canónico en `resources/views/livewire/ventas/_modal-descuentos.blade.php:16`
 
 **B. Migraciones de tablas tenant** (si aplica)
 - Seguir convenciones de `.claude/docs/workflows-migraciones.md`

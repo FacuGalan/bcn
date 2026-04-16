@@ -160,6 +160,41 @@ class CuentaCorrienteService
     }
 
     /**
+     * Anula los movimientos de CC vinculados a un venta_pago específico (no a toda la venta).
+     * Genera contraasientos append-only y ajusta saldo del cliente.
+     *
+     * Útil cuando se cambia/elimina un pago individual sin anular la venta completa.
+     *
+     * @return array Contraasientos creados
+     */
+    public function anularMovimientosVentaPago(
+        \App\Models\VentaPago $ventaPago,
+        int $usuarioId,
+        string $motivo
+    ): array {
+        $contraasientos = [];
+
+        $movimientos = MovimientoCuentaCorriente::where('venta_pago_id', $ventaPago->id)
+            ->where('estado', 'activo')
+            ->get();
+
+        foreach ($movimientos as $movimiento) {
+            $contraasientos[] = MovimientoCuentaCorriente::crearContraasiento(
+                $movimiento,
+                $motivo,
+                $usuarioId
+            );
+        }
+
+        $venta = $ventaPago->venta;
+        if ($venta && $venta->cliente_id) {
+            $this->actualizarCacheCliente($venta->cliente_id, $venta->sucursal_id);
+        }
+
+        return $contraasientos;
+    }
+
+    /**
      * Anula los movimientos de un cobro
      *
      * Flujo:

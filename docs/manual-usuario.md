@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-04-14
+> Version: 0.1.x | Ultima actualizacion: 2026-04-16
 
 ---
 
@@ -14,6 +14,7 @@
   - [3.2 Listado de Ventas](#32-listado-de-ventas)
   - [3.3 Programa de Puntos](#33-programa-de-puntos)
   - [3.4 Cupones](#34-cupones)
+  - [3.5 Modificar Pagos en Ventas Registradas](#35-modificar-pagos-en-ventas-registradas)
 - [4. Compras](#4-compras)
 - [5. Stock e Inventario](#5-stock-e-inventario)
   - [5.1 Inventario por Sucursal](#51-inventario-por-sucursal)
@@ -27,6 +28,8 @@
   - [6.2 Turno Actual](#62-turno-actual)
   - [6.3 Historial de Turnos](#63-historial-de-turnos)
   - [6.4 Movimientos Manuales](#64-movimientos-manuales)
+  - [6.5 Ajustes Post-Cierre](#65-ajustes-post-cierre)
+  - [6.6 Pagos Pendientes de Facturar](#66-pagos-pendientes-de-facturar)
 - [7. Tesoreria](#7-tesoreria)
   - [7.1 Gestion de Tesoreria](#71-gestion-de-tesoreria)
   - [7.2 Reportes de Tesoreria](#72-reportes-de-tesoreria)
@@ -365,12 +368,18 @@ Esta pantalla muestra todas las ventas realizadas, permitiendo buscarlas, filtra
 
 #### Filtros disponibles
 
+Los filtros se organizan en dos grupos:
+
+**Filtros principales** (siempre visibles):
 - **Buscar**: Por numero de venta, numero de ticket, nombre de cliente o numero de factura fiscal.
+- **Fecha Desde / Fecha Hasta**: Rango de fechas para acotar la busqueda.
 - **Estado**: Todas, Completada, Pendiente, Cancelada.
 - **Forma de Pago**: Permite filtrar por la forma de pago utilizada.
+
+**Filtros avanzados** (colapsables, se despliegan con el boton "Mas filtros"):
 - **Comprobante Fiscal**: Todas, Con factura, Sin factura.
 - **Caja**: Caja actual o Todas mis cajas.
-- **Fecha Desde / Fecha Hasta**: Rango de fechas para acotar la busqueda.
+
 - **Limpiar filtros**: Restaura todos los filtros a sus valores por defecto.
 
 En dispositivos moviles, los filtros se colapsan detras de un boton "Filtros" para ahorrar espacio.
@@ -395,11 +404,13 @@ Para cada venta en la lista, puede:
 
 - **Reimprimir**: Permite reimprimir el ticket de la venta o el comprobante fiscal. Se abre un modal de confirmacion donde puede seleccionar que tipo de documento reimprimir.
 
-- **Anular venta**: Si tiene el permiso correspondiente, puede cancelar una venta. El sistema le mostrara un modal donde debe ingresar un motivo de anulacion. Al anular:
-  - Se revierte el stock (los articulos vuelven al inventario).
-  - Se registra un contraasiento en la caja.
-  - Si tiene factura fiscal, se emite automaticamente una Nota de Credito.
-  - La venta queda marcada como "Cancelada".
+- **Anular venta**: Si tiene el permiso correspondiente, puede cancelar una venta. El sistema le mostrara un modal donde debe ingresar un motivo de anulacion. El modal muestra el estado detallado de cada pago antes de confirmar:
+  - Por cada pago se indica su estado: Activo, Anulado, Facturado, Pendiente de facturar o Error ARCA, junto con el numero de comprobante y el monto facturado si corresponde.
+  - Al confirmar la anulacion:
+    - Se revierte el stock (los articulos vuelven al inventario).
+    - Se registra un contraasiento en la caja.
+    - Si tiene factura fiscal, se emite automaticamente una Nota de Credito.
+    - La venta queda marcada como "Cancelada".
 
 > **Importante**: La anulacion de una venta es irreversible. Verifique cuidadosamente antes de confirmar.
 
@@ -461,6 +472,86 @@ Gestion de cupones de descuento para clientes.
 
 #### Historial de Uso (Tab Historial)
 - Ver todos los usos de cupones con fecha, venta, cliente, sucursal y monto descontado
+
+### 3.5 Modificar Pagos en Ventas Registradas
+
+**Ruta**: Ventas → Listado de Ventas → Ver detalle → boton lapiz sobre cada pago
+
+Permite dividir un pago existente de una venta ya registrada en uno o varios pagos nuevos con formas de pago distintas, sin necesidad de anular la venta completa. El **total de la venta es siempre inmutable**: la suma de los pagos nuevos debe ser igual al monto del pago original que se modifica.
+
+> **Importante**: Requiere el permiso **"Cambiar forma de pago en ventas registradas"** (`func.cambiar_forma_pago_venta`). Para operar sobre ventas de turnos ya cerrados se necesita ademas **"Cambiar forma de pago sobre turnos cerrados"** (`func.cambiar_forma_pago_turno_cerrado`).
+
+#### Desglose de pagos en el detalle de venta
+
+En el modal de detalle de venta, la seccion de pagos muestra los pagos en formato card (en movil) o tabla (en escritorio). Cada pago activo tiene un **boton lapiz azul** (Modificar). Los pagos anulados o con cobros CC aplicados muestran el boton deshabilitado con un tooltip explicando el motivo.
+
+Badges de estado de facturacion por pago:
+- **Facturado**: el pago tiene comprobante fiscal emitido (con numero de comprobante).
+- **Pendiente de facturar**: la FC nueva no pudo emitirse por un error de ARCA; queda en cola de reintento. Incluye boton "Reintentar" (requiere permiso `func.reintentar_facturacion`).
+- **Error ARCA**: se intento reintentar pero el usuario decidio sacarlo del circuito automatico.
+- **Sin facturar**: el pago no tiene facturacion asociada.
+
+#### Bloqueos: cuando no se puede modificar
+
+El boton de modificar queda deshabilitado si:
+- El pago esta anulado.
+- El pago tiene cobros de cuenta corriente ya aplicados (hay que anularlos primero desde Clientes → Cobranzas).
+- La venta esta cancelada.
+- La venta tiene puntos canjeados por terceros.
+- El pago pertenece a un turno cerrado y no se tiene el permiso `func.cambiar_forma_pago_turno_cerrado`.
+
+#### Cobros CC aplicados
+
+Si un pago CC tiene cobros imputados, debajo del pago aparece la seccion **"Ver cobros aplicados"** con fecha, numero de recibo, monto aplicado, intereses y saldo pendiente.
+
+#### Flujo paso a paso: modificar un pago (division mixta)
+
+1. Haga clic en el **boton lapiz** del pago a modificar.
+2. Se abre el **modal "Modificar forma de pago"** con las siguientes secciones:
+   - **Pago original**: muestra en modo solo-lectura la forma de pago, monto, condicion fiscal, turno y usuario.
+   - **Desglose de pagos nuevos**: grilla de formas de pago con buscador (identico al selector de Nueva Venta). Por cada pago nuevo en el desglose se puede configurar:
+     - Monto asignado.
+     - Checkbox **"Aplicar ajuste"**: aplica el recargo/descuento de la forma de pago (por defecto OFF).
+     - Checkbox **"Facturar este pago"**: indica si se debe emitir comprobante fiscal para este pago (por defecto segun la configuracion de la forma de pago).
+     - Cuotas (si la forma de pago lo permite).
+     - El total del desglose debe igualar exactamente el monto del pago original; el modal muestra la diferencia en tiempo real.
+   - Se pueden agregar mas filas para dividir el pago en 3 o mas formas de pago.
+3. Complete el campo **"Motivo del cambio"** (minimo 10 caracteres, obligatorio).
+4. Si el pago pertenece a un **turno cerrado**, aparece un banner ambar (ver abajo).
+5. Haga clic en **"Confirmar cambio"**.
+6. El sistema procesa la operacion en dos fases (ver "Emision fiscal y fases" mas abajo).
+7. Al completarse, un toast verde confirma el resultado. Si la Fase B fallo, el toast es rojo con el error de ARCA.
+
+#### Emision fiscal: regla binaria
+
+El sistema decide automaticamente si emitir documentos fiscales basandose en una comparacion simple:
+
+- **monto_facturado_viejo == monto_facturado_nuevo**: no se emite ningun documento fiscal. Si el pago viejo tenia comprobante, los pagos nuevos con flag "Facturar" heredan ese `comprobante_fiscal_id`.
+- **monto_facturado_viejo != monto_facturado_nuevo**: se emite siempre una **NC** (por el monto facturado del pago viejo) y una **FC nueva** (por la suma de pagos nuevos con "Facturar" tildado). Esto ocurre independientemente del flag de facturacion automatica de la sucursal; el usuario ya decidio tildar o no cada pago.
+
+Para omitir la emision de NC cuando la diferencia es positiva se requiere el permiso `func.modificar_pagos_sin_nc`.
+
+#### Fases de procesamiento
+
+**Fase A (atomica)**: anulacion del pago original + reversiones contables (caja, cuenta empresa, cuenta corriente si aplica) + creacion de pagos nuevos + emision de NC si corresponde. Si cualquier paso falla, se hace rollback total y no cambia nada.
+
+**Fase B (post-commit)**: emision de la FC nueva sobre los pagos con "Facturar" tildado. Si ARCA falla en esta fase, los pagos quedan en estado `pendiente_de_facturar` y aparece un toast rojo con el mensaje de error. Los pagos siguen siendo validos contablemente; solo queda pendiente la facturacion fiscal.
+
+#### Turno cerrado: ajuste post-cierre
+
+Si el pago a modificar pertenece a un turno ya cerrado, aparece un **banner ambar** indicando que:
+- Los movimientos de reversion y los nuevos movimientos se asignan al turno actual abierto.
+- El cierre historico no se modifica.
+- La operacion queda registrada en el **Reporte de Ajustes Post-Cierre** (ver seccion 6.5).
+
+#### Historial de cambios en el modal de detalle
+
+Al final del modal de detalle de la venta aparece la seccion colapsable **"Historial de cambios en pagos"** con una linea de tiempo de cada modificacion:
+- Tipo de operacion, fecha y hora, usuario.
+- Descripcion narrativa (por ejemplo, "Cambio de Debito Visa $300 a Transferencia Galicia $300").
+- Motivo ingresado.
+- Links a NC o FC generadas si aplica.
+- Badge "Post-cierre" si afecto un turno cerrado.
 
 ---
 
@@ -904,6 +995,81 @@ Registra un egreso manual de efectivo de la caja.
 En la parte inferior se muestra el historial reciente de movimientos manuales y transferencias.
 
 > **Importante**: Todas las operaciones requieren confirmacion antes de ejecutarse. Los movimientos a/desde tesoreria afectan los saldos de ambas partes.
+
+---
+
+### 6.5 Ajustes Post-Cierre
+
+**Ruta**: Cajas → Ajustes Post-Cierre
+
+**Permiso requerido**: `func.ver_ajustes_post_cierre`
+
+Esta pantalla lista todos los cambios de forma de pago que fueron aplicados sobre ventas pertenecientes a **turnos ya cerrados**. Cada vez que un usuario modifica un pago de una venta cuyo turno original ya cerro, queda registrado aqui como "ajuste post-cierre". Los movimientos contables del cambio (caja, cuenta empresa, cuenta corriente) van al turno actual; el cierre historico no se modifica.
+
+#### Que ve al entrar
+
+- Encabezado con el titulo "Ajustes Post-Cierre".
+- Panel de filtros.
+- Cards en movil y tabla en escritorio con la lista de ajustes.
+
+#### Filtros disponibles
+
+- **Fecha Desde / Fecha Hasta**: Rango de fechas del ajuste.
+- **Usuario**: Quien realizo el cambio.
+- **Turno afectado**: Turno cerrado al que pertenecia el pago original.
+- **Tipo de operacion**: Cambio de pago, Pago agregado, Pago eliminado.
+
+#### Informacion de cada registro
+
+- Fecha y hora del ajuste.
+- Usuario que realizo la operacion.
+- Numero de venta afectada (link al detalle).
+- Turno original (fecha de cierre).
+- Forma de pago anterior y forma de pago nueva (con flecha →).
+- Diferencia de monto (delta positivo o negativo).
+- Motivo ingresado.
+- Link "Ver detalle" que abre el modal de detalle de la venta afectada.
+
+> **Para que sirve**: Este reporte permite a supervisores y contadores auditar y conciliar los movimientos contables que ocurrieron fuera de los turnos registrados.
+
+---
+
+### 6.6 Pagos Pendientes de Facturar
+
+**Ruta**: Cajas → Pagos Pendientes de Facturar
+
+**Permiso requerido**: `func.ver_pagos_pendientes_facturacion`
+
+Lista los pagos de ventas que quedaron en estado `pendiente_de_facturar` o `error_arca` porque la emision de la FC nueva fallo durante la Fase B del cambio de forma de pago (ver seccion 3.5). Permite reintentar la facturacion o sacar el pago del circuito automatico.
+
+#### Que ve al entrar
+
+- Encabezado con el titulo "Pagos Pendientes de Facturar".
+- Panel de filtros.
+- Cards en movil y tabla en escritorio con la lista de pagos.
+
+#### Filtros disponibles
+
+- **Estado**: Pendiente de facturar, Error ARCA, Todos.
+- **Fecha Desde / Fecha Hasta**: Rango de fechas del pago.
+- **Sucursal**: Para comercios con varias sucursales.
+
+#### Informacion de cada registro
+
+- Numero de venta y fecha.
+- Forma de pago.
+- Monto a facturar.
+- Estado (badge "Pendiente de facturar" o "Error ARCA").
+- Fecha y descripcion del ultimo intento fallido.
+- Acciones disponibles.
+
+#### Acciones disponibles
+
+- **Reintentar facturacion** (boton azul): vuelve a intentar emitir la FC sobre ese pago. Requiere permiso `func.reintentar_facturacion`. Si ARCA responde con exito, el pago pasa a estado `facturado` y desaparece de la lista. Si falla nuevamente, permanece con el nuevo mensaje de error.
+
+- **Marcar como error** (boton rojo): saca el pago del circuito automatico con un motivo obligatorio. El pago pasa a estado `error_arca` y ya no aparece en los reintentos automaticos. Util cuando ARCA tiene un problema irrecuperable y el operador decide emitir el comprobante por otro medio.
+
+> **Nota**: El boton "Reintentar" tambien aparece inline en el detalle de cada venta junto al badge "Pendiente de facturar" del pago correspondiente.
 
 ---
 
