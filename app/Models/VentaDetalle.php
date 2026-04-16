@@ -59,6 +59,10 @@ class VentaDetalle extends Model
         // Campos de canje con puntos
         'pagado_con_puntos',
         'puntos_usados',
+        // Concepto libre (ítem sin artículo asociado)
+        'es_concepto',
+        'concepto_descripcion',
+        'concepto_categoria_id',
     ];
 
     protected $casts = [
@@ -81,6 +85,8 @@ class VentaDetalle extends Model
         // Campos de canje con puntos
         'pagado_con_puntos' => 'boolean',
         'puntos_usados' => 'integer',
+        // Concepto libre
+        'es_concepto' => 'boolean',
     ];
 
     // Relaciones
@@ -97,6 +103,26 @@ class VentaDetalle extends Model
     public function tipoIva(): BelongsTo
     {
         return $this->belongsTo(TipoIva::class, 'tipo_iva_id');
+    }
+
+    /**
+     * Categoría del concepto libre (solo si es_concepto=true).
+     */
+    public function conceptoCategoria(): BelongsTo
+    {
+        return $this->belongsTo(Categoria::class, 'concepto_categoria_id');
+    }
+
+    /**
+     * Obtiene el nombre a mostrar: artículo o descripción de concepto libre.
+     */
+    public function obtenerNombre(): string
+    {
+        if ($this->es_concepto) {
+            return $this->concepto_descripcion ?: __('Concepto');
+        }
+
+        return $this->articulo?->nombre ?? __('Artículo eliminado');
     }
 
     public function listaPrecio(): BelongsTo

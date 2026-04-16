@@ -137,13 +137,16 @@ Registra cada venta realizada en el sistema.
 - `cancelada` -- Venta anulada. El stock y movimientos de caja se revierten.
 
 #### Tabla: `ventas_detalle`
-Cada linea/item de una venta.
+Cada linea/item de una venta. Puede representar un articulo del catalogo o un concepto libre (item sin articulo asociado).
 
 | Columna | Tipo | Descripcion |
 |---|---|---|
 | `id` | bigint PK | ID unico |
 | `venta_id` | bigint FK | Venta a la que pertenece |
-| `articulo_id` | bigint FK | Articulo vendido |
+| `articulo_id` | bigint FK nullable | Articulo vendido. NULL si `es_concepto=true` (ON DELETE SET NULL) |
+| `es_concepto` | boolean | Si true, es un concepto libre sin articulo asociado |
+| `concepto_descripcion` | varchar(255) nullable | Descripcion del concepto libre (solo si `es_concepto=true`) |
+| `concepto_categoria_id` | bigint FK nullable | Categoria opcional del concepto para IVA (ON DELETE SET NULL) |
 | `tipo_iva_id` | bigint FK | Tipo de IVA aplicado |
 | `lista_precio_id` | bigint FK nullable | Lista de precios usada para este item |
 | `cantidad` | decimal(12,3) | Cantidad vendida |
@@ -162,6 +165,8 @@ Cada linea/item de una venta.
 | `ajuste_manual_valor` | decimal(12,2) nullable | Valor del ajuste manual |
 | `precio_sin_ajuste_manual` | decimal(12,2) nullable | Precio antes del ajuste manual |
 | `created_at`, `updated_at` | timestamp | Timestamps |
+
+**Helper `obtenerNombre(): string`**: Devuelve `concepto_descripcion` si `es_concepto=true`, de lo contrario `articulo->nombre`. Usar siempre este metodo en vistas de impresion y listados para mostrar el nombre del item independientemente de su tipo.
 
 #### Tabla: `venta_pagos`
 Desglose de formas de pago de una venta. Una venta puede tener multiples pagos (pago mixto).
@@ -1273,12 +1278,12 @@ Paso a paso completo desde que el usuario abre la pantalla de Nueva Venta hasta 
    - Para cada medio se calcula: ajuste (recargo/descuento), cuotas si aplica, vuelto si es efectivo
 
 7. **Confirmacion de venta** (via `VentaService::crearVenta`):
-   - Se valida stock disponible (segun modo: `bloquea`, `advierte`, `no_controla`)
+   - Se valida stock disponible (segun modo: `bloquea`, `advierte`, `no_controla`). Los conceptos libres (`es_concepto=true`) no afectan stock.
    - Se valida credito del cliente (si es CC)
    - Se valida que la caja este abierta
    - Se genera numero de venta (formato: CCCC-NNNNNNNN, donde CCCC es la caja)
    - Se crea el registro en `ventas`
-   - Se crean los detalles en `ventas_detalle`
+   - Se crean los detalles en `ventas_detalle`. Los items de tipo concepto libre tienen `articulo_id=NULL`, `es_concepto=true`, `concepto_descripcion` y opcionalmente `concepto_categoria_id`.
    - Se guardan promociones aplicadas
    - Se guardan opcionales seleccionados
    - Se descuenta stock (tabla `stock` cache + movimiento en `movimientos_stock`)
@@ -1987,3 +1992,19 @@ Las tablas `movimientos_stock`, `movimientos_cuenta_corriente`, `movimientos_cue
 - El original se vincula al contraasiento via `anulado_por_movimiento_id` (movimientos) o via `venta_pago_reemplazado_id` (venta_pagos).
 - Para calcular saldos de movimientos: sumar todos los activos.
 - Para calcular totales de una venta: sumar los `venta_pagos` con `estado = 'activo'`.
+
+---
+
+## 5. Notas Tecnicas
+
+### 5.1 Patrones Livewire: propiedades publicas y snapshot
+
+Los arrays PHP usados solo para traducir etiquetas en la vista (ej: tipos de ajuste, opciones de redondeo) NO deben declararse como propiedades publicas en componentes Livewire. Al ser publicas, Livewire las serializa en el snapshot cifrado y cualquier cambio de version o de contenido genera `CorruptComponentPayloadException`.
+
+**Solucion**: declarar esos arrays como computed properties (`#[Computed]`) o getters privados que se recalculan en cada render. Esto aplica preventivamente a cualquier componente wizard o de configuracion compleja.
+
+Componentes donde se aplico este patron: `WizardListaPrecio` (paso 2, opciones de ajuste/redondeo) y `ListarPromociones`.
+
+### 5.2 Scope `conStock` en MovimientosStock
+
+El componente `MovimientosStock` ejecuta busquedas de articulos via un scope del modelo. El scope debe existir en el modelo `Articulo`; de lo contrario lanza `BadMethodCallException: Call to undefined method conStock()`. El fix consiste en asegurarse de invocar el metodo de busqueda correcto disponible en el modelo (ej: `buscarPorNombreOCodigo` o equivalente) en lugar de un scope inexistente.

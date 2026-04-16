@@ -284,24 +284,61 @@
         <x-bcn-modal title="{{ __('Carga de Stock') }}" color="bg-green-600" maxWidth="md" onClose="cancelCarga">
             <x-slot:body>
                 <div class="space-y-4">
-                    <!-- Buscar artículo -->
-                    <div class="relative">
+                    <!-- Buscar artículo con navegación por teclado -->
+                    <div class="relative" x-data="stockArticuloBuscador()">
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Artículo') }}</label>
-                        <input wire:model.live.debounce.300ms="cargaSearchArticulo" type="text" placeholder="{{ __('Buscar artículo...') }}" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                        @if($this->articulosCarga->count() > 0 && !$cargaArticuloId)
-                            <div class="absolute z-20 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                                @foreach($this->articulosCarga as $art)
-                                    <button wire:click="seleccionarArticuloCarga({{ $art->id }})" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-900 dark:text-white">
-                                        <span class="font-medium">{{ $art->codigo }}</span> - {{ $art->nombre }}
-                                    </button>
-                                @endforeach
+                        @if($cargaArticuloId)
+                            @php $articuloSelCarga = \App\Models\Articulo::find($cargaArticuloId); @endphp
+                            <div class="flex items-center justify-between gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-300 dark:border-green-700 rounded-md">
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ $articuloSelCarga?->nombre ?? '-' }}</div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ __('Código') }}: {{ $articuloSelCarga?->codigo }}</div>
+                                </div>
+                                <button type="button" wire:click="deseleccionarArticuloCarga" title="{{ __('Cambiar artículo') }}" class="flex-shrink-0 p-1 rounded-full text-gray-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
                             </div>
+                        @else
+                            <input wire:model.live.debounce.300ms="cargaSearchArticulo"
+                                   id="carga-buscador"
+                                   x-ref="inputBusqueda"
+                                   @focus="inputFocused = true"
+                                   @click.outside="inputFocused = false"
+                                   @keydown.arrow-down.prevent="moveDown({{ count($this->articulosCarga) }})"
+                                   @keydown.arrow-up.prevent="moveUp()"
+                                   @keydown.enter.prevent="selectCurrent()"
+                                   @keydown.escape="inputFocused = false; selectedIndex = -1"
+                                   type="text"
+                                   autocomplete="off"
+                                   placeholder="{{ __('Buscar por nombre, código, código de barras o categoría...') }}"
+                                   class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                            @if(count($this->articulosCarga) > 0)
+                                <div x-show="inputFocused"
+                                     x-ref="resultsList"
+                                     class="absolute z-20 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                    @foreach($this->articulosCarga as $idx => $art)
+                                        <button type="button"
+                                                data-result-item
+                                                wire:click="seleccionarArticuloCarga({{ $art['id'] }})"
+                                                @mouseenter="selectedIndex = {{ $idx }}"
+                                                :class="selectedIndex === {{ $idx }} ? 'bg-bcn-primary/10 dark:bg-bcn-primary/20' : ''"
+                                                class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-600 last:border-b-0">
+                                            <div class="font-medium">{{ $art['nombre'] }}</div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400">
+                                                {{ __('Código') }}: {{ $art['codigo'] }}
+                                                @if($art['codigo_barras']) | {{ __('Barras') }}: {{ $art['codigo_barras'] }} @endif
+                                                @if($art['categoria_nombre']) <span class="ml-1 text-indigo-600 dark:text-indigo-400">{{ $art['categoria_nombre'] }}</span> @endif
+                                            </div>
+                                        </button>
+                                    @endforeach
+                                </div>
+                            @endif
                         @endif
                         @error('cargaArticuloId') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad') }}</label>
-                        <input wire:model="cargaCantidad" type="number" step="0.01" min="0.01" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                        <input wire:model="cargaCantidad" id="carga-cantidad" type="number" step="0.01" min="0.01" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
                         @error('cargaCantidad') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div>
@@ -327,24 +364,61 @@
         <x-bcn-modal title="{{ __('Descarga de Stock') }}" color="bg-red-600" maxWidth="md" onClose="cancelDescarga">
             <x-slot:body>
                 <div class="space-y-4">
-                    <!-- Buscar artículo -->
-                    <div class="relative">
+                    <!-- Buscar artículo con navegación por teclado -->
+                    <div class="relative" x-data="stockArticuloBuscador()">
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Artículo') }}</label>
-                        <input wire:model.live.debounce.300ms="descargaSearchArticulo" type="text" placeholder="{{ __('Buscar artículo...') }}" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                        @if($this->articulosDescarga->count() > 0 && !$descargaArticuloId)
-                            <div class="absolute z-20 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                                @foreach($this->articulosDescarga as $art)
-                                    <button wire:click="seleccionarArticuloDescarga({{ $art->id }})" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-900 dark:text-white">
-                                        <span class="font-medium">{{ $art->codigo }}</span> - {{ $art->nombre }}
-                                    </button>
-                                @endforeach
+                        @if($descargaArticuloId)
+                            @php $articuloSelDescarga = \App\Models\Articulo::find($descargaArticuloId); @endphp
+                            <div class="flex items-center justify-between gap-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-md">
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ $articuloSelDescarga?->nombre ?? '-' }}</div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ __('Código') }}: {{ $articuloSelDescarga?->codigo }}</div>
+                                </div>
+                                <button type="button" wire:click="deseleccionarArticuloDescarga" title="{{ __('Cambiar artículo') }}" class="flex-shrink-0 p-1 rounded-full text-gray-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
                             </div>
+                        @else
+                            <input wire:model.live.debounce.300ms="descargaSearchArticulo"
+                                   id="descarga-buscador"
+                                   x-ref="inputBusqueda"
+                                   @focus="inputFocused = true"
+                                   @click.outside="inputFocused = false"
+                                   @keydown.arrow-down.prevent="moveDown({{ count($this->articulosDescarga) }})"
+                                   @keydown.arrow-up.prevent="moveUp()"
+                                   @keydown.enter.prevent="selectCurrent()"
+                                   @keydown.escape="inputFocused = false; selectedIndex = -1"
+                                   type="text"
+                                   autocomplete="off"
+                                   placeholder="{{ __('Buscar por nombre, código, código de barras o categoría...') }}"
+                                   class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                            @if(count($this->articulosDescarga) > 0)
+                                <div x-show="inputFocused"
+                                     x-ref="resultsList"
+                                     class="absolute z-20 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                    @foreach($this->articulosDescarga as $idx => $art)
+                                        <button type="button"
+                                                data-result-item
+                                                wire:click="seleccionarArticuloDescarga({{ $art['id'] }})"
+                                                @mouseenter="selectedIndex = {{ $idx }}"
+                                                :class="selectedIndex === {{ $idx }} ? 'bg-bcn-primary/10 dark:bg-bcn-primary/20' : ''"
+                                                class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-600 last:border-b-0">
+                                            <div class="font-medium">{{ $art['nombre'] }}</div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400">
+                                                {{ __('Código') }}: {{ $art['codigo'] }}
+                                                @if($art['codigo_barras']) | {{ __('Barras') }}: {{ $art['codigo_barras'] }} @endif
+                                                @if($art['categoria_nombre']) <span class="ml-1 text-indigo-600 dark:text-indigo-400">{{ $art['categoria_nombre'] }}</span> @endif
+                                            </div>
+                                        </button>
+                                    @endforeach
+                                </div>
+                            @endif
                         @endif
                         @error('descargaArticuloId') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad') }}</label>
-                        <input wire:model="descargaCantidad" type="number" step="0.01" min="0.01" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                        <input wire:model="descargaCantidad" id="descarga-cantidad" type="number" step="0.01" min="0.01" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
                         @error('descargaCantidad') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div>
@@ -370,18 +444,55 @@
         <x-bcn-modal title="{{ __('Inventario Físico') }}" color="bg-purple-600" maxWidth="md" onClose="cancelInventario">
             <x-slot:body>
                 <div class="space-y-4">
-                    <!-- Buscar artículo -->
-                    <div class="relative">
+                    <!-- Buscar artículo con navegación por teclado -->
+                    <div class="relative" x-data="stockArticuloBuscador()">
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Artículo') }}</label>
-                        <input wire:model.live.debounce.300ms="inventarioSearchArticulo" type="text" placeholder="{{ __('Buscar artículo...') }}" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                        @if($this->articulosInventario->count() > 0 && !$inventarioArticuloId)
-                            <div class="absolute z-20 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                                @foreach($this->articulosInventario as $art)
-                                    <button wire:click="seleccionarArticuloInventario({{ $art->id }})" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-900 dark:text-white">
-                                        <span class="font-medium">{{ $art->codigo }}</span> - {{ $art->nombre }}
-                                    </button>
-                                @endforeach
+                        @if($inventarioArticuloId)
+                            @php $articuloSelInv = \App\Models\Articulo::find($inventarioArticuloId); @endphp
+                            <div class="flex items-center justify-between gap-2 px-3 py-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-300 dark:border-purple-700 rounded-md">
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ $articuloSelInv?->nombre ?? '-' }}</div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ __('Código') }}: {{ $articuloSelInv?->codigo }}</div>
+                                </div>
+                                <button type="button" wire:click="deseleccionarArticuloInventario" title="{{ __('Cambiar artículo') }}" class="flex-shrink-0 p-1 rounded-full text-gray-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
                             </div>
+                        @else
+                            <input wire:model.live.debounce.300ms="inventarioSearchArticulo"
+                                   id="inventario-buscador"
+                                   x-ref="inputBusqueda"
+                                   @focus="inputFocused = true"
+                                   @click.outside="inputFocused = false"
+                                   @keydown.arrow-down.prevent="moveDown({{ count($this->articulosInventario) }})"
+                                   @keydown.arrow-up.prevent="moveUp()"
+                                   @keydown.enter.prevent="selectCurrent()"
+                                   @keydown.escape="inputFocused = false; selectedIndex = -1"
+                                   type="text"
+                                   autocomplete="off"
+                                   placeholder="{{ __('Buscar por nombre, código, código de barras o categoría...') }}"
+                                   class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                            @if(count($this->articulosInventario) > 0)
+                                <div x-show="inputFocused"
+                                     x-ref="resultsList"
+                                     class="absolute z-20 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                    @foreach($this->articulosInventario as $idx => $art)
+                                        <button type="button"
+                                                data-result-item
+                                                wire:click="seleccionarArticuloInventario({{ $art['id'] }})"
+                                                @mouseenter="selectedIndex = {{ $idx }}"
+                                                :class="selectedIndex === {{ $idx }} ? 'bg-bcn-primary/10 dark:bg-bcn-primary/20' : ''"
+                                                class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-600 last:border-b-0">
+                                            <div class="font-medium">{{ $art['nombre'] }}</div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400">
+                                                {{ __('Código') }}: {{ $art['codigo'] }}
+                                                @if($art['codigo_barras']) | {{ __('Barras') }}: {{ $art['codigo_barras'] }} @endif
+                                                @if($art['categoria_nombre']) <span class="ml-1 text-indigo-600 dark:text-indigo-400">{{ $art['categoria_nombre'] }}</span> @endif
+                                            </div>
+                                        </button>
+                                    @endforeach
+                                </div>
+                            @endif
                         @endif
                         @error('inventarioArticuloId') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
@@ -396,7 +507,7 @@
 
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad Física Contada') }}</label>
-                        <input wire:model="inventarioCantidadFisica" type="number" step="0.01" min="0" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm" />
+                        <input wire:model="inventarioCantidadFisica" id="inventario-cantidad" type="number" step="0.01" min="0" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm" />
                         @error('inventarioCantidadFisica') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
 
                         @if($inventarioArticuloId)
@@ -425,4 +536,57 @@
             </x-slot:footer>
         </x-bcn-modal>
     @endif
+
+    @script
+    <script>
+        /**
+         * Scope Alpine reutilizado por los 3 buscadores de artículos
+         * (carga, descarga, inventario). Implementa navegación por teclado
+         * sobre el dropdown `[data-result-item]` dentro del mismo x-data.
+         */
+        Alpine.data('stockArticuloBuscador', () => ({
+            inputFocused: false,
+            selectedIndex: -1,
+            moveDown(total) {
+                if (total === 0) return;
+                this.inputFocused = true;
+                this.selectedIndex = Math.min(this.selectedIndex + 1, total - 1);
+                this.$nextTick(() => this.scrollToSelected());
+            },
+            moveUp() {
+                this.selectedIndex = Math.max(this.selectedIndex - 1, 0);
+                this.$nextTick(() => this.scrollToSelected());
+            },
+            selectCurrent() {
+                const items = this.$root.querySelectorAll('[data-result-item]');
+                if (items.length === 0) return;
+                const idx = this.selectedIndex >= 0 ? this.selectedIndex : 0;
+                if (items[idx]) items[idx].click();
+                this.selectedIndex = -1;
+                this.inputFocused = false;
+            },
+            scrollToSelected() {
+                const items = this.$root.querySelectorAll('[data-result-item]');
+                if (items[this.selectedIndex]) {
+                    items[this.selectedIndex].scrollIntoView({ block: 'nearest' });
+                }
+            },
+        }));
+
+        /**
+         * Listener global para eventos `focus-elemento` disparados desde
+         * el componente Livewire. Usa querySelector + nextTick para
+         * esperar a que el DOM esté actualizado después de la respuesta.
+         */
+        $wire.on('focus-elemento', ({ selector }) => {
+            requestAnimationFrame(() => {
+                const el = document.querySelector(selector);
+                if (el) {
+                    el.focus();
+                    if (typeof el.select === 'function') el.select();
+                }
+            });
+        });
+    </script>
+    @endscript
 </div>

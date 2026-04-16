@@ -219,7 +219,7 @@
                     <tr>
                         <td class="number">{{ $cantFormateada }}</td>
                         <td>
-                            {{ $detalle->articulo->nombre }}
+                            {{ $detalle->obtenerNombre() }}
                             @if($detalle->tiene_promocion && $detalle->descuento_promocion > 0)
                                 <br><small style="color: #2e7d32;">{{ $nombrePromo }}: -${{ number_format($detalle->descuento_promocion, 2, ',', '.') }}</small>
                             @endif

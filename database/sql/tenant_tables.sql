@@ -2004,7 +2004,10 @@ DROP TABLE IF EXISTS `{{PREFIX}}ventas_detalle`;
 CREATE TABLE `{{PREFIX}}ventas_detalle` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `venta_id` bigint(20) unsigned NOT NULL,
-  `articulo_id` bigint(20) unsigned NOT NULL,
+  `articulo_id` bigint(20) unsigned DEFAULT NULL,
+  `es_concepto` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si true, es un concepto libre sin artículo asociado',
+  `concepto_descripcion` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Descripción del concepto libre (si es_concepto=1)',
+  `concepto_categoria_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Categoría opcional del concepto (para IVA)',
   `tipo_iva_id` bigint(20) unsigned DEFAULT NULL,
   `lista_precio_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Lista de precios usada para calcular el precio',
   `cantidad` decimal(12,3) NOT NULL,
@@ -2035,9 +2038,11 @@ CREATE TABLE `{{PREFIX}}ventas_detalle` (
   KEY `{{PREFIX}}ventas_detalle_articulo_id_foreign` (`articulo_id`),
   KEY `idx_venta_detalle_promocion` (`tiene_promocion`),
   KEY `idx_vd_lista_precio` (`lista_precio_id`),
-  CONSTRAINT `{{PREFIX}}ventas_detalle_articulo_id_foreign` FOREIGN KEY (`articulo_id`) REFERENCES `{{PREFIX}}articulos` (`id`),
+  KEY `idx_vd_concepto_categoria` (`concepto_categoria_id`),
+  CONSTRAINT `{{PREFIX}}ventas_detalle_articulo_id_foreign` FOREIGN KEY (`articulo_id`) REFERENCES `{{PREFIX}}articulos` (`id`) ON DELETE SET NULL,
   CONSTRAINT `{{PREFIX}}ventas_detalle_venta_id_foreign` FOREIGN KEY (`venta_id`) REFERENCES `{{PREFIX}}ventas` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_vd_lista_precio` FOREIGN KEY (`lista_precio_id`) REFERENCES `{{PREFIX}}listas_precios` (`id`) ON DELETE SET NULL
+  CONSTRAINT `fk_vd_lista_precio` FOREIGN KEY (`lista_precio_id`) REFERENCES `{{PREFIX}}listas_precios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_vd_concepto_categoria` FOREIGN KEY (`concepto_categoria_id`) REFERENCES `{{PREFIX}}categorias` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=389 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}venta_detalle_opcionales`;
 CREATE TABLE `{{PREFIX}}venta_detalle_opcionales` (

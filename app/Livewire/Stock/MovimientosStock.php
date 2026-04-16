@@ -183,46 +183,58 @@ class MovimientosStock extends Component
 
     // ==================== Búsqueda de artículos ====================
 
-    public function getArticulosCargaProperty()
+    /**
+     * Búsqueda inteligente multi-palabra sobre nombre, código, código de
+     * barras y nombre de categoría. Solo artículos que controlan stock en
+     * la sucursal activa. Retorna array con campos de display.
+     */
+    protected function buscarArticulosParaStock(string $busqueda): array
     {
-        if (strlen($this->cargaSearchArticulo) < 2) {
-            return collect();
+        $busqueda = trim($busqueda);
+        if (strlen($busqueda) < 2) {
+            return [];
         }
 
-        return Articulo::activos()->conStock()
-            ->where(function ($q) {
-                $q->where('nombre', 'like', "%{$this->cargaSearchArticulo}%")
-                    ->orWhere('codigo', 'like', "%{$this->cargaSearchArticulo}%");
-            })
-            ->limit(10)->get();
+        $query = Articulo::with('categoriaModel')
+            ->activos()
+            ->conStockEnSucursal(sucursal_activa());
+
+        $palabras = preg_split('/\s+/', $busqueda, -1, PREG_SPLIT_NO_EMPTY);
+        foreach ($palabras as $palabra) {
+            $query->where(function ($q) use ($palabra) {
+                $q->where('nombre', 'like', '%'.$palabra.'%')
+                    ->orWhere('codigo', 'like', '%'.$palabra.'%')
+                    ->orWhere('codigo_barras', 'like', '%'.$palabra.'%')
+                    ->orWhereHas('categoriaModel', function ($subQ) use ($palabra) {
+                        $subQ->where('nombre', 'like', '%'.$palabra.'%');
+                    });
+            });
+        }
+
+        return $query->orderBy('nombre')->limit(15)->get()->map(function ($art) {
+            return [
+                'id' => $art->id,
+                'nombre' => $art->nombre,
+                'codigo' => $art->codigo,
+                'codigo_barras' => $art->codigo_barras,
+                'categoria_nombre' => $art->categoriaModel?->nombre,
+            ];
+        })->toArray();
     }
 
-    public function getArticulosDescargaProperty()
+    public function getArticulosCargaProperty(): array
     {
-        if (strlen($this->descargaSearchArticulo) < 2) {
-            return collect();
-        }
-
-        return Articulo::activos()->conStock()
-            ->where(function ($q) {
-                $q->where('nombre', 'like', "%{$this->descargaSearchArticulo}%")
-                    ->orWhere('codigo', 'like', "%{$this->descargaSearchArticulo}%");
-            })
-            ->limit(10)->get();
+        return $this->buscarArticulosParaStock($this->cargaSearchArticulo);
     }
 
-    public function getArticulosInventarioProperty()
+    public function getArticulosDescargaProperty(): array
     {
-        if (strlen($this->inventarioSearchArticulo) < 2) {
-            return collect();
-        }
+        return $this->buscarArticulosParaStock($this->descargaSearchArticulo);
+    }
 
-        return Articulo::activos()->conStock()
-            ->where(function ($q) {
-                $q->where('nombre', 'like', "%{$this->inventarioSearchArticulo}%")
-                    ->orWhere('codigo', 'like', "%{$this->inventarioSearchArticulo}%");
-            })
-            ->limit(10)->get();
+    public function getArticulosInventarioProperty(): array
+    {
+        return $this->buscarArticulosParaStock($this->inventarioSearchArticulo);
     }
 
     // ==================== Carga de Stock ====================
@@ -238,6 +250,14 @@ class MovimientosStock extends Component
         $this->cargaArticuloId = $articuloId;
         $articulo = Articulo::find($articuloId);
         $this->cargaSearchArticulo = $articulo ? $articulo->nombre : '';
+        $this->dispatch('focus-elemento', selector: '#carga-cantidad');
+    }
+
+    public function deseleccionarArticuloCarga(): void
+    {
+        $this->cargaArticuloId = null;
+        $this->cargaSearchArticulo = '';
+        $this->dispatch('focus-elemento', selector: '#carga-buscador');
     }
 
     public function procesarCarga()
@@ -305,6 +325,14 @@ class MovimientosStock extends Component
         $this->descargaArticuloId = $articuloId;
         $articulo = Articulo::find($articuloId);
         $this->descargaSearchArticulo = $articulo ? $articulo->nombre : '';
+        $this->dispatch('focus-elemento', selector: '#descarga-cantidad');
+    }
+
+    public function deseleccionarArticuloDescarga(): void
+    {
+        $this->descargaArticuloId = null;
+        $this->descargaSearchArticulo = '';
+        $this->dispatch('focus-elemento', selector: '#descarga-buscador');
     }
 
     public function procesarDescarga()
@@ -377,6 +405,16 @@ class MovimientosStock extends Component
 
         $this->inventarioStockActual = $stock ? (float) $stock->cantidad : 0;
         $this->inventarioCantidadFisica = $this->inventarioStockActual;
+        $this->dispatch('focus-elemento', selector: '#inventario-cantidad');
+    }
+
+    public function deseleccionarArticuloInventario(): void
+    {
+        $this->inventarioArticuloId = null;
+        $this->inventarioSearchArticulo = '';
+        $this->inventarioStockActual = 0;
+        $this->inventarioCantidadFisica = 0;
+        $this->dispatch('focus-elemento', selector: '#inventario-buscador');
     }
 
     public function procesarInventario()

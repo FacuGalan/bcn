@@ -197,8 +197,20 @@ class VentaService
      */
     protected function crearDetalleVenta(Venta $venta, array $detalle, bool $usarDatosProporcionados = false): VentaDetalle
     {
-        $articulo = Articulo::findOrFail($detalle['articulo_id']);
-        $tipoIva = $articulo->tipoIva;
+        $esConcepto = (bool) ($detalle['es_concepto'] ?? false);
+        $articulo = null;
+        $tipoIva = null;
+
+        if ($esConcepto) {
+            // Concepto libre: sin artículo. IVA viene del detalle o del tipo_iva_id del detalle.
+            if (! empty($detalle['tipo_iva_id'])) {
+                $tipoIva = \App\Models\TipoIva::find($detalle['tipo_iva_id']);
+            }
+        } else {
+            // Ítem con artículo real
+            $articulo = Articulo::findOrFail($detalle['articulo_id']);
+            $tipoIva = $articulo->tipoIva;
+        }
 
         $precioUnitario = $detalle['precio_unitario'];
         $cantidad = $detalle['cantidad'];
@@ -206,7 +218,8 @@ class VentaService
         // Log para debugging
         Log::info('VentaService::crearDetalleVenta', [
             'venta_id' => $venta->id,
-            'articulo_id' => $detalle['articulo_id'],
+            'articulo_id' => $detalle['articulo_id'] ?? null,
+            'es_concepto' => $esConcepto,
             'usarDatosProporcionados' => $usarDatosProporcionados,
             'precio_lista_recibido' => $detalle['precio_lista'] ?? 'NO DEFINIDO',
             'descuento_promocion_recibido' => $detalle['descuento_promocion'] ?? 'NO DEFINIDO',
@@ -215,7 +228,7 @@ class VentaService
 
         if ($usarDatosProporcionados) {
             // Usar datos proporcionados desde la UI (ya calculados)
-            $ivaPorcentaje = $detalle['iva_porcentaje'] ?? $tipoIva->porcentaje;
+            $ivaPorcentaje = $detalle['iva_porcentaje'] ?? ($tipoIva?->porcentaje ?? 21);
             $precioIvaIncluido = $detalle['precio_iva_incluido'] ?? true;
 
             // Calcular precio sin IVA
@@ -233,8 +246,8 @@ class VentaService
 
             $ventaDetalle = VentaDetalle::create([
                 'venta_id' => $venta->id,
-                'articulo_id' => $articulo->id,
-                'tipo_iva_id' => $tipoIva->id,
+                'articulo_id' => $articulo?->id,
+                'tipo_iva_id' => $tipoIva?->id,
                 'lista_precio_id' => $detalle['lista_precio_id'] ?? null,
                 'cantidad' => $cantidad,
                 'precio_unitario' => $precioUnitario,
@@ -253,25 +266,33 @@ class VentaService
                 'ajuste_manual_tipo' => $detalle['ajuste_manual_tipo'] ?? null,
                 'ajuste_manual_valor' => $detalle['ajuste_manual_valor'] ?? null,
                 'precio_sin_ajuste_manual' => $detalle['precio_sin_ajuste_manual'] ?? null,
-                // Canje por puntos
-                'pagado_con_puntos' => $detalle['pagado_con_puntos'] ?? false,
-                'puntos_usados' => $detalle['puntos_usados'] ?? 0,
+                // Canje por puntos (solo aplicable a artículos, no a conceptos)
+                'pagado_con_puntos' => $esConcepto ? false : ($detalle['pagado_con_puntos'] ?? false),
+                'puntos_usados' => $esConcepto ? 0 : ($detalle['puntos_usados'] ?? 0),
+                // Concepto libre
+                'es_concepto' => $esConcepto,
+                'concepto_descripcion' => $esConcepto ? ($detalle['concepto_descripcion'] ?? null) : null,
+                'concepto_categoria_id' => $esConcepto ? ($detalle['concepto_categoria_id'] ?? null) : null,
             ]);
 
-            // Guardar promociones aplicadas al detalle
-            if (! empty($detalle['_promociones_item'])) {
+            // Guardar promociones aplicadas al detalle (solo para artículos)
+            if (! $esConcepto && ! empty($detalle['_promociones_item'])) {
                 $this->guardarPromocionesDetalle($ventaDetalle, $detalle['_promociones_item']);
             }
 
-            // Guardar opcionales seleccionados
-            if (! empty($detalle['opcionales'])) {
+            // Guardar opcionales seleccionados (solo para artículos)
+            if (! $esConcepto && ! empty($detalle['opcionales'])) {
                 $this->guardarOpcionalesDetalle($ventaDetalle, $detalle['opcionales']);
             }
 
             return $ventaDetalle;
         }
 
-        // Modo legacy: recalcular todo
+        // Modo legacy: recalcular todo (solo soportado para artículos)
+        if ($esConcepto) {
+            throw new Exception('Concepto libre requiere _usar_totales_proporcionados=true');
+        }
+
         $descuento = $detalle['descuento'] ?? 0;
         $precioConDescuento = $precioUnitario - $descuento;
 
@@ -479,6 +500,11 @@ class VentaService
         $faltantes = []; // Mensajes de faltantes para modo 'advierte'
 
         foreach ($detalles as $detalle) {
+            // Conceptos libres no controlan stock
+            if (($detalle['es_concepto'] ?? false) || empty($detalle['articulo_id'])) {
+                continue;
+            }
+
             $articulo = Articulo::findOrFail($detalle['articulo_id']);
 
             // Solo validar si el artículo controla stock en esta sucursal
@@ -632,7 +658,17 @@ class VentaService
     protected function actualizarStockPorVenta(Venta $venta): void
     {
         foreach ($venta->detalles as $detalle) {
+            // Conceptos libres no afectan stock
+            if ($detalle->es_concepto || ! $detalle->articulo_id) {
+                continue;
+            }
+
             $articulo = $detalle->articulo;
+
+            // Si el artículo fue eliminado (soft delete), saltar
+            if (! $articulo) {
+                continue;
+            }
 
             // Solo actualizar stock si el artículo lo controla en esta sucursal
             $modoStock = $articulo->getModoStock($venta->sucursal_id);
@@ -1411,7 +1447,17 @@ class VentaService
         $usuarioId = Auth::id() ?? $venta->usuario_id;
 
         foreach ($venta->detalles as $detalle) {
+            // Conceptos libres no afectan stock
+            if ($detalle->es_concepto || ! $detalle->articulo_id) {
+                continue;
+            }
+
             $articulo = $detalle->articulo;
+
+            // Si el artículo fue eliminado, saltar
+            if (! $articulo) {
+                continue;
+            }
 
             $modoStock = $articulo->getModoStock($venta->sucursal_id);
             if ($modoStock === 'ninguno') {

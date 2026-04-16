@@ -26,9 +26,6 @@ class ListarPromociones extends Component
 
     public $combinableFiltro = 'todos';
 
-    // Tipos de promoci�n disponibles
-    public $tiposPromocion = [];
-
     public function placeholder()
     {
         return <<<'HTML'
@@ -36,9 +33,13 @@ class ListarPromociones extends Component
         HTML;
     }
 
-    public function boot()
+    /*
+     * Computed property (no pública) para evitar que arrays traducibles
+     * queden en el snapshot Livewire y generen CorruptComponentPayload.
+     */
+    public function getTiposPromocionProperty(): array
     {
-        $this->tiposPromocion = [
+        return [
             'descuento_porcentaje' => __('Descuento %'),
             'descuento_monto' => __('Descuento $'),
             'precio_fijo' => __('Precio Fijo'),
@@ -209,6 +210,7 @@ class ListarPromociones extends Component
 
         return view('livewire.configuracion.promociones.listar-promociones', [
             'promociones' => $promociones,
+            'tiposPromocion' => $this->tiposPromocion,
         ]);
     }
 

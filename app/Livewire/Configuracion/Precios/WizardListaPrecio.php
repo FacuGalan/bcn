@@ -103,30 +103,34 @@ class WizardListaPrecio extends Component
 
     public $categoriaSeleccionadaId = null;
 
-    // Opciones
-    public $opcionesRedondeo = [];
+    /*
+     * Las opciones traducibles se exponen como computed properties
+     * (no como propiedades públicas) para NO incluirlas en el snapshot
+     * Livewire y evitar CorruptComponentPayloadException cuando las
+     * traducciones o el estado del array difieren entre requests.
+     */
 
-    public $opcionesPromocionesAlcance = [];
-
-    public $opcionesDiasSemana = [];
-
-    public $opcionesTipoCondicion = [];
-
-    public function boot()
+    public function getOpcionesRedondeoProperty(): array
     {
-        $this->opcionesRedondeo = [
+        return [
             'ninguno' => __('Sin redondeo'),
             'entero' => __('Entero más cercano'),
             'decena' => __('Decena más cercana'),
             'centena' => __('Centena más cercana'),
         ];
+    }
 
-        $this->opcionesPromocionesAlcance = [
+    public function getOpcionesPromocionesAlcanceProperty(): array
+    {
+        return [
             'todos' => __('A toda la venta'),
             'excluir_lista' => __('Excluir artículos con precio en esta lista'),
         ];
+    }
 
-        $this->opcionesDiasSemana = [
+    public function getOpcionesDiasSemanaProperty(): array
+    {
+        return [
             0 => __('Domingo'),
             1 => __('Lunes'),
             2 => __('Martes'),
@@ -135,13 +139,41 @@ class WizardListaPrecio extends Component
             5 => __('Viernes'),
             6 => __('Sábado'),
         ];
+    }
 
-        $this->opcionesTipoCondicion = [
+    public function getOpcionesTipoCondicionProperty(): array
+    {
+        return [
             'por_forma_pago' => __('Por forma de pago'),
             'por_forma_venta' => __('Por forma de venta'),
             'por_canal' => __('Por canal de venta'),
             'por_total_compra' => __('Por total de compra'),
         ];
+    }
+
+    /**
+     * Precio preview del paso 2 con redondeo aplicado (base $1000).
+     */
+    public function getPrecioPreviewProperty(): float
+    {
+        $base = 1000.0;
+        $ajustado = $base * (1 + ($this->ajustePorcentaje / 100));
+
+        return match ($this->redondeo) {
+            'entero' => round($ajustado),
+            'decena' => round($ajustado / 10) * 10,
+            'centena' => round($ajustado / 100) * 100,
+            default => round($ajustado, 2),
+        };
+    }
+
+    /**
+     * Precio preview sin redondeo (para mostrar el valor crudo cuando
+     * el redondeo lo modifica).
+     */
+    public function getPrecioPreviewSinRedondeoProperty(): float
+    {
+        return round(1000.0 * (1 + ($this->ajustePorcentaje / 100)), 2);
     }
 
     protected $rules = [
@@ -367,12 +399,14 @@ class WizardListaPrecio extends Component
     }
 
     /**
-     * Calcula el ajuste porcentaje real basado en tipo y valor absoluto
+     * Calcula el ajuste porcentaje real basado en tipo y valor absoluto.
+     * Evita negative zero (-0.0) cuando el valor es 0 con tipo "descuento"
+     * para no romper el checksum de Livewire en el round-trip JSON.
      */
     protected function calcularAjustePorcentaje()
     {
         $valor = abs((float) $this->porcentajeAbsoluto);
-        $this->ajustePorcentaje = $this->tipoAjuste === 'descuento' ? -$valor : $valor;
+        $this->ajustePorcentaje = ($valor > 0 && $this->tipoAjuste === 'descuento') ? -$valor : $valor;
     }
 
     /**
@@ -850,6 +884,13 @@ class WizardListaPrecio extends Component
 
     public function render()
     {
-        return view('livewire.configuracion.precios.wizard-lista-precio');
+        return view('livewire.configuracion.precios.wizard-lista-precio', [
+            'opcionesRedondeo' => $this->opcionesRedondeo,
+            'opcionesPromocionesAlcance' => $this->opcionesPromocionesAlcance,
+            'opcionesDiasSemana' => $this->opcionesDiasSemana,
+            'opcionesTipoCondicion' => $this->opcionesTipoCondicion,
+            'precioPreview' => $this->precioPreview,
+            'precioPreviewSinRedondeo' => $this->precioPreviewSinRedondeo,
+        ]);
     }
 }

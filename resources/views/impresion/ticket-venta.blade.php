@@ -353,7 +353,7 @@
         <div class="item">
             {{-- Linea 1: Nombre del articulo --}}
             <div class="item-header">
-                <span class="item-nombre">{{ $detalle->articulo->nombre }}</span>
+                <span class="item-nombre">{{ $detalle->obtenerNombre() }}</span>
             </div>
 
             {{-- Linea 2: Cantidad x Precio unitario --}}
