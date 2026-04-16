@@ -30,9 +30,9 @@
             <div>
                 <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Estado') }}</label>
                 <select wire:model.live="filtroEstado" class="w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm shadow-sm">
-                    <option value="pendiente_de_facturar">{{ __('Pendientes de facturar') }}</option>
-                    <option value="error_arca">{{ __('Con error ARCA') }}</option>
-                    <option value="todos">{{ __('Todos') }}</option>
+                    <option value="todos">{{ __('Pendientes + Error ARCA') }}</option>
+                    <option value="pendiente_de_facturar">{{ __('Solo pendientes') }}</option>
+                    <option value="error_arca">{{ __('Solo con error ARCA') }}</option>
                 </select>
             </div>
         </div>
@@ -157,15 +157,15 @@
     </div>
 
     {{-- Modal Reintentar --}}
-    <x-bcn-modal wire:model="showReintentarModal" title="{{ __('Reintentar facturación') }}" color="bg-blue-600" maxWidth="md">
-        <x-slot:body>
-            <p class="text-sm text-gray-700 dark:text-gray-300">
-                {{ __('Se intentará emitir la factura nuevamente ante ARCA. Si vuelve a fallar, el pago quedará marcado como error.') }}
-            </p>
-        </x-slot:body>
-        <x-slot:footer>
-            <div class="flex justify-end gap-2">
-                <button type="button" wire:click="cerrarReintentarModal"
+    @if($showReintentarModal)
+        <x-bcn-modal title="{{ __('Reintentar facturación') }}" color="bg-blue-600" maxWidth="md" onClose="cerrarReintentarModal">
+            <x-slot:body>
+                <p class="text-sm text-gray-700 dark:text-gray-300">
+                    {{ __('Se intentará emitir la factura nuevamente ante ARCA. Si vuelve a fallar, el pago quedará marcado como error.') }}
+                </p>
+            </x-slot:body>
+            <x-slot:footer>
+                <button type="button" @click="close()"
                     class="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600">
                     {{ __('Cancelar') }}
                 </button>
@@ -174,25 +174,25 @@
                     <span wire:loading.remove wire:target="confirmarReintentar">{{ __('Reintentar') }}</span>
                     <span wire:loading wire:target="confirmarReintentar">{{ __('Procesando...') }}</span>
                 </button>
-            </div>
-        </x-slot:footer>
-    </x-bcn-modal>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
 
     {{-- Modal Marcar error --}}
-    <x-bcn-modal wire:model="showMarcarErrorModal" title="{{ __('Marcar como error ARCA') }}" color="bg-red-600" maxWidth="md">
-        <x-slot:body>
-            <p class="text-sm text-gray-700 dark:text-gray-300 mb-3">
-                {{ __('El pago quedará marcado como error y no podrá reintentarse automáticamente. Ingresá el motivo.') }}
-            </p>
-            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo') }} <span class="text-red-500">*</span></label>
-            <textarea wire:model.live="motivoMarcarError" rows="3" minlength="10"
-                placeholder="{{ __('Ej: ARCA rechaza por CUIT inválido, a resolver manualmente') }}"
-                class="w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm shadow-sm"></textarea>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Mínimo 10 caracteres') }}</p>
-        </x-slot:body>
-        <x-slot:footer>
-            <div class="flex justify-end gap-2">
-                <button type="button" wire:click="cerrarMarcarErrorModal"
+    @if($showMarcarErrorModal)
+        <x-bcn-modal title="{{ __('Marcar como error ARCA') }}" color="bg-red-600" maxWidth="md" onClose="cerrarMarcarErrorModal">
+            <x-slot:body>
+                <p class="text-sm text-gray-700 dark:text-gray-300 mb-3">
+                    {{ __('El pago quedará marcado como error y no podrá reintentarse automáticamente. Ingresá el motivo.') }}
+                </p>
+                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo') }} <span class="text-red-500">*</span></label>
+                <textarea wire:model.live="motivoMarcarError" rows="3" minlength="10"
+                    placeholder="{{ __('Ej: ARCA rechaza por CUIT inválido, a resolver manualmente') }}"
+                    class="w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm shadow-sm"></textarea>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Mínimo 10 caracteres') }}</p>
+            </x-slot:body>
+            <x-slot:footer>
+                <button type="button" @click="close()"
                     class="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600">
                     {{ __('Cancelar') }}
                 </button>
@@ -200,7 +200,7 @@
                     class="px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50">
                     {{ __('Marcar error') }}
                 </button>
-            </div>
-        </x-slot:footer>
-    </x-bcn-modal>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
 </div>

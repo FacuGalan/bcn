@@ -52,7 +52,7 @@ class PagosPendientesFacturacionTest extends TestCase
             ->set('filtroEstado', 'error_arca')
             ->call('limpiarFiltros')
             ->assertSet('filtroFechaDesde', '')
-            ->assertSet('filtroEstado', 'pendiente_de_facturar');
+            ->assertSet('filtroEstado', 'todos');
     }
 
     public function test_lista_pagos_pendientes_de_facturar(): void
@@ -87,9 +87,35 @@ class PagosPendientesFacturacionTest extends TestCase
             ->assertSeeText('#'.$venta->numero);
     }
 
-    public function test_estado_inicial_filtra_por_pendiente(): void
+    public function test_estado_inicial_filtra_por_pendientes_y_error(): void
     {
+        // Default: muestra pagos pendientes de facturar + con error ARCA
         Livewire::test(PagosPendientesFacturacion::class)
-            ->assertSet('filtroEstado', 'pendiente_de_facturar');
+            ->assertSet('filtroEstado', 'todos');
+    }
+
+    public function test_modales_no_se_muestran_al_render_inicial(): void
+    {
+        Livewire::withoutLazyLoading();
+
+        Livewire::test(PagosPendientesFacturacion::class)
+            ->assertSet('showReintentarModal', false)
+            ->assertSet('showMarcarErrorModal', false)
+            ->assertDontSeeText('Reintentar facturación')
+            ->assertDontSeeText('Marcar como error ARCA');
+    }
+
+    public function test_abrir_modal_reintentar_solo_muestra_ese_modal(): void
+    {
+        Livewire::withoutLazyLoading();
+
+        Livewire::test(PagosPendientesFacturacion::class)
+            ->call('abrirReintentar', 1)
+            ->assertSet('showReintentarModal', true)
+            ->assertSet('pagoAReintentarId', 1)
+            ->assertSeeText('Reintentar facturación')
+            ->call('cerrarReintentarModal')
+            ->assertSet('showReintentarModal', false)
+            ->assertSet('pagoAReintentarId', null);
     }
 }

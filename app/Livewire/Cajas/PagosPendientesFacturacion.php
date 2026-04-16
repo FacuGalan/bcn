@@ -30,7 +30,7 @@ class PagosPendientesFacturacion extends Component
 
     public ?int $filtroFormaPagoId = null;
 
-    public string $filtroEstado = 'pendiente_de_facturar';
+    public string $filtroEstado = 'todos';
 
     public int $perPage = 15;
 
@@ -50,7 +50,7 @@ class PagosPendientesFacturacion extends Component
         'filtroFechaDesde' => ['except' => ''],
         'filtroFechaHasta' => ['except' => ''],
         'filtroFormaPagoId' => ['except' => null],
-        'filtroEstado' => ['except' => 'pendiente_de_facturar'],
+        'filtroEstado' => ['except' => 'todos'],
     ];
 
     public function placeholder(): string
@@ -70,7 +70,7 @@ class PagosPendientesFacturacion extends Component
         $this->filtroFechaDesde = '';
         $this->filtroFechaHasta = '';
         $this->filtroFormaPagoId = null;
-        $this->filtroEstado = 'pendiente_de_facturar';
+        $this->filtroEstado = 'todos';
         $this->resetPage();
     }
 
