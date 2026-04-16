@@ -72,6 +72,13 @@ class VentaPago extends Model
         'monto_moneda_original',
         'tipo_cambio_tasa',
         'movimiento_cuenta_empresa_id',
+        'venta_pago_reemplazado_id',
+        'operacion_origen',
+        'creado_por_usuario_id',
+        'nota_credito_generada_id',
+        'comprobante_fiscal_nuevo_id',
+        'datos_snapshot_json',
+        'estado_facturacion',
     ];
 
     protected $casts = [
@@ -94,7 +101,32 @@ class VentaPago extends Model
         'puntos_usados' => 'integer',
         'afecta_caja' => 'boolean',
         'anulado_at' => 'datetime',
+        'datos_snapshot_json' => 'array',
     ];
+
+    // =========================================
+    // CONSTANTES
+    // =========================================
+
+    public const ORIGEN_VENTA_ORIGINAL = 'venta_original';
+
+    public const ORIGEN_CAMBIO_PAGO = 'cambio_pago';
+
+    public const ORIGEN_PAGO_AGREGADO = 'pago_agregado';
+
+    public const ORIGEN_ANULACION_SIN_REEMPLAZO = 'anulacion_sin_reemplazo';
+
+    public const ESTADO_ACTIVO = 'activo';
+
+    public const ESTADO_ANULADO = 'anulado';
+
+    public const ESTADO_FACT_NO_FACTURADO = 'no_facturado';
+
+    public const ESTADO_FACT_FACTURADO = 'facturado';
+
+    public const ESTADO_FACT_PENDIENTE = 'pendiente_de_facturar';
+
+    public const ESTADO_FACT_ERROR = 'error_arca';
 
     // =========================================
     // RELACIONES
@@ -156,6 +188,70 @@ class VentaPago extends Model
         return $this->hasMany(MovimientoCuentaCorriente::class, 'venta_pago_id');
     }
 
+    /**
+     * Pago que este registro reemplaza (en operaciones de cambio)
+     */
+    public function pagoReemplazado(): BelongsTo
+    {
+        return $this->belongsTo(VentaPago::class, 'venta_pago_reemplazado_id');
+    }
+
+    /**
+     * Pago que reemplazó a este registro (si fue anulado por cambio)
+     */
+    public function pagoQueMeReemplazo(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(VentaPago::class, 'venta_pago_reemplazado_id');
+    }
+
+    /**
+     * Nota de crédito generada al anular este pago
+     */
+    public function notaCreditoGenerada(): BelongsTo
+    {
+        return $this->belongsTo(ComprobanteFiscal::class, 'nota_credito_generada_id');
+    }
+
+    /**
+     * Factura nueva emitida como reemplazo cuando este pago fue creado por cambio
+     */
+    public function comprobanteFiscalNuevo(): BelongsTo
+    {
+        return $this->belongsTo(ComprobanteFiscal::class, 'comprobante_fiscal_nuevo_id');
+    }
+
+    /**
+     * Usuario que creó este registro (si fue agregado/cambiado posterior a la venta)
+     */
+    public function creadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'creado_por_usuario_id');
+    }
+
+    /**
+     * Usuario que anuló este pago
+     */
+    public function anuladoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'anulado_por_usuario_id');
+    }
+
+    /**
+     * Ajustes auditados donde este pago fue el anulado
+     */
+    public function ajustesComoAnulado(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(VentaPagoAjuste::class, 'venta_pago_anulado_id');
+    }
+
+    /**
+     * Ajustes auditados donde este pago fue el nuevo
+     */
+    public function ajustesComoNuevo(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(VentaPagoAjuste::class, 'venta_pago_nuevo_id');
+    }
+
     // =========================================
     // SCOPES
     // =========================================
@@ -195,6 +291,16 @@ class VentaPago extends Model
     public function scopeNoFacturados($query)
     {
         return $query->whereNull('comprobante_fiscal_id');
+    }
+
+    public function scopePendientesDeFacturar($query)
+    {
+        return $query->where('estado_facturacion', self::ESTADO_FACT_PENDIENTE);
+    }
+
+    public function scopeConErrorFacturacion($query)
+    {
+        return $query->where('estado_facturacion', self::ESTADO_FACT_ERROR);
     }
 
     public function scopeCuentaCorriente($query)

@@ -68,6 +68,7 @@ trait WithTenant
         'formas_pago_sucursales',
         'venta_promociones',
         'venta_detalle_promociones',
+        'venta_pago_ajustes',
     ];
 
     protected function setUpTenant(): void

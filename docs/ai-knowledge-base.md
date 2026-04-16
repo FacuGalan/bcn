@@ -199,7 +199,58 @@ Desglose de formas de pago de una venta. Una venta puede tener multiples pagos (
 | `anulado_por_usuario_id` | bigint FK nullable | Usuario que anulo |
 | `anulado_at` | timestamp nullable | Fecha de anulacion |
 | `motivo_anulacion` | text nullable | Motivo |
+| `venta_pago_reemplazado_id` | bigint FK nullable | FK a `{PREFIX}venta_pagos.id` — el pago que este registro reemplaza (append-only) |
+| `operacion_origen` | enum | Origen del registro: `venta_original`, `cambio_pago`, `pago_agregado`, `anulacion_sin_reemplazo` |
+| `creado_por_usuario_id` | bigint FK nullable | FK a `config.users.id` — quien creo este registro (puede diferir del usuario de la venta) |
+| `nota_credito_generada_id` | bigint FK nullable | FK a `{PREFIX}comprobantes_fiscales.id` — NC disparada por la anulacion de este pago |
+| `comprobante_fiscal_nuevo_id` | bigint FK nullable | FK a `{PREFIX}comprobantes_fiscales.id` — FC nueva emitida cuando este pago es reemplazo |
+| `estado_facturacion` | enum | Estado fiscal del pago: `no_facturado`, `facturado`, `pendiente_de_facturar`, `error_arca` |
+| `datos_snapshot_json` | json nullable | Snapshot JSON del estado del pago al momento de anularse (forense): forma_pago, montos, caja, usuario, turno |
 | `created_at`, `updated_at` | timestamp | Timestamps |
+
+**Nota**: Los pagos originales de la venta tienen `operacion_origen = 'venta_original'`. Al cambiar un pago, el pago viejo queda con `estado = 'anulado'` y el nuevo tiene `venta_pago_reemplazado_id` apuntando al anulado y `operacion_origen = 'cambio_pago'`. Este patron es append-only, consistente con movimientos_stock y movimientos_cuenta_corriente.
+
+**`estado_facturacion` — valores posibles**:
+- `no_facturado`: pago sin comprobante fiscal asociado.
+- `facturado`: pago con `comprobante_fiscal_id` valido y autorizado.
+- `pendiente_de_facturar`: la FC nueva no pudo emitirse (error ARCA en Fase B del cambio de pago); se reintenta manualmente desde el reporte de pagos pendientes.
+- `error_arca`: operador decidio sacar el pago del circuito automatico con motivo; ya no aparece en reintentos.
+
+**Backfill**: la migracion `2026_04_16_100000` agrega la columna y rellena: pagos con `comprobante_fiscal_id` no nulo → `facturado`; el resto → `no_facturado`.
+
+#### Tabla: `venta_pago_ajustes`
+Audit log de cada operacion atomica de cambio de pagos. Un registro por operacion (cambio/agregado/eliminacion), independientemente de cuantos `venta_pagos` se generen internamente.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `venta_id` | bigint FK | FK a `{PREFIX}ventas.id` |
+| `sucursal_id` | bigint FK | FK a `sucursales.id` (para filtros rapidos) |
+| `tipo_operacion` | enum | `cambio_pago`, `agregar_pago`, `eliminar_pago` |
+| `venta_pago_anulado_id` | bigint FK nullable | FK a `{PREFIX}venta_pagos.id` del pago anulado (NULL si es "agregar") |
+| `venta_pago_nuevo_id` | bigint FK nullable | FK a `{PREFIX}venta_pagos.id` del pago nuevo (NULL si es "eliminar") |
+| `forma_pago_anterior_id` | bigint FK nullable | FK a `formas_pago.id` snapshot — puede haberse modificado el catalogo |
+| `forma_pago_nueva_id` | bigint FK nullable | FK a `formas_pago.id` |
+| `monto_anterior` | decimal(12,2) nullable | `monto_final` del pago anulado |
+| `monto_nuevo` | decimal(12,2) nullable | `monto_final` del pago nuevo |
+| `delta_total` | decimal(12,2) | Diferencia en `total_final` de la venta (+/-) |
+| `delta_fiscal` | boolean | true si cambio la condicion fiscal del pago |
+| `turno_original_id` | bigint FK nullable | `cierre_turno_id` del pago anulado (NULL si era turno abierto) |
+| `es_post_cierre` | boolean | true si `turno_original_id` no es NULL — aparece en el reporte de ajustes post-cierre |
+| `nc_emitida_id` | bigint FK nullable | FK a `{PREFIX}comprobantes_fiscales.id` de NC generada |
+| `fc_nueva_id` | bigint FK nullable | FK a `{PREFIX}comprobantes_fiscales.id` de FC nueva emitida |
+| `nc_emitida_flag` | boolean | true si la matriz exigia NC y se emitio |
+| `fc_nueva_flag` | boolean | true si se emitio FC nueva |
+| `salteo_nc_autorizado` | boolean | true si el usuario omitio la NC cuando la matriz preguntaba (requiere `func.modificar_pagos_sin_nc`) |
+| `config_auto_al_operar` | boolean | Snapshot de `sucursales.facturacion_fiscal_automatica` al momento de la operacion |
+| `motivo` | text | Motivo obligatorio ingresado por el usuario (minimo 10 caracteres) |
+| `descripcion_auto` | text | Descripcion narrativa auto-generada: "Cambio Debito Visa $300 por Transferencia Galicia $300" |
+| `usuario_id` | bigint FK | FK a `config.users.id` — quien realizo el cambio |
+| `ip_origen` | varchar(45) nullable | IP del request |
+| `user_agent` | varchar(500) nullable | Navegador |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+**Indices**: `idx_vpa_venta` (`venta_id`), `idx_vpa_sucursal_fecha` (`sucursal_id`, `created_at`), `idx_vpa_post_cierre` (`es_post_cierre`, `created_at`), `idx_vpa_usuario` (`usuario_id`).
 
 #### Tabla: `venta_promociones`
 Promociones aplicadas a nivel de venta completa.
@@ -1471,7 +1522,116 @@ Flujo de compra (via `CompraService`):
 4. AFIP devuelve CAE y fecha de vencimiento
 5. Se almacena el comprobante con la respuesta completa
 
-### 3.10 Puntos y Cupones
+### 3.10 Cambio de Forma de Pago en Ventas Registradas
+
+Permite dividir un pago existente de una venta confirmada en N pagos nuevos con formas de pago distintas, manteniendo el total de la venta inmutable. Implementado en `App\Services\Ventas\CambioFormaPagoService` con patron append-only y procesamiento en dos fases para tolerancia a fallos ARCA.
+
+#### Regla del pivot mixto
+
+La suma de los montos de los pagos nuevos debe ser exactamente igual al `monto_final` del pago original. El `total_final` de la venta no cambia. Esta invariante se valida antes de procesar.
+
+#### Bloqueos previos
+
+Antes de ejecutar se valida:
+1. La venta no esta en estado `cancelada`.
+2. El `venta_pago` no esta en estado `anulado`.
+3. El `venta_pago` no tiene cobros de CC imputados activos (`cobrosAplicados()->exists() === false`).
+4. La venta no tiene puntos canjeados.
+5. Si `venta_pago.cierre_turno_id` no es NULL: el usuario debe tener permiso `func.cambiar_forma_pago_turno_cerrado`.
+
+#### Fase A — atomica
+
+Envuelta en `DB::connection('pymes_tenant')->transaction()`. Incluye:
+1. Anulacion del pago original: `estado = 'anulado'`, snapshot en `datos_snapshot_json`.
+2. Reversion de movimientos vinculados al pago anulado:
+   - **Caja** (si `afecta_caja = true` y `movimiento_caja_id` no nulo): contraasiento egreso + `caja->disminuirSaldo()`.
+   - **Vuelto** (si hay movimiento de vuelto vinculado): contra-ingreso.
+   - **Cuenta empresa** (si `movimiento_cuenta_empresa_id` no nulo): `CuentaEmpresaService::revertirMovimiento()`.
+   - **Cuenta corriente** (si `es_cuenta_corriente = true`): `CuentaCorrienteService::anularMovimientosVentaPago()` — contraasientos append-only con `tipo = 'anulacion_venta'`.
+3. Creacion de los pagos nuevos (uno por cada fila del desglose):
+   - Si `afecta_caja = true`: nuevo `MovimientoCaja` tipo ingreso.
+   - Si tiene cuenta empresa: `CuentaEmpresaService::registrarMovimientoAutomatico()`.
+   - Si es CC: nuevo `MovimientoCuentaCorriente` tipo `venta`.
+   - `estado_facturacion` inicial segun flag `facturar` del desglose: `no_facturado` o `pendiente_de_facturar` (se actualizara en Fase B).
+4. Emision de NC si corresponde (ver regla fiscal abajo).
+5. Creacion del registro en `venta_pago_ajustes`.
+6. Recalculo de totales de la venta:
+   - `ventas.ajuste_forma_pago` = SUM(`monto_ajuste`) de pagos activos.
+   - `ventas.total_final` = SUM(`monto_final`) de pagos activos (no cambia por la regla del pivot).
+   - `ventas.es_cuenta_corriente` = true si algun pago activo es CC.
+   - `ventas.saldo_pendiente_cache` = SUM(`saldo_pendiente`) de pagos CC activos.
+
+Si cualquier paso falla → rollback total, nada cambia.
+
+#### Fase B — emision de FC nueva (post-commit)
+
+Luego del commit de Fase A, se intenta emitir la FC nueva sobre los pagos nuevos con `facturar = true`. Si ARCA falla:
+- Los pagos quedan con `estado_facturacion = 'pendiente_de_facturar'`.
+- Se registra el error en el pago.
+- El usuario ve un toast rojo con el mensaje de ARCA.
+- Los pagos aparecen en el reporte "Pagos Pendientes de Facturar" (`App\Livewire\Cajas\PagosPendientesFacturacion`).
+
+Si ARCA tiene exito → `estado_facturacion = 'facturado'` y `comprobante_fiscal_id` poblado.
+
+#### Regla fiscal binaria
+
+La decision de emitir documentos fiscales se toma comparando montos:
+
+| Condicion | NC | FC nueva |
+|---|---|---|
+| `monto_facturado_viejo == monto_facturado_nuevo` | No se emite | No se emite. Los pagos nuevos con `facturar=true` heredan el `comprobante_fiscal_id` original. |
+| `monto_facturado_viejo != monto_facturado_nuevo` | Si (por el monto del pago viejo anulado, si tenia CF) | Si (por la suma de pagos nuevos con `facturar=true`) |
+
+Esta regla es independiente del flag `facturacion_fiscal_automatica` de la sucursal. El usuario ya decidio explicitamente al marcar cada pago del desglose.
+
+Para omitir la NC cuando la diferencia lo permitiria se requiere permiso `func.modificar_pagos_sin_nc`.
+
+**Fix en `ComprobanteFiscalService`**: al emitir una FC donde el `total_a_facturar` coincide con `total_final` de la venta, se prioriza la lista explicita `pagos_facturar`; si no viene, se excluyen pagos anulados del branch masivo.
+
+#### Fix en TurnoActual
+
+Las 4 queries que calculan totales por forma de pago y concepto en `TurnoActual` ahora filtran por `estado = 'activo'` en `venta_pagos`. Sin este filtro, los pagos anulados (creados por cambios de forma de pago) se sumaban duplicando los totales del turno.
+
+#### Operaciones sobre turnos cerrados
+
+Si el `venta_pago` tiene `cierre_turno_id` no nulo:
+- Se requiere permiso `func.cambiar_forma_pago_turno_cerrado`.
+- Los contraasientos y movimientos nuevos se crean con `cierre_turno_id = NULL` (van al turno actual abierto).
+- El cierre historico no se modifica: `total_ingresos`, `total_egresos` no cambian.
+- El registro en `venta_pago_ajustes` tendra `es_post_cierre = true` y `turno_original_id` con el ID del cierre afectado.
+- Estos registros aparecen en el reporte "Ajustes Post-Cierre" (`App\Livewire\Cajas\AjustesPostCierre`).
+
+#### Reporte: Pagos Pendientes de Facturar
+
+Componente `App\Livewire\Cajas\PagosPendientesFacturacion`. Ruta `/cajas/pagos-pendientes-facturacion`. Permiso `func.ver_pagos_pendientes_facturacion`.
+
+Lista pagos con `estado_facturacion IN ('pendiente_de_facturar', 'error_arca')`. Acciones:
+- **Reintentar** (permiso `func.reintentar_facturacion`): reintenta emision ARCA. Si exito → `facturado`. Si falla → permanece pendiente con nuevo mensaje de error.
+- **Marcar como error**: cambia a `error_arca` con motivo obligatorio; excluye del circuito automatico.
+
+#### Trazabilidad
+
+Cada operacion crea exactamente un registro en `venta_pago_ajustes` con:
+- Referencias cruzadas a los `venta_pagos` anulado y nuevos.
+- `descripcion_auto` generada automaticamente (narrativa legible).
+- Motivo, usuario, IP y user_agent.
+- Flags `nc_emitida_flag`, `fc_nueva_flag`, `es_post_cierre`.
+- `fc_nueva_id` poblado si se emitio FC nueva en Fase B.
+
+El pago anulado tiene `datos_snapshot_json` con sus datos completos al momento de anularse.
+
+#### Permisos funcionales
+
+| Permiso | Descripcion |
+|---|---|
+| `func.cambiar_forma_pago_venta` | Modificar pagos en ventas registradas |
+| `func.cambiar_forma_pago_turno_cerrado` | Operar sobre pagos de turnos ya cerrados |
+| `func.modificar_pagos_sin_nc` | Omitir NC cuando la regla fiscal lo permitiria (no aplica cuando es obligatoria) |
+| `func.ver_ajustes_post_cierre` | Ver el reporte de ajustes post-cierre |
+| `func.reintentar_facturacion` | Reintentar emision de FC sobre pagos pendientes |
+| `func.ver_pagos_pendientes_facturacion` | Ver el reporte de pagos pendientes de facturar |
+
+### 3.11 Puntos y Cupones
 
 #### Acumulacion de puntos
 1. Al completar una venta con cliente asignado + programa activo + sucursal activa
@@ -1704,6 +1864,62 @@ ORDER BY mcc.fecha DESC, mcc.id DESC
 LIMIT 50;
 ```
 
+#### Ajustes post-cierre de una sucursal
+
+```sql
+SELECT vpa.created_at as fecha_ajuste,
+       vpa.tipo_operacion,
+       vpa.descripcion_auto,
+       vpa.motivo,
+       fp_ant.nombre as forma_pago_anterior,
+       fp_nue.nombre as forma_pago_nueva,
+       vpa.monto_anterior,
+       vpa.monto_nuevo,
+       vpa.delta_total,
+       vpa.turno_original_id,
+       v.numero as venta_numero,
+       u.name as usuario
+FROM {PREFIX}venta_pago_ajustes vpa
+JOIN {PREFIX}ventas v ON v.id = vpa.venta_id
+JOIN users u ON u.id = vpa.usuario_id
+LEFT JOIN formas_pago fp_ant ON fp_ant.id = vpa.forma_pago_anterior_id
+LEFT JOIN formas_pago fp_nue ON fp_nue.id = vpa.forma_pago_nueva_id
+WHERE vpa.sucursal_id = ?
+  AND vpa.es_post_cierre = 1
+  AND vpa.created_at >= ?
+  AND vpa.created_at <= ?
+ORDER BY vpa.created_at DESC;
+```
+
+#### Historial de cambios de pagos de una venta
+
+```sql
+SELECT vpa.created_at, vpa.tipo_operacion, vpa.descripcion_auto,
+       vpa.motivo, vpa.es_post_cierre,
+       vpa.nc_emitida_flag, vpa.fc_nueva_flag,
+       u.name as usuario
+FROM {PREFIX}venta_pago_ajustes vpa
+JOIN users u ON u.id = vpa.usuario_id
+WHERE vpa.venta_id = ?
+ORDER BY vpa.created_at ASC;
+```
+
+#### Pagos pendientes de facturar (en cola de reintento ARCA)
+
+```sql
+SELECT vp.id, vp.estado_facturacion,
+       vp.monto_facturado, vp.created_at,
+       v.numero as venta_numero, v.fecha as venta_fecha,
+       fp.nombre as forma_pago
+FROM {PREFIX}venta_pagos vp
+JOIN {PREFIX}ventas v ON v.id = vp.venta_id
+JOIN {PREFIX}formas_pago fp ON fp.id = vp.forma_pago_id
+WHERE vp.estado_facturacion IN ('pendiente_de_facturar', 'error_arca')
+  AND vp.estado = 'activo'
+  AND v.sucursal_id = ?
+ORDER BY vp.created_at ASC;
+```
+
 #### Articulos pesables
 
 ```sql
@@ -1723,7 +1939,8 @@ ORDER BY nombre;
 | Venta | `completada`, `pendiente`, `cancelada` | Pendiente = cuenta corriente sin saldar |
 | Compra | `completada`, `pendiente`, `cancelada` | Pendiente = cuenta corriente proveedor |
 | Cobro | `activo`, `anulado` | |
-| VentaPago | `activo`, `pendiente`, `anulado` | |
+| VentaPago.estado | `activo`, `pendiente`, `anulado` | |
+| VentaPago.estado_facturacion | `no_facturado`, `facturado`, `pendiente_de_facturar`, `error_arca` | Estado fiscal del pago; `pendiente_de_facturar` = FC nueva en cola por fallo ARCA |
 | CobroPago | `activo`, `anulado` | |
 | MovimientoStock | `activo`, `anulado` | Anulado = contraasiento |
 | MovimientoCuentaCorriente | `activo`, `anulado` | Anulado = contraasiento |
@@ -1764,9 +1981,9 @@ Las siguientes tablas usan soft delete (`deleted_at` no nulo = eliminado):
 Al consultar estas tablas, siempre agregar `AND deleted_at IS NULL` a menos que se quieran incluir registros eliminados.
 
 **Patron append-only (ledger):**
-Las tablas `movimientos_stock`, `movimientos_cuenta_corriente` y `movimientos_cuenta_empresa` siguen el patron append-only:
+Las tablas `movimientos_stock`, `movimientos_cuenta_corriente`, `movimientos_cuenta_empresa` y `venta_pagos` (para cambios de pago) siguen el patron append-only:
 - Los registros nunca se modifican ni eliminan.
-- Las anulaciones se hacen creando un **contraasiento** que invierte los montos.
-- El original se vincula al contraasiento via `anulado_por_movimiento_id`.
-- Ambos registros permanecen con `estado = 'activo'` -- se cancelan matematicamente.
-- Para calcular saldos: sumar todos los movimientos activos.
+- Las anulaciones se hacen creando un **contraasiento** que invierte los montos (movimientos) o marcando el registro como `estado = 'anulado'` y creando uno nuevo (venta_pagos).
+- El original se vincula al contraasiento via `anulado_por_movimiento_id` (movimientos) o via `venta_pago_reemplazado_id` (venta_pagos).
+- Para calcular saldos de movimientos: sumar todos los activos.
+- Para calcular totales de una venta: sumar los `venta_pagos` con `estado = 'activo'`.

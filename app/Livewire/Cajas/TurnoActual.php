@@ -191,7 +191,8 @@ class TurnoActual extends Component
         if ($cajasAbiertas->isNotEmpty()) {
             $abiertasData = $cajasAbiertas->mapWithKeys(fn ($c) => [$c->id => $c->fecha_apertura ?? today()]);
 
-            // Una sola query para todos los VentaPago de todas las cajas abiertas
+            // Una sola query para todos los VentaPago ACTIVOS de todas las cajas abiertas
+            // (excluir anulados para no duplicar al sumar por forma de pago)
             $todosVentasPagos = VentaPago::whereHas('venta', function ($q) use ($abiertasData) {
                 $q->where('estado', 'completada')
                     ->where(function ($q2) use ($abiertasData) {
@@ -200,6 +201,7 @@ class TurnoActual extends Component
                         }
                     });
             })
+                ->where('estado', VentaPago::ESTADO_ACTIVO)
                 ->with(['conceptoPago', 'formaPago', 'venta:id,caja_id'])
                 ->get();
 
@@ -292,7 +294,9 @@ class TurnoActual extends Component
             $q->where('caja_id', $caja->id)
                 ->where('estado', 'completada')
                 ->where('created_at', '>=', $caja->fecha_apertura ?? today());
-        })->count();
+        })
+            ->where('estado', VentaPago::ESTADO_ACTIVO)
+            ->count();
 
         $cobrosCount = CobroPago::whereHas('cobro', function ($q) use ($caja) {
             $q->where('caja_id', $caja->id)
@@ -431,6 +435,7 @@ class TurnoActual extends Component
                 ->where('estado', 'completada')
                 ->where('created_at', '>=', $caja->fecha_apertura ?? today());
         })
+            ->where('estado', VentaPago::ESTADO_ACTIVO)
             ->with(['conceptoPago', 'formaPago'])
             ->get();
     }
@@ -1784,13 +1789,14 @@ class TurnoActual extends Component
         // ── Grilla 2: Otros medios de pago (no-efectivo) ──
         $fechaDesde = $caja->fecha_apertura ?? today();
 
-        // VentaPago no-efectivo
+        // VentaPago no-efectivo (solo activos, excluir anulados)
         $ventaPagos = VentaPago::whereHas('venta', function ($q) use ($cajaId, $fechaDesde) {
             $q->where('caja_id', $cajaId)
                 ->where('estado', 'completada')
                 ->where('created_at', '>=', $fechaDesde);
         })
             ->where('afecta_caja', false)
+            ->where('estado', VentaPago::ESTADO_ACTIVO)
             ->with(['conceptoPago', 'venta:id,numero'])
             ->get();
 

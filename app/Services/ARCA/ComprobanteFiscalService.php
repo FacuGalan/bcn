@@ -310,18 +310,12 @@ class ComprobanteFiscalService
                 'monto_no_fiscal_cache' => 0,
             ]);
 
-            // Marcar los pagos como facturados
-            if ($esTotalVenta) {
-                // Factura por el total: marcar todos los pagos
-                foreach ($venta->pagos as $pago) {
-                    $pago->update([
-                        'comprobante_fiscal_id' => $comprobante->id,
-                        'monto_facturado' => $pago->monto_final,
-                    ]);
-                }
-            } elseif (! empty($opciones['pagos_facturar'])) {
-                // Factura parcial: marcar solo los pagos especificados
-                Log::info('Marcando pagos como facturados (parcial)', [
+            // Marcar los pagos como facturados.
+            // Si el caller pasa 'pagos_facturar', usa esa lista explícita — incluso cuando
+            // el total coincide con total_final de la venta (caso: cambio de forma de pago
+            // donde hay pagos anulados que no deben quedar vinculados a la nueva FC).
+            if (! empty($opciones['pagos_facturar'])) {
+                Log::info('Marcando pagos como facturados (explícito via pagos_facturar)', [
                     'comprobante_id' => $comprobante->id,
                     'pagos_facturar' => $opciones['pagos_facturar'],
                 ]);
@@ -336,13 +330,19 @@ class ComprobanteFiscalService
                                 'comprobante_fiscal_id' => $comprobante->id,
                                 'monto_facturado' => $montoFacturado,
                             ]);
-
-                            Log::info('Pago marcado como facturado', [
-                                'pago_id' => $pagoId,
-                                'monto_facturado' => $montoFacturado,
-                            ]);
                         }
                     }
+                }
+            } elseif ($esTotalVenta) {
+                // Factura por el total (sin pagos_facturar explícito): marcar todos los pagos activos
+                foreach ($venta->pagos as $pago) {
+                    if ($pago->estado === VentaPago::ESTADO_ANULADO) {
+                        continue;
+                    }
+                    $pago->update([
+                        'comprobante_fiscal_id' => $comprobante->id,
+                        'monto_facturado' => $pago->monto_final,
+                    ]);
                 }
             }
 
