@@ -128,7 +128,7 @@ class GeneradorESCPOS
 
         foreach ($venta->detalles as $detalle) {
             // Linea 1: Nombre del articulo
-            $nombre = $this->truncar($this->convertirTexto($detalle->articulo->nombre), $this->ancho);
+            $nombre = $this->truncar($this->convertirTexto($detalle->obtenerNombre()), $this->ancho);
             $comandos[] = $this->negrita(true);
             $comandos[] = $this->texto($nombre);
             $comandos[] = $this->negrita(false);
@@ -417,7 +417,7 @@ class GeneradorESCPOS
 
             foreach ($venta->detalles as $detalle) {
                 // Nombre del articulo
-                $nombre = $this->truncar($this->convertirTexto($detalle->articulo->nombre), $this->ancho);
+                $nombre = $this->truncar($this->convertirTexto($detalle->obtenerNombre()), $this->ancho);
                 $comandos[] = $this->negrita(true);
                 $comandos[] = $this->texto($nombre);
                 $comandos[] = $this->negrita(false);

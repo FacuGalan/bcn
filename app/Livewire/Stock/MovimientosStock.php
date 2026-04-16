@@ -189,7 +189,7 @@ class MovimientosStock extends Component
             return collect();
         }
 
-        return Articulo::activos()->conStock()
+        return Articulo::activos()->conStockEnSucursal(sucursal_activa())
             ->where(function ($q) {
                 $q->where('nombre', 'like', "%{$this->cargaSearchArticulo}%")
                     ->orWhere('codigo', 'like', "%{$this->cargaSearchArticulo}%");
@@ -203,7 +203,7 @@ class MovimientosStock extends Component
             return collect();
         }
 
-        return Articulo::activos()->conStock()
+        return Articulo::activos()->conStockEnSucursal(sucursal_activa())
             ->where(function ($q) {
                 $q->where('nombre', 'like', "%{$this->descargaSearchArticulo}%")
                     ->orWhere('codigo', 'like', "%{$this->descargaSearchArticulo}%");
@@ -217,7 +217,7 @@ class MovimientosStock extends Component
             return collect();
         }
 
-        return Articulo::activos()->conStock()
+        return Articulo::activos()->conStockEnSucursal(sucursal_activa())
             ->where(function ($q) {
                 $q->where('nombre', 'like', "%{$this->inventarioSearchArticulo}%")
                     ->orWhere('codigo', 'like', "%{$this->inventarioSearchArticulo}%");

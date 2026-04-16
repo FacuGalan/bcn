@@ -3863,6 +3863,33 @@ class NuevaVenta extends Component
     }
 
     /**
+     * Resuelve el tipo_iva_id de un item del carrito.
+     * - Artículos: del modelo Articulo.
+     * - Conceptos con categoría: del tipo_iva de la categoría.
+     * - Conceptos sin categoría: null (VentaService usa iva_porcentaje del detalle).
+     */
+    protected function resolverTipoIvaId(array $item): ?int
+    {
+        if (! ($item['es_concepto'] ?? false)) {
+            if (! empty($item['articulo_id'])) {
+                $articulo = Articulo::find($item['articulo_id']);
+
+                return $articulo?->tipo_iva_id;
+            }
+
+            return null;
+        }
+
+        if (! empty($item['categoria_id'])) {
+            $categoria = Categoria::find($item['categoria_id']);
+
+            return $categoria?->tipo_iva_id;
+        }
+
+        return null;
+    }
+
+    /**
      * Calcula puntos necesarios para canjear un artículo desde su precio.
      */
     protected function calcularPuntosCanjePorPrecio(float $precio): int
@@ -7037,37 +7064,43 @@ class NuevaVenta extends Component
                     $promocionesComunes = $itemResultado['promociones_comunes'] ?? [];
                     $promocionesEspeciales = $itemResultado['promociones_especiales'] ?? [];
                     $tienePromocion = ! empty($promocionesComunes) || ! empty($promocionesEspeciales);
+                    $esConcepto = (bool) ($item['es_concepto'] ?? false);
 
                     $detalles[] = [
                         'articulo_id' => $item['articulo_id'],
                         'cantidad' => $item['cantidad'],
                         'precio_unitario' => $item['precio'],
                         'precio_lista' => $item['precio_base'] ?? $item['precio'],
-                        'lista_precio_id' => $this->listaPrecioId, // Lista de precios usada
+                        'lista_precio_id' => $esConcepto ? null : $this->listaPrecioId, // Conceptos no usan lista de precios
                         'descuento' => 0, // Descuento manual (no promoción)
-                        'descuento_promocion' => $descuentoPromocion,
+                        'descuento_promocion' => $esConcepto ? 0 : $descuentoPromocion, // Conceptos no tienen promociones
                         'descuento_cupon' => $descuentoCuponPorItem[$index] ?? 0,
-                        'tiene_promocion' => $tienePromocion,
+                        'tiene_promocion' => $esConcepto ? false : $tienePromocion,
                         // Info de IVA del item
+                        'tipo_iva_id' => $this->resolverTipoIvaId($item),
                         'iva_porcentaje' => $item['iva_porcentaje'] ?? 21,
                         'precio_iva_incluido' => $item['precio_iva_incluido'] ?? true,
                         // Info de ajuste manual si existe
                         'ajuste_manual_tipo' => $item['ajuste_manual_tipo'] ?? null,
                         'ajuste_manual_valor' => $item['ajuste_manual_valor'] ?? null,
                         'precio_sin_ajuste_manual' => $item['precio_sin_ajuste_manual'] ?? null,
-                        // Opcionales seleccionados
-                        'opcionales' => $item['opcionales'] ?? [],
-                        'precio_opcionales' => $item['precio_opcionales'] ?? 0,
+                        // Opcionales seleccionados (conceptos no tienen opcionales)
+                        'opcionales' => $esConcepto ? [] : ($item['opcionales'] ?? []),
+                        'precio_opcionales' => $esConcepto ? 0 : ($item['precio_opcionales'] ?? 0),
                         // Info de promociones para guardar en venta_detalle_promociones
-                        '_promociones_item' => [
+                        '_promociones_item' => $esConcepto ? [] : [
                             'promociones_comunes' => $promocionesComunes,
                             'promociones_especiales' => $promocionesEspeciales,
                         ],
-                        // Canje por puntos (RF-10)
-                        'pagado_con_puntos' => $item['pagado_con_puntos'] ?? false,
-                        'puntos_usados' => ($item['pagado_con_puntos'] ?? false)
-                            ? $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (float) ($item['cantidad'] ?? 1)
-                            : 0,
+                        // Canje por puntos (RF-10) — conceptos no se pagan con puntos
+                        'pagado_con_puntos' => $esConcepto ? false : ($item['pagado_con_puntos'] ?? false),
+                        'puntos_usados' => $esConcepto || ! ($item['pagado_con_puntos'] ?? false)
+                            ? 0
+                            : $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (float) ($item['cantidad'] ?? 1),
+                        // Concepto libre
+                        'es_concepto' => $esConcepto,
+                        'concepto_descripcion' => $esConcepto ? ($item['nombre'] ?? null) : null,
+                        'concepto_categoria_id' => $esConcepto ? ($item['categoria_id'] ?? null) : null,
                     ];
                 }
 
@@ -7489,19 +7522,28 @@ class NuevaVenta extends Component
 
                 $detalles = [];
                 foreach ($this->items as $index => $item) {
+                    $esConcepto = (bool) ($item['es_concepto'] ?? false);
                     $detalles[] = [
                         'articulo_id' => $item['articulo_id'],
                         'cantidad' => $item['cantidad'],
                         'precio_unitario' => $item['precio'],
                         'descuento' => 0,
                         'descuento_cupon' => $descuentoCuponPorItem[$index] ?? 0,
-                        'opcionales' => $item['opcionales'] ?? [],
-                        'precio_opcionales' => $item['precio_opcionales'] ?? 0,
+                        'opcionales' => $esConcepto ? [] : ($item['opcionales'] ?? []),
+                        'precio_opcionales' => $esConcepto ? 0 : ($item['precio_opcionales'] ?? 0),
+                        // Info de IVA
+                        'tipo_iva_id' => $this->resolverTipoIvaId($item),
+                        'iva_porcentaje' => $item['iva_porcentaje'] ?? 21,
+                        'precio_iva_incluido' => $item['precio_iva_incluido'] ?? true,
                         // Canje por puntos (RF-10)
-                        'pagado_con_puntos' => $item['pagado_con_puntos'] ?? false,
-                        'puntos_usados' => ($item['pagado_con_puntos'] ?? false)
-                            ? $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (float) ($item['cantidad'] ?? 1)
-                            : 0,
+                        'pagado_con_puntos' => $esConcepto ? false : ($item['pagado_con_puntos'] ?? false),
+                        'puntos_usados' => $esConcepto || ! ($item['pagado_con_puntos'] ?? false)
+                            ? 0
+                            : $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (float) ($item['cantidad'] ?? 1),
+                        // Concepto libre
+                        'es_concepto' => $esConcepto,
+                        'concepto_descripcion' => $esConcepto ? ($item['nombre'] ?? null) : null,
+                        'concepto_categoria_id' => $esConcepto ? ($item['categoria_id'] ?? null) : null,
                     ];
                 }
 

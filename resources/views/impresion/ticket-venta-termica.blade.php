@@ -177,7 +177,7 @@
             $sumatoriaSubtotales += $detalle->subtotal;
         @endphp
         <div class="item-linea">
-            <div class="bold">{{ $detalle->articulo->nombre }}</div>
+            <div class="bold">{{ $detalle->obtenerNombre() }}</div>
             <div class="indent fila">
                 <span>{{ $cantFormateada }} x ${{ number_format($detalle->precio_unitario, 2, ',', '.') }}</span>
                 <span class="bold">${{ number_format($detalle->subtotal, 2, ',', '.') }}</span>
@@ -208,7 +208,7 @@
                 $sumatoriaSubtotales += $detalle->subtotal;
             @endphp
             <div class="item-linea">
-                <div class="bold">{{ $detalle->articulo->nombre }}</div>
+                <div class="bold">{{ $detalle->obtenerNombre() }}</div>
                 <div class="indent fila">
                     <span>{{ $cantFormateada }} x ${{ number_format($detalle->precio_unitario, 2, ',', '.') }}</span>
                     <span class="bold">${{ number_format($detalle->subtotal, 2, ',', '.') }}</span>

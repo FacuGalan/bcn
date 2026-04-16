@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-04-16
+> Version: 0.1.x | Ultima actualizacion: 2026-04-16 (fix/bugs-abr-16)
 
 ---
 
@@ -331,7 +331,13 @@ Active el modo de busqueda en detalle presionando el boton con icono de lista (o
 
 #### Agregar concepto
 
-El boton con icono de billete verde (o **Ctrl+5**) permite agregar un concepto libre al carrito (por ejemplo, un servicio o cargo que no es un articulo del inventario). Se abrira un modal donde ingresa la descripcion, selecciona una categoria y establece el importe.
+El boton con icono de billete verde (o **Ctrl+5**) permite agregar un concepto libre al carrito (por ejemplo, un servicio, cargo o item que no es un articulo del inventario). Se abrira un modal donde:
+
+- **Descripcion**: Texto que identifica el concepto (obligatorio).
+- **Categoria**: Categoria opcional del concepto. Se usa para determinar el IVA correspondiente.
+- **Importe**: Monto a cobrar por el concepto.
+
+Al agregar el concepto, aparece en el carrito igual que un articulo. La venta se confirma normalmente; los conceptos libres no afectan el stock. En tickets e impresiones se muestra la descripcion ingresada.
 
 #### Atajos de teclado
 
@@ -686,11 +692,13 @@ Esta pantalla muestra el historial detallado de todos los movimientos de stock d
 
 Desde esta pantalla tambien puede realizar:
 
-- **Carga de stock**: Registrar un ingreso manual de stock. Se abre un modal donde busca el articulo, indica la cantidad, el concepto (por que ingresa el stock) y observaciones.
+- **Carga de stock**: Registrar un ingreso manual de stock. Se abre un modal donde busca el articulo por nombre o codigo, indica la cantidad, el concepto (por que ingresa el stock) y observaciones.
 
 - **Descarga de stock**: Registrar una salida manual de stock. Similar a la carga pero para egresos (por ejemplo, merma, roturas, consumo interno).
 
 - **Inventario fisico**: Registrar la cantidad real de un articulo. El sistema calcula la diferencia y genera el movimiento correspondiente (entrada o salida).
+
+> El buscador de articulos en los tres modales (carga, descarga e inventario) filtra por nombre y codigo de los articulos del catalogo activo de la sucursal.
 
 ---
 
@@ -1796,6 +1804,8 @@ El wizard de creacion tiene 5 pasos:
 - Aplicar promociones: Si las promociones se aplican a ventas con esta lista.
 - Alcance de promociones: A toda la venta o excluyendo articulos con precio especifico en esta lista.
 - **Lista estatica (congelar precios)**: Toggle disponible solo en listas no-base. Al activarlo, los precios se calculan una sola vez al grabar y quedan congelados: no cambian aunque varie el precio base de los articulos. Ver seccion "Listas estaticas" mas abajo.
+
+> Al ingresar el tipo de ajuste y el porcentaje en este paso, el wizard avanza correctamente sin errores.
 
 **Paso 3 - Vigencia:**
 - Fecha desde y hasta (opcional).

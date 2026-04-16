@@ -791,7 +791,7 @@
                                         @foreach($ventaDetalle->detalles as $detalle)
                                             <tr>
                                                 <td class="px-4 py-2.5 text-sm text-gray-900 dark:text-white">
-                                                    {{ $detalle->articulo->nombre ?? $detalle->descripcion ?? 'Artículo' }}
+                                                    {{ $detalle->obtenerNombre() }}
                                                     @if($detalle->es_concepto)
                                                         <span class="text-xs text-gray-500">({{ __('Concepto') }})</span>
                                                     @endif

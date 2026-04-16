@@ -268,8 +268,8 @@ class ComprobanteFiscalService
                 ComprobanteFiscalItem::create([
                     'comprobante_fiscal_id' => $comprobante->id,
                     'venta_detalle_id' => $detalle->id,
-                    'codigo' => $detalle->articulo->codigo ?? null,
-                    'descripcion' => $detalle->articulo->nombre,
+                    'codigo' => $detalle->articulo?->codigo,
+                    'descripcion' => $detalle->obtenerNombre(),
                     'cantidad' => $detalle->cantidad,
                     'unidad_medida' => 'u',
                     'precio_unitario' => $detalle->precio_unitario,

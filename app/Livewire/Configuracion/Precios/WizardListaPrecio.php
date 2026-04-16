@@ -103,30 +103,34 @@ class WizardListaPrecio extends Component
 
     public $categoriaSeleccionadaId = null;
 
-    // Opciones
-    public $opcionesRedondeo = [];
+    /*
+     * Las opciones traducibles se exponen como computed properties
+     * (no como propiedades públicas) para NO incluirlas en el snapshot
+     * Livewire y evitar CorruptComponentPayloadException cuando las
+     * traducciones o el estado del array difieren entre requests.
+     */
 
-    public $opcionesPromocionesAlcance = [];
-
-    public $opcionesDiasSemana = [];
-
-    public $opcionesTipoCondicion = [];
-
-    public function boot()
+    public function getOpcionesRedondeoProperty(): array
     {
-        $this->opcionesRedondeo = [
+        return [
             'ninguno' => __('Sin redondeo'),
             'entero' => __('Entero más cercano'),
             'decena' => __('Decena más cercana'),
             'centena' => __('Centena más cercana'),
         ];
+    }
 
-        $this->opcionesPromocionesAlcance = [
+    public function getOpcionesPromocionesAlcanceProperty(): array
+    {
+        return [
             'todos' => __('A toda la venta'),
             'excluir_lista' => __('Excluir artículos con precio en esta lista'),
         ];
+    }
 
-        $this->opcionesDiasSemana = [
+    public function getOpcionesDiasSemanaProperty(): array
+    {
+        return [
             0 => __('Domingo'),
             1 => __('Lunes'),
             2 => __('Martes'),
@@ -135,8 +139,11 @@ class WizardListaPrecio extends Component
             5 => __('Viernes'),
             6 => __('Sábado'),
         ];
+    }
 
-        $this->opcionesTipoCondicion = [
+    public function getOpcionesTipoCondicionProperty(): array
+    {
+        return [
             'por_forma_pago' => __('Por forma de pago'),
             'por_forma_venta' => __('Por forma de venta'),
             'por_canal' => __('Por canal de venta'),
