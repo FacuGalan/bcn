@@ -252,6 +252,12 @@ class MovimientosStock extends Component
         $this->cargaSearchArticulo = $articulo ? $articulo->nombre : '';
     }
 
+    public function deseleccionarArticuloCarga(): void
+    {
+        $this->cargaArticuloId = null;
+        $this->cargaSearchArticulo = '';
+    }
+
     public function procesarCarga()
     {
         $this->validate([
@@ -317,6 +323,12 @@ class MovimientosStock extends Component
         $this->descargaArticuloId = $articuloId;
         $articulo = Articulo::find($articuloId);
         $this->descargaSearchArticulo = $articulo ? $articulo->nombre : '';
+    }
+
+    public function deseleccionarArticuloDescarga(): void
+    {
+        $this->descargaArticuloId = null;
+        $this->descargaSearchArticulo = '';
     }
 
     public function procesarDescarga()
@@ -389,6 +401,14 @@ class MovimientosStock extends Component
 
         $this->inventarioStockActual = $stock ? (float) $stock->cantidad : 0;
         $this->inventarioCantidadFisica = $this->inventarioStockActual;
+    }
+
+    public function deseleccionarArticuloInventario(): void
+    {
+        $this->inventarioArticuloId = null;
+        $this->inventarioSearchArticulo = '';
+        $this->inventarioStockActual = 0;
+        $this->inventarioCantidadFisica = 0;
     }
 
     public function procesarInventario()
