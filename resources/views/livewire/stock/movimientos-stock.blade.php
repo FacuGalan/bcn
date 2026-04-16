@@ -300,6 +300,7 @@
                             </div>
                         @else
                             <input wire:model.live.debounce.300ms="cargaSearchArticulo"
+                                   id="carga-buscador"
                                    x-ref="inputBusqueda"
                                    @focus="inputFocused = true"
                                    @click.outside="inputFocused = false"
@@ -337,7 +338,7 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad') }}</label>
-                        <input wire:model="cargaCantidad" type="number" step="0.01" min="0.01" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                        <input wire:model="cargaCantidad" id="carga-cantidad" type="number" step="0.01" min="0.01" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
                         @error('cargaCantidad') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div>
@@ -379,6 +380,7 @@
                             </div>
                         @else
                             <input wire:model.live.debounce.300ms="descargaSearchArticulo"
+                                   id="descarga-buscador"
                                    x-ref="inputBusqueda"
                                    @focus="inputFocused = true"
                                    @click.outside="inputFocused = false"
@@ -416,7 +418,7 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad') }}</label>
-                        <input wire:model="descargaCantidad" type="number" step="0.01" min="0.01" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                        <input wire:model="descargaCantidad" id="descarga-cantidad" type="number" step="0.01" min="0.01" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
                         @error('descargaCantidad') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div>
@@ -458,6 +460,7 @@
                             </div>
                         @else
                             <input wire:model.live.debounce.300ms="inventarioSearchArticulo"
+                                   id="inventario-buscador"
                                    x-ref="inputBusqueda"
                                    @focus="inputFocused = true"
                                    @click.outside="inputFocused = false"
@@ -504,7 +507,7 @@
 
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cantidad Física Contada') }}</label>
-                        <input wire:model="inventarioCantidadFisica" type="number" step="0.01" min="0" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm" />
+                        <input wire:model="inventarioCantidadFisica" id="inventario-cantidad" type="number" step="0.01" min="0" class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-purple-500 focus:ring focus:ring-purple-500 focus:ring-opacity-50 text-sm" />
                         @error('inventarioCantidadFisica') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
 
                         @if($inventarioArticuloId)
@@ -569,6 +572,21 @@
                 }
             },
         }));
+
+        /**
+         * Listener global para eventos `focus-elemento` disparados desde
+         * el componente Livewire. Usa querySelector + nextTick para
+         * esperar a que el DOM esté actualizado después de la respuesta.
+         */
+        $wire.on('focus-elemento', ({ selector }) => {
+            requestAnimationFrame(() => {
+                const el = document.querySelector(selector);
+                if (el) {
+                    el.focus();
+                    if (typeof el.select === 'function') el.select();
+                }
+            });
+        });
     </script>
     @endscript
 </div>

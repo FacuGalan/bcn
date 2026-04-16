@@ -250,12 +250,14 @@ class MovimientosStock extends Component
         $this->cargaArticuloId = $articuloId;
         $articulo = Articulo::find($articuloId);
         $this->cargaSearchArticulo = $articulo ? $articulo->nombre : '';
+        $this->dispatch('focus-elemento', selector: '#carga-cantidad');
     }
 
     public function deseleccionarArticuloCarga(): void
     {
         $this->cargaArticuloId = null;
         $this->cargaSearchArticulo = '';
+        $this->dispatch('focus-elemento', selector: '#carga-buscador');
     }
 
     public function procesarCarga()
@@ -323,12 +325,14 @@ class MovimientosStock extends Component
         $this->descargaArticuloId = $articuloId;
         $articulo = Articulo::find($articuloId);
         $this->descargaSearchArticulo = $articulo ? $articulo->nombre : '';
+        $this->dispatch('focus-elemento', selector: '#descarga-cantidad');
     }
 
     public function deseleccionarArticuloDescarga(): void
     {
         $this->descargaArticuloId = null;
         $this->descargaSearchArticulo = '';
+        $this->dispatch('focus-elemento', selector: '#descarga-buscador');
     }
 
     public function procesarDescarga()
@@ -401,6 +405,7 @@ class MovimientosStock extends Component
 
         $this->inventarioStockActual = $stock ? (float) $stock->cantidad : 0;
         $this->inventarioCantidadFisica = $this->inventarioStockActual;
+        $this->dispatch('focus-elemento', selector: '#inventario-cantidad');
     }
 
     public function deseleccionarArticuloInventario(): void
@@ -409,6 +414,7 @@ class MovimientosStock extends Component
         $this->inventarioSearchArticulo = '';
         $this->inventarioStockActual = 0;
         $this->inventarioCantidadFisica = 0;
+        $this->dispatch('focus-elemento', selector: '#inventario-buscador');
     }
 
     public function procesarInventario()
