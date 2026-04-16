@@ -210,6 +210,7 @@ class ListarPromociones extends Component
 
         return view('livewire.configuracion.promociones.listar-promociones', [
             'promociones' => $promociones,
+            'tiposPromocion' => $this->tiposPromocion,
         ]);
     }
 

@@ -374,12 +374,14 @@ class WizardListaPrecio extends Component
     }
 
     /**
-     * Calcula el ajuste porcentaje real basado en tipo y valor absoluto
+     * Calcula el ajuste porcentaje real basado en tipo y valor absoluto.
+     * Evita negative zero (-0.0) cuando el valor es 0 con tipo "descuento"
+     * para no romper el checksum de Livewire en el round-trip JSON.
      */
     protected function calcularAjustePorcentaje()
     {
         $valor = abs((float) $this->porcentajeAbsoluto);
-        $this->ajustePorcentaje = $this->tipoAjuste === 'descuento' ? -$valor : $valor;
+        $this->ajustePorcentaje = ($valor > 0 && $this->tipoAjuste === 'descuento') ? -$valor : $valor;
     }
 
     /**
@@ -857,6 +859,11 @@ class WizardListaPrecio extends Component
 
     public function render()
     {
-        return view('livewire.configuracion.precios.wizard-lista-precio');
+        return view('livewire.configuracion.precios.wizard-lista-precio', [
+            'opcionesRedondeo' => $this->opcionesRedondeo,
+            'opcionesPromocionesAlcance' => $this->opcionesPromocionesAlcance,
+            'opcionesDiasSemana' => $this->opcionesDiasSemana,
+            'opcionesTipoCondicion' => $this->opcionesTipoCondicion,
+        ]);
     }
 }
