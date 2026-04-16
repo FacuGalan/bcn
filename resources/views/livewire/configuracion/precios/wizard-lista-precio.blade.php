@@ -181,7 +181,7 @@
                                 <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Porcentaje') }} *</label>
                                 <div class="relative">
                                     <input type="number"
-                                           wire:model.blur="porcentajeAbsoluto"
+                                           wire:model.live.debounce.300ms="porcentajeAbsoluto"
                                            step="0.01"
                                            min="0"
                                            max="1000"
@@ -195,7 +195,7 @@
                             {{-- Redondeo --}}
                             <div class="sm:col-span-2">
                                 <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Redondeo') }}</label>
-                                <select wire:model="redondeo"
+                                <select wire:model.live="redondeo"
                                         class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                     @foreach($opcionesRedondeo as $valor => $label)
                                         <option value="{{ $valor }}">{{ $label }}</option>
