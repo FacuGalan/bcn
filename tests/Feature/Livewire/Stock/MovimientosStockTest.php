@@ -31,6 +31,10 @@ class MovimientosStockTest extends TestCase
         $user = User::factory()->create();
         $this->actingAs($user);
         session(['comercio_activo_id' => $this->comercio->id, 'sucursal_id' => $this->sucursalId]);
+
+        // El componente usa #[Lazy]: sin esta llamada el render inicial es un placeholder
+        // y las interacciones no disparan el código real.
+        Livewire::withoutLazyLoading();
     }
 
     protected function tearDown(): void
@@ -42,7 +46,6 @@ class MovimientosStockTest extends TestCase
     public function test_render_component()
     {
         Livewire::test(MovimientosStock::class)
-            ->withoutLazyLoading()
             ->assertOk();
     }
 
@@ -58,7 +61,6 @@ class MovimientosStockTest extends TestCase
         ]);
 
         Livewire::test(MovimientosStock::class)
-            ->withoutLazyLoading()
             ->set('cargaSearchArticulo', 'Coca')
             ->assertOk();
     }
@@ -70,7 +72,6 @@ class MovimientosStockTest extends TestCase
         ]);
 
         Livewire::test(MovimientosStock::class)
-            ->withoutLazyLoading()
             ->set('descargaSearchArticulo', 'Sprite')
             ->assertOk();
     }
@@ -82,7 +83,6 @@ class MovimientosStockTest extends TestCase
         ]);
 
         Livewire::test(MovimientosStock::class)
-            ->withoutLazyLoading()
             ->set('inventarioSearchArticulo', 'Gal')
             ->assertOk();
     }
@@ -99,7 +99,6 @@ class MovimientosStockTest extends TestCase
         ]);
 
         $component = Livewire::test(MovimientosStock::class)
-            ->withoutLazyLoading()
             ->set('cargaSearchArticulo', 'Pepsi');
 
         $resultados = $component->instance()->articulosCarga;
@@ -113,7 +112,6 @@ class MovimientosStockTest extends TestCase
         $this->crearArticuloConStock($this->sucursalId, 50, 'unitario');
 
         $component = Livewire::test(MovimientosStock::class)
-            ->withoutLazyLoading()
             ->set('cargaSearchArticulo', 'a');
 
         // Menos de 2 caracteres → array vacío sin ejecutar query
