@@ -105,10 +105,10 @@ class MovimientosStockTest extends TestCase
         $resultados = $component->instance()->articulosCarga;
 
         $this->assertCount(1, $resultados);
-        $this->assertEquals('Pepsi 500ml', $resultados->first()->nombre);
+        $this->assertEquals('Pepsi 500ml', $resultados[0]['nombre']);
     }
 
-    public function test_search_vacio_devuelve_coleccion_vacia()
+    public function test_search_vacio_devuelve_array_vacio()
     {
         $this->crearArticuloConStock($this->sucursalId, 50, 'unitario');
 
@@ -116,7 +116,7 @@ class MovimientosStockTest extends TestCase
             ->withoutLazyLoading()
             ->set('cargaSearchArticulo', 'a');
 
-        // Menos de 2 caracteres → colección vacía sin ejecutar query
+        // Menos de 2 caracteres → array vacío sin ejecutar query
         $this->assertCount(0, $component->instance()->articulosCarga);
     }
 }
