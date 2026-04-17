@@ -53,6 +53,9 @@ class GestionarCategorias extends Component
 
     public bool $importacionProcesada = false;
 
+    // Modal de selección de plantilla
+    public bool $showPlantillaModal = false;
+
     // Propiedades del formulario
     public string $nombre = '';
 
@@ -253,13 +256,33 @@ class GestionarCategorias extends Component
     }
 
     /**
-     * Descarga la plantilla Excel para importar categorías
+     * Abre el modal para elegir el tipo de plantilla a descargar
      */
-    public function descargarPlantilla(CategoriaImportExportService $service)
+    public function openPlantillaModal(): void
     {
-        $ruta = $service->generarPlantilla();
+        $this->showPlantillaModal = true;
+    }
 
-        return response()->download($ruta, 'plantilla_categorias.xlsx', [
+    /**
+     * Cierra el modal de selección de plantilla
+     */
+    public function closePlantillaModal(): void
+    {
+        $this->showPlantillaModal = false;
+    }
+
+    /**
+     * Descarga la plantilla Excel para importar categorías.
+     * Si $conDatos es true, prellena con las categorías actuales.
+     */
+    public function descargarPlantilla(CategoriaImportExportService $service, bool $conDatos = false)
+    {
+        $ruta = $service->generarPlantilla($conDatos);
+        $this->showPlantillaModal = false;
+
+        $nombre = $conDatos ? 'categorias_'.date('Y-m-d_H-i-s').'.xlsx' : 'plantilla_categorias.xlsx';
+
+        return response()->download($ruta, $nombre, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend(true);
     }

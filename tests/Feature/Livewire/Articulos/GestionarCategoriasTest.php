@@ -50,14 +50,35 @@ class GestionarCategoriasTest extends TestCase
             ->assertSet('showImportModal', false);
     }
 
-    public function test_descargar_plantilla_retorna_archivo_xlsx(): void
+    public function test_abre_y_cierra_modal_plantilla(): void
+    {
+        Livewire::withoutLazyLoading();
+
+        Livewire::test(GestionarCategorias::class)
+            ->call('openPlantillaModal')
+            ->assertSet('showPlantillaModal', true)
+            ->call('closePlantillaModal')
+            ->assertSet('showPlantillaModal', false);
+    }
+
+    public function test_descargar_plantilla_vacia_retorna_archivo_xlsx(): void
+    {
+        Livewire::withoutLazyLoading();
+
+        Livewire::test(GestionarCategorias::class)
+            ->call('descargarPlantilla', false)
+            ->assertFileDownloaded('plantilla_categorias.xlsx')
+            ->assertSet('showPlantillaModal', false);
+    }
+
+    public function test_descargar_plantilla_con_datos_usa_nombre_distinto(): void
     {
         Livewire::withoutLazyLoading();
 
         $response = Livewire::test(GestionarCategorias::class)
-            ->call('descargarPlantilla');
+            ->call('descargarPlantilla', true);
 
-        $response->assertFileDownloaded('plantilla_categorias.xlsx');
+        $response->assertSet('showPlantillaModal', false);
     }
 
     public function test_importar_sin_archivo_falla_validacion(): void

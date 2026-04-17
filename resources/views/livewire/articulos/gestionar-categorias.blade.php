@@ -8,24 +8,50 @@
                         <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white flex items-center h-10 sm:h-auto">{{ __('Gestión de Categorías') }}</h2>
                         <!-- Botones móvil -->
                         <div class="sm:hidden flex gap-2">
-                            <button
-                                wire:click="descargarPlantilla"
-                                class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                                title="{{ __('Descargar plantilla') }}"
-                            >
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                            </button>
-                            <button
-                                wire:click="openImportModal"
-                                class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                                title="{{ __('Importar') }}"
-                            >
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                </svg>
-                            </button>
+                            {{-- Menú desplegable con acciones secundarias --}}
+                            <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+                                <button
+                                    type="button"
+                                    @click="open = !open"
+                                    class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
+                                    title="{{ __('Más acciones') }}"
+                                >
+                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                                    </svg>
+                                </button>
+                                <div
+                                    x-show="open"
+                                    x-transition
+                                    x-cloak
+                                    class="absolute right-0 z-20 mt-2 w-56 origin-top-right rounded-md bg-white dark:bg-gray-700 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+                                >
+                                    <div class="py-1">
+                                        <button
+                                            type="button"
+                                            wire:click="openPlantillaModal"
+                                            @click="open = false"
+                                            class="flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                                        >
+                                            <svg class="w-4 h-4 mr-3 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                            {{ __('Descargar plantilla') }}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            wire:click="openImportModal"
+                                            @click="open = false"
+                                            class="flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                                        >
+                                            <svg class="w-4 h-4 mr-3 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                            </svg>
+                                            {{ __('Importar') }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                             <button
                                 wire:click="create"
                                 class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-bcn-primary border border-transparent rounded-md text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
@@ -42,7 +68,7 @@
                 <!-- Botones Desktop -->
                 <div class="hidden sm:flex gap-3">
                     <button
-                        wire:click="descargarPlantilla"
+                        wire:click="openPlantillaModal"
                         class="inline-flex items-center justify-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
                         title="{{ __('Descargar plantilla Excel') }}"
                     >
@@ -569,6 +595,68 @@
         </x-bcn-modal>
     @endif
 
+    {{-- Modal de selección de Plantilla --}}
+    @if($showPlantillaModal)
+        <x-bcn-modal
+            :title="__('Descargar plantilla Excel')"
+            color="bg-bcn-primary"
+            maxWidth="lg"
+            onClose="closePlantillaModal"
+        >
+            <x-slot:body>
+                <div class="space-y-4">
+                    <p class="text-sm text-gray-600 dark:text-gray-300">
+                        {{ __('Elegí qué tipo de plantilla querés descargar:') }}
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {{-- Opción: Plantilla vacía --}}
+                        <button
+                            type="button"
+                            wire:click="descargarPlantilla(false)"
+                            class="group flex flex-col items-start p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-bcn-primary hover:bg-bcn-primary/5 dark:hover:bg-bcn-primary/10 focus:outline-none focus:ring-2 focus:ring-bcn-primary text-left transition-all"
+                        >
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 group-hover:bg-bcn-primary group-hover:text-white text-gray-600 dark:text-gray-300 mb-3 transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            </div>
+                            <p class="font-medium text-gray-900 dark:text-white">{{ __('Plantilla vacía') }}</p>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Solo los encabezados y filas de ejemplo. Ideal para cargar categorías nuevas desde cero.') }}</p>
+                        </button>
+
+                        {{-- Opción: Con datos actuales --}}
+                        <button
+                            type="button"
+                            wire:click="descargarPlantilla(true)"
+                            class="group flex flex-col items-start p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-bcn-primary hover:bg-bcn-primary/5 dark:hover:bg-bcn-primary/10 focus:outline-none focus:ring-2 focus:ring-bcn-primary text-left transition-all"
+                        >
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 group-hover:bg-bcn-primary group-hover:text-white text-gray-600 dark:text-gray-300 mb-3 transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                                </svg>
+                            </div>
+                            <p class="font-medium text-gray-900 dark:text-white">{{ __('Con datos actuales') }}</p>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Incluye todas las categorías del sistema. Útil para editar en masa o respaldar.') }}</p>
+                        </button>
+                    </div>
+                    <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-300">
+                        <strong>{{ __('Importante:') }}</strong> {{ __('La columna ID (en gris) es gestionada por el sistema. No la modifiques: permite actualizar una categoría aunque le cambies el nombre.') }}
+                    </div>
+                </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button
+                    type="button"
+                    @click="close()"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                >
+                    {{ __('Cancelar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
     {{-- Modal de Importación --}}
     @if($showImportModal)
         <x-bcn-modal
@@ -590,8 +678,9 @@
                                     <p class="font-medium mb-1">{{ __('Formato del archivo:') }}</p>
                                     <ul class="list-disc list-inside space-y-1 text-xs">
                                         <li>{{ __('Descargá la plantilla haciendo clic en "Plantilla"') }}</li>
-                                        <li>{{ __('Columnas requeridas: Nombre (obligatorio) y Prefijo (opcional, máx. 10 caracteres)') }}</li>
-                                        <li>{{ __('Si una categoría con el mismo nombre ya existe, se actualizará su prefijo') }}</li>
+                                        <li>{{ __('Columnas: ID (no modificar), Nombre (obligatorio) y Prefijo (opcional, máx. 10 caracteres)') }}</li>
+                                        <li>{{ __('Con ID: se actualiza la categoría (permite renombrarla)') }}</li>
+                                        <li>{{ __('Sin ID: se crea, o se actualiza el prefijo si el nombre ya existe') }}</li>
                                         <li>{{ __('Las filas inválidas se reportarán sin detener la importación') }}</li>
                                     </ul>
                                 </div>

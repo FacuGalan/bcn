@@ -11,22 +11,25 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class CategoriaImportExportService
 {
     /**
      * Genera un archivo .xlsx de plantilla para importar categorías.
-     * Devuelve la ruta temporal del archivo generado.
+     *
+     * @param  bool  $conDatos  Si true, prellena con las categorías actuales del sistema.
      */
-    public function generarPlantilla(): string
+    public function generarPlantilla(bool $conDatos = false): string
     {
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle(__('Categorías'));
 
-        $sheet->setCellValue('A1', __('Nombre'));
-        $sheet->setCellValue('B1', __('Prefijo'));
+        $sheet->setCellValue('A1', __('ID'));
+        $sheet->setCellValue('B1', __('Nombre'));
+        $sheet->setCellValue('C1', __('Prefijo'));
 
         $headerStyle = [
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
@@ -39,25 +42,51 @@ class CategoriaImportExportService
                 'allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']],
             ],
         ];
-        $sheet->getStyle('A1:B1')->applyFromArray($headerStyle);
+        $sheet->getStyle('A1:C1')->applyFromArray($headerStyle);
 
-        $sheet->setCellValue('A2', __('Ej: Bebidas'));
-        $sheet->setCellValue('B2', 'BEB');
-        $sheet->setCellValue('A3', __('Ej: Alimentos'));
-        $sheet->setCellValue('B3', 'ALI');
+        if ($conDatos) {
+            $categorias = Categoria::orderBy('nombre')->get(['id', 'nombre', 'prefijo']);
+            $row = 2;
+            foreach ($categorias as $categoria) {
+                $sheet->setCellValue("A{$row}", $categoria->id);
+                $sheet->setCellValue("B{$row}", $categoria->nombre);
+                $sheet->setCellValue("C{$row}", $categoria->prefijo ?? '');
+                $row++;
+            }
+            $ultimaFila = $row - 1;
+        } else {
+            $sheet->setCellValue('A2', '');
+            $sheet->setCellValue('B2', __('Ej: Bebidas'));
+            $sheet->setCellValue('C2', 'BEB');
+            $sheet->setCellValue('A3', '');
+            $sheet->setCellValue('B3', __('Ej: Alimentos'));
+            $sheet->setCellValue('C3', 'ALI');
+            $sheet->getStyle('B2:C3')->getFont()->setItalic(true)->getColor()->setRGB('9CA3AF');
+            $ultimaFila = 3;
+        }
 
-        $sheet->getStyle('A2:B3')->getFont()->setItalic(true)->getColor()->setRGB('9CA3AF');
+        $sheet->getStyle("A2:A{$ultimaFila}")
+            ->getFill()
+            ->setFillType(Fill::FILL_SOLID)
+            ->getStartColor()
+            ->setRGB('F3F4F6');
+        $sheet->getStyle("A2:A{$ultimaFila}")->getFont()->getColor()->setRGB('9CA3AF');
+        $sheet->getStyle("A2:A{$ultimaFila}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
 
-        $sheet->getColumnDimension('A')->setWidth(40);
-        $sheet->getColumnDimension('B')->setWidth(15);
+        $sheet->getColumnDimension('A')->setWidth(10);
+        $sheet->getColumnDimension('B')->setWidth(40);
+        $sheet->getColumnDimension('C')->setWidth(15);
         $sheet->getRowDimension(1)->setRowHeight(22);
 
         $sheet->freezePane('A2');
 
         $sheet->getComment('A1')->getText()->createText(
-            __('Obligatorio. Nombre único de la categoría (máx. 100 caracteres).')
+            __('No modificar. El sistema usa este ID para identificar la categoría al importar (permite renombrar sin duplicar).')
         );
         $sheet->getComment('B1')->getText()->createText(
+            __('Obligatorio. Nombre único de la categoría (máx. 100 caracteres).')
+        );
+        $sheet->getComment('C1')->getText()->createText(
             __('Opcional. Prefijo para códigos automáticos (máx. 10 caracteres, se convierte a MAYÚSCULAS).')
         );
 
@@ -70,8 +99,12 @@ class CategoriaImportExportService
 
     /**
      * Importa categorías desde un archivo .xlsx / .xls / .csv.
-     * Best-effort: crea las válidas, actualiza prefijo si el nombre ya existe,
-     * y reporta los errores fila a fila sin abortar el resto.
+     * Best-effort: procesa fila a fila, reporta errores sin abortar.
+     *
+     * Comportamiento por fila:
+     * - Con ID: busca la categoría y actualiza nombre + prefijo (permite renombrar).
+     *   Si el ID no existe, reporta error.
+     * - Sin ID: upsert por nombre (crea si no existe, actualiza prefijo si ya existe).
      *
      * @return array{creadas:int, actualizadas:int, errores:array<int, string>}
      */
@@ -103,6 +136,7 @@ class CategoriaImportExportService
         }
 
         $header = array_map(fn ($v) => mb_strtolower(trim((string) $v)), $filas[0]);
+        $idxId = array_search(mb_strtolower(__('ID')), $header, true);
         $idxNombre = array_search(mb_strtolower(__('Nombre')), $header, true);
         $idxPrefijo = array_search(mb_strtolower(__('Prefijo')), $header, true);
 
@@ -116,10 +150,11 @@ class CategoriaImportExportService
             $numeroFila = $i + 1;
             $fila = $filas[$i];
 
+            $idRaw = $idxId !== false ? trim((string) ($fila[$idxId] ?? '')) : '';
             $nombre = trim((string) ($fila[$idxNombre] ?? ''));
             $prefijoRaw = $idxPrefijo !== false ? trim((string) ($fila[$idxPrefijo] ?? '')) : '';
 
-            if ($nombre === '' && $prefijoRaw === '') {
+            if ($idRaw === '' && $nombre === '' && $prefijoRaw === '') {
                 continue;
             }
 
@@ -143,20 +178,55 @@ class CategoriaImportExportService
             }
 
             try {
-                $existente = Categoria::where('nombre', $nombre)->first();
+                if ($idRaw !== '') {
+                    if (! ctype_digit($idRaw)) {
+                        $resultado['errores'][] = __('Fila :fila: el ID debe ser un número', ['fila' => $numeroFila]);
 
-                if ($existente) {
-                    $existente->prefijo = $prefijo;
-                    $existente->save();
+                        continue;
+                    }
+
+                    $categoria = Categoria::find((int) $idRaw);
+                    if (! $categoria) {
+                        $resultado['errores'][] = __('Fila :fila: no existe una categoría con ID :id', [
+                            'fila' => $numeroFila,
+                            'id' => $idRaw,
+                        ]);
+
+                        continue;
+                    }
+
+                    $otra = Categoria::where('nombre', $nombre)
+                        ->where('id', '!=', $categoria->id)
+                        ->first();
+                    if ($otra) {
+                        $resultado['errores'][] = __('Fila :fila: el nombre ":nombre" ya pertenece a otra categoría', [
+                            'fila' => $numeroFila,
+                            'nombre' => $nombre,
+                        ]);
+
+                        continue;
+                    }
+
+                    $categoria->nombre = $nombre;
+                    $categoria->prefijo = $prefijo;
+                    $categoria->save();
                     $resultado['actualizadas']++;
                 } else {
-                    Categoria::create([
-                        'nombre' => $nombre,
-                        'prefijo' => $prefijo,
-                        'color' => '#3B82F6',
-                        'activo' => true,
-                    ]);
-                    $resultado['creadas']++;
+                    $existente = Categoria::where('nombre', $nombre)->first();
+
+                    if ($existente) {
+                        $existente->prefijo = $prefijo;
+                        $existente->save();
+                        $resultado['actualizadas']++;
+                    } else {
+                        Categoria::create([
+                            'nombre' => $nombre,
+                            'prefijo' => $prefijo,
+                            'color' => '#3B82F6',
+                            'activo' => true,
+                        ]);
+                        $resultado['creadas']++;
+                    }
                 }
             } catch (Exception $e) {
                 Log::error('Error importando categoría', [
