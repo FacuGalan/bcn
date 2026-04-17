@@ -10,12 +10,14 @@ use Exception;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -179,8 +181,8 @@ class ArticuloImportExportService
             $precioEfectivo = ($pivot?->precio_base !== null) ? (float) $pivot->precio_base : (float) $articulo->precio_base;
 
             $sheet->setCellValue(self::COL_ID."{$row}", $articulo->id);
-            $sheet->setCellValue(self::COL_CODIGO."{$row}", $articulo->codigo);
-            $sheet->setCellValue(self::COL_CODIGO_BARRAS."{$row}", $articulo->codigo_barras ?? '');
+            $sheet->setCellValueExplicit(self::COL_CODIGO."{$row}", $articulo->codigo, DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit(self::COL_CODIGO_BARRAS."{$row}", $articulo->codigo_barras ?? '', DataType::TYPE_STRING);
             $sheet->setCellValue(self::COL_NOMBRE."{$row}", $articulo->nombre);
             $sheet->setCellValue(self::COL_DESCRIPCION."{$row}", $articulo->descripcion ?? '');
             $sheet->setCellValue(self::COL_CATEGORIA."{$row}", $articulo->categoriaModel?->nombre ?? '');
@@ -240,6 +242,16 @@ class ArticuloImportExportService
             ->setRGB('F3F4F6');
         $sheet->getStyle(self::COL_ID.'2:'.self::COL_ID."{$ultimaFila}")
             ->getFont()->getColor()->setRGB('9CA3AF');
+
+        // Formato TEXT en Código y Código de barras para evitar que Excel los
+        // interprete como número (notación científica en códigos de barras > 11 dígitos,
+        // pérdida de ceros a la izquierda en códigos autogenerados como "000001").
+        $filasFormato = max($ultimaFila + 500, 1000);
+        foreach ([self::COL_CODIGO, self::COL_CODIGO_BARRAS] as $col) {
+            $sheet->getStyle("{$col}2:{$col}{$filasFormato}")
+                ->getNumberFormat()
+                ->setFormatCode(NumberFormat::FORMAT_TEXT);
+        }
 
         // Anchos
         $anchos = [
