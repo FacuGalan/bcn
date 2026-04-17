@@ -106,13 +106,14 @@ class CategoriaImportExportService
      *   Si el ID no existe, reporta error.
      * - Sin ID: upsert por nombre (crea si no existe, actualiza prefijo si ya existe).
      *
-     * @return array{creadas:int, actualizadas:int, errores:array<int, string>}
+     * @return array{creadas:int, actualizadas:int, sin_cambios:int, errores:array<int, string>}
      */
     public function importar(UploadedFile $archivo): array
     {
         $resultado = [
             'creadas' => 0,
             'actualizadas' => 0,
+            'sin_cambios' => 0,
             'errores' => [],
         ];
 
@@ -209,15 +210,25 @@ class CategoriaImportExportService
 
                     $categoria->nombre = $nombre;
                     $categoria->prefijo = $prefijo;
-                    $categoria->save();
-                    $resultado['actualizadas']++;
+
+                    if ($categoria->isDirty()) {
+                        $categoria->save();
+                        $resultado['actualizadas']++;
+                    } else {
+                        $resultado['sin_cambios']++;
+                    }
                 } else {
                     $existente = Categoria::where('nombre', $nombre)->first();
 
                     if ($existente) {
                         $existente->prefijo = $prefijo;
-                        $existente->save();
-                        $resultado['actualizadas']++;
+
+                        if ($existente->isDirty()) {
+                            $existente->save();
+                            $resultado['actualizadas']++;
+                        } else {
+                            $resultado['sin_cambios']++;
+                        }
                     } else {
                         Categoria::create([
                             'nombre' => $nombre,

@@ -110,10 +110,44 @@ class CategoriaImportExportServiceTest extends TestCase
 
         $this->assertSame(0, $resultado['creadas']);
         $this->assertSame(1, $resultado['actualizadas']);
+        $this->assertSame(0, $resultado['sin_cambios']);
 
         $cat->refresh();
         $this->assertSame('Bebidas sin alcohol', $cat->nombre);
         $this->assertSame('BSA', $cat->prefijo);
+    }
+
+    public function test_con_id_y_datos_iguales_cuenta_como_sin_cambios(): void
+    {
+        $cat = Categoria::create(['nombre' => 'Bebidas', 'prefijo' => 'BEB', 'color' => '#000000', 'activo' => true]);
+
+        $archivo = $this->crearArchivoXlsx([
+            [__('ID'), __('Nombre'), __('Prefijo')],
+            [(string) $cat->id, 'Bebidas', 'BEB'],
+        ]);
+
+        $resultado = $this->service->importar($archivo);
+
+        $this->assertSame(0, $resultado['creadas']);
+        $this->assertSame(0, $resultado['actualizadas']);
+        $this->assertSame(1, $resultado['sin_cambios']);
+        $this->assertEmpty($resultado['errores']);
+    }
+
+    public function test_sin_id_con_prefijo_identico_cuenta_como_sin_cambios(): void
+    {
+        Categoria::create(['nombre' => 'Alimentos', 'prefijo' => 'ALI', 'color' => '#000000', 'activo' => true]);
+
+        $archivo = $this->crearArchivoXlsx([
+            [__('ID'), __('Nombre'), __('Prefijo')],
+            ['', 'Alimentos', 'ALI'],
+        ]);
+
+        $resultado = $this->service->importar($archivo);
+
+        $this->assertSame(0, $resultado['creadas']);
+        $this->assertSame(0, $resultado['actualizadas']);
+        $this->assertSame(1, $resultado['sin_cambios']);
     }
 
     public function test_con_id_inexistente_reporta_error(): void

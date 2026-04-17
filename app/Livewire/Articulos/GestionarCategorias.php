@@ -325,9 +325,12 @@ class GestionarCategorias extends Component
         $this->importacionResultado = $service->importar($this->archivoImportacion);
         $this->importacionProcesada = true;
 
-        $total = $this->importacionResultado['creadas'] + $this->importacionResultado['actualizadas'];
-        if ($total > 0) {
-            $this->dispatch('notify', type: 'success', message: __(':count categorías procesadas correctamente', ['count' => $total]));
+        $procesadas = $this->importacionResultado['creadas']
+            + $this->importacionResultado['actualizadas']
+            + ($this->importacionResultado['sin_cambios'] ?? 0);
+
+        if ($procesadas > 0) {
+            $this->dispatch('notify', type: 'success', message: __(':count categorías procesadas correctamente', ['count' => $procesadas]));
         }
     }
 

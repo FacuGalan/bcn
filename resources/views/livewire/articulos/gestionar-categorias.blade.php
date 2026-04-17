@@ -715,7 +715,7 @@
                         {{-- Resultado --}}
                         <div class="space-y-4">
                             <div class="text-center py-4">
-                                @if(($importacionResultado['creadas'] ?? 0) + ($importacionResultado['actualizadas'] ?? 0) > 0)
+                                @if(($importacionResultado['creadas'] ?? 0) + ($importacionResultado['actualizadas'] ?? 0) + ($importacionResultado['sin_cambios'] ?? 0) > 0)
                                     <svg class="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
@@ -726,7 +726,7 @@
                                 @endif
                             </div>
 
-                            <div class="grid grid-cols-3 gap-4 text-center">
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                                 <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
                                     <p class="text-2xl font-bold text-green-600 dark:text-green-400">{{ $importacionResultado['creadas'] ?? 0 }}</p>
                                     <p class="text-xs text-green-700 dark:text-green-300">{{ __('Creadas') }}</p>
@@ -734,6 +734,10 @@
                                 <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
                                     <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ $importacionResultado['actualizadas'] ?? 0 }}</p>
                                     <p class="text-xs text-blue-700 dark:text-blue-300">{{ __('Actualizadas') }}</p>
+                                </div>
+                                <div class="bg-gray-50 dark:bg-gray-900/40 rounded-lg p-3">
+                                    <p class="text-2xl font-bold text-gray-600 dark:text-gray-400">{{ $importacionResultado['sin_cambios'] ?? 0 }}</p>
+                                    <p class="text-xs text-gray-700 dark:text-gray-300">{{ __('Sin cambios') }}</p>
                                 </div>
                                 <div class="bg-red-50 dark:bg-red-900/20 rounded-lg p-3">
                                     <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ count($importacionResultado['errores'] ?? []) }}</p>
