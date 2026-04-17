@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-04-16 (fix/bugs-abr-16)
+> Version: 0.1.x | Ultima actualizacion: 2026-04-17
 
 ---
 
@@ -1322,6 +1322,7 @@ Las categorias organizan los articulos en grupos logicos (ej: "Bebidas", "Alimen
 
 - Filtros de busqueda y estado.
 - Tabla con las categorias.
+- Botones en el header: **"Nueva Categoria"**, **"Plantilla"** e **"Importar"**.
 
 #### Crear una categoria
 
@@ -1338,6 +1339,35 @@ Haga clic en **"Nueva Categoria"** y complete:
 - **Editar**: Modifica los datos.
 - **Activar/Desactivar**: Cambia el estado.
 - **Eliminar**: Solo si no tiene articulos asociados.
+
+#### Importar categorias desde Excel
+
+Permite cargar multiples categorias de una sola vez desde un archivo .xlsx.
+
+**Paso 1: descargar la plantilla**
+
+Haga clic en el boton **"Plantilla"** en el header. Se descargara el archivo `plantilla_categorias.xlsx` con dos columnas:
+
+| Columna | Requerido | Descripcion |
+|---|---|---|
+| Nombre | Si | Nombre unico de la categoria (maximo 100 caracteres) |
+| Prefijo | No | Prefijo para codigos automaticos (maximo 10 caracteres, se guarda en MAYUSCULAS) |
+
+La plantilla incluye dos filas de ejemplo (en gris italica) que deben reemplazarse o eliminarse.
+
+**Paso 2: completar y subir el archivo**
+
+1. Complete la plantilla con sus categorias (una por fila, a partir de la fila 2).
+2. Haga clic en **"Importar"** en el header.
+3. En el modal que se abre, seleccione el archivo .xlsx completado.
+4. Haga clic en **"Importar"** para procesar.
+
+**Comportamiento de la importacion**
+
+- Si el nombre de la categoria **no existe** en el sistema: se crea con color azul por defecto y estado activo.
+- Si el nombre **ya existe**: se actualiza unicamente el prefijo con el valor del archivo.
+- Las filas con errores (nombre vacio, nombre demasiado largo, prefijo demasiado largo) se reportan individualmente sin interrumpir el resto de la importacion.
+- Al terminar, se muestra un resumen con: categorias creadas, categorias actualizadas y errores por fila (si los hubiera).
 
 ---
 
