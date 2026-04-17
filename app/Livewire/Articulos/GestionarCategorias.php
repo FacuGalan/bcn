@@ -53,6 +53,8 @@ class GestionarCategorias extends Component
 
     public bool $importacionProcesada = false;
 
+    public bool $importacionPreview = false;
+
     // Modal de selección de plantilla
     public bool $showPlantillaModal = false;
 
@@ -295,6 +297,7 @@ class GestionarCategorias extends Component
         $this->archivoImportacion = null;
         $this->importacionResultado = [];
         $this->importacionProcesada = false;
+        $this->importacionPreview = false;
         $this->showImportModal = true;
     }
 
@@ -307,12 +310,13 @@ class GestionarCategorias extends Component
         $this->archivoImportacion = null;
         $this->importacionResultado = [];
         $this->importacionProcesada = false;
+        $this->importacionPreview = false;
     }
 
     /**
-     * Importa categorías desde un archivo Excel
+     * Valida el archivo seleccionado. Usado tanto por preview como por confirmación.
      */
-    public function importarCategorias(CategoriaImportExportService $service): void
+    private function validarArchivoImportacion(): void
     {
         $this->validate([
             'archivoImportacion' => 'required|file|mimes:xlsx,xls,csv|max:5120',
@@ -321,9 +325,40 @@ class GestionarCategorias extends Component
             'archivoImportacion.mimes' => __('El archivo debe ser Excel (.xlsx) o CSV'),
             'archivoImportacion.max' => __('El archivo no debe superar 5MB'),
         ]);
+    }
 
-        $this->importacionResultado = $service->importar($this->archivoImportacion);
+    /**
+     * Ejecuta una previsualización (dry-run) del archivo: valida, cuenta lo que
+     * pasaría pero NO persiste cambios. El usuario luego confirma o vuelve atrás.
+     */
+    public function previsualizarImportacion(CategoriaImportExportService $service): void
+    {
+        $this->validarArchivoImportacion();
+
+        $this->importacionResultado = $service->importar($this->archivoImportacion, dryRun: true);
+        $this->importacionPreview = true;
+        $this->importacionProcesada = false;
+    }
+
+    /**
+     * Vuelve al paso de selección de archivo desde el preview (sin aplicar nada).
+     */
+    public function volverASeleccion(): void
+    {
+        $this->importacionPreview = false;
+        $this->importacionResultado = [];
+    }
+
+    /**
+     * Confirma y aplica la importación previamente previsualizada.
+     */
+    public function confirmarImportacion(CategoriaImportExportService $service): void
+    {
+        $this->validarArchivoImportacion();
+
+        $this->importacionResultado = $service->importar($this->archivoImportacion, dryRun: false);
         $this->importacionProcesada = true;
+        $this->importacionPreview = false;
 
         $procesadas = $this->importacionResultado['creadas']
             + $this->importacionResultado['actualizadas']

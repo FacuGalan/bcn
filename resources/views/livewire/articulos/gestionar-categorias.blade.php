@@ -667,8 +667,8 @@
         >
             <x-slot:body>
                 <div class="space-y-4">
-                    @if(!$importacionProcesada)
-                        {{-- Instrucciones --}}
+                    @if(!$importacionPreview && !$importacionProcesada)
+                        {{-- Estado 1: selección de archivo --}}
                         <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                             <div class="flex">
                                 <svg class="h-5 w-5 text-blue-400 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -681,13 +681,12 @@
                                         <li>{{ __('Columnas: ID (no modificar), Nombre (obligatorio) y Prefijo (opcional, máx. 10 caracteres)') }}</li>
                                         <li>{{ __('Con ID: se actualiza la categoría (permite renombrarla)') }}</li>
                                         <li>{{ __('Sin ID: se crea, o se actualiza el prefijo si el nombre ya existe') }}</li>
-                                        <li>{{ __('Las filas inválidas se reportarán sin detener la importación') }}</li>
+                                        <li>{{ __('Al continuar verás una previsualización antes de aplicar los cambios') }}</li>
                                     </ul>
                                 </div>
                             </div>
                         </div>
 
-                        {{-- Archivo --}}
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 {{ __('Archivo Excel') }} <span class="text-red-500">*</span>
@@ -712,28 +711,40 @@
                             </div>
                         </div>
                     @else
-                        {{-- Resultado --}}
+                        {{-- Estados 2 (preview) y 3 (procesado): mismas stats --}}
                         <div class="space-y-4">
-                            <div class="text-center py-4">
-                                @if(($importacionResultado['creadas'] ?? 0) + ($importacionResultado['actualizadas'] ?? 0) + ($importacionResultado['sin_cambios'] ?? 0) > 0)
-                                    <svg class="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            @if($importacionPreview)
+                                <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm text-amber-800 dark:text-amber-300 flex items-start">
+                                    <svg class="h-5 w-5 text-amber-400 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
                                     </svg>
-                                @else
-                                    <svg class="mx-auto h-12 w-12 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                @endif
-                            </div>
+                                    <div>
+                                        <p class="font-medium">{{ __('Esto es una previsualización') }}</p>
+                                        <p class="text-xs mt-0.5">{{ __('Todavía no se aplicó ningún cambio. Revisá los resultados y confirmá para aplicar.') }}</p>
+                                    </div>
+                                </div>
+                            @else
+                                <div class="text-center py-4">
+                                    @if(($importacionResultado['creadas'] ?? 0) + ($importacionResultado['actualizadas'] ?? 0) + ($importacionResultado['sin_cambios'] ?? 0) > 0)
+                                        <svg class="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    @else
+                                        <svg class="mx-auto h-12 w-12 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                    @endif
+                                </div>
+                            @endif
 
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                                 <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
                                     <p class="text-2xl font-bold text-green-600 dark:text-green-400">{{ $importacionResultado['creadas'] ?? 0 }}</p>
-                                    <p class="text-xs text-green-700 dark:text-green-300">{{ __('Creadas') }}</p>
+                                    <p class="text-xs text-green-700 dark:text-green-300">{{ $importacionPreview ? __('Se crearán') : __('Creadas') }}</p>
                                 </div>
                                 <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
                                     <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ $importacionResultado['actualizadas'] ?? 0 }}</p>
-                                    <p class="text-xs text-blue-700 dark:text-blue-300">{{ __('Actualizadas') }}</p>
+                                    <p class="text-xs text-blue-700 dark:text-blue-300">{{ $importacionPreview ? __('Se actualizarán') : __('Actualizadas') }}</p>
                                 </div>
                                 <div class="bg-gray-50 dark:bg-gray-900/40 rounded-lg p-3">
                                     <p class="text-2xl font-bold text-gray-600 dark:text-gray-400">{{ $importacionResultado['sin_cambios'] ?? 0 }}</p>
@@ -761,30 +772,63 @@
             </x-slot:body>
 
             <x-slot:footer>
-                <button
-                    type="button"
-                    @click="close()"
-                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
-                >
-                    {{ $importacionProcesada ? __('Cerrar') : __('Cancelar') }}
-                </button>
-                @if(!$importacionProcesada)
+                @if($importacionPreview)
+                    {{-- Estado 2: preview --}}
                     <button
                         type="button"
-                        wire:click="importarCategorias"
-                        wire:loading.attr="disabled"
-                        wire:target="importarCategorias,archivoImportacion"
-                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm disabled:opacity-50"
+                        wire:click="volverASeleccion"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
                     >
-                        <svg wire:loading wire:target="importarCategorias" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        {{ __('Volver') }}
+                    </button>
+                    <button
+                        type="button"
+                        wire:click="confirmarImportacion"
+                        wire:loading.attr="disabled"
+                        wire:target="confirmarImportacion"
+                        @if(($importacionResultado['creadas'] ?? 0) + ($importacionResultado['actualizadas'] ?? 0) === 0) disabled @endif
+                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <svg wire:loading wire:target="confirmarImportacion" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <svg wire:loading.remove wire:target="importarCategorias" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        <svg wire:loading.remove wire:target="confirmarImportacion" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                         </svg>
-                        {{ __('Importar') }}
+                        {{ __('Confirmar importación') }}
                     </button>
+                @else
+                    <button
+                        type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm"
+                    >
+                        {{ $importacionProcesada ? __('Cerrar') : __('Cancelar') }}
+                    </button>
+                    @if(!$importacionProcesada)
+                        {{-- Estado 1: selección --}}
+                        <button
+                            type="button"
+                            wire:click="previsualizarImportacion"
+                            wire:loading.attr="disabled"
+                            wire:target="previsualizarImportacion,archivoImportacion"
+                            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm disabled:opacity-50"
+                        >
+                            <svg wire:loading wire:target="previsualizarImportacion" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <svg wire:loading.remove wire:target="previsualizarImportacion" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            {{ __('Continuar') }}
+                        </button>
+                    @endif
                 @endif
             </x-slot:footer>
         </x-bcn-modal>

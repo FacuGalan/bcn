@@ -63,6 +63,28 @@ class CategoriaImportExportServiceTest extends TestCase
         @unlink($ruta);
     }
 
+    public function test_dry_run_cuenta_cambios_pero_no_persiste(): void
+    {
+        $cat = Categoria::create(['nombre' => 'Bebidas', 'prefijo' => 'BEB', 'color' => '#000000', 'activo' => true]);
+
+        $archivo = $this->crearArchivoXlsx([
+            [__('ID'), __('Nombre'), __('Prefijo')],
+            [(string) $cat->id, 'Bebidas Frías', 'BEBF'],
+            ['', 'Nueva Cat', 'NUE'],
+        ]);
+
+        $resultado = $this->service->importar($archivo, dryRun: true);
+
+        $this->assertSame(1, $resultado['creadas']);
+        $this->assertSame(1, $resultado['actualizadas']);
+
+        // La BD no debe haber cambiado
+        $cat->refresh();
+        $this->assertSame('Bebidas', $cat->nombre);
+        $this->assertSame('BEB', $cat->prefijo);
+        $this->assertNull(Categoria::where('nombre', 'Nueva Cat')->first());
+    }
+
     public function test_importa_fila_sin_id_como_categoria_nueva(): void
     {
         $archivo = $this->crearArchivoXlsx([

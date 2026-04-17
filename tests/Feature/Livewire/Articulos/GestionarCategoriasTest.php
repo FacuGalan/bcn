@@ -81,14 +81,28 @@ class GestionarCategoriasTest extends TestCase
         $response->assertSet('showPlantillaModal', false);
     }
 
-    public function test_importar_sin_archivo_falla_validacion(): void
+    public function test_previsualizar_sin_archivo_falla_validacion(): void
     {
         Livewire::withoutLazyLoading();
 
         Livewire::test(GestionarCategorias::class)
             ->call('openImportModal')
-            ->call('importarCategorias')
-            ->assertHasErrors(['archivoImportacion' => 'required']);
+            ->call('previsualizarImportacion')
+            ->assertHasErrors(['archivoImportacion' => 'required'])
+            ->assertSet('importacionPreview', false);
+    }
+
+    public function test_volver_a_seleccion_resetea_preview(): void
+    {
+        Livewire::withoutLazyLoading();
+
+        Livewire::test(GestionarCategorias::class)
+            ->call('openImportModal')
+            ->set('importacionPreview', true)
+            ->set('importacionResultado', ['creadas' => 5, 'actualizadas' => 0, 'sin_cambios' => 0, 'errores' => []])
+            ->call('volverASeleccion')
+            ->assertSet('importacionPreview', false)
+            ->assertSet('importacionResultado', []);
     }
 
     public function test_existing_categoria_gets_prefix_updated_via_service(): void

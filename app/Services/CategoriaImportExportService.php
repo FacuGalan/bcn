@@ -106,9 +106,10 @@ class CategoriaImportExportService
      *   Si el ID no existe, reporta error.
      * - Sin ID: upsert por nombre (crea si no existe, actualiza prefijo si ya existe).
      *
+     * @param  bool  $dryRun  Si true, valida y cuenta pero no persiste cambios (preview).
      * @return array{creadas:int, actualizadas:int, sin_cambios:int, errores:array<int, string>}
      */
-    public function importar(UploadedFile $archivo): array
+    public function importar(UploadedFile $archivo, bool $dryRun = false): array
     {
         $resultado = [
             'creadas' => 0,
@@ -212,7 +213,9 @@ class CategoriaImportExportService
                     $categoria->prefijo = $prefijo;
 
                     if ($categoria->isDirty()) {
-                        $categoria->save();
+                        if (! $dryRun) {
+                            $categoria->save();
+                        }
                         $resultado['actualizadas']++;
                     } else {
                         $resultado['sin_cambios']++;
@@ -224,18 +227,22 @@ class CategoriaImportExportService
                         $existente->prefijo = $prefijo;
 
                         if ($existente->isDirty()) {
-                            $existente->save();
+                            if (! $dryRun) {
+                                $existente->save();
+                            }
                             $resultado['actualizadas']++;
                         } else {
                             $resultado['sin_cambios']++;
                         }
                     } else {
-                        Categoria::create([
-                            'nombre' => $nombre,
-                            'prefijo' => $prefijo,
-                            'color' => '#3B82F6',
-                            'activo' => true,
-                        ]);
+                        if (! $dryRun) {
+                            Categoria::create([
+                                'nombre' => $nombre,
+                                'prefijo' => $prefijo,
+                                'color' => '#3B82F6',
+                                'activo' => true,
+                            ]);
+                        }
                         $resultado['creadas']++;
                     }
                 }
@@ -252,7 +259,7 @@ class CategoriaImportExportService
             }
         }
 
-        if ($resultado['creadas'] > 0 || $resultado['actualizadas'] > 0) {
+        if (! $dryRun && ($resultado['creadas'] > 0 || $resultado['actualizadas'] > 0)) {
             CatalogoCache::clear();
         }
 
