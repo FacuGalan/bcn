@@ -4,9 +4,11 @@ namespace App\Livewire\Articulos;
 
 use App\Models\Categoria;
 use App\Services\CatalogoCache;
+use App\Services\CategoriaImportExportService;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 /**
@@ -18,6 +20,7 @@ use Livewire\WithPagination;
 #[Lazy]
 class GestionarCategorias extends Component
 {
+    use WithFileUploads;
     use WithPagination;
 
     // Propiedades de filtros
@@ -40,6 +43,15 @@ class GestionarCategorias extends Component
     public ?int $categoriaAEliminar = null;
 
     public ?string $nombreCategoriaAEliminar = null;
+
+    // Modal de importación
+    public bool $showImportModal = false;
+
+    public $archivoImportacion = null;
+
+    public array $importacionResultado = [];
+
+    public bool $importacionProcesada = false;
 
     // Propiedades del formulario
     public string $nombre = '';
@@ -238,6 +250,62 @@ class GestionarCategorias extends Component
         }
 
         $this->cancelarEliminar();
+    }
+
+    /**
+     * Descarga la plantilla Excel para importar categorías
+     */
+    public function descargarPlantilla(CategoriaImportExportService $service)
+    {
+        $ruta = $service->generarPlantilla();
+
+        return response()->download($ruta, 'plantilla_categorias.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Abre el modal de importación
+     */
+    public function openImportModal(): void
+    {
+        $this->archivoImportacion = null;
+        $this->importacionResultado = [];
+        $this->importacionProcesada = false;
+        $this->showImportModal = true;
+    }
+
+    /**
+     * Cierra el modal de importación
+     */
+    public function closeImportModal(): void
+    {
+        $this->showImportModal = false;
+        $this->archivoImportacion = null;
+        $this->importacionResultado = [];
+        $this->importacionProcesada = false;
+    }
+
+    /**
+     * Importa categorías desde un archivo Excel
+     */
+    public function importarCategorias(CategoriaImportExportService $service): void
+    {
+        $this->validate([
+            'archivoImportacion' => 'required|file|mimes:xlsx,xls,csv|max:5120',
+        ], [
+            'archivoImportacion.required' => __('Debe seleccionar un archivo'),
+            'archivoImportacion.mimes' => __('El archivo debe ser Excel (.xlsx) o CSV'),
+            'archivoImportacion.max' => __('El archivo no debe superar 5MB'),
+        ]);
+
+        $this->importacionResultado = $service->importar($this->archivoImportacion);
+        $this->importacionProcesada = true;
+
+        $total = $this->importacionResultado['creadas'] + $this->importacionResultado['actualizadas'];
+        if ($total > 0) {
+            $this->dispatch('notify', type: 'success', message: __(':count categorías procesadas correctamente', ['count' => $total]));
+        }
     }
 
     public function placeholder()
