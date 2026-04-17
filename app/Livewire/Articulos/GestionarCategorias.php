@@ -4,9 +4,11 @@ namespace App\Livewire\Articulos;
 
 use App\Models\Categoria;
 use App\Services\CatalogoCache;
+use App\Services\CategoriaImportExportService;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 /**
@@ -18,6 +20,7 @@ use Livewire\WithPagination;
 #[Lazy]
 class GestionarCategorias extends Component
 {
+    use WithFileUploads;
     use WithPagination;
 
     // Propiedades de filtros
@@ -40,6 +43,20 @@ class GestionarCategorias extends Component
     public ?int $categoriaAEliminar = null;
 
     public ?string $nombreCategoriaAEliminar = null;
+
+    // Modal de importación
+    public bool $showImportModal = false;
+
+    public $archivoImportacion = null;
+
+    public array $importacionResultado = [];
+
+    public bool $importacionProcesada = false;
+
+    public bool $importacionPreview = false;
+
+    // Modal de selección de plantilla
+    public bool $showPlantillaModal = false;
 
     // Propiedades del formulario
     public string $nombre = '';
@@ -238,6 +255,118 @@ class GestionarCategorias extends Component
         }
 
         $this->cancelarEliminar();
+    }
+
+    /**
+     * Abre el modal para elegir el tipo de plantilla a descargar
+     */
+    public function openPlantillaModal(): void
+    {
+        $this->showPlantillaModal = true;
+    }
+
+    /**
+     * Cierra el modal de selección de plantilla
+     */
+    public function closePlantillaModal(): void
+    {
+        $this->showPlantillaModal = false;
+    }
+
+    /**
+     * Descarga la plantilla Excel para importar categorías.
+     * Si $conDatos es true, prellena con las categorías actuales.
+     */
+    public function descargarPlantilla(CategoriaImportExportService $service, bool $conDatos = false)
+    {
+        $ruta = $service->generarPlantilla($conDatos);
+        $this->showPlantillaModal = false;
+
+        $nombre = $conDatos ? 'categorias_'.date('Y-m-d_H-i-s').'.xlsx' : 'plantilla_categorias.xlsx';
+
+        return response()->download($ruta, $nombre, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Abre el modal de importación
+     */
+    public function openImportModal(): void
+    {
+        $this->archivoImportacion = null;
+        $this->importacionResultado = [];
+        $this->importacionProcesada = false;
+        $this->importacionPreview = false;
+        $this->showImportModal = true;
+    }
+
+    /**
+     * Cierra el modal de importación
+     */
+    public function closeImportModal(): void
+    {
+        $this->showImportModal = false;
+        $this->archivoImportacion = null;
+        $this->importacionResultado = [];
+        $this->importacionProcesada = false;
+        $this->importacionPreview = false;
+    }
+
+    /**
+     * Valida el archivo seleccionado. Usado tanto por preview como por confirmación.
+     */
+    private function validarArchivoImportacion(): void
+    {
+        $this->validate([
+            'archivoImportacion' => 'required|file|mimes:xlsx,xls,csv|max:5120',
+        ], [
+            'archivoImportacion.required' => __('Debe seleccionar un archivo'),
+            'archivoImportacion.mimes' => __('El archivo debe ser Excel (.xlsx) o CSV'),
+            'archivoImportacion.max' => __('El archivo no debe superar 5MB'),
+        ]);
+    }
+
+    /**
+     * Ejecuta una previsualización (dry-run) del archivo: valida, cuenta lo que
+     * pasaría pero NO persiste cambios. El usuario luego confirma o vuelve atrás.
+     */
+    public function previsualizarImportacion(CategoriaImportExportService $service): void
+    {
+        $this->validarArchivoImportacion();
+
+        $this->importacionResultado = $service->importar($this->archivoImportacion, dryRun: true);
+        $this->importacionPreview = true;
+        $this->importacionProcesada = false;
+    }
+
+    /**
+     * Vuelve al paso de selección de archivo desde el preview (sin aplicar nada).
+     */
+    public function volverASeleccion(): void
+    {
+        $this->importacionPreview = false;
+        $this->importacionResultado = [];
+    }
+
+    /**
+     * Confirma y aplica la importación previamente previsualizada.
+     */
+    public function confirmarImportacion(CategoriaImportExportService $service): void
+    {
+        $this->validarArchivoImportacion();
+
+        $this->importacionResultado = $service->importar($this->archivoImportacion, dryRun: false);
+        $this->importacionProcesada = true;
+        $this->importacionPreview = false;
+
+        $procesadas = $this->importacionResultado['creadas']
+            + $this->importacionResultado['actualizadas']
+            + ($this->importacionResultado['sin_cambios'] ?? 0);
+
+        if ($procesadas > 0) {
+            $this->dispatch('notify', type: 'success', message: __(':count categorías procesadas correctamente', ['count' => $procesadas]));
+        }
     }
 
     public function placeholder()

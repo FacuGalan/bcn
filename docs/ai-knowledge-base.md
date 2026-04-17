@@ -413,6 +413,24 @@ Categorias para clasificar articulos.
 | `tipo_iva_id` | bigint FK nullable | IVA por defecto para articulos de esta categoria |
 | `created_at`, `updated_at`, `deleted_at` | timestamp | Timestamps + soft delete |
 
+#### Import/Export de Categorias
+
+**Service**: `App\Services\CategoriaImportExportService`
+
+- `generarPlantilla(): string` — Genera un archivo `.xlsx` temporal con cabeceras "Nombre" y "Prefijo". Devuelve la ruta del archivo en el directorio temporal del sistema.
+- `importar(UploadedFile $archivo): array{creadas:int, actualizadas:int, errores:array}` — Lee el archivo (.xlsx, .xls o .csv), detecta las columnas por nombre en la primera fila (busqueda case-insensitive), e itera las filas restantes con logica best-effort:
+  - Fila con nombre y prefijo ambos vacios: se omite silenciosamente.
+  - Nombre ausente, nombre > 100 caracteres o prefijo > 10 caracteres: se registra error en `errores` y se continua con la siguiente fila.
+  - El prefijo se convierte a MAYUSCULAS antes de persistir.
+  - Si el nombre ya existe (`Categoria::where('nombre', $nombre)->first()`): se actualiza solo el campo `prefijo`.
+  - Si el nombre no existe: se crea con `color = '#3B82F6'` y `activo = true`.
+  - Si hubo al menos una creacion o actualizacion: llama a `CatalogoCache::clear()` para invalidar el cache de catalogos.
+  - Errores de base de datos por fila se capturan individualmente (try/catch) y se loguean sin abortar el resto.
+
+**Dependencia**: `phpoffice/phpspreadsheet ^5.6`
+
+**Motivacion**: base para el flujo futuro de importar articulos con un desplegable nativo de Excel con las categorias del sistema pre-cargadas.
+
 #### Tabla: `grupos_opcionales`
 Grupos de opciones reutilizables (ej: "Panes a eleccion", "Salsas", "Agregados").
 
