@@ -11,13 +11,16 @@ use App\Models\HistorialPrecio;
 use App\Models\Receta;
 use App\Models\Stock;
 use App\Models\Sucursal;
+use App\Services\ArticuloImportExportService;
 use App\Services\CatalogoCache;
 use App\Services\OpcionalService;
 use App\Traits\SucursalAware;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 /**
@@ -29,7 +32,7 @@ use Livewire\WithPagination;
 #[Lazy]
 class GestionarArticulos extends Component
 {
-    use SucursalAware, WithPagination;
+    use SucursalAware, WithFileUploads, WithPagination;
 
     // Propiedades de filtros
     public string $search = '';
@@ -169,6 +172,20 @@ class GestionarArticulos extends Component
     public array $etiquetas_seleccionadas = [];
 
     public string $busquedaEtiqueta = '';
+
+    // Modal de importación
+    public bool $showImportModal = false;
+
+    public $archivoImportacion = null;
+
+    public array $importacionResultado = [];
+
+    public bool $importacionProcesada = false;
+
+    public bool $importacionPreview = false;
+
+    // Modal de selección de plantilla
+    public bool $showPlantillaModal = false;
 
     /**
      * Actualiza la búsqueda y resetea la paginación
@@ -1416,6 +1433,140 @@ class GestionarArticulos extends Component
                 'porcentaje_cambio' => $r->porcentaje_cambio,
             ];
         })->toArray();
+    }
+
+    // ================================================================================
+    // IMPORT / EXPORT
+    // ================================================================================
+
+    /**
+     * Abre el modal para elegir el tipo de plantilla a descargar
+     */
+    public function openPlantillaModal(): void
+    {
+        $this->showPlantillaModal = true;
+    }
+
+    public function closePlantillaModal(): void
+    {
+        $this->showPlantillaModal = false;
+    }
+
+    /**
+     * Descarga la plantilla Excel para importar artículos.
+     * Si $conDatos es true, prellena con los artículos actuales de la sucursal activa.
+     */
+    public function descargarPlantilla(ArticuloImportExportService $service, bool $conDatos = false)
+    {
+        $sucursalId = sucursal_activa();
+
+        if ($conDatos && ! $sucursalId) {
+            $this->dispatch('notify', type: 'error', message: __('Debe seleccionar una sucursal para exportar'));
+
+            return null;
+        }
+
+        $ruta = $service->generarPlantilla($conDatos, $sucursalId);
+        $this->showPlantillaModal = false;
+
+        $nombre = $conDatos
+            ? 'articulos_'.date('Y-m-d_H-i-s').'.xlsx'
+            : 'plantilla_articulos.xlsx';
+
+        return response()->download($ruta, $nombre, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    public function openImportModal(): void
+    {
+        $this->archivoImportacion = null;
+        $this->importacionResultado = [];
+        $this->importacionProcesada = false;
+        $this->importacionPreview = false;
+        $this->showImportModal = true;
+    }
+
+    public function closeImportModal(): void
+    {
+        $this->showImportModal = false;
+        $this->archivoImportacion = null;
+        $this->importacionResultado = [];
+        $this->importacionProcesada = false;
+        $this->importacionPreview = false;
+    }
+
+    private function validarArchivoImportacion(): void
+    {
+        $this->validate([
+            'archivoImportacion' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+        ], [
+            'archivoImportacion.required' => __('Debe seleccionar un archivo'),
+            'archivoImportacion.mimes' => __('El archivo debe ser Excel (.xlsx) o CSV'),
+            'archivoImportacion.max' => __('El archivo no debe superar 10MB'),
+        ]);
+    }
+
+    /**
+     * Corre un dry-run del archivo y muestra el preview sin persistir.
+     */
+    public function previsualizarImportacion(ArticuloImportExportService $service): void
+    {
+        $this->validarArchivoImportacion();
+
+        $sucursalId = sucursal_activa();
+        if (! $sucursalId) {
+            $this->dispatch('notify', type: 'error', message: __('Debe seleccionar una sucursal para importar'));
+
+            return;
+        }
+
+        $this->importacionResultado = $service->importar(
+            $this->archivoImportacion,
+            $sucursalId,
+            Auth::id(),
+            dryRun: true,
+        );
+        $this->importacionPreview = true;
+        $this->importacionProcesada = false;
+    }
+
+    public function volverASeleccion(): void
+    {
+        $this->importacionPreview = false;
+        $this->importacionResultado = [];
+    }
+
+    /**
+     * Aplica la importación previamente previsualizada.
+     */
+    public function confirmarImportacion(ArticuloImportExportService $service): void
+    {
+        $this->validarArchivoImportacion();
+
+        $sucursalId = sucursal_activa();
+        if (! $sucursalId) {
+            $this->dispatch('notify', type: 'error', message: __('Debe seleccionar una sucursal para importar'));
+
+            return;
+        }
+
+        $this->importacionResultado = $service->importar(
+            $this->archivoImportacion,
+            $sucursalId,
+            Auth::id(),
+            dryRun: false,
+        );
+        $this->importacionProcesada = true;
+        $this->importacionPreview = false;
+
+        $procesadas = ($this->importacionResultado['creadas'] ?? 0)
+            + ($this->importacionResultado['actualizadas'] ?? 0)
+            + ($this->importacionResultado['sin_cambios'] ?? 0);
+
+        if ($procesadas > 0) {
+            $this->dispatch('notify', type: 'success', message: __(':count artículos procesados correctamente', ['count' => $procesadas]));
+        }
     }
 
     public function placeholder()
