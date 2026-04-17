@@ -40,6 +40,7 @@
   - [8.4 Transferencias](#84-transferencias)
 - [9. Articulos](#9-articulos)
   - [9.1 Gestion de Articulos](#91-gestion-de-articulos)
+    - [Importar y exportar articulos desde Excel](#importar-y-exportar-articulos-desde-excel)
   - [9.2 Categorias](#92-categorias)
   - [9.3 Etiquetas](#93-etiquetas)
   - [9.4 Asignar Etiquetas](#94-asignar-etiquetas)
@@ -1268,6 +1269,7 @@ Es el catalogo central de productos de su comercio.
 
 - Panel de filtros.
 - Tabla con todos los articulos mostrando: codigo, nombre, categoria, precio, stock en la sucursal actual, tipo y estado.
+- Botones en el header: **"Nuevo Articulo"**, **"Plantilla"** e **"Importar"** (en escritorio). En movil, el boton **"⋯"** agrupa las opciones "Descargar plantilla", "Importar" y "Cambio masivo de precios".
 
 #### Filtros disponibles
 
@@ -1311,6 +1313,62 @@ Haga clic en el boton de edicion del articulo. Se abre el mismo formulario con l
 - **Ver historial de precios**: Muestra el registro de todos los cambios de precio que ha tenido el articulo.
 
 - **Eliminar**: Solo si el articulo no tiene operaciones asociadas (ventas, compras, stock). De lo contrario, desactivelo.
+
+#### Importar y exportar articulos desde Excel
+
+Permite cargar o actualizar multiples articulos a la vez desde un archivo .xlsx, y exportar el catalogo actual para editarlo en Excel.
+
+**Paso 1: descargar la plantilla**
+
+Haga clic en el boton **"Plantilla"** en el header. Se abrira un modal con dos opciones:
+
+- **Plantilla vacia**: Descarga el archivo con solo los encabezados y validaciones (para carga inicial de articulos).
+- **Con datos actuales**: Descarga el catalogo completo de la sucursal activa con todos los articulos ya cargados (para edicion masiva). Las filas de articulos eliminados se muestran con fondo rojo e incluyen una columna extra **"Eliminado"** con valor "Si"; estas filas son solo informativas.
+
+El archivo descargado es `plantilla_articulos.xlsx` y contiene las siguientes columnas:
+
+| Col | Nombre | Requerido | Descripcion |
+|---|---|---|---|
+| A | ID | No modificar | Identificador interno. Dejar vacio en filas nuevas. |
+| B | Codigo | No | Se autogenera con el prefijo de la categoria si queda vacio en una fila nueva. |
+| C | Codigo de barras | No | Texto libre. Usar formato TEXT en Excel para evitar notacion cientifica. |
+| D | Nombre | Si | Nombre del articulo. |
+| E | Descripcion | No | Descripcion detallada. |
+| F | Categoria | No | Nombre de la categoria activa. Dropdown con categorias disponibles. |
+| G | Unidad | No | Unidad de medida (default: "unidad"). |
+| H | Tipo IVA | No | Nombre del tipo de IVA activo. Dropdown con opciones disponibles. |
+| I | Precio IVA incluido | No | "Si" o "No". |
+| J | Materia prima | No | "Si" o "No". |
+| K | Pesable | No | "Si" o "No". |
+| L | Activo | No | "Si" o "No". Opera sobre la sucursal activa. |
+| M | Vendible | No | "Si" o "No". Opera sobre la sucursal activa. |
+| N | Modo stock | No | "ninguno", "unitario" o "receta". Opera sobre la sucursal activa. |
+| O | Precio | No | Precio efectivo para la sucursal activa. |
+
+Las columnas con lista de opciones tienen un dropdown nativo de Excel para facilitar la edicion.
+
+**Paso 2: completar y subir el archivo**
+
+1. Complete o edite el archivo .xlsx.
+2. Haga clic en **"Importar"** en el header.
+3. En el modal que se abre, seleccione el archivo.
+4. El sistema realizara una previsualizacion (dry-run) mostrando cuantos articulos seran creados, actualizados y cuantas filas tienen errores, sin persistir nada todavia.
+5. Revise el resumen y haga clic en **"Confirmar importacion"** para aplicar los cambios.
+
+**Comportamiento de la importacion**
+
+- **Fila con ID**: busca el articulo existente y lo actualiza (nombre, codigo, campos del pivot). Permite renombrar el articulo o cambiar su codigo.
+- **Fila sin ID**: crea un articulo nuevo y lo vincula a la sucursal activa.
+- **Cambio de categoria**: si la nueva categoria tiene un prefijo distinto, el codigo del articulo se regenera automaticamente.
+- **Articulos eliminados (soft-delete)**: si se indica un ID de articulo eliminado, la fila se ignora con un mensaje de error (los articulos eliminados no se restauran por importacion).
+- **Errores por fila**: cada fila se procesa en forma independiente. Un error en una fila no detiene el resto de la importacion. Al finalizar se muestra un detalle de los errores encontrados.
+
+**Comportamiento del precio al importar**
+
+- Si el precio coincide con el precio base global del articulo: el override de sucursal queda sin valor (NULL) y no se genera historial.
+- Si el precio difiere del precio efectivo anterior: se actualiza el override de sucursal y se registra el cambio en el historial de precios con origen "importacion".
+- Si el precio coincide con el precio efectivo anterior: no hay ningun cambio.
+- Si la celda de precio queda vacia: el override de sucursal se elimina (el articulo pasa a usar el precio base global); si habia un override anterior, el cambio se registra en historial.
 
 ---
 

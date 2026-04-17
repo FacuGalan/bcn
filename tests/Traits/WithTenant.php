@@ -59,6 +59,7 @@ trait WithTenant
         'listas_precios',
         'lista_precio_articulos',
         'lista_precio_condiciones',
+        'historial_precios',
         'categorias',
         'grupos_opcionales',
         'opcionales',

@@ -429,7 +429,67 @@ Categorias para clasificar articulos.
 
 **Dependencia**: `phpoffice/phpspreadsheet ^5.6`
 
-**Motivacion**: base para el flujo futuro de importar articulos con un desplegable nativo de Excel con las categorias del sistema pre-cargadas.
+#### Import/Export de Articulos
+
+**Service**: `App\Services\ArticuloImportExportService`
+
+- `generarPlantilla(bool $conDatos = false, ?int $sucursalId = null): string` — Genera un archivo `.xlsx` temporal. Si `$conDatos = true` (requiere `$sucursalId`), prellena las filas con todos los articulos de la sucursal (incluyendo soft-deleted, con fondo rojo y columna `P` "Eliminado"). Devuelve la ruta del archivo temporal.
+- `importar(UploadedFile $archivo, int $sucursalId, int $usuarioId, bool $dryRun = false): array{creadas:int, actualizadas:int, sin_cambios:int, errores:array}` — Lee el archivo .xlsx, detecta columnas por cabecera (case-insensitive) e itera filas con logica best-effort. Cuando `$dryRun = true` valida y cuenta sin persistir nada.
+
+**Columnas del archivo** (15 columnas activas; col P solo en export con datos):
+
+| Col | Nombre | Notas |
+|---|---|---|
+| A | ID | Solo lectura. Vacio en filas nuevas. |
+| B | Codigo | Autogenerado con prefijo de categoria si queda vacio en fila nueva. |
+| C | Codigo de barras | Tipo TEXT en Excel (evita notacion cientifica). |
+| D | Nombre | Obligatorio. |
+| E | Descripcion | Opcional. |
+| F | Categoria | Nombre de la categoria activa. Dropdown de validacion nativo. |
+| G | Unidad | Default: "unidad". |
+| H | Tipo IVA | Nombre del tipo IVA activo. Dropdown de validacion nativo. |
+| I | Precio IVA incluido | "Si"/"No". |
+| J | Materia prima | "Si"/"No". |
+| K | Pesable | "Si"/"No". |
+| L | Activo | "Si"/"No". Afecta `articulos_sucursales.activo` de la sucursal activa. |
+| M | Vendible | "Si"/"No". Afecta `articulos_sucursales.vendible`. |
+| N | Modo stock | "ninguno"/"unitario"/"receta". Afecta `articulos_sucursales.modo_stock`. |
+| O | Precio | Precio efectivo de la sucursal activa (ver logica de precio abajo). |
+| P | Eliminado | Solo export con datos. "Si" = soft-deleted (informativo, fila roja). |
+
+**Logica de precio al importar**:
+1. Se calcula el precio efectivo anterior: `articulos_sucursales.precio_base ?? articulos.precio_base`.
+2. Si la celda O esta vacia: `nuevoOverride = null` (restaura precio base global).
+3. Si el precio recibido coincide con `articulos.precio_base` (diferencia < 0.001): `nuevoOverride = null` (no se necesita override).
+4. Si difiere: `nuevoOverride = precioRecibido`.
+5. Si el override no cambia: no hay actualizacion ni historial.
+6. Si el override cambia y el precio efectivo resultante difiere del anterior: se llama a `HistorialPrecio::registrar()` con `origen = 'importacion'` y `detalle = 'Importado desde {nombre_archivo}'`.
+
+**Logica de creacion/actualizacion**:
+- Fila con ID: busca `Articulo::find($id)`. Actualiza datos base y el pivot `articulos_sucursales` de la sucursal activa. Permite rename de nombre/codigo. Si se cambia la categoria a una con prefijo distinto, el codigo se regenera.
+- Fila sin ID: crea el articulo y lo asocia a la sucursal activa via `articulos_sucursales`.
+- Articulo soft-deleted con ID: se ignora con error (no se restaura por importacion).
+- Cada fila se procesa en su propia transaccion (`DB::connection('pymes_tenant')->transaction()`): articulo + pivot + historial son atomicos por fila; un error en una fila no aborta el resto.
+
+**Hoja auxiliar interna** (`_datos`): hoja oculta que contiene los rangos de validacion para los dropdowns de categorias y tipos de IVA. La validacion de celdas en Excel apunta a rangos de esta hoja.
+
+#### Tabla: `historial_precios`
+Registro append-only de cambios de precio por articulo y sucursal.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `articulo_id` | bigint FK | Articulo |
+| `sucursal_id` | bigint FK nullable | Sucursal afectada (NULL = cambio global) |
+| `precio_anterior` | decimal(12,2) | Precio efectivo antes del cambio |
+| `precio_nuevo` | decimal(12,2) | Precio efectivo despues del cambio |
+| `usuario_id` | bigint FK | Usuario que realizo el cambio (conexion `config`) |
+| `origen` | varchar libre | Fuente del cambio. Valores conocidos: `manual`, `cambio_masivo`, `importacion` |
+| `porcentaje_cambio` | decimal(5,2) | Variacion porcentual respecto al precio anterior |
+| `detalle` | text nullable | Texto descriptivo adicional (ej: nombre del archivo importado) |
+| `created_at` | timestamp | Fecha del cambio |
+
+**Notas**: `UPDATED_AT = null` (tabla inmutable). Usar `HistorialPrecio::registrar(array $datos)` para insertar (no `create()` directamente). El campo `origen` es VARCHAR libre; no requiere migracion para agregar nuevos origenes.
 
 #### Tabla: `grupos_opcionales`
 Grupos de opciones reutilizables (ej: "Panes a eleccion", "Salsas", "Agregados").
