@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.1.6](https://github.com/FacuGalan/bcn/compare/v0.1.5...v0.1.6) (2026-04-17)
+
+
+### Funcionalidades
+
+* **articulos:** import/export con lógica de precio y historial ([#42](https://github.com/FacuGalan/bcn/issues/42)) ([98cb8ef](https://github.com/FacuGalan/bcn/commit/98cb8ef37996f92d1eb9ae58be465b6a3cea809f))
+* **categorias:** import/export con plantilla Excel ([#41](https://github.com/FacuGalan/bcn/issues/41)) ([83516c6](https://github.com/FacuGalan/bcn/commit/83516c68110529966c85152e4ce31b2b130ac43a))
+* listas de precios estáticas + fix bug categorías paso 5 ([#37](https://github.com/FacuGalan/bcn/issues/37)) ([f5e3798](https://github.com/FacuGalan/bcn/commit/f5e37982e9ec4875ffe6372c7cb11299d4a7d0e9))
+* pesables, decimales stock, multi-select promos y scanner buffer ([#34](https://github.com/FacuGalan/bcn/issues/34)) ([68aa9bd](https://github.com/FacuGalan/bcn/commit/68aa9bd281f3129f42d41a24b518e5d8f5012db2))
+* promociones especiales óptimas + mejoras UI ([#36](https://github.com/FacuGalan/bcn/issues/36)) ([e580c31](https://github.com/FacuGalan/bcn/commit/e580c311cc0e57b5bf67352b5ac1e6a856a21f3e))
+* **ventas:** cambio de forma de pago registrada + fiscal automático ([#38](https://github.com/FacuGalan/bcn/issues/38)) ([de5660a](https://github.com/FacuGalan/bcn/commit/de5660ad6adaad82917b23fd702db28b0b04a725))
+
+
+### Correcciones
+
+* 3 bugs reportados + soporte completo de concepto libre en ventas ([#39](https://github.com/FacuGalan/bcn/issues/39)) ([2060150](https://github.com/FacuGalan/bcn/commit/206015037470ca53f80911e08dc94e2f1da4e593))
+* **cajas:** pagos pendientes de facturar - modales y filtro default ([#40](https://github.com/FacuGalan/bcn/issues/40)) ([b438bf1](https://github.com/FacuGalan/bcn/commit/b438bf12a6bd747a649958ddd8d1b44e1397cc34))
+* **provision:** corregir errores que impedían crear nuevos comercios ([#33](https://github.com/FacuGalan/bcn/issues/33)) ([241ab50](https://github.com/FacuGalan/bcn/commit/241ab509f3f06d182021cfc1f8c185212110be23))
+* **ui:** mejoras UX selectores, artículos, ventas y tesorería ([#31](https://github.com/FacuGalan/bcn/issues/31)) ([169756c](https://github.com/FacuGalan/bcn/commit/169756cc07c531608ace5c58d8e784435ead991a))
+
+
+### Documentación
+
+* agente docs-sync + actualización de manuales ([#35](https://github.com/FacuGalan/bcn/issues/35)) ([a08444a](https://github.com/FacuGalan/bcn/commit/a08444a822194896f46d121efd539664c1ef0dcf))
+
 ## [0.1.5](https://github.com/FacuGalan/bcn/compare/v0.1.4...v0.1.5) (2026-04-08)
 
 
