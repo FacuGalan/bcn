@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-04-17
+> Version: 0.1.x | Ultima actualizacion: 2026-04-27
 
 ---
 
@@ -98,8 +98,11 @@ Antes de comenzar a usar el sistema, es importante comprender los siguientes con
 Al iniciar sesion, encontrara:
 
 - **Menu lateral izquierdo**: Contiene todos los modulos del sistema organizados en categorias (Ventas, Compras, Stock, Cajas, etc.). Haga clic en una categoria para ver sus sub-opciones.
-- **Barra superior**: Muestra el nombre de la pagina actual. A la derecha encontrara selectores de sucursal y caja, ademas de su perfil de usuario.
+- **Barra superior (navbar)**: Muestra los modulos principales del sistema como pestanas horizontales. A la derecha encontrara selectores de sucursal y caja, ademas de su perfil de usuario.
+- **Banda de sub-items**: Debajo del navbar, al seleccionar un modulo que tiene sub-secciones, aparece una banda compacta con los items hijos. El item activo se resalta con subrayado naranja y texto en negrita.
 - **Area de contenido principal**: Ocupa la mayor parte de la pantalla y muestra la pagina o modulo seleccionado.
+
+Cuando hay muchos modulos o sub-items que no caben en el ancho de la pantalla, ambas bandas (navbar y sub-items) son desplazables horizontalmente sin barra de scroll visible. El sistema centra automaticamente el item activo al cargar o navegar. Si hay contenido fuera de vista, aparece una flecha indicadora en el borde correspondiente. Tambien es posible desplazarse pasando el cursor cerca de los bordes laterales.
 
 ### Selector de sucursal y caja
 
