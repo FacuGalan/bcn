@@ -202,7 +202,7 @@ new class extends Component
                 </button>
             </div>
 
-            <div class="flex">
+            <div class="flex flex-1 min-w-0">
                 <!-- Logo (móvil a la derecha, desktop a la izquierda) -->
                 <div class="shrink-0 flex items-center md:order-first order-last">
                     <a href="{{ route('dashboard') }}" wire:navigate>
@@ -211,13 +211,121 @@ new class extends Component
                 </div>
 
                 <!-- Desktop Navigation Links - Menu Dinámico -->
-                <div class="hidden md:flex md:ms-4">
+                <div
+                    x-data="{
+                        canScrollLeft: false,
+                        canScrollRight: false,
+                        autoScrollFrame: null,
+                        autoScrollDelta: 0,
+                        init() {
+                            this.$nextTick(() => {
+                                this.scrollToActive();
+                                this.updateScrollState();
+                            });
+                            this.$watch('activeParentId', () => this.$nextTick(() => {
+                                this.scrollToActive();
+                                this.updateScrollState();
+                            }));
+                            this.$refs.scroller.addEventListener('scroll', () => this.updateScrollState(), { passive: true });
+                            new ResizeObserver(() => this.updateScrollState()).observe(this.$refs.scroller);
+                        },
+                        updateScrollState() {
+                            const el = this.$refs.scroller;
+                            this.canScrollLeft = el.scrollLeft > 0;
+                            this.canScrollRight = el.scrollLeft < (el.scrollWidth - el.clientWidth - 1);
+                        },
+                        scrollToActive() {
+                            const el = this.$refs.scroller;
+                            const active = el.querySelector('[data-active]');
+                            if (!active) return;
+                            const target = active.offsetLeft - (el.clientWidth / 2) + (active.clientWidth / 2);
+                            el.scrollLeft = Math.max(0, target);
+                        },
+                        handleMouseMove(e) {
+                            const el = this.$refs.scroller;
+                            const rect = el.getBoundingClientRect();
+                            const x = e.clientX - rect.left;
+                            const edge = 60;
+                            const max = 8;
+                            if (x < edge && this.canScrollLeft) {
+                                this.autoScrollDelta = -max * (1 - x / edge);
+                                this.startAutoScroll();
+                            } else if (x > rect.width - edge && this.canScrollRight) {
+                                this.autoScrollDelta = max * (1 - (rect.width - x) / edge);
+                                this.startAutoScroll();
+                            } else {
+                                this.stopAutoScroll();
+                            }
+                        },
+                        startAutoScroll() {
+                            if (this.autoScrollFrame !== null) return;
+                            const tick = () => {
+                                if (this.autoScrollDelta === 0) {
+                                    this.autoScrollFrame = null;
+                                    return;
+                                }
+                                this.$refs.scroller.scrollLeft += this.autoScrollDelta;
+                                this.autoScrollFrame = requestAnimationFrame(tick);
+                            };
+                            this.autoScrollFrame = requestAnimationFrame(tick);
+                        },
+                        stopAutoScroll() {
+                            this.autoScrollDelta = 0;
+                            if (this.autoScrollFrame !== null) {
+                                cancelAnimationFrame(this.autoScrollFrame);
+                                this.autoScrollFrame = null;
+                            }
+                        }
+                    }"
+                    @mousemove="handleMouseMove($event)"
+                    @mouseleave="stopAutoScroll()"
+                    class="hidden md:flex md:ms-4 flex-1 min-w-0 relative"
+                >
+                    {{-- Indicador izquierdo de scroll --}}
+                    <div
+                        x-show="canScrollLeft"
+                        x-cloak
+                        x-transition:enter="transition-opacity duration-150"
+                        x-transition:enter-start="opacity-0"
+                        x-transition:enter-end="opacity-100"
+                        x-transition:leave="transition-opacity duration-150"
+                        x-transition:leave-start="opacity-100"
+                        x-transition:leave-end="opacity-0"
+                        class="absolute left-0 inset-y-0 flex items-center pointer-events-none w-8 bg-gradient-to-r from-bcn-secondary via-bcn-secondary/80 to-transparent z-10"
+                    >
+                        <svg class="w-4 h-4 text-bcn-white drop-shadow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </div>
+
+                    {{-- Indicador derecho de scroll --}}
+                    <div
+                        x-show="canScrollRight"
+                        x-cloak
+                        x-transition:enter="transition-opacity duration-150"
+                        x-transition:enter-start="opacity-0"
+                        x-transition:enter-end="opacity-100"
+                        x-transition:leave="transition-opacity duration-150"
+                        x-transition:leave-start="opacity-100"
+                        x-transition:leave-end="opacity-0"
+                        class="absolute right-0 inset-y-0 flex items-center justify-end pointer-events-none w-8 bg-gradient-to-l from-bcn-secondary via-bcn-secondary/80 to-transparent z-10"
+                    >
+                        <svg class="w-4 h-4 text-bcn-white drop-shadow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </div>
+
+                    <div
+                        x-ref="scroller"
+                        class="flex flex-1 min-w-0 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    >
                     @foreach($parentItems as $parent)
                         @if($parent->route_type === 'none')
                             {{-- Padre con hijos: Solo activa la banda de submenu (hijos precargados) --}}
                             <button
                                 @click="setActiveParent({{ $parent->id }})"
-                                class="group relative inline-flex items-center px-4 pt-1 border-b-4 text-sm font-medium transition-all duration-200"
+                                :data-active="activeParentId === {{ $parent->id }} ? 'true' : null"
+                                class="group relative inline-flex items-center flex-shrink-0 whitespace-nowrap px-4 pt-1 border-b-4 text-sm font-medium transition-all duration-200"
                                 :class="activeParentId === {{ $parent->id }}
                                     ? 'border-bcn-primary text-bcn-white'
                                     : 'border-transparent text-bcn-light hover:border-gray-300 hover:text-bcn-white'"
@@ -240,7 +348,8 @@ new class extends Component
                                 href="{{ $parent->getUrl() }}"
                                 wire:navigate
                                 @click="setActiveParent({{ $parent->id }})"
-                                class="group relative inline-flex items-center px-4 pt-1 border-b-4 text-sm font-medium transition-all duration-200"
+                                :data-active="activeParentId === {{ $parent->id }} ? 'true' : null"
+                                class="group relative inline-flex items-center flex-shrink-0 whitespace-nowrap px-4 pt-1 border-b-4 text-sm font-medium transition-all duration-200"
                                 :class="activeParentId === {{ $parent->id }}
                                     ? 'border-bcn-primary text-bcn-white'
                                     : 'border-transparent text-bcn-light hover:border-gray-300 hover:text-bcn-white'"
@@ -261,14 +370,15 @@ new class extends Component
 
                         @if(!$loop->last)
                             {{-- Separador vertical delicado y centrado --}}
-                            <div class="h-5 w-0.5 bg-white/20 mx-1 self-center"></div>
+                            <div class="h-5 w-0.5 bg-white/20 mx-1 self-center flex-shrink-0"></div>
                         @endif
                     @endforeach
+                    </div>
                 </div>
             </div>
 
             <!-- Settings Dropdown -->
-            <div class="hidden md:flex md:items-center md:ms-6 md:gap-3">
+            <div class="hidden md:flex md:items-center md:ms-6 md:gap-3 flex-shrink-0 whitespace-nowrap">
                 <!-- Selector de Sucursal -->
                 <livewire:sucursal-selector />
 
@@ -372,26 +482,139 @@ new class extends Component
                 x-cloak
                 class="hidden md:block bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-sm relative z-40"
             >
-                <div class="px-4">
-                    <div class="flex items-center h-9 gap-1">
+                <div
+                    x-data="{
+                        canScrollLeft: false,
+                        canScrollRight: false,
+                        autoScrollFrame: null,
+                        autoScrollDelta: 0,
+                        init() {
+                            const tryScroll = () => {
+                                if (this.activeParentId === {{ $parent->id }}) {
+                                    this.$nextTick(() => {
+                                        this.scrollToActive();
+                                        this.updateScrollState();
+                                    });
+                                }
+                            };
+                            tryScroll();
+                            this.$watch('activeParentId', tryScroll);
+                            this.$nextTick(() => this.updateScrollState());
+                            this.$refs.scroller.addEventListener('scroll', () => this.updateScrollState(), { passive: true });
+                            new ResizeObserver(() => this.updateScrollState()).observe(this.$refs.scroller);
+                        },
+                        updateScrollState() {
+                            const el = this.$refs.scroller;
+                            this.canScrollLeft = el.scrollLeft > 0;
+                            this.canScrollRight = el.scrollLeft < (el.scrollWidth - el.clientWidth - 1);
+                        },
+                        scrollToActive() {
+                            const el = this.$refs.scroller;
+                            const active = el.querySelector('[data-active]');
+                            if (!active) return;
+                            const target = active.offsetLeft - (el.clientWidth / 2) + (active.clientWidth / 2);
+                            el.scrollLeft = Math.max(0, target);
+                        },
+                        handleMouseMove(e) {
+                            const el = this.$refs.scroller;
+                            const rect = el.getBoundingClientRect();
+                            const x = e.clientX - rect.left;
+                            const edge = 60;
+                            const max = 8;
+                            if (x < edge && this.canScrollLeft) {
+                                this.autoScrollDelta = -max * (1 - x / edge);
+                                this.startAutoScroll();
+                            } else if (x > rect.width - edge && this.canScrollRight) {
+                                this.autoScrollDelta = max * (1 - (rect.width - x) / edge);
+                                this.startAutoScroll();
+                            } else {
+                                this.stopAutoScroll();
+                            }
+                        },
+                        startAutoScroll() {
+                            if (this.autoScrollFrame !== null) return;
+                            const tick = () => {
+                                if (this.autoScrollDelta === 0) {
+                                    this.autoScrollFrame = null;
+                                    return;
+                                }
+                                this.$refs.scroller.scrollLeft += this.autoScrollDelta;
+                                this.autoScrollFrame = requestAnimationFrame(tick);
+                            };
+                            this.autoScrollFrame = requestAnimationFrame(tick);
+                        },
+                        stopAutoScroll() {
+                            this.autoScrollDelta = 0;
+                            if (this.autoScrollFrame !== null) {
+                                cancelAnimationFrame(this.autoScrollFrame);
+                                this.autoScrollFrame = null;
+                            }
+                        }
+                    }"
+                    @mousemove="handleMouseMove($event)"
+                    @mouseleave="stopAutoScroll()"
+                    class="px-4 relative"
+                >
+                    {{-- Indicador izquierdo de scroll --}}
+                    <div
+                        x-show="canScrollLeft"
+                        x-cloak
+                        x-transition:enter="transition-opacity duration-150"
+                        x-transition:enter-start="opacity-0"
+                        x-transition:enter-end="opacity-100"
+                        x-transition:leave="transition-opacity duration-150"
+                        x-transition:leave-start="opacity-100"
+                        x-transition:leave-end="opacity-0"
+                        class="absolute left-4 inset-y-0 flex items-center pointer-events-none w-8 bg-gradient-to-r from-gray-50 dark:from-gray-700 via-gray-50/80 dark:via-gray-700/80 to-transparent z-10"
+                    >
+                        <svg class="w-3.5 h-3.5 text-gray-600 dark:text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </div>
+
+                    {{-- Indicador derecho de scroll --}}
+                    <div
+                        x-show="canScrollRight"
+                        x-cloak
+                        x-transition:enter="transition-opacity duration-150"
+                        x-transition:enter-start="opacity-0"
+                        x-transition:enter-end="opacity-100"
+                        x-transition:leave="transition-opacity duration-150"
+                        x-transition:leave-start="opacity-100"
+                        x-transition:leave-end="opacity-0"
+                        class="absolute right-4 inset-y-0 flex items-center justify-end pointer-events-none w-8 bg-gradient-to-l from-gray-100 dark:from-gray-900 via-gray-100/80 dark:via-gray-900/80 to-transparent z-10"
+                    >
+                        <svg class="w-3.5 h-3.5 text-gray-600 dark:text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </div>
+
+                    <div
+                        x-ref="scroller"
+                        class="flex items-stretch h-7 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    >
                         @foreach($this->getChildrenItems($parent->id) as $child)
                             <a
                                 href="{{ $child->getUrl() }}"
                                 wire:navigate
-                                class="relative inline-flex items-center px-3 py-1 text-sm font-medium rounded-full transition-all duration-150
-                                    {{ $child->isCurrentRoute()
-                                        ? 'text-bcn-secondary bg-bcn-primary shadow-md'
-                                        : 'text-gray-600 dark:text-gray-300 hover:text-white hover:bg-bcn-secondary hover:shadow-sm'
-                                    }}"
+                                @if($child->isCurrentRoute()) data-active="true" @endif
+                                @class([
+                                    'relative inline-flex items-center flex-shrink-0 whitespace-nowrap text-xs border-b-[3px] transition-all duration-150',
+                                    'pr-3' => $loop->first,
+                                    'px-3' => ! $loop->first,
+                                    'border-bcn-primary text-gray-900 dark:text-white font-semibold' => $child->isCurrentRoute(),
+                                    'border-transparent text-gray-600 dark:text-gray-300 font-medium hover:text-gray-900 dark:hover:text-white hover:border-gray-400 dark:hover:border-gray-500' => ! $child->isCurrentRoute(),
+                                ])
                             >
                                 @if($child->icono)
-                                    <x-dynamic-component :component="$child->icono" class="h-4 w-4 mr-1.5" />
+                                    <x-dynamic-component :component="$child->icono" class="h-3.5 w-3.5 mr-1" />
                                 @endif
                                 {{ __($child->nombre) }}
                             </a>
 
                             @if(!$loop->last)
-                                <span class="text-gray-300 dark:text-gray-600 mx-1">•</span>
+                                {{-- Separador vertical delicado, mismo estilo que los padres --}}
+                                <div class="h-3.5 w-px bg-gray-300 dark:bg-gray-600 self-center flex-shrink-0"></div>
                             @endif
                         @endforeach
                     </div>
