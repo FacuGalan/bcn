@@ -853,11 +853,16 @@ class ConfiguracionEmpresa extends Component
 
     public function guardarConfigCaja()
     {
+        $this->configCajaNombre = trim((string) $this->configCajaNombre);
+
         $this->validate([
+            'configCajaNombre' => 'required|string|max:15',
             'configCajaLimiteEfectivo' => 'nullable|numeric|min:0',
             'configCajaModoCargaInicial' => 'required|in:manual,ultimo_cierre,monto_fijo',
             'configCajaMontoFijoInicial' => 'nullable|numeric|min:0',
         ], [
+            'configCajaNombre.required' => __('El nombre de la caja es obligatorio.'),
+            'configCajaNombre.max' => __('El nombre no puede superar los 15 caracteres.'),
             'configCajaLimiteEfectivo.numeric' => __('El límite debe ser un número.'),
             'configCajaLimiteEfectivo.min' => __('El límite no puede ser negativo.'),
             'configCajaMontoFijoInicial.numeric' => __('El monto fijo debe ser un número.'),
@@ -867,6 +872,7 @@ class ConfiguracionEmpresa extends Component
         try {
             $caja = Caja::findOrFail($this->configCajaId);
 
+            $caja->nombre = $this->configCajaNombre;
             $caja->limite_efectivo = $this->configCajaLimiteEfectivo ?: null;
             $caja->modo_carga_inicial = $this->configCajaModoCargaInicial;
             $caja->monto_fijo_inicial = $this->configCajaModoCargaInicial === 'monto_fijo'
