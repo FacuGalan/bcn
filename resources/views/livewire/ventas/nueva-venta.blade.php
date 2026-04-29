@@ -2767,30 +2767,41 @@
             <x-slot:body>
                 <div x-data="{
                     precio: {{ $pesablePrecioUnitario }},
-                    cantidad: null,
-                    valor: null,
+                    cantidad: '',
+                    valor: '',
                     editando: null,
+                    submitting: false,
+                    parseDec(s) {
+                        if (s === null || s === undefined || s === '') return 0;
+                        const n = parseFloat(String(s).replace(',', '.'));
+                        return isNaN(n) ? 0 : n;
+                    },
                     calcDesdeQty() {
                         if (this.editando !== 'cantidad') return;
-                        if (this.cantidad > 0 && this.precio > 0) {
-                            this.valor = Math.round(this.cantidad * this.precio * 100) / 100;
+                        const c = this.parseDec(this.cantidad);
+                        if (c > 0 && this.precio > 0) {
+                            this.valor = (Math.round(c * this.precio * 100) / 100).toString();
                         } else {
-                            this.valor = null;
+                            this.valor = '';
                         }
                     },
                     calcDesdeValor() {
                         if (this.editando !== 'valor') return;
-                        if (this.valor > 0 && this.precio > 0) {
-                            this.cantidad = Math.round(this.valor / this.precio * 1000) / 1000;
+                        const v = this.parseDec(this.valor);
+                        if (v > 0 && this.precio > 0) {
+                            this.cantidad = (Math.round(v / this.precio * 1000) / 1000).toString();
                         } else {
-                            this.cantidad = null;
+                            this.cantidad = '';
                         }
                     },
                     confirmar() {
-                        if (!this.cantidad || this.cantidad <= 0) return;
-                        $wire.confirmarPesable(this.cantidad);
+                        if (this.submitting) return;
+                        const c = this.parseDec(this.cantidad);
+                        if (c <= 0) return;
+                        this.submitting = true;
+                        $wire.confirmarPesable(c);
                     }
-                }" class="space-y-4">
+                }" @confirmar-pesable-modal.window="confirmar()" class="space-y-4">
                     {{-- Info del artículo --}}
                     <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
                         <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $pesableNombreArticulo }}</div>
@@ -2806,13 +2817,12 @@
                                 {{ __('Cantidad') }} ({{ $pesableUnidadMedida }})
                             </label>
                             <input
-                                type="number"
-                                x-model.number="cantidad"
-                                @input="calcDesdeQty()"
+                                type="text"
+                                inputmode="decimal"
+                                x-model="cantidad"
+                                @input="cantidad = String($el.value).replace(',', '.'); calcDesdeQty()"
                                 @focus="editando = 'cantidad'"
                                 @keydown.enter.prevent="confirmar()"
-                                step="0.001"
-                                min="0.001"
                                 x-init="setTimeout(() => $el.focus(), 350)"
                                 class="block w-full text-lg text-center rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-amber-500 focus:ring focus:ring-amber-500 focus:ring-opacity-50"
                                 placeholder="0.000"
@@ -2829,13 +2839,12 @@
                                     <span class="text-gray-500 dark:text-gray-400 text-lg">$</span>
                                 </div>
                                 <input
-                                    type="number"
-                                    x-model.number="valor"
-                                    @input="calcDesdeValor()"
+                                    type="text"
+                                    inputmode="decimal"
+                                    x-model="valor"
+                                    @input="valor = String($el.value).replace(',', '.'); calcDesdeValor()"
                                     @focus="editando = 'valor'"
                                     @keydown.enter.prevent="confirmar()"
-                                    step="0.01"
-                                    min="0.01"
                                     class="block w-full pl-8 text-lg text-center rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-amber-500 focus:ring focus:ring-amber-500 focus:ring-opacity-50"
                                     placeholder="0.00"
                                 />
@@ -2852,7 +2861,7 @@
                 <button type="button" @click="close()" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400">
                     {{ __('Cancelar') }}
                 </button>
-                <button type="button" @click="confirmar()" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <button type="button" @click="$dispatch('confirmar-pesable-modal')" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500">
                     {{ __('Agregar') }}
                 </button>
             </x-slot:footer>
@@ -2969,6 +2978,7 @@
             <x-slot:body>
                 <div x-data="{
                     hlIdx: 0,
+                    selecting: false,
                     get rowCount() {
                         return this.$refs.tablaArticulos ? this.$refs.tablaArticulos.querySelectorAll('tr[data-row]').length : 0;
                     },
@@ -2978,7 +2988,13 @@
                             if (rows && rows[this.hlIdx]) rows[this.hlIdx].scrollIntoView({ block: 'nearest' });
                         });
                     },
+                    pickArticulo(id) {
+                        if (this.selecting) return;
+                        this.selecting = true;
+                        $wire.seleccionarArticuloModal(id);
+                    },
                     selectRow() {
+                        if (this.selecting) return;
                         const rows = this.$refs.tablaArticulos?.querySelectorAll('tr[data-row]');
                         if (rows && rows[this.hlIdx]) rows[this.hlIdx].click();
                     }
@@ -3074,10 +3090,9 @@
                                     @forelse($articulosModalResultados as $idx => $art)
                                         <tr
                                             data-row
-                                            wire:click="seleccionarArticuloModal({{ $art['id'] }})"
-                                            @dblclick="$wire.seleccionarArticuloModal({{ $art['id'] }})"
+                                            @click="pickArticulo({{ $art['id'] }})"
                                             @mouseenter="hlIdx = {{ $idx }}"
-                                            :class="hlIdx === {{ $idx }} ? 'bg-indigo-50 dark:bg-indigo-900/30' : ''"
+                                            :class="[hlIdx === {{ $idx }} ? 'bg-indigo-50 dark:bg-indigo-900/30' : '', selecting ? 'pointer-events-none opacity-60' : '']"
                                             class="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                                         >
                                             <td class="px-3 py-2 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">{{ $art['codigo'] }}</td>
