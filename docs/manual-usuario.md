@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-04-27
+> Version: 0.1.x | Ultima actualizacion: 2026-04-29
 
 ---
 
@@ -219,10 +219,12 @@ Al escribir, aparecera un desplegable con los resultados. Use las flechas del te
 4. El articulo se agregara al carrito con la cantidad indicada.
 5. Si el articulo tiene **opcionales** configurados (por ejemplo, "Con queso", "Tamano grande"), se abrira automaticamente un wizard paso a paso para que usted seleccione las opciones deseadas para cada grupo de opcionales.
 
+> **Nota:** Al seleccionar un articulo desde el buscador, el primer clic agrega el articulo y bloquea momentaneamente los clics siguientes hasta que el modal se cierra. Esto evita duplicados por doble-clic o clics rapidos accidentales.
+
 **Articulos pesables:** Si el articulo esta marcado como pesable (productos que se venden por peso como carnes, frutas, quesos), al seleccionarlo se abrira un modal especial donde puede:
 - Ingresar la **cantidad** (en la unidad de medida del articulo: kg, gr, lt, etc.) y el sistema calcula automaticamente el valor.
 - O ingresar el **valor** ($) y el sistema calcula automaticamente la cantidad.
-Los dos campos estan sincronizados: al modificar uno, el otro se actualiza en tiempo real. Presione Enter o el boton "Agregar" para confirmar.
+Los dos campos estan sincronizados: al modificar uno, el otro se actualiza en tiempo real. Para ingresar decimales puede usar tanto punto (`.`) como coma (`,`) como separador. Presione Enter o el boton "Agregar" para confirmar.
 
 **En el carrito, para cada articulo puede:**
 
@@ -1740,7 +1742,7 @@ Gestion de las cajas de cada sucursal:
 - Lista de cajas agrupadas por sucursal.
 - Estado de cada caja.
 - **Configuracion de caja**:
-  - Nombre de la caja.
+  - Nombre de la caja (editable, maximo 15 caracteres). Permite reemplazar los nombres por defecto ("Caja 1", "Caja 2") por nombres personalizados como "Mostrador" o "Delivery". El formulario muestra un contador de caracteres en tiempo real.
   - Limite de efectivo (monto maximo de efectivo que debe tener la caja).
   - Modo de carga inicial: Manual (el usuario ingresa el saldo al abrir) o Monto Fijo (se carga automaticamente un monto predeterminado).
   - Monto fijo inicial (si corresponde).

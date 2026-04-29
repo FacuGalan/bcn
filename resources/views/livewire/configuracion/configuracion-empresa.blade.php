@@ -139,7 +139,7 @@
                                 {{-- Header --}}
                                 <div class="mb-6">
                                     <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                                        {{ __('Configurar Caja') }}: {{ $configCajaNombre }}
+                                        {{ __('Configurar Caja') }}
                                     </h3>
                                     <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                                         {{ __('Define los parámetros de operación de la caja') }}
@@ -147,6 +147,26 @@
                                 </div>
 
                                 <div class="space-y-4">
+                                    {{-- Nombre --}}
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            {{ __('Nombre') }} <span class="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            wire:model.live="configCajaNombre"
+                                            maxlength="15"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                            placeholder="{{ __('Ej: Caja Mostrador, Delivery...') }}"
+                                        >
+                                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            {{ __('Máximo 15 caracteres') }} ({{ mb_strlen($configCajaNombre ?? '') }}/15)
+                                        </p>
+                                        @error('configCajaNombre')
+                                            <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+
                                     {{-- Límite de Efectivo --}}
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
