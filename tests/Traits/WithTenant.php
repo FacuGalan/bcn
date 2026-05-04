@@ -107,18 +107,18 @@ trait WithTenant
     {
         $prefix = static::$cachedPrefix;
 
-        DB::connection('pymes')->statement('SET FOREIGN_KEY_CHECKS = 0');
+        DB::connection('pymes_tenant')->statement('SET FOREIGN_KEY_CHECKS = 0');
 
         foreach (static::$testTables as $table) {
             try {
-                DB::connection('pymes')->statement("DELETE FROM `{$prefix}{$table}`");
-                DB::connection('pymes')->statement("ALTER TABLE `{$prefix}{$table}` AUTO_INCREMENT = 1");
+                DB::connection('pymes_tenant')->statement("DELETE FROM `{$prefix}{$table}`");
+                DB::connection('pymes_tenant')->statement("ALTER TABLE `{$prefix}{$table}` AUTO_INCREMENT = 1");
             } catch (\Exception $e) {
                 // Tabla podría no existir si es nueva
             }
         }
 
-        DB::connection('pymes')->statement('SET FOREIGN_KEY_CHECKS = 1');
+        DB::connection('pymes_tenant')->statement('SET FOREIGN_KEY_CHECKS = 1');
     }
 
     private function ensurePermanentComercio(): void

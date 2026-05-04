@@ -109,8 +109,8 @@ CREATE TABLE `{{PREFIX}}articulo_grupo_opcional_opcion` (
   UNIQUE KEY `unique_ago_opcional` (`articulo_grupo_opcional_id`,`opcional_id`),
   KEY `fk_agoo_opcional` (`opcional_id`),
   KEY `{{PREFIX}}articulo_grupo_opcional_opcion_disponible_index` (`disponible`),
-  CONSTRAINT `fk_agoo_ago` FOREIGN KEY (`articulo_grupo_opcional_id`) REFERENCES `{{PREFIX}}articulo_grupo_opcional` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_agoo_opcional` FOREIGN KEY (`opcional_id`) REFERENCES `{{PREFIX}}opcionales` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_agoo_ago` FOREIGN KEY (`articulo_grupo_opcional_id`) REFERENCES `{{PREFIX}}articulo_grupo_opcional` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_agoo_opcional` FOREIGN KEY (`opcional_id`) REFERENCES `{{PREFIX}}opcionales` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=112 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}articulo_sucursal_canal`;
 CREATE TABLE `{{PREFIX}}articulo_sucursal_canal` (
@@ -304,7 +304,7 @@ CREATE TABLE `{{PREFIX}}clientes` (
   KEY `idx_cli_cc` (`tiene_cuenta_corriente`),
   KEY `idx_cli_saldo_deudor` (`saldo_deudor_cache`),
   KEY `idx_cli_bloqueado_mora` (`bloqueado_por_mora`),
-  CONSTRAINT `fk_clientes_lista_precio` FOREIGN KEY (`lista_precio_id`) REFERENCES `{{PREFIX}}listas_precios` (`id`) ON DELETE SET NULL
+  CONSTRAINT `{{PREFIX}}fk_clientes_lista_precio` FOREIGN KEY (`lista_precio_id`) REFERENCES `{{PREFIX}}listas_precios` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}clientes_sucursales`;
 CREATE TABLE `{{PREFIX}}clientes_sucursales` (
@@ -358,9 +358,9 @@ CREATE TABLE `{{PREFIX}}cobros` (
   KEY `idx_cobros_estado` (`estado`),
   KEY `idx_cobros_fecha` (`fecha`),
   KEY `idx_cobros_cierre_turno` (`cierre_turno_id`),
-  CONSTRAINT `fk_cobros_caja` FOREIGN KEY (`caja_id`) REFERENCES `{{PREFIX}}cajas` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_cobros_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `{{PREFIX}}clientes` (`id`),
-  CONSTRAINT `fk_cobros_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`)
+  CONSTRAINT `{{PREFIX}}fk_cobros_caja` FOREIGN KEY (`caja_id`) REFERENCES `{{PREFIX}}cajas` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_cobros_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `{{PREFIX}}clientes` (`id`),
+  CONSTRAINT `{{PREFIX}}fk_cobros_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}cobro_pagos`;
 CREATE TABLE `{{PREFIX}}cobro_pagos` (
@@ -397,10 +397,10 @@ CREATE TABLE `{{PREFIX}}cobro_pagos` (
   KEY `idx_cp_forma_pago` (`forma_pago_id`),
   KEY `idx_cp_estado` (`estado`),
   KEY `idx_cobro_pagos_cierre_turno` (`cierre_turno_id`),
-  CONSTRAINT `fk_cp_cobro` FOREIGN KEY (`cobro_id`) REFERENCES `{{PREFIX}}cobros` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_cp_concepto` FOREIGN KEY (`concepto_pago_id`) REFERENCES `{{PREFIX}}conceptos_pago` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_cp_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`),
-  CONSTRAINT `fk_cp_mov_caja` FOREIGN KEY (`movimiento_caja_id`) REFERENCES `{{PREFIX}}movimientos_caja` (`id`) ON DELETE SET NULL
+  CONSTRAINT `{{PREFIX}}fk_cp_cobro` FOREIGN KEY (`cobro_id`) REFERENCES `{{PREFIX}}cobros` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_cp_concepto` FOREIGN KEY (`concepto_pago_id`) REFERENCES `{{PREFIX}}conceptos_pago` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_cp_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`),
+  CONSTRAINT `{{PREFIX}}fk_cp_mov_caja` FOREIGN KEY (`movimiento_caja_id`) REFERENCES `{{PREFIX}}movimientos_caja` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}cobro_ventas`;
 CREATE TABLE `{{PREFIX}}cobro_ventas` (
@@ -418,8 +418,8 @@ CREATE TABLE `{{PREFIX}}cobro_ventas` (
   KEY `idx_cv_cobro` (`cobro_id`),
   KEY `idx_cv_venta` (`venta_id`),
   KEY `idx_venta_pago` (`venta_pago_id`),
-  CONSTRAINT `fk_cv_cobro` FOREIGN KEY (`cobro_id`) REFERENCES `{{PREFIX}}cobros` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_cv_venta` FOREIGN KEY (`venta_id`) REFERENCES `{{PREFIX}}ventas` (`id`)
+  CONSTRAINT `{{PREFIX}}fk_cv_cobro` FOREIGN KEY (`cobro_id`) REFERENCES `{{PREFIX}}cobros` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_cv_venta` FOREIGN KEY (`venta_id`) REFERENCES `{{PREFIX}}ventas` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=31 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}compras`;
 CREATE TABLE `{{PREFIX}}compras` (
@@ -515,11 +515,11 @@ CREATE TABLE `{{PREFIX}}comprobantes_fiscales` (
   KEY `idx_cf_estado` (`estado`),
   KEY `idx_cf_tipo` (`tipo`),
   KEY `idx_cf_receptor_doc` (`receptor_documento_numero`),
-  CONSTRAINT `fk_cf_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `{{PREFIX}}clientes` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_cf_comprobante_asociado` FOREIGN KEY (`comprobante_asociado_id`) REFERENCES `{{PREFIX}}comprobantes_fiscales` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_cf_cuit` FOREIGN KEY (`cuit_id`) REFERENCES `{{PREFIX}}cuits` (`id`),
-  CONSTRAINT `fk_cf_punto_venta` FOREIGN KEY (`punto_venta_id`) REFERENCES `{{PREFIX}}puntos_venta` (`id`),
-  CONSTRAINT `fk_cf_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`)
+  CONSTRAINT `{{PREFIX}}fk_cf_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `{{PREFIX}}clientes` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_cf_comprobante_asociado` FOREIGN KEY (`comprobante_asociado_id`) REFERENCES `{{PREFIX}}comprobantes_fiscales` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_cf_cuit` FOREIGN KEY (`cuit_id`) REFERENCES `{{PREFIX}}cuits` (`id`),
+  CONSTRAINT `{{PREFIX}}fk_cf_punto_venta` FOREIGN KEY (`punto_venta_id`) REFERENCES `{{PREFIX}}puntos_venta` (`id`),
+  CONSTRAINT `{{PREFIX}}fk_cf_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=165 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}comprobante_fiscal_items`;
 CREATE TABLE `{{PREFIX}}comprobante_fiscal_items` (
@@ -540,8 +540,8 @@ CREATE TABLE `{{PREFIX}}comprobante_fiscal_items` (
   PRIMARY KEY (`id`),
   KEY `idx_cfitems_comprobante` (`comprobante_fiscal_id`),
   KEY `idx_cfitems_venta_detalle` (`venta_detalle_id`),
-  CONSTRAINT `fk_cfitems_comprobante` FOREIGN KEY (`comprobante_fiscal_id`) REFERENCES `{{PREFIX}}comprobantes_fiscales` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_cfitems_venta_detalle` FOREIGN KEY (`venta_detalle_id`) REFERENCES `{{PREFIX}}ventas_detalle` (`id`) ON DELETE SET NULL
+  CONSTRAINT `{{PREFIX}}fk_cfitems_comprobante` FOREIGN KEY (`comprobante_fiscal_id`) REFERENCES `{{PREFIX}}comprobantes_fiscales` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_cfitems_venta_detalle` FOREIGN KEY (`venta_detalle_id`) REFERENCES `{{PREFIX}}ventas_detalle` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=225 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}comprobante_fiscal_iva`;
 CREATE TABLE `{{PREFIX}}comprobante_fiscal_iva` (
@@ -555,7 +555,7 @@ CREATE TABLE `{{PREFIX}}comprobante_fiscal_iva` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_cfi_alicuota` (`comprobante_fiscal_id`,`codigo_afip`),
   KEY `idx_cfi_comprobante` (`comprobante_fiscal_id`),
-  CONSTRAINT `fk_cfi_comprobante` FOREIGN KEY (`comprobante_fiscal_id`) REFERENCES `{{PREFIX}}comprobantes_fiscales` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_cfi_comprobante` FOREIGN KEY (`comprobante_fiscal_id`) REFERENCES `{{PREFIX}}comprobantes_fiscales` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=169 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}comprobante_fiscal_ventas`;
 CREATE TABLE `{{PREFIX}}comprobante_fiscal_ventas` (
@@ -569,8 +569,8 @@ CREATE TABLE `{{PREFIX}}comprobante_fiscal_ventas` (
   UNIQUE KEY `unique_cfv` (`comprobante_fiscal_id`,`venta_id`),
   KEY `idx_cfv_comprobante` (`comprobante_fiscal_id`),
   KEY `idx_cfv_venta` (`venta_id`),
-  CONSTRAINT `fk_cfv_comprobante` FOREIGN KEY (`comprobante_fiscal_id`) REFERENCES `{{PREFIX}}comprobantes_fiscales` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_cfv_venta` FOREIGN KEY (`venta_id`) REFERENCES `{{PREFIX}}ventas` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_cfv_comprobante` FOREIGN KEY (`comprobante_fiscal_id`) REFERENCES `{{PREFIX}}comprobantes_fiscales` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_cfv_venta` FOREIGN KEY (`venta_id`) REFERENCES `{{PREFIX}}ventas` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=165 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}conceptos_movimiento_cuenta`;
 CREATE TABLE `{{PREFIX}}conceptos_movimiento_cuenta` (
@@ -901,8 +901,8 @@ CREATE TABLE `{{PREFIX}}formas_pago_cuotas` (
   KEY `fk_formas_pago_cuotas_sucursal` (`sucursal_id`),
   KEY `idx_forma_sucursal_activo` (`forma_pago_id`,`sucursal_id`,`activo`),
   KEY `idx_cantidad_cuotas` (`cantidad_cuotas`),
-  CONSTRAINT `fk_formas_pago_cuotas_forma` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_formas_pago_cuotas_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_formas_pago_cuotas_forma` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_formas_pago_cuotas_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}formas_pago_cuotas_sucursales`;
 CREATE TABLE `{{PREFIX}}formas_pago_cuotas_sucursales` (
@@ -916,8 +916,8 @@ CREATE TABLE `{{PREFIX}}formas_pago_cuotas_sucursales` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_cuota_sucursal` (`forma_pago_cuota_id`,`sucursal_id`),
   KEY `idx_cuota_sucursal_activo` (`sucursal_id`,`activo`),
-  CONSTRAINT `fk_cuotas_sucursales_cuota` FOREIGN KEY (`forma_pago_cuota_id`) REFERENCES `{{PREFIX}}formas_pago_cuotas` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_cuotas_sucursales_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_cuotas_sucursales_cuota` FOREIGN KEY (`forma_pago_cuota_id`) REFERENCES `{{PREFIX}}formas_pago_cuotas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_cuotas_sucursales_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}formas_pago_sucursales`;
 CREATE TABLE `{{PREFIX}}formas_pago_sucursales` (
@@ -933,8 +933,8 @@ CREATE TABLE `{{PREFIX}}formas_pago_sucursales` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_forma_pago_sucursal` (`forma_pago_id`,`sucursal_id`),
   KEY `idx_sucursal_activo` (`sucursal_id`,`activo`),
-  CONSTRAINT `fk_formas_pago_sucursales_forma` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_formas_pago_sucursales_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_formas_pago_sucursales_forma` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_formas_pago_sucursales_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}formas_venta`;
 CREATE TABLE `{{PREFIX}}formas_venta` (
@@ -1105,7 +1105,7 @@ CREATE TABLE `{{PREFIX}}listas_precios` (
   KEY `idx_sucursal_lista_base` (`sucursal_id`,`es_lista_base`),
   KEY `idx_vigencia` (`vigencia_desde`,`vigencia_hasta`),
   KEY `idx_prioridad` (`prioridad`),
-  CONSTRAINT `fk_listas_precios_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_listas_precios_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}lista_precio_articulos`;
 CREATE TABLE `{{PREFIX}}lista_precio_articulos` (
@@ -1125,9 +1125,9 @@ CREATE TABLE `{{PREFIX}}lista_precio_articulos` (
   KEY `idx_lista_precio` (`lista_precio_id`),
   KEY `idx_articulo` (`articulo_id`),
   KEY `idx_categoria` (`categoria_id`),
-  CONSTRAINT `fk_lp_art_articulo` FOREIGN KEY (`articulo_id`) REFERENCES `{{PREFIX}}articulos` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_lp_art_categoria` FOREIGN KEY (`categoria_id`) REFERENCES `{{PREFIX}}categorias` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_lp_art_lista` FOREIGN KEY (`lista_precio_id`) REFERENCES `{{PREFIX}}listas_precios` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_lp_art_articulo` FOREIGN KEY (`articulo_id`) REFERENCES `{{PREFIX}}articulos` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_lp_art_categoria` FOREIGN KEY (`categoria_id`) REFERENCES `{{PREFIX}}categorias` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_lp_art_lista` FOREIGN KEY (`lista_precio_id`) REFERENCES `{{PREFIX}}listas_precios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}lista_precio_condiciones`;
 CREATE TABLE `{{PREFIX}}lista_precio_condiciones` (
@@ -1146,10 +1146,10 @@ CREATE TABLE `{{PREFIX}}lista_precio_condiciones` (
   KEY `idx_forma_pago` (`forma_pago_id`),
   KEY `idx_forma_venta` (`forma_venta_id`),
   KEY `idx_canal_venta` (`canal_venta_id`),
-  CONSTRAINT `fk_lp_cond_canal` FOREIGN KEY (`canal_venta_id`) REFERENCES `{{PREFIX}}canales_venta` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_lp_cond_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_lp_cond_forma_venta` FOREIGN KEY (`forma_venta_id`) REFERENCES `{{PREFIX}}formas_venta` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_lp_cond_lista` FOREIGN KEY (`lista_precio_id`) REFERENCES `{{PREFIX}}listas_precios` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_lp_cond_canal` FOREIGN KEY (`canal_venta_id`) REFERENCES `{{PREFIX}}canales_venta` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_lp_cond_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_lp_cond_forma_venta` FOREIGN KEY (`forma_venta_id`) REFERENCES `{{PREFIX}}formas_venta` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_lp_cond_lista` FOREIGN KEY (`lista_precio_id`) REFERENCES `{{PREFIX}}listas_precios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}migrations`;
 CREATE TABLE `{{PREFIX}}migrations` (
@@ -1250,12 +1250,12 @@ CREATE TABLE `{{PREFIX}}movimientos_cuenta_corriente` (
   KEY `idx_cobro` (`cobro_id`),
   KEY `idx_tipo_estado` (`tipo`,`estado`),
   KEY `fk_mcc_anulado_por` (`anulado_por_movimiento_id`),
-  CONSTRAINT `fk_mcc_anulado_por` FOREIGN KEY (`anulado_por_movimiento_id`) REFERENCES `{{PREFIX}}movimientos_cuenta_corriente` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
-  CONSTRAINT `fk_mcc_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `{{PREFIX}}clientes` (`id`) ON UPDATE CASCADE,
-  CONSTRAINT `fk_mcc_cobro` FOREIGN KEY (`cobro_id`) REFERENCES `{{PREFIX}}cobros` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
-  CONSTRAINT `fk_mcc_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON UPDATE CASCADE,
-  CONSTRAINT `fk_mcc_venta` FOREIGN KEY (`venta_id`) REFERENCES `{{PREFIX}}ventas` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
-  CONSTRAINT `fk_mcc_venta_pago` FOREIGN KEY (`venta_pago_id`) REFERENCES `{{PREFIX}}venta_pagos` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_mcc_anulado_por` FOREIGN KEY (`anulado_por_movimiento_id`) REFERENCES `{{PREFIX}}movimientos_cuenta_corriente` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_mcc_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `{{PREFIX}}clientes` (`id`) ON UPDATE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_mcc_cobro` FOREIGN KEY (`cobro_id`) REFERENCES `{{PREFIX}}cobros` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_mcc_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON UPDATE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_mcc_venta` FOREIGN KEY (`venta_id`) REFERENCES `{{PREFIX}}ventas` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_mcc_venta_pago` FOREIGN KEY (`venta_pago_id`) REFERENCES `{{PREFIX}}venta_pagos` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=45 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}movimientos_cuenta_empresa`;
 CREATE TABLE `{{PREFIX}}movimientos_cuenta_empresa` (
@@ -1469,7 +1469,7 @@ CREATE TABLE `{{PREFIX}}promociones` (
   KEY `idx_vigencia` (`vigencia_desde`,`vigencia_hasta`),
   KEY `idx_prioridad_combinable` (`prioridad`,`combinable`),
   KEY `idx_codigo_cupon` (`codigo_cupon`),
-  CONSTRAINT `fk_promociones_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_promociones_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=40 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}promociones_condiciones`;
 CREATE TABLE `{{PREFIX}}promociones_condiciones` (
@@ -1494,12 +1494,12 @@ CREATE TABLE `{{PREFIX}}promociones_condiciones` (
   KEY `idx_promocion_tipo` (`promocion_id`,`tipo_condicion`),
   KEY `idx_articulo` (`articulo_id`),
   KEY `idx_categoria` (`categoria_id`),
-  CONSTRAINT `fk_promo_cond_articulo` FOREIGN KEY (`articulo_id`) REFERENCES `{{PREFIX}}articulos` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_promo_cond_canal` FOREIGN KEY (`canal_venta_id`) REFERENCES `{{PREFIX}}canales_venta` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_promo_cond_categoria` FOREIGN KEY (`categoria_id`) REFERENCES `{{PREFIX}}categorias` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_promo_cond_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_promo_cond_forma_venta` FOREIGN KEY (`forma_venta_id`) REFERENCES `{{PREFIX}}formas_venta` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_promo_cond_promocion` FOREIGN KEY (`promocion_id`) REFERENCES `{{PREFIX}}promociones` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_promo_cond_articulo` FOREIGN KEY (`articulo_id`) REFERENCES `{{PREFIX}}articulos` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_promo_cond_canal` FOREIGN KEY (`canal_venta_id`) REFERENCES `{{PREFIX}}canales_venta` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_promo_cond_categoria` FOREIGN KEY (`categoria_id`) REFERENCES `{{PREFIX}}categorias` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_promo_cond_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_promo_cond_forma_venta` FOREIGN KEY (`forma_venta_id`) REFERENCES `{{PREFIX}}formas_venta` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_promo_cond_promocion` FOREIGN KEY (`promocion_id`) REFERENCES `{{PREFIX}}promociones` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=40 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}promociones_escalas`;
 CREATE TABLE `{{PREFIX}}promociones_escalas` (
@@ -1513,7 +1513,7 @@ CREATE TABLE `{{PREFIX}}promociones_escalas` (
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_promocion_cantidad` (`promocion_id`,`cantidad_desde`),
-  CONSTRAINT `fk_promo_escalas_promocion` FOREIGN KEY (`promocion_id`) REFERENCES `{{PREFIX}}promociones` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_promo_escalas_promocion` FOREIGN KEY (`promocion_id`) REFERENCES `{{PREFIX}}promociones` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}promociones_especiales`;
 CREATE TABLE `{{PREFIX}}promociones_especiales` (
@@ -1941,8 +1941,8 @@ CREATE TABLE `{{PREFIX}}user_cajas` (
   KEY `idx_caja` (`caja_id`),
   KEY `idx_sucursal` (`sucursal_id`),
   KEY `idx_user_sucursal` (`user_id`,`sucursal_id`),
-  CONSTRAINT `fk_user_cajas_caja` FOREIGN KEY (`caja_id`) REFERENCES `{{PREFIX}}cajas` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_user_cajas_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_user_cajas_caja` FOREIGN KEY (`caja_id`) REFERENCES `{{PREFIX}}cajas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_user_cajas_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}ventas`;
 CREATE TABLE `{{PREFIX}}ventas` (
@@ -1998,7 +1998,7 @@ CREATE TABLE `{{PREFIX}}ventas` (
   CONSTRAINT `{{PREFIX}}ventas_caja_id_foreign` FOREIGN KEY (`caja_id`) REFERENCES `{{PREFIX}}cajas` (`id`),
   CONSTRAINT `{{PREFIX}}ventas_cliente_id_foreign` FOREIGN KEY (`cliente_id`) REFERENCES `{{PREFIX}}clientes` (`id`),
   CONSTRAINT `{{PREFIX}}ventas_sucursal_id_foreign` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`),
-  CONSTRAINT `fk_ventas_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`) ON DELETE SET NULL
+  CONSTRAINT `{{PREFIX}}fk_ventas_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=278 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}ventas_detalle`;
 CREATE TABLE `{{PREFIX}}ventas_detalle` (
@@ -2041,8 +2041,8 @@ CREATE TABLE `{{PREFIX}}ventas_detalle` (
   KEY `idx_vd_concepto_categoria` (`concepto_categoria_id`),
   CONSTRAINT `{{PREFIX}}ventas_detalle_articulo_id_foreign` FOREIGN KEY (`articulo_id`) REFERENCES `{{PREFIX}}articulos` (`id`) ON DELETE SET NULL,
   CONSTRAINT `{{PREFIX}}ventas_detalle_venta_id_foreign` FOREIGN KEY (`venta_id`) REFERENCES `{{PREFIX}}ventas` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_vd_lista_precio` FOREIGN KEY (`lista_precio_id`) REFERENCES `{{PREFIX}}listas_precios` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_vd_concepto_categoria` FOREIGN KEY (`concepto_categoria_id`) REFERENCES `{{PREFIX}}categorias` (`id`) ON DELETE SET NULL
+  CONSTRAINT `{{PREFIX}}fk_vd_lista_precio` FOREIGN KEY (`lista_precio_id`) REFERENCES `{{PREFIX}}listas_precios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_vd_concepto_categoria` FOREIGN KEY (`concepto_categoria_id`) REFERENCES `{{PREFIX}}categorias` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=389 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}venta_detalle_opcionales`;
 CREATE TABLE `{{PREFIX}}venta_detalle_opcionales` (
@@ -2060,9 +2060,9 @@ CREATE TABLE `{{PREFIX}}venta_detalle_opcionales` (
   KEY `idx_vdo_venta_detalle` (`venta_detalle_id`),
   KEY `idx_vdo_opcional` (`opcional_id`),
   KEY `fk_vdo_grupo_opcional` (`grupo_opcional_id`),
-  CONSTRAINT `fk_vdo_grupo_opcional` FOREIGN KEY (`grupo_opcional_id`) REFERENCES `{{PREFIX}}grupos_opcionales` (`id`),
-  CONSTRAINT `fk_vdo_opcional` FOREIGN KEY (`opcional_id`) REFERENCES `{{PREFIX}}opcionales` (`id`),
-  CONSTRAINT `fk_vdo_venta_detalle` FOREIGN KEY (`venta_detalle_id`) REFERENCES `{{PREFIX}}ventas_detalle` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_vdo_grupo_opcional` FOREIGN KEY (`grupo_opcional_id`) REFERENCES `{{PREFIX}}grupos_opcionales` (`id`),
+  CONSTRAINT `{{PREFIX}}fk_vdo_opcional` FOREIGN KEY (`opcional_id`) REFERENCES `{{PREFIX}}opcionales` (`id`),
+  CONSTRAINT `{{PREFIX}}fk_vdo_venta_detalle` FOREIGN KEY (`venta_detalle_id`) REFERENCES `{{PREFIX}}ventas_detalle` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=36 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}venta_detalle_promociones`;
 CREATE TABLE `{{PREFIX}}venta_detalle_promociones` (
@@ -2085,10 +2085,10 @@ CREATE TABLE `{{PREFIX}}venta_detalle_promociones` (
   KEY `idx_vdp_tipo` (`tipo_promocion`),
   KEY `idx_vdp_promocion` (`promocion_id`),
   KEY `idx_vdp_promo_especial` (`promocion_especial_id`),
-  CONSTRAINT `fk_vdp_lista_precio` FOREIGN KEY (`lista_precio_id`) REFERENCES `{{PREFIX}}listas_precios` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_vdp_promocion` FOREIGN KEY (`promocion_id`) REFERENCES `{{PREFIX}}promociones` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_vdp_promocion_especial` FOREIGN KEY (`promocion_especial_id`) REFERENCES `{{PREFIX}}promociones_especiales` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_vdp_venta_detalle` FOREIGN KEY (`venta_detalle_id`) REFERENCES `{{PREFIX}}ventas_detalle` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_vdp_lista_precio` FOREIGN KEY (`lista_precio_id`) REFERENCES `{{PREFIX}}listas_precios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_vdp_promocion` FOREIGN KEY (`promocion_id`) REFERENCES `{{PREFIX}}promociones` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_vdp_promocion_especial` FOREIGN KEY (`promocion_especial_id`) REFERENCES `{{PREFIX}}promociones_especiales` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_vdp_venta_detalle` FOREIGN KEY (`venta_detalle_id`) REFERENCES `{{PREFIX}}ventas_detalle` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=372 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}venta_pago_ajustes`;
 CREATE TABLE `{{PREFIX}}venta_pago_ajustes` (
@@ -2204,10 +2204,10 @@ CREATE TABLE `{{PREFIX}}venta_pagos` (
   CONSTRAINT `{{PREFIX}}fk_vp_nc_generada` FOREIGN KEY (`nota_credito_generada_id`) REFERENCES `{{PREFIX}}comprobantes_fiscales` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `{{PREFIX}}fk_vp_reemplazado` FOREIGN KEY (`venta_pago_reemplazado_id`) REFERENCES `{{PREFIX}}venta_pagos` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `{{PREFIX}}venta_pagos_comprobante_fiscal_id_foreign` FOREIGN KEY (`comprobante_fiscal_id`) REFERENCES `{{PREFIX}}comprobantes_fiscales` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_venta_pagos_concepto` FOREIGN KEY (`concepto_pago_id`) REFERENCES `{{PREFIX}}conceptos_pago` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_venta_pagos_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`),
-  CONSTRAINT `fk_venta_pagos_mov_caja` FOREIGN KEY (`movimiento_caja_id`) REFERENCES `{{PREFIX}}movimientos_caja` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_venta_pagos_venta` FOREIGN KEY (`venta_id`) REFERENCES `{{PREFIX}}ventas` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_venta_pagos_concepto` FOREIGN KEY (`concepto_pago_id`) REFERENCES `{{PREFIX}}conceptos_pago` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_venta_pagos_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`),
+  CONSTRAINT `{{PREFIX}}fk_venta_pagos_mov_caja` FOREIGN KEY (`movimiento_caja_id`) REFERENCES `{{PREFIX}}movimientos_caja` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_venta_pagos_venta` FOREIGN KEY (`venta_id`) REFERENCES `{{PREFIX}}ventas` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}venta_promociones`;
 CREATE TABLE `{{PREFIX}}venta_promociones` (
@@ -2231,10 +2231,10 @@ CREATE TABLE `{{PREFIX}}venta_promociones` (
   KEY `idx_vp_venta` (`venta_id`),
   KEY `idx_vp_tipo` (`tipo_promocion`),
   KEY `idx_vp_cupon` (`codigo_cupon`),
-  CONSTRAINT `fk_vp_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_vp_promocion` FOREIGN KEY (`promocion_id`) REFERENCES `{{PREFIX}}promociones` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_vp_promocion_especial` FOREIGN KEY (`promocion_especial_id`) REFERENCES `{{PREFIX}}promociones_especiales` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_vp_venta` FOREIGN KEY (`venta_id`) REFERENCES `{{PREFIX}}ventas` (`id`) ON DELETE CASCADE
+  CONSTRAINT `{{PREFIX}}fk_vp_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_vp_promocion` FOREIGN KEY (`promocion_id`) REFERENCES `{{PREFIX}}promociones` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_vp_promocion_especial` FOREIGN KEY (`promocion_especial_id`) REFERENCES `{{PREFIX}}promociones_especiales` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_vp_venta` FOREIGN KEY (`venta_id`) REFERENCES `{{PREFIX}}ventas` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=300 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP VIEW IF EXISTS `{{PREFIX}}v_saldos_cliente_global`;
 CREATE OR REPLACE VIEW `{{PREFIX}}v_saldos_cliente_global` AS
