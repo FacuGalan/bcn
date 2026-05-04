@@ -1,12 +1,22 @@
 #!/bin/bash
 # Post-merge hook: se ejecuta automaticamente despues de git pull
-# Regenera caches de Laravel para mantener el rendimiento optimizado
+# LIMPIA caches de Laravel (no los regenera) para evitar envenenamiento.
+#
+# Por que no usamos 'optimize' (que cachea config):
+#   'php artisan optimize' ejecuta 'config:cache' que serializa el config
+#   leyendo .env REAL (DB_DATABASE=pymes). Despues, cuando se corren tests
+#   con APP_ENV=testing, Laravel usa el cache hardcodeado en lugar de
+#   releer .env.testing → las conexiones apuntan a pymes REAL → DELETE
+#   ejecutados por cleanTestData destruyen datos del comercio real.
+#   Incidente: 2026-05-04.
+#
+# 'optimize:clear' es seguro: solo borra caches, sin recrearlos.
 
-echo "[post-merge] Optimizando caches de Laravel..."
-php artisan optimize --quiet 2>/dev/null
+echo "[post-merge] Limpiando caches de Laravel..."
+php artisan optimize:clear --quiet 2>/dev/null
 
 if [ $? -eq 0 ]; then
-    echo "[post-merge] Caches regenerados correctamente."
+    echo "[post-merge] Caches limpiados correctamente."
 else
-    echo "[post-merge] AVISO: No se pudieron regenerar los caches. Ejecuta manualmente: php artisan optimize"
+    echo "[post-merge] AVISO: No se pudieron limpiar los caches. Ejecuta manualmente: php artisan optimize:clear"
 fi

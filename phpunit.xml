@@ -21,7 +21,7 @@
         </include>
     </source>
     <php>
-        <env name="APP_ENV" value="testing"/>
+        <env name="APP_ENV" value="testing" force="true"/>
         <env name="APP_KEY" value="base64:s8wmexXG2QNWXodsFwrgcynsTxRrE1RyXyA2eNVydOY="/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
@@ -33,5 +33,16 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+
+        <!--
+            CRITICO: forzar BDs de testing.
+            'force=true' sobreescribe cualquier valor cacheado en bootstrap/cache/config.php.
+            Si esto se quita, los tests pueden correr contra pymes/config REAL si el cache esta
+            envenenado (ej: hook post-merge ejecutando 'php artisan optimize' que cachea desde .env).
+            Incidente que justifica esta defensa: 2026-05-04.
+        -->
+        <env name="DB_DATABASE" value="pymes_test" force="true"/>
+        <env name="DB_PYMES_DATABASE" value="pymes_test" force="true"/>
+        <env name="DB_CONFIG_DATABASE" value="config_test" force="true"/>
     </php>
 </phpunit>
