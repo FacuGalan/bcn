@@ -33,15 +33,17 @@ class NuevaVentaMejorPromocionTest extends TestCase
         $this->setUpCaja();
         $this->crearTiposIva();
 
-        // Limpiar tablas de grupos (no están en set default de WithTenant)
+        // Limpiar tablas de grupos (no están en set default de WithTenant).
+        // Usar 'pymes_tenant' (la conexion que usan los modelos) para que los DELETE
+        // sean visibles en SELECTs subsiguientes — mismo bug del PR #45 en otra ubicacion.
         $prefix = $this->tenantPrefix;
-        DB::connection('pymes')->statement('SET FOREIGN_KEY_CHECKS = 0');
+        DB::connection('pymes_tenant')->statement('SET FOREIGN_KEY_CHECKS = 0');
         try {
-            DB::connection('pymes')->statement("DELETE FROM `{$prefix}promocion_especial_grupo_articulos`");
-            DB::connection('pymes')->statement("DELETE FROM `{$prefix}promocion_especial_grupos`");
+            DB::connection('pymes_tenant')->statement("DELETE FROM `{$prefix}promocion_especial_grupo_articulos`");
+            DB::connection('pymes_tenant')->statement("DELETE FROM `{$prefix}promocion_especial_grupos`");
         } catch (\Exception $e) {
         }
-        DB::connection('pymes')->statement('SET FOREIGN_KEY_CHECKS = 1');
+        DB::connection('pymes_tenant')->statement('SET FOREIGN_KEY_CHECKS = 1');
     }
 
     protected function tearDown(): void
