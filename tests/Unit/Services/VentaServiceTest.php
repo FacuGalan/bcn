@@ -57,7 +57,10 @@ class VentaServiceTest extends TestCase
      */
     private function setControlStock(string $modo): void
     {
-        DB::connection('pymes')->table("{$this->tenantPrefix}sucursales")
+        // 'pymes_tenant' aplica el prefijo de tabla automaticamente (lo setea TenantService),
+        // por eso se pasa 'sucursales' a secas. La conexion 'pymes' (que estaba antes)
+        // no veia el cambio porque los modelos leen por 'pymes_tenant'.
+        DB::connection('pymes_tenant')->table('sucursales')
             ->where('id', $this->sucursalId)
             ->update(['control_stock_venta' => $modo]);
     }
