@@ -34,27 +34,28 @@
 
         {{-- Alpine store para awareness de selectores --}}
         <script>
-            // Crear store temprano (antes de alpine:init de los traits)
-            document.addEventListener('alpine:init', () => {
-                if (!Alpine.store('awareness')) {
-                    Alpine.store('awareness', { sucursal: false, caja: false });
+            // Helper idempotente: crea el store si no existe
+            window.__ensureAwarenessStore = function () {
+                if (window.Alpine && typeof Alpine.store === 'function') {
+                    if (!Alpine.store('awareness')) {
+                        Alpine.store('awareness', { sucursal: false, caja: false });
+                    }
+                    return true;
                 }
-            }, { once: true });
-            // Reset para wire:navigate (SPA navigation)
+                return false;
+            };
+
+            // 1) Vía evento alpine:init (caso normal — listener antes del init)
+            document.addEventListener('alpine:init', () => {
+                window.__ensureAwarenessStore();
+            });
+
+            // 2) Reset para wire:navigate (SPA navigation)
             document.addEventListener('livewire:navigating', () => {
                 if (window.Alpine && Alpine.store('awareness')) {
                     Alpine.store('awareness').sucursal = false;
                     Alpine.store('awareness').caja = false;
                 }
-            });
-            // Capturar dispatches de los traits (funciona tanto en full reload como wire:navigate)
-            document.addEventListener('livewire:init', () => {
-                Livewire.on('page-uses-sucursal', () => {
-                    if (Alpine.store('awareness')) Alpine.store('awareness').sucursal = true;
-                });
-                Livewire.on('page-uses-caja', () => {
-                    if (Alpine.store('awareness')) Alpine.store('awareness').caja = true;
-                });
             });
         </script>
     </head>
@@ -99,6 +100,20 @@
                         });
                 });
             }
+        </script>
+
+        {{-- Fallback: garantizar que el store de awareness existe DESPUÉS de que Livewire/Alpine se cargaron --}}
+        <script>
+            // Si Alpine ya inicializó cuando llegamos acá, el listener alpine:init nunca capturó.
+            // Crear el store ahora directamente (idempotente).
+            if (typeof window.__ensureAwarenessStore === 'function') {
+                window.__ensureAwarenessStore();
+            }
+            document.addEventListener('livewire:initialized', () => {
+                if (typeof window.__ensureAwarenessStore === 'function') {
+                    window.__ensureAwarenessStore();
+                }
+            });
         </script>
     </body>
 </html>
