@@ -91,7 +91,7 @@
                             type="text"
                             id="search"
                             wire:model.live.debounce.300ms="search"
-                            :placeholder="__('Nombre de grupo o etiqueta...')"
+                            placeholder="{{ __('Nombre de grupo o etiqueta...') }}"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         />
                     </div>
@@ -336,7 +336,7 @@
                             id="grupoNombre"
                             wire:model="grupoNombre"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                            :placeholder="__('Ej: Marca, Color, Tamaño...')"
+                            placeholder="{{ __('Ej: Marca, Color, Tamaño...') }}"
                             required
                         />
                         @error('grupoNombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -350,7 +350,7 @@
                             id="grupoCodigo"
                             wire:model="grupoCodigo"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono uppercase"
-                            :placeholder="__('Ej: MARCA')"
+                            placeholder="{{ __('Ej: MARCA') }}"
                             maxlength="50"
                         />
                         @error('grupoCodigo') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -364,7 +364,7 @@
                             wire:model="grupoDescripcion"
                             rows="2"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                            :placeholder="__('Descripción del grupo...')"
+                            placeholder="{{ __('Descripción del grupo...') }}"
                         ></textarea>
                         @error('grupoDescripcion') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                     </div>
@@ -439,7 +439,7 @@
                             id="etiquetaNombre"
                             wire:model="etiquetaNombre"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                            :placeholder="__('Ej: Samsung, Rojo, Grande...')"
+                            placeholder="{{ __('Ej: Samsung, Rojo, Grande...') }}"
                             required
                         />
                         @error('etiquetaNombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -453,7 +453,7 @@
                             id="etiquetaCodigo"
                             wire:model="etiquetaCodigo"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono uppercase"
-                            :placeholder="__('Ej: SAMS')"
+                            placeholder="{{ __('Ej: SAMS') }}"
                             maxlength="50"
                         />
                         @error('etiquetaCodigo') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -476,7 +476,7 @@
                                 type="text"
                                 wire:model.live="etiquetaColor"
                                 class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono text-sm"
-                                :placeholder="__('Vacío = usa color del grupo')"
+                                placeholder="{{ __('Vacío = usa color del grupo') }}"
                                 maxlength="7"
                             />
                             @if($etiquetaColor)

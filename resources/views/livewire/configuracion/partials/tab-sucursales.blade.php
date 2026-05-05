@@ -26,7 +26,7 @@
                                         type="text"
                                         wire:model="sucursalNombre"
                                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                        :placeholder="__('Ej: Sucursal Norte')"
+                                        placeholder="{{ __('Ej: Sucursal Norte') }}"
                                     >
                                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Para uso interno del sistema') }}</p>
                                     @error('sucursalNombre')
@@ -43,7 +43,7 @@
                                         type="text"
                                         wire:model="sucursalNombrePublico"
                                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                        :placeholder="__('Ej: Helados Favoritos Rivadavia')"
+                                        placeholder="{{ __('Ej: Helados Favoritos Rivadavia') }}"
                                     >
                                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Nombre comercial visible al público') }}</p>
                                     @error('sucursalNombrePublico')

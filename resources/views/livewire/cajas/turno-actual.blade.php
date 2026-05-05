@@ -604,7 +604,7 @@
                                     wire:model.live.debounce.300ms="saldoDeclaradoFondoComun"
                                     x-init="$nextTick(() => $el.focus())"
                                     class="block w-full pl-10 pr-4 py-2.5 text-xl font-bold border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center"
-                                    :placeholder="__('Ingrese el total del efectivo')"
+                                    placeholder="{{ __('Ingrese el total del efectivo') }}"
                                 >
                             </div>
 
@@ -809,7 +809,7 @@
                                     wire:model.live.debounce.300ms="saldosDeclarados.{{ $cajaId }}"
                                     @if($loop->first) x-init="$nextTick(() => $el.focus())" @endif
                                     class="block w-full pl-10 pr-4 py-2.5 text-xl font-bold border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center"
-                                    :placeholder="__('Ingrese el monto contado')"
+                                    placeholder="{{ __('Ingrese el monto contado') }}"
                                 >
                             </div>
 
@@ -862,7 +862,7 @@
                         type="text"
                         wire:model="observacionesCierre"
                         class="block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm py-1.5"
-                        :placeholder="__('Notas sobre el cierre del turno...')"
+                        placeholder="{{ __('Notas sobre el cierre del turno...') }}"
                     >
                 </div>
             </div>

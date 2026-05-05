@@ -736,7 +736,7 @@
                                         @keydown.escape="clienteFocused = false"
                                         type="text"
                                         class="block w-full px-2 py-1.5 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-indigo-500 focus:border-indigo-500 rounded-l-md"
-                                        :placeholder="__('Buscar cliente... (Consumidor Final)')"
+                                        placeholder="{{ __('Buscar cliente... (Consumidor Final)') }}"
                                         @focus="clienteFocused = true; hlIdx = -1">
                                     <button
                                         wire:click="abrirModalClienteRapido"
@@ -1430,7 +1430,7 @@
                         wire:model="conceptoDescripcion"
                         type="text"
                         class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
-                        :placeholder="__('Ej: Fiambrería variada')">
+                        placeholder="{{ __('Ej: Fiambrería variada') }}">
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Si está vacío, se usará el nombre de la categoría o "Varios"') }}</p>
                 </div>
             </x-slot:body>

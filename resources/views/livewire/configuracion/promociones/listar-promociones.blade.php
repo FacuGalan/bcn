@@ -70,7 +70,7 @@
                     <div class="flex-1 w-full sm:w-auto">
                         <input type="text"
                                wire:model.live.debounce.300ms="busqueda"
-                               :placeholder="__('Buscar por nombre, descripcion o cupon...')"
+                               placeholder="{{ __('Buscar por nombre, descripcion o cupon...') }}"
                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
                     </div>
 

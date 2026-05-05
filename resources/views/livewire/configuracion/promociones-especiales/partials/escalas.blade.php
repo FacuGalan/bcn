@@ -30,7 +30,7 @@
                 <div>
                     <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ __('Hasta (opcional)') }}</label>
                     <input type="number" wire:model="escalas.{{ $index }}.cantidad_hasta" min="1"
-                           :placeholder="__('Sin lim.')"
+                           placeholder="{{ __('Sin lim.') }}"
                            class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-center">
                 </div>
                 <div>

@@ -141,7 +141,7 @@
                             type="text"
                             id="search"
                             wire:model.live.debounce.300ms="search"
-                            :placeholder="__('Nombre de categoría...')"
+                            placeholder="{{ __('Nombre de categoría...') }}"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         />
                     </div>
@@ -360,7 +360,7 @@
                             id="nombre"
                             wire:model="nombre"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                            :placeholder="__('Ej: Bebidas, Alimentos, Electrónica...')"
+                            placeholder="{{ __('Ej: Bebidas, Alimentos, Electrónica...') }}"
                             required
                         />
                         @error('nombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror

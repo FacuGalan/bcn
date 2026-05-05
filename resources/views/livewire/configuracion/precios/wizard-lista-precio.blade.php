@@ -112,7 +112,7 @@
                                 <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Nombre') }} *</label>
                                 <input type="text"
                                        wire:model="nombre"
-                                       :placeholder="__('Ej: Lista Mayoristas')"
+                                       placeholder="{{ __('Ej: Lista Mayoristas') }}"
                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                 @error('nombre') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                             </div>
@@ -122,7 +122,7 @@
                                 <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Codigo (opcional)') }}</label>
                                 <input type="text"
                                        wire:model="codigo"
-                                       :placeholder="__('Ej: MAYOR-001')"
+                                       placeholder="{{ __('Ej: MAYOR-001') }}"
                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                             </div>
 
@@ -145,7 +145,7 @@
                         <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Descripcion (opcional)') }}</label>
                         <textarea wire:model="descripcion"
                                   rows="3"
-                                  :placeholder="__('Describe el proposito de esta lista...')"
+                                  placeholder="{{ __('Describe el proposito de esta lista...') }}"
                                   class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"></textarea>
                     </div>
                 </div>
@@ -446,7 +446,7 @@
                                        wire:model="cantidadMinima"
                                        step="0.001"
                                        min="0"
-                                       :placeholder="__('Ej: 10')"
+                                       placeholder="{{ __('Ej: 10') }}"
                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                             </div>
                             <div>
@@ -455,7 +455,7 @@
                                        wire:model="cantidadMaxima"
                                        step="0.001"
                                        min="0"
-                                       :placeholder="__('Sin limite')"
+                                       placeholder="{{ __('Sin limite') }}"
                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                             </div>
                         </div>
@@ -602,7 +602,7 @@
                                            wire:model="nuevaCondicionMontoMaximo"
                                            step="0.01"
                                            min="0"
-                                           :placeholder="__('Sin limite')"
+                                           placeholder="{{ __('Sin limite') }}"
                                            class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                 </div>
                             @endif
@@ -709,7 +709,7 @@
                                        @keydown.enter.prevent="selectCurrent()"
                                        @keydown.escape="inputFocused = false; $el.blur()"
                                        autocomplete="off"
-                                       :placeholder="__('Buscar por nombre, codigo, codigo de barras o categoria...')"
+                                       placeholder="{{ __('Buscar por nombre, codigo, codigo de barras o categoria...') }}"
                                        class="w-full pl-10 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                             </div>
 

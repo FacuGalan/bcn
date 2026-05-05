@@ -154,7 +154,7 @@
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo') }}</label>
                             <input type="text" wire:model="transferencia.motivo"
                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
-                                   :placeholder="__('Ej: Cambio de efectivo, refuerzo de caja...')">
+                                   placeholder="{{ __('Ej: Cambio de efectivo, refuerzo de caja...') }}">
                             @error('transferencia.motivo') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
                     </div>
@@ -245,7 +245,7 @@
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo') }}</label>
                             <input type="text" wire:model="ingreso.motivo"
                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-green-500 focus:border-green-500"
-                                   :placeholder="__('Ej: Fondo adicional, ajuste de caja...')">
+                                   placeholder="{{ __('Ej: Fondo adicional, ajuste de caja...') }}">
                             @error('ingreso.motivo') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
                     </div>
@@ -336,7 +336,7 @@
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo') }}</label>
                             <input type="text" wire:model="egreso.motivo"
                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-red-500 focus:border-red-500"
-                                   :placeholder="__('Ej: Retiro parcial, pago a proveedor...')">
+                                   placeholder="{{ __('Ej: Retiro parcial, pago a proveedor...') }}">
                             @error('egreso.motivo') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
                     </div>

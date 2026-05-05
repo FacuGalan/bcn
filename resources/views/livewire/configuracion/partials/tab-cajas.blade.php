@@ -273,7 +273,7 @@
                                 id="grupoNombre"
                                 wire:model="grupoNombre"
                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm"
-                                :placeholder="__('Ej: Cajas Mostrador, Delivery...')"
+                                placeholder="{{ __('Ej: Cajas Mostrador, Delivery...') }}"
                             >
                         </div>
 

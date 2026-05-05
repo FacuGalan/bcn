@@ -64,7 +64,7 @@
                             type="text"
                             id="search"
                             wire:model.live.debounce.300ms="search"
-                            :placeholder="__('Nombre de la impresora...')"
+                            placeholder="{{ __('Nombre de la impresora...') }}"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                         />
                     </div>
@@ -248,7 +248,7 @@
                             type="text"
                             id="nombre"
                             wire:model="nombre"
-                            :placeholder="__('Ej: Impresora Caja 1')"
+                            placeholder="{{ __('Ej: Impresora Caja 1') }}"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                         />
                         @error('nombre') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
@@ -530,7 +530,7 @@
                         <textarea
                             wire:model="configTextoPieTicket"
                             rows="2"
-                            :placeholder="__('Ej: Gracias por su compra!')"
+                            placeholder="{{ __('Ej: Gracias por su compra!') }}"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                         ></textarea>
                     </div>
@@ -540,7 +540,7 @@
                         <textarea
                             wire:model="configTextoLegalFactura"
                             rows="2"
-                            :placeholder="__('Ej: Documento no valido como factura')"
+                            placeholder="{{ __('Ej: Documento no valido como factura') }}"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                         ></textarea>
                     </div>

@@ -270,7 +270,7 @@
                     <input
                         type="text"
                         wire:model.live.debounce.300ms="filtroConcepto"
-                        :placeholder="__('Buscar en concepto...')"
+                        placeholder="{{ __('Buscar en concepto...') }}"
                         class="w-full text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
                     >
                 </div>
@@ -812,7 +812,7 @@
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Motivo del rechazo (opcional)') }}</label>
                     <textarea wire:model="motivoRechazo" rows="3"
                         class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
-                        :placeholder="__('Ingrese el motivo del rechazo...')"></textarea>
+                        placeholder="{{ __('Ingrese el motivo del rechazo...') }}"></textarea>
                 </div>
             </div>
         </x-slot:body>
@@ -903,7 +903,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Numero de comprobante (opcional)') }}</label>
-                    <input type="text" wire:model="numeroComprobante" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" :placeholder="__('Ej: 123456')">
+                    <input type="text" wire:model="numeroComprobante" class="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg" placeholder="{{ __('Ej: 123456') }}">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Observaciones (opcional)') }}</label>

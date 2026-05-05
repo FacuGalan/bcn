@@ -47,7 +47,7 @@
                         wire:model.live.debounce.300ms="search"
                         type="text"
                         class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                        :placeholder="__('Buscar por número de comprobante o proveedor...')">
+                        placeholder="{{ __('Buscar por número de comprobante o proveedor...') }}">
                 </div>
             </div>
 
@@ -168,7 +168,7 @@
                             <div class="lg:col-span-2 space-y-4">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Buscar Artículo') }}</label>
-                                    <input wire:model.live.debounce.300ms="buscarArticulo" type="text" class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md" :placeholder="__('Buscar por código o nombre...')">
+                                    <input wire:model.live.debounce.300ms="buscarArticulo" type="text" class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md" placeholder="{{ __('Buscar por código o nombre...') }}">
                                 </div>
 
                                 <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">

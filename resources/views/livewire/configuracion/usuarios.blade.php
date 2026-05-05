@@ -81,7 +81,7 @@
                             type="text"
                             id="search"
                             wire:model.live.debounce.300ms="search"
-                            :placeholder="__('Nombre, usuario o email...')"
+                            placeholder="{{ __('Nombre, usuario o email...') }}"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         />
                     </div>
@@ -356,7 +356,7 @@
                                                             type="tel"
                                                             id="telefono"
                                                             wire:model="telefono"
-                                                            :placeholder="__('Ej: +54 11 1234-5678')"
+                                                            placeholder="{{ __('Ej: +54 11 1234-5678') }}"
                                                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                                                         />
                                                         @error('telefono') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -422,7 +422,7 @@
                                                         id="password"
                                                         wire:model="password"
                                                         autocomplete="new-password"
-                                                        :placeholder="__('{{ $editMode ? 'Dejar en blanco para no cambiar' : '' }}')"
+                                                        placeholder="{{ __('{{ $editMode ? 'Dejar en blanco para no cambiar' : '' }}') }}"
                                                         class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                                                         {{ $editMode ? '' : 'required' }}
                                                     />

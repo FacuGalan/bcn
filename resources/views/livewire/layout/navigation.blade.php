@@ -231,6 +231,7 @@ new class extends Component
                         },
                         updateScrollState() {
                             const el = this.$refs.scroller;
+                            if (!el) return;
                             this.canScrollLeft = el.scrollLeft > 0;
                             this.canScrollRight = el.scrollLeft < (el.scrollWidth - el.clientWidth - 1);
                         },
@@ -505,6 +506,7 @@ new class extends Component
                         },
                         updateScrollState() {
                             const el = this.$refs.scroller;
+                            if (!el) return;
                             this.canScrollLeft = el.scrollLeft > 0;
                             this.canScrollRight = el.scrollLeft < (el.scrollWidth - el.clientWidth - 1);
                         },

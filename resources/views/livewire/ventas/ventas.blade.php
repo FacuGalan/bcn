@@ -110,7 +110,7 @@
                             type="text"
                             id="search"
                             wire:model.live.debounce.300ms="search"
-                            :placeholder="__('ID venta, ticket, cliente, factura...')"
+                            placeholder="{{ __('ID venta, ticket, cliente, factura...') }}"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         />
                     </div>
@@ -528,7 +528,7 @@
                                             wire:model.live.debounce.300ms="buscarArticulo"
                                             type="text"
                                             class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-bcn-primary focus:border-bcn-primary sm:text-sm"
-                                            :placeholder="__('Buscar por código o nombre...')">
+                                            placeholder="{{ __('Buscar por código o nombre...') }}">
                                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>

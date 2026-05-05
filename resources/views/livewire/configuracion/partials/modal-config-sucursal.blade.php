@@ -50,7 +50,7 @@
                                 type="password"
                                 wire:model="configClaveAutorizacion"
                                 class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                :placeholder="__('Clave (min. 4 caracteres)')"
+                                placeholder="{{ __('Clave (min. 4 caracteres)') }}"
                             >
                             @error('configClaveAutorizacion')
                                 <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
@@ -297,7 +297,7 @@
                                         wire:model="configMensajeWhatsappComanda"
                                         rows="2"
                                         class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                        :placeholder="__('Mensaje adicional (opcional)')"
+                                        placeholder="{{ __('Mensaje adicional (opcional)') }}"
                                     ></textarea>
                                     @error('configMensajeWhatsappComanda')
                                         <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
@@ -331,7 +331,7 @@
                                         wire:model="configMensajeWhatsappListo"
                                         rows="2"
                                         class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                        :placeholder="__('Mensaje adicional (opcional)')"
+                                        placeholder="{{ __('Mensaje adicional (opcional)') }}"
                                     ></textarea>
                                     @error('configMensajeWhatsappListo')
                                         <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
