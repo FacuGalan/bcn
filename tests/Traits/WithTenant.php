@@ -74,6 +74,12 @@ trait WithTenant
 
     protected function setUpTenant(): void
     {
+        // 0. CRITICO: verificar que estamos en BDs de test, NUNCA en pymes/config reales.
+        //    Si por algun motivo (cache de config envenenado, env mal cargado, etc.) las
+        //    conexiones apuntan a las BDs reales, abortar inmediatamente antes de hacer
+        //    cualquier DELETE/DROP. Incidente que justifica esta defensa: 2026-05-04.
+        $this->guardAgainstRealDatabases();
+
         // 1. Encontrar o crear comercio permanente
         if (! static::$cachedComercioId) {
             $this->ensurePermanentComercio();
@@ -98,6 +104,32 @@ trait WithTenant
     protected function tearDownTenant(): void
     {
         // No-op: limpieza se hace en setUpTenant() del siguiente test.
+    }
+
+    /**
+     * Aborta la suite si las conexiones apuntan a BDs que no son las de testing.
+     * Es la última línea de defensa contra el bug de config cache que destruyó
+     * datos de pymes real el 2026-05-04. Whitelist explícita, no blacklist.
+     */
+    private function guardAgainstRealDatabases(): void
+    {
+        $allowed = [
+            'pymes' => 'pymes_test',
+            'pymes_tenant' => 'pymes_test',
+            'config' => 'config_test',
+        ];
+
+        foreach ($allowed as $connection => $expectedDb) {
+            $actualDb = DB::connection($connection)->getDatabaseName();
+            if ($actualDb !== $expectedDb) {
+                $msg = "ABORT: la conexion '{$connection}' apunta a '{$actualDb}' pero deberia ser '{$expectedDb}'. ".
+                    'Esto suele indicar que bootstrap/cache/config.php tiene valores de .env (no .env.testing). '.
+                    'Ejecutar "php artisan config:clear" y volver a correr los tests. '.
+                    'Si persiste, verificar que phpunit.xml tenga DB_DATABASE/DB_PYMES_DATABASE/DB_CONFIG_DATABASE con force="true".';
+                fwrite(STDERR, "\n\n*** {$msg} ***\n\n");
+                exit(1);
+            }
+        }
     }
 
     /**
