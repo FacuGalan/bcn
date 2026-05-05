@@ -45,7 +45,7 @@
     {{-- Modal Crear Cupón --}}
     @if($showCrearModal)
         <x-bcn-modal
-            :title="__('Crear cupón')"
+            title="{{ __('Crear cupón') }}"
             color="bg-bcn-primary"
             maxWidth="2xl"
             onClose="cerrarCrearModal"
@@ -71,7 +71,7 @@
     {{-- Modal Editar Cupón --}}
     @if($showEditarModal)
         <x-bcn-modal
-            :title="__('Editar cupón')"
+            title="{{ __('Editar cupón') }}"
             color="bg-bcn-primary"
             :maxWidth="$editCuponFueUsado ? 'md' : '2xl'"
             onClose="cancelarEdicion"
@@ -229,7 +229,7 @@
     {{-- Modal Historial de Uso --}}
     @if($showHistorialModal)
         <x-bcn-modal
-            :title="__('Historial de uso')"
+            title="{{ __('Historial de uso') }}"
             color="bg-gray-600"
             maxWidth="4xl"
             onClose="cerrarHistorialModal"

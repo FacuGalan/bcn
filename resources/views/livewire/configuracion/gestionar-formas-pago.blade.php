@@ -813,7 +813,7 @@
         <!-- Modal Ordenar Formas de Pago -->
         @if($mostrarModalOrden)
             <x-bcn-modal
-                :title="__('Ordenar Formas de Pago')"
+                title="{{ __('Ordenar Formas de Pago') }}"
                 color="bg-bcn-primary"
                 maxWidth="lg"
                 onClose="cerrarModalOrden"

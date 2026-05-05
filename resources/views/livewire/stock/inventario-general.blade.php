@@ -331,7 +331,7 @@
     @if($showConfirmModal)
         <x-bcn-modal
             :show="$showConfirmModal"
-            :title="__('Procesar Inventario')"
+            title="{{ __('Procesar Inventario') }}"
             color="bg-purple-600"
             maxWidth="md"
             onClose="cancelarConfirmacion"
@@ -375,7 +375,7 @@
     @if($showResultModal)
         <x-bcn-modal
             :show="$showResultModal"
-            :title="__('Resultado del Inventario')"
+            title="{{ __('Resultado del Inventario') }}"
             color="bg-green-600"
             maxWidth="md"
             onClose="cerrarResultado"

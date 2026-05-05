@@ -889,7 +889,7 @@
         <!-- Modal Confirmar Eliminación -->
         @if($showDeleteModal)
             <x-bcn-modal
-                :title="__('Eliminar Cliente')"
+                title="{{ __('Eliminar Cliente') }}"
                 color="bg-red-600"
                 maxWidth="md"
                 onClose="closeDeleteModal"
@@ -937,7 +937,7 @@
         @if($showHistorialModal)
             <x-bcn-modal
                 :show="$showHistorialModal"
-                :title="__('Historial de Ventas') . ' - ' . $nombreClienteHistorial"
+                title="{{ __('Historial de Ventas') . ' - ' . $nombreClienteHistorial }}"
                 color="bg-bcn-primary"
                 maxWidth="4xl"
                 onClose="closeHistorialModal"
@@ -1000,7 +1000,7 @@
         @if($showPuntosModal)
             <x-bcn-modal
                 :show="$showPuntosModal"
-                :title="__('Puntos del cliente') . ' ' . $nombreClientePuntos"
+                title="{{ __('Puntos del cliente') . ' ' . $nombreClientePuntos }}"
                 color="bg-bcn-primary"
                 maxWidth="4xl"
                 onClose="closePuntosModal"
@@ -1144,7 +1144,7 @@
         {{-- Modal confirmar ajuste puntos --}}
         @if($showConfirmarAjustePuntos)
             <x-bcn-modal
-                :title="__('Confirmar ajuste de puntos')"
+                title="{{ __('Confirmar ajuste de puntos') }}"
                 color="bg-bcn-primary"
                 maxWidth="md"
                 onClose="cancelarAjustePuntos"
@@ -1190,7 +1190,7 @@
         @if(false && $showSucursalesModal)
             {{-- Código preservado para referencia del futuro Manager --}}
             <x-bcn-modal
-                :title="__('Configuración por Sucursal') . ' - ' . $clienteConfigNombre"
+                title="{{ __('Configuración por Sucursal') . ' - ' . $clienteConfigNombre }}"
                 color="bg-bcn-primary"
                 maxWidth="2xl"
                 onClose="closeSucursalesModal"
@@ -1289,7 +1289,7 @@
         {{-- Modal de Importación --}}
         @if($showImportModal)
             <x-bcn-modal
-                :title="__('Importar Clientes')"
+                title="{{ __('Importar Clientes') }}"
                 color="bg-bcn-primary"
                 maxWidth="2xl"
                 onClose="closeImportModal"

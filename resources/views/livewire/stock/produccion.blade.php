@@ -159,7 +159,7 @@
     @if($showProducirModal)
         <x-bcn-modal
             :show="$showProducirModal"
-            :title="__('Producir') . ': ' . $producirArticuloNombre"
+            title="{{ __('Producir') . ': ' . $producirArticuloNombre }}"
             color="bg-emerald-600"
             maxWidth="5xl"
             onClose="cerrarProducirModal"
@@ -252,7 +252,7 @@
     @if($showConfirmarLoteModal)
         <x-bcn-modal
             :show="$showConfirmarLoteModal"
-            :title="__('Confirmar lote de producción')"
+            title="{{ __('Confirmar lote de producción') }}"
             color="bg-emerald-600"
             maxWidth="4xl"
             onClose="cancelarConfirmarLote"
@@ -338,7 +338,7 @@
     @if($showHistorialModal)
         <x-bcn-modal
             :show="$showHistorialModal"
-            :title="__('Historial de producciones')"
+            title="{{ __('Historial de producciones') }}"
             color="bg-bcn-primary"
             maxWidth="5xl"
             onClose="cerrarHistorial"
@@ -428,7 +428,7 @@
     @if($showDetalleModal && $detalleProduccion)
         <x-bcn-modal
             :show="$showDetalleModal"
-            :title="__('Producción') . ' #' . $detalleProduccion['id']"
+            title="{{ __('Producción') . ' #' . $detalleProduccion['id'] }}"
             color="bg-bcn-primary"
             maxWidth="3xl"
             onClose="cerrarDetalle"
@@ -503,7 +503,7 @@
     @if($showAnularModal)
         <x-bcn-modal
             :show="$showAnularModal"
-            :title="__('Anular producción')"
+            title="{{ __('Anular producción') }}"
             color="bg-red-600"
             maxWidth="lg"
             onClose="cancelarAnulacion"

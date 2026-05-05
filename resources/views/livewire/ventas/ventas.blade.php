@@ -42,7 +42,7 @@
                                 href="{{ route('ventas.create') }}"
                                 wire:navigate
                                 class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-bcn-primary border border-transparent rounded-md text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
-                                :title="__('Nueva Venta')"
+                                title="{{ __('Nueva Venta') }}"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -58,7 +58,7 @@
                         href="{{ route('ventas.create') }}"
                         wire:navigate
                         class="inline-flex items-center justify-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
-                        :title="__('Crear nueva venta')"
+                        title="{{ __('Crear nueva venta') }}"
                     >
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -258,7 +258,7 @@
                             <button
                                 wire:click="verDetalle({{ $venta->id }})"
                                 class="inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary transition-colors duration-150"
-                                :title="__('Ver detalle')"
+                                title="{{ __('Ver detalle') }}"
                             >
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -269,7 +269,7 @@
                                 <button
                                     wire:click="cancelarVenta({{ $venta->id }})"
                                     class="inline-flex items-center justify-center px-3 py-2 border border-red-600 text-sm font-medium rounded-md text-red-600 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 transition-colors duration-150"
-                                    :title="__('Cancelar venta')"
+                                    title="{{ __('Cancelar venta') }}"
                                 >
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -376,7 +376,7 @@
                                         <button
                                             wire:click="confirmarReimprimirTicket({{ $venta->id }}, '{{ $venta->numero }}')"
                                             class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors cursor-pointer"
-                                            :title="__('Click para reimprimir ticket')"
+                                            title="{{ __('Click para reimprimir ticket') }}"
                                         >
                                             <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
@@ -391,7 +391,7 @@
                                                 <button
                                                     wire:click="confirmarReimprimirFiscal({{ $cf->id }}, '{{ $cf->tipo_legible }}', '{{ $cf->numero_formateado }}')"
                                                     class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors cursor-pointer"
-                                                    :title="__('Click para reimprimir comprobante fiscal')"
+                                                    title="{{ __('Click para reimprimir comprobante fiscal') }}"
                                                 >
                                                     <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
@@ -446,7 +446,7 @@
                                         <button
                                             wire:click="verDetalle({{ $venta->id }})"
                                             class="inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary transition-colors duration-150"
-                                            :title="__('Ver detalle')"
+                                            title="{{ __('Ver detalle') }}"
                                         >
                                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -458,7 +458,7 @@
                                             <button
                                                 wire:click="cancelarVenta({{ $venta->id }})"
                                                 class="inline-flex items-center justify-center px-3 py-2 border border-red-600 text-sm font-medium rounded-md text-red-600 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 transition-colors duration-150"
-                                                :title="__('Cancelar venta')"
+                                                title="{{ __('Cancelar venta') }}"
                                             >
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -741,7 +741,7 @@
     @if($showDetalleModal && $ventaDetalle)
         <x-bcn-modal
             :show="$showDetalleModal"
-            :title="__('Detalle de Venta') . ' #' . $ventaDetalle->numero"
+            title="{{ __('Detalle de Venta') . ' #' . $ventaDetalle->numero }}"
             color="bg-bcn-primary"
             maxWidth="4xl"
             onClose="cerrarDetalle"
@@ -1223,7 +1223,7 @@
                                                 <button
                                                     wire:click="reimprimirComprobanteFiscal({{ $cf->id }})"
                                                     class="inline-flex items-center px-2.5 py-1.5 border border-emerald-300 dark:border-emerald-700 text-xs font-medium rounded text-emerald-700 dark:text-emerald-300 bg-white dark:bg-gray-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
-                                                    :title="__('Reimprimir comprobante fiscal')"
+                                                    title="{{ __('Reimprimir comprobante fiscal') }}"
                                                 >
                                                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
@@ -1316,7 +1316,7 @@
     @if($showReimprimirModal)
         <x-bcn-modal
             :show="$showReimprimirModal"
-            :title="__('Confirmar Reimpresión')"
+            title="{{ __('Confirmar Reimpresión') }}"
             color="bg-bcn-primary"
             maxWidth="md"
             onClose="cerrarReimprimirModal"
@@ -1357,7 +1357,7 @@
     @if($showCancelarModal)
         <x-bcn-modal
             :show="$showCancelarModal"
-            :title="__('Cancelar Venta') . ' ' . ($cancelarVentaInfo['numero'] ?? '')"
+            title="{{ __('Cancelar Venta') . ' ' . ($cancelarVentaInfo['numero'] ?? '') }}"
             color="bg-red-600"
             maxWidth="4xl"
             onClose="cerrarCancelarModal"
@@ -1712,7 +1712,7 @@
             $cuotasFpSeleccionada = collect($formasPagoCambio)->firstWhere('id', (int) ($nuevoPagoForm['forma_pago_id'] ?? 0))['cuotas'] ?? [];
         @endphp
         @if($pagoViejo)
-            <x-bcn-modal :show="$showCambiarPagoModal" :title="__('Modificar forma de pago')" color="bg-blue-600" max-width="3xl" onClose="cerrarCambiarPago" wire:model="showCambiarPagoModal">
+            <x-bcn-modal :show="$showCambiarPagoModal" title="{{ __('Modificar forma de pago') }}" color="bg-blue-600" max-width="3xl" onClose="cerrarCambiarPago" wire:model="showCambiarPagoModal">
                 <x-slot:body>
                 <div class="space-y-3">
                     {{-- Banner turno cerrado --}}
@@ -1792,7 +1792,7 @@
                                             <span class="block text-sm font-bold text-gray-900 dark:text-white">$@precio($pn['monto_final'])</span>
                                         </div>
                                         <button type="button" wire:click="eliminarDelDesgloseCambio({{ $idx }})"
-                                            class="p-1 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30" :title="__('Quitar')">
+                                            class="p-1 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30" title="{{ __('Quitar') }}">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                         </button>
                                     </div>

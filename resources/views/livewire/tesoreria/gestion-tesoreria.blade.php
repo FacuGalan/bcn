@@ -634,7 +634,7 @@
     @if($showProvisionModal)
     <x-bcn-modal
         :show="$showProvisionModal"
-        :title="__('Provisionar Fondo a Caja')"
+        title="{{ __('Provisionar Fondo a Caja') }}"
         color="bg-bcn-primary"
         maxWidth="md"
         onClose="cancelProvision"
@@ -717,7 +717,7 @@
     @if($showRendicionModal)
     <x-bcn-modal
         :show="$showRendicionModal"
-        :title="__('Rendiciones Pendientes')"
+        title="{{ __('Rendiciones Pendientes') }}"
         color="bg-bcn-primary"
         maxWidth="2xl"
         onClose="cancelRendicion"
@@ -795,7 +795,7 @@
     @if($showRechazoModal)
     <x-bcn-modal
         :show="$showRechazoModal"
-        :title="__('Rechazar y Revertir Cierre')"
+        title="{{ __('Rechazar y Revertir Cierre') }}"
         color="bg-red-600"
         maxWidth="md"
         onClose="cancelRechazo"
@@ -836,7 +836,7 @@
     @if($showDepositoModal)
     <x-bcn-modal
         :show="$showDepositoModal"
-        :title="__('Registrar Deposito Bancario')"
+        title="{{ __('Registrar Deposito Bancario') }}"
         color="bg-bcn-primary"
         maxWidth="md"
         onClose="cancelDeposito"
@@ -929,7 +929,7 @@
     @if($showIngresoExternoModal)
     <x-bcn-modal
         :show="$showIngresoExternoModal"
-        :title="__('Ingreso de fondos a tesorería')"
+        title="{{ __('Ingreso de fondos a tesorería') }}"
         color="bg-emerald-600"
         maxWidth="lg"
         onClose="cancelIngresoExterno"
@@ -1047,7 +1047,7 @@
     @if($showArqueoModal)
     <x-bcn-modal
         :show="$showArqueoModal"
-        :title="__('Realizar Arqueo de Tesoreria')"
+        title="{{ __('Realizar Arqueo de Tesoreria') }}"
         color="bg-bcn-primary"
         maxWidth="md"
         onClose="cancelArqueo"
@@ -1131,7 +1131,7 @@
     @if($showArqueoDetalleModal && $arqueoDetalle)
     <x-bcn-modal
         :show="$showArqueoDetalleModal"
-        :title="__('Detalle del Arqueo')"
+        title="{{ __('Detalle del Arqueo') }}"
         color="bg-bcn-primary"
         maxWidth="lg"
         onClose="cerrarDetalleArqueo"

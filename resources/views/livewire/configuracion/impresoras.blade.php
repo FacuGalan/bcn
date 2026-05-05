@@ -329,7 +329,7 @@
     @if($showModalAsignacion)
         <x-bcn-modal
             :show="$showModalAsignacion"
-            :title="__('Asignar Impresora')"
+            title="{{ __('Asignar Impresora') }}"
             color="bg-bcn-primary"
             maxWidth="3xl"
             onClose="cancel"
@@ -480,7 +480,7 @@
     @if($showModalConfig)
         <x-bcn-modal
             :show="$showModalConfig"
-            :title="__('Configuracion de Impresion')"
+            title="{{ __('Configuracion de Impresion') }}"
             color="bg-bcn-primary"
             maxWidth="lg"
             onClose="cancel"

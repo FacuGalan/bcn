@@ -286,7 +286,7 @@
     @if($showAperturaModal)
     <x-bcn-modal
         :show="$showAperturaModal"
-        :title="__('Abrir Turno')"
+        title="{{ __('Abrir Turno') }}"
         color="bg-green-600"
         maxWidth="xl"
         onClose="cancelarApertura"
@@ -416,7 +416,7 @@
     @if($showCierreModal)
     <x-bcn-modal
         :show="$showCierreModal"
-        :title="__('Cierre de Turno')"
+        title="{{ __('Cierre de Turno') }}"
         color="bg-red-600"
         maxWidth="4xl"
         onClose="cancelarCierre"
@@ -898,7 +898,7 @@
     @if($showDetalleModal)
     <x-bcn-modal
         :show="$showDetalleModal"
-        :title="__('Detalle de Movimientos') . ' — ' . ($detalleInfo['nombre'] ?? '')"
+        title="{{ __('Detalle de Movimientos') . ' — ' . ($detalleInfo['nombre'] ?? '') }}"
         color="bg-bcn-primary"
         maxWidth="5xl"
         onClose="cerrarModalDetalle"

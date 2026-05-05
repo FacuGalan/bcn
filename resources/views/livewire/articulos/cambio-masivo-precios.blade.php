@@ -648,7 +648,7 @@
                                             <button
                                                 wire:click="quitarArticulo({{ $articulo['id'] }})"
                                                 class="text-red-400 hover:text-red-600 transition-colors"
-                                                :title="__('Quitar de la lista')"
+                                                title="{{ __('Quitar de la lista') }}"
                                             >
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -748,7 +748,7 @@
     <!-- Modal para agregar artículo -->
     @if($showModalAgregarArticulo)
         <x-bcn-modal
-            :title="__('Agregar artículo a la lista')"
+            title="{{ __('Agregar artículo a la lista') }}"
             color="bg-bcn-primary"
             maxWidth="lg"
             onClose="cerrarModalAgregarArticulo"
@@ -840,7 +840,7 @@
     <!-- Modal de confirmación -->
     @if($showConfirmModal)
         <x-bcn-modal
-            :title="__('Confirmar cambio de precios')"
+            title="{{ __('Confirmar cambio de precios') }}"
             color="bg-amber-500"
             maxWidth="lg"
             onClose="cancelarConfirmacion"
@@ -934,7 +934,7 @@
     <!-- Modal Confirmar Cancelación de Cambio Programado -->
     @if($showCancelProgramadoModal)
         <x-bcn-modal
-            :title="__('Cancelar cambio programado')"
+            title="{{ __('Cancelar cambio programado') }}"
             color="bg-red-600"
             maxWidth="md"
             onClose="closeCancelProgramadoModal"

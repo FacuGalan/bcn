@@ -315,7 +315,7 @@
     @if($showDesasignarModal)
         <x-bcn-modal
             :show="$showDesasignarModal"
-            :title="__('Quitar grupo opcional')"
+            title="{{ __('Quitar grupo opcional') }}"
             color="bg-red-600"
             maxWidth="lg"
             onClose="cancelarDesasignar"

@@ -221,7 +221,7 @@
         {{-- Modal Conciliación Bancaria (placeholder) --}}
         @if($showConciliacionModal)
         <x-bcn-modal
-            :title="__('Conciliación Bancaria')"
+            title="{{ __('Conciliación Bancaria') }}"
             color="bg-bcn-primary"
             maxWidth="lg"
             onClose="cancelConciliacion"
