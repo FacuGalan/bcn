@@ -123,7 +123,7 @@
                                wire:model.live.debounce.200ms="busquedaArticuloSimulador"
                                wire:keydown.enter="agregarPrimerArticulo"
                                wire:keydown.escape="cerrarBuscadorArticulos"
-                               :placeholder="__('Nombre, código o escanear código de barras...')"
+                               placeholder="{{ __('Nombre, código o escanear código de barras...') }}"
                                x-init="$nextTick(() => $el.focus())"
                                class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                     </div>

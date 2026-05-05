@@ -183,7 +183,7 @@
                                                 wire:click="desactivarModos"
                                                 type="button"
                                                 class="text-gray-400 hover:text-gray-600"
-                                                :title="__('Cancelar modo (Esc)')">
+                                                title="{{ __('Cancelar modo (Esc)') }}">
                                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                                 </svg>
@@ -533,13 +533,13 @@
                                                                 <button
                                                                     wire:click="abrirAjusteManual({{ $index }}, 'monto')"
                                                                     class="w-5 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-blue-100 hover:bg-blue-200 text-blue-700 border border-blue-300"
-                                                                    :title="__('Establecer precio fijo')">
+                                                                    title="{{ __('Establecer precio fijo') }}">
                                                                     $
                                                                 </button>
                                                                 <button
                                                                     wire:click="abrirAjusteManual({{ $index }}, 'porcentaje')"
                                                                     class="w-5 h-4 flex items-center justify-center text-[9px] font-bold rounded bg-green-100 hover:bg-green-200 text-green-700 border border-green-300"
-                                                                    :title="__('Aplicar descuento %')">
+                                                                    title="{{ __('Aplicar descuento %') }}">
                                                                     %
                                                                 </button>
                                                                 @if($clienteSeleccionado && $puntosDisponibles && $this->valorPuntoCanje > 0)
@@ -560,7 +560,7 @@
                                                             <button
                                                                 wire:click="quitarAjusteManual({{ $index }})"
                                                                 class="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300 cursor-pointer"
-                                                                :title="__('Clic para quitar ajuste manual')">
+                                                                title="{{ __('Clic para quitar ajuste manual') }}">
                                                                 <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                                                 </svg>
@@ -718,7 +718,7 @@
                                         wire:click="limpiarCliente"
                                         type="button"
                                         class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400"
-                                        :title="__('Cambiar cliente')">
+                                        title="{{ __('Cambiar cliente') }}">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                         </svg>
@@ -736,13 +736,13 @@
                                         @keydown.escape="clienteFocused = false"
                                         type="text"
                                         class="block w-full px-2 py-1.5 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-indigo-500 focus:border-indigo-500 rounded-l-md"
-                                        :placeholder="__('Buscar cliente... (Consumidor Final)')"
+                                        placeholder="{{ __('Buscar cliente... (Consumidor Final)') }}"
                                         @focus="clienteFocused = true; hlIdx = -1">
                                     <button
                                         wire:click="abrirModalClienteRapido"
                                         type="button"
                                         class="flex-shrink-0 px-2 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md transition-colors"
-                                        :title="__('Alta rápida de cliente')">
+                                        title="{{ __('Alta rápida de cliente') }}">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                                         </svg>
@@ -1024,7 +1024,7 @@
                                     <div class="flex justify-between items-center">
                                         <div class="flex items-center gap-1">
                                             <span class="text-xs {{ $ajusteMixto > 0 ? 'text-red-600' : ($ajusteMixto < 0 ? 'text-green-600' : 'text-gray-600') }}">{{ __('Ajustes F.P.') }}:</span>
-                                            <button wire:click="editarDesglose" type="button" class="inline-flex items-center px-1 py-0.5 text-[10px] font-medium text-purple-700 bg-purple-100 rounded hover:bg-purple-200" :title="__('Editar desglose')">
+                                            <button wire:click="editarDesglose" type="button" class="inline-flex items-center px-1 py-0.5 text-[10px] font-medium text-purple-700 bg-purple-100 rounded hover:bg-purple-200" title="{{ __('Editar desglose') }}">
                                                 <svg class="w-2.5 h-2.5 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                                 {{ __('Editar') }}
                                             </button>
@@ -1299,7 +1299,7 @@
     @if($mostrarModalConsulta && $articuloConsulta)
         <x-bcn-modal
             :show="$mostrarModalConsulta"
-            :title="__('Consulta de Precios')"
+            title="{{ __('Consulta de Precios') }}"
             color="bg-amber-500"
             maxWidth="lg"
             onClose="cerrarModalConsulta"
@@ -1385,7 +1385,7 @@
     @if($mostrarModalConcepto)
         <x-bcn-modal
             :show="$mostrarModalConcepto"
-            :title="__('Agregar Concepto')"
+            title="{{ __('Agregar Concepto') }}"
             color="bg-emerald-500"
             maxWidth="md"
             onClose="cerrarModalConcepto"
@@ -1430,7 +1430,7 @@
                         wire:model="conceptoDescripcion"
                         type="text"
                         class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
-                        :placeholder="__('Ej: Fiambrería variada')">
+                        placeholder="{{ __('Ej: Fiambrería variada') }}">
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Si está vacío, se usará el nombre de la categoría o "Varios"') }}</p>
                 </div>
             </x-slot:body>
@@ -1702,7 +1702,7 @@
                                                     <button
                                                         wire:click="eliminarDelDesglose({{ $index }})"
                                                         class="text-red-500 hover:text-red-700 p-1"
-                                                        :title="__('Eliminar forma de pago')">
+                                                        title="{{ __('Eliminar forma de pago') }}">
                                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                                         </svg>
@@ -2381,7 +2381,7 @@
     @if($mostrarModalClienteRapido)
         <x-bcn-modal
             :show="$mostrarModalClienteRapido"
-            :title="__('Nuevo Cliente')"
+            title="{{ __('Nuevo Cliente') }}"
             color="bg-bcn-primary"
             maxWidth="3xl"
             onClose="cerrarModalClienteRapido"
@@ -2564,7 +2564,7 @@
     @if($showPuntoVentaModal)
         <x-bcn-modal
             :show="$showPuntoVentaModal"
-            :title="__('Seleccionar Punto de Venta Fiscal')"
+            title="{{ __('Seleccionar Punto de Venta Fiscal') }}"
             color="bg-bcn-primary"
             maxWidth="lg"
             onClose="cancelarSeleccionPuntoVenta"
@@ -2725,7 +2725,7 @@
     @if($mostrarConfirmLimpiar)
         <x-bcn-modal
             :show="$mostrarConfirmLimpiar"
-            :title="__('¿Limpiar el carrito?')"
+            title="{{ __('¿Limpiar el carrito?') }}"
             color="bg-red-600"
             maxWidth="sm"
             onClose="cancelarLimpiarCarrito"
@@ -2759,7 +2759,7 @@
     @if($mostrarModalPesable)
         <x-bcn-modal
             :show="$mostrarModalPesable"
-            :title="__('Artículo Pesable')"
+            title="{{ __('Artículo Pesable') }}"
             color="bg-amber-500"
             maxWidth="md"
             onClose="cerrarModalPesable"
@@ -2872,7 +2872,7 @@
     @if($mostrarModalArticuloRapido)
         <x-bcn-modal
             :show="$mostrarModalArticuloRapido"
-            :title="__('Nuevo Artículo')"
+            title="{{ __('Nuevo Artículo') }}"
             color="bg-indigo-600"
             maxWidth="2xl"
             onClose="cerrarModalArticuloRapido"
@@ -2970,7 +2970,7 @@
     @if($mostrarModalBusquedaArticulos)
         <x-bcn-modal
             :show="$mostrarModalBusquedaArticulos"
-            :title="__('Buscar Artículo')"
+            title="{{ __('Buscar Artículo') }}"
             color="bg-gray-500"
             maxWidth="7xl"
             onClose="cerrarModalBusquedaArticulos"

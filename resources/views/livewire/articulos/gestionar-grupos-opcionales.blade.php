@@ -603,7 +603,7 @@
     <!-- Modal Confirmación Eliminar -->
     @if($showDeleteModal)
         <x-bcn-modal
-            :title="__('Eliminar grupo opcional')"
+            title="{{ __('Eliminar grupo opcional') }}"
             color="bg-red-600"
             maxWidth="lg"
             onClose="cancelarEliminar"

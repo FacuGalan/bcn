@@ -37,7 +37,7 @@
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Buscar Artículo') }}</label>
                 <input type="text"
                        wire:model.live.debounce.300ms="busquedaArticulo"
-                       :placeholder="__('Escribe el nombre o código del artículo...')"
+                       placeholder="{{ __('Escribe el nombre o código del artículo...') }}"
                        class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
             </div>
 

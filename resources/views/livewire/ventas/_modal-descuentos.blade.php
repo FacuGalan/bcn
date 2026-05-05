@@ -2,7 +2,7 @@
 @if($showModalDescuentos)
     <x-bcn-modal
         :show="$showModalDescuentos"
-        :title="__('Descuentos y beneficios')"
+        title="{{ __('Descuentos y beneficios') }}"
         color="bg-purple-500"
         maxWidth="lg"
         onClose="cerrarModalDescuentos"

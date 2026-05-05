@@ -28,7 +28,7 @@
                 <input
                     wire:model.live.debounce.300ms="search"
                     type="text"
-                    :placeholder="__('Buscar por nombre, email o ID...')"
+                    placeholder="{{ __('Buscar por nombre, email o ID...') }}"
                     class="w-full pl-10 pr-4 py-3 text-base rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring-bcn-primary"
                     autofocus
                 />

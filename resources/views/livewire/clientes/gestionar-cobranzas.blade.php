@@ -898,7 +898,7 @@
         {{-- ==================== Modal de Cuenta Corriente ==================== --}}
         @if($showCuentaCorrienteModal)
             <x-bcn-modal
-                :title="__('Cuenta Corriente') . ' — ' . ($clienteCC?->nombre ?? '')"
+                title="{{ __('Cuenta Corriente') . ' — ' . ($clienteCC?->nombre ?? '') }}"
                 color="bg-bcn-primary"
                 maxWidth="6xl"
                 onClose="cerrarCuentaCorriente"

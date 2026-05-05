@@ -11,7 +11,7 @@
                             <a
                                 href="{{ route('articulos.asignar-etiquetas') }}"
                                 class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-bcn-secondary border border-transparent rounded-md text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-secondary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                                :title="__('Asignar etiquetas a artículos')"
+                                title="{{ __('Asignar etiquetas a artículos') }}"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14v6m-3-3h6M6 10h2a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2zm10 0h2a2 2 0 002-2V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2zM6 20h2a2 2 0 002-2v-2a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z" />
@@ -20,7 +20,7 @@
                             <button
                                 wire:click="createGrupo"
                                 class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-bcn-primary border border-transparent rounded-md text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                                :title="__('Crear nuevo grupo de etiquetas')"
+                                title="{{ __('Crear nuevo grupo de etiquetas') }}"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -35,7 +35,7 @@
                     <a
                         href="{{ route('articulos.asignar-etiquetas') }}"
                         class="inline-flex items-center justify-center px-4 py-2 bg-bcn-secondary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-secondary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                        :title="__('Asignar etiquetas a artículos')"
+                        title="{{ __('Asignar etiquetas a artículos') }}"
                     >
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14v6m-3-3h6M6 10h2a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2zm10 0h2a2 2 0 002-2V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2zM6 20h2a2 2 0 002-2v-2a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z" />
@@ -45,7 +45,7 @@
                     <button
                         wire:click="createGrupo"
                         class="inline-flex items-center justify-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                        :title="__('Crear nuevo grupo de etiquetas')"
+                        title="{{ __('Crear nuevo grupo de etiquetas') }}"
                     >
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -91,7 +91,7 @@
                             type="text"
                             id="search"
                             wire:model.live.debounce.300ms="search"
-                            :placeholder="__('Nombre de grupo o etiqueta...')"
+                            placeholder="{{ __('Nombre de grupo o etiqueta...') }}"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                         />
                     </div>
@@ -171,7 +171,7 @@
                             <button
                                 wire:click="createEtiqueta({{ $grupo->id }})"
                                 class="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 dark:hover:bg-gray-600 rounded-md transition-colors"
-                                :title="__('Agregar etiqueta')"
+                                title="{{ __('Agregar etiqueta') }}"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -180,7 +180,7 @@
                             <button
                                 wire:click="editGrupo({{ $grupo->id }})"
                                 class="p-2 text-bcn-primary hover:text-bcn-secondary hover:bg-bcn-light dark:hover:bg-gray-600 rounded-md transition-colors"
-                                :title="__('Editar grupo')"
+                                title="{{ __('Editar grupo') }}"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -189,7 +189,7 @@
                             <button
                                 wire:click="toggleGrupoStatus({{ $grupo->id }})"
                                 class="p-2 {{ $grupo->activo ? 'text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50' : 'text-green-600 hover:text-green-800 hover:bg-green-50' }} dark:hover:bg-gray-600 rounded-md transition-colors"
-                                :title="__($grupo->activo ? 'Desactivar' : 'Activar') + ' ' + __('grupo')"
+                                title="{{ __($grupo->activo ? 'Desactivar' : 'Activar') . ' ' . __('grupo') }}"
                             >
                                 @if($grupo->activo)
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -204,7 +204,7 @@
                             <button
                                 wire:click="confirmarEliminarGrupo({{ $grupo->id }})"
                                 class="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-gray-600 rounded-md transition-colors"
-                                :title="__('Eliminar grupo')"
+                                title="{{ __('Eliminar grupo') }}"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -239,7 +239,7 @@
                                                             <button
                                                                 wire:click="editEtiqueta({{ $etiqueta->id }})"
                                                                 class="p-1.5 text-bcn-primary hover:text-bcn-secondary hover:bg-bcn-light dark:hover:bg-gray-700 rounded transition-colors"
-                                                                :title="__('Editar')"
+                                                                title="{{ __('Editar') }}"
                                                             >
                                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -248,7 +248,7 @@
                                                             <button
                                                                 wire:click="toggleEtiquetaStatus({{ $etiqueta->id }})"
                                                                 class="p-1.5 rounded transition-colors {{ $etiqueta->activo ? 'text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50 dark:hover:bg-gray-700' : 'text-green-600 hover:text-green-800 hover:bg-green-50 dark:hover:bg-gray-700' }}"
-                                                                :title="__($etiqueta->activo ? 'Desactivar' : 'Activar')"
+                                                                title="{{ __($etiqueta->activo ? 'Desactivar' : 'Activar') }}"
                                                             >
                                                                 @if($etiqueta->activo)
                                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -263,7 +263,7 @@
                                                             <button
                                                                 wire:click="confirmarEliminarEtiqueta({{ $etiqueta->id }})"
                                                                 class="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-gray-700 rounded transition-colors"
-                                                                :title="__('Eliminar')"
+                                                                title="{{ __('Eliminar') }}"
                                                             >
                                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -336,7 +336,7 @@
                             id="grupoNombre"
                             wire:model="grupoNombre"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                            :placeholder="__('Ej: Marca, Color, Tamaño...')"
+                            placeholder="{{ __('Ej: Marca, Color, Tamaño...') }}"
                             required
                         />
                         @error('grupoNombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -350,7 +350,7 @@
                             id="grupoCodigo"
                             wire:model="grupoCodigo"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono uppercase"
-                            :placeholder="__('Ej: MARCA')"
+                            placeholder="{{ __('Ej: MARCA') }}"
                             maxlength="50"
                         />
                         @error('grupoCodigo') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -364,7 +364,7 @@
                             wire:model="grupoDescripcion"
                             rows="2"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                            :placeholder="__('Descripción del grupo...')"
+                            placeholder="{{ __('Descripción del grupo...') }}"
                         ></textarea>
                         @error('grupoDescripcion') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                     </div>
@@ -439,7 +439,7 @@
                             id="etiquetaNombre"
                             wire:model="etiquetaNombre"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                            :placeholder="__('Ej: Samsung, Rojo, Grande...')"
+                            placeholder="{{ __('Ej: Samsung, Rojo, Grande...') }}"
                             required
                         />
                         @error('etiquetaNombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -453,7 +453,7 @@
                             id="etiquetaCodigo"
                             wire:model="etiquetaCodigo"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono uppercase"
-                            :placeholder="__('Ej: SAMS')"
+                            placeholder="{{ __('Ej: SAMS') }}"
                             maxlength="50"
                         />
                         @error('etiquetaCodigo') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
@@ -476,7 +476,7 @@
                                 type="text"
                                 wire:model.live="etiquetaColor"
                                 class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 font-mono text-sm"
-                                :placeholder="__('Vacío = usa color del grupo')"
+                                placeholder="{{ __('Vacío = usa color del grupo') }}"
                                 maxlength="7"
                             />
                             @if($etiquetaColor)

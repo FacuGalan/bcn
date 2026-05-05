@@ -87,7 +87,7 @@
                         type="text"
                         id="busqueda"
                         wire:model.live.debounce.300ms="busqueda"
-                        :placeholder="__('Nombre, concepto o descripción...')"
+                        placeholder="{{ __('Nombre, concepto o descripción...') }}"
                         class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                     />
                 </div>
@@ -412,7 +412,7 @@
                                             type="text"
                                             wire:model="nombre"
                                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
-                                            :placeholder="__('Ej: Tarjeta de Crédito Visa')"
+                                            placeholder="{{ __('Ej: Tarjeta de Crédito Visa') }}"
                                         />
                                         @error('nombre') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                     </div>
@@ -574,7 +574,7 @@
                                             wire:model="descripcion"
                                             rows="3"
                                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
-                                            :placeholder="__('Descripción opcional de la forma de pago...')"
+                                            placeholder="{{ __('Descripción opcional de la forma de pago...') }}"
                                         ></textarea>
                                         @error('descripcion') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                     </div>
@@ -774,7 +774,7 @@
                                                 type="text"
                                                 wire:model="nuevaCuota.descripcion"
                                                 class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
-                                                :placeholder="__('Opcional')"
+                                                placeholder="{{ __('Opcional') }}"
                                             />
                                             @error('nuevaCuota.descripcion') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                         </div>
@@ -813,7 +813,7 @@
         <!-- Modal Ordenar Formas de Pago -->
         @if($mostrarModalOrden)
             <x-bcn-modal
-                :title="__('Ordenar Formas de Pago')"
+                title="{{ __('Ordenar Formas de Pago') }}"
                 color="bg-bcn-primary"
                 maxWidth="lg"
                 onClose="cerrarModalOrden"

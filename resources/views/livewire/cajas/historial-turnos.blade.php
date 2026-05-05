@@ -343,7 +343,7 @@
                             {{ __('Detalle') }}
                         </button>
                         <button wire:click="reimprimir({{ $cierre->id }})"
-                                :title="__('Reimprimir')"
+                                title="{{ __('Reimprimir') }}"
                                 class="inline-flex items-center px-2.5 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
@@ -368,7 +368,7 @@
     @if($showDetalleModal && $cierreDetalle)
     <x-bcn-modal
         :show="$showDetalleModal"
-        :title="__('Cierre') . ' #' . $cierreDetalle->id . ($cierreDetalle->revertido ? ' — ' . __('REVERTIDO') : '')"
+        title="{{ __('Cierre') . ' #' . $cierreDetalle->id . ($cierreDetalle->revertido ? ' — ' . __('REVERTIDO') : '') }}"
         color="bg-bcn-primary"
         maxWidth="4xl"
         onClose="cerrarDetalle"

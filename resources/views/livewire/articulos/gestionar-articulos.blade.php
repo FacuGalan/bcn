@@ -66,7 +66,7 @@
                             <button
                                 wire:click="create"
                                 class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-bcn-primary border border-transparent rounded-md text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
-                                :title="__('Crear nuevo artículo')"
+                                title="{{ __('Crear nuevo artículo') }}"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -102,7 +102,7 @@
                         href="{{ route('articulos.cambio-masivo-precios') }}"
                         wire:navigate
                         class="inline-flex items-center justify-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-700 dark:text-gray-200 uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition ease-in-out duration-150"
-                        :title="__('Cambio masivo de precios')"
+                        title="{{ __('Cambio masivo de precios') }}"
                     >
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -112,7 +112,7 @@
                     <button
                         wire:click="create"
                         class="inline-flex items-center justify-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
-                        :title="__('Crear nuevo artículo')"
+                        title="{{ __('Crear nuevo artículo') }}"
                     >
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -275,7 +275,7 @@
                             <button
                                 wire:click="edit({{ $articulo->id }})"
                                 class="inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary transition-colors duration-150"
-                                :title="__('Editar artículo')"
+                                title="{{ __('Editar artículo') }}"
                             >
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -284,7 +284,7 @@
                             <button
                                 wire:click="abrirDuplicar({{ $articulo->id }})"
                                 class="inline-flex items-center justify-center px-3 py-2 border border-indigo-600 text-sm font-medium rounded-md text-indigo-600 hover:bg-indigo-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 transition-colors duration-150"
-                                :title="__('Duplicar artículo')"
+                                title="{{ __('Duplicar artículo') }}"
                             >
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
@@ -293,7 +293,7 @@
                             <button
                                 wire:click="confirmarEliminar({{ $articulo->id }})"
                                 class="inline-flex items-center justify-center px-3 py-2 border border-red-600 text-sm font-medium rounded-md text-red-600 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-600 transition-colors duration-150"
-                                :title="__('Eliminar artículo')"
+                                title="{{ __('Eliminar artículo') }}"
                             >
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -1061,7 +1061,7 @@
     @if($showDeleteModal)
         <x-bcn-modal
             :show="$showDeleteModal"
-            :title="__('Eliminar Artículo')"
+            title="{{ __('Eliminar Artículo') }}"
             color="bg-red-600"
             maxWidth="md"
             onClose="cancelarEliminar"
@@ -1282,7 +1282,7 @@
     @if($showDesasignarModal)
         <x-bcn-modal
             :show="$showDesasignarModal"
-            :title="__('Quitar grupo opcional')"
+            title="{{ __('Quitar grupo opcional') }}"
             color="bg-red-600"
             maxWidth="lg"
             onClose="cancelarDesasignar"
@@ -1321,7 +1321,7 @@
     @if($showRecetaModal)
         <x-bcn-modal
             :show="$showRecetaModal"
-            :title="__('Receta de') . ': ' . $recetaArticuloNombre"
+            title="{{ __('Receta de') . ': ' . $recetaArticuloNombre }}"
             color="bg-bcn-primary"
             maxWidth="2xl"
             onClose="cancelarReceta"
@@ -1351,7 +1351,7 @@
     @if($showDeleteRecetaModal)
         <x-bcn-modal
             :show="$showDeleteRecetaModal"
-            :title="__('Eliminar receta')"
+            title="{{ __('Eliminar receta') }}"
             color="bg-red-600"
             maxWidth="lg"
             onClose="cancelarEliminarReceta"
@@ -1389,7 +1389,7 @@
         @endphp
         <x-bcn-modal
             :show="$showHistorialModal"
-            :title="__('Historial de precios') . ' - ' . ($articuloHistorial?->nombre ?? '')"
+            title="{{ __('Historial de precios') . ' - ' . ($articuloHistorial?->nombre ?? '') }}"
             color="bg-bcn-primary"
             maxWidth="4xl"
             onClose="cerrarHistorial"
@@ -1518,7 +1518,7 @@
     @if($showDuplicarModal)
         <x-bcn-modal
             :show="$showDuplicarModal"
-            :title="__('Duplicar artículo')"
+            title="{{ __('Duplicar artículo') }}"
             color="bg-indigo-600"
             maxWidth="lg"
             onClose="cancelarDuplicar"
@@ -1737,7 +1737,7 @@
     {{-- Modal de selección de Plantilla --}}
     @if($showPlantillaModal)
         <x-bcn-modal
-            :title="__('Descargar plantilla Excel')"
+            title="{{ __('Descargar plantilla Excel') }}"
             color="bg-bcn-primary"
             maxWidth="lg"
             onClose="closePlantillaModal"
@@ -1799,7 +1799,7 @@
     {{-- Modal de Importación --}}
     @if($showImportModal)
         <x-bcn-modal
-            :title="__('Importar Artículos')"
+            title="{{ __('Importar Artículos') }}"
             color="bg-bcn-primary"
             maxWidth="2xl"
             onClose="closeImportModal"

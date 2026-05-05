@@ -14,7 +14,7 @@
                         id="empresa_nombre"
                         wire:model="empresaNombre"
                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        :placeholder="__('Ej: Mi Empresa S.A.')"
+                        placeholder="{{ __('Ej: Mi Empresa S.A.') }}"
                     >
                     @error('empresaNombre')
                         <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
@@ -31,7 +31,7 @@
                         id="empresa_direccion"
                         wire:model="empresaDireccion"
                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        :placeholder="__('Ej: Av. Corrientes 1234')"
+                        placeholder="{{ __('Ej: Av. Corrientes 1234') }}"
                     >
                     @error('empresaDireccion')
                         <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
@@ -49,7 +49,7 @@
                             id="empresa_telefono"
                             wire:model="empresaTelefono"
                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            :placeholder="__('Ej: 011-4444-5555')"
+                            placeholder="{{ __('Ej: 011-4444-5555') }}"
                         >
                         @error('empresaTelefono')
                             <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
@@ -65,7 +65,7 @@
                             id="empresa_email"
                             wire:model="empresaEmail"
                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                            :placeholder="__('Ej: contacto@miempresa.com')"
+                            placeholder="{{ __('Ej: contacto@miempresa.com') }}"
                         >
                         @error('empresaEmail')
                             <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>

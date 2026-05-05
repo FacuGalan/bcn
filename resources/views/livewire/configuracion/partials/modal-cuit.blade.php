@@ -39,7 +39,7 @@
                         type="text"
                         wire:model="cuitRazonSocial"
                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        :placeholder="__('Razon social segun AFIP')"
+                        placeholder="{{ __('Razon social segun AFIP') }}"
                     >
                     @error('cuitRazonSocial')
                         <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
@@ -55,7 +55,7 @@
                         type="text"
                         wire:model="cuitNombreFantasia"
                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        :placeholder="__('Nombre comercial')"
+                        placeholder="{{ __('Nombre comercial') }}"
                     >
                 </div>
 
@@ -87,7 +87,7 @@
                         type="text"
                         wire:model="cuitNumeroIibb"
                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        :placeholder="__('Numero de IIBB')"
+                        placeholder="{{ __('Numero de IIBB') }}"
                     >
                 </div>
             </div>
@@ -108,7 +108,7 @@
                         type="text"
                         wire:model="cuitDireccion"
                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        :placeholder="__('Calle y numero')"
+                        placeholder="{{ __('Calle y numero') }}"
                     >
                 </div>
 
@@ -358,7 +358,7 @@
                                 type="text"
                                 wire:model="nuevoPuntoVentaNombre"
                                 class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                                :placeholder="__('Ej: Caja Principal')"
+                                placeholder="{{ __('Ej: Caja Principal') }}"
                             >
                         </div>
 

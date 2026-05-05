@@ -222,14 +222,14 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Nombre') }} *</label>
-                                <input type="text" wire:model="nombre" :placeholder="__('Ej: 2x1 en Bebidas')"
+                                <input type="text" wire:model="nombre" placeholder="{{ __('Ej: 2x1 en Bebidas') }}"
                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Descripción') }}
                                     <span class="text-gray-400 dark:text-gray-500 font-normal">{{ __('(opcional)') }}</span>
                                 </label>
-                                <input type="text" wire:model="descripcion" :placeholder="__('Descripción breve...')"
+                                <input type="text" wire:model="descripcion" placeholder="{{ __('Descripción breve...') }}"
                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                             </div>
                         </div>
@@ -260,7 +260,7 @@
                                             @if($beneficioTipo === 'descuento')
                                                 <input type="number" value="1" disabled
                                                        class="w-16 text-center rounded-lg border-gray-300 dark:border-gray-600 font-bold bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
-                                                       :title="__('Cuando es descuento %, siempre se bonifica 1 unidad')">
+                                                       title="{{ __('Cuando es descuento %, siempre se bonifica 1 unidad') }}">
                                             @else
                                                 <input type="number" wire:model="nxmBonifica" min="1" max="98"
                                                        class="w-16 text-center rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white font-bold">
@@ -395,7 +395,7 @@
                                             @if($beneficioTipo === 'descuento')
                                                 <input type="number" value="1" disabled
                                                        class="w-16 text-center rounded-lg border-gray-300 dark:border-gray-600 font-bold bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
-                                                       :title="__('Cuando es descuento %, siempre se bonifica 1 unidad')">
+                                                       title="{{ __('Cuando es descuento %, siempre se bonifica 1 unidad') }}">
                                             @else
                                                 <input type="number" wire:model="nxmBonifica" min="1" max="98"
                                                        class="w-16 text-center rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white font-bold">
@@ -494,7 +494,7 @@
                                              @click.outside="$wire.cerrarBuscadorTrigger()">
                                             <input type="text"
                                                    wire:model.live.debounce.200ms="busquedaArticuloTrigger"
-                                                   :placeholder="__('Buscar...')"
+                                                   placeholder="{{ __('Buscar...') }}"
                                                    class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white mb-2"
                                                    x-init="$el.focus()"
                                                    @keydown.enter.prevent="if ({{ count($articulosTriggerResultados) }} > 0) { $wire.seleccionarPrimerArticuloTrigger() }">
@@ -559,7 +559,7 @@
                                              @click.outside="$wire.cerrarBuscadorReward()">
                                             <input type="text"
                                                    wire:model.live.debounce.200ms="busquedaArticuloReward"
-                                                   :placeholder="__('Buscar...')"
+                                                   placeholder="{{ __('Buscar...') }}"
                                                    class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white mb-2"
                                                    x-init="$el.focus()"
                                                    @keydown.enter.prevent="if ({{ count($articulosRewardResultados) }} > 0) { $wire.seleccionarPrimerArticuloReward() }">
@@ -621,7 +621,7 @@
                                             <div class="p-2 border-b dark:border-gray-600">
                                                 <input type="text"
                                                        wire:model.live.debounce.200ms="busquedaArticuloCombo"
-                                                       :placeholder="__('Buscar...')"
+                                                       placeholder="{{ __('Buscar...') }}"
                                                        class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                                                        x-init="$el.focus()"
                                                        @keydown.enter.prevent="if ({{ count($articulosComboResultados) }} > 0) { $wire.seleccionarPrimerArticuloCombo() }"
@@ -709,7 +709,7 @@
                                     @foreach($gruposMenu as $gIndex => $grupo)
                                         <div class="bg-white dark:bg-gray-800 rounded-lg p-3 border border-green-200 dark:border-green-700">
                                             <div class="flex items-center gap-2 mb-2">
-                                                <input type="text" wire:model="gruposMenu.{{ $gIndex }}.nombre" :placeholder="__('Nombre del grupo')"
+                                                <input type="text" wire:model="gruposMenu.{{ $gIndex }}.nombre" placeholder="{{ __('Nombre del grupo') }}"
                                                        class="flex-1 text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                                                 <span class="text-xs text-gray-500 dark:text-gray-400">x</span>
                                                 <input type="number" wire:model="gruposMenu.{{ $gIndex }}.cantidad" min="1" max="10"
@@ -939,7 +939,7 @@
 
                         <div class="max-w-xs">
                             <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Usos máximos') }}</label>
-                            <input type="number" wire:model="usosMaximos" min="1" :placeholder="__('Sin límite')"
+                            <input type="number" wire:model="usosMaximos" min="1" placeholder="{{ __('Sin límite') }}"
                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Dejar vacío para uso ilimitado') }}</p>
                         </div>

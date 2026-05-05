@@ -274,7 +274,7 @@
         {{-- Modal nuevo movimiento --}}
         @if($showNuevoMovimiento)
         <x-bcn-modal
-            :title="__('Nuevo Movimiento Manual')"
+            title="{{ __('Nuevo Movimiento Manual') }}"
             color="bg-green-600"
             maxWidth="lg"
             onClose="cancelNuevoMovimiento"
@@ -335,7 +335,7 @@
         {{-- Modal anular movimiento --}}
         @if($showAnularModal)
         <x-bcn-modal
-            :title="__('Anular Movimiento')"
+            title="{{ __('Anular Movimiento') }}"
             color="bg-red-600"
             maxWidth="lg"
             onClose="cancelAnular"

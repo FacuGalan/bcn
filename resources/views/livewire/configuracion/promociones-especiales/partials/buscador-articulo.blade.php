@@ -36,7 +36,7 @@
                 <div class="p-2 border-b dark:border-gray-700">
                     <input type="text" wire:model.live.debounce.200ms="{{ $busquedaModel }}"
                            wire:keydown.escape="{{ $cerrarMethod }}"
-                           :placeholder="__('Escriba para buscar...')"
+                           placeholder="{{ __('Escriba para buscar...') }}"
                            autofocus
                            class="w-full text-sm rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white {{ $colorClasses['ring'] }} {{ $colorClasses['border'] }}">
                 </div>

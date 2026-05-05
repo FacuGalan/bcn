@@ -331,7 +331,7 @@
                                             <input
                                                 type="text"
                                                 wire:model.live.debounce.300ms="busquedaCategoria"
-                                                :placeholder="__('Buscar categoría...')"
+                                                placeholder="{{ __('Buscar categoría...') }}"
                                                 class="w-full pl-7 pr-3 py-1 text-xs border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
                                             >
                                             <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -379,7 +379,7 @@
                                             <input
                                                 type="text"
                                                 wire:model.live.debounce.300ms="busquedaEtiqueta"
-                                                :placeholder="__('Buscar grupo o etiqueta...')"
+                                                placeholder="{{ __('Buscar grupo o etiqueta...') }}"
                                                 class="w-full pl-7 pr-3 py-1 text-xs border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
                                             >
                                             <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -509,7 +509,7 @@
                                 <input
                                     type="text"
                                     wire:model.live.debounce.300ms="busquedaArticuloPreview"
-                                    :placeholder="__('Buscar por código o nombre...')"
+                                    placeholder="{{ __('Buscar por código o nombre...') }}"
                                     class="w-full pl-8 pr-3 py-1.5 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors text-xs"
                                 >
                                 <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -648,7 +648,7 @@
                                             <button
                                                 wire:click="quitarArticulo({{ $articulo['id'] }})"
                                                 class="text-red-400 hover:text-red-600 transition-colors"
-                                                :title="__('Quitar de la lista')"
+                                                title="{{ __('Quitar de la lista') }}"
                                             >
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -748,7 +748,7 @@
     <!-- Modal para agregar artículo -->
     @if($showModalAgregarArticulo)
         <x-bcn-modal
-            :title="__('Agregar artículo a la lista')"
+            title="{{ __('Agregar artículo a la lista') }}"
             color="bg-bcn-primary"
             maxWidth="lg"
             onClose="cerrarModalAgregarArticulo"
@@ -759,7 +759,7 @@
                     <input
                         type="text"
                         wire:model.live.debounce.300ms="busquedaArticuloAgregar"
-                        :placeholder="__('Buscar por código o nombre...')"
+                        placeholder="{{ __('Buscar por código o nombre...') }}"
                         class="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors text-sm"
                         autofocus
                     >
@@ -840,7 +840,7 @@
     <!-- Modal de confirmación -->
     @if($showConfirmModal)
         <x-bcn-modal
-            :title="__('Confirmar cambio de precios')"
+            title="{{ __('Confirmar cambio de precios') }}"
             color="bg-amber-500"
             maxWidth="lg"
             onClose="cancelarConfirmacion"
@@ -934,7 +934,7 @@
     <!-- Modal Confirmar Cancelación de Cambio Programado -->
     @if($showCancelProgramadoModal)
         <x-bcn-modal
-            :title="__('Cancelar cambio programado')"
+            title="{{ __('Cancelar cambio programado') }}"
             color="bg-red-600"
             maxWidth="md"
             onClose="closeCancelProgramadoModal"

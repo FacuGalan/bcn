@@ -302,7 +302,7 @@
         {{-- Modal confirmar eliminación --}}
         @if($showConfirmDelete)
         <x-bcn-modal
-            :title="__('Eliminar Cuenta')"
+            title="{{ __('Eliminar Cuenta') }}"
             color="bg-red-600"
             maxWidth="md"
             onClose="cancelarEliminar"

@@ -179,7 +179,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Nombre') }} *</label>
-                                <input type="text" wire:model="nombre" :placeholder="__('Ej: Descuento Día del Padre')"
+                                <input type="text" wire:model="nombre" placeholder="{{ __('Ej: Descuento Día del Padre') }}"
                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                             </div>
 
@@ -216,7 +216,7 @@
                             <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Descripción') }}
                                 <span class="text-gray-400 dark:text-gray-500 font-normal">{{ __('(opcional)') }}</span>
                             </label>
-                            <textarea wire:model="descripcion" rows="2" :placeholder="__('Breve descripción de la promoción...')"
+                            <textarea wire:model="descripcion" rows="2" placeholder="{{ __('Breve descripción de la promoción...') }}"
                                       class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"></textarea>
                         </div>
                     </div>
@@ -268,7 +268,7 @@
                                 @if(count($escalas) > 1)
                                     <button type="button" wire:click="eliminarEscala({{ $index }})"
                                             class="inline-flex items-center justify-center w-8 h-8 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
-                                            :title="__('Eliminar escala')">
+                                            title="{{ __('Eliminar escala') }}">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                         </svg>
@@ -412,7 +412,7 @@
                                                        wire:model.live.debounce.200ms="busquedaArticulo"
                                                        wire:keydown.enter="seleccionarPrimerArticulo"
                                                        wire:keydown.escape="cerrarBuscadorArticuloAlcance"
-                                                       :placeholder="__('Nombre, código o escanear código de barras...')"
+                                                       placeholder="{{ __('Nombre, código o escanear código de barras...') }}"
                                                        x-init="$nextTick(() => $el.focus())"
                                                        class="w-full text-sm rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                             </div>
@@ -590,12 +590,12 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Monto mínimo') }}</label>
-                            <input type="number" wire:model="montoMinimo" step="0.01" :placeholder="__('Sin mínimo')"
+                            <input type="number" wire:model="montoMinimo" step="0.01" placeholder="{{ __('Sin mínimo') }}"
                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Cantidad mínima') }}</label>
-                            <input type="number" wire:model="cantidadMinima" :placeholder="__('Sin mínimo')"
+                            <input type="number" wire:model="cantidadMinima" placeholder="{{ __('Sin mínimo') }}"
                                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                         </div>
                     </div>
@@ -615,7 +615,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Usos máximos') }}</label>
-                                <input type="number" wire:model="usosMaximos" min="1" :placeholder="__('Sin límite')"
+                                <input type="number" wire:model="usosMaximos" min="1" placeholder="{{ __('Sin límite') }}"
                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                             </div>
                             <div>
@@ -706,7 +706,7 @@
                                 <button type="button"
                                         wire:click="$set('mostrarModalEdicion', true)"
                                         class="p-2 text-bcn-primary hover:bg-bcn-primary/10 rounded-lg transition-colors"
-                                        :title="__('Editar promoción')"
+                                        title="{{ __('Editar promoción') }}"
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                                     </svg>
@@ -928,7 +928,7 @@
                                                    wire:model.live.debounce.200ms="busquedaArticuloSimulador"
                                                    wire:keydown.enter="agregarPrimerArticulo"
                                                    wire:keydown.escape="cerrarBuscadorArticulos"
-                                                   :placeholder="__('Nombre, código o escanear código de barras...')"
+                                                   placeholder="{{ __('Nombre, código o escanear código de barras...') }}"
                                                    x-init="$nextTick(() => $el.focus())"
                                                    class="w-full text-sm rounded border-gray-300 focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                         </div>
@@ -1314,7 +1314,7 @@
                                 {{-- Nombre --}}
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('Nombre') }} *</label>
-                                    <input type="text" wire:model.live="nombre" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" :placeholder="__('Ej: 10% Off Efectivo')">
+                                    <input type="text" wire:model.live="nombre" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" placeholder="{{ __('Ej: 10% Off Efectivo') }}">
                                 </div>
 
                                 {{-- Valor (si no es escalonado) --}}
@@ -1386,7 +1386,7 @@
                                 {{-- Descripción --}}
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('Descripción') }} <span class="text-gray-400">({{ __('opcional') }})</span></label>
-                                    <textarea wire:model="descripcion" rows="2" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" :placeholder="__('Descripción interna...')"></textarea>
+                                    <textarea wire:model="descripcion" rows="2" class="w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" placeholder="{{ __('Descripción interna...') }}"></textarea>
                                 </div>
 
                                 {{-- Vigencia --}}

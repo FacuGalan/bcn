@@ -100,7 +100,7 @@
                                 <input
                                     type="text"
                                     wire:model.live.debounce.300ms="busquedaEtiqueta"
-                                    :placeholder="__('Buscar etiqueta...')"
+                                    placeholder="{{ __('Buscar etiqueta...') }}"
                                     class="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
                                 >
                                 <svg class="w-5 h-5 text-gray-400 dark:text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -173,7 +173,7 @@
                             <input
                                 type="text"
                                 wire:model.live.debounce.300ms="busquedaArticulo"
-                                :placeholder="__('Buscar por código o nombre...')"
+                                placeholder="{{ __('Buscar por código o nombre...') }}"
                                 class="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
                                 @if(!$etiquetaSeleccionada) disabled @endif
                             >
@@ -271,7 +271,7 @@
                                 <input
                                     type="text"
                                     wire:model.live.debounce.300ms="busquedaArticulo"
-                                    :placeholder="__('Buscar por código o nombre...')"
+                                    placeholder="{{ __('Buscar por código o nombre...') }}"
                                     class="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
                                 >
                                 <svg class="w-5 h-5 text-gray-400 dark:text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -329,7 +329,7 @@
                             <input
                                 type="text"
                                 wire:model.live.debounce.300ms="busquedaEtiqueta"
-                                :placeholder="__('Buscar etiqueta...')"
+                                placeholder="{{ __('Buscar etiqueta...') }}"
                                 class="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-bcn-primary/20 focus:border-bcn-primary transition-colors"
                                 @if(!$articuloSeleccionado) disabled @endif
                             >
