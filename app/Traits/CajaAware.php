@@ -48,14 +48,16 @@ namespace App\Traits;
 trait CajaAware
 {
     /**
-     * Al montar, notifica a los selectores que esta página usa caja
+     * Al montar, notifica a los selectores que esta página usa caja.
+     *
+     * Setea el store directamente sin depender de Livewire.on() para evitar
+     * race condition en el primer load (SPA): el dispatch puede llegar antes
+     * de que el handler de Livewire.on en el layout se haya registrado.
+     * Caja implica sucursal (la caja siempre depende de la sucursal).
      */
     public function mountCajaAware(): void
     {
-        // Caja implica sucursal (la caja siempre depende de la sucursal)
-        $this->js("document.addEventListener('alpine:init',()=>{Alpine.store('awareness').caja=true;Alpine.store('awareness').sucursal=true},{once:true}); if(window.Alpine&&Alpine.store('awareness')){Alpine.store('awareness').caja=true;Alpine.store('awareness').sucursal=true}");
-        $this->dispatch('page-uses-caja');
-        $this->dispatch('page-uses-sucursal');
+        $this->js("(function set(){if(window.Alpine&&Alpine.store('awareness')){Alpine.store('awareness').caja=true;Alpine.store('awareness').sucursal=true;}else{document.addEventListener('alpine:init',set,{once:true});}})();");
     }
 
     /**
