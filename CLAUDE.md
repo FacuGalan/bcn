@@ -143,6 +143,10 @@ Después de CADA implementación, verificar:
 ### Testing
 - BDs dedicadas: `config_test`, `pymes_test` (MySQL, no SQLite)
 - Traits: `WithTenant`, `WithSucursal`, `WithCaja` para contexto multi-tenant en tests
+- **PROHIBIDO `RefreshDatabase`**: ejecuta `migrate:fresh` que DROPEA todas las tablas. Si la config se envenena, borra la BD real. Usar:
+  - Tests con contexto tenant: `WithTenant` (tablas persisten, DELETE selectivo)
+  - Tests genericos (auth, sin tenant): `DatabaseTransactions` con `protected $connectionsToTransact = ['config', 'pymes']`
+- **Defensa en TestCase**: `guardAgainstRealDatabases()` corre ANTES de `parent::setUp()` y aborta si `DB_DATABASE`/`DB_CONFIG_DATABASE` no son `*_test`. No quitarla nunca.
 - Prioridad: Services (dinero/stock/ledger) > Models (scopes) > Livewire (CRUD)
 - `/sdd-verify` ejecuta tests reales y genera Spec Compliance Matrix
 - Ref: `.claude/docs/testing-patterns.md`

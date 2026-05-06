@@ -14,6 +14,7 @@
 /.zed
 .claude/settings.local.json
 .claude/worktrees/
+.claude/*.lock
 /auth.json
 /node_modules
 /public/build
