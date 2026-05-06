@@ -1507,7 +1507,7 @@ class NuevaVenta extends Component
             'codigo' => $a->codigo,
             'codigo_barras' => $a->codigo_barras,
             'categoria' => $a->categoriaModel?->nombre,
-            'precio_base' => $a->precio_base,
+            'precio_base' => $a->obtenerPrecioBaseEfectivo($this->sucursalId),
         ])->toArray();
     }
 
@@ -1570,7 +1570,7 @@ class NuevaVenta extends Component
             ->orderBy('prioridad')
             ->get();
 
-        $precioBase = $articulo->precio_base;
+        $precioBase = $articulo->obtenerPrecioBaseEfectivo($this->sucursalId);
         $precios = [];
 
         foreach ($listasPrecios as $lista) {
