@@ -2,9 +2,11 @@
 
 namespace App\Livewire\Ventas;
 
+use App\Livewire\Concerns\Carrito\WithArticuloRapido;
 use App\Livewire\Concerns\Carrito\WithBusquedaArticulos;
 use App\Livewire\Concerns\Carrito\WithBusquedaClientes;
 use App\Livewire\Concerns\Carrito\WithCarritoItems;
+use App\Livewire\Concerns\Carrito\WithConsultaPrecios;
 use App\Livewire\Concerns\Carrito\WithCupones;
 use App\Livewire\Concerns\Carrito\WithDescuentos;
 use App\Livewire\Concerns\Carrito\WithOpcionales;
@@ -20,9 +22,7 @@ use App\Models\FormaPago;
 use App\Models\FormaPagoCuota;
 use App\Models\FormaPagoCuotaSucursal;
 use App\Models\FormaPagoSucursal;
-use App\Models\HistorialPrecio;
 use App\Models\ListaPrecio;
-use App\Models\ListaPrecioArticulo;
 use App\Models\Moneda;
 use App\Models\MovimientoCaja;
 use App\Models\Promocion;
@@ -30,7 +30,6 @@ use App\Models\PromocionEspecial;
 use App\Models\PuntoVenta;
 use App\Models\Sucursal;
 use App\Models\TipoCambio;
-use App\Models\TipoIva;
 use App\Models\VentaPago;
 use App\Services\ARCA\ComprobanteFiscalService;
 use App\Services\CajaService;
@@ -66,9 +65,11 @@ class NuevaVenta extends Component
 {
     use AperturaTurnoTrait;
     use CajaAware;
+    use WithArticuloRapido;
     use WithBusquedaArticulos;
     use WithBusquedaClientes;
     use WithCarritoItems;
+    use WithConsultaPrecios;
     use WithCupones;
     use WithDescuentos;
     use WithOpcionales;
@@ -77,12 +78,6 @@ class NuevaVenta extends Component
     // =========================================
     // PROPIEDADES DEL POS / CARRITO
     // =========================================
-
-    /** @var array|null Artículo seleccionado para consulta de precios */
-    public $articuloConsulta = null;
-
-    /** @var bool Modal de consulta visible */
-    public $mostrarModalConsulta = false;
 
     /** @var int|null Índice del item resaltado en el detalle */
     public $itemResaltado = null;
@@ -101,30 +96,6 @@ class NuevaVenta extends Component
 
     /** @var array Categorías disponibles para conceptos */
     public $categoriasDisponibles = [];
-
-    // =========================================
-    // PROPIEDADES DE ALTA RÁPIDA DE ARTÍCULO
-    // =========================================
-
-    public bool $mostrarModalArticuloRapido = false;
-
-    public string $artRapidoNombre = '';
-
-    public ?int $artRapidoCategoriaId = null;
-
-    public string $artRapidoCodigo = '';
-
-    public string $artRapidoCodigoBarras = '';
-
-    public string $artRapidoUnidadMedida = 'unidad';
-
-    public ?int $artRapidoTipoIvaId = null;
-
-    public ?float $artRapidoPrecioBase = null;
-
-    public $artRapidoCategorias = [];
-
-    public $artRapidoTiposIva = [];
 
     /** @var bool Modal de confirmación para limpiar carrito */
     public bool $mostrarConfirmLimpiar = false;
@@ -672,233 +643,6 @@ class NuevaVenta extends Component
             'precio_base' => $precioBaseArticulo,
             'tiene_ajuste' => true,
         ];
-    }
-
-    // =========================================
-    // ALTA RÁPIDA DE ARTÍCULO
-    // =========================================
-
-    public function abrirModalArticuloRapido(): void
-    {
-        $this->resetArticuloRapido();
-
-        $this->artRapidoCategorias = Categoria::where('activo', true)
-            ->orderBy('nombre')
-            ->get(['id', 'nombre', 'color', 'prefijo']);
-
-        $this->artRapidoTiposIva = TipoIva::orderBy('nombre')
-            ->get(['id', 'nombre', 'porcentaje']);
-
-        // Preseleccionar IVA 21% por defecto
-        $iva21 = $this->artRapidoTiposIva->firstWhere('porcentaje', 21);
-        $this->artRapidoTipoIvaId = $iva21?->id;
-
-        // Pre-llenar con lo que el usuario escribió en la búsqueda
-        $busqueda = trim($this->busquedaArticulo);
-        if (! empty($busqueda)) {
-            $this->artRapidoNombre = $busqueda;
-        }
-
-        $this->mostrarModalArticuloRapido = true;
-    }
-
-    public function cerrarModalArticuloRapido(): void
-    {
-        $this->mostrarModalArticuloRapido = false;
-        $this->resetArticuloRapido();
-        $this->dispatch('focus-busqueda');
-    }
-
-    protected function resetArticuloRapido(): void
-    {
-        $this->artRapidoNombre = '';
-        $this->artRapidoCategoriaId = null;
-        $this->artRapidoCodigo = '';
-        $this->artRapidoCodigoBarras = '';
-        $this->artRapidoUnidadMedida = 'unidad';
-        $this->artRapidoTipoIvaId = null;
-        $this->artRapidoPrecioBase = null;
-        $this->artRapidoCategorias = [];
-        $this->artRapidoTiposIva = [];
-    }
-
-    public function updatedArtRapidoCategoriaId($value): void
-    {
-        if (! $value) {
-            return;
-        }
-
-        $categoria = Categoria::find($value);
-        if ($categoria && $categoria->prefijo) {
-            $ultimoCodigo = Articulo::where('codigo', 'like', $categoria->prefijo.'-%')
-                ->orderByRaw('CAST(SUBSTRING_INDEX(codigo, "-", -1) AS UNSIGNED) DESC')
-                ->value('codigo');
-
-            if ($ultimoCodigo) {
-                $numero = (int) last(explode('-', $ultimoCodigo)) + 1;
-            } else {
-                $numero = 1;
-            }
-
-            $this->artRapidoCodigo = $categoria->prefijo.'-'.str_pad($numero, 3, '0', STR_PAD_LEFT);
-        }
-    }
-
-    public function guardarArticuloRapido(): void
-    {
-        $this->validate([
-            'artRapidoNombre' => 'required|string|min:2|max:200',
-            'artRapidoCodigo' => 'required|string|max:50|unique:pymes_tenant.articulos,codigo',
-            'artRapidoCodigoBarras' => 'nullable|string|max:50',
-            'artRapidoCategoriaId' => 'nullable|exists:pymes_tenant.categorias,id',
-            'artRapidoUnidadMedida' => 'required|string|max:50',
-            'artRapidoTipoIvaId' => 'required|exists:pymes_tenant.tipos_iva,id',
-            'artRapidoPrecioBase' => 'required|numeric|min:0',
-        ], [
-            'artRapidoNombre.required' => __('El nombre es obligatorio'),
-            'artRapidoNombre.min' => __('El nombre debe tener al menos 2 caracteres'),
-            'artRapidoCodigo.required' => __('El código es obligatorio'),
-            'artRapidoCodigo.unique' => __('Ya existe un artículo con este código'),
-            'artRapidoTipoIvaId.required' => __('Seleccione un tipo de IVA'),
-            'artRapidoPrecioBase.required' => __('El precio es obligatorio'),
-        ]);
-
-        try {
-            $articulo = Articulo::create([
-                'nombre' => $this->artRapidoNombre,
-                'codigo' => $this->artRapidoCodigo,
-                'codigo_barras' => $this->artRapidoCodigoBarras ?: null,
-                'categoria_id' => $this->artRapidoCategoriaId,
-                'unidad_medida' => $this->artRapidoUnidadMedida,
-                'tipo_iva_id' => $this->artRapidoTipoIvaId,
-                'precio_iva_incluido' => true,
-                'precio_base' => $this->artRapidoPrecioBase,
-                'es_materia_prima' => false,
-                'activo' => true,
-            ]);
-
-            HistorialPrecio::registrar([
-                'articulo_id' => $articulo->id,
-                'precio_anterior' => 0,
-                'precio_nuevo' => $this->artRapidoPrecioBase,
-                'origen' => 'articulo_crear',
-            ]);
-
-            // Sincronizar con todas las sucursales (activo solo en la actual)
-            $todasSucursales = Sucursal::pluck('id')->toArray();
-            $sucursalActiva = sucursal_activa();
-            $syncData = [];
-            foreach ($todasSucursales as $sucursalId) {
-                $esActiva = $sucursalId == $sucursalActiva;
-                $syncData[$sucursalId] = [
-                    'activo' => $esActiva,
-                    'modo_stock' => 'ninguno',
-                    'vendible' => true,
-                    'precio_base' => null,
-                ];
-            }
-            $articulo->sucursales()->sync($syncData);
-
-            // Agregar el artículo recién creado al carrito
-            $this->agregarArticulo($articulo->id);
-
-            $this->cerrarModalArticuloRapido();
-
-            $this->dispatch('notify',
-                message: __('Artículo ":nombre" creado y agregado', ['nombre' => $articulo->nombre]),
-                type: 'success'
-            );
-        } catch (\Exception $e) {
-            \Log::error('Error al crear artículo rápido: '.$e->getMessage());
-            $this->dispatch('notify',
-                message: __('Error al crear el artículo'),
-                type: 'error'
-            );
-        }
-    }
-
-    // =========================================
-    // CONSULTA DE PRECIOS
-    // =========================================
-
-    /**
-     * Consulta precios de un artículo en todas las listas
-     */
-    public function consultarPrecios($articuloId)
-    {
-        $articulo = Articulo::with('categoriaModel')->find($articuloId);
-
-        if (! $articulo) {
-            $this->dispatch('toast-error', message: __('Artículo no encontrado'));
-
-            return;
-        }
-
-        // Obtener todas las listas de precios de la sucursal
-        $listasPrecios = ListaPrecio::where('sucursal_id', $this->sucursalId)
-            ->where('activo', true)
-            ->orderBy('es_lista_base', 'desc')
-            ->orderBy('prioridad')
-            ->get();
-
-        $precioBase = $articulo->obtenerPrecioBaseEfectivo($this->sucursalId);
-        $precios = [];
-
-        foreach ($listasPrecios as $lista) {
-            // Verificar si tiene precio específico en la lista
-            $detalleArticulo = ListaPrecioArticulo::buscarParaArticulo(
-                $lista->id,
-                $articuloId,
-                $articulo->categoria_id
-            );
-
-            $tienePrecioEspecifico = false;
-            $ajusteAplicado = $lista->ajuste_porcentaje ?? 0;
-
-            if ($detalleArticulo) {
-                // Usar el método calcularPrecio del modelo
-                $resultado = $detalleArticulo->calcularPrecio($precioBase, $lista->ajuste_porcentaje ?? 0);
-                $precioFinal = $resultado['precio'];
-                $ajusteAplicado = $resultado['ajuste_porcentaje'];
-                $tienePrecioEspecifico = in_array($resultado['tipo'], ['precio_fijo', 'ajuste_detalle']);
-            } else {
-                // Aplicar ajuste porcentual del encabezado
-                $precioFinal = $precioBase * (1 + ($ajusteAplicado / 100));
-            }
-
-            $precios[] = [
-                'lista_id' => $lista->id,
-                'lista_nombre' => $lista->nombre,
-                'es_lista_base' => $lista->es_lista_base,
-                'ajuste_porcentaje' => $ajusteAplicado,
-                'precio' => round($precioFinal, 2),
-                'tiene_precio_especifico' => $tienePrecioEspecifico,
-            ];
-        }
-
-        $this->articuloConsulta = [
-            'id' => $articulo->id,
-            'codigo' => $articulo->codigo,
-            'nombre' => $articulo->nombre,
-            'categoria' => $articulo->categoriaModel?->nombre ?? $articulo->categoria,
-            'precio_base' => $precioBase,
-            'precios' => $precios,
-        ];
-
-        $this->mostrarModalConsulta = true;
-        $this->modoConsulta = false;
-        $this->busquedaArticulo = '';
-        $this->articulosResultados = [];
-    }
-
-    /**
-     * Cierra el modal de consulta
-     */
-    public function cerrarModalConsulta()
-    {
-        $this->mostrarModalConsulta = false;
-        $this->articuloConsulta = null;
-        $this->dispatch('focus-busqueda');
     }
 
     // =========================================

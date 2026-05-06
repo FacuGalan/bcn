@@ -1,14 +1,12 @@
 # Snapshot del contrato publico de App\Livewire\Ventas\NuevaVenta
-# Generado: 2026-05-06 16:47:27
+# Generado: 2026-05-06 16:44:40
 # Archivo: C:/xampp/htdocs/bcn_pymes/app/Livewire/Ventas/NuevaVenta.php
-# Lineas: 5377
+# Lineas: 5633
 
 ## Traits
-- App\Livewire\Concerns\Carrito\WithArticuloRapido
 - App\Livewire\Concerns\Carrito\WithBusquedaArticulos
 - App\Livewire\Concerns\Carrito\WithBusquedaClientes
 - App\Livewire\Concerns\Carrito\WithCarritoItems
-- App\Livewire\Concerns\Carrito\WithConsultaPrecios
 - App\Livewire\Concerns\Carrito\WithCupones
 - App\Livewire\Concerns\Carrito\WithDescuentos
 - App\Livewire\Concerns\Carrito\WithOpcionales
@@ -367,11 +365,12 @@
 - valorPuntoCanje(): float
 - withValidator($callback)
 
-## Eventos despachados (heuristica) (count: 10)
+## Eventos despachados (heuristica) (count: 11)
 - caja-actualizada
 - caja-changed
 - focus-busqueda
 - focus-busqueda-fp
+- notify
 - scroll-carrito-abajo
 - toast-error
 - toast-info
