@@ -1,0 +1,379 @@
+# Snapshot del contrato publico de App\Livewire\Ventas\NuevaVenta
+# Generado: 2026-05-06 16:40:43
+# Archivo: C:/xampp/htdocs/bcn_pymes/app/Livewire/Ventas/NuevaVenta.php
+# Lineas: 5946
+
+## Traits
+- App\Livewire\Concerns\Carrito\WithBusquedaArticulos
+- App\Livewire\Concerns\Carrito\WithBusquedaClientes
+- App\Livewire\Concerns\Carrito\WithCarritoItems
+- App\Livewire\Concerns\Carrito\WithCupones
+- App\Livewire\Concerns\Carrito\WithDescuentos
+- App\Livewire\Concerns\Carrito\WithOpcionales
+- App\Traits\AperturaTurnoTrait
+- App\Traits\CajaAware
+- Illuminate\Foundation\Auth\Access\AuthorizesRequests
+- Illuminate\Support\Traits\Macroable
+- Livewire\Concerns\InteractsWithProperties
+- Livewire\Features\SupportAttributes\HandlesAttributes
+- Livewire\Features\SupportDisablingBackButtonCache\HandlesDisablingBackButtonCache
+- Livewire\Features\SupportEvents\HandlesEvents
+- Livewire\Features\SupportFormObjects\HandlesFormObjects
+- Livewire\Features\SupportJsEvaluation\HandlesJsEvaluation
+- Livewire\Features\SupportPageComponents\HandlesPageComponents
+- Livewire\Features\SupportRedirects\HandlesRedirects
+- Livewire\Features\SupportStreaming\HandlesStreaming
+- Livewire\Features\SupportValidation\HandlesValidation
+
+## Propiedades publicas (count: 136)
+- $ajusteFormaPagoInfo = array ( 'nombre' => '', 'porcentaje' => 0, 'monto' => 0, 'total_con_ajuste' => 0, 'es_mixta' => false, )
+- $ajusteManualPopoverIndex = null
+- $ajusteManualTipo = 'monto'
+- $ajusteManualValor = null
+- ?int $artRapidoCategoriaId = null
+- $artRapidoCategorias = []
+- string $artRapidoCodigo = ''
+- string $artRapidoCodigoBarras = ''
+- string $artRapidoNombre = ''
+- ?float $artRapidoPrecioBase = null
+- ?int $artRapidoTipoIvaId = null
+- $artRapidoTiposIva = []
+- string $artRapidoUnidadMedida = 'unidad'
+- $articuloConsulta = null
+- array $articulosModalResultados = []
+- $articulosResultados = []
+- $busquedaArticulo = ''
+- string $busquedaArticuloModal = ''
+- $busquedaCliente = ''
+- ?int $cajaAperturaId = null
+- $cajaSeleccionada = null
+- array $cajasAAbrir = []
+- $canalVentaId = null
+- bool $canjePuntosActivo = false
+- ?float $canjePuntosInputMonto = null
+- float $canjePuntosMaximo = 0
+- ?float $canjePuntosMonto = null
+- int $canjePuntosUnidades = 0
+- $cantidadAgregar = 1
+- $categoriasDisponibles = []
+- $clienteCondicionIva = ''
+- $clienteNombre = ''
+- bool $clienteRapidoArcaDisponible = false
+- ?int $clienteRapidoCondicionIvaId = null
+- bool $clienteRapidoConsultandoCuit = false
+- string $clienteRapidoCuit = ''
+- bool $clienteRapidoDatosDesdeArca = false
+- string $clienteRapidoDireccion = ''
+- string $clienteRapidoEmail = ''
+- string $clienteRapidoErrorCuit = ''
+- string $clienteRapidoExitoCuit = ''
+- string $clienteRapidoModoAlta = 'manual'
+- string $clienteRapidoNombre = ''
+- string $clienteRapidoRazonSocial = ''
+- string $clienteRapidoTelefono = ''
+- string $clienteRapidoValidacionCuitMsg = ''
+- string $clienteRapidoValidacionCuitTipo = ''
+- $clienteSeleccionado = null
+- $clientesResultados = []
+- $conceptoCategoriaId = null
+- $conceptoDescripcion = ''
+- $conceptoImporte = 0
+- $cuotaSeleccionadaId = null
+- $cuotasDesgloseConMontos = []
+- $cuotasDesgloseSelectorAbierto = false
+- $cuotasDisponibles = []
+- $cuotasFormaPagoDisponibles = []
+- $cuotasSelectorAbierto = false
+- bool $cuponAplicado = false
+- array $cuponArticulosBonificados = []
+- string $cuponCodigoInput = ''
+- ?array $cuponInfo = null
+- float $cuponMontoDescuento = 0
+- bool $descuentoGeneralActivo = false
+- string $descuentoGeneralInputTipo = 'porcentaje'
+- ?float $descuentoGeneralInputValor = null
+- float $descuentoGeneralMonto = 0
+- ?string $descuentoGeneralTipo = null
+- ?float $descuentoGeneralValor = null
+- $desgloseIvaFiscal = []
+- $desglosePagos = []
+- ?int $editarNombreIndex = null
+- string $editarNombreValor = ''
+- $emitirFacturaFiscal = false
+- bool $esAperturaGrupal = false
+- $estadoCaja = array ( 'operativa' => false, 'estado' => 'sin_caja', 'mensaje' => 'No hay caja seleccionada', 'caja' => NULL, )
+- array $etiquetasModalSeleccionadas = []
+- $fondoComunTotal = ''
+- array $fondosIniciales = []
+- $formaPagoId = null
+- $formaPagoPermiteCuotas = false
+- $formaVentaId = null
+- $formasPagoSucursal = []
+- ?int $grupoAperturaId = null
+- bool $grupoUsaFondoComun = false
+- $gruposEtiquetasModal = []
+- $infoCuotaSeleccionada = array ( 'cantidad_cuotas' => 1, 'recargo_porcentaje' => 0, 'recargo_monto' => 0, 'valor_cuota' => 0, 'total_con_recargo' => 0, 'descripcion' => '1 pago', )
+- $itemResaltado = null
+- $items = []
+- $listaPrecioId = null
+- $listasPreciosDisponibles = []
+- $modoBusqueda = false
+- $modoConsulta = false
+- $montoFacturaFiscal = 0
+- $montoPendienteDesglose = 0
+- bool $mostrarConfirmLimpiar = false
+- bool $mostrarModalArticuloRapido = false
+- bool $mostrarModalBusquedaArticulos = false
+- $mostrarModalClienteRapido = false
+- $mostrarModalConcepto = false
+- $mostrarModalConsulta = false
+- $mostrarModalMonedaExtranjera = false
+- $mostrarModalPago = false
+- bool $mostrarModalPesable = false
+- $mostrarModalVuelto = false
+- bool $mostrarWizardOpcionales = false
+- $nuevoPago = array ( 'forma_pago_id' => NULL, 'monto' => NULL, 'cuotas' => 1, 'monto_recibido' => 0, 'tipo_cambio_tasa' => NULL, 'monto_moneda_extranjera' => NULL, )
+- $observaciones = null
+- $pagoConVuelto = array ( 'forma_pago_id' => NULL, 'nombre' => '', 'total_a_pagar' => 0, 'monto_recibido' => 0, 'vuelto' => 0, )
+- $pagoMonedaExtranjera = array ( 'forma_pago_id' => NULL, 'nombre' => '', 'moneda_codigo' => '', 'moneda_simbolo' => '', 'moneda_id' => NULL, 'cotizacion' => 0, 'monto_extranjera' => NULL, 'total_venta' => 0, 'equivalente_principal' => 0, 'vuelto' => 0, )
+- ?int $pesableArticuloId = null
+- string $pesableNombreArticulo = ''
+- float $pesablePrecioUnitario = 0
+- string $pesableUnidadMedida = 'kg'
+- $puedeSeleccionarPuntoVenta = false
+- $puntoVentaSeleccionadoId = null
+- bool $puntosDisponibles = false
+- int $puntosMinimoCanje = 0
+- int $puntosSaldoCliente = 0
+- $puntosVentaDisponibles = []
+- $resultado = null
+- bool $showAperturaModal = false
+- bool $showModalDescuentos = false
+- $showPuntoVentaModal = false
+- $sucursalFacturaAutomatica = false
+- $sucursalId = null
+- $tipoComprobante = 'ticket'
+- $tipoFacturaCliente = 'B'
+- ?float $topeDescuentoUsuario = null
+- $totalConAjustes = 0
+- ?array $wizardArticuloData = null
+- ?int $wizardArticuloId = null
+- ?int $wizardEditandoIndex = null
+- array $wizardGrupos = []
+- int $wizardPasoActual = 0
+- array $wizardSelecciones = []
+
+## Computed properties (count: 6)
+- canalesVenta(): array
+- canjePuntosMaximoReal(): float
+- formasPago(): array
+- formasVenta(): array
+- puntosLibres(): int
+- valorPuntoCanje(): float
+
+## Listeners #[On(...)] (count: 3)
+- caja-actualizada -> handleCajaActualizada(...)
+- caja-changed -> handleCajaChanged(...)
+- sucursal-changed -> handleSucursalChanged(...)
+
+## Metodos publicos (count: 186)
+- __call($method, $params)
+- __get($property)
+- __invoke()
+- __isset($property)
+- __unset($property)
+- abrirAjusteManual(int $index, string $tipo): void
+- abrirEditarNombre(int $index): void
+- abrirModalApertura(?int $cajaId = null, ?int $grupoId = null): void
+- abrirModalArticuloRapido(): void
+- abrirModalBusquedaArticulos(): void
+- abrirModalClienteRapido()
+- abrirModalConcepto()
+- abrirModalDescuentos(): void
+- abrirModalDesglose(): void
+- activarCaja(int $cajaId): void
+- activarModoBusqueda()
+- activarModoConsulta()
+- actualizarCantidad($index, $cantidad)
+- actualizarCuotasDesglose(int $index, int $cuotas): void
+- actualizarEstadoCaja(): void
+- actualizarFacturaFiscalSegunFP(): void
+- actualizarMontoRecibido(int $index, $monto): void
+- addError($name, $message)
+- addMessagesFromOutside($messages)
+- addRulesFromOutside($rules)
+- addValidationAttributesFromOutside($validationAttributes)
+- agregarAlDesglose(): void
+- agregarArticulo($articuloId)
+- agregarArticuloYCerrarConsulta($articuloId)
+- agregarConcepto()
+- agregarPorCodigo(string $codigo)
+- agregarPrimerArticulo()
+- all()
+- anteriorPasoWizard()
+- aplicarAjusteManual(): void
+- aplicarCanjePuntos(): void
+- aplicarCupon(): void
+- aplicarDescuentoGeneral(): void
+- aplicarEditarNombre(): void
+- asignarMontoPendiente(): void
+- authorize($ability, $arguments = [])
+- authorizeForUser($user, $ability, $arguments = [])
+- authorizeResource($model, $parameter = null, array $options = [], $request = null)
+- boot(App\Services\VentaService $ventaService, App\Services\OpcionalService $opcionalService, App\Services\CuponService $cuponService, App\Services\PuntosService $puntosService)
+- buscarEnDetalle($articuloId)
+- calcularMontoFacturaFiscal(): void
+- calcularVenta()
+- cambiarCaja($cajaId)
+- cambiarCantidadOpcion($opcionalId, $delta)
+- canalesVenta(): array
+- cancelarApertura(): void
+- cancelarLimpiarCarrito()
+- cancelarSeleccionPuntoVenta(): void
+- canjePuntosMaximoReal(): float
+- canjearArticuloConPuntos(int $index): void
+- cerrarAjusteManual(): void
+- cerrarEditarNombre(): void
+- cerrarModalArticuloRapido(): void
+- cerrarModalBusquedaArticulos(): void
+- cerrarModalClienteRapido()
+- cerrarModalConcepto()
+- cerrarModalConsulta()
+- cerrarModalDescuentos(): void
+- cerrarModalMonedaExtranjera(): void
+- cerrarModalPago(): void
+- cerrarModalPesable(): void
+- cerrarModalVuelto(): void
+- cerrarWizardOpcionales()
+- clearValidation($field = null)
+- confirmarLimpiarCarrito()
+- confirmarPago(): void
+- confirmarPagoConVuelto(): void
+- confirmarPagoMonedaExtranjera(): void
+- confirmarPasoWizard($forzar = false)
+- confirmarPesable(float $cantidad): void
+- confirmarPuntoVenta(): void
+- confirmarWizardOpcionales()
+- consultarCuitClienteRapido(): void
+- consultarPrecios($articuloId)
+- desactivarModos()
+- desgloseCompleto(): bool
+- disableBackButtonCache()
+- dispatch($event, ...$params = ?)
+- editarDesglose(): void
+- editarOpcionalesItem($index)
+- ejecutarLimpiarCarrito()
+- eliminarDelDesglose(int $index): void
+- eliminarItem($index)
+- enableBackButtonCache()
+- errorBagExcept($field)
+- except($properties)
+- fill($values)
+- formasPago(): array
+- formasVenta(): array
+- getAttributes()
+- getCajaParaApertura(int $cajaId): ?array
+- getErrorBag()
+- getFormObjects()
+- getGrupoParaApertura(): ?array
+- getId()
+- getName()
+- getPropertyValue($name)
+- getRules()
+- guardarArticuloRapido(): void
+- guardarClienteRapido()
+- handleCajaActualizada($cajaId = null, $accion = null)
+- handleCajaChanged($cajaId = null, $cajaNombre = null)
+- handleSucursalChanged($sucursalId = null, $sucursalNombre = null)
+- handleSucursalChangedFromCaja($sucursalId = null, $sucursalNombre = null)
+- hasProperty($prop)
+- hasRuleFor($dotNotatedProperty)
+- id()
+- iniciarCobro(): void
+- js($expression, ...$params = ?)
+- limpiarCarrito($mostrarMensaje = true)
+- limpiarCliente()
+- limpiarResaltado()
+- macroCall($method, $parameters)
+- mergeOutsideAttributes(Livewire\Features\SupportAttributes\AttributeCollection $attributes)
+- missingRuleFor($dotNotatedProperty)
+- mostrarSeleccionPuntoVenta(): void
+- mount()
+- mountCajaAware(): void
+- obtenerAjusteFormaPago(int $formaPagoId): float
+- obtenerFacturaFiscalFP(int $formaPagoId): bool
+- only($properties)
+- placeholder()
+- procesarApertura(): void
+- procesarVenta()
+- pull($properties = null)
+- puntosLibres(): int
+- quitarAjusteManual(int $index): void
+- quitarCanjeArticulo(int $index): void
+- quitarCanjePuntos(): void
+- quitarCupon(): void
+- quitarDescuentoGeneral(): void
+- redirect($url, $navigate = false)
+- redirectAction($name, $parameters = [], $absolute = true, $navigate = false)
+- redirectIntended($default = '/', $navigate = false)
+- redirectRoute($name, $parameters = [], $absolute = true, $navigate = false)
+- render()
+- reset(...$properties = ?)
+- resetErrorBag($field = null)
+- resetValidation($field = null)
+- ruleWithNumbersReplacedByStars($dotNotatedProperty)
+- rulesForModel($name)
+- saltearWizardOpcionales()
+- seleccionarArticulo($articuloId)
+- seleccionarArticuloModal(int $articuloId): void
+- seleccionarCliente($clienteId)
+- seleccionarCuotaDesglose($cantidadCuotas): void
+- seleccionarPrimerCliente()
+- setErrorBag($bag)
+- setId($id)
+- setName($name)
+- setPropertyAttribute($property, $attribute)
+- skipHydrate()
+- skipMount()
+- skipRender($html = null)
+- stream($to, $content, $replace = false)
+- tap($callback)
+- toggleCuotasDesgloseSelector(): void
+- toggleCuotasSelector(): void
+- toggleFacturaFiscalDesglose(int $index): void
+- toggleOpcion($opcionalId)
+- updatedArtRapidoCategoriaId($value): void
+- updatedBusquedaArticulo($value)
+- updatedBusquedaArticuloModal(): void
+- updatedBusquedaCliente($value)
+- updatedCanalVentaId()
+- updatedClienteRapidoCuit(): void
+- updatedCuotaSeleccionadaId()
+- updatedEtiquetasModalSeleccionadas(): void
+- updatedFormaPagoId()
+- updatedFormaVentaId()
+- updatedListaPrecioId()
+- updatedNuevoPagoFormaPagoId($value): void
+- updatedNuevoPagoMonto($value): void
+- updatedPagoConVueltoMontoRecibido($value): void
+- updatedPagoMonedaExtranjeraCotizacion($value): void
+- updatedPagoMonedaExtranjeraMontoExtranjera($value): void
+- validarCupon(): void
+- validate($rules = null, $messages = [], $attributes = [])
+- validateOnly($field, $rules = null, $messages = [], $attributes = [], $dataOverrides = [])
+- valorPuntoCanje(): float
+- withValidator($callback)
+
+## Eventos despachados (heuristica) (count: 11)
+- caja-actualizada
+- caja-changed
+- focus-busqueda
+- focus-busqueda-fp
+- notify
+- scroll-carrito-abajo
+- toast-error
+- toast-info
+- toast-success
+- toast-warning
+- venta-completada
+
