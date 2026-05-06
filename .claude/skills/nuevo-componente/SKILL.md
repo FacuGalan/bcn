@@ -83,12 +83,40 @@ Después de crear el componente, actualizar:
 - **`docs/manual-usuario.md`**: Agregar sección del nuevo componente en el módulo correspondiente (acciones, filtros, modales, campos)
 - **`docs/ai-knowledge-base.md`**: Si el componente introduce tablas/lógica nueva, agregar al modelo de datos y lógica de negocio
 
+### 7. Agregar smoke test (OBLIGATORIO)
+
+Todo componente Livewire nuevo DEBE tener al menos un smoke test que verifique
+que monta sin errores. Esto detecta: errores en `mount()`, sintaxis Blade
+inválida, variables indefinidas en la vista, dependencias rotas.
+
+**Dónde agregarlo**: en el archivo `tests/Feature/Livewire/{Modulo}/Smoke{Modulo}Test.php`
+correspondiente a la carpeta del componente. Si NO existe, crearlo siguiendo
+el patrón del proyecto (ver `tests/Feature/Livewire/Articulos/SmokeArticulosTest.php`
+como referencia simple, o `SmokeCajasTest.php` para componentes CajaAware).
+
+**Template del test a agregar**:
+```php
+public function test_{nombre_componente}_monta(): void
+{
+    Livewire::test(NombreComponente::class)->assertOk();
+}
+```
+
+**Setup del archivo (si lo creás nuevo)**:
+- `WithTenant` siempre
+- `WithSucursal` si el componente es SucursalAware o si su carpeta lo requiere
+- `WithCaja` si el componente es CajaAware
+- `Livewire::withoutLazyLoading()` en el `setUp()` (clave si el componente usa `#[Lazy]`)
+
+**Validar**: `php artisan test --filter=Smoke{Modulo}Test` debe pasar antes
+de confirmar al usuario.
+
 ## Reglas
 - SIEMPRE leer ESTANDARES_PROYECTO.md antes de generar
 - SIEMPRE leer un componente de referencia existente
 - NO inventar patrones nuevos — seguir los existentes
 - Si el componente NO es sucursal-aware, NO agregar SucursalAware
 - SIEMPRE actualizar docs/ al finalizar
-- **Test mínimo obligatorio antes de confirmar al usuario**: agregar `Livewire::test(Componente::class)->assertOk()` (con `Livewire::withoutLazyLoading()` antes si el componente tiene `#[Lazy]`). Esto atrapa bugs de `render()` (método inexistente, variable indefinida, slot roto) que pint y `Livewire::test()` cerrado NO detectan
+- **PROHIBIDO confirmar el componente como terminado sin que su smoke test pase** (paso 7)
 - Permisos: usar `auth()->user()?->hasPermissionTo('func.X')`, NUNCA `can()` (User no usa HasRoles trait)
 - `SucursalAware`: el método del trait se llama `$this->sucursalActual()` — NO `obtenerSucursalActual()` (ese es propio del componente `Ventas.php` y no está en el trait)
