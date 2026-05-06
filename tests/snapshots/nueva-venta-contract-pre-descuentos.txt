@@ -1,13 +1,12 @@
 # Snapshot del contrato publico de App\Livewire\Ventas\NuevaVenta
-# Generado: 2026-05-06 16:38:24
+# Generado: 2026-05-06 16:23:10
 # Archivo: C:/xampp/htdocs/bcn_pymes/app/Livewire/Ventas/NuevaVenta.php
-# Lineas: 6173
+# Lineas: 6544
 
 ## Traits
 - App\Livewire\Concerns\Carrito\WithBusquedaArticulos
 - App\Livewire\Concerns\Carrito\WithBusquedaClientes
 - App\Livewire\Concerns\Carrito\WithCarritoItems
-- App\Livewire\Concerns\Carrito\WithDescuentos
 - App\Livewire\Concerns\Carrito\WithOpcionales
 - App\Traits\AperturaTurnoTrait
 - App\Traits\CajaAware
