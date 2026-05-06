@@ -19,6 +19,16 @@ abstract class TestCase extends BaseTestCase
     protected static bool $databasesGuarded = false;
 
     /**
+     * Max id de users en config_test al inicio del test, para cleanup posterior.
+     * Capturado en setUp() y usado en tearDown() para borrar exactamente los users
+     * creados durante el test. Funciona tanto con DatabaseTransactions (el delete
+     * queda dentro de la transaction y se rollbackea) como sin transactions
+     * (limpia directamente). Previene acumulacion de users de Faker en config_test
+     * entre corridas y entre clases dentro de una corrida.
+     */
+    protected ?int $userMaxIdAtSetUp = null;
+
+    /**
      * Setup base para todos los tests.
      */
     protected function setUp(): void
@@ -44,6 +54,46 @@ abstract class TestCase extends BaseTestCase
             $this->ensureSharedTablesExist();
             static::$migrationsRun = true;
         }
+
+        // Snapshot del max id de users para limpiar al final del test.
+        try {
+            $this->userMaxIdAtSetUp = DB::connection('config')->table('users')->max('id') ?? 0;
+        } catch (\Throwable $e) {
+            $this->userMaxIdAtSetUp = null;
+        }
+    }
+
+    protected function tearDown(): void
+    {
+        // Borrar users creados durante el test. Si el test usa DatabaseTransactions
+        // sobre 'config', este delete queda dentro de la transaction (no efecto real).
+        // Si no, limpia directamente, evitando que se acumulen entre corridas.
+        // Tablas relacionadas (sessions) tambien se limpian en orden seguro.
+        if ($this->userMaxIdAtSetUp !== null) {
+            try {
+                $idsCreados = DB::connection('config')->table('users')
+                    ->where('id', '>', $this->userMaxIdAtSetUp)
+                    ->pluck('id');
+
+                if ($idsCreados->isNotEmpty()) {
+                    DB::connection('config')->table('sessions')
+                        ->whereIn('user_id', $idsCreados)
+                        ->delete();
+
+                    DB::connection('config')->table('comercio_user')
+                        ->whereIn('user_id', $idsCreados)
+                        ->delete();
+
+                    DB::connection('config')->table('users')
+                        ->whereIn('id', $idsCreados)
+                        ->delete();
+                }
+            } catch (\Throwable $e) {
+                // No romper el test por un fallo en cleanup.
+            }
+        }
+
+        parent::tearDown();
     }
 
     /**
