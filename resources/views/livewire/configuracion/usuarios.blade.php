@@ -422,7 +422,7 @@
                                                         id="password"
                                                         wire:model="password"
                                                         autocomplete="new-password"
-                                                        placeholder="{{ __('{{ $editMode ? 'Dejar en blanco para no cambiar' : '' }}') }}"
+                                                        placeholder="{{ $editMode ? __('Dejar en blanco para no cambiar') : '' }}"
                                                         class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
                                                         {{ $editMode ? '' : 'required' }}
                                                     />

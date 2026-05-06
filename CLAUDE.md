@@ -31,6 +31,7 @@
 - **Sucursal-aware**: trait `SucursalAware` + `sucursal_activa()`. NO para catálogos globales
 - **Caja-aware**: trait `CajaAware`, solo ventas/cobranza
 - **Catálogos globales** (GruposOpcionales, Recetas): NO son SucursalAware
+- **Smoke test OBLIGATORIO**: TODO componente Livewire nuevo debe tener un test `Livewire::test(Componente::class)->assertOk()` en el `Smoke{Modulo}Test.php` correspondiente. El skill `/nuevo-componente` lo agrega automáticamente. Detecta errores de mount, sintaxis Blade, variables indefinidas. Sin smoke test, el componente NO se considera terminado.
 - Ref estándares: `.claude/ESTANDARES_PROYECTO.md`
 - Ref patrones: `.claude/docs/componentes-livewire.md`
 
