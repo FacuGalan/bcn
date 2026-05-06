@@ -20,7 +20,6 @@
  *
  * Si se corre standalone, levanta el bootstrap de Laravel primero.
  */
-
 if (! class_exists(\Illuminate\Foundation\Application::class)) {
     require __DIR__.'/../../vendor/autoload.php';
     $app = require __DIR__.'/../../bootstrap/app.php';
