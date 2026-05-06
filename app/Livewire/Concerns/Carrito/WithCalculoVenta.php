@@ -6,6 +6,7 @@ use App\Models\Articulo;
 use App\Models\Categoria;
 use App\Models\Cupon;
 use App\Models\ListaPrecio;
+use App\Models\Promocion;
 use App\Models\PromocionEspecial;
 use Illuminate\Support\Facades\Log;
 
