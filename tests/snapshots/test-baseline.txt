@@ -1,0 +1,551 @@
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Unit\ExampleTest[39m
+  [32;1m✓[39;22m[90m [39m[90mthat true is true[39m
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Unit\Services\ArticuloImportExportServiceTest[39m
+  [32;1m✓[39;22m[90m [39m[90mgenera plantilla vacia con headers[39m[90m                                                                          [39m [90m1.02s[39m  
+  [32;1m✓[39;22m[90m [39m[90mgenera plantilla con datos incluye articulos[39m[90m                                                                [39m [90m0.53s[39m  
+  [32;1m✓[39;22m[90m [39m[90mplantilla con datos marca soft deleted[39m[90m                                                                      [39m [90m0.56s[39m  
+  [32;1m✓[39;22m[90m [39m[90mimporta fila nueva crea articulo y pivot[39m[90m                                                                    [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mimporta fila nueva sin categoria falla[39m[90m                                                                      [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mimporta fila nueva con codigo manual[39m[90m                                                                        [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcodigo duplicado en fila nueva falla[39m[90m                                                                        [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcon id y mismos datos cuenta como sin cambios[39m[90m                                                               [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcon id cambia nombre actualiza[39m[90m                                                                              [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mprecio igual al base genera override null sin historial[39m[90m                                                     [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mprecio distinto al base setea override y registra historial[39m[90m                                                 [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mprecio igual al efectivo actual no cambia nada[39m[90m                                                              [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mprecio vacio con override previo restaura al base[39m[90m                                                           [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90msoft deleted con id se ignora con error[39m[90m                                                                     [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdry run no persiste cambios ni historial[39m[90m                                                                    [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcategoria invalida reporta error[39m[90m                                                                            [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcambio de categoria con prefijo distinto regenera codigo[39m[90m                                                    [39m [90m0.18s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Unit\Services\CambioFormaPagoServiceTest[39m
+  [32;1m✓[39;22m[90m [39m[90mbloquea si pago no existe[39m[90m                                                                                   [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mbloquea si pago anulado[39m[90m                                                                                     [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mbloquea si venta cancelada[39m[90m                                                                                  [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpreview suma completa marca completo true[39m[90m                                                                   [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpreview suma incompleta marca completo false[39m[90m                                                                [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpreview pago no facturado no dispara nc[39m[90m                                                                     [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mservice instanciable y matriz estructurada[39m[90m                                                                  [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mmodal cambiar pago renderiza abierto sin errores[39m[90m                                                            [39m [90m1.62s[39m  
+  [32;1m✓[39;22m[90m [39m[90mregla binaria mismo monto facturado no dispara nada fiscal[39m[90m                                                  [39m [90m0.23s[39m  
+  [32;1m✓[39;22m[90m [39m[90mregla binaria monto facturado distinto dispara nc y fc[39m[90m                                                      [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mregla binaria delta positivo dispara nc y fc[39m[90m                                                                [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mreintentar bloquea si pago no esta pendiente[39m[90m                                                                [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mmarcar error bloquea si pago no esta pendiente[39m[90m                                                              [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa pago ajuste crea con campos requeridos[39m[90m                                                                [39m [90m0.19s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Unit\Services\CategoriaImportExportServiceTest[39m
+  [32;1m✓[39;22m[90m [39m[90mgenerar plantilla vacia crea archivo xlsx con headers[39m[90m                                                       [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mgenerar plantilla con datos incluye categorias existentes[39m[90m                                                   [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdry run cuenta cambios pero no persiste[39m[90m                                                                     [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mimporta fila sin id como categoria nueva[39m[90m                                                                    [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90msin id actualiza prefijo cuando nombre ya existe[39m[90m                                                            [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcon id permite renombrar categoria existente[39m[90m                                                                [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcon id y datos iguales cuenta como sin cambios[39m[90m                                                              [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90msin id con prefijo identico cuenta como sin cambios[39m[90m                                                         [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcon id inexistente reporta error[39m[90m                                                                            [39m [90m0.14s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcon id no numerico reporta error[39m[90m                                                                            [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcon id rechaza nombre que ya pertenece a otra categoria[39m[90m                                                     [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mreporta fila sin nombre como error y sigue[39m[90m                                                                  [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mreporta prefijo mayor a 10 caracteres[39m[90m                                                                       [39m [90m0.13s[39m  
+  [32;1m✓[39;22m[90m [39m[90mignora filas completamente vacias[39m[90m                                                                           [39m [90m0.14s[39m  
+  [32;1m✓[39;22m[90m [39m[90mretorna error si falta columna nombre[39m[90m                                                                       [39m [90m0.15s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Unit\Services\CobroServiceTest[39m
+  [32;1m✓[39;22m[90m [39m[90mcobro a una venta[39m[90m                                                                                           [39m [90m0.24s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcobro parcial[39m[90m                                                                                               [39m [90m0.26s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcobro a multiples ventas[39m[90m                                                                                    [39m [90m0.27s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcobro genera numero recibo[39m[90m                                                                                  [39m [90m0.31s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcobro excedente como saldo favor[39m[90m                                                                            [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcobro valida saldo favor[39m[90m                                                                                    [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcobro usa saldo favor[39m[90m                                                                                       [39m [90m0.25s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcobro marca completada si saldo cero[39m[90m                                                                        [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcobro registra movimiento caja[39m[90m                                                                              [39m [90m0.23s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcobro saldos correctos en cobro venta[39m[90m                                                                       [39m [90m0.23s[39m  
+  [32;1m✓[39;22m[90m [39m[90manticipo sin ventas[39m[90m                                                                                         [39m [90m0.25s[39m  
+  [32;1m✓[39;22m[90m [39m[90manticipo con ventas vacias[39m[90m                                                                                  [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcalcula interes por dias vencidos[39m[90m                                                                           [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90msin fecha vencimiento retorna cero[39m[90m                                                                          [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mno vencida retorna cero[39m[90m                                                                                     [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mtasa cero retorna cero[39m[90m                                                                                      [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdistribuye por antiguedad[39m[90m                                                                                   [39m [90m0.14s[39m  
+  [32;1m✓[39;22m[90m [39m[90mno excede monto[39m[90m                                                                                             [39m [90m0.14s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdistribuye todo si excede deudas[39m[90m                                                                            [39m [90m0.14s[39m  
+  [32;1m✓[39;22m[90m [39m[90manula y revierte saldos[39m[90m                                                                                     [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mfalla si ya anulado[39m[90m                                                                                         [39m [90m0.27s[39m  
+  [32;1m✓[39;22m[90m [39m[90mfalla si cierre turno[39m[90m                                                                                       [39m [90m0.25s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Unit\Services\StockServiceTest[39m
+  [32;1m✓[39;22m[90m [39m[90majustar stock positivo[39m[90m                                                                                      [39m [90m0.26s[39m  
+  [32;1m✓[39;22m[90m [39m[90majustar stock negativo[39m[90m                                                                                      [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90majustar stock falla si queda negativo[39m[90m                                                                       [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90majustar stock registra movimiento[39m[90m                                                                           [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90minicializar stock en sucursal[39m[90m                                                                               [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90minicializar stock falla modo ninguno[39m[90m                                                                        [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mregistrar inventario fisico sobrante[39m[90m                                                                        [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mregistrar inventario fisico faltante[39m[90m                                                                        [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mregistrar inventario sin diferencia[39m[90m                                                                         [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mregistrar inventario crea movimiento[39m[90m                                                                        [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mobtener stock bajo minimo[39m[90m                                                                                   [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mobtener articulos sin stock[39m[90m                                                                                 [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90majustar stock rollback en error[39m[90m                                                                             [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90minicializar stock no duplica[39m[90m                                                                                [39m [90m0.18s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Unit\Services\VentaServiceCancelacionTest[39m
+  [32;1m✓[39;22m[90m [39m[90mcancela venta cambia estado[39m[90m                                                                                 [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcancela venta revierte stock unitario[39m[90m                                                                       [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcancela venta revierte stock receta[39m[90m                                                                         [39m [90m0.25s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcancela venta revierte stock opcionales[39m[90m                                                                     [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcancela venta anula pagos[39m[90m                                                                                   [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcancela venta cc revierte saldo[39m[90m                                                                             [39m [90m0.26s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcancela venta falla si ya cancelada[39m[90m                                                                         [39m [90m0.23s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcancela venta saldo pendiente a cero[39m[90m                                                                        [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcancela venta con motivo[39m[90m                                                                                    [39m [90m0.23s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcancela venta retorna array[39m[90m                                                                                 [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpasa a cc anula pagos originales[39m[90m                                                                            [39m [90m0.25s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpasa a cc crea pago cc[39m[90m                                                                                      [39m [90m0.23s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpasa a cc actualiza saldo[39m[90m                                                                                   [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpasa a cc falla si ya cc[39m[90m                                                                                    [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpasa a cc falla sin cliente[39m[90m                                                                                 [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpasa a cc falla si cancelada[39m[90m                                                                                [39m [90m0.23s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpasa a cc busca forma pago credito[39m[90m                                                                          [39m [90m0.23s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpasa a cc cambia estado a pendiente[39m[90m                                                                         [39m [90m0.23s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Unit\Services\VentaServicePagosCCTest[39m
+  [32;1m✓[39;22m[90m [39m[90mprocesar pagos cc registra debe[39m[90m                                                                             [39m [90m0.26s[39m  
+  [32;1m✓[39;22m[90m [39m[90mprocesar pagos cc registra haber por pago no cc[39m[90m                                                             [39m [90m0.30s[39m  
+  [32;1m✓[39;22m[90m [39m[90mprocesar pagos cc no registra haber para cc[39m[90m                                                                 [39m [90m0.23s[39m  
+  [32;1m✓[39;22m[90m [39m[90mregistrar movimiento cc pago crea movimiento[39m[90m                                                                [39m [90m0.23s[39m  
+  [32;1m✓[39;22m[90m [39m[90mregistrar movimiento cc pago ignora no cc[39m[90m                                                                   [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mregistrar movimiento cc pago ignora sin cliente[39m[90m                                                             [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mprocesar pagos cc actualiza saldo[39m[90m                                                                           [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mregistrar movimiento cc pago tipo venta[39m[90m                                                                     [39m [90m0.22s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Unit\Services\VentaServiceTest[39m
+  [32;1m✓[39;22m[90m [39m[90mcrear venta simple[39m[90m                                                                                          [39m [90m0.24s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear venta multiples items[39m[90m                                                                                 [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear venta con totales proporcionados[39m[90m                                                                      [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear venta recalcula totales sin datos[39m[90m                                                                     [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear venta genera numero por caja[39m[90m                                                                          [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear venta falla sin detalles[39m[90m                                                                              [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear venta con iva incluido[39m[90m                                                                                [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear venta con iva excluido[39m[90m                                                                                [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear venta con descuento en detalle[39m[90m                                                                        [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear venta con ajuste forma pago[39m[90m                                                                           [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mstock bloquea falla sin stock[39m[90m                                                                               [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mstock bloquea permite con stock[39m[90m                                                                             [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mstock advierte permite sin stock[39m[90m                                                                            [39m [90m0.24s[39m  
+  [32;1m✓[39;22m[90m [39m[90mstock no controla permite sin stock[39m[90m                                                                         [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mstock modo ninguno no valida[39m[90m                                                                                [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mstock receta valida ingredientes[39m[90m                                                                            [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mstock receta permite con ingredientes[39m[90m                                                                       [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mstock ingredientes acumulados multiples items[39m[90m                                                               [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mstock opcionales con receta[39m[90m                                                                                 [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdescuenta stock unitario[39m[90m                                                                                    [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdescuenta stock receta ingredientes[39m[90m                                                                         [39m [90m0.23s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdescuenta stock opcionales[39m[90m                                                                                  [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mno descuenta stock modo ninguno[39m[90m                                                                             [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mregistra movimiento stock tipo venta[39m[90m                                                                        [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpermite stock negativo en advierte[39m[90m                                                                          [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpermite stock negativo en no controla[39m[90m                                                                       [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear venta falla caja cerrada[39m[90m                                                                              [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear venta permite caja abierta[39m[90m                                                                            [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear venta permite sin caja[39m[90m                                                                                [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa cc estado pendiente[39m[90m                                                                                   [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa cc falla credito insuficiente[39m[90m                                                                         [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa cc permite credito suficiente[39m[90m                                                                         [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa cc ajusta saldo cliente[39m[90m                                                                               [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa cc permite sin limite[39m[90m                                                                                 [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa guarda promociones comunes[39m[90m                                                                            [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa guarda promociones especiales[39m[90m                                                                         [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa guarda promociones detalle[39m[90m                                                                            [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa sin promociones no crea registros[39m[90m                                                                     [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mrollback por stock insuficiente[39m[90m                                                                             [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mrollback por credito insuficiente[39m[90m                                                                           [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mrollback por articulo inexistente[39m[90m                                                                           [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa legacy sin totales[39m[90m                                                                                    [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa cantidades decimales[39m[90m                                                                                  [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa con iva cero[39m[90m                                                                                          [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa con descuento en detalle campo[39m[90m                                                                        [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa con descuento promocion[39m[90m                                                                               [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa ajuste manual en detalle[39m[90m                                                                              [39m [90m0.25s[39m  
+  [32;1m✓[39;22m[90m [39m[90mventa total final con ajuste forma pago[39m[90m                                                                     [39m [90m0.18s[39m  
+
+  [39;41;1m FAIL [39;49;22m[39m Tests\Feature\Auth\AuthenticationTest[39m
+  [31;1m⨯[39;22m[90m [39m[90mlogin screen can be rendered[39m[90m                                                                               [39m [90m13.23s[39m  
+  [32;1m✓[39;22m[90m [39m[90musers can authenticate using the login screen[39m[90m                                                               [39m [90m0.92s[39m  
+  [32;1m✓[39;22m[90m [39m[90musers can not authenticate with invalid password[39m[90m                                                            [39m [90m0.28s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdashboard redirects to comercio selector without tenant[39m[90m                                                     [39m [90m0.06s[39m  
+  [32;1m✓[39;22m[90m [39m[90musers can logout[39m[90m                                                                                            [39m [90m0.75s[39m  
+
+  [39;41;1m FAIL [39;49;22m[39m Tests\Feature\Auth\EmailVerificationTest[39m
+  [31;1m⨯[39;22m[90m [39m[90memail verification screen can be rendered[39m[90m                                                                   [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90memail can be verified[39m[90m                                                                                       [39m [90m0.07s[39m  
+  [32;1m✓[39;22m[90m [39m[90memail is not verified with invalid hash[39m[90m                                                                     [39m [90m0.08s[39m  
+
+  [39;41;1m FAIL [39;49;22m[39m Tests\Feature\Auth\PasswordConfirmationTest[39m
+  [31;1m⨯[39;22m[90m [39m[90mconfirm password screen can be rendered[39m[90m                                                                     [39m [90m0.05s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpassword can be confirmed[39m[90m                                                                                   [39m [90m0.28s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpassword is not confirmed with invalid password[39m[90m                                                             [39m [90m0.28s[39m  
+
+  [39;41;1m FAIL [39;49;22m[39m Tests\Feature\Auth\PasswordResetTest[39m
+  [31;1m⨯[39;22m[90m [39m[90mreset password link screen can be rendered[39m[90m                                                                  [39m [90m0.31s[39m  
+  [32;1m✓[39;22m[90m [39m[90mreset password link can be requested[39m[90m                                                                        [39m [90m0.30s[39m  
+  [31;1m⨯[39;22m[90m [39m[90mreset password screen can be rendered[39m[90m                                                                       [39m [90m0.79s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpassword can be reset with valid token[39m[90m                                                                      [39m [90m0.74s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\Auth\PasswordUpdateTest[39m
+  [32;1m✓[39;22m[90m [39m[90mpassword can be updated[39m[90m                                                                                     [39m [90m1.28s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcorrect password must be provided to update password[39m[90m                                                        [39m [90m0.28s[39m  
+
+  [39;41;1m FAIL [39;49;22m[39m Tests\Feature\Auth\RegistrationTest[39m
+  [31;1m⨯[39;22m[90m [39m[90mregistration screen can be rendered[39m[90m                                                                         [39m [90m0.72s[39m  
+  [31;1m⨯[39;22m[90m [39m[90mnew users can register[39m[90m                                                                                      [39m [90m0.08s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\ExampleTest[39m
+  [32;1m✓[39;22m[90m [39m[90mthe application returns a successful response[39m[90m                                                               [39m [90m0.06s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\Livewire\Articulos\GestionarArticulosImportTest[39m
+  [32;1m✓[39;22m[90m [39m[90mcomponente renderiza sin errores[39m[90m                                                                            [39m [90m4.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mabre y cierra modal plantilla[39m[90m                                                                               [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mabre y cierra modal importacion[39m[90m                                                                             [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdescargar plantilla vacia retorna xlsx[39m[90m                                                                      [39m [90m0.45s[39m  
+  [32;1m✓[39;22m[90m [39m[90mprevisualizar sin archivo falla validacion[39m[90m                                                                  [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mvolver a seleccion resetea preview[39m[90m                                                                          [39m [90m0.18s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\Livewire\Articulos\GestionarCategoriasTest[39m
+  [32;1m✓[39;22m[90m [39m[90mcomponente renderiza sin errores[39m[90m                                                                            [39m [90m0.82s[39m  
+  [32;1m✓[39;22m[90m [39m[90mabre y cierra modal importacion[39m[90m                                                                             [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mabre y cierra modal plantilla[39m[90m                                                                               [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdescargar plantilla vacia retorna archivo xlsx[39m[90m                                                              [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdescargar plantilla con datos usa nombre distinto[39m[90m                                                           [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mprevisualizar sin archivo falla validacion[39m[90m                                                                  [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mvolver a seleccion resetea preview[39m[90m                                                                          [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mexisting categoria gets prefix updated via service[39m[90m                                                          [39m [90m0.13s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\Livewire\Cajas\AjustesPostCierreTest[39m
+  [32;1m✓[39;22m[90m [39m[90mcomponente renderiza sin errores[39m[90m                                                                            [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcomponente muestra titulo del reporte[39m[90m                                                                       [39m [90m0.26s[39m  
+  [32;1m✓[39;22m[90m [39m[90mfiltros se resetean correctamente[39m[90m                                                                           [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mrender con ajuste post cierre no explota por relaciones[39m[90m                                                     [39m [90m0.17s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\Livewire\Cajas\PagosPendientesFacturacionTest[39m
+  [32;1m✓[39;22m[90m [39m[90mcomponente renderiza sin errores[39m[90m                                                                            [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcomponente muestra titulo[39m[90m                                                                                   [39m [90m0.36s[39m  
+  [32;1m✓[39;22m[90m [39m[90mfiltros se resetean correctamente[39m[90m                                                                           [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mlista pagos pendientes de facturar[39m[90m                                                                          [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mestado inicial filtra por pendientes y error[39m[90m                                                                [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mmodales no se muestran al render inicial[39m[90m                                                                    [39m [90m0.11s[39m  
+  [32;1m✓[39;22m[90m [39m[90mabrir modal reintentar solo muestra ese modal[39m[90m                                                               [39m [90m0.19s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Feature\Livewire\Stock\MovimientosStockTest[39m
+  [32;1m✓[39;22m[90m [39m[90mrender component[39m[90m                                                                                            [39m [90m0.68s[39m  
+  [32;1m✓[39;22m[90m [39m[90msearch articulo carga no lanza excepcion[39m[90m                                                                    [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90msearch articulo descarga no lanza excepcion[39m[90m                                                                 [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90msearch articulo inventario no lanza excepcion[39m[90m                                                               [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90msearch articulo carga devuelve resultados coincidentes[39m[90m                                                      [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90msearch vacio devuelve array vacio[39m[90m                                                                           [39m [90m0.16s[39m  
+
+  [39;41;1m FAIL [39;49;22m[39m Tests\Feature\ProfileTest[39m
+  [32;1m✓[39;22m[90m [39m[90mprofile redirects to comercio selector without tenant[39m[90m                                                       [39m [90m0.05s[39m  
+  [31;1m⨯[39;22m[90m [39m[90mprofile information can be updated[39m[90m                                                                          [39m [90m0.50s[39m  
+  [32;1m✓[39;22m[90m [39m[90memail verification status is unchanged when the email address is unchanged[39m[90m                                  [39m [90m0.08s[39m  
+  [32;1m✓[39;22m[90m [39m[90muser can delete their account[39m[90m                                                                               [39m [90m0.68s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcorrect password must be provided to delete account[39m[90m                                                         [39m [90m0.27s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Integration\Livewire\Ventas\NuevaVentaMejorPromocionTest[39m
+  [32;1m✓[39;22m[90m [39m[90mmodo automatico elige la promocion que mas ahorra[39m[90m                                                           [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mmodo forzado se aplica aunque sea suboptimo[39m[90m                                                                 [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mautomaticas compatibles se apilan[39m[90m                                                                           [39m [90m0.19s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Integration\Models\ClienteTest[39m
+  [32;1m✓[39;22m[90m [39m[90mobtener saldo en sucursal[39m[90m                                                                                   [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90majustar saldo positivo[39m[90m                                                                                      [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90majustar saldo negativo[39m[90m                                                                                      [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90majustar saldo no permite negativo[39m[90m                                                                           [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mtiene disponibilidad credito con limite[39m[90m                                                                     [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mtiene disponibilidad credito sin limite[39m[90m                                                                     [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpuede operar a credito[39m[90m                                                                                      [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mpuede operar a credito bloqueado[39m[90m                                                                            [39m [90m0.15s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Integration\Models\CobroTest[39m
+  [32;1m✓[39;22m[90m [39m[90mscope activos[39m[90m                                                                                               [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mscope cobros[39m[90m                                                                                                [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mscope anticipos[39m[90m                                                                                             [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mes anticipo true[39m[90m                                                                                            [39m [90m0.14s[39m  
+  [32;1m✓[39;22m[90m [39m[90mesta anulado true[39m[90m                                                                                           [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mrelacion cobro ventas[39m[90m                                                                                       [39m [90m0.16s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Integration\Models\FormaPagoTest[39m
+  [32;1m✓[39;22m[90m [39m[90mcalcular ajuste recargo[39m[90m                                                                                     [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcalcular ajuste descuento[39m[90m                                                                                   [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcalcular ajuste ninguno[39m[90m                                                                                     [39m [90m0.14s[39m  
+  [32;1m✓[39;22m[90m [39m[90mesta habilitada en sucursal true[39m[90m                                                                            [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mesta habilitada en sucursal false[39m[90m                                                                           [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mes efectivo true[39m[90m                                                                                            [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mes mixta true[39m[90m                                                                                               [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mscope activas[39m[90m                                                                                               [39m [90m0.16s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Integration\Models\ListaPrecioTest[39m
+  [32;1m✓[39;22m[90m [39m[90mobtener precio por articulo especifico[39m[90m                                                                      [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mobtener precio por categoria[39m[90m                                                                                [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mobtener precio ajuste encabezado[39m[90m                                                                            [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mredondeo entero[39m[90m                                                                                             [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mredondeo decena[39m[90m                                                                                             [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mredondeo centena[39m[90m                                                                                            [39m [90m0.14s[39m  
+  [32;1m✓[39;22m[90m [39m[90mbuscar lista manual tiene prioridad[39m[90m                                                                         [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mbuscar lista cliente[39m[90m                                                                                        [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mbuscar lista base como fallback[39m[90m                                                                             [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mbuscar lista sin resultado[39m[90m                                                                                  [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mvalidar condiciones sin condiciones true[39m[90m                                                                    [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcubre articulo por fila especifica[39m[90m                                                                          [39m [90m0.14s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcubre articulo por categoria[39m[90m                                                                                [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcubre articulo devuelve false cuando no cubre[39m[90m                                                               [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mlista estatica sin cobertura devuelve precio base sin ajuste[39m[90m                                                [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mlista no estatica aplica header sin cobertura[39m[90m                                                               [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mobtener precio detalle ajuste porcentaje[39m[90m                                                                    [39m [90m0.16s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Integration\Models\MovimientoCuentaCorrienteTest[39m
+  [32;1m✓[39;22m[90m [39m[90mcalcular saldo deudor[39m[90m                                                                                       [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcalcular saldo deudor solo activos[39m[90m                                                                          [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcalcular saldo favor[39m[90m                                                                                        [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear contraasiento invierte debe haber[39m[90m                                                                     [39m [90m0.14s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear contraasiento ambos quedan activos[39m[90m                                                                    [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear movimiento venta[39m[90m                                                                                      [39m [90m0.25s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear movimiento cobro[39m[90m                                                                                      [39m [90m0.23s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear movimiento anticipo[39m[90m                                                                                   [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear movimiento uso saldo favor[39m[90m                                                                            [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mobtener saldos retorna ambos[39m[90m                                                                                [39m [90m0.16s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Integration\Models\MovimientoStockTest[39m
+  [32;1m✓[39;22m[90m [39m[90mcrear movimiento venta registra salida[39m[90m                                                                      [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear movimiento anulacion venta registra entrada[39m[90m                                                           [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear movimiento ajuste positivo[39m[90m                                                                            [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear movimiento ajuste negativo[39m[90m                                                                            [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcalcular stock suma entradas menos salidas[39m[90m                                                                  [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcalcular stock a fecha[39m[90m                                                                                      [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcrear contraasiento invierte montos[39m[90m                                                                         [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mscope activos excluye anulados[39m[90m                                                                              [39m [90m0.19s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Integration\Models\PromocionTest[39m
+  [32;1m✓[39;22m[90m [39m[90mcalcular ajuste descuento porcentaje[39m[90m                                                                        [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcalcular ajuste descuento monto[39m[90m                                                                             [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcalcular ajuste precio fijo[39m[90m                                                                                 [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcalcular ajuste recargo porcentaje[39m[90m                                                                          [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcalcular ajuste recargo monto[39m[90m                                                                               [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcalcular ajuste descuento monto no supera monto[39m[90m                                                             [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mvigencia por fecha dentro de rango[39m[90m                                                                          [39m [90m0.12s[39m  
+  [32;1m✓[39;22m[90m [39m[90mvigencia por fecha fuera de rango[39m[90m                                                                           [39m [90m0.14s[39m  
+  [32;1m✓[39;22m[90m [39m[90maplica en dia semana[39m[90m                                                                                        [39m [90m0.13s[39m  
+  [32;1m✓[39;22m[90m [39m[90maplica en horario[39m[90m                                                                                           [39m [90m0.13s[39m  
+  [32;1m✓[39;22m[90m [39m[90mtiene usos disponibles[39m[90m                                                                                      [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mscope vigentes filtra por fecha[39m[90m                                                                             [39m [90m0.14s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Integration\Models\RecetaTest[39m
+  [32;1m✓[39;22m[90m [39m[90mresolver override tiene prioridad[39m[90m                                                                           [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mresolver default si no hay override[39m[90m                                                                         [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mresolver null si override inactivo[39m[90m                                                                          [39m [90m0.26s[39m  
+  [32;1m✓[39;22m[90m [39m[90mresolver null sin receta[39m[90m                                                                                    [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mreceta carga ingredientes[39m[90m                                                                                   [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mes default vs es override[39m[90m                                                                                   [39m [90m0.17s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Integration\Models\StockTest[39m
+  [32;1m✓[39;22m[90m [39m[90maumentar incrementa stock[39m[90m                                                                                   [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdisminuir decrementa stock[39m[90m                                                                                  [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdisminuir falla sin stock[39m[90m                                                                                   [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mdisminuir permite negativo[39m[90m                                                                                  [39m [90m0.14s[39m  
+  [32;1m✓[39;22m[90m [39m[90mhay suficiente true con stock[39m[90m                                                                               [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mhay suficiente false sin stock[39m[90m                                                                              [39m [90m0.16s[39m  
+  [32;1m✓[39;22m[90m [39m[90mesta bajo minimo true[39m[90m                                                                                       [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mesta bajo minimo false sin minimo[39m[90m                                                                           [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90mesta sobre maximo true[39m[90m                                                                                      [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mscope bajo minimo filtra[39m[90m                                                                                    [39m [90m0.18s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Integration\Models\VentaPagoTest[39m
+  [32;1m✓[39;22m[90m [39m[90mcalcular monto con ajuste recargo[39m[90m                                                                           [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcalcular monto con ajuste descuento[39m[90m                                                                         [39m [90m0.13s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcalcular monto con cuotas[39m[90m                                                                                   [39m [90m0.15s[39m  
+  [32;1m✓[39;22m[90m [39m[90maplicar cobro reduce saldo[39m[90m                                                                                  [39m [90m0.14s[39m  
+  [32;1m✓[39;22m[90m [39m[90maplicar cobro no supera saldo[39m[90m                                                                               [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mrevertir cobro aumenta saldo[39m[90m                                                                                [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mrevertir cobro no supera monto final[39m[90m                                                                        [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mscope cuenta corriente[39m[90m                                                                                      [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mscope con saldo pendiente[39m[90m                                                                                   [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mtiene cuotas true con mas de una[39m[90m                                                                            [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mes recargo true ajuste positivo[39m[90m                                                                             [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mes descuento true ajuste negativo[39m[90m                                                                           [39m [90m0.21s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Integration\Models\VentaTest[39m
+  [32;1m✓[39;22m[90m [39m[90mscope completadas filtra ventas completadas[39m[90m                                                                 [39m [90m0.22s[39m  
+  [32;1m✓[39;22m[90m [39m[90mscope pendientes filtra ventas pendientes[39m[90m                                                                   [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mscope canceladas filtra ventas canceladas[39m[90m                                                                   [39m [90m0.20s[39m  
+  [32;1m✓[39;22m[90m [39m[90mscope con saldo pendiente[39m[90m                                                                                   [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mscope cta cte[39m[90m                                                                                               [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mscope por sucursal[39m[90m                                                                                          [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mscope por fecha[39m[90m                                                                                             [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90mesta completada retorna true[39m[90m                                                                                [39m [90m0.18s[39m  
+  [32;1m✓[39;22m[90m [39m[90mesta cancelada retorna true[39m[90m                                                                                 [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mtiene saldo pendiente retorna true con saldo[39m[90m                                                                [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mrelacion detalles carga items[39m[90m                                                                               [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcalcular totales desde detalles[39m[90m                                                                             [39m [90m0.19s[39m  
+
+  [30;42;1m PASS [39;49;22m[39m Tests\Integration\Services\CongelarPreciosListaServiceTest[39m
+  [32;1m✓[39;22m[90m [39m[90msnapshot aplica ajuste header a todos los articulos[39m[90m                                                         [39m [90m0.21s[39m  
+  [32;1m✓[39;22m[90m [39m[90msnapshot aplica redondeo[39m[90m                                                                                    [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90msnapshot respeta ajuste de categoria[39m[90m                                                                        [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90msnapshot preserva precio manual sin porcentaje[39m[90m                                                              [39m [90m0.17s[39m  
+  [32;1m✓[39;22m[90m [39m[90mre snapshot recalcula con precio base actual[39m[90m                                                                [39m [90m0.19s[39m  
+  [32;1m✓[39;22m[90m [39m[90mcongelar falla si lista no es estatica[39m[90m                                                                      [39m [90m0.17s[39m  
+  [31m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\Auth\AuthenticationTest[22m [90m>[39m login screen can be rendered               [41;1m BadMethodCallException [49;22m  
+[39;1m  Method Illuminate\Http\Response::assertSeeLivewire does not exist.[39;22m
+
+  at [32mvendor\laravel\framework\src\Illuminate\Macroable\Traits\Macroable.php[39m:[32m115[39m
+    111▕      */
+    112▕     public function __call($method, $parameters)
+    113▕     {
+    114▕         if (! static::hasMacro($method)) {
+  ➜ 115▕             throw new BadMethodCallException(sprintf(
+    116▕                 'Method %s::%s does not exist.', static::class, $method
+    117▕             ));
+    118▕         }
+    119▕
+
+  [33m1   [39m[39;1mvendor\laravel\framework\src\Illuminate\Macroable\Traits\Macroable.php[39;22m:[39;1m115[39;22m
+  [33m2   [39m[39;1mvendor\livewire\volt\src\VoltServiceProvider.php[39;22m:[39;1m119[39;22m
+
+  [31m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\Auth\EmailVerificationTest[22m [90m>[39m email verification screen can be rende… [41;1m BadMethodCallException [49;22m  
+[39;1m  Method Illuminate\Http\Response::assertSeeLivewire does not exist.[39;22m
+
+  at [32mvendor\laravel\framework\src\Illuminate\Macroable\Traits\Macroable.php[39m:[32m115[39m
+    111▕      */
+    112▕     public function __call($method, $parameters)
+    113▕     {
+    114▕         if (! static::hasMacro($method)) {
+  ➜ 115▕             throw new BadMethodCallException(sprintf(
+    116▕                 'Method %s::%s does not exist.', static::class, $method
+    117▕             ));
+    118▕         }
+    119▕
+
+  [33m1   [39m[39;1mvendor\laravel\framework\src\Illuminate\Macroable\Traits\Macroable.php[39;22m:[39;1m115[39;22m
+  [33m2   [39m[39;1mvendor\livewire\volt\src\VoltServiceProvider.php[39;22m:[39;1m119[39;22m
+
+  [31m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\Auth\PasswordConfirmationTest[22m [90m>[39m confirm password screen can be rend… [41;1m BadMethodCallException [49;22m  
+[39;1m  Method Illuminate\Http\Response::assertSeeLivewire does not exist.[39;22m
+
+  at [32mvendor\laravel\framework\src\Illuminate\Macroable\Traits\Macroable.php[39m:[32m115[39m
+    111▕      */
+    112▕     public function __call($method, $parameters)
+    113▕     {
+    114▕         if (! static::hasMacro($method)) {
+  ➜ 115▕             throw new BadMethodCallException(sprintf(
+    116▕                 'Method %s::%s does not exist.', static::class, $method
+    117▕             ));
+    118▕         }
+    119▕
+
+  [33m1   [39m[39;1mvendor\laravel\framework\src\Illuminate\Macroable\Traits\Macroable.php[39;22m:[39;1m115[39;22m
+  [33m2   [39m[39;1mvendor\livewire\volt\src\VoltServiceProvider.php[39;22m:[39;1m119[39;22m
+
+  [31m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\Auth\PasswordResetTest[22m [90m>[39m reset password link screen can be rendered  [41;1m BadMethodCallException [49;22m  
+[39;1m  Method Illuminate\Http\Response::assertSeeLivewire does not exist.[39;22m
+
+  at [32mvendor\laravel\framework\src\Illuminate\Macroable\Traits\Macroable.php[39m:[32m115[39m
+    111▕      */
+    112▕     public function __call($method, $parameters)
+    113▕     {
+    114▕         if (! static::hasMacro($method)) {
+  ➜ 115▕             throw new BadMethodCallException(sprintf(
+    116▕                 'Method %s::%s does not exist.', static::class, $method
+    117▕             ));
+    118▕         }
+    119▕
+
+  [33m1   [39m[39;1mvendor\laravel\framework\src\Illuminate\Macroable\Traits\Macroable.php[39;22m:[39;1m115[39;22m
+  [33m2   [39m[39;1mvendor\livewire\volt\src\VoltServiceProvider.php[39;22m:[39;1m119[39;22m
+
+  [31m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\Auth\PasswordResetTest[22m [90m>[39m reset password screen can be rendered       [41;1m BadMethodCallException [49;22m  
+[39;1m  Method Illuminate\Http\Response::assertSeeLivewire does not exist.[39;22m
+
+  at [32mvendor\laravel\framework\src\Illuminate\Macroable\Traits\Macroable.php[39m:[32m115[39m
+    111▕      */
+    112▕     public function __call($method, $parameters)
+    113▕     {
+    114▕         if (! static::hasMacro($method)) {
+  ➜ 115▕             throw new BadMethodCallException(sprintf(
+    116▕                 'Method %s::%s does not exist.', static::class, $method
+    117▕             ));
+    118▕         }
+    119▕
+
+  [33m1   [39m[39;1mvendor\laravel\framework\src\Illuminate\Macroable\Traits\Macroable.php[39;22m:[39;1m115[39;22m
+  [33m2   [39m[39;1mvendor\livewire\volt\src\VoltServiceProvider.php[39;22m:[39;1m119[39;22m
+
+  [31m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\Auth\RegistrationTest[22m [90m>[39m registration screen can be rendered          [41;1m BadMethodCallException [49;22m  
+[39;1m  Method Illuminate\Http\Response::assertSeeLivewire does not exist.[39;22m
+
+  at [32mvendor\laravel\framework\src\Illuminate\Macroable\Traits\Macroable.php[39m:[32m115[39m
+    111▕      */
+    112▕     public function __call($method, $parameters)
+    113▕     {
+    114▕         if (! static::hasMacro($method)) {
+  ➜ 115▕             throw new BadMethodCallException(sprintf(
+    116▕                 'Method %s::%s does not exist.', static::class, $method
+    117▕             ));
+    118▕         }
+    119▕
+
+  [33m1   [39m[39;1mvendor\laravel\framework\src\Illuminate\Macroable\Traits\Macroable.php[39;22m:[39;1m115[39;22m
+  [33m2   [39m[39;1mvendor\livewire\volt\src\VoltServiceProvider.php[39;22m:[39;1m119[39;22m
+
+  [31m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\Auth\RegistrationTest[22m [90m>[39m new users can register                                                 
+[39;1m  Component did not perform a redirect.
+Failed asserting that an array has the key 'redirect'.[39;22m
+
+  at [32mvendor\livewire\livewire\src\Features\SupportRedirects\TestsRedirects.php[39m:[32m23[39m
+     19▕ 
+     20▕             return $this;
+     21▕         }
+     22▕ 
+  ➜  23▕         PHPUnit::assertArrayHasKey(
+     24▕             'redirect',
+     25▕             $this->effects,
+     26▕             'Component did not perform a redirect.'
+     27▕         );
+
+  [33m1   [39m[39;1mvendor\livewire\livewire\src\Features\SupportRedirects\TestsRedirects.php[39;22m:[39;1m23[39;22m
+  [33m2   [39m[39;1mtests\Feature\Auth\RegistrationTest.php[39;22m:[39;1m32[39;22m
+
+  [31m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[39m  
+  [41;1m FAILED [49;22m [1mTests\Feature\ProfileTest[22m [90m>[39m profile information can be updated                                               
+[39;1m  Component has errors: "email"
+Failed asserting that false is true.[39;22m
+
+  at [32mvendor\livewire\livewire\src\Features\SupportValidation\TestsValidation.php[39m:[32m109[39m
+    105▕     {
+    106▕         $errors = $this->errors();
+    107▕ 
+    108▕         if (empty($keys)) {
+  ➜ 109▕             PHPUnit::assertTrue($errors->isEmpty(), 'Component has errors: "'.implode('", "', $errors->keys()).'"');
+    110▕ 
+    111▕             return $this;
+    112▕         }
+    113▕
+
+  [33m1   [39m[39;1mvendor\livewire\livewire\src\Features\SupportValidation\TestsValidation.php[39;22m:[39;1m109[39;22m
+  [33m2   [39m[39;1mtests\Feature\ProfileTest.php[39;22m:[39;1m35[39;22m
+
+
+  [90mTests:[39m    [31;1m8 failed[39;22m[90m,[39m[39m [39m[32;1m323 passed[39;22m[90m (723 assertions)[39m
+  [90mDuration:[39m [39m87.84s[39m
+
