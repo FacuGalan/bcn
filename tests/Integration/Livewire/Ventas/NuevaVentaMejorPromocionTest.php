@@ -108,6 +108,133 @@ class NuevaVentaMejorPromocionTest extends TestCase
     }
 
     /**
+     * REPRODUCTOR del bug detectado en venta #327:
+     *   `venta_promociones` decía $1800 para la promo "3x2 bebidas",
+     *   pero `venta_detalle_promociones` distribuía $1800 a CADA uno de los
+     *   3 items del trío, sumando $5400.
+     *
+     * Causa: `consumirUnidadesPromoEspecial` ponía el descuento total de la promo
+     * en cada unidad consumida, en vez de atribuirlo solo a la(s) bonificada(s).
+     *
+     * Tras el fix:
+     *   - La unidad bonificada (la más cara en NxM "gratis") recibe todo el descuento.
+     *   - Las unidades trigger reciben 0.
+     *   - La suma de descuentos por item = el descuento total de la promo.
+     */
+    public function test_promo_especial_3x2_atribuye_descuento_solo_a_la_unidad_bonificada(): void
+    {
+        $bebidaA = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'nombre' => 'Bebida A', 'precio_base' => 100,
+        ]);
+        $bebidaB = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'nombre' => 'Bebida B', 'precio_base' => 200,
+        ]);
+        $bebidaC = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'nombre' => 'Bebida C', 'precio_base' => 300,
+        ]);
+
+        $promo = PromocionEspecial::create([
+            'sucursal_id' => $this->sucursalId,
+            'nombre' => '3x2 Bebidas mix',
+            'tipo' => PromocionEspecial::TIPO_NXM,
+            'nxm_lleva' => 3, 'nxm_paga' => 2, 'nxm_bonifica' => 1,
+            'beneficio_tipo' => PromocionEspecial::BENEFICIO_GRATIS,
+            // 3 artículos distintos como triggers via array JSON
+            'nxm_articulos_ids' => [$bebidaA->id, $bebidaB->id, $bebidaC->id],
+            'prioridad' => 1,
+            'modo_aplicacion' => 'automatica',
+            'activo' => true, 'usos_actuales' => 0,
+        ]);
+
+        $items = [
+            $this->itemCarrito($bebidaA, 1),
+            $this->itemCarrito($bebidaB, 1),
+            $this->itemCarrito($bebidaC, 1),
+        ];
+
+        $resultado = $this->calcular($items);
+
+        $this->assertEquals(600, $resultado['subtotal']);
+        // Promo "3 → 1 gratis": la más cara (300) gratis
+        $this->assertEquals(300, $resultado['total_descuentos']);
+
+        // Cabecera: el agregado de la promo es 300
+        $promoAgregada = collect($resultado['promociones_especiales_aplicadas'])
+            ->firstWhere('id', $promo->id);
+        $this->assertNotNull($promoAgregada);
+        $this->assertEquals(300, $promoAgregada['descuento']);
+
+        // Detalle por item: solo la bebida C (la más cara) recibe el descuento.
+        // Las trigger (A, B) participaron de la promo pero con descuento 0.
+        // CRUCIAL: la suma de los descuentos por item = el descuento agregado.
+        $descuentosPorItem = [];
+        foreach ($resultado['items'] as $itemIdx => $itemRes) {
+            foreach ($itemRes['promociones_especiales'] ?? [] as $p) {
+                if ($p['id'] === $promo->id) {
+                    $descuentosPorItem[$itemIdx] = (float) $p['descuento'];
+                }
+            }
+        }
+
+        $this->assertEquals(0.0, $descuentosPorItem[0] ?? null, 'Bebida A (trigger) debe tener descuento 0');
+        $this->assertEquals(0.0, $descuentosPorItem[1] ?? null, 'Bebida B (trigger) debe tener descuento 0');
+        $this->assertEquals(300.0, $descuentosPorItem[2] ?? null, 'Bebida C (bonificada) debe tener todo el descuento');
+
+        $sumaDescuentos = array_sum($descuentosPorItem);
+        $this->assertEquals(
+            300,
+            $sumaDescuentos,
+            "Suma por item ({$sumaDescuentos}) debe igualar al agregado venta (300). Bug venta #327: replicaba el total en cada unidad."
+        );
+    }
+
+    /**
+     * Variante del bug venta #327 cuando las 3 unidades del trío están en UN
+     * SOLO item del carrito (cantidad=3). El descuento debe agregarse a ese
+     * único item — no replicarse 3 veces.
+     */
+    public function test_promo_especial_3x2_un_solo_item_con_cantidad_tres(): void
+    {
+        $bebida = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'nombre' => 'Coca', 'precio_base' => 200,
+        ]);
+
+        $promo = PromocionEspecial::create([
+            'sucursal_id' => $this->sucursalId,
+            'nombre' => '3x2 Coca',
+            'tipo' => PromocionEspecial::TIPO_NXM,
+            'nxm_lleva' => 3, 'nxm_paga' => 2, 'nxm_bonifica' => 1,
+            'beneficio_tipo' => PromocionEspecial::BENEFICIO_GRATIS,
+            'nxm_articulo_id' => $bebida->id,
+            'prioridad' => 1,
+            'modo_aplicacion' => 'automatica',
+            'activo' => true, 'usos_actuales' => 0,
+        ]);
+
+        $items = [$this->itemCarrito($bebida, 3)];
+
+        $resultado = $this->calcular($items);
+
+        $this->assertEquals(600, $resultado['subtotal']);
+        $this->assertEquals(200, $resultado['total_descuentos'], '3 a $200 c/u → 1 gratis = $200');
+
+        $promoAgregada = collect($resultado['promociones_especiales_aplicadas'])
+            ->firstWhere('id', $promo->id);
+        $this->assertEquals(200, $promoAgregada['descuento']);
+
+        // Las 3 unidades caen en el mismo item (idx 0). El descuento de la unidad
+        // bonificada (200) se debe atribuir a ese item, no replicar.
+        $promosItem = collect($resultado['items'][0]['promociones_especiales'])
+            ->firstWhere('id', $promo->id);
+        $this->assertNotNull($promosItem);
+        $this->assertEquals(
+            200,
+            $promosItem['descuento'],
+            'El item con qty=3 debe tener descuento agregado = 200 (no 600 ni 0).'
+        );
+    }
+
+    /**
      * Escenario: dos promos automáticas que NO comparten artículos → ambas aplican.
      * Valida que el algoritmo no descarta promos compatibles entre sí.
      */
