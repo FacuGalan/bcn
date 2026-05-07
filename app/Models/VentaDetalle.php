@@ -46,8 +46,9 @@ class VentaDetalle extends Model
         'iva_porcentaje',
         'precio_sin_iva',
         'descuento',
-        'descuento_promocion',    // Descuento aplicado por promociones
-        'descuento_cupon',        // Descuento aplicado por cupón
+        'descuento_promocion',           // Descuento aplicado por promociones comunes (porcentaje/monto)
+        'descuento_promocion_especial',  // Atribución por item del descuento por promociones especiales (NxM/Combo/Menú)
+        'descuento_cupon',               // Descuento aplicado por cupón
         'tiene_promocion',        // Si tiene promoción aplicada
         'iva_monto',
         'subtotal',
@@ -75,6 +76,7 @@ class VentaDetalle extends Model
         'precio_sin_iva' => 'decimal:2',
         'descuento' => 'decimal:2',
         'descuento_promocion' => 'decimal:2',
+        'descuento_promocion_especial' => 'decimal:2',
         'descuento_cupon' => 'decimal:2',
         'tiene_promocion' => 'boolean',
         'iva_monto' => 'decimal:2',

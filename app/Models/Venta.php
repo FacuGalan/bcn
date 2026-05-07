@@ -101,6 +101,7 @@ class Venta extends Model
         'monto_cupon',
         'puntos_ganados',
         'puntos_usados',
+        'puntos_usados_monto',  // Monto en pesos que representan los puntos canjeados como pago
         'cierre_turno_id',
         // Snapshots para reconstruir la venta aunque cliente/cupón cambien o se borren
         'cliente_nombre_snapshot',
@@ -129,6 +130,7 @@ class Venta extends Model
         'monto_cupon' => 'decimal:2',
         'puntos_ganados' => 'integer',
         'puntos_usados' => 'integer',
+        'puntos_usados_monto' => 'decimal:2',
     ];
 
     // Relaciones

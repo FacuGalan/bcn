@@ -1760,6 +1760,7 @@ trait WithPagosDesglose
                     'monto_cupon' => $this->cuponMontoDescuento,
                     // Puntos (RF-09)
                     'puntos_usados' => $this->canjePuntosActivo ? $this->canjePuntosUnidades : 0,
+                    'puntos_usados_monto' => (float) ($this->resultado['puntos_usados_monto'] ?? 0),
                 ];
 
                 // Calcular descuento cupón por item para trazabilidad
@@ -1775,6 +1776,14 @@ trait WithPagosDesglose
                     $tienePromocion = ! empty($promocionesComunes) || ! empty($promocionesEspeciales);
                     $esConcepto = (bool) ($item['es_concepto'] ?? false);
 
+                    // Atribución por item del descuento por promociones especiales: suma de los
+                    // descuentos atribuidos al item por cada promo especial que lo bonifica.
+                    // Ya viene calculado correctamente desde WithCalculoVenta (PR #55).
+                    $descuentoPromocionEspecial = 0.0;
+                    foreach ($promocionesEspeciales as $promoEsp) {
+                        $descuentoPromocionEspecial += (float) ($promoEsp['descuento'] ?? 0);
+                    }
+
                     $detalles[] = [
                         'articulo_id' => $item['articulo_id'],
                         'cantidad' => $item['cantidad'],
@@ -1783,6 +1792,7 @@ trait WithPagosDesglose
                         'lista_precio_id' => $esConcepto ? null : $this->listaPrecioId, // Conceptos no usan lista de precios
                         'descuento' => 0, // Descuento manual (no promoción)
                         'descuento_promocion' => $esConcepto ? 0 : $descuentoPromocion, // Conceptos no tienen promociones
+                        'descuento_promocion_especial' => $esConcepto ? 0 : round($descuentoPromocionEspecial, 2),
                         'descuento_cupon' => $descuentoCuponPorItem[$index] ?? 0,
                         'tiene_promocion' => $esConcepto ? false : $tienePromocion,
                         // Info de IVA del item
