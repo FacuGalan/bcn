@@ -140,6 +140,7 @@ class VentaService
                 'monto_cupon' => $data['monto_cupon'] ?? 0,
                 // Puntos
                 'puntos_usados' => $data['puntos_usados'] ?? 0,
+                'puntos_usados_monto' => $data['puntos_usados_monto'] ?? 0,
                 // Snapshots de cliente y cupón
                 'cliente_nombre_snapshot' => $snapshots['cliente_nombre'],
                 'cliente_cuit_snapshot' => $snapshots['cliente_cuit'],
@@ -293,8 +294,15 @@ class VentaService
             $subtotalSinIva = $precioSinIva * $cantidad;
             $ivaMonto = $subtotalSinIva * ($ivaPorcentaje / 100);
             $subtotal = $precioUnitario * $cantidad; // Subtotal con IVA incluido
-            $descuentoPromocion = $detalle['descuento_promocion'] ?? 0;
-            $total = $subtotal - $descuentoPromocion; // Total después de descuentos de promoción
+            $descuentoPromocion = (float) ($detalle['descuento_promocion'] ?? 0);
+            $descuentoPromocionEspecial = (float) ($detalle['descuento_promocion_especial'] ?? 0);
+            $descuentoCupon = (float) ($detalle['descuento_cupon'] ?? 0);
+
+            // Total del item después de TODOS los descuentos atribuibles a esta línea.
+            // Reconstrucción: subtotal − promociones comunes − promociones especiales − cupón.
+            // Los descuentos a nivel cabecera (descuento_general_monto si es monto_fijo,
+            // puntos canjeados como pago) NO se restan acá: viven en la cabecera ventas.
+            $total = $subtotal - $descuentoPromocion - $descuentoPromocionEspecial - $descuentoCupon;
 
             $ventaDetalle = VentaDetalle::create([
                 'venta_id' => $venta->id,
@@ -309,7 +317,8 @@ class VentaService
                 'precio_sin_iva' => round($precioSinIva, 2),
                 'descuento' => $detalle['descuento'] ?? 0,
                 'descuento_promocion' => round($descuentoPromocion, 2),
-                'descuento_cupon' => round($detalle['descuento_cupon'] ?? 0, 2),
+                'descuento_promocion_especial' => round($descuentoPromocionEspecial, 2),
+                'descuento_cupon' => round($descuentoCupon, 2),
                 'tiene_promocion' => $detalle['tiene_promocion'] ?? false,
                 'iva_monto' => round($ivaMonto, 2),
                 'subtotal' => round($subtotal, 2),
