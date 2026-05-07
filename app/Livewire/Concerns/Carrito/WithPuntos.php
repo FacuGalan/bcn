@@ -4,6 +4,7 @@ namespace App\Livewire\Concerns\Carrito;
 
 use App\Models\Cliente;
 use App\Models\FormaPago;
+use App\Models\FormaPagoSucursal;
 use App\Models\VentaPago;
 use Exception;
 use Illuminate\Support\Facades\Auth;
@@ -333,7 +334,7 @@ trait WithPuntos
 
                     // Override por sucursal si existe
                     if ($sucursalId && $fp) {
-                        $fpSucursal = \App\Models\FormaPagoSucursal::where('forma_pago_id', $fp->id)
+                        $fpSucursal = FormaPagoSucursal::where('forma_pago_id', $fp->id)
                             ->where('sucursal_id', $sucursalId)
                             ->first();
                         if ($fpSucursal && $fpSucursal->multiplicador_puntos !== null) {
