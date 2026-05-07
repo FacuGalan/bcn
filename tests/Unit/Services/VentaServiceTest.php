@@ -1197,4 +1197,140 @@ class VentaServiceTest extends TestCase
         $this->assertEquals('100.00', $venta->ajuste_forma_pago);
         $this->assertEquals('1100.00', $venta->total_final);
     }
+
+    public function test_venta_persiste_ajuste_manual_origen_manual()
+    {
+        $this->setControlStock('no_controla');
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'precio_base' => 1000,
+        ]);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+
+        $data = $this->datosVentaBase([
+            'caja_id' => $caja->id,
+            '_usar_totales_proporcionados' => true,
+            'subtotal' => 800,
+            'total' => 800,
+            'total_final' => 800,
+        ]);
+        $detalles = [$this->detalleVentaBase($articulo->id, [
+            'precio_unitario' => 800,
+            'ajuste_manual_tipo' => 'porcentaje',
+            'ajuste_manual_valor' => 20,
+            'ajuste_manual_origen' => 'manual',
+            'precio_sin_ajuste_manual' => 1000,
+        ])];
+
+        $venta = $this->ventaService->crearVenta($data, $detalles);
+
+        $detalle = VentaDetalle::where('venta_id', $venta->id)->first();
+        $this->assertEquals('manual', $detalle->ajuste_manual_origen);
+    }
+
+    public function test_venta_persiste_ajuste_manual_origen_descuento_general()
+    {
+        $this->setControlStock('no_controla');
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'precio_base' => 1000,
+        ]);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+
+        $data = $this->datosVentaBase([
+            'caja_id' => $caja->id,
+            '_usar_totales_proporcionados' => true,
+            'subtotal' => 900,
+            'total' => 900,
+            'total_final' => 900,
+            'descuento_general_tipo' => 'porcentaje',
+            'descuento_general_valor' => 10,
+            'descuento_general_monto' => 100,
+        ]);
+        $detalles = [$this->detalleVentaBase($articulo->id, [
+            'precio_unitario' => 900,
+            'ajuste_manual_tipo' => 'porcentaje',
+            'ajuste_manual_valor' => 10,
+            'ajuste_manual_origen' => 'descuento_general',
+            'precio_sin_ajuste_manual' => 1000,
+        ])];
+
+        $venta = $this->ventaService->crearVenta($data, $detalles);
+
+        $detalle = VentaDetalle::where('venta_id', $venta->id)->first();
+        $this->assertEquals('descuento_general', $detalle->ajuste_manual_origen);
+    }
+
+    public function test_venta_captura_snapshot_cliente_al_crear()
+    {
+        $this->setControlStock('no_controla');
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'precio_base' => 1000,
+        ]);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+        $cliente = $this->crearClienteConCC($this->sucursalId, 100000, [
+            'nombre' => 'Juan Perez SA',
+            'cuit' => '20-12345678-9',
+        ]);
+
+        $data = $this->datosVentaBase([
+            'caja_id' => $caja->id,
+            'cliente_id' => $cliente->id,
+        ]);
+        $detalles = [$this->detalleVentaBase($articulo->id)];
+
+        $venta = $this->ventaService->crearVenta($data, $detalles);
+
+        $this->assertEquals('Juan Perez SA', $venta->cliente_nombre_snapshot);
+        $this->assertEquals('20-12345678-9', $venta->cliente_cuit_snapshot);
+    }
+
+    public function test_venta_sin_cliente_no_captura_snapshot()
+    {
+        $this->setControlStock('no_controla');
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'precio_base' => 1000,
+        ]);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+
+        $data = $this->datosVentaBase(['caja_id' => $caja->id]);
+        $detalles = [$this->detalleVentaBase($articulo->id)];
+
+        $venta = $this->ventaService->crearVenta($data, $detalles);
+
+        $this->assertNull($venta->cliente_nombre_snapshot);
+        $this->assertNull($venta->cliente_cuit_snapshot);
+        $this->assertNull($venta->cliente_condicion_iva_snapshot);
+        $this->assertNull($venta->cupon_codigo_snapshot);
+        $this->assertNull($venta->cupon_descripcion_snapshot);
+    }
+
+    public function test_venta_snapshot_cliente_se_preserva_si_cliente_se_modifica()
+    {
+        $this->setControlStock('no_controla');
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'precio_base' => 1000,
+        ]);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+        $cliente = $this->crearClienteConCC($this->sucursalId, 100000, [
+            'nombre' => 'Original',
+            'cuit' => '20-11111111-1',
+        ]);
+
+        $data = $this->datosVentaBase([
+            'caja_id' => $caja->id,
+            'cliente_id' => $cliente->id,
+        ]);
+        $detalles = [$this->detalleVentaBase($articulo->id)];
+
+        $venta = $this->ventaService->crearVenta($data, $detalles);
+
+        // Modificar cliente despues de la venta
+        $cliente->update([
+            'nombre' => 'Renombrado',
+            'cuit' => '20-99999999-9',
+        ]);
+
+        $venta->refresh();
+        $this->assertEquals('Original', $venta->cliente_nombre_snapshot);
+        $this->assertEquals('20-11111111-1', $venta->cliente_cuit_snapshot);
+    }
 }

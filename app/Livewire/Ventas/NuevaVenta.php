@@ -545,6 +545,7 @@ class NuevaVenta extends Component
             'precio_iva_incluido' => $articulo->precio_iva_incluido ?? true,
             'ajuste_manual_tipo' => null,
             'ajuste_manual_valor' => null,
+            'ajuste_manual_origen' => null,
             'precio_sin_ajuste_manual' => null,
             'opcionales' => [],
             'precio_opcionales' => 0,
@@ -561,6 +562,7 @@ class NuevaVenta extends Component
             $this->items[$lastIndex]['precio'] = $nuevoPrecio;
             $this->items[$lastIndex]['ajuste_manual_tipo'] = 'porcentaje';
             $this->items[$lastIndex]['ajuste_manual_valor'] = $this->descuentoGeneralValor;
+            $this->items[$lastIndex]['ajuste_manual_origen'] = 'descuento_general';
             $this->items[$lastIndex]['tiene_ajuste'] = true;
         }
 
@@ -666,6 +668,7 @@ class NuevaVenta extends Component
             // Campos para ajuste manual (necesarios para descuento general)
             'ajuste_manual_tipo' => null,
             'ajuste_manual_valor' => null,
+            'ajuste_manual_origen' => null,
             'precio_sin_ajuste_manual' => null,
             'opcionales' => [],
             'precio_opcionales' => 0,
@@ -683,6 +686,7 @@ class NuevaVenta extends Component
             $this->items[$lastIndex]['precio'] = $nuevoPrecio;
             $this->items[$lastIndex]['ajuste_manual_tipo'] = 'porcentaje';
             $this->items[$lastIndex]['ajuste_manual_valor'] = $this->descuentoGeneralValor;
+            $this->items[$lastIndex]['ajuste_manual_origen'] = 'descuento_general';
             $this->items[$lastIndex]['tiene_ajuste'] = true;
         }
 

@@ -1779,6 +1779,7 @@ trait WithPagosDesglose
                         // Info de ajuste manual si existe
                         'ajuste_manual_tipo' => $item['ajuste_manual_tipo'] ?? null,
                         'ajuste_manual_valor' => $item['ajuste_manual_valor'] ?? null,
+                        'ajuste_manual_origen' => $item['ajuste_manual_origen'] ?? null,
                         'precio_sin_ajuste_manual' => $item['precio_sin_ajuste_manual'] ?? null,
                         // Opcionales seleccionados (conceptos no tienen opcionales)
                         'opcionales' => $esConcepto ? [] : ($item['opcionales'] ?? []),
