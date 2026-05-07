@@ -254,7 +254,13 @@ class CuponService
         float $montoDescontado,
         int $usuarioId
     ): CuponUso {
-        // Revalidar en el momento de aplicar
+        // Revalidar en el momento de aplicar: tanto vigencia como usos.
+        // Necesario porque entre validarCupon (al validar input) y este momento
+        // (al cobrar) puede haber pasado tiempo y el estado del cupón haber
+        // cambiado (otra caja lo agotó, expiró por fecha, etc.).
+        if (! $cupon->estaVigente()) {
+            throw new Exception('El cupón no está vigente al momento del cobro');
+        }
         if (! $cupon->tieneUsosDisponibles()) {
             throw new Exception('El cupón ya alcanzó su uso máximo');
         }
@@ -304,6 +310,18 @@ class CuponService
 
     /**
      * Valida que las formas de pago de la venta sean compatibles con el cupón.
+     */
+    /**
+     * Valida que TODAS las formas de pago del desglose estén entre las permitidas
+     * por el cupón.
+     *
+     * Criterio de negocio (decision usuario, repaso 1 — 2026-05-07):
+     *   El cupón con `formas_pago` configuradas exige que TODAS las formas usadas
+     *   en el cobro estén en su lista permitida. Si pagás 50% efectivo (permitido)
+     *   + 50% cheque (no permitido), el cupón se rechaza completo. Razón: si el
+     *   beneficio del cupón está condicionado a una FP específica (ej: "solo con
+     *   tarjeta X"), permitir un pago mixto donde solo parte usa la FP correcta
+     *   abriría una vía para abusar del cupón con FP no incentivadas.
      */
     public function validarFormasPagoCupon(Cupon $cupon, array $formaPagoIds): array
     {

@@ -963,6 +963,16 @@ trait WithPagosDesglose
             // El monto ingresado es en moneda extranjera, convertimos a principal
             $montoMonedaOriginal = $monto;
             $monto = round($monto * $tipoCambioTasa, 2);
+
+            // Defensa: si después de convertir por una cotización muy chica el monto
+            // se redondea a 0 (o queda negativo por dato basura), abortar acá. No
+            // dejamos que se sume un pago de monto 0 al desglose porque después
+            // rompe el cálculo de IVA mixto y no aporta nada al cobro.
+            if ($monto <= 0) {
+                $this->dispatch('toast-error', message: __('El monto convertido es cero o negativo. Verifique la cotización.'));
+
+                return;
+            }
         }
 
         // Validar que no exceda el pendiente (salvo que permita vuelto)
@@ -1003,7 +1013,15 @@ trait WithPagosDesglose
             }
         }
 
-        // Calcular ajuste (sobre monto base en moneda principal)
+        // Calcular ajuste de forma de pago (sobre monto base en moneda principal).
+        //
+        // Criterio de negocio (decision usuario, repaso 1 — 2026-05-07):
+        //   El ajuste de forma de pago se calcula sobre el monto que esa FP cobra,
+        //   que es la porción del total_final (post desc gral, post promos, post
+        //   cupón). NO sobre el subtotal sin descuentos. Es decir: si la venta es
+        //   $1000 con 5% desc gral → total $950, y se paga 100% con tarjeta +10%,
+        //   el ajuste FP es $95 (10% sobre $950), no $100. El cliente percibe
+        //   primero el desc gral y luego el recargo de la tarjeta sobre el neto.
         $ajuste = $fp['ajuste_porcentaje'];
         $montoAjuste = round($montoParaBase * ($ajuste / 100), 2);
         $montoConAjuste = round($montoParaBase + $montoAjuste, 2);
@@ -1524,18 +1542,41 @@ trait WithPagosDesglose
     }
 
     /**
-     * Verifica si el desglose está completo y listo para procesar
+     * Verifica si el desglose está completo y listo para procesar.
+     *
+     * Tres condiciones:
+     *   1. Hay al menos un pago en el desglose.
+     *   2. No queda monto pendiente (tolerancia 0.01).
+     *   3. ASSERT defensivo: la suma de monto_base de los pagos cuadra con el total
+     *      esperado de la venta. La lógica de agregarAlDesglose debería garantizar
+     *      esto siempre, pero validamos contra dato manipulado o estado corrupto.
      */
     public function desgloseCompleto(): bool
     {
-        // Debe haber al menos un pago
+        // 1. Debe haber al menos un pago
         if (empty($this->desglosePagos)) {
             return false;
         }
 
-        // No debe quedar monto pendiente (tolerancia de 0.01)
+        // 2. No debe quedar monto pendiente (tolerancia de 0.01)
         if ($this->montoPendienteDesglose > 0.01) {
             return false;
+        }
+
+        // 3. Defensa: Σ monto_base ≈ total_final esperado.
+        // Tolerancia 0.05 para acumulación de redondeos en muchos pagos.
+        $totalEsperado = (float) ($this->resultado['total_final'] ?? 0);
+        if ($totalEsperado > 0) {
+            $sumaPagos = (float) array_sum(array_column($this->desglosePagos, 'monto_base'));
+            if (abs($sumaPagos - $totalEsperado) > 0.05) {
+                Log::warning('desgloseCompleto invariante roto: suma de pagos no cuadra con total', [
+                    'suma_pagos' => $sumaPagos,
+                    'total_esperado' => $totalEsperado,
+                    'diferencia' => $sumaPagos - $totalEsperado,
+                ]);
+
+                return false;
+            }
         }
 
         return true;
@@ -1678,6 +1719,42 @@ trait WithPagosDesglose
                 $caja = Caja::find($cajaId);
                 if (! $caja || ! $caja->estaAbierta()) {
                     $this->dispatch('toast-error', message: 'La caja debe estar abierta');
+
+                    return;
+                }
+            }
+
+            // Revalidar tope de descuento del usuario contra dato fresco de BD: el tope
+            // se cargó en mount(); si entre ese momento y el cobro un admin cambió el
+            // rol del cajero, el descuento ya aplicado podría superar el nuevo tope.
+            try {
+                $this->revalidarTopeDescuentoAlCobrar();
+            } catch (Exception $e) {
+                $this->dispatch('toast-error', message: $e->getMessage());
+
+                return;
+            }
+
+            // Revalidar saldo de puntos con dato fresco de BD: el saldo en memoria
+            // se cargó al seleccionar cliente; entre ese momento y el cobro pudo
+            // haber cambiado (otra caja del mismo comercio consumió puntos del
+            // mismo cliente). Mejor abortar acá con mensaje claro que dejar que
+            // la transacción falle y haga rollback con un error oscuro.
+            $puntosRequeridosTotal = 0;
+            if ($this->canjePuntosActivo && $this->canjePuntosUnidades > 0) {
+                $puntosRequeridosTotal += (int) $this->canjePuntosUnidades;
+            }
+            $puntosRequeridosTotal += (int) $this->calcularPuntosUsadosEnArticulos();
+            if ($puntosRequeridosTotal > 0 && $this->clienteSeleccionado) {
+                $saldoFresco = $this->puntosService->obtenerSaldo(
+                    $this->clienteSeleccionado,
+                    $this->sucursalId
+                );
+                if ($puntosRequeridosTotal > $saldoFresco) {
+                    $this->dispatch(
+                        'toast-error',
+                        message: "Saldo de puntos insuficiente. Disponible: {$saldoFresco}, requerido: {$puntosRequeridosTotal}. Posiblemente se consumieron puntos en otra caja."
+                    );
 
                     return;
                 }

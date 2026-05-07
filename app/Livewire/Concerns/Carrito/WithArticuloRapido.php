@@ -138,7 +138,7 @@ trait WithArticuloRapido
             'artRapidoCategoriaId' => 'nullable|exists:pymes_tenant.categorias,id',
             'artRapidoUnidadMedida' => 'required|string|max:50',
             'artRapidoTipoIvaId' => 'required|exists:pymes_tenant.tipos_iva,id',
-            'artRapidoPrecioBase' => 'required|numeric|min:0',
+            'artRapidoPrecioBase' => 'required|numeric|gt:0',
         ], [
             'artRapidoNombre.required' => __('El nombre es obligatorio'),
             'artRapidoNombre.min' => __('El nombre debe tener al menos 2 caracteres'),
@@ -146,6 +146,7 @@ trait WithArticuloRapido
             'artRapidoCodigo.unique' => __('Ya existe un artículo con este código'),
             'artRapidoTipoIvaId.required' => __('Seleccione un tipo de IVA'),
             'artRapidoPrecioBase.required' => __('El precio es obligatorio'),
+            'artRapidoPrecioBase.gt' => __('El precio debe ser mayor a cero'),
         ]);
 
         try {
