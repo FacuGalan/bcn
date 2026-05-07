@@ -55,6 +55,7 @@ class VentaDetalle extends Model
         // Campos de ajuste manual de precio
         'ajuste_manual_tipo',
         'ajuste_manual_valor',
+        'ajuste_manual_origen',
         'precio_sin_ajuste_manual',
         // Campos de canje con puntos
         'pagado_con_puntos',

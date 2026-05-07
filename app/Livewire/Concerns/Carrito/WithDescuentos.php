@@ -145,6 +145,7 @@ trait WithDescuentos
         $this->items[$index]['precio'] = $nuevoPrecio;
         $this->items[$index]['ajuste_manual_tipo'] = $this->ajusteManualTipo;
         $this->items[$index]['ajuste_manual_valor'] = $valor;
+        $this->items[$index]['ajuste_manual_origen'] = 'manual';
         // Marcar que tiene ajuste (para mostrar visualmente)
         $this->items[$index]['tiene_ajuste'] = true;
 
@@ -183,6 +184,7 @@ trait WithDescuentos
         // Limpiar campos de ajuste manual
         $this->items[$index]['ajuste_manual_tipo'] = null;
         $this->items[$index]['ajuste_manual_valor'] = null;
+        $this->items[$index]['ajuste_manual_origen'] = null;
         $this->items[$index]['precio_sin_ajuste_manual'] = null;
 
         $this->calcularVenta();
@@ -361,6 +363,7 @@ trait WithDescuentos
             $this->items[$index]['precio'] = $nuevoPrecio;
             $this->items[$index]['ajuste_manual_tipo'] = 'porcentaje';
             $this->items[$index]['ajuste_manual_valor'] = $porcentaje;
+            $this->items[$index]['ajuste_manual_origen'] = 'descuento_general';
             $this->items[$index]['tiene_ajuste'] = true;
         }
     }
@@ -392,6 +395,7 @@ trait WithDescuentos
 
             $this->items[$index]['ajuste_manual_tipo'] = null;
             $this->items[$index]['ajuste_manual_valor'] = null;
+            $this->items[$index]['ajuste_manual_origen'] = null;
             $this->items[$index]['precio_sin_ajuste_manual'] = null;
         }
     }
