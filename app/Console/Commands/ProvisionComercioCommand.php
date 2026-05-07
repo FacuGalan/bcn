@@ -357,6 +357,11 @@ class ProvisionComercioCommand extends Command
             ['codigo' => 'wallet',           'nombre' => 'Billetera Virtual', 'permite_cuotas' => false, 'permite_vuelto' => false, 'orden' => 5],
             ['codigo' => 'cheque',           'nombre' => 'Cheque',            'permite_cuotas' => false, 'permite_vuelto' => false, 'orden' => 6],
             ['codigo' => 'credito_cliente',  'nombre' => 'Crédito Cliente',   'permite_cuotas' => false, 'permite_vuelto' => false, 'orden' => 7],
+            // Concepto interno (no visible en selector de cobro): pagos hechos canjeando
+            // puntos del programa de fidelización. Se usa con la FormaPago "CANJE_PUNTOS"
+            // (solo_sistema=true) creada abajo. Mantener sincronizado con la migración
+            // 2026_05_07_140000 si se cambia.
+            ['codigo' => 'canje_puntos',     'nombre' => 'Canje de Puntos',   'permite_cuotas' => false, 'permite_vuelto' => false, 'orden' => 8],
         ];
 
         foreach ($conceptos as $c) {
@@ -435,14 +440,30 @@ class ProvisionComercioCommand extends Command
                 'es_mixta' => true,
                 'orden' => 7,
             ],
+            // Forma de pago "Canje Puntos" — solo_sistema=true. NO aparece en el selector
+            // de cobro al cajero (CatalogoCache::formasPago la excluye). El sistema la usa
+            // internamente al crear VentaPagos por canje de puntos (canje monto + canje
+            // artículos), de modo que los reportes por forma de pago agrupen ese tráfico
+            // correctamente. Mantener sincronizado con la migración 2026_05_07_140000.
+            [
+                'nombre' => 'Canje Puntos',
+                'codigo' => 'CANJE_PUNTOS',
+                'concepto_pago_id' => $conceptoIds['canje_puntos'],
+                'concepto' => 'otro',
+                'permite_cuotas' => false,
+                'es_mixta' => false,
+                'solo_sistema' => true,
+                'orden' => 8,
+            ],
         ];
 
         foreach ($formasPago as $fp) {
-            $db->table('formas_pago')->insert(array_merge($fp, [
+            $db->table('formas_pago')->insert(array_merge([
+                'solo_sistema' => false,
                 'activo' => true,
                 'created_at' => $now,
                 'updated_at' => $now,
-            ]));
+            ], $fp));
         }
 
         // Obtener IDs de formas de pago por código

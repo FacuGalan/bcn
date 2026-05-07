@@ -45,8 +45,15 @@ class CatalogoCache
 
     public static function formasPago(): Collection
     {
+        // Solo formas de pago que el cajero puede seleccionar al cobrar.
+        // Las flageadas con solo_sistema=true (ej: Canje Puntos) las usa el sistema
+        // internamente al persistir VentaPagos pero NO deben aparecer en el selector.
         return Cache::remember(self::key('formas_pago'), self::TTL,
-            fn () => FormaPago::where('activo', true)->orderBy('orden')->orderBy('id')->get()
+            fn () => FormaPago::where('activo', true)
+                ->where('solo_sistema', false)
+                ->orderBy('orden')
+                ->orderBy('id')
+                ->get()
         );
     }
 

@@ -65,6 +65,7 @@ class FormaPago extends Model
         'multiplicador_puntos',
         'factura_fiscal',
         'activo',
+        'solo_sistema',  // FP interna del sistema (ej: Canje Puntos), no aparece en selector
         'orden',
         'cuenta_empresa_id',
         'moneda_id',
@@ -77,6 +78,7 @@ class FormaPago extends Model
         'multiplicador_puntos' => 'decimal:2',
         'factura_fiscal' => 'boolean',
         'activo' => 'boolean',
+        'solo_sistema' => 'boolean',
         'orden' => 'integer',
     ];
 
