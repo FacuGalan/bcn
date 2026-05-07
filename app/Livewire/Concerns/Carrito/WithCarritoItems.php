@@ -411,6 +411,19 @@ trait WithCarritoItems
 
     public function eliminarItem($index)
     {
+        // Si el popover de ajuste manual estaba abierto sobre este item (o sobre uno
+        // posterior cuyo índice se va a desplazar), cerrarlo para no quedar apuntando
+        // a un item incorrecto tras el array_values.
+        if ($this->ajusteManualPopoverIndex !== null && $this->ajusteManualPopoverIndex >= $index) {
+            $this->cerrarAjusteManual();
+        }
+        // Si el wizard de opcionales estaba editando este item, cerrarlo: si dejamos
+        // wizardEditandoIndex apuntando a un item que ya no existe, al confirmar se
+        // crearía un item nuevo en lugar de actualizar.
+        if (($this->wizardEditandoIndex ?? null) === $index) {
+            $this->cerrarWizardOpcionales();
+        }
+
         unset($this->items[$index]);
         $this->items = array_values($this->items);
         $this->calcularVenta();
@@ -419,10 +432,25 @@ trait WithCarritoItems
     public function actualizarCantidad($index, $cantidad)
     {
         $cantidad = max(0.001, (float) $cantidad);
-        if (isset($this->items[$index])) {
-            $this->items[$index]['cantidad'] = $cantidad;
-            $this->calcularVenta();
+        if (! isset($this->items[$index])) {
+            return;
         }
+
+        $this->items[$index]['cantidad'] = $cantidad;
+
+        // Re-verificar stock con la cantidad nueva: la verificación inicial solo
+        // corre al agregar; si el cajero sube cantidad de 1 a 100 sin esto, el
+        // problema de stock recién aparece al confirmar la venta.
+        $articuloId = $this->items[$index]['articulo_id'] ?? null;
+        if ($articuloId) {
+            $articulo = Articulo::find($articuloId);
+            if ($articulo) {
+                $opcionales = $this->items[$index]['opcionales'] ?? [];
+                $this->verificarStockAlAgregar($articulo, $cantidad, $opcionales);
+            }
+        }
+
+        $this->calcularVenta();
     }
 
     // =========================================

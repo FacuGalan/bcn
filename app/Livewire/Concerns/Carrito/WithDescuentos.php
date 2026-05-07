@@ -221,6 +221,44 @@ trait WithDescuentos
     }
 
     /**
+     * Revalida que el descuento general activo no supere el tope ACTUAL del usuario.
+     *
+     * Necesario porque el tope se carga al montar el componente; si entre ese momento
+     * y el cobro el admin cambia el rol del cajero, el descuento ya aplicado podría
+     * superar el nuevo tope. Lanza Exception si hay violación.
+     *
+     * @throws \Exception
+     */
+    public function revalidarTopeDescuentoAlCobrar(): void
+    {
+        if (! $this->descuentoGeneralActivo) {
+            return;
+        }
+
+        // Recargar tope desde BD por si cambió el rol del usuario
+        $this->cargarTopeDescuentoUsuario();
+        if ($this->topeDescuentoUsuario === null) {
+            return; // sin tope configurado, todo válido
+        }
+
+        if ($this->descuentoGeneralTipo === 'porcentaje') {
+            if ((float) $this->descuentoGeneralValor > $this->topeDescuentoUsuario) {
+                throw new \Exception(
+                    'El descuento aplicado ('.$this->descuentoGeneralValor.'%) supera el tope actual de su rol ('.$this->topeDescuentoUsuario.'%). El rol pudo haber cambiado mientras la venta estaba abierta.'
+                );
+            }
+        } elseif ($this->descuentoGeneralTipo === 'monto_fijo') {
+            $totalPreDescuento = (float) ($this->resultado['subtotal'] ?? 0);
+            $maxMonto = round($totalPreDescuento * $this->topeDescuentoUsuario / 100, 2);
+            if ((float) $this->descuentoGeneralValor > $maxMonto) {
+                throw new \Exception(
+                    'El descuento aplicado ($'.$this->descuentoGeneralValor.') supera el tope actual de su rol ($'.$maxMonto.'). El rol pudo haber cambiado mientras la venta estaba abierta.'
+                );
+            }
+        }
+    }
+
+    /**
      * Carga el tope de descuento del usuario (MAX de sus roles)
      */
     protected function cargarTopeDescuentoUsuario(): void
@@ -350,6 +388,15 @@ trait WithDescuentos
      * Aplica ajuste_manual porcentaje a todos los items del carrito (RF-31).
      * Items bonificados por un cupón ya aplicado se saltan: el cupón tiene prioridad
      * sobre el descuento general en esos items (regla 2026-05-07).
+     *
+     * Criterio de negocio (decision usuario, repaso 1 — 2026-05-07):
+     *   El descuento general % SÍ se aplica a items cuya lista de precios los excluye
+     *   de promociones automáticas (ver excluido_promociones en WithCalculoVenta). Razón:
+     *   el descuento general es una decisión MANUAL del cajero (con permisos), no es
+     *   automático. La lista protege al artículo de promos automáticas pero no de
+     *   ajustes manuales que el cajero decide aplicar conscientemente. El sistema
+     *   confía en el tope de descuento por rol (validado al aplicar y al cobrar) como
+     *   límite real de qué puede hacer un cajero.
      */
     protected function aplicarDescuentoPorcentajeATodosLosItems(float $porcentaje): void
     {
