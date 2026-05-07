@@ -385,6 +385,14 @@ trait WithCarritoItems
             ->first();
 
         if (! $articulo) {
+            // Notificar al cajero: el scanner capturó un código que no existe en el
+            // sistema. Antes retornaba en silencio y el cajero podía pensar que
+            // había fallado el scanner y volver a escanear.
+            $this->dispatch(
+                'toast-warning',
+                message: __('Código :codigo no encontrado', ['codigo' => $codigo])
+            );
+
             return;
         }
 
