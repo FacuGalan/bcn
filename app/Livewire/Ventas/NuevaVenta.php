@@ -553,8 +553,15 @@ class NuevaVenta extends Component
             'pagado_con_puntos' => false,
         ];
 
-        // Herencia de descuento general % a items nuevos
-        if ($this->descuentoGeneralActivo && $this->descuentoGeneralTipo === 'porcentaje') {
+        // Herencia de descuento general % a items nuevos.
+        // Excepción: items bonificados por un cupón ya aplicado NO heredan
+        // (el cupón tiene prioridad sobre el descuento general).
+        $estaBonificadoPorCupon = $this->cuponAplicado
+            && in_array($articulo->id, $this->cuponArticulosBonificados ?? []);
+
+        if ($this->descuentoGeneralActivo
+            && $this->descuentoGeneralTipo === 'porcentaje'
+            && ! $estaBonificadoPorCupon) {
             $lastIndex = count($this->items) - 1;
             $precioBase = (float) $precioInfo['precio_base'];
             $nuevoPrecio = round($precioBase - ($precioBase * $this->descuentoGeneralValor / 100), 2);
@@ -674,7 +681,9 @@ class NuevaVenta extends Component
             'precio_opcionales' => 0,
         ];
 
-        // RF-34: Herencia de descuento general % a conceptos nuevos
+        // RF-34: Herencia de descuento general % a conceptos nuevos.
+        // Conceptos no tienen articulo_id, por lo que nunca son bonificados por
+        // cupones de artículos — siempre heredan el descuento general.
         if ($this->descuentoGeneralActivo && $this->descuentoGeneralTipo === 'porcentaje') {
             $lastIndex = count($this->items) - 1;
             $precioBase = (float) $this->conceptoImporte;

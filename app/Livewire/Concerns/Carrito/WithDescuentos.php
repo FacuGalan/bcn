@@ -347,11 +347,22 @@ trait WithDescuentos
     }
 
     /**
-     * Aplica ajuste_manual porcentaje a todos los items del carrito (RF-31)
+     * Aplica ajuste_manual porcentaje a todos los items del carrito (RF-31).
+     * Items bonificados por un cupón ya aplicado se saltan: el cupón tiene prioridad
+     * sobre el descuento general en esos items (regla 2026-05-07).
      */
     protected function aplicarDescuentoPorcentajeATodosLosItems(float $porcentaje): void
     {
+        $bonificadosPorCupon = $this->cuponAplicado
+            ? array_flip($this->cuponArticulosBonificados ?? [])
+            : [];
+
         foreach ($this->items as $index => $item) {
+            $articuloId = $item['articulo_id'] ?? null;
+            if ($articuloId && isset($bonificadosPorCupon[$articuloId])) {
+                continue;
+            }
+
             $precioBase = (float) $item['precio_base'];
             $nuevoPrecio = round($precioBase - ($precioBase * $porcentaje / 100), 2);
 

@@ -7,6 +7,8 @@ use App\Models\Categoria;
 use App\Models\HistorialPrecio;
 use App\Models\Sucursal;
 use App\Models\TipoIva;
+use Exception;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Alta rapida de articulo desde NuevaVenta.
@@ -191,8 +193,8 @@ trait WithArticuloRapido
                 message: __('Artículo ":nombre" creado y agregado', ['nombre' => $articulo->nombre]),
                 type: 'success'
             );
-        } catch (\Exception $e) {
-            \Log::error('Error al crear artículo rápido: '.$e->getMessage());
+        } catch (Exception $e) {
+            Log::error('Error al crear artículo rápido: '.$e->getMessage());
             $this->dispatch('notify',
                 message: __('Error al crear el artículo'),
                 type: 'error'

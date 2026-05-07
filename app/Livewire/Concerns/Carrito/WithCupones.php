@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Concerns\Carrito;
 
+use App\Models\Articulo;
 use App\Models\Cupon;
 
 /**
@@ -127,16 +128,27 @@ trait WithCupones
         if ($cupon->aplicaAArticulos()) {
             $articulosCupon = $cupon->articulos()->get()->keyBy('id');
             $bonificados = [];
-            $itemsParaCalculo = [];
 
             foreach ($this->items as $item) {
                 $articuloId = $item['articulo_id'] ?? null;
                 if ($articuloId && $articulosCupon->has($articuloId)) {
                     $bonificados[] = $articuloId;
-                    $itemsParaCalculo[] = $item;
                 }
             }
             $this->cuponArticulosBonificados = $bonificados;
+
+            // Regla de prioridad cupón > descuento general:
+            // los items bonificados pierden el ajuste por descuento_general antes de calcular el cupón,
+            // así el descuento se aplica sobre el precio_base completo.
+            $this->liberarItemsBonificadosDelDescuentoGeneral();
+
+            $itemsParaCalculo = [];
+            foreach ($this->items as $item) {
+                $articuloId = $item['articulo_id'] ?? null;
+                if ($articuloId && $articulosCupon->has($articuloId)) {
+                    $itemsParaCalculo[] = $item;
+                }
+            }
 
             $totalParaCupon = $this->resultado['total_final'] ?? 0;
             $descuento = $this->cuponService->calcularDescuento($cupon, $totalParaCupon, $bonificados, $itemsParaCalculo);
@@ -156,14 +168,107 @@ trait WithCupones
      */
     public function quitarCupon(): void
     {
+        $articulosLiberados = $this->cuponArticulosBonificados;
+
         $this->cuponAplicado = false;
         $this->cuponInfo = null;
         $this->cuponMontoDescuento = 0;
         $this->cuponArticulosBonificados = [];
         $this->cuponCodigoInput = '';
 
+        // Si había descuento general % activo, re-aplicar el ajuste a los items
+        // que estaban excluidos por el cupón.
+        if ($this->descuentoGeneralActivo
+            && $this->descuentoGeneralTipo === 'porcentaje'
+            && ! empty($articulosLiberados)) {
+            $this->aplicarDescuentoGeneralAItemsLiberados($articulosLiberados, (float) $this->descuentoGeneralValor);
+        }
+
         $this->calcularVenta();
         $this->dispatch('toast-info', message: __('Cupón eliminado'));
+    }
+
+    /**
+     * Quita el ajuste manual con origen 'descuento_general' de los items
+     * cuyo articulo_id está bonificado por el cupón actual. Se invoca al aplicar
+     * el cupón para que el descuento del cupón se calcule sobre el precio_base
+     * (regla: cupón tiene prioridad sobre descuento general).
+     *
+     * Items con ajuste manual de origen 'manual' (puesto explícitamente por el
+     * usuario) NO se tocan — el usuario decidió acumular.
+     */
+    protected function liberarItemsBonificadosDelDescuentoGeneral(): void
+    {
+        if (empty($this->cuponArticulosBonificados)) {
+            return;
+        }
+
+        $bonificados = array_flip($this->cuponArticulosBonificados);
+
+        foreach ($this->items as $index => $item) {
+            $articuloId = $item['articulo_id'] ?? null;
+            if (! $articuloId || ! isset($bonificados[$articuloId])) {
+                continue;
+            }
+            if (($item['ajuste_manual_origen'] ?? null) !== 'descuento_general') {
+                continue;
+            }
+
+            // Restaurar precio: si tenemos precio_sin_ajuste_manual lo usamos, si no
+            // recalculamos desde la lista de precios para traer un valor confiable.
+            if (! empty($item['precio_sin_ajuste_manual'])) {
+                $this->items[$index]['precio'] = (float) $item['precio_sin_ajuste_manual'];
+            } elseif ($articuloId) {
+                $articulo = Articulo::find($articuloId);
+                if ($articulo) {
+                    $precioInfo = $this->obtenerPrecioConLista($articulo);
+                    $this->items[$index]['precio'] = $precioInfo['precio'];
+                    $this->items[$index]['precio_base'] = $precioInfo['precio_base'];
+                    $this->items[$index]['tiene_ajuste'] = $precioInfo['tiene_ajuste'];
+                }
+            }
+
+            $this->items[$index]['ajuste_manual_tipo'] = null;
+            $this->items[$index]['ajuste_manual_valor'] = null;
+            $this->items[$index]['ajuste_manual_origen'] = null;
+            $this->items[$index]['precio_sin_ajuste_manual'] = null;
+            $this->items[$index]['tiene_ajuste'] = false;
+        }
+    }
+
+    /**
+     * Re-aplica el ajuste de descuento general % a los items que habían sido liberados
+     * por el cupón. Se invoca al quitar el cupón.
+     *
+     * Solo toca items que NO tienen ya un ajuste manual del usuario; respeta cambios
+     * explícitos para no pisarlos.
+     */
+    protected function aplicarDescuentoGeneralAItemsLiberados(array $articuloIds, float $porcentaje): void
+    {
+        $liberados = array_flip($articuloIds);
+
+        foreach ($this->items as $index => $item) {
+            $articuloId = $item['articulo_id'] ?? null;
+            if (! $articuloId || ! isset($liberados[$articuloId])) {
+                continue;
+            }
+            if (! empty($item['ajuste_manual_tipo'])) {
+                continue;
+            }
+
+            $precioBase = (float) ($item['precio_base'] ?? $item['precio'] ?? 0);
+            $nuevoPrecio = round($precioBase - ($precioBase * $porcentaje / 100), 2);
+            if ($nuevoPrecio < 0) {
+                $nuevoPrecio = 0;
+            }
+
+            $this->items[$index]['precio_sin_ajuste_manual'] = $precioBase;
+            $this->items[$index]['precio'] = $nuevoPrecio;
+            $this->items[$index]['ajuste_manual_tipo'] = 'porcentaje';
+            $this->items[$index]['ajuste_manual_valor'] = $porcentaje;
+            $this->items[$index]['ajuste_manual_origen'] = 'descuento_general';
+            $this->items[$index]['tiene_ajuste'] = true;
+        }
     }
 
     /**

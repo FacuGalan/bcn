@@ -2,13 +2,26 @@
 
 namespace App\Livewire\Concerns\Carrito;
 
+use App\Models\Caja;
+use App\Models\Cliente;
+use App\Models\ConceptoPago;
+use App\Models\CuentaEmpresa;
 use App\Models\Cupon;
 use App\Models\FormaPago;
 use App\Models\FormaPagoCuotaSucursal;
 use App\Models\FormaPagoSucursal;
+use App\Models\Moneda;
 use App\Models\MovimientoCaja;
 use App\Models\PuntoVenta;
 use App\Models\Sucursal;
+use App\Models\TipoCambio;
+use App\Models\VentaPago;
+use App\Services\ARCA\ComprobanteFiscalService;
+use App\Services\CuentaEmpresaService;
+use Exception;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Sistema de pagos con desglose, cuotas, ajustes por forma de pago, fiscal,
