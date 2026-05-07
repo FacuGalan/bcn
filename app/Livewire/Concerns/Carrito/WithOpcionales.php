@@ -272,8 +272,15 @@ trait WithOpcionales
                 'pagado_con_puntos' => false,
             ];
 
-            // RF-34: Herencia de descuento general % a items nuevos
-            if ($this->descuentoGeneralActivo && $this->descuentoGeneralTipo === 'porcentaje') {
+            // RF-34: Herencia de descuento general % a items nuevos.
+            // Excepción: items bonificados por un cupón ya aplicado NO heredan
+            // (el cupón tiene prioridad sobre el descuento general).
+            $estaBonificadoPorCupon = $this->cuponAplicado
+                && in_array($data['articulo_id'] ?? null, $this->cuponArticulosBonificados ?? []);
+
+            if ($this->descuentoGeneralActivo
+                && $this->descuentoGeneralTipo === 'porcentaje'
+                && ! $estaBonificadoPorCupon) {
                 $lastIndex = count($this->items) - 1;
                 $precioBase = (float) $data['precio_base'] + $precioOpcionalesTotal;
                 $nuevoPrecio = round($precioBase - ($precioBase * $this->descuentoGeneralValor / 100), 2);
