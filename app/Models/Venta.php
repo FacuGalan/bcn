@@ -102,6 +102,12 @@ class Venta extends Model
         'puntos_ganados',
         'puntos_usados',
         'cierre_turno_id',
+        // Snapshots para reconstruir la venta aunque cliente/cupón cambien o se borren
+        'cliente_nombre_snapshot',
+        'cliente_cuit_snapshot',
+        'cliente_condicion_iva_snapshot',
+        'cupon_codigo_snapshot',
+        'cupon_descripcion_snapshot',
     ];
 
     protected $casts = [

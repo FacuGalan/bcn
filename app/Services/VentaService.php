@@ -7,6 +7,7 @@ use App\Models\Caja;
 use App\Models\Cliente;
 use App\Models\ComprobanteFiscal;
 use App\Models\ConceptoPago;
+use App\Models\Cupon;
 use App\Models\CuponUso;
 use App\Models\FormaPago;
 use App\Models\MovimientoCaja;
@@ -100,6 +101,13 @@ class VentaService
             // Crear la venta con totales proporcionados o en 0 para recalcular
             $esCuentaCorriente = $data['es_cuenta_corriente'] ?? false;
 
+            // Capturar snapshots de cliente y cupón para preservar la venta
+            // aunque el cliente/cupón se modifique o elimine después
+            $snapshots = $this->capturarSnapshots(
+                $data['cliente_id'] ?? null,
+                $data['cupon_id'] ?? null,
+            );
+
             $venta = Venta::create([
                 'sucursal_id' => $data['sucursal_id'],
                 'cliente_id' => $data['cliente_id'] ?? null,
@@ -132,6 +140,12 @@ class VentaService
                 'monto_cupon' => $data['monto_cupon'] ?? 0,
                 // Puntos
                 'puntos_usados' => $data['puntos_usados'] ?? 0,
+                // Snapshots de cliente y cupón
+                'cliente_nombre_snapshot' => $snapshots['cliente_nombre'],
+                'cliente_cuit_snapshot' => $snapshots['cliente_cuit'],
+                'cliente_condicion_iva_snapshot' => $snapshots['cliente_condicion_iva'],
+                'cupon_codigo_snapshot' => $snapshots['cupon_codigo'],
+                'cupon_descripcion_snapshot' => $snapshots['cupon_descripcion'],
             ]);
 
             // Guardar promociones aplicadas si vienen en los datos
@@ -188,6 +202,44 @@ class VentaService
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * Captura snapshots de cliente y cupón al momento de crear la venta.
+     *
+     * Estos snapshots permiten reconstruir la venta aunque el cliente o cupón
+     * se modifiquen o eliminen posteriormente.
+     *
+     * @return array{cliente_nombre: string|null, cliente_cuit: string|null, cliente_condicion_iva: string|null, cupon_codigo: string|null, cupon_descripcion: string|null}
+     */
+    protected function capturarSnapshots(?int $clienteId, ?int $cuponId): array
+    {
+        $snapshots = [
+            'cliente_nombre' => null,
+            'cliente_cuit' => null,
+            'cliente_condicion_iva' => null,
+            'cupon_codigo' => null,
+            'cupon_descripcion' => null,
+        ];
+
+        if ($clienteId) {
+            $cliente = Cliente::with('condicionIva')->find($clienteId);
+            if ($cliente) {
+                $snapshots['cliente_nombre'] = $cliente->nombre;
+                $snapshots['cliente_cuit'] = $cliente->cuit;
+                $snapshots['cliente_condicion_iva'] = $cliente->condicionIva?->nombre;
+            }
+        }
+
+        if ($cuponId) {
+            $cupon = Cupon::find($cuponId);
+            if ($cupon) {
+                $snapshots['cupon_codigo'] = $cupon->codigo;
+                $snapshots['cupon_descripcion'] = $cupon->descripcion;
+            }
+        }
+
+        return $snapshots;
     }
 
     /**
@@ -265,6 +317,7 @@ class VentaService
                 // Ajuste manual
                 'ajuste_manual_tipo' => $detalle['ajuste_manual_tipo'] ?? null,
                 'ajuste_manual_valor' => $detalle['ajuste_manual_valor'] ?? null,
+                'ajuste_manual_origen' => $detalle['ajuste_manual_origen'] ?? null,
                 'precio_sin_ajuste_manual' => $detalle['precio_sin_ajuste_manual'] ?? null,
                 // Canje por puntos (solo aplicable a artículos, no a conceptos)
                 'pagado_con_puntos' => $esConcepto ? false : ($detalle['pagado_con_puntos'] ?? false),

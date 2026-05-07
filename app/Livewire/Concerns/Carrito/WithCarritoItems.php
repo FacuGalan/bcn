@@ -274,6 +274,7 @@ trait WithCarritoItems
                 // Campos para ajuste manual de precio
                 'ajuste_manual_tipo' => null,
                 'ajuste_manual_valor' => null,
+                'ajuste_manual_origen' => null,
                 'precio_sin_ajuste_manual' => null,
                 // Opcionales (vacío para items sin opcionales)
                 'opcionales' => [],
@@ -295,6 +296,7 @@ trait WithCarritoItems
                 $this->items[$lastIndex]['precio'] = $nuevoPrecio;
                 $this->items[$lastIndex]['ajuste_manual_tipo'] = 'porcentaje';
                 $this->items[$lastIndex]['ajuste_manual_valor'] = $this->descuentoGeneralValor;
+                $this->items[$lastIndex]['ajuste_manual_origen'] = 'descuento_general';
                 $this->items[$lastIndex]['tiene_ajuste'] = true;
             }
         }
