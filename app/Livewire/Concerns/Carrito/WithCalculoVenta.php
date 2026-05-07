@@ -199,6 +199,21 @@ trait WithCalculoVenta
                 }
             }
         }
+        unset($unidad);
+
+        // Items bonificados por un cupón aplicado tampoco entran en promociones (comunes ni especiales).
+        // Regla 2026-05-07: el cupón tiene prioridad y excluye al item del resto de descuentos
+        // automáticos, evitando combinaciones que regalen producto al cliente sin que el cajero lo note.
+        if ($this->cuponAplicado && ! empty($this->cuponArticulosBonificados)) {
+            $bonificadosCupon = array_flip($this->cuponArticulosBonificados);
+            foreach ($poolUnidades as &$unidad) {
+                if (isset($bonificadosCupon[$unidad['articulo_id']])) {
+                    $unidad['excluido_promociones'] = true;
+                    $articulosExcluidos[$unidad['articulo_id']] = true;
+                }
+            }
+            unset($unidad);
+        }
 
         // Calcular subtotal
         foreach ($this->items as $item) {
@@ -412,6 +427,28 @@ trait WithCalculoVenta
                     $this->cuponMontoDescuento = $descuento['monto_descuento'];
                     $this->cuponArticulosBonificados = $bonificados;
                 }
+
+                // Detectar si el cupón se "recortó" naturalmente: cuando el valor original
+                // del cupón es mayor al descuento que efectivamente puede aplicar (ej: cupón
+                // monto fijo de $5000 sobre un item de $1000). CuponService ya hace el cap
+                // con min(valor, montoElegible), pero el cajero debe enterarse para que sepa
+                // que el cupón rinde menos de lo nominal en este carrito.
+                $valorNominal = (float) $cupon->valor_descuento;
+                $aplicoMenosDeLoNominal = $cupon->esMontoFijo()
+                    && round($this->cuponMontoDescuento, 2) < round($valorNominal, 2);
+
+                if ($aplicoMenosDeLoNominal) {
+                    if (! $this->cuponRecortadoPorCap) {
+                        $this->cuponRecortadoPorCap = true;
+                        $this->dispatch(
+                            'toast-warning',
+                            message: __('El cupón rinde menos del valor nominal en este carrito (cap por monto disponible).')
+                        );
+                    }
+                } else {
+                    $this->cuponRecortadoPorCap = false;
+                }
+
                 $resultado['monto_cupon'] = $this->cuponMontoDescuento;
                 $resultado['total_final'] = max(0, $resultado['total_final'] - $this->cuponMontoDescuento);
                 $this->cuponInfo['monto_descuento'] = $this->cuponMontoDescuento;

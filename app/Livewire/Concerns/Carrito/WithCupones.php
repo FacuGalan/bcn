@@ -42,6 +42,9 @@ trait WithCupones
     /** @var array IDs de artículos bonificados por el cupón */
     public array $cuponArticulosBonificados = [];
 
+    /** @var bool Flag para evitar spamear el toast cuando el cupón se recorta por cap */
+    public bool $cuponRecortadoPorCap = false;
+
     // =========================================
     // VALIDAR / APLICAR / QUITAR CUPON
     // =========================================
@@ -175,6 +178,7 @@ trait WithCupones
         $this->cuponMontoDescuento = 0;
         $this->cuponArticulosBonificados = [];
         $this->cuponCodigoInput = '';
+        $this->cuponRecortadoPorCap = false;
 
         // Si había descuento general % activo, re-aplicar el ajuste a los items
         // que estaban excluidos por el cupón.
