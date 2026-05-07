@@ -52,4 +52,13 @@ class SmokeVentasTest extends TestCase
     {
         Livewire::test(NuevaVenta::class)->assertOk();
     }
+
+    public function test_agregar_por_codigo_inexistente_dispatch_toast(): void
+    {
+        // Repaso 1 — M2: el scanner antes retornaba en silencio si el código
+        // no existía. Ahora dispatchea toast-warning para que el cajero sepa.
+        Livewire::test(NuevaVenta::class)
+            ->call('agregarPorCodigo', 'CODIGO-INEXISTENTE-XYZ')
+            ->assertDispatched('toast-warning');
+    }
 }
