@@ -315,15 +315,22 @@ trait WithCalculoVenta
             $promocionesComunes = $itemsParaPromos[$index]['promociones_comunes'] ?? [];
             $descuentoComun = $itemsParaPromos[$index]['total_descuento_comun'] ?? 0;
 
-            // Obtener info completa de promociones especiales aplicadas a este item
+            // Obtener info completa de promociones especiales aplicadas a este item.
+            // Una promo puede tocar varias unidades del mismo item (ej: 3x2 con 3 unidades del mismo articulo);
+            // sumamos los descuentos atribuidos a cada unidad bajo la misma promo para que el agregado por
+            // item refleje el descuento real recibido (no el total de la promo replicado).
             $promosEspecialesItem = [];
             foreach ($unidadesConsumidas as $unidad) {
-                if (! empty($unidad['promo_especial_info'])) {
-                    $promoKey = $unidad['promo_especial_info']['id'];
-                    // Evitar duplicados usando el ID como clave
-                    if (! isset($promosEspecialesItem[$promoKey])) {
-                        $promosEspecialesItem[$promoKey] = $unidad['promo_especial_info'];
-                    }
+                if (empty($unidad['promo_especial_info'])) {
+                    continue;
+                }
+                $info = $unidad['promo_especial_info'];
+                $promoKey = $info['id'];
+                if (! isset($promosEspecialesItem[$promoKey])) {
+                    $promosEspecialesItem[$promoKey] = $info;
+                    $promosEspecialesItem[$promoKey]['descuento'] = (float) ($info['descuento'] ?? 0);
+                } else {
+                    $promosEspecialesItem[$promoKey]['descuento'] += (float) ($info['descuento'] ?? 0);
                 }
             }
 
@@ -775,17 +782,21 @@ trait WithCalculoVenta
      */
     protected function consumirUnidadesPromoEspecial(array &$poolUnidades, array $promo, array $aplicacion): void
     {
+        $descuentoPorUnidad = $aplicacion['descuento_por_unidad'] ?? [];
+
         foreach ($aplicacion['unidades_consumidas'] as $unidadIdConsumida) {
             foreach ($poolUnidades as $idx => $unidad) {
                 if ($unidad['id'] === $unidadIdConsumida) {
                     $poolUnidades[$idx]['consumida'] = true;
                     $poolUnidades[$idx]['consumida_por'] = $promo['nombre'];
+                    // descuento atribuido a esta unidad (no el total de la promo).
+                    // Las unidades trigger reciben 0; las bonificadas reciben su descuento real.
                     $poolUnidades[$idx]['promo_especial_info'] = [
                         'id' => $promo['id'],
                         'promocion_especial_id' => $promo['id'],
                         'nombre' => $promo['nombre'],
                         'tipo' => $promo['tipo'],
-                        'descuento' => $aplicacion['descuento'],
+                        'descuento' => (float) ($descuentoPorUnidad[$unidadIdConsumida] ?? 0),
                     ];
                 }
             }
@@ -952,21 +963,26 @@ trait WithCalculoVenta
         $totalUnidadesEnPromo = $lleva * $vecesAplicable;
         $totalBonificadas = $bonifica * $vecesAplicable;
         $unidadesConsumidas = [];
+        $descuentoPorUnidad = [];
         $descuentoTotal = 0;
 
         // Bonificar los N items más caros del pool completo
         for ($i = 0; $i < $totalBonificadas && $i < $totalUnidadesEnPromo; $i++) {
             $unidad = $unidadesAplicables[$i];
-            if ($beneficioTipo === 'gratis') {
-                $descuentoTotal += $unidad['precio'];
-            } else {
-                $descuentoTotal += $unidad['precio'] * ($beneficioPorcentaje / 100);
-            }
+            $descuentoUnidad = $beneficioTipo === 'gratis'
+                ? (float) $unidad['precio']
+                : (float) $unidad['precio'] * ($beneficioPorcentaje / 100);
+            $descuentoTotal += $descuentoUnidad;
+            $descuentoPorUnidad[$unidad['id']] = $descuentoUnidad;
         }
 
-        // Marcar todas las unidades participantes como consumidas
+        // Marcar todas las unidades participantes como consumidas (las trigger sin descuento)
         for ($i = 0; $i < $totalUnidadesEnPromo; $i++) {
-            $unidadesConsumidas[] = $unidadesAplicables[$i]['id'];
+            $unidadId = $unidadesAplicables[$i]['id'];
+            $unidadesConsumidas[] = $unidadId;
+            if (! isset($descuentoPorUnidad[$unidadId])) {
+                $descuentoPorUnidad[$unidadId] = 0.0;
+            }
         }
 
         if (empty($unidadesConsumidas)) {
@@ -980,6 +996,7 @@ trait WithCalculoVenta
             'descuento' => $descuentoTotal,
             'descripcion' => "Lleva {$lleva} → {$bonifica} {$descripcionBeneficio} (x{$vecesAplicable})",
             'unidades_consumidas' => $unidadesConsumidas,
+            'descuento_por_unidad' => $descuentoPorUnidad,
         ];
     }
 
@@ -1038,13 +1055,16 @@ trait WithCalculoVenta
         );
 
         $unidadesConsumidas = [];
+        $descuentoPorUnidad = [];
         $descuentoTotal = 0;
 
         for ($vez = 0; $vez < $vecesAplicable; $vez++) {
             for ($i = 0; $i < $lleva; $i++) {
                 $idx = $vez * $lleva + $i;
                 if (isset($unidadesTrigger[$idx])) {
-                    $unidadesConsumidas[] = $unidadesTrigger[$idx]['id'];
+                    $unidadId = $unidadesTrigger[$idx]['id'];
+                    $unidadesConsumidas[] = $unidadId;
+                    $descuentoPorUnidad[$unidadId] = 0.0;
                 }
             }
 
@@ -1054,11 +1074,11 @@ trait WithCalculoVenta
                     $unidad = $unidadesReward[$idx];
                     $unidadesConsumidas[] = $unidad['id'];
 
-                    if ($beneficioTipo === 'gratis') {
-                        $descuentoTotal += $unidad['precio'];
-                    } else {
-                        $descuentoTotal += $unidad['precio'] * ($beneficioPorcentaje / 100);
-                    }
+                    $descuentoUnidad = $beneficioTipo === 'gratis'
+                        ? (float) $unidad['precio']
+                        : (float) $unidad['precio'] * ($beneficioPorcentaje / 100);
+                    $descuentoTotal += $descuentoUnidad;
+                    $descuentoPorUnidad[$unidad['id']] = $descuentoUnidad;
                 }
             }
         }
@@ -1074,6 +1094,7 @@ trait WithCalculoVenta
             'descuento' => $descuentoTotal,
             'descripcion' => "Lleva {$lleva} → {$bonifica} {$descripcionBeneficio} (x{$vecesAplicable})",
             'unidades_consumidas' => $unidadesConsumidas,
+            'descuento_por_unidad' => $descuentoPorUnidad,
         ];
     }
 
@@ -1084,6 +1105,7 @@ trait WithCalculoVenta
         }
 
         $unidadesConsumidas = [];
+        $unidadesConsumidasInfo = [];
         $precioNormal = 0;
 
         foreach ($promo['grupos'] as $grupo) {
@@ -1113,6 +1135,7 @@ trait WithCalculoVenta
             for ($i = 0; $i < $cantidadRequerida; $i++) {
                 $unidad = $unidadesDeEsteGrupo[$i];
                 $unidadesConsumidas[] = $unidad['id'];
+                $unidadesConsumidasInfo[] = $unidad;
                 $precioNormal += $unidad['precio'];
             }
         }
@@ -1130,6 +1153,8 @@ trait WithCalculoVenta
             $descuento = $precioNormal * ($porcentajeDto / 100);
         }
 
+        $descuentoPorUnidad = $this->prorratearDescuentoPorPrecio($unidadesConsumidasInfo, (float) $descuento, (float) $precioNormal);
+
         return [
             'aplicada' => true,
             'descuento' => $descuento,
@@ -1137,6 +1162,7 @@ trait WithCalculoVenta
                 ? 'Combo a $'.number_format($promo['precio_valor'], 0, ',', '.')
                 : "Combo con {$promo['precio_valor']}% dto",
             'unidades_consumidas' => $unidadesConsumidas,
+            'descuento_por_unidad' => $descuentoPorUnidad,
         ];
     }
 
@@ -1147,6 +1173,7 @@ trait WithCalculoVenta
         }
 
         $unidadesConsumidas = [];
+        $unidadesConsumidasInfo = [];
         $precioNormal = 0;
 
         foreach ($promo['grupos'] as $grupo) {
@@ -1171,6 +1198,7 @@ trait WithCalculoVenta
             for ($i = 0; $i < $cantidadRequerida; $i++) {
                 $unidad = $unidadesDeEsteGrupo[$i];
                 $unidadesConsumidas[] = $unidad['id'];
+                $unidadesConsumidasInfo[] = $unidad;
                 $precioNormal += $unidad['precio'];
             }
         }
@@ -1188,6 +1216,8 @@ trait WithCalculoVenta
             $descuento = $precioNormal * ($porcentajeDto / 100);
         }
 
+        $descuentoPorUnidad = $this->prorratearDescuentoPorPrecio($unidadesConsumidasInfo, (float) $descuento, (float) $precioNormal);
+
         return [
             'aplicada' => true,
             'descuento' => $descuento,
@@ -1195,7 +1225,41 @@ trait WithCalculoVenta
                 ? 'Menú a $'.number_format($promo['precio_valor'], 0, ',', '.')
                 : "Menú con {$promo['precio_valor']}% dto",
             'unidades_consumidas' => $unidadesConsumidas,
+            'descuento_por_unidad' => $descuentoPorUnidad,
         ];
+    }
+
+    /**
+     * Prorratea un descuento global entre las unidades consumidas en proporción a su precio.
+     * La última unidad recibe el residuo para que la suma sea exactamente igual al descuento total.
+     *
+     * @param  array  $unidades  Array de unidades con keys 'id' y 'precio'
+     * @return array<string, float> Mapa unidad_id => descuento atribuido
+     */
+    protected function prorratearDescuentoPorPrecio(array $unidades, float $descuentoTotal, float $precioNormal): array
+    {
+        $resultado = [];
+        if (empty($unidades) || $descuentoTotal <= 0 || $precioNormal <= 0) {
+            foreach ($unidades as $u) {
+                $resultado[$u['id']] = 0.0;
+            }
+
+            return $resultado;
+        }
+
+        $acumulado = 0.0;
+        $cantidad = count($unidades);
+        foreach ($unidades as $i => $u) {
+            if ($i === $cantidad - 1) {
+                $resultado[$u['id']] = round($descuentoTotal - $acumulado, 2);
+            } else {
+                $atribuido = round($descuentoTotal * ((float) $u['precio'] / $precioNormal), 2);
+                $resultado[$u['id']] = $atribuido;
+                $acumulado += $atribuido;
+            }
+        }
+
+        return $resultado;
     }
 
     // =========================================
