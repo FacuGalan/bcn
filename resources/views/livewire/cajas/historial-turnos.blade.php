@@ -615,6 +615,38 @@
                     @endif
                 </div>
 
+                {{-- Puntos del Turno (snapshot, solo si hubo movimiento de puntos) --}}
+                @php
+                    $hayPuntosTurno = $cierreDetalle->total_puntos_acumulados > 0
+                        || $cierreDetalle->total_puntos_canjeados_pago > 0
+                        || $cierreDetalle->total_puntos_canjeados_articulos > 0;
+                @endphp
+                @if($hayPuntosTurno)
+                <div class="mb-6">
+                    <h4 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">{{ __('Puntos del Turno') }}</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        @if($cierreDetalle->total_puntos_acumulados > 0)
+                        <div class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 rounded-lg p-3">
+                            <p class="text-xs text-emerald-700 dark:text-emerald-300 mb-1">{{ __('Acumulados') }}</p>
+                            <p class="text-lg font-bold text-emerald-800 dark:text-emerald-200">+{{ number_format($cierreDetalle->total_puntos_acumulados, 0, ',', '.') }} pts</p>
+                        </div>
+                        @endif
+                        @if($cierreDetalle->total_puntos_canjeados_pago > 0)
+                        <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
+                            <p class="text-xs text-amber-700 dark:text-amber-300 mb-1">{{ __('Canjeados como pago') }}</p>
+                            <p class="text-lg font-bold text-amber-800 dark:text-amber-200">-{{ number_format($cierreDetalle->total_puntos_canjeados_pago, 0, ',', '.') }} pts</p>
+                        </div>
+                        @endif
+                        @if($cierreDetalle->total_puntos_canjeados_articulos > 0)
+                        <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
+                            <p class="text-xs text-amber-700 dark:text-amber-300 mb-1">{{ __('Canjeados en artículos') }}</p>
+                            <p class="text-lg font-bold text-amber-800 dark:text-amber-200">-{{ number_format($cierreDetalle->total_puntos_canjeados_articulos, 0, ',', '.') }} pts</p>
+                        </div>
+                        @endif
+                    </div>
+                </div>
+                @endif
+
                 {{-- Detalle por Caja --}}
                 @if($cierreDetalle->detalleCajas->count() > 0)
                 <div class="mb-6">
@@ -702,6 +734,22 @@
                                     <span class="inline-flex items-center px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/30 text-xs">
                                         <span class="text-blue-600 dark:text-blue-300">{{ $concepto }}:</span>
                                         <span class="ml-1 font-medium text-blue-800 dark:text-blue-200">${{ number_format($monto, 0, ',', '.') }}</span>
+                                    </span>
+                                    @endforeach
+                                </div>
+                            </div>
+                            @endif
+
+                            {{-- Desglose interno (canje puntos / FPs solo_sistema) — no afecta caja --}}
+                            @if($detalleCaja->desglose_internos && count($detalleCaja->desglose_internos) > 0)
+                            <div class="mt-3 pt-3 border-t border-amber-200 dark:border-amber-700">
+                                <p class="text-xs text-amber-700 dark:text-amber-400 mb-1 font-semibold">{{ __('Sin afectar caja') }}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ __('Trazabilidad — no suma al total cobrado') }}</p>
+                                <div class="flex flex-wrap gap-1.5">
+                                    @foreach($detalleCaja->desglose_internos as $forma => $monto)
+                                    <span class="inline-flex items-center px-2 py-1 rounded bg-amber-50 dark:bg-amber-900/30 text-xs">
+                                        <span class="text-amber-700 dark:text-amber-300">{{ $forma }}:</span>
+                                        <span class="ml-1 font-medium text-amber-900 dark:text-amber-200">${{ number_format($monto, 0, ',', '.') }}</span>
                                     </span>
                                     @endforeach
                                 </div>

@@ -379,46 +379,45 @@ class ImpresionService
             ];
         }
 
-        // Consolidar formas de pago
+        // Consolidar formas de pago. Split por afecta_caja: los que afectan suman
+        // a `formasPago` (cobrado real); los que no afectan (canje puntos / FPs
+        // solo_sistema) van a `formasPagoInternas` para mostrarse aparte sin
+        // sumar al total. `conceptos` solo agrupa los que afectan caja.
         $formasPago = [];
+        $formasPagoInternas = [];
         $conceptos = [];
 
-        // Pagos de ventas
-        foreach ($cierre->ventaPagos as $pago) {
+        $todosLosPagos = $cierre->ventaPagos->map(fn ($p) => [$p, 'Ventas'])
+            ->concat($cierre->cobroPagos->map(fn ($p) => [$p, 'Cobros Cta. Cte.']));
+
+        foreach ($todosLosPagos as [$pago, $conceptoFallback]) {
             $forma = $pago->formaPago?->nombre ?? 'Otro';
-            if (! isset($formasPago[$forma])) {
-                $formasPago[$forma] = ['cantidad' => 0, 'total' => 0];
-            }
-            $formasPago[$forma]['cantidad']++;
-            $formasPago[$forma]['total'] += $pago->monto_final;
 
-            $concepto = $pago->conceptoPago?->nombre ?? 'Ventas';
-            if (! isset($conceptos[$concepto])) {
-                $conceptos[$concepto] = ['cantidad' => 0, 'total' => 0];
-            }
-            $conceptos[$concepto]['cantidad']++;
-            $conceptos[$concepto]['total'] += $pago->monto_final;
-        }
+            if ($pago->afecta_caja) {
+                if (! isset($formasPago[$forma])) {
+                    $formasPago[$forma] = ['cantidad' => 0, 'total' => 0];
+                }
+                $formasPago[$forma]['cantidad']++;
+                $formasPago[$forma]['total'] += $pago->monto_final;
 
-        // Pagos de cobros
-        foreach ($cierre->cobroPagos as $pago) {
-            $forma = $pago->formaPago?->nombre ?? 'Otro';
-            if (! isset($formasPago[$forma])) {
-                $formasPago[$forma] = ['cantidad' => 0, 'total' => 0];
+                $concepto = $pago->conceptoPago?->nombre ?? $conceptoFallback;
+                if (! isset($conceptos[$concepto])) {
+                    $conceptos[$concepto] = ['cantidad' => 0, 'total' => 0];
+                }
+                $conceptos[$concepto]['cantidad']++;
+                $conceptos[$concepto]['total'] += $pago->monto_final;
+            } else {
+                if (! isset($formasPagoInternas[$forma])) {
+                    $formasPagoInternas[$forma] = ['cantidad' => 0, 'total' => 0];
+                }
+                $formasPagoInternas[$forma]['cantidad']++;
+                $formasPagoInternas[$forma]['total'] += $pago->monto_final;
             }
-            $formasPago[$forma]['cantidad']++;
-            $formasPago[$forma]['total'] += $pago->monto_final;
-
-            $concepto = $pago->conceptoPago?->nombre ?? 'Cobros Cta. Cte.';
-            if (! isset($conceptos[$concepto])) {
-                $conceptos[$concepto] = ['cantidad' => 0, 'total' => 0];
-            }
-            $conceptos[$concepto]['cantidad']++;
-            $conceptos[$concepto]['total'] += $pago->monto_final;
         }
 
         // Ordenar por total descendente
         uasort($formasPago, fn ($a, $b) => $b['total'] <=> $a['total']);
+        uasort($formasPagoInternas, fn ($a, $b) => $b['total'] <=> $a['total']);
         uasort($conceptos, fn ($a, $b) => $b['total'] <=> $a['total']);
 
         // Comprobantes emitidos
@@ -460,15 +459,24 @@ class ImpresionService
             ];
         }
 
+        // Snapshot de puntos del turno (cabecera del CierreTurno)
+        $puntos = [
+            'canjeados_pago' => (int) $cierre->total_puntos_canjeados_pago,
+            'canjeados_articulos' => (int) $cierre->total_puntos_canjeados_articulos,
+            'acumulados' => (int) $cierre->total_puntos_acumulados,
+        ];
+
         return [
             'sucursal' => $sucursal,
             'cierre' => $datosBasicos,
             'cajas' => $cajas,
             'movimientos' => $movimientos,
             'formas_pago' => $formasPago,
+            'formas_pago_internas' => $formasPagoInternas,
             'conceptos' => $conceptos,
             'comprobantes' => $comprobantes,
             'operaciones' => $operaciones,
+            'puntos' => $puntos,
         ];
     }
 

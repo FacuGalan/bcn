@@ -319,6 +319,51 @@
     @endforeach
     @endif
 
+    {{-- ========== TRAZABILIDAD SIN AFECTAR CAJA (canje puntos / FPs solo_sistema) ========== --}}
+    @if(!empty($datos['formas_pago_internas']) && count($datos['formas_pago_internas']) > 0)
+    <div class="linea"></div>
+    <div class="seccion-titulo center">SIN AFECTAR CAJA</div>
+    <div class="small center">No suma al total cobrado</div>
+    <div class="linea-punteada"></div>
+
+    @foreach($datos['formas_pago_internas'] as $forma => $info)
+    <div class="fila">
+        <span>{{ $forma }}:</span>
+        <span>{{ $info['cantidad'] }} op. - ${{ number_format($info['total'], 2, ',', '.') }}</span>
+    </div>
+    @endforeach
+    @endif
+
+    {{-- ========== PUNTOS DEL TURNO ========== --}}
+    @php
+        $puntos = $datos['puntos'] ?? null;
+        $hayPuntos = $puntos && ($puntos['canjeados_pago'] > 0 || $puntos['canjeados_articulos'] > 0 || $puntos['acumulados'] > 0);
+    @endphp
+    @if($hayPuntos)
+    <div class="linea"></div>
+    <div class="seccion-titulo center">PUNTOS DEL TURNO</div>
+    <div class="linea-punteada"></div>
+
+    @if($puntos['acumulados'] > 0)
+    <div class="fila">
+        <span>Acumulados:</span>
+        <span>+{{ number_format($puntos['acumulados'], 0, ',', '.') }} pts</span>
+    </div>
+    @endif
+    @if($puntos['canjeados_pago'] > 0)
+    <div class="fila">
+        <span>Canjeados (pago):</span>
+        <span>-{{ number_format($puntos['canjeados_pago'], 0, ',', '.') }} pts</span>
+    </div>
+    @endif
+    @if($puntos['canjeados_articulos'] > 0)
+    <div class="fila">
+        <span>Canjeados (artículos):</span>
+        <span>-{{ number_format($puntos['canjeados_articulos'], 0, ',', '.') }} pts</span>
+    </div>
+    @endif
+    @endif
+
     {{-- ========== OPERACIONES DEL TURNO ========== --}}
     @if(!empty($datos['operaciones']))
     <div class="linea"></div>

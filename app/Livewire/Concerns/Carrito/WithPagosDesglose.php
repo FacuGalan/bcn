@@ -2166,7 +2166,10 @@ trait WithPagosDesglose
                     );
 
                     $this->puntosService->actualizarCacheCliente($this->clienteSeleccionado);
-                    $venta->update(['puntos_usados' => $this->canjePuntosUnidades]);
+                    $venta->update([
+                        'puntos_usados' => $this->canjePuntosUnidades,
+                        'puntos_canjeados_pago' => $this->canjePuntosUnidades,
+                    ]);
                 }
 
                 // Registrar canjes de artículos por puntos (RF-10)
@@ -2211,6 +2214,7 @@ trait WithPagosDesglose
                     $puntosUsadosTotal = ($venta->puntos_usados ?? 0) + $puntosArticulosCanjeados;
                     $venta->update([
                         'puntos_usados' => $puntosUsadosTotal,
+                        'puntos_canjeados_articulos' => $puntosArticulosCanjeados,
                         'articulos_canjeados_monto' => round($montoArticulosCanjeados, 2),
                     ]);
                 }
