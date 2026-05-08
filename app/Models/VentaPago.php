@@ -71,6 +71,7 @@ class VentaPago extends Model
         'moneda_id',
         'monto_moneda_original',
         'tipo_cambio_tasa',
+        'tipo_cambio_id',
         'movimiento_cuenta_empresa_id',
         'venta_pago_reemplazado_id',
         'operacion_origen',
