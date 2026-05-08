@@ -381,13 +381,15 @@ class VentaReproducibilidadTest extends TestCase
 
     /**
      * PR C — la FP con solo_sistema=true no aparece en CatalogoCache::formasPago().
-     * Crea una FP de prueba con solo_sistema=true y verifica el filtro.
+     * Crea dos FPs de prueba (una solo_sistema=true, otra solo_sistema=false) y
+     * verifica que el filtro deja afuera la primera y deja entrar la segunda.
+     * Test autosuficiente: no depende de seeders ni de datos pre-existentes.
      */
     public function test_formapago_solo_sistema_no_aparece_en_selector(): void
     {
         \Illuminate\Support\Facades\Cache::flush();
 
-        // Crear concepto de prueba + FP con solo_sistema=true
+        // Concepto compartido para ambas FPs de prueba
         $conceptoId = DB::connection('pymes_tenant')->table('conceptos_pago')->insertGetId([
             'codigo' => 'test_solo_sistema_'.uniqid(),
             'nombre' => 'Test Solo Sistema',
@@ -398,10 +400,12 @@ class VentaReproducibilidadTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        $codigoFp = 'TEST_SOLO_SIS_'.strtoupper(substr(uniqid(), -4));
+
+        // FP solo_sistema=true (NO debe aparecer)
+        $codigoFpInterna = 'TEST_SOLO_SIS_'.strtoupper(substr(uniqid(), -4));
         DB::connection('pymes_tenant')->table('formas_pago')->insert([
             'nombre' => 'FP Solo Sistema Test',
-            'codigo' => $codigoFp,
+            'codigo' => $codigoFpInterna,
             'concepto_pago_id' => $conceptoId,
             'concepto' => 'otro',
             'permite_cuotas' => false,
@@ -413,16 +417,35 @@ class VentaReproducibilidadTest extends TestCase
             'updated_at' => now(),
         ]);
 
+        // FP solo_sistema=false (sí debe aparecer)
+        $codigoFpNormal = 'TEST_NORMAL_'.strtoupper(substr(uniqid(), -4));
+        DB::connection('pymes_tenant')->table('formas_pago')->insert([
+            'nombre' => 'FP Normal Test',
+            'codigo' => $codigoFpNormal,
+            'concepto_pago_id' => $conceptoId,
+            'concepto' => 'otro',
+            'permite_cuotas' => false,
+            'es_mixta' => false,
+            'activo' => true,
+            'solo_sistema' => false,
+            'orden' => 100,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         $formasPago = \App\Services\CatalogoCache::formasPago();
         $codigos = $formasPago->pluck('codigo')->toArray();
 
         $this->assertNotContains(
-            $codigoFp,
+            $codigoFpInterna,
             $codigos,
             'Una FP con solo_sistema=true NO debe aparecer en el selector'
         );
 
-        // Verificación cruzada: una FP normal (Efectivo) sí aparece
-        $this->assertContains('EFEC', $codigos, 'Efectivo (solo_sistema=false) sí debe aparecer');
+        $this->assertContains(
+            $codigoFpNormal,
+            $codigos,
+            'Una FP con solo_sistema=false sí debe aparecer en el selector'
+        );
     }
 }
