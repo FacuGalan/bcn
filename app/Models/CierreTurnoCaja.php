@@ -24,6 +24,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property float $diferencia
  * @property array|null $desglose_formas_pago
  * @property array|null $desglose_conceptos
+ * @property array|null $desglose_monedas
+ * @property array|null $desglose_internos
  * @property string|null $observaciones
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
@@ -50,6 +52,7 @@ class CierreTurnoCaja extends Model
         'desglose_formas_pago',
         'desglose_conceptos',
         'desglose_monedas',
+        'desglose_internos',
         'observaciones',
     ];
 
@@ -64,6 +67,7 @@ class CierreTurnoCaja extends Model
         'desglose_formas_pago' => 'array',
         'desglose_conceptos' => 'array',
         'desglose_monedas' => 'array',
+        'desglose_internos' => 'array',
     ];
 
     // ==================== RELACIONES ====================

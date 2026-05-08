@@ -24,6 +24,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property float $total_ingresos
  * @property float $total_egresos
  * @property float $total_diferencia
+ * @property int $total_puntos_canjeados_pago
+ * @property int $total_puntos_canjeados_articulos
+ * @property int $total_puntos_acumulados
  * @property string|null $observaciones
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
@@ -55,6 +58,9 @@ class CierreTurno extends Model
         'total_ingresos',
         'total_egresos',
         'total_diferencia',
+        'total_puntos_canjeados_pago',
+        'total_puntos_canjeados_articulos',
+        'total_puntos_acumulados',
         'observaciones',
         'revertido',
         'fecha_reversion',
@@ -72,6 +78,9 @@ class CierreTurno extends Model
         'total_ingresos' => 'decimal:2',
         'total_egresos' => 'decimal:2',
         'total_diferencia' => 'decimal:2',
+        'total_puntos_canjeados_pago' => 'integer',
+        'total_puntos_canjeados_articulos' => 'integer',
+        'total_puntos_acumulados' => 'integer',
     ];
 
     // ==================== RELACIONES ====================

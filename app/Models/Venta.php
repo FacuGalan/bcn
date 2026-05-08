@@ -101,6 +101,8 @@ class Venta extends Model
         'monto_cupon',
         'puntos_ganados',
         'puntos_usados',
+        'puntos_canjeados_pago',       // Puntos usados como medio de pago en la venta
+        'puntos_canjeados_articulos',  // Puntos usados en canje directo de articulos en la venta
         'puntos_usados_monto',         // Monto en pesos del canje de puntos como pago (canje monto)
         'articulos_canjeados_monto',   // Monto en pesos de artículos pagados directamente con puntos (canje artículo)
         'cierre_turno_id',
@@ -131,6 +133,8 @@ class Venta extends Model
         'monto_cupon' => 'decimal:2',
         'puntos_ganados' => 'integer',
         'puntos_usados' => 'integer',
+        'puntos_canjeados_pago' => 'integer',
+        'puntos_canjeados_articulos' => 'integer',
         'puntos_usados_monto' => 'decimal:2',
         'articulos_canjeados_monto' => 'decimal:2',
     ];

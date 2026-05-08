@@ -1215,6 +1215,7 @@ class TurnoActual extends Component
                         'desglose_formas_pago' => $desgloses['formas_pago'],
                         'desglose_conceptos' => $desgloses['conceptos'],
                         'desglose_monedas' => $desgloses['monedas'] ?? null,
+                        'desglose_internos' => ! empty($desgloses['internos']) ? $desgloses['internos'] : null,
                     ]);
 
                     // Marcar ventas, venta_pagos, cobros y cobro_pagos con el cierre_turno_id
@@ -1364,6 +1365,7 @@ class TurnoActual extends Component
                         'desglose_formas_pago' => $desgloses['formas_pago'],
                         'desglose_conceptos' => $desgloses['conceptos'],
                         'desglose_monedas' => $desgloses['monedas'] ?? null,
+                        'desglose_internos' => ! empty($desgloses['internos']) ? $desgloses['internos'] : null,
                     ]);
 
                     // Marcar ventas, venta_pagos, cobros y cobro_pagos con el cierre_turno_id
@@ -1418,6 +1420,18 @@ class TurnoActual extends Component
                 }
             }
 
+            // Snapshot de puntos del turno (sumas de las ventas marcadas con este cierre).
+            // Persistir en cabecera preserva el snapshot histórico aunque despues
+            // se anulen ventas individuales del turno.
+            $puntosCierre = Venta::where('cierre_turno_id', $cierreTurno->id)
+                ->where('estado', '!=', 'cancelada')
+                ->selectRaw('
+                    COALESCE(SUM(puntos_canjeados_pago), 0) as total_pago,
+                    COALESCE(SUM(puntos_canjeados_articulos), 0) as total_articulos,
+                    COALESCE(SUM(puntos_ganados), 0) as total_acumulados
+                ')
+                ->first();
+
             // Actualizar totales del cierre
             $cierreTurno->update([
                 'total_saldo_inicial' => $totalSaldoInicial,
@@ -1425,6 +1439,9 @@ class TurnoActual extends Component
                 'total_ingresos' => $totalIngresos,
                 'total_egresos' => $totalEgresos,
                 'total_diferencia' => $totalDiferencia,
+                'total_puntos_canjeados_pago' => (int) ($puntosCierre->total_pago ?? 0),
+                'total_puntos_canjeados_articulos' => (int) ($puntosCierre->total_articulos ?? 0),
+                'total_puntos_acumulados' => (int) ($puntosCierre->total_acumulados ?? 0),
             ]);
 
             DB::commit();
@@ -1469,8 +1486,13 @@ class TurnoActual extends Component
      */
     protected function calcularDesglosesCaja(int $cajaId): array
     {
+        // Desglose principal (cobrado real, suma a total_ingresos)
         $desgloseFormasPago = [];
         $desgloseConceptos = [];
+
+        // Desglose paralelo (trazabilidad sin afectar caja: canje puntos, FPs solo_sistema).
+        // Se muestra al operador pero NO suma al total_ingresos.
+        $desgloseInternos = [];
 
         // Obtener ventas pendientes de cierre de esta caja
         $ventas = Venta::where('caja_id', $cajaId)
@@ -1488,6 +1510,16 @@ class TurnoActual extends Component
 
                 $formaPagoNombre = $pago->formaPago?->nombre ?? 'Sin forma de pago';
                 $conceptoNombre = $pago->conceptoPago?->nombre ?? $pago->formaPago?->conceptoPago?->nombre ?? 'Ventas';
+
+                // Si no afecta caja (canje puntos, FPs solo_sistema), va al desglose interno
+                if (! $pago->afecta_caja) {
+                    if (! isset($desgloseInternos[$formaPagoNombre])) {
+                        $desgloseInternos[$formaPagoNombre] = 0;
+                    }
+                    $desgloseInternos[$formaPagoNombre] += (float) $pago->monto_final;
+
+                    continue;
+                }
 
                 if (! isset($desgloseFormasPago[$formaPagoNombre])) {
                     $desgloseFormasPago[$formaPagoNombre] = 0;
@@ -1508,7 +1540,7 @@ class TurnoActual extends Component
             ->with(['pagos.formaPago', 'pagos.conceptoPago'])
             ->get();
 
-        // Procesar pagos de cobros
+        // Procesar pagos de cobros (mismo split por afecta_caja)
         foreach ($cobros as $cobro) {
             foreach ($cobro->pagos as $pago) {
                 if ($pago->estado !== 'activo') {
@@ -1517,6 +1549,15 @@ class TurnoActual extends Component
 
                 $formaPagoNombre = $pago->formaPago?->nombre ?? 'Sin forma de pago';
                 $conceptoNombre = $pago->conceptoPago?->nombre ?? 'Cobros Cta. Cte.';
+
+                if (! $pago->afecta_caja) {
+                    if (! isset($desgloseInternos[$formaPagoNombre])) {
+                        $desgloseInternos[$formaPagoNombre] = 0;
+                    }
+                    $desgloseInternos[$formaPagoNombre] += (float) $pago->monto_final;
+
+                    continue;
+                }
 
                 if (! isset($desgloseFormasPago[$formaPagoNombre])) {
                     $desgloseFormasPago[$formaPagoNombre] = 0;
@@ -1537,6 +1578,9 @@ class TurnoActual extends Component
         foreach ($desgloseConceptos as $key => $value) {
             $desgloseConceptos[$key] = round($value, 2);
         }
+        foreach ($desgloseInternos as $key => $value) {
+            $desgloseInternos[$key] = round($value, 2);
+        }
 
         // Desglose por moneda basado en MovimientoCaja (ingresos/egresos reales)
         $desgloseMonedas = $this->calcularDesgloseMonedaCaja($cajaId);
@@ -1545,6 +1589,7 @@ class TurnoActual extends Component
             'formas_pago' => $desgloseFormasPago,
             'conceptos' => $desgloseConceptos,
             'monedas' => $desgloseMonedas,
+            'internos' => $desgloseInternos,
         ];
     }
 
