@@ -141,6 +141,7 @@ class VentaService
                 // Puntos
                 'puntos_usados' => $data['puntos_usados'] ?? 0,
                 'puntos_usados_monto' => $data['puntos_usados_monto'] ?? 0,
+                'articulos_canjeados_monto' => $data['articulos_canjeados_monto'] ?? 0,
                 // Snapshots de cliente y cupón
                 'cliente_nombre_snapshot' => $snapshots['cliente_nombre'],
                 'cliente_cuit_snapshot' => $snapshots['cliente_cuit'],
@@ -299,9 +300,28 @@ class VentaService
             $descuentoCupon = (float) ($detalle['descuento_cupon'] ?? 0);
 
             // Total del item después de TODOS los descuentos atribuibles a esta línea.
-            // Reconstrucción: subtotal − promociones comunes − promociones especiales − cupón.
-            // Los descuentos a nivel cabecera (descuento_general_monto si es monto_fijo,
-            // puntos canjeados como pago) NO se restan acá: viven en la cabecera ventas.
+            //
+            // Reconstrucción de cualquier venta a partir de los datos persistidos:
+            //
+            //   Por item (esta función):
+            //     precio_lista                         precio base original
+            //     precio_unitario                      precio_lista − ajuste_manual (% o monto)
+            //     subtotal                             precio_unitario × cantidad
+            //     total = subtotal
+            //           − descuento_promocion             (promos comunes)
+            //           − descuento_promocion_especial    (NxM/Combo/Menú)
+            //           − descuento_cupon                 (solo si cupón aplica_a='articulos')
+            //
+            //   A nivel venta:
+            //     suma_items = Σ ventas_detalle.total
+            //     ventas.total = suma_items
+            //                  − descuento_general_monto       (si tipo='monto_fijo')
+            //                  − puntos_usados_monto            (canje monto de puntos como pago)
+            //                  − articulos_canjeados_monto      (artículos pagados con puntos directos)
+            //                  − monto_cupon                    (SOLO si cupón aplica_a='total')
+            //     ventas.total_final = ventas.total + ajuste_forma_pago
+            //
+            // Los descuentos a nivel cabecera NO se restan acá — viven solo en `ventas`.
             $total = $subtotal - $descuentoPromocion - $descuentoPromocionEspecial - $descuentoCupon;
 
             $ventaDetalle = VentaDetalle::create([

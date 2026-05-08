@@ -2103,12 +2103,16 @@ trait WithPagosDesglose
                     }
                 }
 
+                // Resolver el id de la FP "Canje Puntos" (creada por la migración 2026_05_07_140000).
+                // Se usa para los VentaPago de canje de puntos para que en reportes por forma de pago
+                // queden correctamente bajo "Canje Puntos" en lugar de mezclarse con la FP principal.
+                $idFpCanjePuntos = FormaPago::where('codigo', 'CANJE_PUNTOS')->value('id');
+
                 // Registrar canje de puntos como pago (RF-09)
                 if ($this->canjePuntosActivo && $this->canjePuntosMonto > 0 && $this->clienteSeleccionado) {
-                    // Crear VentaPago especial para puntos
                     $ventaPagoPuntos = VentaPago::create([
                         'venta_id' => $venta->id,
-                        'forma_pago_id' => $this->formaPagoId, // Se usa la FP principal como referencia
+                        'forma_pago_id' => $idFpCanjePuntos ?? $this->formaPagoId,
                         'monto_base' => $this->canjePuntosMonto,
                         'ajuste_porcentaje' => 0,
                         'monto_ajuste' => 0,
@@ -2135,6 +2139,8 @@ trait WithPagosDesglose
                 // Registrar canjes de artículos por puntos (RF-10)
                 $puntosArticulosCanjeados = $this->calcularPuntosUsadosEnArticulos();
                 if ($puntosArticulosCanjeados > 0 && $this->clienteSeleccionado) {
+                    $montoArticulosCanjeados = 0.0;
+
                     foreach ($this->items as $item) {
                         if ($item['pagado_con_puntos'] ?? false) {
                             $puntosItem = $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (float) ($item['cantidad'] ?? 1);
@@ -2146,12 +2152,34 @@ trait WithPagosDesglose
                                 $venta->id,
                                 Auth::id()
                             );
+                            $montoArticulosCanjeados += (float) ($item['precio'] ?? 0) * (float) ($item['cantidad'] ?? 1);
                         }
                     }
                     $this->puntosService->actualizarCacheCliente($this->clienteSeleccionado);
-                    // Sumar puntos de artículos a los ya registrados
+
+                    // Crear VentaPago consolidado de canje de artículos. Va bajo la FP "Canje Puntos"
+                    // así "todo lo pagado con puntos" en reportes = Σ VentaPago WHERE forma_pago_id = canje_puntos.
+                    if ($montoArticulosCanjeados > 0) {
+                        VentaPago::create([
+                            'venta_id' => $venta->id,
+                            'forma_pago_id' => $idFpCanjePuntos ?? $this->formaPagoId,
+                            'monto_base' => $montoArticulosCanjeados,
+                            'ajuste_porcentaje' => 0,
+                            'monto_ajuste' => 0,
+                            'monto_final' => $montoArticulosCanjeados,
+                            'es_pago_puntos' => true,
+                            'puntos_usados' => $puntosArticulosCanjeados,
+                            'afecta_caja' => false,
+                            'estado' => 'activo',
+                        ]);
+                    }
+
+                    // Sumar puntos de artículos al contador de cabecera
                     $puntosUsadosTotal = ($venta->puntos_usados ?? 0) + $puntosArticulosCanjeados;
-                    $venta->update(['puntos_usados' => $puntosUsadosTotal]);
+                    $venta->update([
+                        'puntos_usados' => $puntosUsadosTotal,
+                        'articulos_canjeados_monto' => round($montoArticulosCanjeados, 2),
+                    ]);
                 }
 
                 // Registrar movimientos de cuenta corriente si el cliente tiene CC habilitada
