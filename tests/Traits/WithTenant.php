@@ -70,6 +70,8 @@ trait WithTenant
         'venta_promociones',
         'venta_detalle_promociones',
         'venta_pago_ajustes',
+        'tipos_cambio',
+        'monedas',
     ];
 
     protected function setUpTenant(): void

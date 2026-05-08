@@ -75,6 +75,7 @@ trait WithPagosDesglose
         'cuotas' => 1,
         'monto_recibido' => 0,
         'tipo_cambio_tasa' => null,
+        'tipo_cambio_id' => null,
         'monto_moneda_extranjera' => null,
     ];
 
@@ -89,6 +90,7 @@ trait WithPagosDesglose
         'moneda_simbolo' => '',
         'moneda_id' => null,
         'cotizacion' => 0,
+        'tipo_cambio_id' => null,
         'monto_extranjera' => null,
         'total_venta' => 0,
         'equivalente_principal' => 0,
@@ -222,6 +224,7 @@ trait WithPagosDesglose
             $esMonedaExtranjera = $monedaId && $monedaPrincipal && $monedaId != $monedaPrincipal->id;
             $monedaInfo = null;
             $ultimaTasa = null;
+            $ultimaTasaId = null;
 
             if ($esMonedaExtranjera) {
                 $monedaObj = Moneda::find($monedaId);
@@ -231,7 +234,11 @@ trait WithPagosDesglose
                     'simbolo' => $monedaObj->simbolo,
                     'nombre' => $monedaObj->nombre,
                 ] : null;
-                $ultimaTasa = TipoCambio::obtenerTasaVenta($monedaId, $monedaPrincipal->id);
+                // Snapshot id+tasa: el id permite trazabilidad (quien cargo la cotizacion,
+                // cuando) y la tasa es inmutable (sobrevive a edits/borrados del record).
+                $snapshot = TipoCambio::obtenerTasaVentaConId($monedaId, $monedaPrincipal->id);
+                $ultimaTasa = $snapshot['tasa'] ?? null;
+                $ultimaTasaId = $snapshot['id'] ?? null;
             }
 
             return [
@@ -258,6 +265,7 @@ trait WithPagosDesglose
                 'es_moneda_extranjera' => $esMonedaExtranjera,
                 'moneda_info' => $monedaInfo,
                 'ultima_tasa' => $ultimaTasa,
+                'ultima_tasa_id' => $ultimaTasaId,
             ];
         })->filter()->values()->toArray();
     }
@@ -726,6 +734,10 @@ trait WithPagosDesglose
                 'moneda_simbolo' => $fp['moneda_info']['simbolo'] ?? '',
                 'moneda_id' => $fp['moneda_id'],
                 'cotizacion' => $fp['ultima_tasa'] ?? 0,
+                // Snapshot id+tasa al abrir el modal: si entre abrir y confirmar
+                // se carga una cotizacion nueva, el pago igual queda atado a la
+                // que el cajero efectivamente vio en pantalla.
+                'tipo_cambio_id' => $fp['ultima_tasa_id'] ?? null,
                 'monto_extranjera' => null,
                 'total_venta' => $totalConAjuste,
                 'ajuste_porcentaje' => $ajuste,
@@ -809,6 +821,7 @@ trait WithPagosDesglose
             'cuotas' => 1,
             'monto_recibido' => 0,
             'tipo_cambio_tasa' => null,
+            'tipo_cambio_id' => null,
             'monto_moneda_extranjera' => null,
         ];
         $this->cuotasDisponibles = [];
@@ -839,9 +852,11 @@ trait WithPagosDesglose
         // Pre-cargar tipo de cambio si es moneda extranjera
         if ($fp && ($fp['es_moneda_extranjera'] ?? false)) {
             $this->nuevoPago['tipo_cambio_tasa'] = $fp['ultima_tasa'];
+            $this->nuevoPago['tipo_cambio_id'] = $fp['ultima_tasa_id'] ?? null;
             $this->nuevoPago['monto_moneda_extranjera'] = null;
         } else {
             $this->nuevoPago['tipo_cambio_tasa'] = null;
+            $this->nuevoPago['tipo_cambio_id'] = null;
             $this->nuevoPago['monto_moneda_extranjera'] = null;
         }
 
@@ -950,11 +965,13 @@ trait WithPagosDesglose
         // Multi-moneda: si es moneda extranjera, convertir monto a moneda principal
         $esMonedaExtranjera = $fp['es_moneda_extranjera'] ?? false;
         $tipoCambioTasa = null;
+        $tipoCambioId = null;
         $montoMonedaOriginal = null;
         $monedaId = $fp['moneda_id'] ?? null;
 
         if ($esMonedaExtranjera) {
             $tipoCambioTasa = (float) ($this->nuevoPago['tipo_cambio_tasa'] ?? 0);
+            $tipoCambioId = $this->nuevoPago['tipo_cambio_id'] ?? null;
             if ($tipoCambioTasa <= 0) {
                 $this->dispatch('toast-error', message: __('Ingrese la cotización para esta moneda'));
 
@@ -1072,6 +1089,7 @@ trait WithPagosDesglose
             'es_moneda_extranjera' => $esMonedaExtranjera,
             'moneda_info' => $fp['moneda_info'] ?? null,
             'tipo_cambio_tasa' => $tipoCambioTasa,
+            'tipo_cambio_id' => $tipoCambioId,
             'monto_moneda_original' => $montoMonedaOriginal,
         ];
 
@@ -1400,6 +1418,7 @@ trait WithPagosDesglose
             'es_moneda_extranjera' => true,
             'moneda_info' => $fp['moneda_info'] ?? null,
             'tipo_cambio_tasa' => $cotizacion,
+            'tipo_cambio_id' => $this->pagoMonedaExtranjera['tipo_cambio_id'] ?? null,
             'monto_moneda_original' => $monto,
         ]];
 
@@ -1929,19 +1948,32 @@ trait WithPagosDesglose
                         $vuelto = (float) ($pago['vuelto'] ?? 0);
                         $esMonedaExtranjera = ! empty($pago['es_moneda_extranjera']) && ! empty($pago['tipo_cambio_tasa']);
 
+                        // Snapshot de cotizacion: usar el id+tasa capturados al abrir el
+                        // modal de cobro (no `TipoCambio::ultimaTasa()` ahora), para evitar
+                        // drift si entre apertura del modal y persistencia se carga una
+                        // cotizacion nueva. Si no vino del flow (caso defensivo), caer a
+                        // ultimaTasa actual como antes.
+                        $tcIdSnapshot = $pago['tipo_cambio_id'] ?? null;
+                        $tcTasaSnapshot = $pago['tipo_cambio_tasa'] ?? null;
+                        if ($esMonedaExtranjera && $tcIdSnapshot === null) {
+                            $tcRecord = TipoCambio::ultimaTasa($pago['moneda_id'], Moneda::obtenerPrincipal()?->id);
+                            $tcIdSnapshot = $tcRecord?->id;
+                            $tcTasaSnapshot = $tcRecord ? (float) $tcRecord->tasa_venta : $tcTasaSnapshot;
+                        }
+
                         if ($esMonedaExtranjera && $vuelto > 0) {
                             // Moneda extranjera con vuelto: ingreso por el TOTAL recibido + egreso por vuelto
                             $montoRecibido = (float) ($pago['monto_recibido'] ?? $pago['monto_final']);
                             $movimiento = MovimientoCaja::crearIngresoVenta($caja, $venta, $montoRecibido, Auth::id());
 
-                            $tcRecord = TipoCambio::ultimaTasa($pago['moneda_id'], Moneda::obtenerPrincipal()?->id);
                             $movimiento->update([
                                 'moneda_id' => $pago['moneda_id'],
                                 'monto_moneda_original' => $pago['monto_moneda_original'],
-                                'tipo_cambio_id' => $tcRecord?->id,
+                                'tipo_cambio_id' => $tcIdSnapshot,
+                                'tipo_cambio_tasa' => $tcTasaSnapshot,
                             ]);
 
-                            // Egreso por el vuelto entregado
+                            // Egreso por el vuelto entregado (siempre en moneda principal)
                             MovimientoCaja::create([
                                 'caja_id' => $caja->id,
                                 'tipo' => MovimientoCaja::TIPO_EGRESO,
@@ -1956,11 +1988,11 @@ trait WithPagosDesglose
                             $movimiento = MovimientoCaja::crearIngresoVenta($caja, $venta, $pago['monto_final'], Auth::id());
 
                             if ($esMonedaExtranjera) {
-                                $tcRecord = TipoCambio::ultimaTasa($pago['moneda_id'], Moneda::obtenerPrincipal()?->id);
                                 $movimiento->update([
                                     'moneda_id' => $pago['moneda_id'],
                                     'monto_moneda_original' => $pago['monto_moneda_original'],
-                                    'tipo_cambio_id' => $tcRecord?->id,
+                                    'tipo_cambio_id' => $tcIdSnapshot,
+                                    'tipo_cambio_tasa' => $tcTasaSnapshot,
                                 ]);
                             }
                         }
@@ -2003,6 +2035,7 @@ trait WithPagosDesglose
                         'moneda_id' => $pago['moneda_id'] ?? $fpMonedaId ?? Moneda::obtenerPrincipal()?->id,
                         'monto_moneda_original' => $pago['monto_moneda_original'] ?? null,
                         'tipo_cambio_tasa' => $pago['tipo_cambio_tasa'] ?? null,
+                        'tipo_cambio_id' => $pago['tipo_cambio_id'] ?? null,
                     ]);
 
                     // Si la forma de pago tiene cuenta empresa vinculada, registrar movimiento

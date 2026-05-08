@@ -80,6 +80,23 @@ class TipoCambio extends Model
      */
     public static function obtenerTasaVenta(int $monedaExtranjeraId, int $monedaPrincipalId): ?float
     {
+        $snapshot = static::obtenerTasaVentaConId($monedaExtranjeraId, $monedaPrincipalId);
+
+        return $snapshot['tasa'] ?? null;
+    }
+
+    /**
+     * Versión "snapshot": además de la tasa, devuelve el id del record `tipos_cambio`
+     * usado, para persistir junto con la tasa al cobrar (par id+valor inmutable).
+     *
+     * Si la búsqueda directa no encuentra y se usa la inversa, devuelve el id del
+     * record inverso. La tasa siempre se devuelve en sentido extranjera→principal
+     * (consistente con `obtenerTasaVenta()`), aunque venga de un record inverso.
+     *
+     * @return array{tasa: float, id: int}|null
+     */
+    public static function obtenerTasaVentaConId(int $monedaExtranjeraId, int $monedaPrincipalId): ?array
+    {
         // Dirección directa: extranjera→principal (ej: USD→ARS = 1400)
         $directa = static::where('moneda_origen_id', $monedaExtranjeraId)
             ->where('moneda_destino_id', $monedaPrincipalId)
@@ -88,7 +105,7 @@ class TipoCambio extends Model
             ->first();
 
         if ($directa) {
-            return (float) $directa->tasa_venta;
+            return ['tasa' => (float) $directa->tasa_venta, 'id' => $directa->id];
         }
 
         // Dirección inversa: principal→extranjera (ej: ARS→USD = 0.000714)
@@ -99,7 +116,7 @@ class TipoCambio extends Model
             ->first();
 
         if ($inversa && (float) $inversa->tasa_venta > 0) {
-            return round(1 / (float) $inversa->tasa_venta, 6);
+            return ['tasa' => round(1 / (float) $inversa->tasa_venta, 6), 'id' => $inversa->id];
         }
 
         return null;

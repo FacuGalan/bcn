@@ -49,12 +49,14 @@ class MovimientoCaja extends Model
         'cierre_turno_id',
         'moneda_id',
         'tipo_cambio_id',
+        'tipo_cambio_tasa',
         'monto_moneda_original',
     ];
 
     protected $casts = [
         'monto' => 'decimal:2',
         'monto_moneda_original' => 'decimal:2',
+        'tipo_cambio_tasa' => 'decimal:6',
     ];
 
     // ==================== Constantes ====================
