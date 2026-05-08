@@ -41,11 +41,12 @@ class VentaDetalle extends Model
         'lista_precio_id',        // Lista de precios usada para calcular el precio
         'cantidad',
         'precio_unitario',
-        'precio_lista',           // Precio original de lista (antes de promociones)
+        'precio_lista',           // Precio original (precio_base del articulo, antes de cualquier ajuste)
         'precio_opcionales',      // Suma de precio extra de opcionales seleccionados
         'iva_porcentaje',
         'precio_sin_iva',
         'descuento',
+        'descuento_lista',               // Descuento por linea atribuido a la lista de precios (precio_base − precio_post_lista) × cantidad. Positivo = descuento, negativo = recargo
         'descuento_promocion',           // Descuento aplicado por promociones comunes (porcentaje/monto)
         'descuento_promocion_especial',  // Atribución por item del descuento por promociones especiales (NxM/Combo/Menú)
         'descuento_cupon',               // Descuento aplicado por cupón
@@ -75,6 +76,7 @@ class VentaDetalle extends Model
         'iva_porcentaje' => 'decimal:2',
         'precio_sin_iva' => 'decimal:2',
         'descuento' => 'decimal:2',
+        'descuento_lista' => 'decimal:2',
         'descuento_promocion' => 'decimal:2',
         'descuento_promocion_especial' => 'decimal:2',
         'descuento_cupon' => 'decimal:2',
