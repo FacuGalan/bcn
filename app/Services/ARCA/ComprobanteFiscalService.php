@@ -670,6 +670,15 @@ class ComprobanteFiscalService
             throw new Exception('Solo se pueden anular comprobantes autorizados');
         }
 
+        // Guard contra doble emisión de NC: si la factura ya está totalmente
+        // cubierta por NC previas autorizadas, no permitir emitir una NC nueva
+        // (sería ilegal fiscalmente y desbalancearía el saldo fiscal de la venta).
+        if ($comprobanteOriginal->saldoFiscalPendiente() <= 0.01) {
+            throw new Exception(
+                "El comprobante #{$comprobanteOriginal->id} ya está totalmente anulado fiscalmente por NC previas"
+            );
+        }
+
         // Cargar relaciones necesarias del comprobante original
         $comprobanteOriginal->load(['detallesIva', 'items', 'sucursal', 'puntoVenta', 'cuit', 'cliente.condicionIva']);
 

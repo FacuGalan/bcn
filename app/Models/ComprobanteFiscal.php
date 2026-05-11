@@ -223,6 +223,26 @@ class ComprobanteFiscal extends Model
     }
 
     /**
+     * Saldo fiscal pendiente de este comprobante (solo aplica a facturas).
+     *
+     * Cálculo: total de la factura − suma de NC autorizadas asociadas.
+     * Si el saldo es ≤ 0.01, la factura ya está totalmente anulada fiscalmente
+     * y NO se debe emitir más NC sobre ella (lo cual viola fiscalmente AFIP).
+     *
+     * Para no-facturas, devuelve 0 (no aplica).
+     */
+    public function saldoFiscalPendiente(): float
+    {
+        if (! $this->esFactura()) {
+            return 0.0;
+        }
+
+        $ncAsociadas = (float) $this->notasCredito()->autorizados()->sum('total');
+
+        return (float) $this->total - $ncAsociadas;
+    }
+
+    /**
      * Verifica si el CAE está vigente
      */
     public function tieneCAEVigente(): bool

@@ -3,12 +3,14 @@
 namespace Tests\Unit\Services;
 
 use App\Models\Caja;
+use App\Models\ComprobanteFiscal;
 use App\Models\MovimientoCaja;
 use App\Models\Receta;
 use App\Models\Stock;
 use App\Models\Venta;
 use App\Models\VentaDetalle;
 use App\Models\VentaPago;
+use App\Services\ARCA\ComprobanteFiscalService;
 use App\Services\VentaService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -538,5 +540,173 @@ class VentaServiceCancelacionTest extends TestCase
         $this->assertEquals(1.00, (float) $contra->monto_moneda_original);
         $this->assertEquals(42, $contra->usuario_id);
         $this->assertEquals($contra->id, $original->anulado_por_movimiento_id);
+    }
+
+    // =========================================================================
+    // PR K (M1): guard contra doble emisión de NC
+    // =========================================================================
+
+    /**
+     * Helper: crea una factura autorizada mínima asociada a una venta.
+     */
+    private function crearFacturaAutorizada(Venta $venta, float $total = 500): ComprobanteFiscal
+    {
+        $condIva = \App\Models\CondicionIva::firstOrCreate(
+            ['codigo' => 1],
+            ['nombre' => 'Responsable Inscripto', 'activo' => true]
+        );
+        $cuit = \App\Models\Cuit::firstOrCreate(
+            ['numero_cuit' => '20111111113'],
+            ['razon_social' => 'Test SA', 'condicion_iva_id' => $condIva->id, 'entorno_afip' => 'testing', 'activo' => true]
+        );
+        $pv = \App\Models\PuntoVenta::firstOrCreate(
+            ['cuit_id' => $cuit->id, 'numero' => 1],
+            ['nombre' => 'PV Test', 'activo' => true]
+        );
+
+        $cf = ComprobanteFiscal::create([
+            'sucursal_id' => $this->sucursalId,
+            'punto_venta_id' => $pv->id,
+            'cuit_id' => $cuit->id,
+            'condicion_iva_id' => $condIva->id,
+            'tipo' => 'factura_b',
+            'letra' => 'B',
+            'punto_venta_numero' => 1,
+            'numero_comprobante' => random_int(1, 999999),
+            'fecha_emision' => now()->toDateString(),
+            'receptor_nombre' => 'Consumidor Final',
+            'receptor_documento_tipo' => '99',
+            'receptor_documento_numero' => '0',
+            'neto_gravado' => round($total / 1.21, 2),
+            'iva_total' => round($total - ($total / 1.21), 2),
+            'total' => $total,
+            'estado' => 'autorizado',
+            'usuario_id' => $venta->usuario_id,
+        ]);
+
+        // Asociar a la venta via pivot
+        $venta->comprobantesFiscales()->attach($cf->id, [
+            'monto' => $total,
+            'es_anulacion' => false,
+        ]);
+
+        return $cf;
+    }
+
+    /**
+     * Helper: crea una NC autorizada asociada a una factura.
+     */
+    private function crearNCAutorizada(ComprobanteFiscal $factura, float $monto): ComprobanteFiscal
+    {
+        return ComprobanteFiscal::create([
+            'sucursal_id' => $factura->sucursal_id,
+            'punto_venta_id' => $factura->punto_venta_id,
+            'cuit_id' => $factura->cuit_id,
+            'condicion_iva_id' => $factura->condicion_iva_id,
+            'comprobante_asociado_id' => $factura->id,
+            'tipo' => 'nota_credito_b',
+            'letra' => 'B',
+            'punto_venta_numero' => $factura->punto_venta_numero,
+            'numero_comprobante' => random_int(1, 999999),
+            'fecha_emision' => now()->toDateString(),
+            'receptor_nombre' => $factura->receptor_nombre,
+            'receptor_documento_tipo' => $factura->receptor_documento_tipo,
+            'receptor_documento_numero' => $factura->receptor_documento_numero,
+            'neto_gravado' => round($monto / 1.21, 2),
+            'iva_total' => round($monto - ($monto / 1.21), 2),
+            'total' => $monto,
+            'estado' => 'autorizado',
+            'usuario_id' => $factura->usuario_id,
+        ]);
+    }
+
+    /**
+     * Limpia el pivot comprobante_fiscal_ventas para esta venta.
+     * Necesario porque pymes_test tiene leftover y los IDs autoincrement
+     * se reciclan, "heredando" comprobantes ajenos.
+     */
+    private function aislarComprobantes(Venta $venta): void
+    {
+        \Illuminate\Support\Facades\DB::connection('pymes_tenant')
+            ->table('comprobante_fiscal_ventas')
+            ->where('venta_id', $venta->id)
+            ->delete();
+    }
+
+    public function test_saldo_fiscal_pendiente_sin_nc_es_total_completo(): void
+    {
+        $venta = $this->crearVentaBasica();
+        $this->aislarComprobantes($venta);
+        $factura = $this->crearFacturaAutorizada($venta, 1000);
+
+        $this->assertEquals(1000.0, $factura->saldoFiscalPendiente());
+    }
+
+    public function test_saldo_fiscal_pendiente_con_nc_parcial(): void
+    {
+        $venta = $this->crearVentaBasica();
+        $this->aislarComprobantes($venta);
+        $factura = $this->crearFacturaAutorizada($venta, 1000);
+        $this->crearNCAutorizada($factura, 300);
+
+        $this->assertEquals(700.0, $factura->saldoFiscalPendiente());
+    }
+
+    public function test_saldo_fiscal_pendiente_con_nc_total_es_cero(): void
+    {
+        $venta = $this->crearVentaBasica();
+        $this->aislarComprobantes($venta);
+        $factura = $this->crearFacturaAutorizada($venta, 1000);
+        $this->crearNCAutorizada($factura, 1000);
+
+        $this->assertEqualsWithDelta(0.0, $factura->saldoFiscalPendiente(), 0.01);
+    }
+
+    public function test_saldo_fiscal_pendiente_de_nota_credito_es_cero(): void
+    {
+        $venta = $this->crearVentaBasica();
+        $this->aislarComprobantes($venta);
+        $factura = $this->crearFacturaAutorizada($venta, 1000);
+        $nc = $this->crearNCAutorizada($factura, 500);
+
+        $this->assertEquals(0.0, $nc->saldoFiscalPendiente(), 'NC no aplica saldo fiscal');
+    }
+
+    public function test_crear_nota_credito_falla_si_factura_ya_cubierta(): void
+    {
+        $venta = $this->crearVentaBasica();
+        $this->aislarComprobantes($venta);
+        $factura = $this->crearFacturaAutorizada($venta, 1000);
+        $this->crearNCAutorizada($factura, 1000);
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessageMatches('/ya está totalmente anulado fiscalmente/');
+
+        $service = new ComprobanteFiscalService;
+        $service->crearNotaCredito($factura, $venta, 'Reintento');
+    }
+
+    public function test_anular_solo_parte_fiscal_falla_si_todas_facturas_cubiertas(): void
+    {
+        $venta = $this->crearVentaBasica();
+        $this->aislarComprobantes($venta);
+        $factura = $this->crearFacturaAutorizada($venta, 1000);
+        $this->crearNCAutorizada($factura, 1000);
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessageMatches('/ya tiene todas sus facturas anuladas fiscalmente/');
+
+        $this->ventaService->anularSoloParteFiscal($venta->id, 'Test doble NC');
+    }
+
+    public function test_anular_solo_parte_fiscal_sin_comprobantes_falla_con_mensaje_distinto(): void
+    {
+        $venta = $this->crearVentaBasica();
+        $this->aislarComprobantes($venta);
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessageMatches('/no tiene comprobantes fiscales/');
+
+        $this->ventaService->anularSoloParteFiscal($venta->id);
     }
 }
