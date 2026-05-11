@@ -961,30 +961,16 @@ class VentaService
             $ahora = now();
             $notasCredito = [];
 
-            // 0. Si tiene comprobantes fiscales y se debe emitir NC
-            // Primero calculamos el saldo fiscal neto (facturas - notas de crédito)
-            $todosComprobantes = $venta->comprobantesFiscales()
+            // 0. Si tiene comprobantes fiscales y se debe emitir NC.
+            // Filtramos facturas con saldo fiscal pendiente (las cubiertas por NC
+            // previas se saltan silenciosamente para no emitir NC duplicada).
+            $facturasParaAnular = $venta->comprobantesFiscales()
                 ->autorizados()
-                ->get();
+                ->get()
+                ->filter(fn ($cf) => $cf->esFactura() && $cf->saldoFiscalPendiente() > 0.01)
+                ->values();
 
-            $saldoFiscal = 0;
-            $facturasParaAnular = [];
-
-            foreach ($todosComprobantes as $cf) {
-                if ($cf->esFactura()) {
-                    // Verificar si esta factura ya tiene NC asociada
-                    $ncAsociadas = $cf->notasCredito()->autorizados()->sum('total');
-                    $saldoPendiente = floatval($cf->total) - floatval($ncAsociadas);
-
-                    if ($saldoPendiente > 0.01) {
-                        $saldoFiscal += $saldoPendiente;
-                        $facturasParaAnular[] = $cf;
-                    }
-                }
-            }
-
-            // Solo emitir NC si hay saldo fiscal pendiente
-            if ($saldoFiscal > 0.01 && $emitirNotaCredito && count($facturasParaAnular) > 0) {
+            if ($emitirNotaCredito && $facturasParaAnular->count() > 0) {
                 $comprobanteFiscalService = new ComprobanteFiscalService;
 
                 foreach ($facturasParaAnular as $comprobante) {
@@ -1144,22 +1130,29 @@ class VentaService
                 throw new Exception('La venta está cancelada');
             }
 
-            // Obtener solo facturas autorizadas (no NC)
-            $comprobantesFiscales = $venta->comprobantesFiscales()
+            // Obtener facturas autorizadas con saldo fiscal pendiente.
+            // Las cubiertas por NC previas se filtran (no se emite NC duplicada).
+            $facturasConSaldo = $venta->comprobantesFiscales()
                 ->facturas()
                 ->autorizados()
-                ->get();
+                ->get()
+                ->filter(fn ($cf) => $cf->saldoFiscalPendiente() > 0.01)
+                ->values();
 
-            if ($comprobantesFiscales->count() === 0) {
+            if ($venta->comprobantesFiscales()->facturas()->autorizados()->count() === 0) {
                 throw new Exception('La venta no tiene comprobantes fiscales para anular');
+            }
+
+            if ($facturasConSaldo->count() === 0) {
+                throw new Exception('Esta venta ya tiene todas sus facturas anuladas fiscalmente por NC previas');
             }
 
             $usuarioId = Auth::id();
             $notasCredito = [];
             $comprobanteFiscalService = new ComprobanteFiscalService;
 
-            // 1. Emitir nota de crédito para cada comprobante fiscal
-            foreach ($comprobantesFiscales as $comprobante) {
+            // 1. Emitir NC solo para facturas con saldo pendiente
+            foreach ($facturasConSaldo as $comprobante) {
                 $notaCredito = $comprobanteFiscalService->crearNotaCredito(
                     $comprobante,
                     $venta,
