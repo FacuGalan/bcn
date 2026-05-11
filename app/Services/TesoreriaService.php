@@ -89,6 +89,7 @@ class TesoreriaService
             // Calcular equivalente ARS para moneda extranjera
             $montoARS = $monto;
             $tipoCambioId = null;
+            $tasa = null;
             if ($esMonedaExtranjera) {
                 $monedaPrincipal = \App\Models\Moneda::obtenerPrincipal();
                 if ($monedaPrincipal) {
@@ -97,11 +98,13 @@ class TesoreriaService
                         $montoARS = round($montoOriginal * $tasa, 2);
                         $tcRecord = \App\Models\TipoCambio::ultimaTasa($monedaId, $monedaPrincipal->id);
                         $tipoCambioId = $tcRecord?->id;
+                    } else {
+                        $tasa = null; // si tasa <= 0, ignorar
                     }
                 }
             }
 
-            // 1. Crear registro de provisión
+            // 1. Crear registro de provisión (con snapshot id+tasa si es ME)
             $provision = ProvisionFondo::create([
                 'tesoreria_id' => $tesoreria->id,
                 'caja_id' => $caja->id,
@@ -112,6 +115,8 @@ class TesoreriaService
                 'observaciones' => $observaciones,
                 'moneda_id' => $monedaId,
                 'monto_moneda_original' => $montoOriginal,
+                'tipo_cambio_id' => $tipoCambioId,
+                'tipo_cambio_tasa' => $tasa,
             ]);
 
             if ($esMonedaExtranjera) {
@@ -123,10 +128,13 @@ class TesoreriaService
                     $usuarioId,
                     $monedaId,
                     MovimientoTesoreria::REFERENCIA_PROVISION,
-                    $provision->id
+                    $provision->id,
+                    null,
+                    $tipoCambioId,
+                    $tasa
                 );
 
-                // 3a. Registrar ingreso en caja con moneda y equivalente ARS
+                // 3a. Registrar ingreso en caja con moneda y equivalente ARS (snapshot completo)
                 $movimientoCaja = MovimientoCaja::create([
                     'caja_id' => $caja->id,
                     'tipo' => 'ingreso',
@@ -138,6 +146,7 @@ class TesoreriaService
                     'moneda_id' => $monedaId,
                     'monto_moneda_original' => $montoOriginal,
                     'tipo_cambio_id' => $tipoCambioId,
+                    'tipo_cambio_tasa' => $tasa,
                 ]);
 
                 // 4a. Actualizar saldo de la caja con equivalente ARS

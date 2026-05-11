@@ -194,6 +194,7 @@ class CobroService
                     'moneda_id' => $pago['moneda_id'] ?? $fpMoneda?->moneda_id ?? Moneda::obtenerPrincipal()?->id,
                     'monto_moneda_original' => $pago['monto_moneda_original'] ?? null,
                     'tipo_cambio_tasa' => $pago['tipo_cambio_tasa'] ?? null,
+                    'tipo_cambio_id' => $pago['tipo_cambio_id'] ?? null,
                 ]);
 
                 // Si afecta caja, crear movimiento de caja

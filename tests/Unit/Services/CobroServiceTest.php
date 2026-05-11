@@ -822,4 +822,82 @@ class CobroServiceTest extends TestCase
         $this->expectExceptionMessage('cerrado en un turno');
         $this->cobroService->anularCobro($cobro->id, 'No deberia poder');
     }
+
+    // =========================================================================
+    // PR M (Repaso 3): snapshot id+tasa en CobroPago
+    // =========================================================================
+
+    public function test_registrar_cobro_propaga_tipo_cambio_id_en_cobro_pago(): void
+    {
+        $cliente = $this->crearClienteConCC($this->sucursalId);
+        $venta = $this->crearVentaCC($cliente->id, 1500);
+        $ventaPago = VentaPago::where('venta_id', $venta->id)
+            ->where('es_cuenta_corriente', true)->first();
+
+        $efectivo = $this->crearFormaPagoEfectivo();
+
+        $cobro = $this->cobroService->registrarCobro(
+            [
+                'sucursal_id' => $this->sucursalId,
+                'cliente_id' => $cliente->id,
+                'caja_id' => null,
+                'descuento_aplicado' => 0,
+                'saldo_favor_usado' => 0,
+            ],
+            [
+                [
+                    'venta_pago_id' => $ventaPago->id,
+                    'venta_id' => $venta->id,
+                    'monto_aplicado' => 1500,
+                    'interes_aplicado' => 0,
+                ],
+            ],
+            [
+                [
+                    'forma_pago_id' => $efectivo['formaPago']->id,
+                    'concepto_pago_id' => $efectivo['concepto']->id,
+                    'monto_base' => 1500,
+                    'monto_final' => 1500,
+                    'afecta_caja' => false,
+                    // ME: snapshot id+tasa
+                    'moneda_id' => 7,
+                    'monto_moneda_original' => 1.00,
+                    'tipo_cambio_tasa' => 1500.000000,
+                    'tipo_cambio_id' => 42,
+                ],
+            ],
+        );
+
+        $cobroPago = \App\Models\CobroPago::where('cobro_id', $cobro->id)->first();
+        $this->assertEquals(7, $cobroPago->moneda_id);
+        $this->assertEquals(42, $cobroPago->tipo_cambio_id, 'CobroPago debe persistir tipo_cambio_id');
+        $this->assertEquals('1500.000000', $cobroPago->tipo_cambio_tasa);
+        $this->assertEquals('1.00', $cobroPago->monto_moneda_original);
+    }
+
+    public function test_registrar_cobro_sin_tipo_cambio_id_queda_null(): void
+    {
+        $cliente = $this->crearClienteConCC($this->sucursalId);
+        $venta = $this->crearVentaCC($cliente->id, 1000);
+        $ventaPago = VentaPago::where('venta_id', $venta->id)
+            ->where('es_cuenta_corriente', true)->first();
+
+        $efectivo = $this->crearFormaPagoEfectivo();
+
+        $cobro = $this->cobroService->registrarCobro(
+            [
+                'sucursal_id' => $this->sucursalId,
+                'cliente_id' => $cliente->id,
+                'caja_id' => null,
+                'descuento_aplicado' => 0,
+                'saldo_favor_usado' => 0,
+            ],
+            [['venta_pago_id' => $ventaPago->id, 'venta_id' => $venta->id, 'monto_aplicado' => 1000, 'interes_aplicado' => 0]],
+            [['forma_pago_id' => $efectivo['formaPago']->id, 'concepto_pago_id' => $efectivo['concepto']->id, 'monto_base' => 1000, 'monto_final' => 1000, 'afecta_caja' => false]],
+        );
+
+        $cobroPago = \App\Models\CobroPago::where('cobro_id', $cobro->id)->first();
+        $this->assertNull($cobroPago->tipo_cambio_id);
+        $this->assertNull($cobroPago->tipo_cambio_tasa);
+    }
 }
