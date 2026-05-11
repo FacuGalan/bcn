@@ -1215,10 +1215,12 @@ CREATE TABLE `{{PREFIX}}movimientos_caja` (
   `tipo_cambio_id` bigint(20) unsigned DEFAULT NULL,
   `tipo_cambio_tasa` decimal(14,6) DEFAULT NULL COMMENT 'Snapshot del valor de la tasa al momento del movimiento. Inmutable aunque se edite el record tipos_cambio',
   `monto_moneda_original` decimal(14,2) DEFAULT NULL,
+  `anulado_por_movimiento_id` bigint(20) unsigned DEFAULT NULL COMMENT 'FK logico self-reference al contraasiento que anula este movimiento (patron append-only)',
   PRIMARY KEY (`id`),
   KEY `idx_caja` (`caja_id`),
   KEY `idx_tipo` (`tipo`),
   KEY `{{PREFIX}}movimientos_caja_cierre_turno_id_index` (`cierre_turno_id`),
+  KEY `idx_mc_anulado_por` (`anulado_por_movimiento_id`),
   CONSTRAINT `{{PREFIX}}movimientos_caja_caja_id_foreign` FOREIGN KEY (`caja_id`) REFERENCES `{{PREFIX}}cajas` (`id`) ON DELETE CASCADE,
   CONSTRAINT `{{PREFIX}}movimientos_caja_cierre_turno_id_foreign` FOREIGN KEY (`cierre_turno_id`) REFERENCES `{{PREFIX}}cierres_turno` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=193 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

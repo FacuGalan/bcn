@@ -267,6 +267,7 @@ class MovimientosManuales extends Component
                     'referencia_tipo' => $mov->referencia_tipo,
                     'moneda_simbolo' => $mov->moneda?->simbolo,
                     'monto_moneda_original' => $mov->monto_moneda_original,
+                    'anulado' => $mov->anulado_por_movimiento_id !== null,
                 ];
             })
             ->toArray();

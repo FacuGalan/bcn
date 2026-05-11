@@ -51,6 +51,7 @@ class MovimientoCaja extends Model
         'tipo_cambio_id',
         'tipo_cambio_tasa',
         'monto_moneda_original',
+        'anulado_por_movimiento_id',  // FK logico al contraasiento que anula este movimiento
     ];
 
     protected $casts = [
@@ -126,6 +127,22 @@ class MovimientoCaja extends Model
     public function referencia(): MorphTo
     {
         return $this->morphTo('referencia', 'referencia_tipo', 'referencia_id');
+    }
+
+    /**
+     * Contraasiento que anula este movimiento (si fue anulado).
+     */
+    public function anuladoPorMovimiento(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'anulado_por_movimiento_id');
+    }
+
+    /**
+     * Movimiento original que este contraasiento anula (relación inversa).
+     */
+    public function anula(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(self::class, 'anulado_por_movimiento_id');
     }
 
     // ==================== Scopes ====================
@@ -212,6 +229,22 @@ class MovimientoCaja extends Model
         return $query->where('cierre_turno_id', $cierreTurnoId);
     }
 
+    /**
+     * Movimientos no anulados (sin contraasiento vinculado).
+     */
+    public function scopeNoAnulado($query)
+    {
+        return $query->whereNull('anulado_por_movimiento_id');
+    }
+
+    /**
+     * Movimientos anulados (con contraasiento vinculado).
+     */
+    public function scopeAnulado($query)
+    {
+        return $query->whereNotNull('anulado_por_movimiento_id');
+    }
+
     // ==================== Métodos auxiliares ====================
 
     /**
@@ -268,6 +301,14 @@ class MovimientoCaja extends Model
     public function esDeCobro(): bool
     {
         return $this->referencia_tipo === self::REF_COBRO;
+    }
+
+    /**
+     * Verifica si este movimiento fue anulado por un contraasiento.
+     */
+    public function estaAnulado(): bool
+    {
+        return $this->anulado_por_movimiento_id !== null;
     }
 
     /**
@@ -340,6 +381,65 @@ class MovimientoCaja extends Model
             'referencia_tipo' => self::REF_RETIRO,
             'referencia_id' => null,
         ]);
+    }
+
+    /**
+     * Crea un contraasiento que anula este movimiento (patrón append-only).
+     *
+     * Tanto el original como el contraasiento permanecen activos en BD y se
+     * cancelan matemáticamente entre sí. El original queda vinculado al
+     * contraasiento via `anulado_por_movimiento_id`.
+     *
+     * El contraasiento preserva moneda + tipo_cambio_id + tipo_cambio_tasa +
+     * monto_moneda_original del original (snapshot inmutable).
+     *
+     * Ajusta el saldo de la caja según el tipo del contraasiento (responsabilidad
+     * del factory, no del caller).
+     *
+     * @param  string  $referenciaTipo  REF_ANULACION_VENTA o REF_ANULACION_COBRO típicamente
+     * @param  int|null  $referenciaId  Si null, usa el referencia_id del original
+     * @param  string|null  $conceptoOverride  Si null, prefija "Anulación: " al concepto original
+     */
+    public static function crearContraasiento(
+        self $movimientoOriginal,
+        int $usuarioId,
+        string $referenciaTipo,
+        ?int $referenciaId = null,
+        ?string $conceptoOverride = null
+    ): self {
+        $tipoInverso = $movimientoOriginal->tipo === self::TIPO_INGRESO
+            ? self::TIPO_EGRESO
+            : self::TIPO_INGRESO;
+
+        $caja = $movimientoOriginal->caja;
+
+        $contraasiento = static::create([
+            'caja_id' => $movimientoOriginal->caja_id,
+            'tipo' => $tipoInverso,
+            'concepto' => $conceptoOverride ?? "Anulación: {$movimientoOriginal->concepto}",
+            'monto' => $movimientoOriginal->monto,
+            'usuario_id' => $usuarioId,
+            'referencia_tipo' => $referenciaTipo,
+            'referencia_id' => $referenciaId ?? $movimientoOriginal->referencia_id,
+            'moneda_id' => $movimientoOriginal->moneda_id,
+            'tipo_cambio_id' => $movimientoOriginal->tipo_cambio_id,
+            'tipo_cambio_tasa' => $movimientoOriginal->tipo_cambio_tasa,
+            'monto_moneda_original' => $movimientoOriginal->monto_moneda_original,
+        ]);
+
+        $movimientoOriginal->update([
+            'anulado_por_movimiento_id' => $contraasiento->id,
+        ]);
+
+        if ($caja) {
+            if ($tipoInverso === self::TIPO_EGRESO) {
+                $caja->disminuirSaldo($movimientoOriginal->monto);
+            } else {
+                $caja->aumentarSaldo($movimientoOriginal->monto);
+            }
+        }
+
+        return $contraasiento;
     }
 
     // ==================== MÉTODOS DE CIERRE ====================
