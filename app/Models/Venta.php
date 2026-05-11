@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Modelo Venta
@@ -45,7 +44,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int|null $cierre_turno_id
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
- * @property \Carbon\Carbon|null $deleted_at
  * @property-read Sucursal $sucursal
  * @property-read CierreTurno|null $cierreTurno
  * @property-read Cliente|null $cliente
@@ -58,8 +56,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Venta extends Model
 {
-    use SoftDeletes;
-
     protected $connection = 'pymes_tenant';
 
     protected $table = 'ventas';
