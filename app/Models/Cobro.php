@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Modelo de Cobro
@@ -16,8 +15,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Cobro extends Model
 {
-    use SoftDeletes;
-
     protected $connection = 'pymes_tenant';
 
     protected $table = 'cobros';
