@@ -1007,38 +1007,27 @@ class VentaService
                 if ($pago->afecta_caja && $pago->movimiento_caja_id) {
                     $movimiento = MovimientoCaja::find($pago->movimiento_caja_id);
                     if ($movimiento && $venta->caja) {
-                        // Crear contra-movimiento (egreso) para anular el ingreso
-                        MovimientoCaja::create([
-                            'caja_id' => $venta->caja_id,
-                            'tipo' => MovimientoCaja::TIPO_EGRESO,
-                            'concepto' => "Anulación Venta #{$venta->numero}",
-                            'monto' => $movimiento->monto,
-                            'usuario_id' => $usuarioId,
-                            'referencia_tipo' => MovimientoCaja::REF_ANULACION_VENTA,
-                            'referencia_id' => $venta->id,
-                            'moneda_id' => $movimiento->moneda_id,
-                            'tipo_cambio_id' => $movimiento->tipo_cambio_id,
-                            'monto_moneda_original' => $movimiento->monto_moneda_original,
-                        ]);
-                        $venta->caja->disminuirSaldo($movimiento->monto);
+                        MovimientoCaja::crearContraasiento(
+                            $movimiento,
+                            $usuarioId,
+                            MovimientoCaja::REF_ANULACION_VENTA,
+                            $venta->id,
+                            "Anulación Venta #{$venta->numero}"
+                        );
 
-                        // Revertir egreso de vuelto por moneda extranjera si existe
                         $movVuelto = MovimientoCaja::where('referencia_tipo', MovimientoCaja::REF_VUELTO_VENTA)
                             ->where('referencia_id', $venta->id)
                             ->where('caja_id', $venta->caja_id)
+                            ->noAnulado()
                             ->first();
                         if ($movVuelto) {
-                            // Crear contra-movimiento (ingreso) para anular el vuelto
-                            MovimientoCaja::create([
-                                'caja_id' => $venta->caja_id,
-                                'tipo' => MovimientoCaja::TIPO_INGRESO,
-                                'concepto' => "Anulación vuelto Venta #{$venta->numero}",
-                                'monto' => $movVuelto->monto,
-                                'usuario_id' => $usuarioId,
-                                'referencia_tipo' => MovimientoCaja::REF_ANULACION_VENTA,
-                                'referencia_id' => $venta->id,
-                            ]);
-                            $venta->caja->aumentarSaldo($movVuelto->monto);
+                            MovimientoCaja::crearContraasiento(
+                                $movVuelto,
+                                $usuarioId,
+                                MovimientoCaja::REF_ANULACION_VENTA,
+                                $venta->id,
+                                "Anulación vuelto Venta #{$venta->numero}"
+                            );
                         }
                     }
                 }
@@ -1263,20 +1252,13 @@ class VentaService
                 if ($pago->afecta_caja && $pago->movimiento_caja_id) {
                     $movimiento = MovimientoCaja::find($pago->movimiento_caja_id);
                     if ($movimiento && $venta->caja) {
-                        // Crear contra-movimiento (egreso) para anular el ingreso
-                        MovimientoCaja::create([
-                            'caja_id' => $venta->caja_id,
-                            'tipo' => MovimientoCaja::TIPO_EGRESO,
-                            'concepto' => "Anulación pago Venta #{$venta->numero} (pase a Cta. Cte.)",
-                            'monto' => $movimiento->monto,
-                            'usuario_id' => $usuarioId,
-                            'referencia_tipo' => MovimientoCaja::REF_ANULACION_VENTA,
-                            'referencia_id' => $venta->id,
-                            'moneda_id' => $movimiento->moneda_id,
-                            'tipo_cambio_id' => $movimiento->tipo_cambio_id,
-                            'monto_moneda_original' => $movimiento->monto_moneda_original,
-                        ]);
-                        $venta->caja->disminuirSaldo($movimiento->monto);
+                        MovimientoCaja::crearContraasiento(
+                            $movimiento,
+                            $usuarioId,
+                            MovimientoCaja::REF_ANULACION_VENTA,
+                            $venta->id,
+                            "Anulación pago Venta #{$venta->numero} (pase a Cta. Cte.)"
+                        );
                     }
                 }
 

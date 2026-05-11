@@ -509,38 +509,27 @@ class CobroService
                     $movimiento = MovimientoCaja::find($pago->movimiento_caja_id);
                     $caja = $cobro->caja;
                     if ($movimiento && $caja) {
-                        // Crear contra-movimiento (egreso) para anular el ingreso
-                        MovimientoCaja::create([
-                            'caja_id' => $caja->id,
-                            'tipo' => MovimientoCaja::TIPO_EGRESO,
-                            'concepto' => "Anulación Cobro #{$cobro->id}",
-                            'monto' => $movimiento->monto,
-                            'usuario_id' => $usuarioId,
-                            'referencia_tipo' => MovimientoCaja::REF_ANULACION_COBRO,
-                            'referencia_id' => $cobro->id,
-                            'moneda_id' => $movimiento->moneda_id,
-                            'tipo_cambio_id' => $movimiento->tipo_cambio_id,
-                            'monto_moneda_original' => $movimiento->monto_moneda_original,
-                        ]);
-                        $caja->disminuirSaldo($movimiento->monto);
+                        MovimientoCaja::crearContraasiento(
+                            $movimiento,
+                            $usuarioId,
+                            MovimientoCaja::REF_ANULACION_COBRO,
+                            $cobro->id,
+                            "Anulación Cobro #{$cobro->id}"
+                        );
 
-                        // Revertir egreso de vuelto por moneda extranjera si existe
                         $movVuelto = MovimientoCaja::where('referencia_tipo', MovimientoCaja::REF_VUELTO_COBRO)
                             ->where('referencia_id', $cobro->id)
                             ->where('caja_id', $caja->id)
+                            ->noAnulado()
                             ->first();
                         if ($movVuelto) {
-                            // Crear contra-movimiento (ingreso) para anular el vuelto
-                            MovimientoCaja::create([
-                                'caja_id' => $caja->id,
-                                'tipo' => MovimientoCaja::TIPO_INGRESO,
-                                'concepto' => "Anulación vuelto Cobro #{$cobro->id}",
-                                'monto' => $movVuelto->monto,
-                                'usuario_id' => $usuarioId,
-                                'referencia_tipo' => MovimientoCaja::REF_ANULACION_COBRO,
-                                'referencia_id' => $cobro->id,
-                            ]);
-                            $caja->aumentarSaldo($movVuelto->monto);
+                            MovimientoCaja::crearContraasiento(
+                                $movVuelto,
+                                $usuarioId,
+                                MovimientoCaja::REF_ANULACION_COBRO,
+                                $cobro->id,
+                                "Anulación vuelto Cobro #{$cobro->id}"
+                            );
                         }
                     }
                 }

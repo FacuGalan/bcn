@@ -2,6 +2,8 @@
 
 namespace Tests\Unit\Services;
 
+use App\Models\Caja;
+use App\Models\MovimientoCaja;
 use App\Models\Receta;
 use App\Models\Stock;
 use App\Models\Venta;
@@ -409,5 +411,132 @@ class VentaServiceCancelacionTest extends TestCase
         ]);
 
         return $venta;
+    }
+
+    /**
+     * Crea una venta con pago efectivo que SI afecta caja (con movimiento_caja_id).
+     * Necesario para testear el patron append-only de MovimientoCaja en anulaciones.
+     */
+    private function crearVentaConPagoQueAfectaCaja(array $overrides = []): array
+    {
+        $caja = $overrides['_caja'] ?? $this->crearCajaAbierta($this->sucursalId);
+        $venta = $this->crearVentaBasica(array_merge(['_caja' => $caja], $overrides));
+
+        $efectivoData = $this->crearFormaPagoEfectivo();
+
+        $movimiento = MovimientoCaja::crearIngresoVenta(
+            $caja,
+            $venta,
+            (float) $venta->total_final,
+            (int) $venta->usuario_id
+        );
+        $caja->aumentarSaldo((float) $venta->total_final);
+
+        $pago = VentaPago::create([
+            'venta_id' => $venta->id,
+            'forma_pago_id' => $efectivoData['formaPago']->id,
+            'concepto_pago_id' => $efectivoData['concepto']->id,
+            'monto_base' => (float) $venta->total_final,
+            'ajuste_porcentaje' => 0,
+            'monto_ajuste' => 0,
+            'monto_final' => (float) $venta->total_final,
+            'saldo_pendiente' => 0,
+            'es_cuenta_corriente' => false,
+            'afecta_caja' => true,
+            'movimiento_caja_id' => $movimiento->id,
+            'estado' => 'activo',
+        ]);
+
+        return ['venta' => $venta, 'caja' => $caja, 'movimiento' => $movimiento, 'pago' => $pago];
+    }
+
+    // =========================================================================
+    // PR H: patrón append-only en MovimientoCaja (anulado_por_movimiento_id)
+    // =========================================================================
+
+    public function test_anular_venta_vincula_movimiento_original_con_contraasiento(): void
+    {
+        ['venta' => $venta, 'movimiento' => $movOriginal] = $this->crearVentaConPagoQueAfectaCaja();
+
+        $this->ventaService->cancelarVentaCompleta($venta->id, 'Test patron append-only', false);
+
+        $movOriginal->refresh();
+        $contraasiento = MovimientoCaja::where('referencia_tipo', MovimientoCaja::REF_ANULACION_VENTA)
+            ->where('referencia_id', $venta->id)
+            ->first();
+
+        $this->assertNotNull($contraasiento, 'Debe existir el contraasiento de anulación');
+        $this->assertEquals(
+            $contraasiento->id,
+            $movOriginal->anulado_por_movimiento_id,
+            'El movimiento original debe quedar vinculado al contraasiento'
+        );
+        $this->assertTrue($movOriginal->estaAnulado());
+        $this->assertNull($contraasiento->anulado_por_movimiento_id, 'El contraasiento no se anula a sí mismo');
+        $this->assertEquals(MovimientoCaja::TIPO_EGRESO, $contraasiento->tipo, 'Contraasiento de ingreso debe ser egreso');
+    }
+
+    public function test_anular_venta_ajusta_saldo_caja_via_factory(): void
+    {
+        ['venta' => $venta, 'caja' => $caja] = $this->crearVentaConPagoQueAfectaCaja();
+        $saldoConVenta = (float) $caja->fresh()->saldo_actual;
+
+        $this->ventaService->cancelarVentaCompleta($venta->id, 'Test saldo', false);
+
+        $caja->refresh();
+        $this->assertEquals(
+            $saldoConVenta - (float) $venta->total_final,
+            (float) $caja->saldo_actual,
+            'El factory debe disminuir el saldo de la caja al crear contraasiento egreso'
+        );
+    }
+
+    public function test_movimiento_no_anulado_tiene_anulado_por_null(): void
+    {
+        ['movimiento' => $mov] = $this->crearVentaConPagoQueAfectaCaja();
+
+        $this->assertNull($mov->anulado_por_movimiento_id);
+        $this->assertFalse($mov->estaAnulado());
+        $this->assertTrue(
+            MovimientoCaja::noAnulado()->where('id', $mov->id)->exists(),
+            'Scope noAnulado() debe incluir movimientos sin contraasiento'
+        );
+    }
+
+    public function test_factory_crear_contraasiento_invierte_tipo_y_preserva_moneda(): void
+    {
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+        $original = MovimientoCaja::create([
+            'caja_id' => $caja->id,
+            'tipo' => MovimientoCaja::TIPO_INGRESO,
+            'concepto' => 'Pago en USD',
+            'monto' => 1500.00,
+            'usuario_id' => 1,
+            'referencia_tipo' => MovimientoCaja::REF_VENTA,
+            'referencia_id' => 999,
+            'moneda_id' => 2,
+            'tipo_cambio_id' => 5,
+            'tipo_cambio_tasa' => 1500.0,
+            'monto_moneda_original' => 1.0,
+        ]);
+        $caja->aumentarSaldo(1500.00);
+
+        $contra = MovimientoCaja::crearContraasiento(
+            $original,
+            42,
+            MovimientoCaja::REF_ANULACION_VENTA,
+            999
+        );
+        $original->refresh();
+
+        $this->assertEquals(MovimientoCaja::TIPO_EGRESO, $contra->tipo);
+        $this->assertEquals('Anulación: Pago en USD', $contra->concepto);
+        $this->assertEquals(1500.00, (float) $contra->monto);
+        $this->assertEquals(2, $contra->moneda_id, 'Preserva moneda');
+        $this->assertEquals(5, $contra->tipo_cambio_id, 'Preserva tipo_cambio_id (snapshot id+tasa)');
+        $this->assertEquals('1500.000000', $contra->tipo_cambio_tasa, 'Preserva tipo_cambio_tasa');
+        $this->assertEquals(1.00, (float) $contra->monto_moneda_original);
+        $this->assertEquals(42, $contra->usuario_id);
+        $this->assertEquals($contra->id, $original->anulado_por_movimiento_id);
     }
 }

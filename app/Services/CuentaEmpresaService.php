@@ -86,7 +86,11 @@ class CuentaEmpresaService
     }
 
     /**
-     * Revertir movimiento (contraasiento append-only)
+     * Revertir movimiento (wrapper transaccional sobre el factory del modelo).
+     *
+     * La lógica del contraasiento vive en MovimientoCuentaEmpresa::crearContraasiento
+     * para uniformar con MovimientoStock/Punto/CuentaCorriente. Este wrapper preserva
+     * la API pública y agrega transacción + log.
      */
     public static function revertirMovimiento(
         int $movimientoId,
@@ -96,46 +100,11 @@ class CuentaEmpresaService
         return DB::connection('pymes_tenant')->transaction(function () use ($movimientoId, $motivo, $usuarioId) {
             $movimientoOriginal = MovimientoCuentaEmpresa::findOrFail($movimientoId);
 
-            if ($movimientoOriginal->esAnulado()) {
-                throw new Exception('El movimiento ya fue anulado');
-            }
-
-            // Bloquear la cuenta
-            $cuenta = CuentaEmpresa::lockForUpdate()->find($movimientoOriginal->cuenta_empresa_id);
-
-            // Tipo inverso para contraasiento
-            $tipoInverso = $movimientoOriginal->tipo === 'ingreso' ? 'egreso' : 'ingreso';
-
-            $saldoAnterior = $cuenta->saldo_actual;
-            $saldoPosterior = $tipoInverso === 'ingreso'
-                ? $saldoAnterior + $movimientoOriginal->monto
-                : $saldoAnterior - $movimientoOriginal->monto;
-
-            // Crear contraasiento
-            $contraasiento = MovimientoCuentaEmpresa::create([
-                'cuenta_empresa_id' => $cuenta->id,
-                'tipo' => $tipoInverso,
-                'concepto_movimiento_cuenta_id' => $movimientoOriginal->concepto_movimiento_cuenta_id,
-                'concepto_descripcion' => "Anulación: {$motivo}",
-                'monto' => $movimientoOriginal->monto,
-                'saldo_anterior' => $saldoAnterior,
-                'saldo_posterior' => $saldoPosterior,
-                'origen_tipo' => $movimientoOriginal->origen_tipo,
-                'origen_id' => $movimientoOriginal->origen_id,
-                'usuario_id' => $usuarioId,
-                'sucursal_id' => $movimientoOriginal->sucursal_id,
-                'estado' => 'activo',
-                'observaciones' => $motivo,
-            ]);
-
-            // Marcar original como anulado (ambos quedan activos, se cancelan matemáticamente)
-            $movimientoOriginal->update([
-                'estado' => 'anulado',
-                'anulado_por_movimiento_id' => $contraasiento->id,
-            ]);
-
-            // Actualizar saldo
-            $cuenta->update(['saldo_actual' => $saldoPosterior]);
+            $contraasiento = MovimientoCuentaEmpresa::crearContraasiento(
+                $movimientoOriginal,
+                $motivo,
+                $usuarioId
+            );
 
             Log::info('Movimiento cuenta empresa revertido', [
                 'movimiento_original_id' => $movimientoId,

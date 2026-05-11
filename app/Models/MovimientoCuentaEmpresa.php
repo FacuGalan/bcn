@@ -159,4 +159,60 @@ class MovimientoCuentaEmpresa extends Model
     {
         return $this->movimientoAnulado !== null;
     }
+
+    /**
+     * Crea un contraasiento que anula este movimiento (patrón append-only).
+     *
+     * El contraasiento queda con estado='activo' y el original pasa a
+     * estado='anulado' + anulado_por_movimiento_id apuntando al contraasiento.
+     * Ambos quedan en BD y se cancelan matemáticamente.
+     *
+     * Actualiza el saldo_actual de la cuenta. Asume que la cuenta está
+     * bloqueada (lockForUpdate) por el caller cuando aplica.
+     *
+     * @throws \Exception si el movimiento ya fue anulado.
+     */
+    public static function crearContraasiento(
+        self $movimientoOriginal,
+        string $motivo,
+        int $usuarioId
+    ): self {
+        if ($movimientoOriginal->esAnulado()) {
+            throw new \Exception('El movimiento ya fue anulado');
+        }
+
+        $cuenta = CuentaEmpresa::lockForUpdate()->find($movimientoOriginal->cuenta_empresa_id);
+
+        $tipoInverso = $movimientoOriginal->tipo === 'ingreso' ? 'egreso' : 'ingreso';
+
+        $saldoAnterior = $cuenta->saldo_actual;
+        $saldoPosterior = $tipoInverso === 'ingreso'
+            ? $saldoAnterior + $movimientoOriginal->monto
+            : $saldoAnterior - $movimientoOriginal->monto;
+
+        $contraasiento = static::create([
+            'cuenta_empresa_id' => $cuenta->id,
+            'tipo' => $tipoInverso,
+            'concepto_movimiento_cuenta_id' => $movimientoOriginal->concepto_movimiento_cuenta_id,
+            'concepto_descripcion' => "Anulación: {$motivo}",
+            'monto' => $movimientoOriginal->monto,
+            'saldo_anterior' => $saldoAnterior,
+            'saldo_posterior' => $saldoPosterior,
+            'origen_tipo' => $movimientoOriginal->origen_tipo,
+            'origen_id' => $movimientoOriginal->origen_id,
+            'usuario_id' => $usuarioId,
+            'sucursal_id' => $movimientoOriginal->sucursal_id,
+            'estado' => 'activo',
+            'observaciones' => $motivo,
+        ]);
+
+        $movimientoOriginal->update([
+            'estado' => 'anulado',
+            'anulado_por_movimiento_id' => $contraasiento->id,
+        ]);
+
+        $cuenta->update(['saldo_actual' => $saldoPosterior]);
+
+        return $contraasiento;
+    }
 }

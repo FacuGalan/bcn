@@ -366,7 +366,7 @@
                     @if(count($movimientosRecientes) > 0)
                     <div class="space-y-2">
                         @foreach($movimientosRecientes as $mov)
-                        <div class="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <div class="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg {{ !empty($mov['anulado']) ? 'opacity-60' : '' }}">
                             <div class="flex items-center gap-3">
                                 <div class="w-8 h-8 rounded-full {{ $mov['tipo'] === 'ingreso' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30' }} flex items-center justify-center">
                                     @if($mov['tipo'] === 'ingreso')
@@ -380,12 +380,17 @@
                                     @endif
                                 </div>
                                 <div>
-                                    <p class="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[200px]">{{ $mov['concepto'] }}</p>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ $mov['fecha'] }} - {{ $mov['usuario'] }}</p>
+                                    <p class="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[200px] {{ !empty($mov['anulado']) ? 'line-through' : '' }}">{{ $mov['concepto'] }}</p>
+                                    <div class="flex items-center gap-1">
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ $mov['fecha'] }} - {{ $mov['usuario'] }}</p>
+                                        @if(!empty($mov['anulado']))
+                                        <span class="px-1.5 py-0.5 text-[10px] font-semibold uppercase rounded bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">{{ __('Anulado') }}</span>
+                                        @endif
+                                    </div>
                                 </div>
                             </div>
                             <div class="text-right">
-                                <span class="font-medium {{ $mov['tipo'] === 'ingreso' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
+                                <span class="font-medium {{ $mov['tipo'] === 'ingreso' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }} {{ !empty($mov['anulado']) ? 'line-through' : '' }}">
                                     {{ $mov['tipo'] === 'ingreso' ? '+' : '-' }}${{ number_format($mov['monto'], 2, ',', '.') }}
                                 </span>
                                 @if(!empty($mov['moneda_simbolo']) && $mov['monto_moneda_original'])

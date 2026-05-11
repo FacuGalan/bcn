@@ -974,19 +974,13 @@ class CambioFormaPagoService
         if ($vp->afecta_caja && $vp->movimiento_caja_id) {
             $movimiento = MovimientoCaja::find($vp->movimiento_caja_id);
             if ($movimiento && $venta?->caja) {
-                MovimientoCaja::create([
-                    'caja_id' => $venta->caja_id,
-                    'tipo' => MovimientoCaja::TIPO_EGRESO,
-                    'concepto' => "Anulación pago Venta #{$venta->numero} (cambio de FP)",
-                    'monto' => $movimiento->monto,
-                    'usuario_id' => $usuarioId,
-                    'referencia_tipo' => MovimientoCaja::REF_ANULACION_VENTA,
-                    'referencia_id' => $venta->id,
-                    'moneda_id' => $movimiento->moneda_id,
-                    'tipo_cambio_id' => $movimiento->tipo_cambio_id,
-                    'monto_moneda_original' => $movimiento->monto_moneda_original,
-                ]);
-                $venta->caja->disminuirSaldo($movimiento->monto);
+                MovimientoCaja::crearContraasiento(
+                    $movimiento,
+                    $usuarioId,
+                    MovimientoCaja::REF_ANULACION_VENTA,
+                    $venta->id,
+                    "Anulación pago Venta #{$venta->numero} (cambio de FP)"
+                );
             }
         }
 
