@@ -72,6 +72,12 @@ trait WithTenant
         'venta_pago_ajustes',
         'tipos_cambio',
         'monedas',
+        'pedidos_mostrador_pagos',
+        'pedido_mostrador_promociones',
+        'pedido_mostrador_detalle_promociones',
+        'pedido_mostrador_detalle_opcionales',
+        'pedidos_mostrador_detalle',
+        'pedidos_mostrador',
     ];
 
     protected function setUpTenant(): void

@@ -1,0 +1,273 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+/**
+ * Modelo PedidoMostrador
+ *
+ * Representa un pedido por mostrador: documento operativo con su propio ciclo
+ * de vida (estado_pedido + estado_pago) que eventualmente se convierte en Venta
+ * via PedidoMostradorService::convertirEnVenta(). Hasta entonces no emite
+ * comprobante fiscal y los pagos no van a venta_pagos.
+ *
+ * Ver spec completo en .claude/specs/pedidos-mostrador.md.
+ *
+ * @property int $id
+ * @property int|null $numero
+ * @property string|null $identificador
+ * @property string|null $numero_beeper
+ * @property int $sucursal_id
+ * @property int|null $cliente_id
+ * @property string|null $nombre_cliente_temporal
+ * @property string|null $telefono_cliente_temporal
+ * @property int|null $caja_id
+ * @property int|null $canal_venta_id
+ * @property int|null $forma_venta_id
+ * @property int|null $lista_precio_id
+ * @property int $usuario_id
+ * @property \Carbon\Carbon $fecha
+ * @property string $estado_pedido
+ * @property string $estado_pago
+ * @property float $subtotal
+ * @property float $iva
+ * @property float $descuento
+ * @property float $total
+ * @property float $ajuste_forma_pago
+ * @property float $total_final
+ * @property int|null $venta_id
+ * @property \Carbon\Carbon|null $convertido_at
+ */
+class PedidoMostrador extends Model
+{
+    use SoftDeletes;
+
+    protected $connection = 'pymes_tenant';
+
+    protected $table = 'pedidos_mostrador';
+
+    public const ESTADO_BORRADOR = 'borrador';
+
+    public const ESTADO_CONFIRMADO = 'confirmado';
+
+    public const ESTADO_EN_PREPARACION = 'en_preparacion';
+
+    public const ESTADO_LISTO = 'listo';
+
+    public const ESTADO_ENTREGADO = 'entregado';
+
+    public const ESTADO_FACTURADO = 'facturado';
+
+    public const ESTADO_CANCELADO = 'cancelado';
+
+    public const ESTADOS = [
+        self::ESTADO_BORRADOR => 'Borrador',
+        self::ESTADO_CONFIRMADO => 'Confirmado',
+        self::ESTADO_EN_PREPARACION => 'En preparación',
+        self::ESTADO_LISTO => 'Listo',
+        self::ESTADO_ENTREGADO => 'Entregado',
+        self::ESTADO_FACTURADO => 'Facturado',
+        self::ESTADO_CANCELADO => 'Cancelado',
+    ];
+
+    public const ESTADO_PAGO_PENDIENTE = 'pendiente';
+
+    public const ESTADO_PAGO_PARCIAL = 'parcial';
+
+    public const ESTADO_PAGO_PAGADO = 'pagado';
+
+    public const ESTADOS_PAGO = [
+        self::ESTADO_PAGO_PENDIENTE => 'Pendiente',
+        self::ESTADO_PAGO_PARCIAL => 'Parcial',
+        self::ESTADO_PAGO_PAGADO => 'Pagado',
+    ];
+
+    /**
+     * Transiciones de estado_pedido permitidas. Servicio valida contra este mapa.
+     */
+    public const TRANSICIONES_PERMITIDAS = [
+        self::ESTADO_BORRADOR => [self::ESTADO_CONFIRMADO, self::ESTADO_CANCELADO],
+        self::ESTADO_CONFIRMADO => [self::ESTADO_EN_PREPARACION, self::ESTADO_LISTO, self::ESTADO_ENTREGADO, self::ESTADO_CANCELADO],
+        self::ESTADO_EN_PREPARACION => [self::ESTADO_LISTO, self::ESTADO_ENTREGADO, self::ESTADO_CANCELADO],
+        self::ESTADO_LISTO => [self::ESTADO_ENTREGADO, self::ESTADO_CANCELADO],
+        self::ESTADO_ENTREGADO => [self::ESTADO_FACTURADO, self::ESTADO_CANCELADO],
+        self::ESTADO_FACTURADO => [],
+        self::ESTADO_CANCELADO => [],
+    ];
+
+    protected $fillable = [
+        'numero',
+        'identificador',
+        'numero_beeper',
+        'sucursal_id',
+        'cliente_id',
+        'nombre_cliente_temporal',
+        'telefono_cliente_temporal',
+        'caja_id',
+        'canal_venta_id',
+        'forma_venta_id',
+        'lista_precio_id',
+        'usuario_id',
+        'fecha',
+        'estado_pedido',
+        'estado_pago',
+        'subtotal',
+        'iva',
+        'descuento',
+        'total',
+        'ajuste_forma_pago',
+        'total_final',
+        'descuento_general_tipo',
+        'descuento_general_valor',
+        'descuento_general_monto',
+        'descuento_general_aplicado_por',
+        'cupon_id',
+        'cupon_codigo_snapshot',
+        'cupon_descripcion_snapshot',
+        'monto_cupon',
+        'puntos_ganados',
+        'puntos_usados',
+        'observaciones',
+        'motivo_cancelacion',
+        'confirmado_at',
+        'en_preparacion_at',
+        'listo_at',
+        'entregado_at',
+        'cancelado_at',
+        'cancelado_por_usuario_id',
+        'venta_id',
+        'convertido_at',
+    ];
+
+    protected $casts = [
+        'fecha' => 'datetime',
+        'subtotal' => 'decimal:2',
+        'iva' => 'decimal:2',
+        'descuento' => 'decimal:2',
+        'total' => 'decimal:2',
+        'ajuste_forma_pago' => 'decimal:2',
+        'total_final' => 'decimal:2',
+        'descuento_general_valor' => 'decimal:2',
+        'descuento_general_monto' => 'decimal:2',
+        'monto_cupon' => 'decimal:2',
+        'puntos_ganados' => 'integer',
+        'puntos_usados' => 'integer',
+        'confirmado_at' => 'datetime',
+        'en_preparacion_at' => 'datetime',
+        'listo_at' => 'datetime',
+        'entregado_at' => 'datetime',
+        'cancelado_at' => 'datetime',
+        'convertido_at' => 'datetime',
+    ];
+
+    // ==================== RELACIONES ====================
+
+    public function sucursal(): BelongsTo
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
+
+    public function cliente(): BelongsTo
+    {
+        return $this->belongsTo(Cliente::class, 'cliente_id');
+    }
+
+    public function caja(): BelongsTo
+    {
+        return $this->belongsTo(Caja::class, 'caja_id');
+    }
+
+    public function listaPrecio(): BelongsTo
+    {
+        return $this->belongsTo(ListaPrecio::class, 'lista_precio_id');
+    }
+
+    public function venta(): BelongsTo
+    {
+        return $this->belongsTo(Venta::class, 'venta_id');
+    }
+
+    public function cupon(): BelongsTo
+    {
+        return $this->belongsTo(Cupon::class, 'cupon_id');
+    }
+
+    public function detalles(): HasMany
+    {
+        return $this->hasMany(PedidoMostradorDetalle::class, 'pedido_mostrador_id');
+    }
+
+    public function pagos(): HasMany
+    {
+        return $this->hasMany(PedidoMostradorPago::class, 'pedido_mostrador_id');
+    }
+
+    public function promociones(): HasMany
+    {
+        return $this->hasMany(PedidoMostradorPromocion::class, 'pedido_mostrador_id');
+    }
+
+    // ==================== SCOPES ====================
+
+    public function scopePorSucursal(Builder $query, int $sucursalId): Builder
+    {
+        return $query->where('sucursal_id', $sucursalId);
+    }
+
+    public function scopePorEstado(Builder $query, string $estado): Builder
+    {
+        return $query->where('estado_pedido', $estado);
+    }
+
+    public function scopePorEstadoPago(Builder $query, string $estadoPago): Builder
+    {
+        return $query->where('estado_pago', $estadoPago);
+    }
+
+    public function scopeActivos(Builder $query): Builder
+    {
+        return $query->whereNotIn('estado_pedido', [self::ESTADO_FACTURADO, self::ESTADO_CANCELADO]);
+    }
+
+    public function scopeHoy(Builder $query): Builder
+    {
+        return $query->whereDate('fecha', today());
+    }
+
+    // ==================== ACCESSORS ====================
+
+    public function getEsBorradorAttribute(): bool
+    {
+        return $this->estado_pedido === self::ESTADO_BORRADOR;
+    }
+
+    public function getEstaFacturadoAttribute(): bool
+    {
+        return $this->estado_pedido === self::ESTADO_FACTURADO;
+    }
+
+    public function getEstaCanceladoAttribute(): bool
+    {
+        return $this->estado_pedido === self::ESTADO_CANCELADO;
+    }
+
+    public function getEsClienteTemporalAttribute(): bool
+    {
+        return $this->cliente_id === null && ! empty($this->nombre_cliente_temporal);
+    }
+
+    public function getNombreClienteFinalAttribute(): ?string
+    {
+        return $this->cliente?->nombre ?? $this->nombre_cliente_temporal;
+    }
+
+    public function getTelefonoClienteFinalAttribute(): ?string
+    {
+        return $this->cliente?->telefono ?? $this->telefono_cliente_temporal;
+    }
+}
