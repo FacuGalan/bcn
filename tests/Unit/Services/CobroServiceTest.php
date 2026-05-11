@@ -900,4 +900,49 @@ class CobroServiceTest extends TestCase
         $this->assertNull($cobroPago->tipo_cambio_id);
         $this->assertNull($cobroPago->tipo_cambio_tasa);
     }
+
+    /**
+     * PR N: contrato post-fix de GestionarCobranzas livewire.
+     *
+     * El livewire ahora propaga moneda_id (capturado desde la FP) en cada pago
+     * del desglose. Aún no captura tipo_cambio (requiere flujo de selección de
+     * tasa en UI, pendiente). Este test confirma que el service maneja ese
+     * estado intermedio: moneda_id se persiste, snapshot tasa queda null.
+     */
+    public function test_registrar_cobro_con_moneda_id_sin_snapshot_persiste_moneda(): void
+    {
+        $cliente = $this->crearClienteConCC($this->sucursalId);
+        $venta = $this->crearVentaCC($cliente->id, 1000);
+        $ventaPago = VentaPago::where('venta_id', $venta->id)
+            ->where('es_cuenta_corriente', true)->first();
+
+        $efectivo = $this->crearFormaPagoEfectivo();
+
+        $cobro = $this->cobroService->registrarCobro(
+            [
+                'sucursal_id' => $this->sucursalId,
+                'cliente_id' => $cliente->id,
+                'caja_id' => null,
+                'descuento_aplicado' => 0,
+                'saldo_favor_usado' => 0,
+            ],
+            [['venta_pago_id' => $ventaPago->id, 'venta_id' => $venta->id, 'monto_aplicado' => 1000, 'interes_aplicado' => 0]],
+            [[
+                'forma_pago_id' => $efectivo['formaPago']->id,
+                'concepto_pago_id' => $efectivo['concepto']->id,
+                'monto_base' => 1000,
+                'monto_final' => 1000,
+                'afecta_caja' => false,
+                // Estado intermedio del livewire post-fix: trae moneda_id pero no tasa.
+                'moneda_id' => 7,
+                'tipo_cambio_id' => null,
+                'tipo_cambio_tasa' => null,
+            ]],
+        );
+
+        $cobroPago = \App\Models\CobroPago::where('cobro_id', $cobro->id)->first();
+        $this->assertEquals(7, $cobroPago->moneda_id, 'moneda_id del livewire debe persistirse, no caer al fallback principal');
+        $this->assertNull($cobroPago->tipo_cambio_id);
+        $this->assertNull($cobroPago->tipo_cambio_tasa);
+    }
 }

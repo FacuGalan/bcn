@@ -1720,7 +1720,7 @@
                             <div class="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-gray-50 dark:bg-gray-700"
                                 x-data="{
                                     busqueda: '',
-                                    fpSeleccionadaId: @entangle('nuevoPago.forma_pago_id'),
+                                    fpSeleccionadaId: @entangle('nuevoPago.forma_pago_id').live,
                                     formasPago: @js(collect($formasPagoSucursal)->where('es_mixta', false)->values()->toArray()),
                                     navIndex: -1,
                                     cols: window.innerWidth >= 640 ? 4 : 3,
@@ -1838,6 +1838,8 @@
                                 {{-- FP seleccionada: mostrar chip + monto + agregar --}}
                                 <template x-if="fpSeleccionadaId">
                                     <div x-data="{
+                                        montoLocal: @entangle('nuevoPago.monto').live,
+                                        tasaLocal: @entangle('nuevoPago.tipo_cambio_tasa').live,
                                         get fpActual() {
                                             return formasPago.find(fp => fp.id == fpSeleccionadaId) || null;
                                         },
@@ -1851,6 +1853,14 @@
                                         get codigoLabel() {
                                             if (!this.fpActual) return '';
                                             return this.fpActual.codigo || this.fpActual.nombre.substring(0,3).toUpperCase();
+                                        },
+                                        get equivalente() {
+                                            const m = parseFloat(this.montoLocal) || 0;
+                                            const t = parseFloat(this.tasaLocal) || 0;
+                                            return m * t;
+                                        },
+                                        get equivalenteFormat() {
+                                            return this.equivalente.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                                         }
                                     }" x-init="$nextTick(() => { $refs.inputMontoDesglose?.focus() })">
                                         <div class="flex items-center gap-2">
@@ -1870,16 +1880,16 @@
 
                                             {{-- Monto --}}
                                             <div class="relative flex-1">
-                                                <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 dark:text-gray-400 text-xs font-medium" x-text="simbolo"></span>
+                                                <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500 dark:text-gray-400 text-xs font-medium pointer-events-none" x-text="simbolo"></span>
                                                 <input
                                                     type="number"
                                                     step="0.01"
                                                     x-ref="inputMontoDesglose"
-                                                    wire:model="nuevoPago.monto"
+                                                    x-model="montoLocal"
                                                     @keydown="handleMontoKeydown($event)"
-                                                    class="w-full pl-6 pr-2 py-1.5 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md shadow-sm focus:border-green-500 focus:ring-green-500"
-                                                    :class="esMonedaExt ? 'pl-11' : 'pl-6'"
-                                                    placeholder="{{ number_format($montoPendienteDesglose, 2, ',', '.') }}"
+                                                    class="w-full pr-2 py-1.5 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md shadow-sm focus:border-green-500 focus:ring-green-500"
+                                                    :class="esMonedaExt ? 'pl-12' : 'pl-6'"
+                                                    :placeholder="esMonedaExt ? '0.00' : '{{ number_format($montoPendienteDesglose, 2, ',', '.') }}'"
                                                     title="{{ __('Vacío = monto pendiente completo') }}">
                                             </div>
 
@@ -1905,15 +1915,13 @@
                                                         type="number"
                                                         step="0.01"
                                                         min="0"
-                                                        wire:model="nuevoPago.tipo_cambio_tasa"
+                                                        x-model="tasaLocal"
                                                         class="w-full px-2 py-1 text-sm border-amber-300 dark:border-amber-600 dark:bg-gray-800 dark:text-white rounded-md shadow-sm focus:border-amber-500 focus:ring-amber-500"
                                                         placeholder="0.00">
                                                 </div>
-                                                @if($nuevoPago['tipo_cambio_tasa'] > 0 && $nuevoPago['monto'] > 0)
-                                                    <span class="text-xs text-amber-600 dark:text-amber-400">
-                                                        = ${{ number_format((float)$nuevoPago['monto'] * (float)$nuevoPago['tipo_cambio_tasa'], 2, ',', '.') }}
-                                                    </span>
-                                                @endif
+                                                <template x-if="equivalente > 0">
+                                                    <span class="text-xs text-amber-600 dark:text-amber-400" x-text="'= $' + equivalenteFormat"></span>
+                                                </template>
                                             </div>
                                         </template>
 

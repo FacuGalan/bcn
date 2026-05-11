@@ -564,6 +564,7 @@ class GestionarCobranzas extends Component
                 'nombre' => $fp->nombre,
                 'codigo' => $fp->codigo,
                 'concepto_pago_id' => $fp->concepto_pago_id,
+                'moneda_id' => $fp->moneda_id,
                 'ajuste_porcentaje' => (float) ($pivotData?->ajuste_porcentaje ?? $fp->ajuste_porcentaje ?? 0),
                 'permite_vuelto' => $fp->permite_vuelto ?? false,
                 'permite_cuotas' => $fp->permite_cuotas ?? false,
@@ -816,6 +817,11 @@ class GestionarCobranzas extends Component
                 'cuotas_disponibles' => [],
                 'afecta_caja' => $fp['afecta_caja'],
                 'es_excedente' => false,
+                'moneda_id' => $fp['moneda_id'] ?? null,
+                'monto_moneda_original' => null,
+                'tipo_cambio_id' => null,
+                'tipo_cambio_tasa' => null,
+                'es_moneda_extranjera' => false,
             ];
 
             $this->totalAjustesFP = 0;
@@ -901,6 +907,11 @@ class GestionarCobranzas extends Component
             'permite_cuotas' => $fp['permite_cuotas'],
             'cuotas_disponibles' => $fp['cuotas'],
             'afecta_caja' => $fp['afecta_caja'],
+            'moneda_id' => $fp['moneda_id'] ?? null,
+            'monto_moneda_original' => null,
+            'tipo_cambio_id' => null,
+            'tipo_cambio_tasa' => null,
+            'es_moneda_extranjera' => false,
         ];
 
         // Recalcular totales

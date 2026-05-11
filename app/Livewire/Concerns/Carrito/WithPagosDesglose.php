@@ -1265,10 +1265,12 @@ trait WithPagosDesglose
             if ($cuotaConfig) {
                 $pago['recargo_cuotas'] = $cuotaConfig['recargo'];
                 $montoRecargo = round($montoConAjuste * ($cuotaConfig['recargo'] / 100), 2);
+                $pago['monto_recargo_cuotas'] = $montoRecargo;
                 $pago['monto_final'] = round($montoConAjuste + $montoRecargo, 2);
             }
         } else {
             $pago['recargo_cuotas'] = 0;
+            $pago['monto_recargo_cuotas'] = 0;
             $pago['monto_final'] = $montoConAjuste;
         }
 
