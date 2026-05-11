@@ -96,6 +96,7 @@ class Venta extends Model
         'descuento_general_tipo',
         'descuento_general_valor',
         'descuento_general_monto',
+        'descuento_general_aplicado_por',  // Auditoria: user.id que aplico el descuento general
         // Campos de cupones y puntos
         'cupon_id',
         'monto_cupon',

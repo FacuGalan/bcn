@@ -546,6 +546,7 @@ class NuevaVenta extends Component
             'ajuste_manual_tipo' => null,
             'ajuste_manual_valor' => null,
             'ajuste_manual_origen' => null,
+            'ajuste_manual_aplicado_por' => null,
             'precio_sin_ajuste_manual' => null,
             'opcionales' => [],
             'precio_opcionales' => 0,
@@ -570,6 +571,7 @@ class NuevaVenta extends Component
             $this->items[$lastIndex]['ajuste_manual_tipo'] = 'porcentaje';
             $this->items[$lastIndex]['ajuste_manual_valor'] = $this->descuentoGeneralValor;
             $this->items[$lastIndex]['ajuste_manual_origen'] = 'descuento_general';
+            $this->items[$lastIndex]['ajuste_manual_aplicado_por'] = $this->descuentoGeneralAplicadoPor;
             $this->items[$lastIndex]['tiene_ajuste'] = true;
         }
 
@@ -676,6 +678,7 @@ class NuevaVenta extends Component
             'ajuste_manual_tipo' => null,
             'ajuste_manual_valor' => null,
             'ajuste_manual_origen' => null,
+            'ajuste_manual_aplicado_por' => null,
             'precio_sin_ajuste_manual' => null,
             'opcionales' => [],
             'precio_opcionales' => 0,
@@ -696,6 +699,7 @@ class NuevaVenta extends Component
             $this->items[$lastIndex]['ajuste_manual_tipo'] = 'porcentaje';
             $this->items[$lastIndex]['ajuste_manual_valor'] = $this->descuentoGeneralValor;
             $this->items[$lastIndex]['ajuste_manual_origen'] = 'descuento_general';
+            $this->items[$lastIndex]['ajuste_manual_aplicado_por'] = $this->descuentoGeneralAplicadoPor;
             $this->items[$lastIndex]['tiene_ajuste'] = true;
         }
 
@@ -1300,6 +1304,7 @@ class NuevaVenta extends Component
                     'descuento_general_tipo' => $this->descuentoGeneralActivo ? $this->descuentoGeneralTipo : null,
                     'descuento_general_valor' => $this->descuentoGeneralActivo ? $this->descuentoGeneralValor : null,
                     'descuento_general_monto' => $this->descuentoGeneralMonto,
+                    'descuento_general_aplicado_por' => $this->descuentoGeneralActivo ? $this->descuentoGeneralAplicadoPor : null,
                     // Cupón (RF-19)
                     'cupon_id' => $this->cuponAplicado && $this->cuponInfo ? $this->cuponInfo['id'] : null,
                     'monto_cupon' => $this->cuponMontoDescuento,

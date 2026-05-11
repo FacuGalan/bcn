@@ -589,4 +589,158 @@ class VentaReproducibilidadTest extends TestCase
             'Una FP con solo_sistema=false sí debe aparecer en el selector'
         );
     }
+
+    /**
+     * PR G — C3: ajuste manual por item registra quién lo aplicó.
+     */
+    public function test_persiste_ajuste_manual_aplicado_por_en_detalle(): void
+    {
+        $this->setControlStock('no_controla');
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'precio_base' => 1000,
+        ]);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+        $userId = 42;
+
+        $data = $this->datosVentaBase([
+            'caja_id' => $caja->id,
+            '_usar_totales_proporcionados' => true,
+            'subtotal' => 900,
+            'total' => 900,
+            'total_final' => 900,
+        ]);
+        $detalles = [$this->detalleVentaBase($articulo->id, [
+            'precio_unitario' => 900,
+            'precio_lista' => 1000,
+            'precio_sin_ajuste_manual' => 1000,
+            'ajuste_manual_tipo' => 'porcentaje',
+            'ajuste_manual_valor' => 10,
+            'ajuste_manual_origen' => 'manual',
+            'ajuste_manual_aplicado_por' => $userId,
+            'subtotal' => 900,
+            'total' => 900,
+        ])];
+
+        $venta = $this->ventaService->crearVenta($data, $detalles);
+        $detalle = VentaDetalle::where('venta_id', $venta->id)->first();
+
+        $this->assertEquals($userId, $detalle->ajuste_manual_aplicado_por);
+        $this->assertEquals('manual', $detalle->ajuste_manual_origen);
+    }
+
+    /**
+     * PR G — C3: descuento general monto_fijo registra quién lo aplicó en cabecera.
+     */
+    public function test_persiste_descuento_general_aplicado_por_en_venta_monto_fijo(): void
+    {
+        $this->setControlStock('no_controla');
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'precio_base' => 1000,
+        ]);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+        $userId = 99;
+
+        $data = $this->datosVentaBase([
+            'caja_id' => $caja->id,
+            '_usar_totales_proporcionados' => true,
+            'subtotal' => 1000,
+            'total' => 900,
+            'total_final' => 900,
+            'descuento_general_tipo' => 'monto_fijo',
+            'descuento_general_valor' => 100,
+            'descuento_general_monto' => 100,
+            'descuento_general_aplicado_por' => $userId,
+        ]);
+        $detalles = [$this->detalleVentaBase($articulo->id)];
+
+        $venta = $this->ventaService->crearVenta($data, $detalles);
+
+        $this->assertEquals($userId, $venta->descuento_general_aplicado_por);
+        $this->assertEquals('monto_fijo', $venta->descuento_general_tipo);
+    }
+
+    /**
+     * PR G — C3: descuento general % distribuido por item registra el user en CADA detalle.
+     */
+    public function test_persiste_aplicado_por_en_cada_detalle_con_descuento_general_porcentaje(): void
+    {
+        $this->setControlStock('no_controla');
+        $art1 = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', ['precio_base' => 1000]);
+        $art2 = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', ['precio_base' => 500]);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+        $userId = 77;
+
+        $data = $this->datosVentaBase([
+            'caja_id' => $caja->id,
+            '_usar_totales_proporcionados' => true,
+            'subtotal' => 1350,
+            'total' => 1350,
+            'total_final' => 1350,
+            'descuento_general_tipo' => 'porcentaje',
+            'descuento_general_valor' => 10,
+            'descuento_general_monto' => 150,
+            'descuento_general_aplicado_por' => $userId,
+        ]);
+        $detalles = [
+            $this->detalleVentaBase($art1->id, [
+                'precio_unitario' => 900,
+                'precio_lista' => 1000,
+                'precio_sin_ajuste_manual' => 1000,
+                'ajuste_manual_tipo' => 'porcentaje',
+                'ajuste_manual_valor' => 10,
+                'ajuste_manual_origen' => 'descuento_general',
+                'ajuste_manual_aplicado_por' => $userId,
+                'subtotal' => 900,
+                'total' => 900,
+            ]),
+            $this->detalleVentaBase($art2->id, [
+                'precio_unitario' => 450,
+                'precio_lista' => 500,
+                'precio_sin_ajuste_manual' => 500,
+                'ajuste_manual_tipo' => 'porcentaje',
+                'ajuste_manual_valor' => 10,
+                'ajuste_manual_origen' => 'descuento_general',
+                'ajuste_manual_aplicado_por' => $userId,
+                'subtotal' => 450,
+                'total' => 450,
+            ]),
+        ];
+
+        $venta = $this->ventaService->crearVenta($data, $detalles);
+        $detallesDb = VentaDetalle::where('venta_id', $venta->id)->orderBy('id')->get();
+
+        $this->assertEquals($userId, $venta->descuento_general_aplicado_por);
+        $this->assertCount(2, $detallesDb);
+        foreach ($detallesDb as $det) {
+            $this->assertEquals($userId, $det->ajuste_manual_aplicado_por, 'Cada detalle del descuento general % debe registrar el user');
+            $this->assertEquals('descuento_general', $det->ajuste_manual_origen);
+        }
+    }
+
+    /**
+     * PR G — C3: sin descuentos, los campos quedan en null (no fuerza valor).
+     */
+    public function test_aplicado_por_es_null_sin_descuentos(): void
+    {
+        $this->setControlStock('no_controla');
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'precio_base' => 1000,
+        ]);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+
+        $data = $this->datosVentaBase([
+            'caja_id' => $caja->id,
+            '_usar_totales_proporcionados' => true,
+            'subtotal' => 1000,
+            'total' => 1000,
+            'total_final' => 1000,
+        ]);
+        $detalles = [$this->detalleVentaBase($articulo->id)];
+
+        $venta = $this->ventaService->crearVenta($data, $detalles);
+        $detalle = VentaDetalle::where('venta_id', $venta->id)->first();
+
+        $this->assertNull($venta->descuento_general_aplicado_por);
+        $this->assertNull($detalle->ajuste_manual_aplicado_por);
+    }
 }

@@ -1851,6 +1851,7 @@ trait WithPagosDesglose
                     'descuento_general_tipo' => $this->descuentoGeneralActivo ? $this->descuentoGeneralTipo : null,
                     'descuento_general_valor' => $this->descuentoGeneralActivo ? $this->descuentoGeneralValor : null,
                     'descuento_general_monto' => $this->descuentoGeneralMonto,
+                    'descuento_general_aplicado_por' => $this->descuentoGeneralActivo ? $this->descuentoGeneralAplicadoPor : null,
                     // Cupón (RF-19)
                     'cupon_id' => $this->cuponAplicado && $this->cuponInfo ? $this->cuponInfo['id'] : null,
                     'monto_cupon' => $this->cuponMontoDescuento,
@@ -1899,6 +1900,7 @@ trait WithPagosDesglose
                         'ajuste_manual_tipo' => $item['ajuste_manual_tipo'] ?? null,
                         'ajuste_manual_valor' => $item['ajuste_manual_valor'] ?? null,
                         'ajuste_manual_origen' => $item['ajuste_manual_origen'] ?? null,
+                        'ajuste_manual_aplicado_por' => $item['ajuste_manual_aplicado_por'] ?? null,
                         'precio_sin_ajuste_manual' => $item['precio_sin_ajuste_manual'] ?? null,
                         // Opcionales seleccionados (conceptos no tienen opcionales)
                         'opcionales' => $esConcepto ? [] : ($item['opcionales'] ?? []),
