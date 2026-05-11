@@ -135,6 +135,7 @@ class VentaService
                 'descuento_general_tipo' => $data['descuento_general_tipo'] ?? null,
                 'descuento_general_valor' => $data['descuento_general_valor'] ?? null,
                 'descuento_general_monto' => $data['descuento_general_monto'] ?? 0,
+                'descuento_general_aplicado_por' => $data['descuento_general_aplicado_por'] ?? null,
                 // Cupón
                 'cupon_id' => $data['cupon_id'] ?? null,
                 'monto_cupon' => $data['monto_cupon'] ?? 0,
@@ -358,6 +359,7 @@ class VentaService
                 'ajuste_manual_tipo' => $detalle['ajuste_manual_tipo'] ?? null,
                 'ajuste_manual_valor' => $detalle['ajuste_manual_valor'] ?? null,
                 'ajuste_manual_origen' => $detalle['ajuste_manual_origen'] ?? null,
+                'ajuste_manual_aplicado_por' => $detalle['ajuste_manual_aplicado_por'] ?? null,
                 'precio_sin_ajuste_manual' => $detalle['precio_sin_ajuste_manual'] ?? null,
                 // Canje por puntos (solo aplicable a artículos, no a conceptos)
                 'pagado_con_puntos' => $esConcepto ? false : ($detalle['pagado_con_puntos'] ?? false),

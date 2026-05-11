@@ -58,6 +58,9 @@ trait WithDescuentos
     /** @var float|null Tope de descuento % del usuario (MAX de sus roles, null = sin tope) */
     public ?float $topeDescuentoUsuario = null;
 
+    /** @var int|null user.id que aplicó el descuento general actual (auditoría) */
+    public ?int $descuentoGeneralAplicadoPor = null;
+
     /** @var float|null Valor temporal del input en el modal */
     public ?float $descuentoGeneralInputValor = null;
 
@@ -146,6 +149,7 @@ trait WithDescuentos
         $this->items[$index]['ajuste_manual_tipo'] = $this->ajusteManualTipo;
         $this->items[$index]['ajuste_manual_valor'] = $valor;
         $this->items[$index]['ajuste_manual_origen'] = 'manual';
+        $this->items[$index]['ajuste_manual_aplicado_por'] = Auth::id();
         // Marcar que tiene ajuste (para mostrar visualmente)
         $this->items[$index]['tiene_ajuste'] = true;
 
@@ -185,6 +189,7 @@ trait WithDescuentos
         $this->items[$index]['ajuste_manual_tipo'] = null;
         $this->items[$index]['ajuste_manual_valor'] = null;
         $this->items[$index]['ajuste_manual_origen'] = null;
+        $this->items[$index]['ajuste_manual_aplicado_por'] = null;
         $this->items[$index]['precio_sin_ajuste_manual'] = null;
 
         $this->calcularVenta();
@@ -352,6 +357,7 @@ trait WithDescuentos
         $this->descuentoGeneralActivo = true;
         $this->descuentoGeneralTipo = $tipo;
         $this->descuentoGeneralValor = $valor;
+        $this->descuentoGeneralAplicadoPor = $user->id;
 
         $this->calcularVenta();
 
@@ -377,6 +383,7 @@ trait WithDescuentos
         $this->descuentoGeneralTipo = null;
         $this->descuentoGeneralValor = null;
         $this->descuentoGeneralMonto = 0;
+        $this->descuentoGeneralAplicadoPor = null;
         $this->descuentoGeneralInputValor = null;
         $this->descuentoGeneralInputTipo = 'porcentaje';
 
@@ -422,6 +429,7 @@ trait WithDescuentos
             $this->items[$index]['ajuste_manual_tipo'] = 'porcentaje';
             $this->items[$index]['ajuste_manual_valor'] = $porcentaje;
             $this->items[$index]['ajuste_manual_origen'] = 'descuento_general';
+            $this->items[$index]['ajuste_manual_aplicado_por'] = Auth::id();
             $this->items[$index]['tiene_ajuste'] = true;
         }
     }
@@ -454,6 +462,7 @@ trait WithDescuentos
             $this->items[$index]['ajuste_manual_tipo'] = null;
             $this->items[$index]['ajuste_manual_valor'] = null;
             $this->items[$index]['ajuste_manual_origen'] = null;
+            $this->items[$index]['ajuste_manual_aplicado_por'] = null;
             $this->items[$index]['precio_sin_ajuste_manual'] = null;
         }
     }

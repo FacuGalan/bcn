@@ -58,6 +58,7 @@ class VentaDetalle extends Model
         'ajuste_manual_tipo',
         'ajuste_manual_valor',
         'ajuste_manual_origen',
+        'ajuste_manual_aplicado_por',  // Auditoria: user.id que aplico el ajuste manual
         'precio_sin_ajuste_manual',
         // Campos de canje con puntos
         'pagado_con_puntos',
