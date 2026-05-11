@@ -255,7 +255,9 @@ class Tesoreria extends Model
         int $monedaId,
         ?string $referenciaTipo = null,
         ?int $referenciaId = null,
-        ?string $observaciones = null
+        ?string $observaciones = null,
+        ?int $tipoCambioId = null,
+        ?float $tipoCambioTasa = null,
     ): MovimientoTesoreria {
         // Actualizar saldo de la moneda
         $saldoMoneda = TesoreriaSaldoMoneda::obtenerOCrear($this->id, $monedaId);
@@ -278,6 +280,8 @@ class Tesoreria extends Model
             'monto_moneda_original' => $montoOriginal,
             'saldo_anterior_moneda' => $saldoAnteriorMoneda,
             'saldo_posterior_moneda' => $saldoMoneda->saldo_actual,
+            'tipo_cambio_id' => $tipoCambioId,
+            'tipo_cambio_tasa' => $tipoCambioTasa,
         ]);
     }
 
@@ -291,7 +295,9 @@ class Tesoreria extends Model
         int $monedaId,
         ?string $referenciaTipo = null,
         ?int $referenciaId = null,
-        ?string $observaciones = null
+        ?string $observaciones = null,
+        ?int $tipoCambioId = null,
+        ?float $tipoCambioTasa = null,
     ): MovimientoTesoreria {
         $saldoMoneda = TesoreriaSaldoMoneda::obtenerOCrear($this->id, $monedaId);
         $saldoAnteriorMoneda = $saldoMoneda->saldo_actual;
@@ -313,6 +319,8 @@ class Tesoreria extends Model
             'monto_moneda_original' => $montoOriginal,
             'saldo_anterior_moneda' => $saldoAnteriorMoneda,
             'saldo_posterior_moneda' => $saldoMoneda->saldo_actual,
+            'tipo_cambio_id' => $tipoCambioId,
+            'tipo_cambio_tasa' => $tipoCambioTasa,
         ]);
     }
 

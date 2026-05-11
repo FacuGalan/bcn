@@ -39,6 +39,7 @@ class CobroPago extends Model
         'moneda_id',
         'monto_moneda_original',
         'tipo_cambio_tasa',
+        'tipo_cambio_id',
         'movimiento_cuenta_empresa_id',
     ];
 
@@ -93,6 +94,11 @@ class CobroPago extends Model
     public function moneda(): BelongsTo
     {
         return $this->belongsTo(\App\Models\Moneda::class, 'moneda_id');
+    }
+
+    public function tipoCambio(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\TipoCambio::class, 'tipo_cambio_id');
     }
 
     // ==================== Scopes ====================

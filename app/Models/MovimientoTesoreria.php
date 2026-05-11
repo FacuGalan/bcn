@@ -48,6 +48,8 @@ class MovimientoTesoreria extends Model
         'monto_moneda_original',
         'saldo_anterior_moneda',
         'saldo_posterior_moneda',
+        'tipo_cambio_id',
+        'tipo_cambio_tasa',
     ];
 
     protected $casts = [
@@ -57,6 +59,7 @@ class MovimientoTesoreria extends Model
         'monto_moneda_original' => 'decimal:2',
         'saldo_anterior_moneda' => 'decimal:2',
         'saldo_posterior_moneda' => 'decimal:2',
+        'tipo_cambio_tasa' => 'decimal:6',
     ];
 
     // Tipos de referencia comunes
@@ -87,6 +90,11 @@ class MovimientoTesoreria extends Model
     public function moneda(): BelongsTo
     {
         return $this->belongsTo(Moneda::class, 'moneda_id');
+    }
+
+    public function tipoCambio(): BelongsTo
+    {
+        return $this->belongsTo(TipoCambio::class, 'tipo_cambio_id');
     }
 
     // ==================== SCOPES ====================

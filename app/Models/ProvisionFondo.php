@@ -50,11 +50,14 @@ class ProvisionFondo extends Model
         'observaciones',
         'moneda_id',
         'monto_moneda_original',
+        'tipo_cambio_id',
+        'tipo_cambio_tasa',
     ];
 
     protected $casts = [
         'monto' => 'decimal:2',
         'monto_moneda_original' => 'decimal:2',
+        'tipo_cambio_tasa' => 'decimal:6',
         'fecha' => 'datetime',
     ];
 
@@ -106,6 +109,11 @@ class ProvisionFondo extends Model
     public function moneda(): BelongsTo
     {
         return $this->belongsTo(Moneda::class, 'moneda_id');
+    }
+
+    public function tipoCambio(): BelongsTo
+    {
+        return $this->belongsTo(TipoCambio::class, 'tipo_cambio_id');
     }
 
     // ==================== SCOPES ====================

@@ -392,6 +392,7 @@ CREATE TABLE `{{PREFIX}}cobro_pagos` (
   `moneda_id` bigint(20) unsigned DEFAULT NULL,
   `monto_moneda_original` decimal(14,2) DEFAULT NULL,
   `tipo_cambio_tasa` decimal(14,6) DEFAULT NULL,
+  `tipo_cambio_id` bigint(20) unsigned DEFAULT NULL COMMENT 'FK logico a tipos_cambio.id (sin constraint). Snapshot del registro de cotizacion usado',
   `movimiento_cuenta_empresa_id` bigint(20) unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_cp_concepto` (`concepto_pago_id`),
@@ -400,6 +401,7 @@ CREATE TABLE `{{PREFIX}}cobro_pagos` (
   KEY `idx_cp_forma_pago` (`forma_pago_id`),
   KEY `idx_cp_estado` (`estado`),
   KEY `idx_cobro_pagos_cierre_turno` (`cierre_turno_id`),
+  KEY `idx_cp_tipo_cambio` (`tipo_cambio_id`),
   CONSTRAINT `{{PREFIX}}fk_cp_cobro` FOREIGN KEY (`cobro_id`) REFERENCES `{{PREFIX}}cobros` (`id`) ON DELETE CASCADE,
   CONSTRAINT `{{PREFIX}}fk_cp_concepto` FOREIGN KEY (`concepto_pago_id`) REFERENCES `{{PREFIX}}conceptos_pago` (`id`) ON DELETE SET NULL,
   CONSTRAINT `{{PREFIX}}fk_cp_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`),
@@ -1384,11 +1386,14 @@ CREATE TABLE `{{PREFIX}}movimientos_tesoreria` (
   `monto_moneda_original` decimal(14,2) DEFAULT NULL,
   `saldo_anterior_moneda` decimal(14,2) DEFAULT NULL,
   `saldo_posterior_moneda` decimal(14,2) DEFAULT NULL,
+  `tipo_cambio_id` bigint(20) unsigned DEFAULT NULL COMMENT 'FK logico a tipos_cambio.id (sin constraint). Snapshot del registro de cotizacion usado',
+  `tipo_cambio_tasa` decimal(14,6) DEFAULT NULL COMMENT 'Snapshot inmutable del valor de la tasa al momento del movimiento',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `movimientos_tesoreria_tesoreria_id_index` (`tesoreria_id`),
-  KEY `movimientos_tesoreria_created_at_index` (`created_at`)
+  KEY `movimientos_tesoreria_created_at_index` (`created_at`),
+  KEY `idx_mt_tipo_cambio` (`tipo_cambio_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=43 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}opcionales`;
 CREATE TABLE `{{PREFIX}}opcionales` (
@@ -1650,12 +1655,15 @@ CREATE TABLE `{{PREFIX}}provision_fondos` (
   `observaciones` text COLLATE utf8mb4_unicode_ci,
   `moneda_id` bigint(20) unsigned DEFAULT NULL,
   `monto_moneda_original` decimal(14,2) DEFAULT NULL,
+  `tipo_cambio_id` bigint(20) unsigned DEFAULT NULL COMMENT 'FK logico a tipos_cambio.id (sin constraint). Snapshot del registro de cotizacion usado',
+  `tipo_cambio_tasa` decimal(14,6) DEFAULT NULL COMMENT 'Snapshot inmutable del valor de la tasa al momento de la provision',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `provision_fondos_tesoreria_id_index` (`tesoreria_id`),
   KEY `provision_fondos_caja_id_index` (`caja_id`),
-  KEY `provision_fondos_fecha_index` (`fecha`)
+  KEY `provision_fondos_fecha_index` (`fecha`),
+  KEY `idx_pf_tipo_cambio` (`tipo_cambio_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}puntos_venta`;
 CREATE TABLE `{{PREFIX}}puntos_venta` (
