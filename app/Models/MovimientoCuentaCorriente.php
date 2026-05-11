@@ -107,6 +107,12 @@ class MovimientoCuentaCorriente extends Model
         'estado',
         'anulado_por_movimiento_id',
         'usuario_id',
+        // Snapshot id+tasa de moneda (PR L Repaso 3) — preserva trazabilidad
+        // del movimiento en moneda original cuando es ME. NULL = moneda principal.
+        'moneda_id',
+        'tipo_cambio_id',
+        'tipo_cambio_tasa',
+        'monto_moneda_original',
     ];
 
     protected $casts = [
@@ -115,6 +121,8 @@ class MovimientoCuentaCorriente extends Model
         'haber' => 'decimal:2',
         'saldo_favor_debe' => 'decimal:2',
         'saldo_favor_haber' => 'decimal:2',
+        'tipo_cambio_tasa' => 'decimal:6',
+        'monto_moneda_original' => 'decimal:2',
     ];
 
     // ==================== Relaciones ====================
@@ -155,6 +163,16 @@ class MovimientoCuentaCorriente extends Model
     public function anuladoPorMovimiento(): BelongsTo
     {
         return $this->belongsTo(self::class, 'anulado_por_movimiento_id');
+    }
+
+    public function moneda(): BelongsTo
+    {
+        return $this->belongsTo(Moneda::class, 'moneda_id');
+    }
+
+    public function tipoCambio(): BelongsTo
+    {
+        return $this->belongsTo(TipoCambio::class, 'tipo_cambio_id');
     }
 
     // ==================== Scopes ====================
@@ -336,6 +354,41 @@ class MovimientoCuentaCorriente extends Model
     // ==================== Métodos de creación ====================
 
     /**
+     * Extrae snapshot id+tasa de moneda desde un VentaPago/CobroPago.
+     *
+     * Si el origen tiene moneda extranjera (moneda_id no null), preserva el
+     * snapshot completo (tasa + id + monto_moneda_original) en el movimiento
+     * de CC. Permite reconstruir el movimiento en moneda original.
+     *
+     * Para moneda principal (sin moneda_id), retorna arreglo con valores null.
+     */
+    protected static function extraerSnapshotMoneda($pago, float $monto): array
+    {
+        if (! $pago || ! ($pago->moneda_id ?? null)) {
+            return [
+                'moneda_id' => null,
+                'tipo_cambio_id' => null,
+                'tipo_cambio_tasa' => null,
+                'monto_moneda_original' => null,
+            ];
+        }
+
+        // Si conocemos la tasa, recalculamos el monto en moneda original
+        // para preservar la relación monto_principal = monto_original × tasa.
+        $tasa = $pago->tipo_cambio_tasa ?? null;
+        $montoOriginal = ($tasa && $tasa > 0)
+            ? round($monto / (float) $tasa, 2)
+            : ($pago->monto_moneda_original ?? null);
+
+        return [
+            'moneda_id' => $pago->moneda_id,
+            'tipo_cambio_id' => $pago->tipo_cambio_id ?? null,
+            'tipo_cambio_tasa' => $tasa,
+            'monto_moneda_original' => $montoOriginal,
+        ];
+    }
+
+    /**
      * Crea un movimiento de venta a cuenta corriente
      */
     public static function crearMovimientoVenta(
@@ -344,7 +397,7 @@ class MovimientoCuentaCorriente extends Model
     ): self {
         $venta = $ventaPago->venta;
 
-        return static::create([
+        return static::create(array_merge([
             'cliente_id' => $venta->cliente_id,
             'sucursal_id' => $venta->sucursal_id,
             'fecha' => $venta->fecha,
@@ -360,7 +413,7 @@ class MovimientoCuentaCorriente extends Model
             'cobro_id' => null,
             'concepto' => "Venta #{$venta->numero} - Cuenta Corriente",
             'usuario_id' => $usuarioId,
-        ]);
+        ], static::extraerSnapshotMoneda($ventaPago, (float) $ventaPago->monto_final)));
     }
 
     /**
@@ -379,7 +432,13 @@ class MovimientoCuentaCorriente extends Model
             $comprobantes[] = "Ticket {$venta->numero}";
         }
 
-        return static::create([
+        // Propagar moneda desde el VentaPago original (que registró la deuda).
+        // El cobro a una venta CC en USD genera un movimiento haber en USD.
+        $ventaPagoOriginal = $cobroVenta->venta_pago_id
+            ? VentaPago::find($cobroVenta->venta_pago_id)
+            : null;
+
+        return static::create(array_merge([
             'cliente_id' => $cobro->cliente_id,
             'sucursal_id' => $cobro->sucursal_id,
             'fecha' => $cobro->fecha,
@@ -396,7 +455,7 @@ class MovimientoCuentaCorriente extends Model
             'concepto' => 'Cobro aplicado a venta',
             'descripcion_comprobantes' => implode(' | ', $comprobantes),
             'usuario_id' => $usuarioId,
-        ]);
+        ], static::extraerSnapshotMoneda($ventaPagoOriginal, (float) $cobroVenta->monto_aplicado)));
     }
 
     /**
@@ -507,7 +566,9 @@ class MovimientoCuentaCorriente extends Model
             default => self::TIPO_AJUSTE_CREDITO,
         };
 
-        // El contraasiento invierte los montos para cancelar el efecto del original
+        // El contraasiento invierte los montos para cancelar el efecto del original.
+        // Preserva snapshot id+tasa de moneda del original (PR L del Repaso 3) para
+        // que el contraasiento sea coherente con el movimiento anulado.
         $contraasiento = static::create([
             'cliente_id' => $movimientoOriginal->cliente_id,
             'sucursal_id' => $movimientoOriginal->sucursal_id,
@@ -526,6 +587,10 @@ class MovimientoCuentaCorriente extends Model
             'observaciones' => $motivo,
             'estado' => 'activo',
             'usuario_id' => $usuarioId,
+            'moneda_id' => $movimientoOriginal->moneda_id,
+            'tipo_cambio_id' => $movimientoOriginal->tipo_cambio_id,
+            'tipo_cambio_tasa' => $movimientoOriginal->tipo_cambio_tasa,
+            'monto_moneda_original' => $movimientoOriginal->monto_moneda_original,
         ]);
 
         // Vincular el original con su contraasiento (para trazabilidad)
