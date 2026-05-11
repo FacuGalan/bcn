@@ -380,6 +380,147 @@ class VentaReproducibilidadTest extends TestCase
     }
 
     /**
+     * PR F — descuento_lista refleja el ajuste de la lista de precios por línea.
+     * Caso descuento: precio_base 1000, post-lista 800, 2 unidades → descuento_lista = 400.
+     */
+    public function test_persiste_descuento_lista_cuando_lista_descuenta(): void
+    {
+        $this->setControlStock('no_controla');
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'precio_base' => 1000,
+        ]);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+
+        $data = $this->datosVentaBase([
+            'caja_id' => $caja->id,
+            '_usar_totales_proporcionados' => true,
+            'subtotal' => 1600,
+            'total' => 1600,
+            'total_final' => 1600,
+        ]);
+        $detalles = [$this->detalleVentaBase($articulo->id, [
+            'precio_unitario' => 800,    // post-lista (lista descuenta 20%)
+            'precio_lista' => 1000,      // precio_base original
+            'cantidad' => 2,
+            'subtotal' => 1600,
+            'total' => 1600,
+        ])];
+
+        $venta = $this->ventaService->crearVenta($data, $detalles);
+        $detalle = VentaDetalle::where('venta_id', $venta->id)->first();
+
+        $this->assertEquals('400.00', $detalle->descuento_lista, '(1000 − 800) × 2 = 400');
+    }
+
+    /**
+     * PR F — descuento_lista negativo cuando la lista recarga.
+     * Caso recargo: precio_base 1000, post-lista 1100 (lista +10%), 1 unidad → descuento_lista = -100.
+     */
+    public function test_persiste_descuento_lista_cuando_lista_recarga(): void
+    {
+        $this->setControlStock('no_controla');
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'precio_base' => 1000,
+        ]);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+
+        $data = $this->datosVentaBase([
+            'caja_id' => $caja->id,
+            '_usar_totales_proporcionados' => true,
+            'subtotal' => 1100,
+            'total' => 1100,
+            'total_final' => 1100,
+        ]);
+        $detalles = [$this->detalleVentaBase($articulo->id, [
+            'precio_unitario' => 1100,
+            'precio_lista' => 1000,
+            'cantidad' => 1,
+            'subtotal' => 1100,
+            'total' => 1100,
+        ])];
+
+        $venta = $this->ventaService->crearVenta($data, $detalles);
+        $detalle = VentaDetalle::where('venta_id', $venta->id)->first();
+
+        $this->assertEquals('-100.00', $detalle->descuento_lista, 'Recargo: (1000 − 1100) × 1 = -100');
+    }
+
+    /**
+     * PR F — sin lista de precios efectiva, descuento_lista = 0.
+     * Si precio_lista = precio_unitario, no hay diferencia (lista no aplicó descuento ni recargo).
+     */
+    public function test_descuento_lista_es_cero_si_no_hay_lista_aplicada(): void
+    {
+        $this->setControlStock('no_controla');
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'precio_base' => 1000,
+        ]);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+
+        $data = $this->datosVentaBase([
+            'caja_id' => $caja->id,
+            '_usar_totales_proporcionados' => true,
+            'subtotal' => 1000,
+            'total' => 1000,
+            'total_final' => 1000,
+        ]);
+        $detalles = [$this->detalleVentaBase($articulo->id, [
+            'precio_unitario' => 1000,
+            'precio_lista' => 1000,
+            'cantidad' => 1,
+        ])];
+
+        $venta = $this->ventaService->crearVenta($data, $detalles);
+        $detalle = VentaDetalle::where('venta_id', $venta->id)->first();
+
+        $this->assertEquals('0.00', $detalle->descuento_lista);
+    }
+
+    /**
+     * PR F — descuento_lista aísla la parte de la lista del ajuste_manual posterior.
+     * Si hay precio_sin_ajuste_manual, ese es el precio post-lista (pre-manual);
+     * el descuento_lista se calcula contra ese, no contra el precio_unitario final.
+     *
+     * Caso: lista descuenta 20% (1000 → 800), luego ajuste manual −10% (800 → 720).
+     * descuento_lista debe ser solo la parte de la lista: (1000 − 800) × 2 = 400.
+     */
+    public function test_descuento_lista_aisla_ajuste_manual(): void
+    {
+        $this->setControlStock('no_controla');
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'precio_base' => 1000,
+        ]);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+
+        $data = $this->datosVentaBase([
+            'caja_id' => $caja->id,
+            '_usar_totales_proporcionados' => true,
+            'subtotal' => 1440,
+            'total' => 1440,
+            'total_final' => 1440,
+        ]);
+        $detalles = [$this->detalleVentaBase($articulo->id, [
+            'precio_unitario' => 720,             // post-lista 800 menos 10% manual
+            'precio_lista' => 1000,               // precio_base
+            'precio_sin_ajuste_manual' => 800,    // post-lista, pre-manual
+            'ajuste_manual_tipo' => 'porcentaje',
+            'ajuste_manual_valor' => 10,
+            'cantidad' => 2,
+            'subtotal' => 1440,
+            'total' => 1440,
+        ])];
+
+        $venta = $this->ventaService->crearVenta($data, $detalles);
+        $detalle = VentaDetalle::where('venta_id', $venta->id)->first();
+
+        $this->assertEquals(
+            '400.00',
+            $detalle->descuento_lista,
+            'descuento_lista debe aislar el aporte de la lista: (1000 − 800) × 2 = 400, ignorando el manual'
+        );
+    }
+
+    /**
      * PR C — la FP con solo_sistema=true no aparece en CatalogoCache::formasPago().
      * Crea dos FPs de prueba (una solo_sistema=true, otra solo_sistema=false) y
      * verifica que el filtro deja afuera la primera y deja entrar la segunda.

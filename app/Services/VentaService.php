@@ -324,6 +324,16 @@ class VentaService
             // Los descuentos a nivel cabecera NO se restan acá — viven solo en `ventas`.
             $total = $subtotal - $descuentoPromocion - $descuentoPromocionEspecial - $descuentoCupon;
 
+            // Atribución por línea del descuento (o recargo) que genera la lista de precios.
+            // Aísla la parte de la lista del ajuste_manual posterior:
+            //   - Si hubo ajuste manual: precio_sin_ajuste_manual ya tiene aplicada la lista,
+            //     entonces (precio_lista − precio_sin_ajuste_manual) es solo lo de la lista.
+            //   - Si NO hubo ajuste manual: precio_unitario refleja directo la lista.
+            // Signo: positivo = la lista descontó, negativo = la lista recargó.
+            $precioLista = (float) ($detalle['precio_lista'] ?? $precioUnitario);
+            $precioPostLista = (float) ($detalle['precio_sin_ajuste_manual'] ?? $precioUnitario);
+            $descuentoLista = round(($precioLista - $precioPostLista) * $cantidad, 2);
+
             $ventaDetalle = VentaDetalle::create([
                 'venta_id' => $venta->id,
                 'articulo_id' => $articulo?->id,
@@ -331,11 +341,12 @@ class VentaService
                 'lista_precio_id' => $detalle['lista_precio_id'] ?? null,
                 'cantidad' => $cantidad,
                 'precio_unitario' => $precioUnitario,
-                'precio_lista' => $detalle['precio_lista'] ?? $precioUnitario,
+                'precio_lista' => $precioLista,
                 'precio_opcionales' => $detalle['precio_opcionales'] ?? 0,
                 'iva_porcentaje' => $ivaPorcentaje,
                 'precio_sin_iva' => round($precioSinIva, 2),
                 'descuento' => $detalle['descuento'] ?? 0,
+                'descuento_lista' => $descuentoLista,
                 'descuento_promocion' => round($descuentoPromocion, 2),
                 'descuento_promocion_especial' => round($descuentoPromocionEspecial, 2),
                 'descuento_cupon' => round($descuentoCupon, 2),
