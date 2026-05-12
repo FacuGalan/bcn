@@ -270,4 +270,29 @@ class PedidoMostrador extends Model
     {
         return $this->cliente?->telefono ?? $this->telefono_cliente_temporal;
     }
+
+    /**
+     * Suma de monto_final de pagos en estado planificado (configurados pero
+     * todavía no cobrados). Útil para la UI: "Tiene $1500 planificado en
+     * efectivo + tarjeta". No cuenta para estado_pago — eso se calcula sólo
+     * sobre activos.
+     */
+    public function getTotalPlanificadoAttribute(): float
+    {
+        return (float) $this->pagos()
+            ->where('estado', PedidoMostradorPago::ESTADO_PLANIFICADO)
+            ->sum('monto_final');
+    }
+
+    /**
+     * Suma de monto_final de pagos en estado activo (cobrados realmente).
+     * Espeja el cálculo interno de recalcularEstadoPago para que la UI tenga
+     * un único punto de verdad.
+     */
+    public function getTotalCobradoAttribute(): float
+    {
+        return (float) $this->pagos()
+            ->where('estado', PedidoMostradorPago::ESTADO_ACTIVO)
+            ->sum('monto_final');
+    }
 }

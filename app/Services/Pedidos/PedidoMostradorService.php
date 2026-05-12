@@ -264,9 +264,18 @@ class PedidoMostradorService
     // ==================== PAGOS ====================
 
     /**
-     * Agrega un pago al pedido. Crea PedidoMostradorPago y (si la forma de pago
-     * afecta caja y hay caja asignada) un MovimientoCaja con REF_PEDIDO_MOSTRADOR.
-     * Recalcula estado_pago.
+     * Agrega un pago al pedido en uno de dos modos:
+     *
+     * - Cobrado (default): crea PedidoMostradorPago en estado `activo`. Si la
+     *   forma de pago afecta caja y hay caja asignada, registra MovimientoCaja
+     *   con REF_PEDIDO_MOSTRADOR y dispara PedidoEstadoPagoCambiado.
+     *
+     * - Planificado (`$datosPago['planificado'] = true`): crea el pago en estado
+     *   `planificado`. NO crea MovimientoCaja, NO afecta el saldo de caja y NO
+     *   cuenta para `estado_pago` del pedido. Pensado para flujos donde el
+     *   pedido pre-configura cómo se va a cobrar (mesero, totem, app externa)
+     *   y la materialización ocurre después con confirmarPagoPlanificado() o
+     *   automáticamente al convertir el pedido en venta.
      */
     public function agregarPago(PedidoMostrador $pedido, array $datosPago): PedidoMostradorPago
     {
@@ -277,12 +286,16 @@ class PedidoMostradorService
             throw new Exception("No se pueden agregar pagos a un pedido en estado '{$pedido->estado_pedido}'");
         }
 
-        return DB::connection('pymes_tenant')->transaction(function () use ($pedido, $datosPago) {
+        $esPlanificado = (bool) ($datosPago['planificado'] ?? false);
+
+        return DB::connection('pymes_tenant')->transaction(function () use ($pedido, $datosPago, $esPlanificado) {
             $formaPago = FormaPago::findOrFail($datosPago['forma_pago_id']);
             $afectaCaja = (bool) ($datosPago['afecta_caja'] ?? $formaPago->afecta_caja ?? true);
 
+            // Planificado: nunca crea MovimientoCaja, aunque la forma de pago
+            // sea efectivo. La materialización viene después.
             $movimientoCajaId = null;
-            if ($afectaCaja && ! empty($pedido->caja_id)) {
+            if (! $esPlanificado && $afectaCaja && ! empty($pedido->caja_id)) {
                 $movimientoCajaId = $this->crearMovimientoCajaIngreso($pedido, $datosPago, $formaPago);
             }
 
@@ -306,7 +319,9 @@ class PedidoMostradorService
                 'es_pago_puntos' => (bool) ($datosPago['es_pago_puntos'] ?? false),
                 'puntos_usados' => $datosPago['puntos_usados'] ?? 0,
                 'afecta_caja' => $afectaCaja,
-                'estado' => PedidoMostradorPago::ESTADO_ACTIVO,
+                'estado' => $esPlanificado
+                    ? PedidoMostradorPago::ESTADO_PLANIFICADO
+                    : PedidoMostradorPago::ESTADO_ACTIVO,
                 'movimiento_caja_id' => $movimientoCajaId,
                 'creado_por_usuario_id' => (int) auth()->id() ?: $pedido->usuario_id,
                 'moneda_id' => $datosPago['moneda_id'] ?? null,
@@ -315,10 +330,72 @@ class PedidoMostradorService
                 'tipo_cambio_tasa' => $datosPago['tipo_cambio_tasa'] ?? null,
             ]);
 
+            if (! $esPlanificado) {
+                $this->recalcularEstadoPago($pedido);
+            }
+
+            return $pago->fresh();
+        });
+    }
+
+    /**
+     * Materializa un pago planificado: crea MovimientoCaja, marca `activo`,
+     * recalcula estado_pago del pedido. `$datosCobro` puede sobreescribir
+     * `monto_recibido` y `vuelto` (lo efectivamente entregado al cobrar).
+     */
+    public function confirmarPagoPlanificado(PedidoMostradorPago $pago, array $datosCobro = []): PedidoMostradorPago
+    {
+        if (! $pago->esPlanificado()) {
+            throw new Exception("Solo se pueden confirmar pagos en estado 'planificado' (actual: '{$pago->estado}')");
+        }
+
+        return DB::connection('pymes_tenant')->transaction(function () use ($pago, $datosCobro) {
+            $pedido = $pago->pedido()->first();
+            $formaPago = FormaPago::findOrFail($pago->forma_pago_id);
+
+            $update = [
+                'estado' => PedidoMostradorPago::ESTADO_ACTIVO,
+            ];
+
+            if (array_key_exists('monto_recibido', $datosCobro)) {
+                $update['monto_recibido'] = $datosCobro['monto_recibido'];
+            }
+            if (array_key_exists('vuelto', $datosCobro)) {
+                $update['vuelto'] = $datosCobro['vuelto'];
+            }
+            if (array_key_exists('referencia', $datosCobro)) {
+                $update['referencia'] = $datosCobro['referencia'];
+            }
+
+            if ($pago->afecta_caja && ! empty($pedido->caja_id)) {
+                $movimientoCajaId = $this->crearMovimientoCajaIngreso($pedido, [
+                    'monto_final' => $pago->monto_final,
+                    'moneda_id' => $pago->moneda_id,
+                    'tipo_cambio_id' => $pago->tipo_cambio_id,
+                    'tipo_cambio_tasa' => $pago->tipo_cambio_tasa,
+                    'monto_moneda_original' => $pago->monto_moneda_original,
+                ], $formaPago);
+                $update['movimiento_caja_id'] = $movimientoCajaId;
+            }
+
+            $pago->update($update);
             $this->recalcularEstadoPago($pedido);
 
             return $pago->fresh();
         });
+    }
+
+    /**
+     * Elimina un pago planificado. Como nunca afectó caja, es DELETE directo
+     * sin contraasiento. Lanza excepción si el pago no está en estado planificado.
+     */
+    public function eliminarPagoPlanificado(PedidoMostradorPago $pago): void
+    {
+        if (! $pago->esPlanificado()) {
+            throw new Exception("Solo se pueden eliminar pagos en estado 'planificado' (actual: '{$pago->estado}'). Para anular un pago activo, usar anularPago.");
+        }
+
+        $pago->delete();
     }
 
     /**
@@ -380,6 +457,11 @@ class PedidoMostradorService
                 $this->anularPago($pago, motivo: 'Cancelación del pedido');
             }
 
+            // Pagos planificados se borran directamente — nunca tocaron caja.
+            $pedido->pagos()
+                ->where('estado', PedidoMostradorPago::ESTADO_PLANIFICADO)
+                ->delete();
+
             if ($pedido->estado_pedido !== PedidoMostrador::ESTADO_BORRADOR) {
                 $this->revertirStockPorPedido($pedido, motivo: $motivo);
             }
@@ -430,6 +512,11 @@ class PedidoMostradorService
         }
 
         return DB::connection('pymes_tenant')->transaction(function () use ($pedido, $opcionesFiscales) {
+            // Materializar pagos planificados antes de migrar: cada uno crea
+            // su MovimientoCaja y pasa a estado activo. Así la venta resultante
+            // tiene todos los pagos como cobrados (igual que una venta directa).
+            $this->materializarPagosPlanificados($pedido);
+
             $pedido->load(['detalles.opcionales', 'detalles.promocionesAplicadas', 'pagos']);
 
             $datosVenta = [
@@ -815,6 +902,22 @@ class PedidoMostradorService
             ->sum('monto_final');
 
         return $pagado + 0.005 < (float) $pedido->total_final;
+    }
+
+    /**
+     * Confirma todos los pagos planificados del pedido en cadena. Usado por
+     * convertirEnVenta para que la venta resultante tenga todo el desglose
+     * como pagos activos con sus respectivos MovimientoCaja.
+     */
+    protected function materializarPagosPlanificados(PedidoMostrador $pedido): void
+    {
+        $planificados = $pedido->pagos()
+            ->where('estado', PedidoMostradorPago::ESTADO_PLANIFICADO)
+            ->get();
+
+        foreach ($planificados as $pago) {
+            $this->confirmarPagoPlanificado($pago);
+        }
     }
 
     protected function mapearDetalleAArrayVenta(PedidoMostradorDetalle $d): array
