@@ -71,6 +71,10 @@ class MovimientoStock extends Model
 
     public const TIPO_ANULACION_PRODUCCION = 'anulacion_produccion';
 
+    public const TIPO_PEDIDO_MOSTRADOR = 'pedido_mostrador';
+
+    public const TIPO_ANULACION_PEDIDO_MOSTRADOR = 'anulacion_pedido_mostrador';
+
     // Tipos de documento
     public const DOC_VENTA = 'venta';
 
@@ -87,6 +91,10 @@ class MovimientoStock extends Model
     public const DOC_INVENTARIO = 'inventario';
 
     public const DOC_PRODUCCION = 'produccion';
+
+    public const DOC_PEDIDO_MOSTRADOR = 'pedido_mostrador';
+
+    public const DOC_PEDIDO_MOSTRADOR_DETALLE = 'pedido_mostrador_detalle';
 
     protected $fillable = [
         'articulo_id',
@@ -360,6 +368,44 @@ class MovimientoStock extends Model
     }
 
     /**
+     * Crea un movimiento de salida por pedido por mostrador (stock reservado/descontado).
+     *
+     * No popula venta_id/venta_detalle_id. Si el pedido se convierte en venta,
+     * PedidoMostradorService::convertirEnVenta() actualiza esos campos y cambia
+     * tipo a TIPO_VENTA para que el reporte de stock por venta incluya este
+     * movimiento. La trazabilidad al pedido se preserva en `observaciones`.
+     */
+    public static function crearMovimientoPedidoMostrador(
+        int $articuloId,
+        int $sucursalId,
+        float $cantidad,
+        int $pedidoId,
+        int $pedidoDetalleId,
+        string $concepto,
+        int $usuarioId,
+        ?float $costoUnitario = null
+    ): self {
+        $stockResultante = static::calcularStockResultante($articuloId, $sucursalId, 0, $cantidad);
+
+        return static::create([
+            'articulo_id' => $articuloId,
+            'sucursal_id' => $sucursalId,
+            'fecha' => now()->toDateString(),
+            'tipo' => self::TIPO_PEDIDO_MOSTRADOR,
+            'entrada' => 0,
+            'salida' => $cantidad,
+            'stock_resultante' => $stockResultante,
+            'documento_tipo' => self::DOC_PEDIDO_MOSTRADOR_DETALLE,
+            'documento_id' => $pedidoDetalleId,
+            'concepto' => $concepto,
+            'observaciones' => "Pedido #{$pedidoId}",
+            'costo_unitario' => $costoUnitario,
+            'estado' => 'activo',
+            'usuario_id' => $usuarioId,
+        ]);
+    }
+
+    /**
      * Crea un movimiento de compra (entrada de stock)
      */
     public static function crearMovimientoCompra(
@@ -556,6 +602,7 @@ class MovimientoStock extends Model
             self::TIPO_VENTA => self::TIPO_ANULACION_VENTA,
             self::TIPO_COMPRA => self::TIPO_ANULACION_COMPRA,
             self::TIPO_PRODUCCION_ENTRADA, self::TIPO_PRODUCCION_SALIDA => self::TIPO_ANULACION_PRODUCCION,
+            self::TIPO_PEDIDO_MOSTRADOR => self::TIPO_ANULACION_PEDIDO_MOSTRADOR,
             default => self::TIPO_AJUSTE_MANUAL,
         };
 
@@ -619,6 +666,8 @@ class MovimientoStock extends Model
             self::TIPO_PRODUCCION_ENTRADA => 'emerald',
             self::TIPO_PRODUCCION_SALIDA => 'lime',
             self::TIPO_ANULACION_PRODUCCION => 'amber',
+            self::TIPO_PEDIDO_MOSTRADOR => 'rose',
+            self::TIPO_ANULACION_PEDIDO_MOSTRADOR => 'fuchsia',
             default => 'gray',
         };
     }
@@ -642,6 +691,8 @@ class MovimientoStock extends Model
             self::TIPO_PRODUCCION_ENTRADA => __('Producción Entrada'),
             self::TIPO_PRODUCCION_SALIDA => __('Producción Salida'),
             self::TIPO_ANULACION_PRODUCCION => __('Anulación Producción'),
+            self::TIPO_PEDIDO_MOSTRADOR => __('Pedido por mostrador'),
+            self::TIPO_ANULACION_PEDIDO_MOSTRADOR => __('Anulación pedido mostrador'),
             default => $this->tipo,
         };
     }
