@@ -12,8 +12,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Pago aplicado a un pedido por mostrador. Espejo de VentaPago SIN campos
  * fiscales (esos viven en venta_pagos despues de la conversion).
  *
- * Estados: activo / anulado.
- * Anular un pago genera contraasiento en MovimientoCaja, nunca DELETE.
+ * Estados:
+ * - planificado: pago configurado sin cobrar. NO afecta caja, NO cuenta para
+ *   estado_pago del pedido. Pensado para flujos "configuro ahora, cobro
+ *   después" (totem, mesero arma desglose y cliente paga al irse).
+ * - activo: pago efectivamente cobrado, con MovimientoCaja asociado.
+ * - anulado: contraasiento aplicado.
+ *
+ * Transiciones:
+ * - planificado -> activo (PedidoMostradorService::confirmarPagoPlanificado)
+ * - planificado -> DELETE directo (eliminarPagoPlanificado)
+ * - activo -> anulado (anularPago, genera contraasiento en MovimientoCaja)
  *
  * @property int $id
  * @property int $pedido_mostrador_id
@@ -28,6 +37,8 @@ class PedidoMostradorPago extends Model
     protected $connection = 'pymes_tenant';
 
     protected $table = 'pedidos_mostrador_pagos';
+
+    public const ESTADO_PLANIFICADO = 'planificado';
 
     public const ESTADO_ACTIVO = 'activo';
 
@@ -124,8 +135,23 @@ class PedidoMostradorPago extends Model
         return $query->where('estado', self::ESTADO_ACTIVO);
     }
 
+    public function scopePlanificados(Builder $query): Builder
+    {
+        return $query->where('estado', self::ESTADO_PLANIFICADO);
+    }
+
     public function scopePorPedido(Builder $query, int $pedidoId): Builder
     {
         return $query->where('pedido_mostrador_id', $pedidoId);
+    }
+
+    public function esPlanificado(): bool
+    {
+        return $this->estado === self::ESTADO_PLANIFICADO;
+    }
+
+    public function esActivo(): bool
+    {
+        return $this->estado === self::ESTADO_ACTIVO;
     }
 }

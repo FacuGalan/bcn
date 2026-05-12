@@ -2476,7 +2476,7 @@ CREATE TABLE `{{PREFIX}}pedidos_mostrador_pagos` (
   `es_pago_puntos` tinyint(1) NOT NULL DEFAULT '0',
   `puntos_usados` int(10) unsigned NOT NULL DEFAULT '0',
   `afecta_caja` tinyint(1) NOT NULL DEFAULT '1',
-  `estado` enum('activo','anulado') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'activo',
+  `estado` enum('activo','anulado','planificado') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'activo',
   `movimiento_caja_id` bigint(20) unsigned DEFAULT NULL,
   `anulado_por_usuario_id` bigint(20) unsigned DEFAULT NULL,
   `anulado_at` timestamp NULL DEFAULT NULL,
