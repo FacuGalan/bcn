@@ -53,11 +53,17 @@ class VentaService
      *
      * @param  array  $data  Datos de la venta
      * @param  array  $detalles  Array de detalles de la venta
+     * @param  array  $opciones  Flags opcionales:
+     *                           - 'stock_ya_descontado' (bool): si true, salta validación y descuento de stock
+     *                           porque ya fue descontado por un pedido_mostrador previo. PedidoMostradorService
+     *                           se encarga de re-asociar los movimientos_stock existentes a la venta resultante.
      *
      * @throws Exception
      */
-    public function crearVenta(array $data, array $detalles): Venta
+    public function crearVenta(array $data, array $detalles, array $opciones = []): Venta
     {
+        $stockYaDescontado = (bool) ($opciones['stock_ya_descontado'] ?? false);
+
         DB::connection('pymes_tenant')->beginTransaction();
 
         try {
@@ -68,7 +74,9 @@ class VentaService
 
             // Validar stock si los artículos controlan stock
             $this->advertenciasStock = [];
-            $this->validarStockDisponible($data['sucursal_id'], $detalles);
+            if (! $stockYaDescontado) {
+                $this->validarStockDisponible($data['sucursal_id'], $detalles);
+            }
 
             // Validar crédito del cliente si es venta a cuenta corriente
             if (isset($data['cliente_id']) && ($data['es_cuenta_corriente'] ?? false)) {
@@ -166,8 +174,10 @@ class VentaService
                 $venta->actualizarTotales();
             }
 
-            // Actualizar stock
-            $this->actualizarStockPorVenta($venta);
+            // Actualizar stock (skipeable si ya se descontó por pedido_mostrador previo)
+            if (! $stockYaDescontado) {
+                $this->actualizarStockPorVenta($venta);
+            }
 
             // NOTA: El movimiento de caja se registra desde NuevaVenta
             // para cada pago individual (desglosePagos), no aquí.

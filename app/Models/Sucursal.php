@@ -59,6 +59,9 @@ class Sucursal extends Model
         'control_stock_venta', 'control_stock_produccion', 'facturacion_fiscal_automatica',
         'usa_whatsapp_escritorio', 'envia_whatsapp_comanda', 'mensaje_whatsapp_comanda',
         'envia_whatsapp_listo', 'mensaje_whatsapp_listo',
+        // Pedidos por Mostrador
+        'pedido_mostrador_ultimo_numero', 'imprime_comanda_automatico',
+        'pedido_conversion_automatica_al_entregar', 'usa_beepers',
     ];
 
     protected $casts = [
@@ -73,6 +76,10 @@ class Sucursal extends Model
         'usa_whatsapp_escritorio' => 'boolean',
         'envia_whatsapp_comanda' => 'boolean',
         'envia_whatsapp_listo' => 'boolean',
+        'pedido_mostrador_ultimo_numero' => 'integer',
+        'imprime_comanda_automatico' => 'boolean',
+        'pedido_conversion_automatica_al_entregar' => 'boolean',
+        'usa_beepers' => 'boolean',
     ];
 
     // Relaciones
