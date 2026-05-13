@@ -540,10 +540,16 @@
             </x-slot:body>
 
             <x-slot:footer>
-                @if(in_array($pedidoDetalle->estado_pedido, ['borrador', 'confirmado']))
+                {{-- "Editar pedido" disponible solo si:
+                     - El pedido es BORRADOR (continuar) o
+                     - El pedido es CONFIRMADO y no tiene cobros materializados
+                       (estado_pago pendiente). Los pedidos con pagos activos se
+                       editan solo via "Cobrar pendiente" desde la lista. --}}
+                @if($pedidoDetalle->estado_pedido === 'borrador'
+                    || ($pedidoDetalle->estado_pedido === 'confirmado' && $pedidoDetalle->estado_pago === 'pendiente'))
                     <button type="button" wire:click="abrirModalEditarPedido({{ $pedidoDetalle->id }})"
                         class="w-full inline-flex justify-center rounded-md border border-bcn-primary shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-bcn-primary hover:bg-bcn-primary hover:text-white sm:w-auto sm:text-sm">
-                        {{ __('Editar pedido') }}
+                        {{ $pedidoDetalle->estado_pedido === 'borrador' ? __('Continuar borrador') : __('Editar pedido') }}
                     </button>
                 @endif
                 <button type="button" wire:click="reimprimirPrecuenta({{ $pedidoDetalle->id }})"

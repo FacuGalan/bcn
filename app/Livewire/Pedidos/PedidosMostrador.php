@@ -150,6 +150,28 @@ class PedidosMostrador extends Component
 
     public function abrirModalEditarPedido(int $pedidoId): void
     {
+        $pedido = PedidoMostrador::find($pedidoId);
+        if (! $pedido || ! $this->tieneAccesoASucursal($pedido->sucursal_id)) {
+            $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+
+            return;
+        }
+
+        if (! in_array($pedido->estado_pedido, [PedidoMostrador::ESTADO_BORRADOR, PedidoMostrador::ESTADO_CONFIRMADO], true)) {
+            $this->dispatch('toast-error', message: __("El pedido en estado ':estado' no se puede editar", ['estado' => $pedido->estado_pedido]));
+
+            return;
+        }
+
+        // Pedidos con cobros materializados se gestionan desde "Cobrar pendiente".
+        // Borradores siempre se pueden continuar.
+        if ($pedido->estado_pedido !== PedidoMostrador::ESTADO_BORRADOR
+            && $pedido->estado_pago !== PedidoMostrador::ESTADO_PAGO_PENDIENTE) {
+            $this->dispatch('toast-error', message: __('No se puede editar un pedido con cobros registrados. Gestioná los pagos desde la lista.'));
+
+            return;
+        }
+
         $this->pedidoIdEnEdicion = $pedidoId;
         $this->modalNuevoPedidoKey++;
         $this->modalNuevoPedidoAbierto = true;

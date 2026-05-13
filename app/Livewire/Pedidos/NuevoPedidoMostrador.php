@@ -711,7 +711,7 @@ class NuevoPedidoMostrador extends Component
             'cliente:id,nombre,telefono,lista_precio_id',
             'detalles.articulo:id,nombre,codigo,categoria_id,precio_iva_incluido,puntos_canje,tipo_iva_id',
             'detalles.opcionales',
-            'pagos.formaPago:id,nombre,codigo,es_mixta,permite_cuotas,afecta_caja',
+            'pagos.formaPago:id,nombre,codigo,es_mixta,permite_cuotas',
         ])->find($pedidoId);
 
         if (! $pedido) {
@@ -723,6 +723,18 @@ class NuevoPedidoMostrador extends Component
 
         if (! in_array($pedido->estado_pedido, [PedidoMostrador::ESTADO_BORRADOR, PedidoMostrador::ESTADO_CONFIRMADO], true)) {
             $this->dispatch('toast-error', message: __("El pedido en estado ':estado' no se puede editar", ['estado' => $pedido->estado_pedido]));
+            $this->dispatch('cerrar-modal-pedido');
+
+            return;
+        }
+
+        // No permitir editar pedidos que ya tienen cobros materializados
+        // (estado_pago = parcial/pagado). Esos se gestionan desde la lista
+        // ("Cobrar pendiente") para no romper la trazabilidad de caja.
+        // Borradores siempre se pueden continuar.
+        if ($pedido->estado_pedido !== PedidoMostrador::ESTADO_BORRADOR
+            && $pedido->estado_pago !== PedidoMostrador::ESTADO_PAGO_PENDIENTE) {
+            $this->dispatch('toast-error', message: __('No se puede editar un pedido con cobros registrados. Gestioná los pagos desde la lista.'));
             $this->dispatch('cerrar-modal-pedido');
 
             return;
