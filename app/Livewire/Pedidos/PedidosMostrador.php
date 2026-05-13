@@ -87,6 +87,17 @@ class PedidosMostrador extends Component
 
     public array $convertirPedidoInfo = [];
 
+    // ==================== MODAL FULL-SCREEN: ALTA/EDICIÓN ====================
+
+    /** Si está en true se renderiza <livewire:nuevo-pedido-mostrador>. */
+    public bool $modalNuevoPedidoAbierto = false;
+
+    /** ID del pedido a editar (null = alta nueva). */
+    public ?int $pedidoIdEnEdicion = null;
+
+    /** Counter para forzar remount del sub-componente al reabrir el modal. */
+    public int $modalNuevoPedidoKey = 0;
+
     protected PedidoMostradorService $service;
 
     public function boot(PedidoMostradorService $service): void
@@ -117,10 +128,55 @@ class PedidosMostrador extends Component
         $this->showCancelarModal = false;
         $this->showCobrarModal = false;
         $this->showConvertirModal = false;
+        $this->modalNuevoPedidoAbierto = false;
+        $this->pedidoIdEnEdicion = null;
         $this->resetCambiarEstadoState();
         $this->resetCancelarState();
         $this->resetCobrarState();
         $this->resetConvertirState();
+    }
+
+    // ==================== MODAL ALTA/EDICIÓN ====================
+
+    public function abrirModalNuevoPedido(): void
+    {
+        $this->pedidoIdEnEdicion = null;
+        $this->modalNuevoPedidoKey++;
+        $this->modalNuevoPedidoAbierto = true;
+    }
+
+    public function abrirModalEditarPedido(int $pedidoId): void
+    {
+        $this->pedidoIdEnEdicion = $pedidoId;
+        $this->modalNuevoPedidoKey++;
+        $this->modalNuevoPedidoAbierto = true;
+        // Cerrar el modal de detalle si estaba abierto.
+        $this->showDetalleModal = false;
+        $this->pedidoDetalleId = null;
+    }
+
+    /**
+     * Listener para el evento `cerrar-modal-pedido` despachado por
+     * NuevoPedidoMostrador (cancelar sin guardar).
+     */
+    #[\Livewire\Attributes\On('cerrar-modal-pedido')]
+    public function cerrarModalNuevoPedido(): void
+    {
+        $this->modalNuevoPedidoAbierto = false;
+        $this->pedidoIdEnEdicion = null;
+    }
+
+    /**
+     * Listener para el evento `pedido-guardado` despachado por
+     * NuevoPedidoMostrador (alta/edición exitosa). Cierra el modal y refresca
+     * la lista — la query del render() se ejecuta de nuevo automáticamente.
+     */
+    #[\Livewire\Attributes\On('pedido-guardado')]
+    public function tras_guardar_pedido(): void
+    {
+        $this->modalNuevoPedidoAbierto = false;
+        $this->pedidoIdEnEdicion = null;
+        $this->resetPage();
     }
 
     // ==================== FILTROS / QUERY ====================
