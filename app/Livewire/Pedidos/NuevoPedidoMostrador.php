@@ -817,8 +817,13 @@ class NuevoPedidoMostrador extends Component
         $this->totalConAjustes = $totalDesglose;
         $this->montoPendienteDesglose = max(0, (float) $pedido->total_final - $totalDesglose);
 
-        // Si hay UN solo pago, setear formaPagoId para que el selector lo refleje.
-        if ($this->cuentaPagosOriginales === 1) {
+        // Si hay UN solo pago Y cubre completo el total del pedido, lo tratamos
+        // como FP simple — seteamos formaPagoId/cuotaSeleccionadaId para que
+        // el selector lo refleje. Si el único pago es PARCIAL (no cubre el
+        // total), lo dejamos como desglose para que se vea que está incompleto
+        // y el usuario pueda completarlo.
+        $totalPedido = (float) $pedido->total_final;
+        if ($this->cuentaPagosOriginales === 1 && $totalPedido > 0 && abs($totalDesglose - $totalPedido) <= 0.05) {
             $primerPago = $pagos->first();
             $this->formaPagoId = (int) $primerPago->forma_pago_id;
             $this->cargarCuotasFormaPago();
@@ -1179,16 +1184,30 @@ class NuevoPedidoMostrador extends Component
         $r = $this->resultado;
         $totalBase = (float) ($r['total_final'] ?? $r['total'] ?? 0);
 
-        // Calcular ajuste de FP / recargo de cuotas / pago mixto. El total_final
-        // del pedido debe reflejar el monto efectivamente cobrado (con ajustes),
-        // no solo el subtotal antes de FP. Sin esto, el pedido queda desfasado
-        // con respecto a lo cobrado.
+        // Calcular el total_final del pedido. El criterio:
+        //  - Desglose mixto COMPLETO (suma pagos ≈ totalConAjustes): usar
+        //    totalConAjustes (refleja recargos/descuentos por FP de cada pago).
+        //  - FP simple con ajuste o recargo cuotas: ajusteFormaPagoInfo[total_con_ajuste].
+        //  - Sino: totalBase (sin ajustes específicos de FP).
+        //
+        // Caso edge: desglose mixto INCOMPLETO (ej. cargué solo $180 pero el
+        // pedido vale $5000). totalConAjustes refleja sólo lo cargado — NO es
+        // el total del pedido. En ese caso usamos totalBase para no truncar
+        // el monto del pedido a lo cargado en el desglose.
         $esMixto = (bool) ($this->ajusteFormaPagoInfo['es_mixta'] ?? false);
-        if ($esMixto && (float) ($this->totalConAjustes ?? 0) > 0) {
-            // En mixto el totalConAjustes lo arma WithPagosDesglose sumando los pagos.
+        $cubiertoDesglose = array_sum(array_map(
+            fn ($p) => (float) ($p['monto_final'] ?? 0),
+            $this->desglosePagos ?? []
+        ));
+        $desgloseCompletoMixto = $esMixto
+            && (float) $this->totalConAjustes > 0
+            && $cubiertoDesglose > 0
+            && abs($cubiertoDesglose - (float) $this->totalConAjustes) <= 0.05;
+
+        if ($desgloseCompletoMixto) {
             $totalFinal = (float) $this->totalConAjustes;
-        } elseif (isset($this->ajusteFormaPagoInfo['total_con_ajuste']) && (float) $this->ajusteFormaPagoInfo['total_con_ajuste'] > 0) {
-            // Simple con ajuste/recargo cuotas (calculado por calcularAjusteFormaPago).
+        } elseif (! $esMixto && isset($this->ajusteFormaPagoInfo['total_con_ajuste'])
+            && (float) $this->ajusteFormaPagoInfo['total_con_ajuste'] > 0) {
             $totalFinal = (float) $this->ajusteFormaPagoInfo['total_con_ajuste'];
         } else {
             $totalFinal = $totalBase;
