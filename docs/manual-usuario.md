@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-04-29
+> Version: 0.1.x | Ultima actualizacion: 2026-05-13
 
 ---
 
@@ -15,60 +15,62 @@
   - [3.3 Programa de Puntos](#33-programa-de-puntos)
   - [3.4 Cupones](#34-cupones)
   - [3.5 Modificar Pagos en Ventas Registradas](#35-modificar-pagos-en-ventas-registradas)
-- [4. Compras](#4-compras)
-- [5. Stock e Inventario](#5-stock-e-inventario)
-  - [5.1 Inventario por Sucursal](#51-inventario-por-sucursal)
-  - [5.2 Movimientos de Stock](#52-movimientos-de-stock)
-  - [5.3 Inventario General](#53-inventario-general-todas-las-sucursales)
-  - [5.4 Recetas](#54-recetas)
-  - [5.5 Produccion](#55-produccion)
-  - [5.6 Produccion por Lote](#56-produccion-por-lote)
-- [6. Cajas](#6-cajas)
-  - [6.1 Gestion de Cajas](#61-gestion-de-cajas)
-  - [6.2 Turno Actual](#62-turno-actual)
-  - [6.3 Historial de Turnos](#63-historial-de-turnos)
-  - [6.4 Movimientos Manuales](#64-movimientos-manuales)
-  - [6.5 Ajustes Post-Cierre](#65-ajustes-post-cierre)
-  - [6.6 Pagos Pendientes de Facturar](#66-pagos-pendientes-de-facturar)
-- [7. Tesoreria](#7-tesoreria)
-  - [7.1 Gestion de Tesoreria](#71-gestion-de-tesoreria)
-  - [7.2 Reportes de Tesoreria](#72-reportes-de-tesoreria)
-- [8. Bancos](#8-bancos)
-  - [8.1 Resumen de Cuentas](#81-resumen-de-cuentas)
-  - [8.2 Gestion de Cuentas](#82-gestion-de-cuentas)
-  - [8.3 Movimientos](#83-movimientos)
-  - [8.4 Transferencias](#84-transferencias)
-- [9. Articulos](#9-articulos)
-  - [9.1 Gestion de Articulos](#91-gestion-de-articulos)
+- [4. Pedidos por Mostrador](#4-pedidos-por-mostrador)
+  - [4.1 Lista de Pedidos](#41-lista-de-pedidos)
+- [5. Compras](#5-compras)
+- [6. Stock e Inventario](#6-stock-e-inventario)
+  - [6.1 Inventario por Sucursal](#61-inventario-por-sucursal)
+  - [6.2 Movimientos de Stock](#62-movimientos-de-stock)
+  - [6.3 Inventario General](#63-inventario-general-todas-las-sucursales)
+  - [6.4 Recetas](#64-recetas)
+  - [6.5 Produccion](#65-produccion)
+  - [6.6 Produccion por Lote](#66-produccion-por-lote)
+- [7. Cajas](#7-cajas)
+  - [7.1 Gestion de Cajas](#71-gestion-de-cajas)
+  - [7.2 Turno Actual](#72-turno-actual)
+  - [7.3 Historial de Turnos](#73-historial-de-turnos)
+  - [7.4 Movimientos Manuales](#74-movimientos-manuales)
+  - [7.5 Ajustes Post-Cierre](#75-ajustes-post-cierre)
+  - [7.6 Pagos Pendientes de Facturar](#76-pagos-pendientes-de-facturar)
+- [8. Tesoreria](#8-tesoreria)
+  - [8.1 Gestion de Tesoreria](#81-gestion-de-tesoreria)
+  - [8.2 Reportes de Tesoreria](#82-reportes-de-tesoreria)
+- [9. Bancos](#9-bancos)
+  - [9.1 Resumen de Cuentas](#91-resumen-de-cuentas)
+  - [9.2 Gestion de Cuentas](#92-gestion-de-cuentas)
+  - [9.3 Movimientos](#93-movimientos)
+  - [9.4 Transferencias](#94-transferencias)
+- [10. Articulos](#10-articulos)
+  - [10.1 Gestion de Articulos](#101-gestion-de-articulos)
     - [Importar y exportar articulos desde Excel](#importar-y-exportar-articulos-desde-excel)
-  - [9.2 Categorias](#92-categorias)
-  - [9.3 Etiquetas](#93-etiquetas)
-  - [9.4 Asignar Etiquetas](#94-asignar-etiquetas)
-  - [9.5 Cambio Masivo de Precios](#95-cambio-masivo-de-precios)
-  - [9.6 Grupos Opcionales](#96-grupos-opcionales)
-  - [9.7 Asignar Opcionales](#97-asignar-opcionales)
-- [10. Clientes](#10-clientes)
-  - [10.1 Gestion de Clientes](#101-gestion-de-clientes)
-  - [10.2 Cobranzas y Cuenta Corriente](#102-cobranzas-y-cuenta-corriente)
-- [11. Configuracion](#11-configuracion)
-  - [11.1 Datos de la Empresa](#111-datos-de-la-empresa)
-  - [11.2 Usuarios](#112-usuarios)
-  - [11.3 Roles y Permisos](#113-roles-y-permisos)
-  - [11.4 Formas de Pago](#114-formas-de-pago)
-  - [11.5 Formas de Pago por Sucursal](#115-formas-de-pago-por-sucursal)
-  - [11.6 Listas de Precios](#116-listas-de-precios)
-  - [11.7 Promociones](#117-promociones)
-  - [11.8 Promociones Especiales](#118-promociones-especiales)
-  - [11.9 Monedas](#119-monedas)
-  - [11.10 Impresoras](#1110-impresoras)
-- [12. Flujos de Trabajo Comunes](#12-flujos-de-trabajo-comunes)
-  - [12.1 Abrir el comercio por la manana](#121-abrir-el-comercio-por-la-manana)
-  - [12.2 Realizar una venta tipica](#122-realizar-una-venta-tipica)
-  - [12.3 Cobrar deuda de un cliente](#123-cobrar-deuda-de-un-cliente)
-  - [12.4 Cerrar caja al final del dia](#124-cerrar-caja-al-final-del-dia)
-  - [12.5 Hacer inventario fisico](#125-hacer-inventario-fisico)
-  - [12.6 Cambiar precios masivamente](#126-cambiar-precios-masivamente)
-  - [12.7 Crear una promocion](#127-crear-una-promocion)
+  - [10.2 Categorias](#102-categorias)
+  - [10.3 Etiquetas](#103-etiquetas)
+  - [10.4 Asignar Etiquetas](#104-asignar-etiquetas)
+  - [10.5 Cambio Masivo de Precios](#105-cambio-masivo-de-precios)
+  - [10.6 Grupos Opcionales](#106-grupos-opcionales)
+  - [10.7 Asignar Opcionales](#107-asignar-opcionales)
+- [11. Clientes](#11-clientes)
+  - [11.1 Gestion de Clientes](#111-gestion-de-clientes)
+  - [11.2 Cobranzas y Cuenta Corriente](#112-cobranzas-y-cuenta-corriente)
+- [12. Configuracion](#12-configuracion)
+  - [12.1 Datos de la Empresa](#121-datos-de-la-empresa)
+  - [12.2 Usuarios](#122-usuarios)
+  - [12.3 Roles y Permisos](#123-roles-y-permisos)
+  - [12.4 Formas de Pago](#124-formas-de-pago)
+  - [12.5 Formas de Pago por Sucursal](#125-formas-de-pago-por-sucursal)
+  - [12.6 Listas de Precios](#126-listas-de-precios)
+  - [12.7 Promociones](#127-promociones)
+  - [12.8 Promociones Especiales](#128-promociones-especiales)
+  - [12.9 Monedas](#129-monedas)
+  - [12.10 Impresoras](#1210-impresoras)
+- [13. Flujos de Trabajo Comunes](#13-flujos-de-trabajo-comunes)
+  - [13.1 Abrir el comercio por la manana](#131-abrir-el-comercio-por-la-manana)
+  - [13.2 Realizar una venta tipica](#132-realizar-una-venta-tipica)
+  - [13.3 Cobrar deuda de un cliente](#133-cobrar-deuda-de-un-cliente)
+  - [13.4 Cerrar caja al final del dia](#134-cerrar-caja-al-final-del-dia)
+  - [13.5 Hacer inventario fisico](#135-hacer-inventario-fisico)
+  - [13.6 Cambiar precios masivamente](#136-cambiar-precios-masivamente)
+  - [13.7 Crear una promocion](#137-crear-una-promocion)
 - [Glosario](#glosario)
 
 ---
@@ -567,7 +569,132 @@ Al final del modal de detalle de la venta aparece la seccion colapsable **"Histo
 
 ---
 
-## 4. Compras
+## 4. Pedidos por Mostrador
+
+El modulo de Pedidos por Mostrador permite gestionar pedidos que se toman en el local antes de convertirlos en venta. Es util para negocios con preparacion previa (gastronomia, panaderias, kioscos con encargos) donde el pedido existe como documento operativo independiente hasta que se cobra y factura.
+
+Un pedido tiene dos estados independientes: el **estado del pedido** (ciclo de vida operativo) y el **estado del pago** (situacion de cobro).
+
+### 4.1 Lista de Pedidos
+
+**Ruta**: Menu > Pedidos por Mostrador
+
+La lista muestra todos los pedidos de la sucursal activa. Se refresca automaticamente cada 15 segundos para reflejar cambios realizados desde otras terminales.
+
+#### Filtros disponibles
+
+| Filtro | Opciones | Comportamiento por defecto |
+|--------|----------|---------------------------|
+| Busqueda | Numero, identificador, beeper, nombre o telefono de cliente | Vacio |
+| Estado pedido | Solo activos / Todos / Borrador / Confirmado / En preparacion / Listo / Entregado / Facturado / Cancelado | Solo activos |
+| Estado pago | Todos / Pendiente / Parcial / Pagado | Todos |
+| Fecha desde | Fecha | Ultimos 7 dias |
+| Fecha hasta | Fecha | Hoy |
+
+> "Solo activos" excluye los estados Facturado y Cancelado. Es la vista operativa del dia.
+
+#### Columnas de la tabla
+
+Cada fila muestra: numero de pedido, identificador/beeper, cliente, fecha/hora, estado del pedido (badge de color), estado del pago (badge de color) y acciones.
+
+#### Acciones por fila
+
+Las acciones disponibles dependen del estado del pedido y los permisos del usuario. En dispositivos moviles se muestran solo como iconos; en escritorio incluyen texto.
+
+| Accion | Condicion | Permiso requerido |
+|--------|-----------|-------------------|
+| Ver detalle | Siempre disponible | Ninguno adicional |
+| Cambiar estado | Pedido no cancelado ni facturado | Ninguno adicional |
+| Cobrar pendiente | Pedido no cancelado ni facturado | `func.pedidos_mostrador.cobrar` |
+| Convertir en venta | Pedido confirmado, en preparacion, listo o entregado | `func.pedidos_mostrador.convertir_venta` |
+| Reimprimir comanda | Siempre disponible | Ninguno adicional |
+| Reimprimir precuenta | Siempre disponible | Ninguno adicional |
+| Cancelar | Pedido no cancelado ni facturado | `func.pedidos_mostrador.cancelar` |
+
+> Si el usuario no tiene el permiso correspondiente, al intentar la accion vera un mensaje de error y el modal no se abrira.
+
+#### Modal: Ver detalle
+
+Muestra la informacion completa del pedido:
+
+- **Encabezado**: numero, identificador, beeper, sucursal, caja, fecha, usuario que lo creo.
+- **Cliente**: nombre (del catalogo o temporal), telefono.
+- **Items**: tabla con nombre del articulo/concepto, opcionales seleccionados, cantidad, precio unitario y subtotal.
+- **Pagos cobrados**: lista de pagos en estado activo con forma de pago y monto.
+- **Pagos planificados**: lista de pagos configurados pero aun no cobrados, con forma de pago y monto.
+- **Observaciones**: si el pedido tiene notas.
+- **Venta asociada**: si el pedido ya fue convertido, muestra el numero de la venta resultante con enlace.
+- **Botones de reimpresion**: Reimprimir comanda / Reimprimir precuenta.
+
+#### Modal: Cambiar estado
+
+Permite avanzar el pedido en su ciclo de vida. Las transiciones posibles desde cada estado son:
+
+| Estado actual | Transiciones disponibles |
+|---------------|--------------------------|
+| Borrador | Confirmado |
+| Confirmado | En preparacion, Listo, Entregado |
+| En preparacion | Listo, Entregado |
+| Listo | Entregado |
+| Entregado | (solo conversion a venta via modal propio) |
+
+> Los estados Cancelado y Facturado no aparecen en este modal. Cancelado tiene su propio modal con motivo obligatorio. Facturado solo se alcanza al convertir el pedido en venta.
+
+El modal incluye un campo de **observacion opcional** para dejar una nota sobre el cambio de estado.
+
+#### Modal: Cobrar pendiente
+
+Permite materializar pagos planificados o verificar el estado de cobro del pedido. Requiere permiso `func.pedidos_mostrador.cobrar`.
+
+El modal muestra un **panel de resumen** con cuatro valores:
+- **Total del pedido**: monto total a cobrar.
+- **Cobrado**: suma de pagos activos (ya efectivizados en caja).
+- **Planificado**: suma de pagos en estado planificado (configurados, sin cobrar).
+- **Pendiente**: total - cobrado (los planificados no cuentan como cobrado).
+
+Debajo del resumen aparece la **lista de pagos planificados**, con forma de pago, monto, cuotas y referencia si las tiene. Por cada pago planificado hay dos botones:
+
+- **Cobrar**: materializa el pago. Crea un `MovimientoCaja` en la caja activa del usuario, cambia el estado del pago a `activo` y recalcula el `estado_pago` del pedido. Si el pedido queda totalmente cobrado, su `estado_pago` pasa a `pagado`.
+- **Eliminar**: borra el pago planificado sin generar movimiento de caja.
+
+> Los pagos planificados se eliminan del sistema al ser cobrados o eliminados. No generan contraasientos porque nunca afectaron la caja.
+
+#### Modal: Convertir en venta
+
+Convierte el pedido en una venta definitiva del sistema. Requiere permiso `func.pedidos_mostrador.convertir_venta`.
+
+El modal muestra un **resumen** con el numero de pedido, identificador, cliente, total y estado de pago actual.
+
+**Restricciones**:
+
+- Si el monto pendiente (total - cobrado - planificado) es mayor a cero, el boton de confirmar esta bloqueado y se muestra un mensaje indicando el monto que falta cubrir. El usuario debe ir al modal "Cobrar pendiente" primero para cargar los pagos necesarios.
+- Si hay pagos planificados pero no hay monto pendiente libre (el total esta cubierto entre cobrados y planificados), el modal muestra un aviso de que esos pagos planificados se materializaran automaticamente al convertir.
+
+Al confirmar, `PedidoMostradorService::convertirEnVenta()` ejecuta las siguientes acciones en una transaccion:
+1. Materializa todos los pagos planificados restantes (crea `MovimientoCaja` por cada uno).
+2. Crea la Venta con todos sus detalles y pagos copiados desde el pedido.
+3. Marca el pedido con `estado_pedido = facturado` y registra `venta_id` y `convertido_at`.
+
+#### Modal: Cancelar
+
+Permite cancelar un pedido. Requiere permiso `func.pedidos_mostrador.cancelar`.
+
+El modal muestra un resumen del pedido (numero, identificador, cliente, total) y una advertencia si el pedido tiene pagos activos (ya cobrados), indicando que se generaran contraasientos de caja para revertirlos.
+
+Requiere ingresar un **motivo de cancelacion** con al menos 5 caracteres. El boton de confirmar esta deshabilitado hasta que se cumpla este requisito.
+
+Al confirmar, `PedidoMostradorService::cancelarPedido()`:
+1. Genera contraasientos en `movimientos_caja` por cada pago activo (revierte el cobro).
+2. Marca el pedido con `estado_pedido = cancelado`, registra `motivo_cancelacion`, `cancelado_at` y `cancelado_por_usuario_id`.
+3. Revierte el stock descontado al momento de la confirmacion (contraasientos en `movimientos_stock`).
+
+#### Nuevo Pedido
+
+El boton **"Nuevo Pedido"** esta disponible en la barra de acciones pero muestra un mensaje indicando que el alta de pedidos estara disponible en una proxima entrega. El formulario de alta (componente `NuevoPedidoMostrador`) se implementa en un PR posterior.
+
+---
+
+## 5. Compras
 
 El modulo de Compras permite registrar las compras a proveedores, lo cual actualiza automaticamente el stock y registra los movimientos de caja.
 
@@ -614,11 +741,11 @@ El modulo de Compras permite registrar las compras a proveedores, lo cual actual
 
 ---
 
-## 5. Stock e Inventario
+## 6. Stock e Inventario
 
 > **Nota:** Todas las cantidades de stock soportan hasta 3 decimales, lo que permite manejar articulos pesables (por ejemplo, 1.500 kg) y fracciones de unidades.
 
-### 5.1 Inventario por Sucursal
+### 6.1 Inventario por Sucursal
 
 Esta pantalla muestra el estado del stock de todos los articulos en la sucursal seleccionada.
 
@@ -666,7 +793,7 @@ Para cada articulo se muestra:
 
 ---
 
-### 5.2 Movimientos de Stock
+### 6.2 Movimientos de Stock
 
 Esta pantalla muestra el historial detallado de todos los movimientos de stock de la sucursal.
 
@@ -708,7 +835,7 @@ Desde esta pantalla tambien puede realizar:
 
 ---
 
-### 5.3 Inventario General (todas las sucursales)
+### 6.3 Inventario General (todas las sucursales)
 
 Esta pantalla permite realizar un inventario fisico masivo, ingresando las cantidades contadas para multiples articulos en una sola operacion.
 
@@ -743,7 +870,7 @@ Esta pantalla permite realizar un inventario fisico masivo, ingresando las canti
 
 ---
 
-### 5.4 Recetas
+### 6.4 Recetas
 
 Las recetas definen la composicion de un articulo o un opcional en terminos de materias primas u otros articulos. Se utilizan para la produccion y para el descuento automatico de stock de ingredientes.
 
@@ -784,7 +911,7 @@ Las recetas definen la composicion de un articulo o un opcional en terminos de m
 
 ---
 
-### 5.5 Produccion
+### 6.5 Produccion
 
 La pantalla de Produccion permite fabricar articulos que tienen receta, descontando automaticamente las materias primas del stock.
 
@@ -828,7 +955,7 @@ Puede **ver el detalle** de cada produccion (ingredientes consumidos) y **anular
 
 ---
 
-### 5.6 Produccion por Lote
+### 6.6 Produccion por Lote
 
 Esta pantalla ofrece una interfaz alternativa para produccion masiva, donde puede armar un lote de produccion con multiples articulos antes de confirmarlo.
 
@@ -854,9 +981,9 @@ Esta pantalla ofrece una interfaz alternativa para produccion masiva, donde pued
 
 ---
 
-## 6. Cajas
+## 7. Cajas
 
-### 6.1 Gestion de Cajas
+### 7.1 Gestion de Cajas
 
 Esta pantalla muestra todas las cajas de la sucursal seleccionada y permite realizar operaciones sobre ellas.
 
@@ -897,7 +1024,7 @@ Para cada caja, segun su estado:
 
 ---
 
-### 6.2 Turno Actual
+### 7.2 Turno Actual
 
 Esta pantalla es el centro de control del turno vigente. Muestra el estado en tiempo real de todas las cajas operativas de la sucursal.
 
@@ -939,7 +1066,7 @@ Puede alternar entre:
 
 ---
 
-### 6.3 Historial de Turnos
+### 7.3 Historial de Turnos
 
 Muestra el registro historico de todos los cierres de turno.
 
@@ -976,7 +1103,7 @@ Al hacer clic en "Ver detalle", se abre un modal con toda la informacion del cie
 
 ---
 
-### 6.4 Movimientos Manuales
+### 7.4 Movimientos Manuales
 
 Permite realizar operaciones manuales entre cajas y tesoreria.
 
@@ -1012,7 +1139,7 @@ En la parte inferior se muestra el historial reciente de movimientos manuales y 
 
 ---
 
-### 6.5 Ajustes Post-Cierre
+### 7.5 Ajustes Post-Cierre
 
 **Ruta**: Cajas → Ajustes Post-Cierre
 
@@ -1048,7 +1175,7 @@ Esta pantalla lista todos los cambios de forma de pago que fueron aplicados sobr
 
 ---
 
-### 6.6 Pagos Pendientes de Facturar
+### 7.6 Pagos Pendientes de Facturar
 
 **Ruta**: Cajas → Pagos Pendientes de Facturar
 
@@ -1087,9 +1214,9 @@ Lista los pagos de ventas que quedaron en estado `pendiente_de_facturar` o `erro
 
 ---
 
-## 7. Tesoreria
+## 8. Tesoreria
 
-### 7.1 Gestion de Tesoreria
+### 8.1 Gestion de Tesoreria
 
 La Tesoreria es la caja fuerte central de la sucursal, donde se resguarda el efectivo que no esta en las cajas operativas.
 
@@ -1135,7 +1262,7 @@ Historial de depositos bancarios realizados desde tesoreria.
 
 ---
 
-### 7.2 Reportes de Tesoreria
+### 8.2 Reportes de Tesoreria
 
 Genera reportes detallados sobre los movimientos de tesoreria.
 
@@ -1159,9 +1286,9 @@ Genera reportes detallados sobre los movimientos de tesoreria.
 
 ---
 
-## 8. Bancos
+## 9. Bancos
 
-### 8.1 Resumen de Cuentas
+### 9.1 Resumen de Cuentas
 
 Muestra una vision general de todas las cuentas bancarias y billeteras digitales de la empresa.
 
@@ -1173,7 +1300,7 @@ Muestra una vision general de todas las cuentas bancarias y billeteras digitales
 
 ---
 
-### 8.2 Gestion de Cuentas
+### 9.2 Gestion de Cuentas
 
 Permite crear, editar y administrar las cuentas bancarias y billeteras digitales.
 
@@ -1207,7 +1334,7 @@ Haga clic en **"Nueva Cuenta"** y complete el formulario:
 
 ---
 
-### 8.3 Movimientos
+### 9.3 Movimientos
 
 Muestra el historial de movimientos de una cuenta bancaria o billetera digital.
 
@@ -1243,7 +1370,7 @@ Para cada movimiento puede hacer clic en "Anular". Se abrira un modal donde debe
 
 ---
 
-### 8.4 Transferencias
+### 9.4 Transferencias
 
 Permite transferir dinero entre cuentas bancarias o billeteras digitales.
 
@@ -1264,9 +1391,9 @@ El sistema genera dos movimientos: un egreso en la cuenta origen y un ingreso en
 
 ---
 
-## 9. Articulos
+## 10. Articulos
 
-### 9.1 Gestion de Articulos
+### 10.1 Gestion de Articulos
 
 Es el catalogo central de productos de su comercio.
 
@@ -1377,7 +1504,7 @@ Las columnas con lista de opciones tienen un dropdown nativo de Excel para facil
 
 ---
 
-### 9.2 Categorias
+### 10.2 Categorias
 
 Las categorias organizan los articulos en grupos logicos (ej: "Bebidas", "Alimentos", "Limpieza").
 
@@ -1434,7 +1561,7 @@ La plantilla incluye dos filas de ejemplo (en gris italica) que deben reemplazar
 
 ---
 
-### 9.3 Etiquetas
+### 10.3 Etiquetas
 
 Las etiquetas permiten clasificar los articulos de forma flexible, complementando las categorias. Se organizan en **grupos de etiquetas**.
 
@@ -1468,7 +1595,7 @@ Para grupos y etiquetas: Editar, Activar/Desactivar, Eliminar.
 
 ---
 
-### 9.4 Asignar Etiquetas
+### 10.4 Asignar Etiquetas
 
 Permite asignar etiquetas a articulos de forma masiva. Ofrece dos modos de operacion:
 
@@ -1486,7 +1613,7 @@ Permite asignar etiquetas a articulos de forma masiva. Ofrece dos modos de opera
 
 ---
 
-### 9.5 Cambio Masivo de Precios
+### 10.5 Cambio Masivo de Precios
 
 Permite modificar los precios de multiples articulos a la vez, con un asistente paso a paso.
 
@@ -1522,7 +1649,7 @@ Si eligio "Programar", los cambios se crearan como pendientes y se ejecutaran au
 
 ---
 
-### 9.6 Grupos Opcionales
+### 10.6 Grupos Opcionales
 
 Los grupos opcionales permiten ofrecer personalizaciones a los articulos (ej: "Tamano de bebida", "Ingredientes extra", "Tipo de pan").
 
@@ -1556,7 +1683,7 @@ Haga clic en **"Nuevo Grupo"** y complete:
 
 ---
 
-### 9.7 Asignar Opcionales
+### 10.7 Asignar Opcionales
 
 Permite gestionar la asignacion de grupos opcionales a articulos.
 
@@ -1581,9 +1708,9 @@ Permite gestionar la asignacion de grupos opcionales a articulos.
 
 ---
 
-## 10. Clientes
+## 11. Clientes
 
-### 10.1 Gestion de Clientes
+### 11.1 Gestion de Clientes
 
 Administra la base de datos de clientes del comercio.
 
@@ -1636,7 +1763,7 @@ Ingrese el CUIT y el sistema consultara automaticamente el padron de ARCA para c
 
 ---
 
-### 10.2 Cobranzas y Cuenta Corriente
+### 11.2 Cobranzas y Cuenta Corriente
 
 Permite gestionar el cobro de deudas de clientes con cuenta corriente.
 
@@ -1690,9 +1817,9 @@ El boton **"Reporte de Antiguedad"** genera un informe de todas las deudas clasi
 
 ---
 
-## 11. Configuracion
+## 12. Configuracion
 
-### 11.1 Datos de la Empresa
+### 12.1 Datos de la Empresa
 
 La configuracion de la empresa se organiza en pestanas:
 
@@ -1755,7 +1882,7 @@ Gestion de las cajas de cada sucursal:
 
 ---
 
-### 11.2 Usuarios
+### 12.2 Usuarios
 
 Gestion de los usuarios del sistema.
 
@@ -1787,7 +1914,7 @@ Haga clic en **"Nuevo Usuario"** y complete:
 
 ---
 
-### 11.3 Roles y Permisos
+### 12.3 Roles y Permisos
 
 Define los roles del sistema y los permisos que tiene cada uno.
 
@@ -1811,7 +1938,7 @@ Haga clic en **"Nuevo Rol"** e ingrese:
 
 ---
 
-### 11.4 Formas de Pago
+### 12.4 Formas de Pago
 
 Configura las formas de pago aceptadas por el comercio.
 
@@ -1851,7 +1978,7 @@ El boton **"Ordenar"** permite cambiar el orden en que aparecen las formas de pa
 
 ---
 
-### 11.5 Formas de Pago por Sucursal
+### 12.5 Formas de Pago por Sucursal
 
 Permite personalizar las formas de pago para cada sucursal.
 
@@ -1872,7 +1999,7 @@ Permite personalizar las formas de pago para cada sucursal.
 
 ---
 
-### 11.6 Listas de Precios
+### 12.6 Listas de Precios
 
 Las listas de precios permiten tener diferentes niveles de precios para los mismos articulos (ej: "Precio Mostrador", "Precio Mayorista", "Precio Empleados").
 
@@ -1936,7 +2063,7 @@ Una lista estatica congela sus precios en un snapshot calculado al momento de gr
 
 ---
 
-### 11.7 Promociones
+### 12.7 Promociones
 
 Las promociones comunes aplican descuentos o recargos sobre articulos individuales en la venta.
 
@@ -1981,7 +2108,7 @@ Seleccione el tipo de promocion.
 
 ---
 
-### 11.8 Promociones Especiales
+### 12.8 Promociones Especiales
 
 Las promociones especiales permiten configurar mecanicas avanzadas como NxM (lleva 3 paga 2), combos y menus.
 
@@ -2016,7 +2143,7 @@ Prioridad de la promocion y simulador para probarla antes de activarla.
 
 ---
 
-### 11.9 Monedas
+### 12.9 Monedas
 
 Gestiona las monedas aceptadas por el comercio y los tipos de cambio.
 
@@ -2047,7 +2174,7 @@ Los tipos de cambio se utilizan automaticamente en el punto de venta cuando un c
 
 ---
 
-### 11.10 Impresoras
+### 12.10 Impresoras
 
 Configura las impresoras del sistema para la emision de tickets, facturas y otros documentos.
 
@@ -2086,9 +2213,9 @@ Cada sucursal puede tener su propia configuracion de impresion:
 
 ---
 
-## 12. Flujos de Trabajo Comunes
+## 13. Flujos de Trabajo Comunes
 
-### 12.1 Abrir el comercio por la manana
+### 13.1 Abrir el comercio por la manana
 
 1. Inicie sesion en el sistema.
 2. Verifique que la sucursal correcta este seleccionada en la barra superior.
@@ -2103,7 +2230,7 @@ Cada sucursal puede tener su propia configuracion de impresion:
 
 ---
 
-### 12.2 Realizar una venta tipica
+### 13.2 Realizar una venta tipica
 
 1. Vaya a **Ventas > Nueva Venta** (o haga clic en "Nueva Venta" desde el listado).
 2. Verifique que la caja este operativa (indicador verde).
@@ -2120,7 +2247,7 @@ Cada sucursal puede tener su propia configuracion de impresion:
 
 ---
 
-### 12.3 Cobrar deuda de un cliente
+### 13.3 Cobrar deuda de un cliente
 
 1. Vaya a **Clientes > Cobranzas**.
 2. Busque al cliente por nombre o CUIT.
@@ -2134,7 +2261,7 @@ Cada sucursal puede tener su propia configuracion de impresion:
 
 ---
 
-### 12.4 Cerrar caja al final del dia
+### 13.4 Cerrar caja al final del dia
 
 1. Vaya a **Cajas > Turno Actual**.
 2. Haga clic en **"Cerrar Turno"** en la caja que desea cerrar.
@@ -2151,7 +2278,7 @@ Cada sucursal puede tener su propia configuracion de impresion:
 
 ---
 
-### 12.5 Hacer inventario fisico
+### 13.5 Hacer inventario fisico
 
 **Para un inventario rapido (pocos articulos):**
 
@@ -2171,7 +2298,7 @@ Cada sucursal puede tener su propia configuracion de impresion:
 
 ---
 
-### 12.6 Cambiar precios masivamente
+### 13.6 Cambiar precios masivamente
 
 1. Vaya a **Articulos > Cambio Masivo de Precios**.
 2. **Paso 1**: Configure el ajuste:
@@ -2188,7 +2315,7 @@ Cada sucursal puede tener su propia configuracion de impresion:
 
 ---
 
-### 12.7 Crear una promocion
+### 13.7 Crear una promocion
 
 **Ejemplo: "10% de descuento en bebidas pagando en efectivo"**
 
