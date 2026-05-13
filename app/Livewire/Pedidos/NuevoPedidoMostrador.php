@@ -14,6 +14,9 @@ use App\Livewire\Concerns\Carrito\WithOpcionales;
 use App\Livewire\Concerns\Carrito\WithPuntos;
 use App\Models\Articulo;
 use App\Models\Categoria;
+use App\Models\FormaPago;
+use App\Models\FormaPagoCuotaSucursal;
+use App\Models\FormaPagoSucursal;
 use App\Models\ListaPrecio;
 use App\Models\PedidoMostrador;
 use App\Models\PedidoMostradorDetalle;
@@ -160,7 +163,7 @@ class NuevoPedidoMostrador extends Component
 
     // ==================== STUBS PARA WithCalculoVenta ====================
     // WithCalculoVenta llama estos métodos al final de calcularVenta() si hay
-    // formaPagoId. Como en PR2.C.2.A no incluimos WithPagosDesglose, son no-op.
+    // formaPagoId. Como no usamos WithPagosDesglose, son no-op.
 
     public bool $formaPagoPermiteCuotas = false;
 
@@ -169,6 +172,43 @@ class NuevoPedidoMostrador extends Component
     public array $infoCuotaSeleccionada = [];
 
     public array $ajusteFormaPagoInfo = [];
+
+    // ==================== MODAL DE PAGOS (DESGLOSE MIXTO) ====================
+
+    /** Indica si el modal de pago está abierto. */
+    public bool $mostrarModalPagoPedido = false;
+
+    /**
+     * Desglose de pagos en construcción. Cada item:
+     * [
+     *   'forma_pago_id' => int,
+     *   'forma_pago_nombre' => string,
+     *   'monto_base' => float,
+     *   'ajuste_porcentaje' => float,
+     *   'monto_ajuste' => float,
+     *   'monto_final' => float,
+     *   'cuotas' => ?int,
+     *   'recargo_cuotas_porcentaje' => ?float,
+     *   'recargo_cuotas_monto' => ?float,
+     *   'monto_cuota' => ?float,
+     *   'planificado' => bool,       // true=guardar sin cobrar, false=cobrar ahora
+     *   'referencia' => ?string,
+     * ]
+     */
+    public array $desglosePagosPedido = [];
+
+    /** Formulario para agregar un pago al desglose. */
+    public array $nuevoPagoPedido = [
+        'forma_pago_id' => null,
+        'monto_base' => null,
+        'cuotas' => 1,
+        'recargo_cuotas_porcentaje' => 0,
+        'planificado' => false,
+        'referencia' => null,
+    ];
+
+    /** Formas de pago de la sucursal cacheadas en mount (id, nombre, cuotas, ajuste). */
+    public array $formasPagoDisponibles = [];
 
     // ==================== INYECCIÓN ====================
 
@@ -221,6 +261,7 @@ class NuevoPedidoMostrador extends Component
 
         $this->cargarConfiguracionSucursal();
         $this->cargarListasPrecios();
+        $this->cargarFormasPagoDisponibles();
         $this->listaPrecioId = $this->obtenerIdListaBase();
 
         $local = collect($this->formasVenta)->firstWhere('codigo', 'local');
@@ -263,6 +304,7 @@ class NuevoPedidoMostrador extends Component
 
         $this->cargarConfiguracionSucursal();
         $this->cargarListasPrecios();
+        $this->cargarFormasPagoDisponibles();
         $this->listaPrecioId = $this->obtenerIdListaBase();
     }
 
@@ -766,12 +808,49 @@ class NuevoPedidoMostrador extends Component
 
     public function guardarBorrador(): void
     {
+        // Guardar como borrador NO requiere pagos: persiste directamente.
         $this->guardar(esBorrador: true);
     }
 
+    /**
+     * Confirmar pedido: si tiene items, abre el modal de pago para que el
+     * usuario configure el desglose (cobrar ahora o planificar) antes de
+     * persistir. Una vez confirmado en el modal, `confirmarPagosPedido()`
+     * crea el pedido y agrega los pagos.
+     */
     public function confirmarPedido(): void
     {
-        $this->guardar(esBorrador: false);
+        if (empty($this->items)) {
+            $this->dispatch('toast-error', message: __('El pedido debe tener al menos un artículo'));
+
+            return;
+        }
+
+        // Validaciones que se hacen antes de mostrar el modal de pago.
+        if ($this->sucursalUsaBeepers && empty(trim($this->numeroBeeper ?? ''))) {
+            $this->dispatch('toast-error', message: __('El número de beeper es obligatorio'));
+
+            return;
+        }
+
+        if (! $this->clienteSeleccionado) {
+            $nombreTemp = trim($this->nombreClienteTemporal ?? '');
+            $telTemp = trim($this->telefonoClienteTemporal ?? '');
+            if ($nombreTemp === '' || $telTemp === '') {
+                $this->dispatch('toast-error', message: __('Seleccioná un cliente o ingresá nombre y teléfono temporales'));
+
+                return;
+            }
+        }
+
+        $this->calcularVenta();
+        if (! $this->resultado) {
+            $this->dispatch('toast-error', message: __('No se pudo calcular el pedido'));
+
+            return;
+        }
+
+        $this->abrirModalPagoPedido();
     }
 
     protected function guardar(bool $esBorrador): void
@@ -922,5 +1001,318 @@ class NuevoPedidoMostrador extends Component
         }
 
         return $detalles;
+    }
+
+    // ==================== FORMAS DE PAGO DISPONIBLES ====================
+
+    /**
+     * Carga las formas de pago activas en la sucursal con sus cuotas y ajuste.
+     * Pensado para el desglose de pagos del pedido — sin lógica fiscal.
+     */
+    protected function cargarFormasPagoDisponibles(): void
+    {
+        if (! $this->sucursalId) {
+            $this->formasPagoDisponibles = [];
+
+            return;
+        }
+
+        $formasPago = FormaPago::with(['cuotas', 'conceptoPago'])
+            ->where('activo', true)
+            ->where('es_mixta', false)
+            ->orderBy('orden')
+            ->orderBy('id')
+            ->get();
+
+        $this->formasPagoDisponibles = $formasPago->map(function ($fp) {
+            $configSucursal = FormaPagoSucursal::where('forma_pago_id', $fp->id)
+                ->where('sucursal_id', $this->sucursalId)
+                ->first();
+
+            // Excluir las que están inactivas en la sucursal.
+            if ($configSucursal && ! $configSucursal->activo) {
+                return null;
+            }
+
+            // Excluir las marcadas "solo sistema" (canje puntos interno, etc.).
+            if ($fp->solo_sistema) {
+                return null;
+            }
+
+            $ajustePorcentaje = $configSucursal && $configSucursal->ajuste_porcentaje !== null
+                ? (float) $configSucursal->ajuste_porcentaje
+                : (float) ($fp->ajuste_porcentaje ?? 0);
+
+            $cuotasDisponibles = [];
+            if ($fp->permite_cuotas) {
+                foreach ($fp->cuotas as $cuota) {
+                    $cuotaSucursal = FormaPagoCuotaSucursal::where('forma_pago_cuota_id', $cuota->id)
+                        ->where('sucursal_id', $this->sucursalId)
+                        ->first();
+                    $activa = $cuotaSucursal ? $cuotaSucursal->activo : true;
+                    if (! $activa) {
+                        continue;
+                    }
+                    $recargo = $cuotaSucursal && $cuotaSucursal->recargo_porcentaje !== null
+                        ? (float) $cuotaSucursal->recargo_porcentaje
+                        : (float) $cuota->recargo_porcentaje;
+                    $cuotasDisponibles[] = [
+                        'id' => (int) $cuota->id,
+                        'cantidad' => (int) $cuota->cantidad_cuotas,
+                        'recargo' => $recargo,
+                        'descripcion' => $cuota->descripcion,
+                    ];
+                }
+            }
+
+            return [
+                'id' => (int) $fp->id,
+                'nombre' => $fp->nombre,
+                'codigo' => $fp->codigo,
+                'ajuste_porcentaje' => $ajustePorcentaje,
+                'permite_cuotas' => (bool) $fp->permite_cuotas,
+                'afecta_caja' => (bool) ($fp->afecta_caja ?? true),
+                'es_cuenta_corriente' => strtoupper($fp->codigo ?? '') === 'CTA_CTE',
+                'cuotas' => $cuotasDisponibles,
+            ];
+        })->filter()->values()->toArray();
+    }
+
+    // ==================== DESGLOSE DE PAGOS ====================
+
+    public function abrirModalPagoPedido(): void
+    {
+        $this->desglosePagosPedido = [];
+        $this->resetNuevoPagoPedido();
+
+        // Si el total es 0 (pedido bonificado), permitir confirmar sin pagos.
+        $totalFinal = (float) ($this->resultado['total_final'] ?? $this->resultado['total'] ?? 0);
+        if ($totalFinal <= 0.005) {
+            $this->mostrarModalPagoPedido = true;
+
+            return;
+        }
+
+        // Prellenar monto del primer pago con el pendiente total
+        $this->nuevoPagoPedido['monto_base'] = round($totalFinal, 2);
+        $this->mostrarModalPagoPedido = true;
+    }
+
+    public function cerrarModalPagoPedido(): void
+    {
+        $this->mostrarModalPagoPedido = false;
+        $this->desglosePagosPedido = [];
+        $this->resetNuevoPagoPedido();
+    }
+
+    protected function resetNuevoPagoPedido(): void
+    {
+        $this->nuevoPagoPedido = [
+            'forma_pago_id' => null,
+            'monto_base' => null,
+            'cuotas' => 1,
+            'recargo_cuotas_porcentaje' => 0,
+            'planificado' => false,
+            'referencia' => null,
+        ];
+    }
+
+    public function updatedNuevoPagoPedidoFormaPagoId($value): void
+    {
+        $this->nuevoPagoPedido['cuotas'] = 1;
+        $this->nuevoPagoPedido['recargo_cuotas_porcentaje'] = 0;
+
+        // Prefill monto con el pendiente actual si está vacío
+        $pendiente = $this->montoPendientePagoPedido();
+        if ($pendiente > 0.005 && empty($this->nuevoPagoPedido['monto_base'])) {
+            $this->nuevoPagoPedido['monto_base'] = round($pendiente, 2);
+        }
+    }
+
+    /**
+     * Selecciona un plan de cuotas para el form (id + recargo).
+     */
+    public function seleccionarCuotasPagoPedido(int $cuotas, float $recargo = 0): void
+    {
+        $this->nuevoPagoPedido['cuotas'] = max(1, $cuotas);
+        $this->nuevoPagoPedido['recargo_cuotas_porcentaje'] = $cuotas > 1 ? $recargo : 0;
+    }
+
+    public function togglePlanificadoNuevoPago(): void
+    {
+        $this->nuevoPagoPedido['planificado'] = ! (bool) ($this->nuevoPagoPedido['planificado'] ?? false);
+    }
+
+    public function togglePlanificadoEnDesglose(int $index): void
+    {
+        if (! isset($this->desglosePagosPedido[$index])) {
+            return;
+        }
+        $this->desglosePagosPedido[$index]['planificado'] = ! (bool) ($this->desglosePagosPedido[$index]['planificado'] ?? false);
+    }
+
+    /**
+     * Monto pendiente en el desglose actual del pedido (total_final − sum desglose).
+     */
+    public function montoPendientePagoPedido(): float
+    {
+        $total = (float) ($this->resultado['total_final'] ?? $this->resultado['total'] ?? 0);
+        $cubierto = array_sum(array_map(fn ($p) => (float) ($p['monto_final'] ?? 0), $this->desglosePagosPedido));
+
+        return round($total - $cubierto, 2);
+    }
+
+    public function agregarPagoAlDesglosePedido(): void
+    {
+        $this->validate([
+            'nuevoPagoPedido.forma_pago_id' => 'required|integer',
+            'nuevoPagoPedido.monto_base' => 'required|numeric|min:0.01',
+        ], [], [
+            'nuevoPagoPedido.forma_pago_id' => __('Forma de pago'),
+            'nuevoPagoPedido.monto_base' => __('Monto'),
+        ]);
+
+        $fp = collect($this->formasPagoDisponibles)->firstWhere('id', (int) $this->nuevoPagoPedido['forma_pago_id']);
+        if (! $fp) {
+            $this->dispatch('toast-error', message: __('Forma de pago no válida'));
+
+            return;
+        }
+
+        $montoBase = (float) $this->nuevoPagoPedido['monto_base'];
+        $cuotas = max(1, (int) ($this->nuevoPagoPedido['cuotas'] ?? 1));
+        $recargoCuotasPct = (float) ($this->nuevoPagoPedido['recargo_cuotas_porcentaje'] ?? 0);
+        $ajustePct = (float) ($fp['ajuste_porcentaje'] ?? 0);
+
+        // Ajuste por forma de pago (puede ser % positivo recargo o negativo descuento).
+        $montoAjuste = round($montoBase * $ajustePct / 100, 2);
+        $montoConAjuste = round($montoBase + $montoAjuste, 2);
+
+        // Recargo por cuotas (si aplica).
+        $recargoCuotasMonto = 0;
+        $montoCuota = null;
+        if ($cuotas > 1 && $recargoCuotasPct > 0) {
+            $recargoCuotasMonto = round($montoConAjuste * $recargoCuotasPct / 100, 2);
+        }
+        $montoFinal = round($montoConAjuste + $recargoCuotasMonto, 2);
+        if ($cuotas > 1) {
+            $montoCuota = round($montoFinal / $cuotas, 2);
+        }
+
+        // Validar que no excedamos el pendiente (con tolerancia).
+        $pendiente = $this->montoPendientePagoPedido();
+        if ($montoFinal > $pendiente + 0.01) {
+            $this->dispatch('toast-error', message: __('El monto excede el pendiente'));
+
+            return;
+        }
+
+        $this->desglosePagosPedido[] = [
+            'forma_pago_id' => (int) $fp['id'],
+            'forma_pago_nombre' => $fp['nombre'],
+            'forma_pago_codigo' => $fp['codigo'],
+            'afecta_caja' => $fp['afecta_caja'],
+            'es_cuenta_corriente' => $fp['es_cuenta_corriente'],
+            'monto_base' => $montoBase,
+            'ajuste_porcentaje' => $ajustePct,
+            'monto_ajuste' => $montoAjuste,
+            'monto_final' => $montoFinal,
+            'cuotas' => $cuotas > 1 ? $cuotas : null,
+            'recargo_cuotas_porcentaje' => $cuotas > 1 ? $recargoCuotasPct : null,
+            'recargo_cuotas_monto' => $cuotas > 1 ? $recargoCuotasMonto : null,
+            'monto_cuota' => $montoCuota,
+            'planificado' => (bool) ($this->nuevoPagoPedido['planificado'] ?? false),
+            'referencia' => trim($this->nuevoPagoPedido['referencia'] ?? '') ?: null,
+        ];
+
+        $this->resetNuevoPagoPedido();
+
+        // Prefill monto con el nuevo pendiente
+        $nuevoPendiente = $this->montoPendientePagoPedido();
+        if ($nuevoPendiente > 0.005) {
+            $this->nuevoPagoPedido['monto_base'] = round($nuevoPendiente, 2);
+        }
+    }
+
+    public function eliminarPagoDelDesglose(int $index): void
+    {
+        if (! isset($this->desglosePagosPedido[$index])) {
+            return;
+        }
+        unset($this->desglosePagosPedido[$index]);
+        $this->desglosePagosPedido = array_values($this->desglosePagosPedido);
+
+        // Reprefill monto con el pendiente
+        $pendiente = $this->montoPendientePagoPedido();
+        if ($pendiente > 0.005 && empty($this->nuevoPagoPedido['monto_base'])) {
+            $this->nuevoPagoPedido['monto_base'] = round($pendiente, 2);
+        }
+    }
+
+    /**
+     * Confirma el desglose: persiste el pedido y agrega los pagos. Despacha
+     * pedido-guardado al padre. Si algo falla, el pedido se cancela para no
+     * dejar pedidos huérfanos.
+     */
+    public function confirmarPagosPedido(): void
+    {
+        $totalFinal = (float) ($this->resultado['total_final'] ?? $this->resultado['total'] ?? 0);
+        $cubierto = array_sum(array_map(fn ($p) => (float) ($p['monto_final'] ?? 0), $this->desglosePagosPedido));
+
+        // Validación: debe cubrir el total (a menos que sea 0).
+        if ($totalFinal > 0.005 && abs($cubierto - $totalFinal) > 0.05) {
+            $this->dispatch('toast-error', message: __('La suma de pagos debe igualar el total final'));
+
+            return;
+        }
+
+        try {
+            $data = $this->construirDataPedido();
+            $detalles = $this->construirDetallesPedido();
+
+            // 1) Crear/actualizar el pedido (confirmado).
+            if ($this->modoEdicion && $this->pedidoId) {
+                $pedido = PedidoMostrador::find($this->pedidoId);
+                if (! $pedido) {
+                    throw new Exception(__('Pedido no encontrado'));
+                }
+                $this->pedidoService->actualizarPedido($pedido, $data, $detalles);
+            } else {
+                $pedido = $this->pedidoService->crearPedido($data, $detalles, esBorrador: false);
+            }
+
+            // 2) Agregar los pagos del desglose.
+            foreach ($this->desglosePagosPedido as $pago) {
+                $this->pedidoService->agregarPago($pedido, [
+                    'forma_pago_id' => $pago['forma_pago_id'],
+                    'monto_base' => $pago['monto_base'],
+                    'ajuste_porcentaje' => $pago['ajuste_porcentaje'] ?? 0,
+                    'monto_ajuste' => $pago['monto_ajuste'] ?? 0,
+                    'monto_final' => $pago['monto_final'],
+                    'cuotas' => $pago['cuotas'] ?? null,
+                    'recargo_cuotas_porcentaje' => $pago['recargo_cuotas_porcentaje'] ?? null,
+                    'recargo_cuotas_monto' => $pago['recargo_cuotas_monto'] ?? null,
+                    'monto_cuota' => $pago['monto_cuota'] ?? null,
+                    'referencia' => $pago['referencia'] ?? null,
+                    'es_cuenta_corriente' => (bool) ($pago['es_cuenta_corriente'] ?? false),
+                    'afecta_caja' => (bool) ($pago['afecta_caja'] ?? true),
+                    'planificado' => (bool) ($pago['planificado'] ?? false),
+                ]);
+            }
+
+            $msg = $this->modoEdicion
+                ? __('Pedido actualizado')
+                : __('Pedido confirmado #:numero', ['numero' => $pedido->numero]);
+            $this->dispatch('toast-success', message: $msg);
+
+            $this->mostrarModalPagoPedido = false;
+            $this->dispatch('pedido-guardado');
+        } catch (Exception $e) {
+            Log::error('Error al confirmar pedido con pagos', [
+                'pedido_id' => $this->pedidoId,
+                'error' => $e->getMessage(),
+            ]);
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
     }
 }
