@@ -1520,6 +1520,34 @@ Todas las operaciones con escrituras usan `DB::connection('pymes_tenant')->trans
 - Filtra por sucursal activa, estado pedido, estado pago, rango de fechas y busqueda libre.
 - Modales: detalle, cambiar estado, cobrar pendiente, convertir en venta, cancelar.
 - Permisos chequeados con `hasPermissionTo()` al abrir los modales de cobrar, convertir y cancelar.
+- El modal de detalle incluye boton "Editar pedido" cuando `estado_pedido` es `borrador` o `confirmado`.
+
+#### Componente Livewire: `NuevoPedidoMostrador`
+
+`app/Livewire/Pedidos/NuevoPedidoMostrador.php`
+
+| Ruta | Method | Name |
+|------|--------|------|
+| `/pedidos/mostrador/nuevo` | GET | `pedidos.mostrador.nuevo` |
+| `/pedidos/mostrador/{pedido}/editar` | GET | `pedidos.mostrador.editar` |
+
+- Full-page, `#[Lazy]`, `CajaAware`.
+- Compone 10 traits del Carrito: `WithArticuloRapido`, `WithBusquedaArticulos`, `WithBusquedaClientes`, `WithCalculoVenta`, `WithCarritoItems`, `WithConsultaPrecios`, `WithCupones`, `WithDescuentos`, `WithOpcionales`, `WithPuntos`. **No incluye `WithPagosDesglose`** (se agrega en PR2.C.2.B).
+- **Modo alta**: parametro `$pedido = null`. El componente inicializa un carrito vacio.
+- **Modo edicion**: parametro `$pedido` recibe un `PedidoMostrador`. Solo se permite editar pedidos con `estado_pedido` en `borrador` o `confirmado`. Intentar editar otro estado redirige a la lista.
+- Layout de dos columnas: columna izquierda (identificador, beeper, cliente, lista de precios, observaciones); columna derecha (carrito, descuentos, cupon, puntos, totales, botones de guardado).
+- Reutiliza las vistas parciales `_wizard-opcionales.blade.php` y `_modal-descuentos.blade.php` de Ventas.
+
+**Flujo de guardado:**
+- `guardarBorrador()`: persiste el pedido con `estado_pedido = borrador`. No asigna numero, no descuenta stock, no valida beeper ni cliente.
+- `confirmarPedido()`: valida beeper si `sucursal.usa_beepers = true`; exige cliente (oficial o temporal con al menos nombre); llama a `PedidoMostradorService::crearPedido($data, $detalles, esBorrador: false)`.
+- `guardarCambios()` (modo edicion): si el pedido estaba `confirmado`, el service revierte el stock previo antes de re-descontarlo con los nuevos items.
+
+**Cliente temporal (RF-17):**
+El trait `WithBusquedaClientes` permite cargar un nombre y/o telefono sin seleccionar del catalogo. Estos datos se guardan en `nombre_cliente_temporal` y `telefono_cliente_temporal` con `cliente_id = NULL`. La busqueda en la lista (`PedidosMostrador`) incluye el campo `telefono_cliente_temporal` en el `LIKE` para encontrar pedidos de temporales. El boton "Dar de alta como cliente" promueve el temporal a cliente oficial llamando al modal de alta rapida pre-completado.
+
+**Opcionales desde el alta:**
+`PedidoMostradorService::crearDetalle()` persiste los opcionales de cada item en `pedido_mostrador_detalle_opcionales`, espejando el patron de `VentaService::guardarOpcionalesDetalle()`. Antes de esta implementacion el service no persistia opcionales al crear el pedido.
 
 #### Patrones de consulta SQL utiles
 

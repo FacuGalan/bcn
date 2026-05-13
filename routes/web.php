@@ -36,6 +36,7 @@ use App\Livewire\Configuracion\RolesPermisos;
 use App\Livewire\Configuracion\Usuarios;
 use App\Livewire\Cupones\GestionCupones;
 use App\Livewire\Dashboard\DashboardSucursal;
+use App\Livewire\Pedidos\NuevoPedidoMostrador;
 use App\Livewire\Pedidos\PedidosMostrador;
 use App\Livewire\Puntos\ProgramaPuntos;
 use App\Livewire\Stock\InventarioGeneral;
@@ -89,6 +90,8 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
      * Lista y gestión de pedidos por mostrador (alta de pedido en próxima entrega).
      */
     Route::get('pedidos/mostrador', PedidosMostrador::class)->name('pedidos.mostrador');
+    Route::get('pedidos/mostrador/nuevo', NuevoPedidoMostrador::class)->name('pedidos.mostrador.nuevo');
+    Route::get('pedidos/mostrador/{pedido}/editar', NuevoPedidoMostrador::class)->name('pedidos.mostrador.editar');
 
     /**
      * Compras

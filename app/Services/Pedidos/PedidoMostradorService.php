@@ -670,7 +670,7 @@ class PedidoMostradorService
 
     protected function crearDetalle(PedidoMostrador $pedido, array $detalle): PedidoMostradorDetalle
     {
-        return PedidoMostradorDetalle::create([
+        $pedidoDetalle = PedidoMostradorDetalle::create([
             'pedido_mostrador_id' => $pedido->id,
             'articulo_id' => $detalle['articulo_id'] ?? null,
             'es_concepto' => (bool) ($detalle['es_concepto'] ?? false),
@@ -703,6 +703,36 @@ class PedidoMostradorService
             'tiene_promocion' => (bool) ($detalle['tiene_promocion'] ?? false),
             'total' => $detalle['total'] ?? ($detalle['precio_unitario'] * $detalle['cantidad']),
         ]);
+
+        if (! empty($detalle['opcionales'])) {
+            $this->guardarOpcionalesDetalle($pedidoDetalle, $detalle['opcionales']);
+        }
+
+        return $pedidoDetalle;
+    }
+
+    /**
+     * Persiste los opcionales seleccionados en `pedido_mostrador_detalle_opcionales`.
+     * Espeja la estructura de VentaService::guardarOpcionalesDetalle: cada grupo
+     * tiene un array `selecciones` con (opcional_id, nombre, cantidad, precio_extra).
+     */
+    protected function guardarOpcionalesDetalle(PedidoMostradorDetalle $detalle, array $opcionales): void
+    {
+        foreach ($opcionales as $grupo) {
+            foreach ($grupo['selecciones'] ?? [] as $sel) {
+                DB::connection('pymes_tenant')->table('pedido_mostrador_detalle_opcionales')->insert([
+                    'pedido_mostrador_detalle_id' => $detalle->id,
+                    'grupo_opcional_id' => $grupo['grupo_id'],
+                    'opcional_id' => $sel['opcional_id'],
+                    'nombre_grupo' => $grupo['grupo_nombre'] ?? '',
+                    'nombre_opcional' => $sel['nombre'] ?? '',
+                    'cantidad' => $sel['cantidad'] ?? 1,
+                    'precio_extra' => $sel['precio_extra'] ?? 0,
+                    'subtotal_extra' => ($sel['precio_extra'] ?? 0) * ($sel['cantidad'] ?? 1),
+                    'created_at' => now(),
+                ]);
+            }
+        }
     }
 
     /**

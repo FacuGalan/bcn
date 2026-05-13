@@ -10,8 +10,7 @@
                         </h2>
                         {{-- Botón móvil --}}
                         <div class="sm:hidden flex gap-2">
-                            <a href="#"
-                                onclick="event.preventDefault(); window.notify('{{ __('Disponible en próxima entrega') }}', 'info')"
+                            <a href="{{ route('pedidos.mostrador.nuevo') }}" wire:navigate
                                 class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-bcn-primary border border-transparent rounded-md text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
                                 title="{{ __('Nuevo Pedido') }}"
                             >
@@ -27,8 +26,7 @@
                 </div>
                 {{-- Botón desktop --}}
                 <div class="hidden sm:flex gap-3">
-                    <a href="#"
-                        onclick="event.preventDefault(); window.notify('{{ __('Disponible en próxima entrega') }}', 'info')"
+                    <a href="{{ route('pedidos.mostrador.nuevo') }}" wire:navigate
                         class="inline-flex items-center justify-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
                         title="{{ __('Nuevo Pedido') }}"
                     >
@@ -476,6 +474,12 @@
             </x-slot:body>
 
             <x-slot:footer>
+                @if(in_array($pedidoDetalle->estado_pedido, ['borrador', 'confirmado']))
+                    <a href="{{ route('pedidos.mostrador.editar', ['pedido' => $pedidoDetalle->id]) }}" wire:navigate
+                        class="w-full inline-flex justify-center rounded-md border border-bcn-primary shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-bcn-primary hover:bg-bcn-primary hover:text-white sm:w-auto sm:text-sm">
+                        {{ __('Editar pedido') }}
+                    </a>
+                @endif
                 <button type="button" wire:click="reimprimirPrecuenta({{ $pedidoDetalle->id }})"
                     class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
                     {{ __('Imprimir precuenta') }}

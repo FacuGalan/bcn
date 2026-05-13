@@ -17,6 +17,7 @@
   - [3.5 Modificar Pagos en Ventas Registradas](#35-modificar-pagos-en-ventas-registradas)
 - [4. Pedidos por Mostrador](#4-pedidos-por-mostrador)
   - [4.1 Lista de Pedidos](#41-lista-de-pedidos)
+  - [4.2 Alta / Edicion de Pedido](#42-alta--edicion-de-pedido)
 - [5. Compras](#5-compras)
 - [6. Stock e Inventario](#6-stock-e-inventario)
   - [6.1 Inventario por Sucursal](#61-inventario-por-sucursal)
@@ -690,7 +691,81 @@ Al confirmar, `PedidoMostradorService::cancelarPedido()`:
 
 #### Nuevo Pedido
 
-El boton **"Nuevo Pedido"** esta disponible en la barra de acciones pero muestra un mensaje indicando que el alta de pedidos estara disponible en una proxima entrega. El formulario de alta (componente `NuevoPedidoMostrador`) se implementa en un PR posterior.
+El boton **"Nuevo Pedido"** de la barra de acciones abre la pantalla de alta en `/pedidos/mostrador/nuevo`.
+
+El boton **"Editar pedido"** del modal de detalle redirige a `/pedidos/mostrador/{id}/editar` si el pedido esta en estado Borrador o Confirmado.
+
+---
+
+### 4.2 Alta / Edicion de Pedido
+
+**Ruta alta**: `/pedidos/mostrador/nuevo` | Name: `pedidos.mostrador.nuevo`
+**Ruta edicion**: `/pedidos/mostrador/{id}/editar` | Name: `pedidos.mostrador.editar`
+
+Pantalla completa de dos columnas: la columna izquierda agrupa la identificacion del pedido y los datos del cliente; la columna derecha contiene el carrito con sus totales y las acciones de guardado.
+
+#### Identificacion del pedido
+
+- **Identificador**: campo de texto libre (ej: "Mesa 5", "Juan"). Opcional al guardar borrador.
+- **Numero de beeper**: visible solo si la sucursal tiene activada la opcion `usa_beepers`. En ese caso es obligatorio al confirmar el pedido, aunque no al guardar como borrador.
+- **Lista de precios**: selector visible solo si la sucursal tiene mas de una lista activa. Al cambiar la lista, los precios del carrito se recalculan automaticamente.
+- **Observaciones**: textarea para notas internas o para cocina/produccion.
+
+#### Cliente: 3 vias de carga
+
+| Via | Como funciona | Resultado |
+|-----|---------------|-----------|
+| Cliente oficial | Busqueda por nombre o telefono en el combo; boton de alta rapida inline si no existe | Se guarda `cliente_id` en el pedido |
+| Cliente temporal | Ingresar nombre y/o telefono en los campos "Nombre cliente" y "Telefono" sin seleccionar del combo | Se guarda `nombre_cliente_temporal` y `telefono_cliente_temporal`; `cliente_id` queda NULL |
+| Sin identificar | Dejar todos los campos de cliente en blanco | Pedido sin cliente asociado |
+
+> El boton **"Dar de alta como cliente"** aparece cuando hay un cliente temporal cargado. Al pulsarlo abre el modal de alta rapida pre-completado con los datos temporales y, al confirmar, convierte el temporal en cliente oficial del catalogo y lo vincula al pedido.
+
+#### Carrito
+
+La seccion de articulos ofrece tres formas de agregar items:
+
+- **Busqueda rapida**: campo de texto en la parte superior del carrito. Busca por nombre o codigo de articulo. Al seleccionar un resultado, el articulo se agrega con cantidad 1.
+- **Busqueda avanzada**: boton con icono de lupa que abre un modal con filtros por categoria, proveedor y texto. Permite agregar directamente desde el resultado.
+- **Alta rapida de articulo**: boton que abre el modal de creacion de articulo. Una vez creado, el articulo queda en el carrito.
+
+Cada fila del carrito muestra:
+
+| Campo | Descripcion |
+|-------|-------------|
+| Articulo | Nombre y codigo |
+| Opcionales | Seleccion vigente, editable con el icono de lapiz (abre wizard de opcionales) |
+| Cantidad | Editable directamente. Los articulos pesables abren modal para ingresar el peso |
+| Precio unitario | Con IVA. Editable via boton de ajuste manual |
+| Ajuste de precio | Boton que abre modal para aplicar un descuento o recargo en porcentaje o monto fijo sobre ese item |
+| Subtotal | Calculado en vivo |
+| Eliminar | Icono de tacho, elimina el item del carrito |
+
+#### Descuentos, cupon y puntos
+
+- **Descuentos generales**: boton "Descuentos" que abre el modal del trait `WithDescuentos`. Permite aplicar un descuento en porcentaje o monto fijo con tope segun el rol del usuario.
+- **Cupon**: campo de texto con boton "Validar". Si el codigo es valido, el descuento por cupon se refleja en los totales.
+- **Puntos**: si hay un cliente oficial seleccionado, muestra su saldo actual de puntos. El canje detallado (modal de pagos) se habilita en la etapa de pago.
+
+#### Totales en vivo
+
+El panel inferior de la columna derecha muestra en tiempo real:
+
+- Subtotal (sin IVA)
+- IVA
+- Descuento general
+- Descuento por cupon
+- **Total final**
+
+#### Botones de guardado
+
+| Boton | Accion | Estado resultante | Descuenta stock | Valida beeper / cliente |
+|-------|--------|-------------------|-----------------|------------------------|
+| Guardar borrador | Persiste el pedido sin numero | `borrador` | No | No |
+| Confirmar pedido | Asigna numero correlativo, descuenta stock, dispara evento `PedidoCreado`, imprime comanda si la sucursal lo tiene configurado | `confirmado` | Si | Si |
+| Guardar cambios (edicion) | Actualiza los datos. Si el pedido era `confirmado`, revierte el stock previo y vuelve a descontarlo | Mantiene estado actual | Si (solo si estaba confirmado) | Si (si estado destino es confirmado) |
+
+> El boton "Guardar cambios" solo esta disponible en modo edicion y unicamente si el pedido tiene estado `borrador` o `confirmado`. Pedidos en estados avanzados (en preparacion, listo, entregado) no pueden editarse desde esta pantalla.
 
 ---
 
