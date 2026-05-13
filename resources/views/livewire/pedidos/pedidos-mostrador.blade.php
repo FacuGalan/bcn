@@ -207,21 +207,21 @@
                             <div class="text-base font-bold text-bcn-secondary dark:text-white">
                                 ${{ number_format($pedido->total_final, 2, ',', '.') }}
                             </div>
-                            @if($pedido->total_cobrado > 0)
-                                <div class="text-xs text-green-700 dark:text-green-400">
-                                    {{ __('Cobrado') }}: ${{ number_format($pedido->total_cobrado, 2, ',', '.') }}
-                                </div>
-                            @endif
-                            @if($pedido->total_planificado > 0)
-                                <div class="text-xs text-blue-700 dark:text-blue-400">
-                                    {{ __('Planificado') }}: ${{ number_format($pedido->total_planificado, 2, ',', '.') }}
-                                </div>
-                            @endif
                         </div>
                     </div>
-                    <div class="flex gap-2 flex-wrap mb-3">
+                    <div class="flex gap-2 flex-wrap mb-2 items-center">
                         <x-pedidos.badge-estado-pedido :estado="$pedido->estado_pedido" />
                         <x-pedidos.badge-estado-pago :estado="$pedido->estado_pago" />
+                        @if($pedido->total_cobrado > 0)
+                            <span class="text-[10px] text-green-700 dark:text-green-400">
+                                {{ __('Cob.') }}: ${{ number_format($pedido->total_cobrado, 2, ',', '.') }}
+                            </span>
+                        @endif
+                        @if($pedido->total_planificado > 0)
+                            <span class="text-[10px] text-blue-700 dark:text-blue-400">
+                                {{ __('Plan.') }}: ${{ number_format($pedido->total_planificado, 2, ',', '.') }}
+                            </span>
+                        @endif
                     </div>
                     <div class="flex gap-2 flex-wrap">
                         <button wire:click="verDetalle({{ $pedido->id }})"
@@ -312,22 +312,22 @@
                                     <div class="text-sm font-bold text-bcn-secondary dark:text-white">
                                         ${{ number_format($pedido->total_final, 2, ',', '.') }}
                                     </div>
-                                    @if($pedido->total_cobrado > 0)
-                                        <div class="text-xs text-green-700 dark:text-green-400">
-                                            {{ __('Cob.') }}: ${{ number_format($pedido->total_cobrado, 2, ',', '.') }}
-                                        </div>
-                                    @endif
-                                    @if($pedido->total_planificado > 0)
-                                        <div class="text-xs text-blue-700 dark:text-blue-400">
-                                            {{ __('Plan.') }}: ${{ number_format($pedido->total_planificado, 2, ',', '.') }}
-                                        </div>
-                                    @endif
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <x-pedidos.badge-estado-pedido :estado="$pedido->estado_pedido" />
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <x-pedidos.badge-estado-pago :estado="$pedido->estado_pago" />
+                                    @if($pedido->total_cobrado > 0)
+                                        <div class="text-[10px] text-green-700 dark:text-green-400 mt-0.5">
+                                            {{ __('Cob.') }}: ${{ number_format($pedido->total_cobrado, 2, ',', '.') }}
+                                        </div>
+                                    @endif
+                                    @if($pedido->total_planificado > 0)
+                                        <div class="text-[10px] text-blue-700 dark:text-blue-400 {{ $pedido->total_cobrado > 0 ? '' : 'mt-0.5' }}">
+                                            {{ __('Plan.') }}: ${{ number_format($pedido->total_planificado, 2, ',', '.') }}
+                                        </div>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                                     <div class="flex justify-end gap-1 flex-wrap">

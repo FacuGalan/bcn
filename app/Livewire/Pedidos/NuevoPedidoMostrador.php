@@ -1019,6 +1019,17 @@ class NuevoPedidoMostrador extends Component
             return;
         }
 
+        // Si hay desglose cargado, debe estar COMPLETO (cubrir el total). Un
+        // desglose parcial guardado como planificado da información incorrecta
+        // (el pedido quedaría con total = monto del desglose). El usuario debe
+        // completar el desglose o quitar todos los pagos si solo quiere
+        // confirmar sin cobrar.
+        if (! empty($this->desglosePagos) && ! $this->desgloseCompleto()) {
+            $this->dispatch('toast-error', message: __('El desglose de pagos es parcial. Completá el desglose hasta cubrir el total o quitá los pagos para confirmar sin cobrar.'));
+
+            return;
+        }
+
         try {
             $data = $this->construirDataPedido();
             $detalles = $this->construirDetallesPedido();
@@ -1185,29 +1196,26 @@ class NuevoPedidoMostrador extends Component
         $totalBase = (float) ($r['total_final'] ?? $r['total'] ?? 0);
 
         // Calcular el total_final del pedido. El criterio:
-        //  - Desglose mixto COMPLETO (suma pagos ≈ totalConAjustes): usar
-        //    totalConAjustes (refleja recargos/descuentos por FP de cada pago).
+        //  - Desglose mixto COMPLETO (suma de monto_base de los pagos cubre
+        //    el total real del pedido, no la propia suma totalConAjustes):
+        //    usar totalConAjustes (refleja recargos/descuentos por FP).
         //  - FP simple con ajuste o recargo cuotas: ajusteFormaPagoInfo[total_con_ajuste].
-        //  - Sino: totalBase (sin ajustes específicos de FP).
+        //  - Sino (sin desglose, o desglose parcial): totalBase. No truncamos
+        //    el monto del pedido al monto cargado en un desglose incompleto.
         //
-        // Caso edge: desglose mixto INCOMPLETO (ej. cargué solo $180 pero el
-        // pedido vale $5000). totalConAjustes refleja sólo lo cargado — NO es
-        // el total del pedido. En ese caso usamos totalBase para no truncar
-        // el monto del pedido a lo cargado en el desglose.
+        // desgloseCompleto() del trait valida que Σ monto_base ≈ total_final
+        // del cálculo, con tolerancia 0.05 para redondeos.
         $esMixto = (bool) ($this->ajusteFormaPagoInfo['es_mixta'] ?? false);
-        $cubiertoDesglose = array_sum(array_map(
-            fn ($p) => (float) ($p['monto_final'] ?? 0),
-            $this->desglosePagos ?? []
-        ));
-        $desgloseCompletoMixto = $esMixto
-            && (float) $this->totalConAjustes > 0
-            && $cubiertoDesglose > 0
-            && abs($cubiertoDesglose - (float) $this->totalConAjustes) <= 0.05;
+        $hayDesglose = ! empty($this->desglosePagos);
+        $desgloseEstaCompleto = $hayDesglose && $this->desgloseCompleto();
 
-        if ($desgloseCompletoMixto) {
+        if ($desgloseEstaCompleto && $esMixto) {
             $totalFinal = (float) $this->totalConAjustes;
-        } elseif (! $esMixto && isset($this->ajusteFormaPagoInfo['total_con_ajuste'])
+        } elseif (! $hayDesglose && ! $esMixto
+            && isset($this->ajusteFormaPagoInfo['total_con_ajuste'])
             && (float) $this->ajusteFormaPagoInfo['total_con_ajuste'] > 0) {
+            // FP simple seleccionada en el dropdown sin haber abierto el modal
+            // de desglose (caso 1 pago directo).
             $totalFinal = (float) $this->ajusteFormaPagoInfo['total_con_ajuste'];
         } else {
             $totalFinal = $totalBase;
