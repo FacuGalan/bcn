@@ -1562,6 +1562,13 @@ class NuevoPedidoMostrador extends Component
         ];
     }
 
+    // ==================== SELECTOR DE CUOTAS (UI) ====================
+
+    public function toggleCuotasSelector(): void
+    {
+        $this->cuotasSelectorAbierto = ! $this->cuotasSelectorAbierto;
+    }
+
     // ==================== HOOKS LIVEWIRE FORMA DE PAGO ====================
 
     public function updatedFormaPagoId($value): void
