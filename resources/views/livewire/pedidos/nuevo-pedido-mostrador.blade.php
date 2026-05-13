@@ -158,28 +158,9 @@
                     </button>
                 @endif
 
-                {{-- Totales --}}
+                {{-- Resumen de Totales (reusado 1:1 de NuevaVenta: subtotal, descuentos, ajuste FP, recargo cuotas, total, desglose IVA colapsable) --}}
                 @if($resultado)
-                    <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-3 space-y-1 text-sm">
-                        <div class="flex justify-between text-gray-600 dark:text-gray-400">
-                            <span>{{ __('Subtotal') }}</span>
-                            <span>${{ number_format($resultado['subtotal'] ?? 0, 2, ',', '.') }}</span>
-                        </div>
-                        <div class="flex justify-between text-gray-600 dark:text-gray-400">
-                            <span>{{ __('IVA') }}</span>
-                            <span>${{ number_format($resultado['iva_total'] ?? 0, 2, ',', '.') }}</span>
-                        </div>
-                        @if(($resultado['descuento_total'] ?? 0) > 0)
-                            <div class="flex justify-between text-red-600 dark:text-red-400">
-                                <span>{{ __('Descuentos') }}</span>
-                                <span>-${{ number_format($resultado['descuento_total'] ?? 0, 2, ',', '.') }}</span>
-                            </div>
-                        @endif
-                        <div class="flex justify-between pt-2 border-t border-gray-200 dark:border-gray-700 text-base font-bold text-bcn-secondary dark:text-white">
-                            <span>{{ __('Total final') }}</span>
-                            <span>${{ number_format($resultado['total_final'] ?? $resultado['total'] ?? 0, 2, ',', '.') }}</span>
-                        </div>
-                    </div>
+                    @include('livewire.carrito._resumen-totales')
                 @endif
             </div>
 
