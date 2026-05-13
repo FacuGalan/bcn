@@ -173,6 +173,19 @@ class NuevoPedidoMostrador extends Component
 
     public bool $mostrarConfirmLimpiar = false;
 
+    // ==================== PANEL TÁCTIL (RF-11) ====================
+
+    /** Si el panel táctil está expandido (default true en alta nueva). */
+    public bool $panelTactilAbierto = true;
+
+    /**
+     * Catálogo táctil (snapshot al mount): categorías de la sucursal con sus
+     * artículos básicos (id, nombre, precio_base, código, pesable). Se pasa
+     * a Alpine como JSON y el cambio de categoría es 100% local — sin viaje
+     * a Livewire. Optimiza la experiencia táctil.
+     */
+    public array $catalogoTactil = [];
+
     // ==================== EDICIÓN DE NOMBRE DE ITEM ====================
 
     public ?int $editarNombreIndex = null;
@@ -262,6 +275,7 @@ class NuevoPedidoMostrador extends Component
         $this->cargarConfiguracionSucursal();
         $this->cargarListasPrecios();
         $this->cargarFormasPagoSucursal();
+        $this->cargarCatalogoTactil();
         $this->listaPrecioId = $this->obtenerIdListaBase();
 
         $local = collect($this->formasVenta)->firstWhere('codigo', 'local');
@@ -275,6 +289,61 @@ class NuevoPedidoMostrador extends Component
         if ($pedidoId !== null) {
             $this->cargarPedidoParaEditar($pedidoId);
         }
+    }
+
+    /**
+     * Carga el snapshot del catálogo táctil de la sucursal: categorías activas
+     * con sus artículos básicos. Pensado para que Alpine renderice la grilla
+     * sin viajes a Livewire al cambiar de categoría (cambio 100% local).
+     *
+     * Estructura: [{ id, nombre, color, articulos: [{ id, nombre, precio, codigo, es_pesable }] }]
+     */
+    protected function cargarCatalogoTactil(): void
+    {
+        if (! $this->sucursalId) {
+            $this->catalogoTactil = [];
+
+            return;
+        }
+
+        $categorias = \App\Models\Categoria::where('activo', true)
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'color']);
+
+        // Precio base del artículo como referencia visual. Al hacer click,
+        // seleccionarArticulo aplica precios según la lista del pedido.
+        $articulos = \App\Models\Articulo::query()
+            ->where('activo', true)
+            ->whereNotNull('categoria_id')
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'codigo', 'categoria_id', 'precio_base', 'pesable']);
+
+        $articulosPorCategoria = $articulos->groupBy('categoria_id');
+
+        $this->catalogoTactil = $categorias->map(function ($cat) use ($articulosPorCategoria) {
+            $arts = $articulosPorCategoria->get($cat->id, collect());
+            if ($arts->isEmpty()) {
+                return null;
+            }
+
+            return [
+                'id' => (int) $cat->id,
+                'nombre' => $cat->nombre,
+                'color' => $cat->color ?: '#6B7280',
+                'articulos' => $arts->map(fn ($a) => [
+                    'id' => (int) $a->id,
+                    'nombre' => $a->nombre,
+                    'codigo' => $a->codigo,
+                    'precio' => (float) ($a->precio_base ?? 0),
+                    'es_pesable' => (bool) $a->pesable,
+                ])->values()->toArray(),
+            ];
+        })->filter()->values()->toArray();
+    }
+
+    public function togglePanelTactil(): void
+    {
+        $this->panelTactilAbierto = ! $this->panelTactilAbierto;
     }
 
     public function render()
