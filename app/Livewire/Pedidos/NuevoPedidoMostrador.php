@@ -965,6 +965,13 @@ class NuevoPedidoMostrador extends Component
                 continue;
             }
 
+            $precioUnitario = (float) $item['precio'];
+            $ivaPorc = (float) ($item['iva_porcentaje'] ?? 0);
+            $precioIvaIncluido = (bool) ($item['precio_iva_incluido'] ?? true);
+            $precioSinIva = ($precioIvaIncluido && $ivaPorc > 0)
+                ? round($precioUnitario / (1 + $ivaPorc / 100), 2)
+                : $precioUnitario;
+
             $detalles[] = [
                 'articulo_id' => $item['articulo_id'] ?? null,
                 'es_concepto' => (bool) ($item['es_concepto'] ?? false),
@@ -973,8 +980,8 @@ class NuevoPedidoMostrador extends Component
                 'tipo_iva_id' => null,
                 'lista_precio_id' => $this->listaPrecioId,
                 'cantidad' => $cantidad,
-                'precio_unitario' => (float) $item['precio'],
-                'precio_sin_iva' => null,
+                'precio_unitario' => $precioUnitario,
+                'precio_sin_iva' => $precioSinIva,
                 'descuento' => 0,
                 'precio_lista' => (float) ($item['precio_base'] ?? $item['precio']),
                 'precio_opcionales' => (float) ($item['precio_opcionales'] ?? 0),

@@ -4,11 +4,13 @@ namespace Tests\Feature\Livewire\Pedidos;
 
 use App\Livewire\Pedidos\NuevoPedidoMostrador;
 use App\Livewire\Pedidos\PedidosMostrador;
+use App\Models\PedidoMostrador;
 use App\Models\User;
 use Livewire\Livewire;
 use Tests\TestCase;
 use Tests\Traits\WithSucursal;
 use Tests\Traits\WithTenant;
+use Tests\Traits\WithVentaHelpers;
 
 /**
  * Smoke tests del módulo Pedidos por Mostrador.
@@ -18,13 +20,14 @@ use Tests\Traits\WithTenant;
  */
 class SmokePedidosTest extends TestCase
 {
-    use WithSucursal, WithTenant;
+    use WithSucursal, WithTenant, WithVentaHelpers;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->setUpTenant();
         $this->setUpSucursal();
+        $this->crearTiposIva();
 
         $user = User::factory()->create();
         $this->actingAs($user);
@@ -58,5 +61,28 @@ class SmokePedidosTest extends TestCase
             ->call('abrirModalNuevoPedido')
             ->assertSet('modalNuevoPedidoAbierto', true)
             ->assertSet('pedidoIdEnEdicion', null);
+    }
+
+    public function test_guardar_borrador_crea_pedido_sin_numero_ni_stock(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class);
+
+        // Simular agregar artículo al carrito (como hace el wire:click en la UI).
+        $componente->call('seleccionarArticulo', $articulo->id);
+
+        $componente->call('guardarBorrador');
+
+        $pedidos = PedidoMostrador::all();
+        $this->assertCount(1, $pedidos, 'Debe haberse creado un pedido');
+        $this->assertEquals(PedidoMostrador::ESTADO_BORRADOR, $pedidos->first()->estado_pedido);
+        $this->assertNull($pedidos->first()->numero, 'Borrador no asigna número');
+
+        // El stock no debe haberse descontado.
+        $stock = \App\Models\Stock::where('articulo_id', $articulo->id)
+            ->where('sucursal_id', $this->sucursalId)
+            ->first();
+        $this->assertEquals(50.0, (float) $stock->cantidad, 'Borrador no descuenta stock');
     }
 }
