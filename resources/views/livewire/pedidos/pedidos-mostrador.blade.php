@@ -60,7 +60,7 @@
                     <div>
                         <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar') }}</label>
                         <input type="text" id="search" wire:model.live.debounce.300ms="search"
-                            placeholder="{{ __('N°, identificador, cliente...') }}"
+                            placeholder="{{ __('N°, cliente o teléfono...') }}"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
                     </div>
                     <div>
@@ -106,6 +106,75 @@
             </div>
         </div>
 
+        {{-- Desplegable de Borradores: solo aparece si hay al menos uno --}}
+        @if($borradores->isNotEmpty())
+            <div class="mb-4 sm:mb-6 bg-white dark:bg-gray-800 shadow-sm rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                <button type="button" wire:click="toggleBorradores"
+                    class="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                            {{ __('Borradores') }}
+                        </span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                            {{ $borradores->count() }}
+                        </span>
+                    </div>
+                    <svg class="w-5 h-5 transition-transform {{ $mostrarBorradores ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+                @if($mostrarBorradores)
+                    <div class="border-t border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700 max-h-72 overflow-y-auto">
+                        @foreach($borradores as $borrador)
+                            <div class="px-4 py-2 flex items-center justify-between gap-2 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                        @if($borrador->cliente)
+                                            {{ $borrador->cliente->nombre }}
+                                            @if($borrador->cliente->telefono)
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $borrador->cliente->telefono }}</span>
+                                            @endif
+                                        @elseif($borrador->nombre_cliente_temporal)
+                                            {{ $borrador->nombre_cliente_temporal }}
+                                            @if($borrador->telefono_cliente_temporal)
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $borrador->telefono_cliente_temporal }}</span>
+                                            @endif
+                                        @else
+                                            <span class="italic text-gray-500">{{ __('Sin cliente') }}</span>
+                                        @endif
+                                    </div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                                        {{ __('Actualizado') }}: {{ $borrador->updated_at->diffForHumans() }}
+                                        · ${{ number_format($borrador->total_final, 2, ',', '.') }}
+                                    </div>
+                                </div>
+                                <div class="flex gap-1">
+                                    <button type="button" wire:click="abrirModalEditarPedido({{ $borrador->id }})"
+                                        class="inline-flex items-center px-3 py-1.5 bg-bcn-primary text-white text-xs font-medium rounded hover:bg-opacity-90"
+                                        title="{{ __('Continuar borrador') }}">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                        {{ __('Continuar') }}
+                                    </button>
+                                    <button type="button" wire:click="abrirCancelar({{ $borrador->id }})"
+                                        class="inline-flex items-center p-1.5 border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/30"
+                                        title="{{ __('Descartar borrador') }}">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+        @endif
+
         {{-- Cards móvil --}}
         <div class="sm:hidden space-y-3">
             @forelse($pedidos as $pedido)
@@ -120,9 +189,6 @@
                                         <span class="italic text-gray-500">{{ __('Borrador') }}</span>
                                     @endif
                                 </span>
-                                @if($pedido->identificador)
-                                    <span class="text-xs text-gray-600 dark:text-gray-400">/ {{ $pedido->identificador }}</span>
-                                @endif
                                 @if($pedido->numero_beeper)
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                                         🔔 {{ $pedido->numero_beeper }}
@@ -141,21 +207,21 @@
                             <div class="text-base font-bold text-bcn-secondary dark:text-white">
                                 ${{ number_format($pedido->total_final, 2, ',', '.') }}
                             </div>
-                            @if($pedido->total_cobrado > 0)
-                                <div class="text-xs text-green-700 dark:text-green-400">
-                                    {{ __('Cobrado') }}: ${{ number_format($pedido->total_cobrado, 2, ',', '.') }}
-                                </div>
-                            @endif
-                            @if($pedido->total_planificado > 0)
-                                <div class="text-xs text-blue-700 dark:text-blue-400">
-                                    {{ __('Planificado') }}: ${{ number_format($pedido->total_planificado, 2, ',', '.') }}
-                                </div>
-                            @endif
                         </div>
                     </div>
-                    <div class="flex gap-2 flex-wrap mb-3">
+                    <div class="flex gap-2 flex-wrap mb-2 items-center">
                         <x-pedidos.badge-estado-pedido :estado="$pedido->estado_pedido" />
                         <x-pedidos.badge-estado-pago :estado="$pedido->estado_pago" />
+                        @if($pedido->total_cobrado > 0)
+                            <span class="text-[10px] text-green-700 dark:text-green-400">
+                                {{ __('Cob.') }}: ${{ number_format($pedido->total_cobrado, 2, ',', '.') }}
+                            </span>
+                        @endif
+                        @if($pedido->total_planificado > 0)
+                            <span class="text-[10px] text-blue-700 dark:text-blue-400">
+                                {{ __('Plan.') }}: ${{ number_format($pedido->total_planificado, 2, ',', '.') }}
+                            </span>
+                        @endif
                     </div>
                     <div class="flex gap-2 flex-wrap">
                         <button wire:click="verDetalle({{ $pedido->id }})"
@@ -206,7 +272,6 @@
                     <thead class="bg-bcn-light dark:bg-gray-900">
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('N°') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Identificador') }}</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Cliente') }}</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Fecha') }}</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Total') }}</th>
@@ -232,9 +297,6 @@
                                         </span>
                                     @endif
                                 </td>
-                                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                    {{ $pedido->identificador ?: '—' }}
-                                </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <div class="text-sm text-gray-900 dark:text-gray-100">
                                         {{ $pedido->nombre_cliente_final ?? __('Sin cliente') }}
@@ -250,22 +312,22 @@
                                     <div class="text-sm font-bold text-bcn-secondary dark:text-white">
                                         ${{ number_format($pedido->total_final, 2, ',', '.') }}
                                     </div>
-                                    @if($pedido->total_cobrado > 0)
-                                        <div class="text-xs text-green-700 dark:text-green-400">
-                                            {{ __('Cob.') }}: ${{ number_format($pedido->total_cobrado, 2, ',', '.') }}
-                                        </div>
-                                    @endif
-                                    @if($pedido->total_planificado > 0)
-                                        <div class="text-xs text-blue-700 dark:text-blue-400">
-                                            {{ __('Plan.') }}: ${{ number_format($pedido->total_planificado, 2, ',', '.') }}
-                                        </div>
-                                    @endif
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <x-pedidos.badge-estado-pedido :estado="$pedido->estado_pedido" />
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <x-pedidos.badge-estado-pago :estado="$pedido->estado_pago" />
+                                    @if($pedido->total_cobrado > 0)
+                                        <div class="text-[10px] text-green-700 dark:text-green-400 mt-0.5">
+                                            {{ __('Cob.') }}: ${{ number_format($pedido->total_cobrado, 2, ',', '.') }}
+                                        </div>
+                                    @endif
+                                    @if($pedido->total_planificado > 0)
+                                        <div class="text-[10px] text-blue-700 dark:text-blue-400 {{ $pedido->total_cobrado > 0 ? '' : 'mt-0.5' }}">
+                                            {{ __('Plan.') }}: ${{ number_format($pedido->total_planificado, 2, ',', '.') }}
+                                        </div>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                                     <div class="flex justify-end gap-1 flex-wrap">
@@ -326,7 +388,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                                <td colspan="7" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                                     {{ __('No hay pedidos para estos filtros') }}
                                 </td>
                             </tr>
@@ -362,12 +424,6 @@
                             <div class="font-semibold text-gray-700 dark:text-gray-300">{{ __('Fecha') }}</div>
                             <div class="text-gray-900 dark:text-gray-100">{{ $pedidoDetalle->fecha->format('d/m/Y H:i') }}</div>
                         </div>
-                        @if($pedidoDetalle->identificador)
-                            <div>
-                                <div class="font-semibold text-gray-700 dark:text-gray-300">{{ __('Identificador') }}</div>
-                                <div class="text-gray-900 dark:text-gray-100">{{ $pedidoDetalle->identificador }}</div>
-                            </div>
-                        @endif
                         @if($pedidoDetalle->numero_beeper)
                             <div>
                                 <div class="font-semibold text-gray-700 dark:text-gray-300">{{ __('Beeper') }}</div>
@@ -474,10 +530,16 @@
             </x-slot:body>
 
             <x-slot:footer>
-                @if(in_array($pedidoDetalle->estado_pedido, ['borrador', 'confirmado']))
+                {{-- "Editar pedido" disponible solo si:
+                     - El pedido es BORRADOR (continuar) o
+                     - El pedido es CONFIRMADO y no tiene cobros materializados
+                       (estado_pago pendiente). Los pedidos con pagos activos se
+                       editan solo via "Cobrar pendiente" desde la lista. --}}
+                @if($pedidoDetalle->estado_pedido === 'borrador'
+                    || ($pedidoDetalle->estado_pedido === 'confirmado' && $pedidoDetalle->estado_pago === 'pendiente'))
                     <button type="button" wire:click="abrirModalEditarPedido({{ $pedidoDetalle->id }})"
                         class="w-full inline-flex justify-center rounded-md border border-bcn-primary shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-bcn-primary hover:bg-bcn-primary hover:text-white sm:w-auto sm:text-sm">
-                        {{ __('Editar pedido') }}
+                        {{ $pedidoDetalle->estado_pedido === 'borrador' ? __('Continuar borrador') : __('Editar pedido') }}
                     </button>
                 @endif
                 <button type="button" wire:click="reimprimirPrecuenta({{ $pedidoDetalle->id }})"
@@ -561,7 +623,6 @@
                     <div class="text-sm text-gray-700 dark:text-gray-300">
                         <div><strong>{{ __('Pedido') }}:</strong>
                             @if($cancelarPedidoInfo['numero'] ?? null) #{{ $cancelarPedidoInfo['numero'] }} @endif
-                            @if($cancelarPedidoInfo['identificador'] ?? null) ({{ $cancelarPedidoInfo['identificador'] }}) @endif
                         </div>
                         <div><strong>{{ __('Cliente') }}:</strong> {{ $cancelarPedidoInfo['cliente'] ?? '—' }}</div>
                         <div><strong>{{ __('Total') }}:</strong> ${{ number_format($cancelarPedidoInfo['total'] ?? 0, 2, ',', '.') }}</div>
@@ -681,7 +742,6 @@
                     <div class="text-sm text-gray-700 dark:text-gray-300">
                         <div><strong>{{ __('Pedido') }}:</strong>
                             @if($convertirPedidoInfo['numero'] ?? null) #{{ $convertirPedidoInfo['numero'] }} @endif
-                            @if($convertirPedidoInfo['identificador'] ?? null) ({{ $convertirPedidoInfo['identificador'] }}) @endif
                         </div>
                         <div><strong>{{ __('Cliente') }}:</strong> {{ $convertirPedidoInfo['cliente'] ?? '—' }}</div>
                         <div><strong>{{ __('Total') }}:</strong> ${{ number_format($convertirPedidoInfo['total'] ?? 0, 2, ',', '.') }}</div>
