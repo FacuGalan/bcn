@@ -11,12 +11,10 @@ use App\Livewire\Concerns\Carrito\WithConsultaPrecios;
 use App\Livewire\Concerns\Carrito\WithCupones;
 use App\Livewire\Concerns\Carrito\WithDescuentos;
 use App\Livewire\Concerns\Carrito\WithOpcionales;
+use App\Livewire\Concerns\Carrito\WithPagosDesglose;
 use App\Livewire\Concerns\Carrito\WithPuntos;
 use App\Models\Articulo;
 use App\Models\Categoria;
-use App\Models\FormaPago;
-use App\Models\FormaPagoCuotaSucursal;
-use App\Models\FormaPagoSucursal;
 use App\Models\ListaPrecio;
 use App\Models\PedidoMostrador;
 use App\Models\PedidoMostradorDetalle;
@@ -74,6 +72,7 @@ class NuevoPedidoMostrador extends Component
     use WithCupones;
     use WithDescuentos;
     use WithOpcionales;
+    use WithPagosDesglose;
     use WithPuntos;
 
     // ==================== CONTEXTO ====================
@@ -161,54 +160,33 @@ class NuevoPedidoMostrador extends Component
     /** Índice del item resaltado tras agregar (efecto highlight temporal). */
     public ?int $itemResaltado = null;
 
-    // ==================== STUBS PARA WithCalculoVenta ====================
-    // WithCalculoVenta llama estos métodos al final de calcularVenta() si hay
-    // formaPagoId. Como no usamos WithPagosDesglose, son no-op.
+    // ==================== STUBS FISCALES (para WithPagosDesglose) ====================
+    // WithPagosDesglose espera estas props del componente host (NuevaVenta las
+    // declara). Como en el pedido no aplican (sin comprobante fiscal hasta la
+    // conversión a venta), declaramos stubs en falsy fijo. La impresión y AFIP
+    // tampoco se gatillan: el override de `procesarVentaConDesglose` toma otro
+    // camino.
 
-    public bool $formaPagoPermiteCuotas = false;
+    /** Siempre false: el pedido no emite comprobante fiscal en su flujo. */
+    public bool $emitirFacturaFiscal = false;
 
-    public ?int $cuotaSeleccionadaId = null;
+    /** Siempre false: el pedido nunca dispara facturación automática. */
+    public bool $sucursalFacturaAutomatica = false;
 
-    public array $infoCuotaSeleccionada = [];
+    /** Habilita el botón "Confirmar sin cobrar" en el modal de pago. */
+    public bool $puedeConfirmarSinCobrar = true;
 
-    public array $ajusteFormaPagoInfo = [];
+    public float $montoFacturaFiscal = 0;
 
-    // ==================== MODAL DE PAGOS (DESGLOSE MIXTO) ====================
+    public array $desgloseIvaFiscal = [];
 
-    /** Indica si el modal de pago está abierto. */
-    public bool $mostrarModalPagoPedido = false;
+    public bool $showPuntoVentaModal = false;
 
-    /**
-     * Desglose de pagos en construcción. Cada item:
-     * [
-     *   'forma_pago_id' => int,
-     *   'forma_pago_nombre' => string,
-     *   'monto_base' => float,
-     *   'ajuste_porcentaje' => float,
-     *   'monto_ajuste' => float,
-     *   'monto_final' => float,
-     *   'cuotas' => ?int,
-     *   'recargo_cuotas_porcentaje' => ?float,
-     *   'recargo_cuotas_monto' => ?float,
-     *   'monto_cuota' => ?float,
-     *   'planificado' => bool,       // true=guardar sin cobrar, false=cobrar ahora
-     *   'referencia' => ?string,
-     * ]
-     */
-    public array $desglosePagosPedido = [];
+    public ?int $puntoVentaSeleccionadoId = null;
 
-    /** Formulario para agregar un pago al desglose. */
-    public array $nuevoPagoPedido = [
-        'forma_pago_id' => null,
-        'monto_base' => null,
-        'cuotas' => 1,
-        'recargo_cuotas_porcentaje' => 0,
-        'planificado' => false,
-        'referencia' => null,
-    ];
+    public array $puntosVentaDisponibles = [];
 
-    /** Formas de pago de la sucursal cacheadas en mount (id, nombre, cuotas, ajuste). */
-    public array $formasPagoDisponibles = [];
+    public bool $puedeSeleccionarPuntoVenta = false;
 
     // ==================== INYECCIÓN ====================
 
@@ -261,7 +239,7 @@ class NuevoPedidoMostrador extends Component
 
         $this->cargarConfiguracionSucursal();
         $this->cargarListasPrecios();
-        $this->cargarFormasPagoDisponibles();
+        $this->cargarFormasPagoSucursal();
         $this->listaPrecioId = $this->obtenerIdListaBase();
 
         $local = collect($this->formasVenta)->firstWhere('codigo', 'local');
@@ -304,7 +282,7 @@ class NuevoPedidoMostrador extends Component
 
         $this->cargarConfiguracionSucursal();
         $this->cargarListasPrecios();
-        $this->cargarFormasPagoDisponibles();
+        $this->cargarFormasPagoSucursal();
         $this->listaPrecioId = $this->obtenerIdListaBase();
     }
 
@@ -398,16 +376,33 @@ class NuevoPedidoMostrador extends Component
         }
     }
 
-    // ==================== STUBS PARA WithCalculoVenta ====================
+    // ==================== STUBS FISCALES ====================
+    // Estos métodos los llama WithPagosDesglose. En NuevaVenta cargan
+    // configuración fiscal y disparan eventos de impresión. En el pedido
+    // por mostrador no aplican porque NO emite comprobante fiscal en este
+    // flujo (el fiscal se genera al convertir pedido en venta).
 
-    protected function cargarCuotasFormaPago(): void
+    /**
+     * Stub: el pedido NO usa configuración fiscal (no factura). Mantenemos
+     * los flags en falsy para que WithPagosDesglose no trate de emitir CF.
+     */
+    protected function cargarConfiguracionFiscalSucursal(): void
     {
-        // No-op en alta de pedido (sin desglose de pagos en este PR).
+        $this->emitirFacturaFiscal = false;
+        $this->sucursalFacturaAutomatica = false;
     }
 
-    protected function calcularAjusteFormaPago(): void
+    /** Stub: NuevaVenta actualiza el flag fiscal al cambiar FP. En pedido no aplica. */
+    public function actualizarFacturaFiscalSegunFP(): void
     {
-        // No-op en alta de pedido.
+        $this->emitirFacturaFiscal = false;
+    }
+
+    /** Stub: NuevaVenta dispara impresión via QZ. En pedido se hace por separado. */
+    protected function dispararEventoImpresion($venta, $comprobanteFiscal = null): void
+    {
+        // No-op: la impresión del pedido (comanda / precuenta) se dispara
+        // desde la Lista o al convertir en venta.
     }
 
     // ==================== EDITAR NOMBRE DE ITEM ====================
@@ -820,37 +815,130 @@ class NuevoPedidoMostrador extends Component
      */
     public function confirmarPedido(): void
     {
+        if (! $this->validarAntesDeCobro()) {
+            return;
+        }
+
+        // Si no hay FP seleccionada, abrir directo el modal mixto.
+        if (! $this->formaPagoId) {
+            $this->abrirModalDesglose();
+
+            return;
+        }
+
+        // Con FP elegida: delegar al flujo del trait. Si la FP es simple,
+        // procesa directo (efectivo → modal vuelto, moneda extranjera →
+        // modal cotización, débito/crédito → desglose con un solo pago).
+        // Si la FP es mixta, abre el modal de desglose.
+        $this->iniciarCobro();
+    }
+
+    /**
+     * Validaciones previas al cobro: items, beeper, cliente, cálculo. Devuelve
+     * true si todo OK. Despacha toast-error y devuelve false en caso contrario.
+     */
+    protected function validarAntesDeCobro(): bool
+    {
         if (empty($this->items)) {
             $this->dispatch('toast-error', message: __('El pedido debe tener al menos un artículo'));
 
-            return;
+            return false;
         }
-
-        // Validaciones que se hacen antes de mostrar el modal de pago.
         if ($this->sucursalUsaBeepers && empty(trim($this->numeroBeeper ?? ''))) {
             $this->dispatch('toast-error', message: __('El número de beeper es obligatorio'));
 
-            return;
+            return false;
         }
-
         if (! $this->clienteSeleccionado) {
             $nombreTemp = trim($this->nombreClienteTemporal ?? '');
             $telTemp = trim($this->telefonoClienteTemporal ?? '');
             if ($nombreTemp === '' || $telTemp === '') {
                 $this->dispatch('toast-error', message: __('Seleccioná un cliente o ingresá nombre y teléfono temporales'));
 
-                return;
+                return false;
             }
         }
-
         $this->calcularVenta();
         if (! $this->resultado) {
             $this->dispatch('toast-error', message: __('No se pudo calcular el pedido'));
 
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Abre el modal de desglose mixto (igual que NuevaVenta::abrirModalDesglose).
+     * Carga FPs, resetea estado y muestra el modal del trait WithPagosDesglose.
+     */
+    public function abrirModalDesglose(): void
+    {
+        if (empty($this->items) || ! $this->resultado) {
+            $this->dispatch('toast-error', message: __('El carrito está vacío'));
+
             return;
         }
 
-        $this->abrirModalPagoPedido();
+        $this->cargarFormasPagoSucursal();
+
+        $this->desglosePagos = [];
+        $this->montoPendienteDesglose = $this->resultado['total_final'] ?? 0;
+        $this->totalConAjustes = $this->montoPendienteDesglose;
+        $this->resetNuevoPago();
+        $this->mostrarModalPago = true;
+    }
+
+    /**
+     * Marca/desmarca un pago del desglose como planificado (guardar sin cobrar).
+     * Pagos planificados no afectan caja al persistir.
+     */
+    public function togglePlanificadoEnDesglose(int $index): void
+    {
+        if (! isset($this->desglosePagos[$index])) {
+            return;
+        }
+        $this->desglosePagos[$index]['planificado'] = ! (bool) ($this->desglosePagos[$index]['planificado'] ?? false);
+    }
+
+    /**
+     * Confirma el pedido SIN agregar pagos. Persiste como CONFIRMADO con
+     * número y stock descontado, estado_pago=pendiente. El usuario podrá
+     * cobrar después desde la lista ("Cobrar pendiente").
+     */
+    public function confirmarSinCobrar(): void
+    {
+        if (! $this->validarAntesDeCobro()) {
+            return;
+        }
+
+        try {
+            $data = $this->construirDataPedido();
+            $detalles = $this->construirDetallesPedido();
+
+            if ($this->modoEdicion && $this->pedidoId) {
+                $pedido = PedidoMostrador::find($this->pedidoId);
+                if (! $pedido) {
+                    $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+
+                    return;
+                }
+                $this->pedidoService->actualizarPedido($pedido, $data, $detalles);
+                $this->dispatch('toast-success', message: __('Pedido actualizado sin cobrar'));
+            } else {
+                $pedido = $this->pedidoService->crearPedido($data, $detalles, esBorrador: false);
+                $this->dispatch('toast-success', message: __('Pedido confirmado sin cobrar #:numero', ['numero' => $pedido->numero]));
+            }
+
+            $this->mostrarModalPago = false;
+            $this->dispatch('pedido-guardado');
+        } catch (Exception $e) {
+            Log::error('Error al confirmar sin cobrar', [
+                'pedido_id' => $this->pedidoId,
+                'error' => $e->getMessage(),
+            ]);
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
     }
 
     protected function guardar(bool $esBorrador): void
@@ -1010,274 +1098,79 @@ class NuevoPedidoMostrador extends Component
         return $detalles;
     }
 
-    // ==================== FORMAS DE PAGO DISPONIBLES ====================
+    // ==================== OVERRIDE: BOTÓN CONFIRMAR DEL MODAL ====================
 
     /**
-     * Carga las formas de pago activas en la sucursal con sus cuotas y ajuste.
-     * Pensado para el desglose de pagos del pedido — sin lógica fiscal.
+     * Override del confirmar del modal de pago de NuevaVenta.
+     *
+     * En NuevaVenta este método sólo confirma el desglose y deja la venta en
+     * un estado intermedio (el usuario después clickea "Cobrar" en el POS).
+     * Acá, como el pedido no tiene un botón "Cobrar" separado, el "Confirmar"
+     * del modal procesa directamente: persiste el pedido y agrega los pagos.
      */
-    protected function cargarFormasPagoDisponibles(): void
+    public function confirmarPago(): void
     {
-        if (! $this->sucursalId) {
-            $this->formasPagoDisponibles = [];
+        if (! $this->desgloseCompleto()) {
+            $this->dispatch('toast-error', message: __('Complete el desglose de pagos'));
 
             return;
         }
+        $this->procesarVentaConDesglose();
+    }
 
-        $formasPago = FormaPago::with(['cuotas', 'conceptoPago'])
-            ->where('activo', true)
-            ->where('es_mixta', false)
-            ->orderBy('orden')
-            ->orderBy('id')
-            ->get();
+    // ==================== OVERRIDE: PROCESAMIENTO TERMINAL ====================
+    // WithPagosDesglose::procesarVentaConDesglose crea Venta + VentaPago vía
+    // VentaService. Acá lo reemplazamos para crear PedidoMostrador +
+    // PedidoMostradorPago via PedidoMostradorService. Cada pago del desglose
+    // hereda su flag `planificado` para que se persista con estado=planificado
+    // (sin tocar caja) o estado=activo (con MovimientoCaja).
 
-        $this->formasPagoDisponibles = $formasPago->map(function ($fp) {
-            $configSucursal = FormaPagoSucursal::where('forma_pago_id', $fp->id)
-                ->where('sucursal_id', $this->sucursalId)
-                ->first();
+    /**
+     * Override del método terminal de WithPagosDesglose. Persiste el pedido
+     * y agrega los pagos del desglose. Honra el flag `planificado` por pago.
+     */
+    protected function procesarVentaConDesglose(): void
+    {
+        try {
+            if (empty($this->items) || empty($this->desglosePagos)) {
+                $this->dispatch('toast-error', message: __('No hay pagos en el desglose'));
 
-            // Excluir las que están inactivas en la sucursal.
-            if ($configSucursal && ! $configSucursal->activo) {
-                return null;
+                return;
             }
 
-            // Excluir las marcadas "solo sistema" (canje puntos interno, etc.).
-            if ($fp->solo_sistema) {
-                return null;
-            }
+            // Validar caja abierta si algún pago la requiere (no CC).
+            $cajaId = $this->cajaSeleccionada ?? caja_activa();
+            $requiereCaja = collect($this->desglosePagos)->contains(function ($pago) {
+                $esCC = $pago['es_cuenta_corriente'] ?? false;
+                if (! $esCC && isset($pago['codigo'])) {
+                    $esCC = strtoupper($pago['codigo']) === 'CTA_CTE';
+                }
 
-            $ajustePorcentaje = $configSucursal && $configSucursal->ajuste_porcentaje !== null
-                ? (float) $configSucursal->ajuste_porcentaje
-                : (float) ($fp->ajuste_porcentaje ?? 0);
+                // Pagos planificados no requieren caja abierta (no impactan ahora).
+                return ! $esCC && ! (bool) ($pago['planificado'] ?? false);
+            });
 
-            $cuotasDisponibles = [];
-            if ($fp->permite_cuotas) {
-                foreach ($fp->cuotas as $cuota) {
-                    $cuotaSucursal = FormaPagoCuotaSucursal::where('forma_pago_cuota_id', $cuota->id)
-                        ->where('sucursal_id', $this->sucursalId)
-                        ->first();
-                    $activa = $cuotaSucursal ? $cuotaSucursal->activo : true;
-                    if (! $activa) {
-                        continue;
-                    }
-                    $recargo = $cuotaSucursal && $cuotaSucursal->recargo_porcentaje !== null
-                        ? (float) $cuotaSucursal->recargo_porcentaje
-                        : (float) $cuota->recargo_porcentaje;
-                    $cuotasDisponibles[] = [
-                        'id' => (int) $cuota->id,
-                        'cantidad' => (int) $cuota->cantidad_cuotas,
-                        'recargo' => $recargo,
-                        'descripcion' => $cuota->descripcion,
-                    ];
+            if ($requiereCaja) {
+                if (! $cajaId) {
+                    $this->dispatch('toast-error', message: __('Debe seleccionar una caja'));
+
+                    return;
+                }
+                $caja = \App\Models\Caja::find($cajaId);
+                if (! $caja || ! $caja->estaAbierta()) {
+                    $this->dispatch('toast-error', message: __('La caja debe estar abierta'));
+
+                    return;
                 }
             }
 
-            return [
-                'id' => (int) $fp->id,
-                'nombre' => $fp->nombre,
-                'codigo' => $fp->codigo,
-                'ajuste_porcentaje' => $ajustePorcentaje,
-                'permite_cuotas' => (bool) $fp->permite_cuotas,
-                'afecta_caja' => (bool) ($fp->afecta_caja ?? true),
-                'es_cuenta_corriente' => strtoupper($fp->codigo ?? '') === 'CTA_CTE',
-                'cuotas' => $cuotasDisponibles,
-            ];
-        })->filter()->values()->toArray();
-    }
+            // Recalcular para asegurar que el resultado refleja el carrito actual.
+            $this->calcularVenta();
 
-    // ==================== DESGLOSE DE PAGOS ====================
-
-    public function abrirModalPagoPedido(): void
-    {
-        $this->desglosePagosPedido = [];
-        $this->resetNuevoPagoPedido();
-
-        // Si el total es 0 (pedido bonificado), permitir confirmar sin pagos.
-        $totalFinal = (float) ($this->resultado['total_final'] ?? $this->resultado['total'] ?? 0);
-        if ($totalFinal <= 0.005) {
-            $this->mostrarModalPagoPedido = true;
-
-            return;
-        }
-
-        // Prellenar monto del primer pago con el pendiente total
-        $this->nuevoPagoPedido['monto_base'] = round($totalFinal, 2);
-        $this->mostrarModalPagoPedido = true;
-    }
-
-    public function cerrarModalPagoPedido(): void
-    {
-        $this->mostrarModalPagoPedido = false;
-        $this->desglosePagosPedido = [];
-        $this->resetNuevoPagoPedido();
-    }
-
-    protected function resetNuevoPagoPedido(): void
-    {
-        $this->nuevoPagoPedido = [
-            'forma_pago_id' => null,
-            'monto_base' => null,
-            'cuotas' => 1,
-            'recargo_cuotas_porcentaje' => 0,
-            'planificado' => false,
-            'referencia' => null,
-        ];
-    }
-
-    public function updatedNuevoPagoPedidoFormaPagoId($value): void
-    {
-        $this->nuevoPagoPedido['cuotas'] = 1;
-        $this->nuevoPagoPedido['recargo_cuotas_porcentaje'] = 0;
-
-        // Prefill monto con el pendiente actual si está vacío
-        $pendiente = $this->montoPendientePagoPedido();
-        if ($pendiente > 0.005 && empty($this->nuevoPagoPedido['monto_base'])) {
-            $this->nuevoPagoPedido['monto_base'] = round($pendiente, 2);
-        }
-    }
-
-    /**
-     * Selecciona un plan de cuotas para el form (id + recargo).
-     */
-    public function seleccionarCuotasPagoPedido(int $cuotas, float $recargo = 0): void
-    {
-        $this->nuevoPagoPedido['cuotas'] = max(1, $cuotas);
-        $this->nuevoPagoPedido['recargo_cuotas_porcentaje'] = $cuotas > 1 ? $recargo : 0;
-    }
-
-    public function togglePlanificadoNuevoPago(): void
-    {
-        $this->nuevoPagoPedido['planificado'] = ! (bool) ($this->nuevoPagoPedido['planificado'] ?? false);
-    }
-
-    public function togglePlanificadoEnDesglose(int $index): void
-    {
-        if (! isset($this->desglosePagosPedido[$index])) {
-            return;
-        }
-        $this->desglosePagosPedido[$index]['planificado'] = ! (bool) ($this->desglosePagosPedido[$index]['planificado'] ?? false);
-    }
-
-    /**
-     * Monto pendiente en el desglose actual del pedido (total_final − sum desglose).
-     */
-    public function montoPendientePagoPedido(): float
-    {
-        $total = (float) ($this->resultado['total_final'] ?? $this->resultado['total'] ?? 0);
-        $cubierto = array_sum(array_map(fn ($p) => (float) ($p['monto_final'] ?? 0), $this->desglosePagosPedido));
-
-        return round($total - $cubierto, 2);
-    }
-
-    public function agregarPagoAlDesglosePedido(): void
-    {
-        $this->validate([
-            'nuevoPagoPedido.forma_pago_id' => 'required|integer',
-            'nuevoPagoPedido.monto_base' => 'required|numeric|min:0.01',
-        ], [], [
-            'nuevoPagoPedido.forma_pago_id' => __('Forma de pago'),
-            'nuevoPagoPedido.monto_base' => __('Monto'),
-        ]);
-
-        $fp = collect($this->formasPagoDisponibles)->firstWhere('id', (int) $this->nuevoPagoPedido['forma_pago_id']);
-        if (! $fp) {
-            $this->dispatch('toast-error', message: __('Forma de pago no válida'));
-
-            return;
-        }
-
-        $montoBase = (float) $this->nuevoPagoPedido['monto_base'];
-        $cuotas = max(1, (int) ($this->nuevoPagoPedido['cuotas'] ?? 1));
-        $recargoCuotasPct = (float) ($this->nuevoPagoPedido['recargo_cuotas_porcentaje'] ?? 0);
-        $ajustePct = (float) ($fp['ajuste_porcentaje'] ?? 0);
-
-        // Ajuste por forma de pago (puede ser % positivo recargo o negativo descuento).
-        $montoAjuste = round($montoBase * $ajustePct / 100, 2);
-        $montoConAjuste = round($montoBase + $montoAjuste, 2);
-
-        // Recargo por cuotas (si aplica).
-        $recargoCuotasMonto = 0;
-        $montoCuota = null;
-        if ($cuotas > 1 && $recargoCuotasPct > 0) {
-            $recargoCuotasMonto = round($montoConAjuste * $recargoCuotasPct / 100, 2);
-        }
-        $montoFinal = round($montoConAjuste + $recargoCuotasMonto, 2);
-        if ($cuotas > 1) {
-            $montoCuota = round($montoFinal / $cuotas, 2);
-        }
-
-        // Validar que no excedamos el pendiente (con tolerancia).
-        $pendiente = $this->montoPendientePagoPedido();
-        if ($montoFinal > $pendiente + 0.01) {
-            $this->dispatch('toast-error', message: __('El monto excede el pendiente'));
-
-            return;
-        }
-
-        $this->desglosePagosPedido[] = [
-            'forma_pago_id' => (int) $fp['id'],
-            'forma_pago_nombre' => $fp['nombre'],
-            'forma_pago_codigo' => $fp['codigo'],
-            'afecta_caja' => $fp['afecta_caja'],
-            'es_cuenta_corriente' => $fp['es_cuenta_corriente'],
-            'monto_base' => $montoBase,
-            'ajuste_porcentaje' => $ajustePct,
-            'monto_ajuste' => $montoAjuste,
-            'monto_final' => $montoFinal,
-            'cuotas' => $cuotas > 1 ? $cuotas : null,
-            'recargo_cuotas_porcentaje' => $cuotas > 1 ? $recargoCuotasPct : null,
-            'recargo_cuotas_monto' => $cuotas > 1 ? $recargoCuotasMonto : null,
-            'monto_cuota' => $montoCuota,
-            'planificado' => (bool) ($this->nuevoPagoPedido['planificado'] ?? false),
-            'referencia' => trim($this->nuevoPagoPedido['referencia'] ?? '') ?: null,
-        ];
-
-        $this->resetNuevoPagoPedido();
-
-        // Prefill monto con el nuevo pendiente
-        $nuevoPendiente = $this->montoPendientePagoPedido();
-        if ($nuevoPendiente > 0.005) {
-            $this->nuevoPagoPedido['monto_base'] = round($nuevoPendiente, 2);
-        }
-    }
-
-    public function eliminarPagoDelDesglose(int $index): void
-    {
-        if (! isset($this->desglosePagosPedido[$index])) {
-            return;
-        }
-        unset($this->desglosePagosPedido[$index]);
-        $this->desglosePagosPedido = array_values($this->desglosePagosPedido);
-
-        // Reprefill monto con el pendiente
-        $pendiente = $this->montoPendientePagoPedido();
-        if ($pendiente > 0.005 && empty($this->nuevoPagoPedido['monto_base'])) {
-            $this->nuevoPagoPedido['monto_base'] = round($pendiente, 2);
-        }
-    }
-
-    /**
-     * Confirma el desglose: persiste el pedido y agrega los pagos. Despacha
-     * pedido-guardado al padre. Si algo falla, el pedido se cancela para no
-     * dejar pedidos huérfanos.
-     */
-    public function confirmarPagosPedido(): void
-    {
-        $totalFinal = (float) ($this->resultado['total_final'] ?? $this->resultado['total'] ?? 0);
-        $cubierto = array_sum(array_map(fn ($p) => (float) ($p['monto_final'] ?? 0), $this->desglosePagosPedido));
-
-        // Validación: debe cubrir el total (a menos que sea 0).
-        if ($totalFinal > 0.005 && abs($cubierto - $totalFinal) > 0.05) {
-            $this->dispatch('toast-error', message: __('La suma de pagos debe igualar el total final'));
-
-            return;
-        }
-
-        try {
             $data = $this->construirDataPedido();
             $detalles = $this->construirDetallesPedido();
 
-            // 1) Crear/actualizar el pedido (confirmado).
+            // Crear/actualizar pedido en estado CONFIRMADO.
             if ($this->modoEdicion && $this->pedidoId) {
                 $pedido = PedidoMostrador::find($this->pedidoId);
                 if (! $pedido) {
@@ -1288,21 +1181,34 @@ class NuevoPedidoMostrador extends Component
                 $pedido = $this->pedidoService->crearPedido($data, $detalles, esBorrador: false);
             }
 
-            // 2) Agregar los pagos del desglose.
-            foreach ($this->desglosePagosPedido as $pago) {
+            // Agregar cada pago del desglose, honrando el flag planificado.
+            foreach ($this->desglosePagos as $pago) {
+                $esCC = $pago['es_cuenta_corriente'] ?? false;
+                if (! $esCC && isset($pago['codigo'])) {
+                    $esCC = strtoupper($pago['codigo']) === 'CTA_CTE';
+                }
                 $this->pedidoService->agregarPago($pedido, [
-                    'forma_pago_id' => $pago['forma_pago_id'],
-                    'monto_base' => $pago['monto_base'],
-                    'ajuste_porcentaje' => $pago['ajuste_porcentaje'] ?? 0,
-                    'monto_ajuste' => $pago['monto_ajuste'] ?? 0,
-                    'monto_final' => $pago['monto_final'],
+                    'forma_pago_id' => (int) $pago['forma_pago_id'],
+                    'monto_base' => (float) ($pago['monto_base'] ?? $pago['monto_final']),
+                    'ajuste_porcentaje' => (float) ($pago['ajuste_porcentaje'] ?? 0),
+                    'monto_ajuste' => (float) ($pago['monto_ajuste'] ?? 0),
+                    'monto_final' => (float) $pago['monto_final'],
+                    'monto_recibido' => $pago['monto_recibido'] ?? null,
+                    'vuelto' => (float) ($pago['vuelto'] ?? 0),
                     'cuotas' => $pago['cuotas'] ?? null,
                     'recargo_cuotas_porcentaje' => $pago['recargo_cuotas_porcentaje'] ?? null,
                     'recargo_cuotas_monto' => $pago['recargo_cuotas_monto'] ?? null,
                     'monto_cuota' => $pago['monto_cuota'] ?? null,
                     'referencia' => $pago['referencia'] ?? null,
-                    'es_cuenta_corriente' => (bool) ($pago['es_cuenta_corriente'] ?? false),
-                    'afecta_caja' => (bool) ($pago['afecta_caja'] ?? true),
+                    'observaciones' => $pago['observaciones'] ?? null,
+                    'es_cuenta_corriente' => (bool) $esCC,
+                    'es_pago_puntos' => (bool) ($pago['es_pago_puntos'] ?? false),
+                    'puntos_usados' => $pago['puntos_usados'] ?? 0,
+                    'afecta_caja' => (bool) ($pago['afecta_caja'] ?? ! $esCC),
+                    'moneda_id' => $pago['moneda_id'] ?? null,
+                    'monto_moneda_original' => $pago['monto_moneda_original'] ?? null,
+                    'tipo_cambio_id' => $pago['tipo_cambio_id'] ?? null,
+                    'tipo_cambio_tasa' => $pago['tipo_cambio_tasa'] ?? null,
                     'planificado' => (bool) ($pago['planificado'] ?? false),
                 ]);
             }
@@ -1312,10 +1218,10 @@ class NuevoPedidoMostrador extends Component
                 : __('Pedido confirmado #:numero', ['numero' => $pedido->numero]);
             $this->dispatch('toast-success', message: $msg);
 
-            $this->mostrarModalPagoPedido = false;
+            $this->mostrarModalPago = false;
             $this->dispatch('pedido-guardado');
         } catch (Exception $e) {
-            Log::error('Error al confirmar pedido con pagos', [
+            Log::error('Error al procesar pedido con desglose', [
                 'pedido_id' => $this->pedidoId,
                 'error' => $e->getMessage(),
             ]);
