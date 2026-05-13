@@ -35,27 +35,29 @@
 
         {{-- Columna derecha: contenido scrolleable + footer fijo --}}
         <div class="w-full lg:w-96 lg:flex-shrink-0 flex flex-col min-h-0 gap-2">
-            {{-- Contenido scrolleable --}}
-            <div class="flex-1 overflow-y-auto space-y-3 pr-1 min-h-0">
+            {{-- Contenido scrolleable. Inputs compactos al estilo NuevaVenta. --}}
+            <div class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
                 {{-- Cliente (reutilizado) --}}
-                <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-3">
+                <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-2">
                     @include('livewire.carrito._busqueda-cliente')
 
                     @unless($clienteSeleccionado)
-                        {{-- Cliente temporal (RF-17) --}}
-                        <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
-                            <div class="text-xs text-gray-600 dark:text-gray-400">
-                                {{ __('O ingresá datos temporales (no se guarda como cliente)') }}
+                        {{-- Cliente temporal (RF-17): nombre+teléfono en una sola fila --}}
+                        <div class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 space-y-1.5">
+                            <div class="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                {{ __('O datos temporales') }}
                             </div>
-                            <input type="text" wire:model.live.debounce.300ms="nombreClienteTemporal"
-                                placeholder="{{ __('Nombre del cliente') }}"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                            <input type="text" wire:model.live.debounce.300ms="telefonoClienteTemporal"
-                                placeholder="{{ __('Teléfono del cliente') }}"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                            <div class="grid grid-cols-2 gap-1.5">
+                                <input type="text" wire:model.live.debounce.300ms="nombreClienteTemporal"
+                                    placeholder="{{ __('Nombre') }}"
+                                    class="block w-full pl-2 pr-2 py-1 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary rounded-md" />
+                                <input type="text" wire:model.live.debounce.300ms="telefonoClienteTemporal"
+                                    placeholder="{{ __('Teléfono') }}"
+                                    class="block w-full pl-2 pr-2 py-1 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary rounded-md" />
+                            </div>
                             @if(trim($nombreClienteTemporal ?? '') !== '' && trim($telefonoClienteTemporal ?? '') !== '')
                                 <button type="button" wire:click="abrirModalAltaClienteTemporal"
-                                    class="text-xs text-bcn-primary hover:underline">
+                                    class="text-[10px] text-bcn-primary hover:underline">
                                     + {{ __('Dar de alta como cliente') }}
                                 </button>
                             @endif
@@ -63,37 +65,39 @@
                     @endunless
                 </div>
 
-                {{-- Beeper (solo si la sucursal lo usa) --}}
-                @if($sucursalUsaBeepers)
-                    <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-3">
-                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            {{ __('Número de beeper') }} <span class="text-red-500">*</span>
-                        </label>
-                        <input type="text" wire:model="numeroBeeper" maxlength="20"
-                            placeholder="{{ __('Ingresá el número de beeper') }}"
-                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                {{-- Beeper + Lista de precios (combinados en card compacta) --}}
+                @if($sucursalUsaBeepers || count($listasPreciosDisponibles) > 1)
+                    <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-2 space-y-1.5">
+                        @if($sucursalUsaBeepers)
+                            <div>
+                                <label class="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-0.5">
+                                    {{ __('Beeper') }} <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" wire:model="numeroBeeper" maxlength="20"
+                                    placeholder="{{ __('N° de beeper') }}"
+                                    class="block w-full pl-2 pr-2 py-1 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary rounded-md" />
+                            </div>
+                        @endif
+                        @if(count($listasPreciosDisponibles) > 1)
+                            <div>
+                                <label for="listaPrecioId" class="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-0.5">{{ __('Lista de Precios') }}</label>
+                                <select id="listaPrecioId" wire:model.live="listaPrecioId"
+                                    class="block w-full pl-2 pr-6 py-1 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary rounded-md">
+                                    @foreach($listasPreciosDisponibles as $lista)
+                                        <option value="{{ $lista['id'] }}">{{ $lista['nombre'] }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @endif
                     </div>
                 @endif
 
-                {{-- Lista de precios (solo si hay >1) --}}
-                @if(count($listasPreciosDisponibles) > 1)
-                    <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-3">
-                        <label for="listaPrecioId" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Lista de Precios') }}</label>
-                        <select id="listaPrecioId" wire:model.live="listaPrecioId"
-                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                            @foreach($listasPreciosDisponibles as $lista)
-                                <option value="{{ $lista['id'] }}">{{ $lista['nombre'] }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                @endif
-
-                {{-- Forma de Pago + Cuotas (igual a NuevaVenta) --}}
-                <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-3 space-y-2">
+                {{-- Forma de Pago + Cuotas (compacto, estilo NuevaVenta) --}}
+                <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-2 space-y-1.5">
                     <div>
-                        <label for="formaPagoId" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Forma de Pago') }}</label>
+                        <label for="formaPagoId" class="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-0.5">{{ __('Forma de Pago') }}</label>
                         <select wire:model.live="formaPagoId" id="formaPagoId"
-                            class="block w-full pl-2 pr-6 py-1.5 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary rounded-md">
+                            class="block w-full pl-2 pr-6 py-1 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary rounded-md">
                             <option value="">{{ __('Seleccionar...') }}</option>
                             @foreach($this->formasPago as $fp)
                                 <option value="{{ $fp['id'] }}">{{ $fp['nombre'] }}</option>
@@ -101,12 +105,11 @@
                         </select>
                     </div>
 
-                    {{-- Cuotas (solo si la FP las permite) --}}
                     @if($formaPagoPermiteCuotas && count($cuotasFormaPagoDisponibles) > 0)
                         <div>
-                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cuotas') }}</label>
+                            <label class="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-0.5">{{ __('Cuotas') }}</label>
                             <select wire:model.live="cuotaSeleccionadaId"
-                                class="block w-full pl-2 pr-6 py-1.5 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary rounded-md">
+                                class="block w-full pl-2 pr-6 py-1 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary rounded-md">
                                 <option value="">{{ __('1 pago') }}</option>
                                 @foreach($cuotasFormaPagoDisponibles as $cuota)
                                     <option value="{{ $cuota['id'] }}">{{ $cuota['cantidad_cuotas'] }} {{ __('cuotas') }} · ${{ number_format($cuota['valor_cuota'], 2, ',', '.') }} @if($cuota['recargo_porcentaje'] > 0)(+{{ $cuota['recargo_porcentaje'] }}%)@endif</option>
@@ -115,9 +118,8 @@
                         </div>
                     @endif
 
-                    {{-- Info de ajuste por FP --}}
                     @if($formaPagoId && ($ajusteFormaPagoInfo['porcentaje'] ?? 0) != 0)
-                        <div class="text-xs text-gray-600 dark:text-gray-400">
+                        <div class="text-[10px] text-gray-600 dark:text-gray-400">
                             @if($ajusteFormaPagoInfo['porcentaje'] > 0)
                                 {{ __('Recargo') }} {{ $ajusteFormaPagoInfo['porcentaje'] }}%: +${{ number_format($ajusteFormaPagoInfo['monto'] ?? 0, 2, ',', '.') }}
                             @else

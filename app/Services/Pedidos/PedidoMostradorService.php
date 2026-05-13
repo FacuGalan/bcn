@@ -261,6 +261,46 @@ class PedidoMostradorService
         }
     }
 
+    /**
+     * Transiciona un pedido en estado BORRADOR a CONFIRMADO. Asigna número,
+     * marca confirmado_at, descuenta stock y dispara PedidoCreado. Idempotente:
+     * si el pedido ya está confirmado, no hace nada.
+     *
+     * Usado por agregarPago/confirmarPagoPlanificado para que un cobro real
+     * sobre un borrador automáticamente lo confirme — no queremos pagos sobre
+     * pedidos sin número/stock.
+     */
+    public function confirmarBorrador(PedidoMostrador $pedido): void
+    {
+        if ($pedido->estado_pedido !== PedidoMostrador::ESTADO_BORRADOR) {
+            return;
+        }
+
+        $numero = $this->siguienteNumero((int) $pedido->sucursal_id);
+        $pedido->update([
+            'estado_pedido' => PedidoMostrador::ESTADO_CONFIRMADO,
+            'numero' => $numero,
+            'confirmado_at' => now(),
+        ]);
+
+        // Recargar relaciones para que descontarStockPorPedido vea los detalles.
+        $pedido->load('detalles');
+        $this->descontarStockPorPedido($pedido);
+
+        event(new PedidoCreado(
+            pedidoId: $pedido->id,
+            sucursalId: $pedido->sucursal_id,
+            usuarioId: (int) auth()->id() ?: $pedido->usuario_id,
+        ));
+
+        $this->maybeImprimirComandaAutomatica($pedido);
+
+        Log::info('Borrador transicionado a confirmado por cobro', [
+            'pedido_id' => $pedido->id,
+            'numero' => $numero,
+        ]);
+    }
+
     // ==================== PAGOS ====================
 
     /**
@@ -289,6 +329,14 @@ class PedidoMostradorService
         $esPlanificado = (bool) ($datosPago['planificado'] ?? false);
 
         return DB::connection('pymes_tenant')->transaction(function () use ($pedido, $datosPago, $esPlanificado) {
+            // Si el pedido está en BORRADOR y el pago NO es planificado,
+            // transicionar a CONFIRMADO antes de registrar el cobro. Un pago
+            // real no puede caer sobre un borrador sin asignar número/stock.
+            if ($pedido->estado_pedido === PedidoMostrador::ESTADO_BORRADOR && ! $esPlanificado) {
+                $this->confirmarBorrador($pedido);
+                $pedido->refresh();
+            }
+
             $formaPago = FormaPago::findOrFail($datosPago['forma_pago_id']);
             $afectaCaja = (bool) ($datosPago['afecta_caja'] ?? $formaPago->afecta_caja ?? true);
 
@@ -351,6 +399,15 @@ class PedidoMostradorService
 
         return DB::connection('pymes_tenant')->transaction(function () use ($pago, $datosCobro) {
             $pedido = $pago->pedido()->first();
+
+            // Si el pedido está en BORRADOR, transicionar a CONFIRMADO antes
+            // de materializar: el pago pasa a tocar caja, no podemos dejarlo
+            // sobre un borrador (sin número ni stock descontado).
+            if ($pedido->estado_pedido === PedidoMostrador::ESTADO_BORRADOR) {
+                $this->confirmarBorrador($pedido);
+                $pedido->refresh();
+            }
+
             $formaPago = FormaPago::findOrFail($pago->forma_pago_id);
 
             $update = [

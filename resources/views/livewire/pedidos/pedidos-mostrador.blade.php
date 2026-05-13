@@ -106,6 +106,72 @@
             </div>
         </div>
 
+        {{-- Desplegable de Borradores: solo aparece si hay al menos uno --}}
+        @if($borradores->isNotEmpty())
+            <div class="mb-4 sm:mb-6 bg-white dark:bg-gray-800 shadow-sm rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                <button type="button" wire:click="toggleBorradores"
+                    class="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                            {{ __('Borradores') }}
+                        </span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                            {{ $borradores->count() }}
+                        </span>
+                    </div>
+                    <svg class="w-5 h-5 transition-transform {{ $mostrarBorradores ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+                @if($mostrarBorradores)
+                    <div class="border-t border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700 max-h-72 overflow-y-auto">
+                        @foreach($borradores as $borrador)
+                            <div class="px-4 py-2 flex items-center justify-between gap-2 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                        @if($borrador->identificador)
+                                            {{ $borrador->identificador }}
+                                        @else
+                                            <span class="italic text-gray-500">{{ __('Sin identificador') }}</span>
+                                        @endif
+                                        @if($borrador->cliente)
+                                            <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $borrador->cliente->nombre }}</span>
+                                        @elseif($borrador->nombre_cliente_temporal)
+                                            <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $borrador->nombre_cliente_temporal }}</span>
+                                        @endif
+                                    </div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                                        {{ __('Actualizado') }}: {{ $borrador->updated_at->diffForHumans() }}
+                                        · ${{ number_format($borrador->total_final, 2, ',', '.') }}
+                                    </div>
+                                </div>
+                                <div class="flex gap-1">
+                                    <button type="button" wire:click="abrirModalEditarPedido({{ $borrador->id }})"
+                                        class="inline-flex items-center px-3 py-1.5 bg-bcn-primary text-white text-xs font-medium rounded hover:bg-opacity-90"
+                                        title="{{ __('Continuar borrador') }}">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                        {{ __('Continuar') }}
+                                    </button>
+                                    <button type="button" wire:click="abrirCancelar({{ $borrador->id }})"
+                                        class="inline-flex items-center p-1.5 border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/30"
+                                        title="{{ __('Descartar borrador') }}">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+        @endif
+
         {{-- Cards móvil --}}
         <div class="sm:hidden space-y-3">
             @forelse($pedidos as $pedido)

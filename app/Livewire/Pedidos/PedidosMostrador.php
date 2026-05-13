@@ -41,6 +41,9 @@ class PedidosMostrador extends Component
 
     public bool $showFilters = false;
 
+    /** Controla el desplegable de borradores arriba de la lista. */
+    public bool $mostrarBorradores = false;
+
     // ==================== MODAL: DETALLE ====================
 
     public bool $showDetalleModal = false;
@@ -234,11 +237,18 @@ class PedidosMostrador extends Component
         ])
             ->where('sucursal_id', $this->sucursalActual());
 
-        // Estado del pedido
+        // Estado del pedido. Los BORRADORES nunca aparecen en la tabla
+        // principal — viven en su propio desplegable arriba (obtenerBorradores).
         if ($this->filterEstadoPedido === 'activos') {
-            $query->activos();
+            $query->activos()->where('estado_pedido', '!=', PedidoMostrador::ESTADO_BORRADOR);
+        } elseif ($this->filterEstadoPedido === 'borrador') {
+            // Caso edge: si el usuario eligió "borrador" en el filtro, lo
+            // dejamos pasar (puede querer auditarlos).
+            $query->where('estado_pedido', PedidoMostrador::ESTADO_BORRADOR);
         } elseif ($this->filterEstadoPedido !== 'all') {
             $query->where('estado_pedido', $this->filterEstadoPedido);
+        } else {
+            $query->where('estado_pedido', '!=', PedidoMostrador::ESTADO_BORRADOR);
         }
 
         // Estado del pago
@@ -270,6 +280,26 @@ class PedidosMostrador extends Component
         }
 
         return $query->orderByDesc('fecha')->orderByDesc('id')->paginate(15);
+    }
+
+    /**
+     * Borradores de la sucursal: pedidos pre-cargados sin número ni stock,
+     * que el usuario quiere retomar después. Se listan en un desplegable
+     * separado encima de la tabla principal.
+     */
+    protected function obtenerBorradores()
+    {
+        return PedidoMostrador::with(['cliente:id,nombre,telefono'])
+            ->where('sucursal_id', $this->sucursalActual())
+            ->where('estado_pedido', PedidoMostrador::ESTADO_BORRADOR)
+            ->orderByDesc('updated_at')
+            ->limit(50)
+            ->get();
+    }
+
+    public function toggleBorradores(): void
+    {
+        $this->mostrarBorradores = ! $this->mostrarBorradores;
     }
 
     // ==================== DETALLE ====================
@@ -653,6 +683,7 @@ class PedidosMostrador extends Component
     public function render()
     {
         $pedidos = $this->obtenerPedidos();
+        $borradores = $this->obtenerBorradores();
 
         $pedidoDetalle = $this->pedidoDetalleId
             ? PedidoMostrador::with([
@@ -668,6 +699,7 @@ class PedidosMostrador extends Component
 
         return view('livewire.pedidos.pedidos-mostrador', [
             'pedidos' => $pedidos,
+            'borradores' => $borradores,
             'pedidoDetalle' => $pedidoDetalle,
             'estadosPedido' => PedidoMostrador::ESTADOS,
             'estadosPago' => PedidoMostrador::ESTADOS_PAGO,

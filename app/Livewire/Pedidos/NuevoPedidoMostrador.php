@@ -132,6 +132,16 @@ class NuevoPedidoMostrador extends Component
      */
     public int $cuentaPagosOriginales = 0;
 
+    /**
+     * Diferencia el modo del modal de pago:
+     * - false (preview): se abrió por seleccionar FP mixta en el dropdown.
+     *   "Confirmar" cierra el modal manteniendo el desglose y vuelve al alta
+     *   con los totales actualizados.
+     * - true (cobrar): se abrió por click en "Confirmar pedido". "Confirmar"
+     *   del modal procesa: persiste el pedido y agrega los pagos.
+     */
+    public bool $modalPagoEnModoCobro = false;
+
     /** Modo de control de stock de la sucursal. */
     public string $controlStock = 'permitir';
 
@@ -889,6 +899,10 @@ class NuevoPedidoMostrador extends Component
             return;
         }
 
+        // Click en "Confirmar pedido" → modal en modo cobrar. Si después se
+        // procesa (confirmarPago) se persiste todo.
+        $this->modalPagoEnModoCobro = true;
+
         // Si no hay FP seleccionada, abrir directo el modal mixto.
         if (! $this->formaPagoId) {
             $this->abrirModalDesglose();
@@ -1518,8 +1532,10 @@ class NuevoPedidoMostrador extends Component
         $this->calcularVenta(); // dispara calcularAjusteFormaPago internamente
 
         // Si la FP elegida es mixta, abrir el modal de desglose automáticamente
-        // (igual que NuevaVenta).
+        // (igual que NuevaVenta). MODO PREVIEW: al confirmar el modal vuelve
+        // al alta con los totales actualizados, no procesa el pedido.
         if (($this->ajusteFormaPagoInfo['es_mixta'] ?? false) && ! empty($this->items)) {
+            $this->modalPagoEnModoCobro = false;
             $this->abrirModalDesglose();
         }
     }
@@ -1533,12 +1549,17 @@ class NuevoPedidoMostrador extends Component
     // ==================== OVERRIDE: BOTÓN CONFIRMAR DEL MODAL ====================
 
     /**
-     * Override del confirmar del modal de pago de NuevaVenta.
+     * Override del "Confirmar" del modal de pago.
      *
-     * En NuevaVenta este método sólo confirma el desglose y deja la venta en
-     * un estado intermedio (el usuario después clickea "Cobrar" en el POS).
-     * Acá, como el pedido no tiene un botón "Cobrar" separado, el "Confirmar"
-     * del modal procesa directamente: persiste el pedido y agrega los pagos.
+     * Distingue dos contextos:
+     * - **Preview** (`$modalPagoEnModoCobro=false`): el modal se abrió por
+     *   seleccionar una FP mixta en el dropdown. Confirmar acá NO procesa
+     *   el pedido — solo cierra el modal manteniendo el desglose. El alta
+     *   muestra los totales actualizados y el usuario puede seguir editando.
+     *   Comportamiento idéntico al "Confirmar" del modal de NuevaVenta.
+     * - **Cobrar** (`$modalPagoEnModoCobro=true`): el modal se abrió por
+     *   click en "Confirmar pedido". Confirmar acá procesa: persiste el
+     *   pedido y agrega los pagos.
      */
     public function confirmarPago(): void
     {
@@ -1547,7 +1568,22 @@ class NuevoPedidoMostrador extends Component
 
             return;
         }
-        $this->procesarVentaConDesglose();
+
+        if ($this->modalPagoEnModoCobro) {
+            $this->procesarVentaConDesglose();
+
+            return;
+        }
+
+        // Preview: cerrar modal manteniendo desglose. Actualizar ajuste de FP
+        // para que el resumen del alta refleje el total final con los pagos.
+        $totalBase = (float) ($this->resultado['total_final'] ?? 0);
+        $montoAjuste = (float) $this->totalConAjustes - $totalBase;
+        $this->ajusteFormaPagoInfo['monto'] = $montoAjuste;
+        $this->ajusteFormaPagoInfo['total_con_ajuste'] = (float) $this->totalConAjustes;
+
+        $this->mostrarModalPago = false;
+        $this->dispatch('toast-success', message: __('Desglose guardado. Revisá los totales y confirmá el pedido.'));
     }
 
     // ==================== OVERRIDE: PROCESAMIENTO TERMINAL ====================
@@ -1568,6 +1604,23 @@ class NuevoPedidoMostrador extends Component
                 $this->dispatch('toast-error', message: __('No hay pagos en el desglose'));
 
                 return;
+            }
+
+            // Validaciones que sí o sí deben estar al persistir (mismas que
+            // confirmarPedido pero a prueba de cualquier ruta de entrada).
+            if ($this->sucursalUsaBeepers && empty(trim($this->numeroBeeper ?? ''))) {
+                $this->dispatch('toast-error', message: __('El número de beeper es obligatorio'));
+
+                return;
+            }
+            if (! $this->clienteSeleccionado) {
+                $nombreTemp = trim($this->nombreClienteTemporal ?? '');
+                $telTemp = trim($this->telefonoClienteTemporal ?? '');
+                if ($nombreTemp === '' || $telTemp === '') {
+                    $this->dispatch('toast-error', message: __('Seleccioná un cliente o ingresá nombre y teléfono temporales'));
+
+                    return;
+                }
             }
 
             // Validar caja abierta si algún pago la requiere (no CC).
