@@ -155,6 +155,9 @@ class NuevoPedidoMostrador extends Component
 
     public string $editarNombreValor = '';
 
+    /** Índice del item resaltado tras agregar (efecto highlight temporal). */
+    public ?int $itemResaltado = null;
+
     // ==================== STUBS PARA WithCalculoVenta ====================
     // WithCalculoVenta llama estos métodos al final de calcularVenta() si hay
     // formaPagoId. Como en PR2.C.2.A no incluimos WithPagosDesglose, son no-op.

@@ -4,9 +4,9 @@
     @keydown.escape.window="$wire.cerrar()"
 >
     {{-- Header sticky --}}
-    <div class="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div>
-            <h2 class="text-lg sm:text-xl font-bold text-bcn-secondary dark:text-white flex items-center gap-2 flex-wrap">
+    <div class="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 sm:px-6 py-2 flex items-center justify-between gap-3 flex-shrink-0">
+        <div class="min-w-0">
+            <h2 class="text-base sm:text-lg font-bold text-bcn-secondary dark:text-white flex items-center gap-2 flex-wrap">
                 @if($modoEdicion)
                     {{ __('Editar Pedido') }} #{{ $pedidoId }}
                     @if($estadoPedidoActual)
@@ -16,36 +16,17 @@
                     {{ __('Nuevo Pedido') }}
                 @endif
             </h2>
-            <p class="text-xs text-gray-600 dark:text-gray-400">
-                {{ __('Cargá los artículos y datos del pedido. Pagos y conversión se gestionan desde la lista.') }}
-            </p>
         </div>
-        <div class="flex gap-2 items-center flex-wrap">
-            <button type="button" wire:click="cerrar" wire:loading.attr="disabled"
-                class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                {{ __('Cancelar') }}
-            </button>
-            @if(!$modoEdicion)
-                <button type="button" wire:click="guardarBorrador" wire:loading.attr="disabled"
-                    class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                    {{ __('Guardar borrador') }}
-                </button>
-            @endif
-            <button type="button" wire:click="confirmarPedido" wire:loading.attr="disabled"
-                class="inline-flex items-center px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-bcn-primary hover:bg-opacity-90 shadow">
-                {{ $modoEdicion ? __('Guardar cambios') : __('Confirmar pedido') }}
-            </button>
-            <button type="button" wire:click="cerrar" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 ml-1"
-                title="{{ __('Cerrar') }}">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
-        </div>
+        <button type="button" wire:click="cerrar" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 flex-shrink-0"
+            title="{{ __('Cerrar') }} (Esc)">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
     </div>
 
-    {{-- Cuerpo: layout 2 columnas --}}
-    <div class="flex-1 overflow-hidden flex flex-col lg:flex-row gap-3 p-3 sm:p-4">
+    {{-- Cuerpo scrolleable: layout 2 columnas --}}
+    <div class="flex-1 overflow-hidden flex flex-col lg:flex-row gap-3 p-3 sm:p-4 min-h-0">
         {{-- Columna izquierda: búsqueda + detalle items --}}
         <div class="flex-1 flex flex-col gap-3 min-h-0 lg:min-w-0">
             {{-- Búsqueda de artículos (reutilizado de NuevaVenta) --}}
@@ -55,8 +36,8 @@
             @include('livewire.carrito._detalle-items')
         </div>
 
-        {{-- Columna derecha: cliente + identificación + observaciones + extras --}}
-        <div class="w-full lg:w-96 lg:flex-shrink-0 flex flex-col gap-3 overflow-y-auto min-h-0 pb-4">
+        {{-- Columna derecha: cliente + extras --}}
+        <div class="w-full lg:w-96 lg:flex-shrink-0 flex flex-col gap-3 overflow-y-auto min-h-0 pb-2">
             {{-- Cliente (reutilizado) --}}
             <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-3">
                 @include('livewire.carrito._busqueda-cliente')
@@ -83,29 +64,17 @@
                 @endunless
             </div>
 
-            {{-- Identificación del pedido --}}
-            <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-3 space-y-2">
-                <h3 class="font-semibold text-xs uppercase text-gray-700 dark:text-gray-300">{{ __('Identificación del pedido') }}</h3>
-                <div>
-                    <label class="block text-xs text-gray-600 dark:text-gray-400 mb-0.5">{{ __('Identificador') }}</label>
-                    <input type="text" wire:model="identificador" maxlength="100"
-                        placeholder="{{ __('Ej: Mesa 5, Juan, retira 18hs...') }}"
+            {{-- Beeper (solo si la sucursal lo usa) --}}
+            @if($sucursalUsaBeepers)
+                <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-3">
+                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ __('Número de beeper') }} <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" wire:model="numeroBeeper" maxlength="20"
+                        placeholder="{{ __('Ingresá el número de beeper') }}"
                         class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
                 </div>
-                @if($sucursalUsaBeepers)
-                    <div>
-                        <label class="block text-xs text-gray-600 dark:text-gray-400 mb-0.5">
-                            {{ __('Número de beeper') }} <span class="text-red-500">*</span>
-                        </label>
-                        <input type="text" wire:model="numeroBeeper" maxlength="20"
-                            placeholder="{{ __('Ingresá el número de beeper') }}"
-                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                            {{ __('El número de beeper es obligatorio') }}
-                        </p>
-                    </div>
-                @endif
-            </div>
+            @endif
 
             {{-- Lista de precios (solo si hay >1) --}}
             @if(count($listasPreciosDisponibles) > 1)
@@ -185,14 +154,6 @@
                 </div>
             @endif
 
-            {{-- Observaciones --}}
-            <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-3">
-                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Observaciones') }}</label>
-                <textarea wire:model="observaciones" rows="3"
-                    placeholder="{{ __('Notas internas, especificaciones de cocina, etc.') }}"
-                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"></textarea>
-            </div>
-
             {{-- Totales --}}
             @if($resultado)
                 <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-3 space-y-1 text-sm">
@@ -217,6 +178,24 @@
                 </div>
             @endif
         </div>
+    </div>
+
+    {{-- Footer fijo con botones de acción --}}
+    <div class="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-end gap-2 flex-shrink-0">
+        <button type="button" wire:click="cerrar" wire:loading.attr="disabled"
+            class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+            {{ __('Cancelar') }}
+        </button>
+        @if(!$modoEdicion)
+            <button type="button" wire:click="guardarBorrador" wire:loading.attr="disabled"
+                class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                {{ __('Guardar borrador') }}
+            </button>
+        @endif
+        <button type="button" wire:click="confirmarPedido" wire:loading.attr="disabled"
+            class="inline-flex items-center px-5 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-bcn-primary hover:bg-opacity-90 shadow">
+            {{ $modoEdicion ? __('Guardar cambios') : __('Confirmar pedido') }}
+        </button>
     </div>
 
     {{-- Modales reutilizados de NuevaVenta --}}
