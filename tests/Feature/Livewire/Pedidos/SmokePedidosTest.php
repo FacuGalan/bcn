@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Livewire\Pedidos;
 
+use App\Livewire\Pedidos\NuevoPedidoMostrador;
 use App\Livewire\Pedidos\PedidosMostrador;
 use App\Models\User;
 use Livewire\Livewire;
@@ -44,5 +45,18 @@ class SmokePedidosTest extends TestCase
     public function test_pedidos_mostrador_monta(): void
     {
         Livewire::test(PedidosMostrador::class)->assertOk();
+    }
+
+    public function test_nuevo_pedido_mostrador_monta(): void
+    {
+        Livewire::test(NuevoPedidoMostrador::class)->assertOk();
+    }
+
+    public function test_pedidos_mostrador_abre_modal_alta(): void
+    {
+        Livewire::test(PedidosMostrador::class)
+            ->call('abrirModalNuevoPedido')
+            ->assertSet('modalNuevoPedidoAbierto', true)
+            ->assertSet('pedidoIdEnEdicion', null);
     }
 }

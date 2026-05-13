@@ -10,15 +10,14 @@
                         </h2>
                         {{-- Botón móvil --}}
                         <div class="sm:hidden flex gap-2">
-                            <a href="#"
-                                onclick="event.preventDefault(); window.notify('{{ __('Disponible en próxima entrega') }}', 'info')"
+                            <button type="button" wire:click="abrirModalNuevoPedido"
                                 class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-bcn-primary border border-transparent rounded-md text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
                                 title="{{ __('Nuevo Pedido') }}"
                             >
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                                 </svg>
-                            </a>
+                            </button>
                         </div>
                     </div>
                     <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">
@@ -27,8 +26,7 @@
                 </div>
                 {{-- Botón desktop --}}
                 <div class="hidden sm:flex gap-3">
-                    <a href="#"
-                        onclick="event.preventDefault(); window.notify('{{ __('Disponible en próxima entrega') }}', 'info')"
+                    <button type="button" wire:click="abrirModalNuevoPedido"
                         class="inline-flex items-center justify-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
                         title="{{ __('Nuevo Pedido') }}"
                     >
@@ -36,7 +34,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                         </svg>
                         {{ __('Nuevo Pedido') }}
-                    </a>
+                    </button>
                 </div>
             </div>
         </div>
@@ -476,6 +474,12 @@
             </x-slot:body>
 
             <x-slot:footer>
+                @if(in_array($pedidoDetalle->estado_pedido, ['borrador', 'confirmado']))
+                    <button type="button" wire:click="abrirModalEditarPedido({{ $pedidoDetalle->id }})"
+                        class="w-full inline-flex justify-center rounded-md border border-bcn-primary shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-bcn-primary hover:bg-bcn-primary hover:text-white sm:w-auto sm:text-sm">
+                        {{ __('Editar pedido') }}
+                    </button>
+                @endif
                 <button type="button" wire:click="reimprimirPrecuenta({{ $pedidoDetalle->id }})"
                     class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
                     {{ __('Imprimir precuenta') }}
@@ -719,5 +723,13 @@
                 </button>
             </x-slot:footer>
         </x-bcn-modal>
+    @endif
+
+    {{-- Sub-componente Livewire: modal full-screen de alta/edición --}}
+    @if($modalNuevoPedidoAbierto)
+        <livewire:pedidos.nuevo-pedido-mostrador
+            :pedidoId="$pedidoIdEnEdicion"
+            :key="'modal-nuevo-pedido-' . $modalNuevoPedidoKey"
+        />
     @endif
 </div>

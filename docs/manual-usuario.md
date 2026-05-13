@@ -688,9 +688,60 @@ Al confirmar, `PedidoMostradorService::cancelarPedido()`:
 2. Marca el pedido con `estado_pedido = cancelado`, registra `motivo_cancelacion`, `cancelado_at` y `cancelado_por_usuario_id`.
 3. Revierte el stock descontado al momento de la confirmacion (contraasientos en `movimientos_stock`).
 
-#### Nuevo Pedido
+#### Nuevo Pedido y Edicion de Pedido
 
-El boton **"Nuevo Pedido"** esta disponible en la barra de acciones pero muestra un mensaje indicando que el alta de pedidos estara disponible en una proxima entrega. El formulario de alta (componente `NuevoPedidoMostrador`) se implementa en un PR posterior.
+El boton **"Nuevo Pedido"** en la barra de acciones abre el formulario de alta como un **modal de pantalla completa** superpuesto sobre la lista. No hay una ruta dedicada para el alta ni la edicion.
+
+Para editar un pedido existente en estado borrador o confirmado, el modal de detalle incluye un boton **"Editar pedido"** que abre el mismo formulario precargado con los datos del pedido.
+
+##### Identificacion del pedido
+
+- **Identificador** (texto libre): nombre del cliente, numero de mesa o cualquier referencia operativa. Opcional.
+- **Numero de beeper**: obligatorio al confirmar si la sucursal tiene activado el uso de beepers (`sucursal.usa_beepers = true`). No se valida al guardar como borrador.
+
+##### Seleccion de cliente
+
+El pedido admite tres vias para asociar un cliente:
+
+1. **Cliente del catalogo**: busqueda por nombre o telefono. Al seleccionar, el sistema usa su lista de precios asignada y acumula puntos al convertir.
+2. **Alta rapida de cliente**: boton "+" junto al campo de busqueda, abre el modal de cliente rapido para registrarlo sin salir del formulario.
+3. **Cliente temporal**: se ingresa nombre y telefono libre sin crear un registro permanente. Aparece un boton **"Dar de alta como cliente"** para convertirlo en cliente del catalogo en cualquier momento antes de guardar.
+
+##### Carrito de articulos
+
+Identico al carrito de Nueva Venta. Incluye:
+
+- Busqueda con scanner de codigo de barras o por nombre.
+- Alta rapida de articulo desde el formulario.
+- Busqueda avanzada con filtros (modal).
+- Articulos pesables con ingreso de peso exacto.
+- Opcionales editables por item (wizard de grupos opcionales).
+- Concepto libre (item sin articulo del catalogo, con descripcion manual).
+- Ajuste manual de precio por item.
+- Descuento individual por item.
+
+##### Configuracion del pedido
+
+- **Lista de precios**: override manual de la lista aplicable.
+- **Descuento general**: porcentaje o monto fijo sobre el total.
+- **Cupon**: campo para ingresar un codigo de cupon de descuento.
+- **Canje de puntos**: si el cliente tiene puntos disponibles, se puede aplicar canje.
+- **Observaciones**: texto libre para instrucciones de preparacion u otras notas.
+
+##### Totales en vivo
+
+El panel derecho muestra subtotal, IVA, descuentos aplicados y total final, actualizados al instante con cada cambio del carrito.
+
+##### Botones de accion
+
+| Boton | Comportamiento |
+|-------|----------------|
+| Cancelar | Cierra el modal sin guardar. Equivalente a presionar Esc. |
+| Guardar borrador | Guarda sin asignar numero ni descontar stock. El pedido queda en estado borrador. No valida beeper. |
+| Confirmar pedido | Asigna numero correlativo, descuenta stock, imprime comanda si la sucursal esta configurada para ello. Valida beeper si la sucursal lo requiere. |
+| Guardar cambios (edicion) | En modo edicion, persiste los cambios sobre el pedido existente. |
+
+> Al guardar o confirmar exitosamente, el modal se cierra y la lista se refresca automaticamente.
 
 ---
 

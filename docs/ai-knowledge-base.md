@@ -1511,7 +1511,7 @@ Metodos principales:
 
 Todas las operaciones con escrituras usan `DB::connection('pymes_tenant')->transaction()`.
 
-#### Componente Livewire: `PedidosMostrador`
+#### Componente Livewire: `PedidosMostrador` (Lista)
 
 `app/Livewire/Pedidos/PedidosMostrador.php` | Ruta: `GET /pedidos/mostrador` | Name: `pedidos.mostrador`
 
@@ -1520,6 +1520,64 @@ Todas las operaciones con escrituras usan `DB::connection('pymes_tenant')->trans
 - Filtra por sucursal activa, estado pedido, estado pago, rango de fechas y busqueda libre.
 - Modales: detalle, cambiar estado, cobrar pendiente, convertir en venta, cancelar.
 - Permisos chequeados con `hasPermissionTo()` al abrir los modales de cobrar, convertir y cancelar.
+
+**Integracion con NuevoPedidoMostrador (modal full-screen)**:
+
+El componente renderiza condicionalmente al final de su vista:
+```blade
+<livewire:pedidos.nuevo-pedido-mostrador :pedidoId="$pedidoIdEnEdicion" :key="$modalNuevoPedidoKey" />
+```
+
+Props de control en `PedidosMostrador`:
+- `$modalNuevoPedidoAbierto` (bool) -- controla visibilidad del modal.
+- `$pedidoIdEnEdicion` (int|null) -- null para alta, ID para edicion.
+- `$modalNuevoPedidoKey` (int) -- counter incrementado cada vez que se abre, fuerza remount del sub-componente para resetear su estado.
+
+Metodos de apertura:
+- `abrirModalNuevoPedido()` -- modo alta: `$pedidoIdEnEdicion = null`, incrementa key.
+- `abrirModalEditarPedido($id)` -- modo edicion: `$pedidoIdEnEdicion = $id`, incrementa key.
+
+Eventos escuchados (via `#[On]`):
+- `cerrar-modal-pedido` -- despacha el sub-componente al cancelar. Cierra el modal sin refrescar.
+- `pedido-guardado` -- despacha el sub-componente tras alta o edicion exitosa. Cierra el modal y llama `$this->resetPage()` para refrescar la lista.
+
+El modal de detalle agrega el boton **"Editar pedido"** cuando `$pedido->estado_pedido` esta en `{borrador, confirmado}`.
+
+#### Componente Livewire: `NuevoPedidoMostrador` (Modal Full-Screen)
+
+`app/Livewire/Pedidos/NuevoPedidoMostrador.php` | Sin ruta dedicada -- invocado como sub-componente de `PedidosMostrador`.
+
+No hay rutas `/pedidos/mostrador/nuevo` ni `/pedidos/mostrador/{pedido}/editar`. El alta y la edicion ocurren exclusivamente dentro del modal full-screen.
+
+**Props**:
+- `$pedidoId` (int|null) -- null = modo alta, ID = modo edicion (solo borrador o confirmado).
+
+**Traits del Carrito incluidos** (10 de 11 -- excluye `WithPagosDesglose`, pendiente para PR2.C.2.B):
+`WithCarritoItems`, `WithCarritoDescuentos`, `WithCarritoCupon`, `WithCarritoPuntos`, `WithCarritoCliente`, `WithCarritoListaPrecios`, `WithCarritoTotales`, `WithArticulosRapidos`, `WithClientesRapidos`, `WithCarritoOpcionales`.
+
+**Vista**: `resources/views/livewire/pedidos/nuevo-pedido-mostrador.blade.php`
+
+Wrapper: `<div class="fixed inset-0 z-40 bg-white dark:bg-gray-900 flex flex-col overflow-hidden">`. Header sticky con titulo, botones de accion y boton cerrar. Layout de dos columnas:
+- Columna izquierda: incluye los parciales `livewire.carrito._busqueda-articulos` y `livewire.carrito._detalle-items` (los mismos parciales extraidos en PR #78, UI identica a NuevaVenta).
+- Columna derecha: cliente, identificador + beeper, lista de precios, descuentos/cupon/puntos, observaciones, totales en vivo.
+
+**Reutilizacion de modales del carrito**: `_modal-cliente-rapido`, `_modal-articulo-rapido`, `_modal-busqueda-articulos`, `_modal-pesable`, `_wizard-opcionales`, `_modal-descuentos` (mismos parciales que NuevaVenta).
+
+**Modales propios**: concepto libre, confirmar limpiar carrito, edicion de nombre de item.
+
+**Modos de operacion**:
+- Alta (`$pedidoId === null`): sin numero, sin descuento de stock al guardar borrador.
+- Edicion (`$pedidoId` provisto): precarga datos del pedido. Solo disponible para estados borrador y confirmado.
+
+**Logica de beeper**: el campo `numero_beeper` es obligatorio al confirmar si `sucursal.usa_beepers = true`. No se valida al guardar como borrador.
+
+**Acciones**:
+- **Guardar borrador**: llama a `PedidoMostradorService::crearPedido()` con `esBorrador = true` (alta) o actualiza el pedido existente. Sin numero, sin stock.
+- **Confirmar pedido**: `esBorrador = false`. Asigna numero correlativo, descuenta stock, imprime comanda si corresponde.
+- **Cerrar / Cancelar**: despacha evento `cerrar-modal-pedido` al componente padre.
+- Tras alta o edicion exitosa: despacha evento `pedido-guardado` al componente padre.
+
+**Atajo de teclado**: Esc cierra el modal (manejado en Alpine con `@keydown.escape.window`).
 
 #### Patrones de consulta SQL utiles
 
