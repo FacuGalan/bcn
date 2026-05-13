@@ -28,10 +28,105 @@
 
     {{-- Cuerpo: layout 2 columnas --}}
     <div class="flex-1 overflow-hidden flex flex-col lg:flex-row gap-3 p-3 sm:p-4 min-h-0">
-        {{-- Columna izquierda: búsqueda + detalle items --}}
-        <div class="flex-1 flex flex-col gap-3 min-h-0 lg:min-w-0">
+        {{-- Columna izquierda: búsqueda (siempre) + toggle Detalle/Táctil --}}
+        <div class="flex-1 flex flex-col gap-2 min-h-0 lg:min-w-0"
+            x-data="{
+                tactil: @entangle('panelTactilAbierto').live,
+                catalogo: @js($catalogoTactil),
+                categoriaSel: null,
+                init() {
+                    // Preseleccionar la primera categoría disponible
+                    if (this.catalogo.length > 0) {
+                        this.categoriaSel = this.catalogo[0].id;
+                    }
+                },
+                articulosCategoria() {
+                    if (!this.categoriaSel) return [];
+                    const cat = this.catalogo.find(c => c.id === this.categoriaSel);
+                    return cat ? cat.articulos : [];
+                },
+                seleccionar(id) {
+                    $wire.seleccionarArticulo(id);
+                    $nextTick(() => $dispatch('focus-busqueda'));
+                }
+            }"
+            @keydown.window.ctrl.b.prevent="tactil = !tactil"
+        >
+            {{-- Búsqueda / scan (siempre visible) --}}
             @include('livewire.carrito._busqueda-articulos')
-            @include('livewire.carrito._detalle-items')
+
+            {{-- Toggle Detalle / Panel táctil --}}
+            <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-1 flex gap-1">
+                <button type="button" @click="tactil = false"
+                    :class="!tactil ? 'bg-bcn-primary text-white shadow' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                    class="flex-1 inline-flex justify-center items-center px-3 py-1.5 rounded text-xs font-medium transition-colors">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                    </svg>
+                    {{ __('Detalle') }}
+                </button>
+                <button type="button" @click="tactil = true"
+                    :class="tactil ? 'bg-bcn-primary text-white shadow' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                    class="flex-1 inline-flex justify-center items-center px-3 py-1.5 rounded text-xs font-medium transition-colors">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                    </svg>
+                    {{ __('Panel táctil') }}
+                    <kbd class="hidden sm:inline ml-1.5 px-1 py-0 text-[9px] bg-black/20 rounded">Ctrl+B</kbd>
+                </button>
+            </div>
+
+            {{-- Vista DETALLE (con promociones aplicadas debajo) --}}
+            <div x-show="!tactil" x-transition.opacity class="flex-1 flex flex-col gap-2 min-h-0">
+                @include('livewire.carrito._detalle-items')
+                @include('livewire.carrito._promociones-aplicadas')
+            </div>
+
+            {{-- Vista PANEL TÁCTIL --}}
+            <div x-show="tactil" x-transition.opacity class="flex-1 flex flex-col min-h-0 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                {{-- Barra de categorías sticky --}}
+                <div class="flex-shrink-0 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 overflow-x-auto">
+                    <div class="flex gap-1 p-1.5 min-w-max">
+                        <template x-for="cat in catalogo" :key="cat.id">
+                            <button type="button"
+                                @click="categoriaSel = cat.id"
+                                :class="categoriaSel === cat.id ? 'ring-2 ring-bcn-primary shadow' : 'opacity-80 hover:opacity-100'"
+                                :style="categoriaSel === cat.id ? `background-color: ${cat.color}; color: white;` : `background-color: ${cat.color}20; color: ${cat.color};`"
+                                class="px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all">
+                                <span x-text="cat.nombre"></span>
+                                <span class="text-[10px] opacity-75" x-text="`(${cat.articulos.length})`"></span>
+                            </button>
+                        </template>
+                        <template x-if="catalogo.length === 0">
+                            <div class="px-3 py-1.5 text-xs italic text-gray-500">
+                                {{ __('Sin categorías con artículos') }}
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                {{-- Grilla de artículos --}}
+                <div class="flex-1 overflow-y-auto p-2">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                        <template x-for="art in articulosCategoria()" :key="art.id">
+                            <button type="button" @click="seleccionar(art.id)"
+                                class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 rounded-md p-2 text-left hover:border-bcn-primary hover:shadow active:scale-95 transition-all">
+                                <div class="text-xs font-semibold text-gray-900 dark:text-white truncate" x-text="art.nombre"></div>
+                                <div class="text-[10px] text-gray-500 dark:text-gray-400 truncate" x-text="art.codigo"></div>
+                                <div class="mt-1 text-sm font-bold text-bcn-primary" x-text="'$' + Number(art.precio).toLocaleString('es-AR', { minimumFractionDigits: 2 })"></div>
+                                <template x-if="art.es_pesable">
+                                    <div class="text-[9px] text-amber-600 mt-0.5">⚖️ {{ __('Pesable') }}</div>
+                                </template>
+                            </button>
+                        </template>
+                        <template x-if="articulosCategoria().length === 0">
+                            <div class="col-span-full py-8 text-center text-sm text-gray-500 dark:text-gray-400 italic">
+                                {{ __('Seleccioná una categoría para ver los artículos') }}
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
         </div>
 
         {{-- Columna derecha: contenido scrolleable + footer fijo --}}
