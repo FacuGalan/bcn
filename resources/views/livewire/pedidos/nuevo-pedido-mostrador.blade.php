@@ -166,17 +166,22 @@
                 @endif
             </div>
 
-            {{-- Footer fijo de la columna (solo botones de acción) --}}
-            <div class="flex-shrink-0 pt-2 border-t border-gray-200 dark:border-gray-700 space-y-2">
-                @if(!$modoEdicion)
+            {{-- Footer fijo de la columna (3 botones de acción) --}}
+            <div class="flex-shrink-0 pt-2 border-t border-gray-200 dark:border-gray-700 space-y-1.5">
+                {{-- Guardar borrador: solo en alta nueva o cuando el pedido cargado ES borrador. Un confirmado no puede revertirse. --}}
+                @if(!$modoEdicion || $estadoPedidoActual === 'borrador')
                     <button type="button" wire:click="guardarBorrador" wire:loading.attr="disabled"
-                        class="w-full inline-flex justify-center items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                        class="w-full inline-flex justify-center items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-xs font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                         {{ __('Guardar borrador') }}
                     </button>
                 @endif
+                <button type="button" wire:click="confirmarSinCobrar" wire:loading.attr="disabled"
+                    class="w-full inline-flex justify-center items-center px-3 py-1.5 border border-gray-400 dark:border-gray-500 rounded-md text-xs font-medium text-gray-800 dark:text-gray-100 bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500">
+                    {{ __('Confirmar sin cobrar') }}
+                </button>
                 <button type="button" wire:click="confirmarPedido" wire:loading.attr="disabled"
                     class="w-full inline-flex justify-center items-center px-4 py-2.5 border border-transparent rounded-md text-sm font-bold text-white bg-bcn-primary hover:bg-opacity-90 shadow">
-                    {{ $modoEdicion ? __('Guardar cambios') : __('Confirmar pedido') }}
+                    {{ $modoEdicion ? __('Guardar y cobrar') : __('Confirmar pedido') }}
                 </button>
             </div>
         </div>

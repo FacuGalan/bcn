@@ -1018,6 +1018,15 @@ class NuevoPedidoMostrador extends Component
                 $pedido = $this->pedidoService->crearPedido($data, $detalles, esBorrador: false);
             }
 
+            // Si el pedido quedó en BORRADOR (porque era un borrador en edición),
+            // "Confirmar sin cobrar" debe transicionarlo a CONFIRMADO: asignar
+            // número, descontar stock, disparar PedidoCreado.
+            $pedido = $pedido->fresh();
+            if ($pedido->estado_pedido === PedidoMostrador::ESTADO_BORRADOR) {
+                $this->pedidoService->confirmarBorrador($pedido);
+                $pedido->refresh();
+            }
+
             // Si hay desglose, persistirlo todo como planificado. En edición
             // con pagos preexistentes NO duplicamos: esos pagos se gestionan
             // desde la lista (acción "Cobrar pendiente").
