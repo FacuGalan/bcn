@@ -293,11 +293,11 @@ class PedidosMostrador extends Component
                 if (is_numeric($term)) {
                     $q->orWhere('numero', $term);
                 }
-                $q->orWhere('identificador', 'like', "%{$term}%")
-                    ->orWhere('numero_beeper', 'like', "%{$term}%")
+                $q->orWhere('numero_beeper', 'like', "%{$term}%")
                     ->orWhere('nombre_cliente_temporal', 'like', "%{$term}%")
                     ->orWhere('telefono_cliente_temporal', 'like', "%{$term}%")
-                    ->orWhereHas('cliente', fn ($c) => $c->where('nombre', 'like', "%{$term}%"));
+                    ->orWhereHas('cliente', fn ($c) => $c->where('nombre', 'like', "%{$term}%")
+                        ->orWhere('telefono', 'like', "%{$term}%"));
             });
         }
 

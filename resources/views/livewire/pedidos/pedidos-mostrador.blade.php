@@ -60,7 +60,7 @@
                     <div>
                         <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar') }}</label>
                         <input type="text" id="search" wire:model.live.debounce.300ms="search"
-                            placeholder="{{ __('N°, identificador, cliente...') }}"
+                            placeholder="{{ __('N°, cliente o teléfono...') }}"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
                     </div>
                     <div>
@@ -132,15 +132,18 @@
                             <div class="px-4 py-2 flex items-center justify-between gap-2 hover:bg-gray-50 dark:hover:bg-gray-700">
                                 <div class="flex-1 min-w-0">
                                     <div class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                                        @if($borrador->identificador)
-                                            {{ $borrador->identificador }}
-                                        @else
-                                            <span class="italic text-gray-500">{{ __('Sin identificador') }}</span>
-                                        @endif
                                         @if($borrador->cliente)
-                                            <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $borrador->cliente->nombre }}</span>
+                                            {{ $borrador->cliente->nombre }}
+                                            @if($borrador->cliente->telefono)
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $borrador->cliente->telefono }}</span>
+                                            @endif
                                         @elseif($borrador->nombre_cliente_temporal)
-                                            <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $borrador->nombre_cliente_temporal }}</span>
+                                            {{ $borrador->nombre_cliente_temporal }}
+                                            @if($borrador->telefono_cliente_temporal)
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $borrador->telefono_cliente_temporal }}</span>
+                                            @endif
+                                        @else
+                                            <span class="italic text-gray-500">{{ __('Sin cliente') }}</span>
                                         @endif
                                     </div>
                                     <div class="text-xs text-gray-500 dark:text-gray-400">
@@ -186,9 +189,6 @@
                                         <span class="italic text-gray-500">{{ __('Borrador') }}</span>
                                     @endif
                                 </span>
-                                @if($pedido->identificador)
-                                    <span class="text-xs text-gray-600 dark:text-gray-400">/ {{ $pedido->identificador }}</span>
-                                @endif
                                 @if($pedido->numero_beeper)
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                                         🔔 {{ $pedido->numero_beeper }}
@@ -272,7 +272,6 @@
                     <thead class="bg-bcn-light dark:bg-gray-900">
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('N°') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Identificador') }}</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Cliente') }}</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Fecha') }}</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Total') }}</th>
@@ -297,9 +296,6 @@
                                             🔔 {{ $pedido->numero_beeper }}
                                         </span>
                                     @endif
-                                </td>
-                                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                    {{ $pedido->identificador ?: '—' }}
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <div class="text-sm text-gray-900 dark:text-gray-100">
@@ -392,7 +388,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                                <td colspan="7" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                                     {{ __('No hay pedidos para estos filtros') }}
                                 </td>
                             </tr>
@@ -428,12 +424,6 @@
                             <div class="font-semibold text-gray-700 dark:text-gray-300">{{ __('Fecha') }}</div>
                             <div class="text-gray-900 dark:text-gray-100">{{ $pedidoDetalle->fecha->format('d/m/Y H:i') }}</div>
                         </div>
-                        @if($pedidoDetalle->identificador)
-                            <div>
-                                <div class="font-semibold text-gray-700 dark:text-gray-300">{{ __('Identificador') }}</div>
-                                <div class="text-gray-900 dark:text-gray-100">{{ $pedidoDetalle->identificador }}</div>
-                            </div>
-                        @endif
                         @if($pedidoDetalle->numero_beeper)
                             <div>
                                 <div class="font-semibold text-gray-700 dark:text-gray-300">{{ __('Beeper') }}</div>
@@ -633,7 +623,6 @@
                     <div class="text-sm text-gray-700 dark:text-gray-300">
                         <div><strong>{{ __('Pedido') }}:</strong>
                             @if($cancelarPedidoInfo['numero'] ?? null) #{{ $cancelarPedidoInfo['numero'] }} @endif
-                            @if($cancelarPedidoInfo['identificador'] ?? null) ({{ $cancelarPedidoInfo['identificador'] }}) @endif
                         </div>
                         <div><strong>{{ __('Cliente') }}:</strong> {{ $cancelarPedidoInfo['cliente'] ?? '—' }}</div>
                         <div><strong>{{ __('Total') }}:</strong> ${{ number_format($cancelarPedidoInfo['total'] ?? 0, 2, ',', '.') }}</div>
@@ -753,7 +742,6 @@
                     <div class="text-sm text-gray-700 dark:text-gray-300">
                         <div><strong>{{ __('Pedido') }}:</strong>
                             @if($convertirPedidoInfo['numero'] ?? null) #{{ $convertirPedidoInfo['numero'] }} @endif
-                            @if($convertirPedidoInfo['identificador'] ?? null) ({{ $convertirPedidoInfo['identificador'] }}) @endif
                         </div>
                         <div><strong>{{ __('Cliente') }}:</strong> {{ $convertirPedidoInfo['cliente'] ?? '—' }}</div>
                         <div><strong>{{ __('Total') }}:</strong> ${{ number_format($convertirPedidoInfo['total'] ?? 0, 2, ',', '.') }}</div>
