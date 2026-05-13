@@ -1306,6 +1306,249 @@ Registra cada uso: `cupon_id`, `venta_id`, `cliente_id`, `sucursal_id`, `monto_d
 - **PuntosService**: Acumulacion, canje, contraasientos, saldos, cache. Patron ledger.
 - **CuponService**: Creacion (desde puntos o promocional), validacion, aplicacion, reversion.
 
+### 2.12 Pedidos por Mostrador
+
+Modulo para gestionar pedidos tomados en el local antes de convertirlos en venta. Cada pedido tiene ciclo de vida propio (`estado_pedido`) y estado de cobro (`estado_pago`) independientes. Al convertirse en venta, el pedido queda en estado `facturado` y se crea la `Venta` correspondiente en la tabla `ventas`.
+
+#### Tabla: `pedidos_mostrador`
+Documento operativo principal del modulo.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `numero` | int unsigned nullable | Numero correlativo por sucursal. NULL en borradores. |
+| `identificador` | varchar(100) nullable | Texto libre: nombre del cliente, numero de mesa, etc. |
+| `numero_beeper` | varchar(20) nullable | Numero de beeper si la sucursal usa sistema de beepers |
+| `sucursal_id` | bigint FK | Sucursal donde se tomo el pedido |
+| `cliente_id` | bigint FK nullable | Cliente del catalogo (NULL si es cliente temporal) |
+| `nombre_cliente_temporal` | varchar(150) nullable | Nombre del cliente sin alta en sistema |
+| `telefono_cliente_temporal` | varchar(30) nullable | Telefono del cliente temporal |
+| `caja_id` | bigint FK nullable | Caja asociada (ON DELETE SET NULL) |
+| `canal_venta_id` | bigint FK nullable | Canal de venta |
+| `forma_venta_id` | bigint FK nullable | Forma de venta |
+| `lista_precio_id` | bigint FK nullable | Lista de precios usada |
+| `usuario_id` | bigint (FK logico cross-DB) | Usuario que creo el pedido (`config.users.id`) |
+| `fecha` | timestamp | Fecha y hora de creacion del pedido |
+| `estado_pedido` | enum | `borrador`, `confirmado`, `en_preparacion`, `listo`, `entregado`, `facturado`, `cancelado` |
+| `estado_pago` | enum | `pendiente`, `parcial`, `pagado` -- cache recalculado sobre pagos activos |
+| `subtotal` | decimal(12,2) | Suma de items |
+| `iva` | decimal(12,2) | Total IVA |
+| `descuento` | decimal(12,2) | Descuento general |
+| `total` | decimal(12,2) | Total antes de ajuste por forma de pago |
+| `ajuste_forma_pago` | decimal(12,2) | Ajuste por formas de pago |
+| `total_final` | decimal(12,2) | Total a cobrar |
+| `descuento_general_tipo` | enum nullable | `porcentaje` o `monto_fijo` |
+| `descuento_general_valor` | decimal(12,2) nullable | Valor del descuento general |
+| `descuento_general_monto` | decimal(12,2) | Monto aplicado del descuento general |
+| `cupon_id` | bigint FK nullable | Cupon aplicado |
+| `cupon_codigo_snapshot` | varchar(50) nullable | Snapshot del codigo del cupon |
+| `monto_cupon` | decimal(12,2) | Monto descontado por cupon |
+| `puntos_ganados` | int unsigned | Puntos que ganara el cliente al convertirse en venta |
+| `puntos_usados` | int unsigned | Puntos canjeados en este pedido |
+| `observaciones` | text nullable | Notas del pedido |
+| `motivo_cancelacion` | varchar(500) nullable | Motivo al cancelar |
+| `confirmado_at` | timestamp nullable | Timestamp al pasar a confirmado |
+| `en_preparacion_at` | timestamp nullable | Timestamp al pasar a en_preparacion |
+| `listo_at` | timestamp nullable | Timestamp al pasar a listo |
+| `entregado_at` | timestamp nullable | Timestamp al pasar a entregado |
+| `cancelado_at` | timestamp nullable | Timestamp de cancelacion |
+| `cancelado_por_usuario_id` | bigint nullable | FK logico al usuario que cancelo |
+| `venta_id` | bigint FK nullable | FK a `ventas.id` tras conversion (ON DELETE SET NULL) |
+| `convertido_at` | timestamp nullable | Timestamp de conversion a venta |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+| `deleted_at` | timestamp nullable | Soft delete |
+
+**Indices**: `sucursal_id`, `estado_pedido`, `estado_pago`, `fecha`, `cliente_id`, `caja_id`, `venta_id`, `telefono_cliente_temporal`.
+
+**Estados `estado_pedido`**:
+- `borrador` -- Pedido en edicion, sin numero asignado, sin descuento de stock.
+- `confirmado` -- Numero asignado, stock descontado, comanda impresa. Transicion inicial operativa.
+- `en_preparacion` -- Cocina/produccion en proceso.
+- `listo` -- Listo para entregar o retirar.
+- `entregado` -- Entregado al cliente.
+- `facturado` -- Convertido en venta. Estado terminal positivo.
+- `cancelado` -- Cancelado con motivo. Estado terminal negativo. Revierte stock y pagos.
+
+**Transiciones permitidas** (definidas en `PedidoMostrador::TRANSICIONES_PERMITIDAS`):
+- `borrador` → `confirmado`, `cancelado`
+- `confirmado` → `en_preparacion`, `listo`, `entregado`, `cancelado`
+- `en_preparacion` → `listo`, `entregado`, `cancelado`
+- `listo` → `entregado`, `cancelado`
+- `entregado` → `facturado`, `cancelado`
+- `facturado` → (ninguna, estado terminal)
+- `cancelado` → (ninguna, estado terminal)
+
+**Scope `activos()`**: excluye `facturado` y `cancelado`. Es la vista operativa predeterminada del listado.
+
+**Accessors utiles**:
+- `nombre_cliente_final`: devuelve `cliente.nombre` si hay cliente asociado, sino `nombre_cliente_temporal`.
+- `total_cobrado`: suma de `monto_final` de pagos con `estado = activo`.
+- `total_planificado`: suma de `monto_final` de pagos con `estado = planificado`.
+
+#### Tabla: `pedidos_mostrador_detalle`
+Items del pedido. Espejo de `ventas_detalle`.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `pedido_mostrador_id` | bigint FK | Pedido al que pertenece (ON DELETE CASCADE) |
+| `articulo_id` | bigint FK nullable | Articulo del catalogo (ON DELETE SET NULL) |
+| `es_concepto` | boolean | Si true, concepto libre sin articulo |
+| `concepto_descripcion` | varchar(255) nullable | Descripcion del concepto libre |
+| `cantidad` | decimal(12,3) | Cantidad (soporta decimales para pesables) |
+| `precio_unitario` | decimal(12,2) | Precio unitario con IVA |
+| `precio_sin_iva` | decimal(12,2) | Precio sin IVA |
+| `precio_opcionales` | decimal(12,2) | Suma de precio extra de opcionales |
+| `descuento_promocion` | decimal(12,2) | Descuento por promociones |
+| `subtotal` | decimal(12,2) | Subtotal del item |
+| `total` | decimal(12,2) | Total del item tras descuentos |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+#### Tabla: `pedido_mostrador_detalle_opcionales`
+Opcionales seleccionados por item de pedido. Snapshot del opcional al momento del pedido.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `pedido_mostrador_detalle_id` | bigint FK | Item al que pertenece (ON DELETE CASCADE) |
+| `grupo_opcional_id` | bigint FK | Grupo opcional |
+| `opcional_id` | bigint FK | Opcional elegido |
+| `nombre_grupo` | varchar(255) | Snapshot del nombre del grupo |
+| `nombre_opcional` | varchar(255) | Snapshot del nombre del opcional |
+| `cantidad` | decimal(12,3) | Cantidad del opcional |
+| `precio_extra` | decimal(12,2) | Precio adicional del opcional |
+| `subtotal_extra` | decimal(12,2) | Subtotal del opcional |
+| `created_at` | timestamp | Timestamp de creacion |
+
+#### Tabla: `pedido_mostrador_detalle_promociones`
+Promociones aplicadas a nivel de item.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `pedido_mostrador_detalle_id` | bigint FK | Item al que pertenece (ON DELETE CASCADE) |
+| `tipo_promocion` | enum | `promocion`, `promocion_especial`, `lista_precio` |
+| `descripcion_promocion` | varchar(255) | Descripcion de la promocion |
+| `descuento_aplicado` | decimal(12,2) | Monto descontado |
+| `created_at` | timestamp | Timestamp de creacion |
+
+#### Tabla: `pedido_mostrador_promociones`
+Promociones aplicadas a nivel de pedido completo.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `pedido_mostrador_id` | bigint FK | Pedido al que pertenece (ON DELETE CASCADE) |
+| `tipo_promocion` | enum | `promocion`, `promocion_especial`, `forma_pago`, `cupon` |
+| `descripcion_promocion` | varchar(255) | Descripcion |
+| `descuento_aplicado` | decimal(12,2) | Monto descontado |
+| `created_at` | timestamp | Timestamp de creacion |
+
+#### Tabla: `pedidos_mostrador_pagos`
+Pagos aplicados al pedido. Espejo de `venta_pagos` sin campos fiscales.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `pedido_mostrador_id` | bigint FK | Pedido al que pertenece (ON DELETE CASCADE) |
+| `forma_pago_id` | bigint FK | Forma de pago utilizada |
+| `concepto_pago_id` | bigint FK nullable | Concepto de pago (ON DELETE SET NULL) |
+| `monto_base` | decimal(12,2) | Monto antes de ajustes |
+| `ajuste_porcentaje` | decimal(6,2) | Ajuste de la forma de pago |
+| `monto_ajuste` | decimal(12,2) | Monto del ajuste |
+| `monto_final` | decimal(12,2) | Monto final cobrado o planificado |
+| `monto_recibido` | decimal(12,2) nullable | Monto recibido del cliente (para vuelto en efectivo) |
+| `vuelto` | decimal(12,2) nullable | Vuelto entregado |
+| `cuotas` | tinyint unsigned nullable | Numero de cuotas |
+| `referencia` | varchar(100) nullable | Numero de autorizacion, voucher, etc. |
+| `es_cuenta_corriente` | boolean | Si este pago es a cuenta corriente |
+| `es_pago_puntos` | boolean | Si es canje de puntos |
+| `afecta_caja` | boolean | Si genera `MovimientoCaja` al materializarse |
+| `estado` | enum | `activo`, `anulado`, `planificado` |
+| `movimiento_caja_id` | bigint FK nullable | `MovimientoCaja` creado al materializar (ON DELETE SET NULL) |
+| `anulado_at` | timestamp nullable | Fecha de anulacion |
+| `motivo_anulacion` | varchar(500) nullable | Motivo de anulacion |
+| `creado_por_usuario_id` | bigint (FK logico cross-DB) | Usuario que creo el pago |
+| `moneda_id` | bigint FK nullable | Moneda del pago |
+| `tipo_cambio_tasa` | decimal(14,6) nullable | Tasa de cambio aplicada |
+| `venta_pago_id` | bigint FK nullable | FK a `venta_pagos.id` tras conversion (ON DELETE SET NULL) |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+**Estados `estado` en `pedidos_mostrador_pagos`**:
+- `planificado` -- Pago configurado sin ejecutar. NO crea `MovimientoCaja`. NO cuenta para `estado_pago` del pedido. Sirve para pre-cargar el desglose antes de cobrar.
+- `activo` -- Pago efectivamente cobrado, con `movimiento_caja_id` asociado. Cuenta para `estado_pago`.
+- `anulado` -- Contraasiento aplicado (al cancelar el pedido).
+
+**Transiciones de estado en `pedidos_mostrador_pagos`**:
+- `planificado` → `activo` via `PedidoMostradorService::confirmarPagoPlanificado()` -- crea `MovimientoCaja`
+- `planificado` → DELETE via `PedidoMostradorService::eliminarPagoPlanificado()` -- sin movimiento
+- `activo` → `anulado` via `PedidoMostradorService::anularPago()` -- genera contraasiento en `MovimientoCaja`
+
+**Calculo de `estado_pago` del pedido** (solo sobre pagos activos):
+- Si `total_cobrado >= total_final` → `pagado`
+- Si `total_cobrado > 0` → `parcial`
+- Sino → `pendiente`
+
+Los pagos `planificados` no cuentan para este calculo. Solo los `activos`.
+
+#### Campos agregados a tablas existentes
+
+- **`sucursales`**: `pedido_mostrador_activo` (boolean, habilita el modulo por sucursal), `pedido_mostrador_imprime_comanda_auto` (boolean, imprime comanda al confirmar), `pedido_mostrador_ultimo_numero` (int unsigned, contador atomico del numero correlativo).
+
+#### Service: `PedidoMostradorService`
+
+`app/Services/Pedidos/PedidoMostradorService.php`
+
+Metodos principales:
+- `crearPedido(array $data, array $detalles, bool $esBorrador): PedidoMostrador` -- Alta. Si no es borrador: asigna numero, descuenta stock, emite evento `PedidoCreado`, imprime comanda si esta configurado.
+- `cambiarEstado(PedidoMostrador $pedido, string $nuevoEstado, ?string $observacion): void` -- Valida transicion contra `TRANSICIONES_PERMITIDAS`, actualiza timestamps, emite `PedidoEstadoCambiado`.
+- `confirmarPagoPlanificado(PedidoMostradorPago $pago): void` -- Materializa pago: crea `MovimientoCaja`, cambia estado a `activo`, recalcula `estado_pago`.
+- `eliminarPagoPlanificado(PedidoMostradorPago $pago): void` -- Elimina sin movimiento de caja.
+- `cancelarPedido(PedidoMostrador $pedido, string $motivo): void` -- Genera contraasientos de caja por pagos activos, revierte stock, marca cancelado.
+- `convertirEnVenta(PedidoMostrador $pedido): Venta` -- Materializa planificados, crea `Venta` con todos sus detalles y pagos, marca pedido como `facturado`.
+- `imprimirComanda(PedidoMostrador $pedido): array` -- Retorna payload para el evento `imprimir-comanda`.
+- `imprimirPrecuenta(PedidoMostrador $pedido): array` -- Retorna payload para el evento `imprimir-precuenta`.
+
+Todas las operaciones con escrituras usan `DB::connection('pymes_tenant')->transaction()`.
+
+#### Componente Livewire: `PedidosMostrador`
+
+`app/Livewire/Pedidos/PedidosMostrador.php` | Ruta: `GET /pedidos/mostrador` | Name: `pedidos.mostrador`
+
+- Full-page, `#[Lazy]`, `SucursalAware`, `WithPagination`.
+- Polling de 15 segundos via `wire:poll.15s` para refrescar la lista.
+- Filtra por sucursal activa, estado pedido, estado pago, rango de fechas y busqueda libre.
+- Modales: detalle, cambiar estado, cobrar pendiente, convertir en venta, cancelar.
+- Permisos chequeados con `hasPermissionTo()` al abrir los modales de cobrar, convertir y cancelar.
+
+#### Patrones de consulta SQL utiles
+
+**Pedidos activos de la sucursal hoy:**
+```sql
+SELECT p.*, c.nombre AS cliente_nombre
+FROM {PREFIX}pedidos_mostrador p
+LEFT JOIN {PREFIX}clientes c ON p.cliente_id = c.id
+WHERE p.sucursal_id = ?
+  AND p.estado_pedido NOT IN ('facturado', 'cancelado')
+  AND DATE(p.fecha) = CURDATE()
+  AND p.deleted_at IS NULL
+ORDER BY p.fecha DESC;
+```
+
+**Total cobrado y pendiente por pedido:**
+```sql
+SELECT
+    p.id,
+    p.total_final,
+    SUM(CASE WHEN pp.estado = 'activo' THEN pp.monto_final ELSE 0 END) AS total_cobrado,
+    SUM(CASE WHEN pp.estado = 'planificado' THEN pp.monto_final ELSE 0 END) AS total_planificado,
+    p.total_final - SUM(CASE WHEN pp.estado = 'activo' THEN pp.monto_final ELSE 0 END) AS pendiente
+FROM {PREFIX}pedidos_mostrador p
+LEFT JOIN {PREFIX}pedidos_mostrador_pagos pp ON pp.pedido_mostrador_id = p.id
+WHERE p.id = ?
+GROUP BY p.id;
+```
+
 ---
 
 ## 3. Logica de Negocio
