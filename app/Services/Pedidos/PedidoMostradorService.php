@@ -511,6 +511,12 @@ class PedidoMostradorService
             throw new Exception('Confirmar el pedido antes de convertirlo en venta');
         }
 
+        // Bloquear conversión si los pagos cargados (activos + planificados) no
+        // cubren el total_final. Esto evita "ventas fantasma" sin financiación.
+        // Si el caller quiere financiar a CC, debe agregar un pago explícito con
+        // forma de pago "cuenta corriente" antes de convertir.
+        $this->guardConversionConPagosSuficientes($pedido);
+
         return DB::connection('pymes_tenant')->transaction(function () use ($pedido, $opcionesFiscales) {
             // Materializar pagos planificados antes de migrar: cada uno crea
             // su MovimientoCaja y pasa a estado activo. Así la venta resultante
@@ -902,6 +908,35 @@ class PedidoMostradorService
             ->sum('monto_final');
 
         return $pagado + 0.005 < (float) $pedido->total_final;
+    }
+
+    /**
+     * Verifica que la suma de pagos activos + planificados cubra el total del
+     * pedido. Lanza excepción si no, con el detalle del faltante para que la
+     * UI/API muestre algo accionable.
+     */
+    protected function guardConversionConPagosSuficientes(PedidoMostrador $pedido): void
+    {
+        $total = (float) $pedido->total_final;
+        if ($total <= 0.005) {
+            return; // total cero: nada que cubrir
+        }
+
+        $cubierto = (float) $pedido->pagos()
+            ->whereIn('estado', [
+                PedidoMostradorPago::ESTADO_ACTIVO,
+                PedidoMostradorPago::ESTADO_PLANIFICADO,
+            ])
+            ->sum('monto_final');
+
+        if ($cubierto + 0.005 < $total) {
+            $faltante = round($total - $cubierto, 2);
+            throw new Exception(
+                "No se puede convertir el pedido en venta: faltan \${$faltante} sin cubrir. ".
+                'Cargar pagos (planificados o cobrados) que sumen al menos el total antes de convertir. '.
+                'Para financiar a cuenta corriente, agregar un pago con forma "cuenta corriente".'
+            );
+        }
     }
 
     /**

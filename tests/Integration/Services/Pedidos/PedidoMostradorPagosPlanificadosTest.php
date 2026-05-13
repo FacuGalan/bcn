@@ -277,6 +277,61 @@ class PedidoMostradorPagosPlanificadosTest extends TestCase
         $this->assertEquals(PedidoMostrador::ESTADO_PAGO_PARCIAL, $pedido->estado_pago, '500/1500 = parcial');
     }
 
+    public function test_convertir_sin_pagos_lanza_excepcion_con_detalle_del_faltante(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 5);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+
+        $pedido = $this->service->crearPedido(
+            data: $this->datosBaseDelPedido(total: 1500, cajaId: $caja->id),
+            detalles: [$this->detalleDe($articulo, cantidad: 1, precioUnitario: 1500)],
+            esBorrador: false,
+        );
+
+        $this->service->cambiarEstado($pedido->fresh(), PedidoMostrador::ESTADO_EN_PREPARACION);
+        $this->service->cambiarEstado($pedido->fresh(), PedidoMostrador::ESTADO_ENTREGADO);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessageMatches('/1500|faltan/i');
+
+        $this->service->convertirEnVenta($pedido->fresh());
+    }
+
+    public function test_convertir_con_planificados_que_cubren_el_total_funciona(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 5);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+
+        $pedido = $this->service->crearPedido(
+            data: $this->datosBaseDelPedido(total: 800, cajaId: $caja->id),
+            detalles: [$this->detalleDe($articulo, cantidad: 1, precioUnitario: 800)],
+            esBorrador: false,
+        );
+
+        $efectivo = $this->crearFormaPagoEfectivo();
+        // 300 cobrado + 500 planificado = 800 total cubierto.
+        $this->service->agregarPago($pedido, [
+            'forma_pago_id' => $efectivo['formaPago']->id,
+            'monto_base' => 300,
+            'monto_final' => 300,
+            'afecta_caja' => true,
+        ]);
+        $this->service->agregarPago($pedido, [
+            'forma_pago_id' => $efectivo['formaPago']->id,
+            'monto_base' => 500,
+            'monto_final' => 500,
+            'planificado' => true,
+        ]);
+
+        $this->service->cambiarEstado($pedido->fresh(), PedidoMostrador::ESTADO_EN_PREPARACION);
+        $this->service->cambiarEstado($pedido->fresh(), PedidoMostrador::ESTADO_ENTREGADO);
+
+        $venta = $this->service->convertirEnVenta($pedido->fresh());
+
+        $this->assertNotNull($venta->id);
+        $this->assertEquals(800.0, (float) $venta->total_final);
+    }
+
     public function test_pago_planificado_no_requiere_caja_id(): void
     {
         // Pedido sin caja (canal totem, app externa, etc): puede tener pagos
