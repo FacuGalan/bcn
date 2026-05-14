@@ -233,4 +233,65 @@ class SmokePedidosTest extends TestCase
         $componente->call('marcarTodosVistos')
             ->assertSet('nuevosCount', 0);
     }
+
+    // ==================== KANBAN ====================
+
+    public function test_cambiar_estado_drag_con_transicion_legal_funciona(): void
+    {
+        $pedido = $this->crearPedidoConfirmado();
+
+        Livewire::test(PedidosMostrador::class)
+            ->call('cambiarEstadoDrag', $pedido->id, PedidoMostrador::ESTADO_ENTREGADO);
+
+        $this->assertSame(PedidoMostrador::ESTADO_ENTREGADO, $pedido->fresh()->estado_pedido);
+    }
+
+    public function test_cambiar_estado_drag_rechaza_estado_fuera_de_kanban(): void
+    {
+        $pedido = $this->crearPedidoConfirmado();
+
+        Livewire::test(PedidosMostrador::class)
+            ->call('cambiarEstadoDrag', $pedido->id, PedidoMostrador::ESTADO_CANCELADO)
+            ->assertDispatched('toast-error')
+            ->assertDispatched('kanban-revertir');
+
+        $this->assertSame(PedidoMostrador::ESTADO_CONFIRMADO, $pedido->fresh()->estado_pedido);
+    }
+
+    public function test_cambiar_estado_drag_rechaza_transicion_ilegal(): void
+    {
+        $pedido = $this->crearPedidoConfirmado();
+        // Forzar al estado ENTREGADO para probar una transicion ilegal hacia atras
+        $pedido->update(['estado_pedido' => PedidoMostrador::ESTADO_ENTREGADO]);
+
+        Livewire::test(PedidosMostrador::class)
+            ->call('cambiarEstadoDrag', $pedido->id, PedidoMostrador::ESTADO_CONFIRMADO)
+            ->assertDispatched('toast-error')
+            ->assertDispatched('kanban-revertir');
+
+        $this->assertSame(PedidoMostrador::ESTADO_ENTREGADO, $pedido->fresh()->estado_pedido);
+    }
+
+    public function test_render_kanban_agrupa_pedidos_por_estado(): void
+    {
+        $pedido1 = $this->crearPedidoConfirmado();
+        $pedido2 = $this->crearPedidoConfirmado();
+        $pedido2->update(['estado_pedido' => PedidoMostrador::ESTADO_LISTO]);
+
+        $componente = Livewire::test(PedidosMostrador::class);
+        $kanban = $componente->viewData('pedidosKanban');
+
+        $this->assertTrue(
+            $kanban[PedidoMostrador::ESTADO_CONFIRMADO]->pluck('id')->contains($pedido1->id),
+            'pedido1 (CONFIRMADO) debe estar en la columna confirmado'
+        );
+        $this->assertTrue(
+            $kanban[PedidoMostrador::ESTADO_LISTO]->pluck('id')->contains($pedido2->id),
+            'pedido2 (LISTO) debe estar en la columna listo'
+        );
+        $this->assertFalse(
+            $kanban[PedidoMostrador::ESTADO_CONFIRMADO]->pluck('id')->contains($pedido2->id),
+            'pedido2 NO debe aparecer en confirmado tras el update'
+        );
+    }
 }

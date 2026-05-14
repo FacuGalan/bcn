@@ -16,7 +16,9 @@
   - [3.4 Cupones](#34-cupones)
   - [3.5 Modificar Pagos en Ventas Registradas](#35-modificar-pagos-en-ventas-registradas)
 - [4. Pedidos por Mostrador](#4-pedidos-por-mostrador)
-  - [4.1 Lista de Pedidos](#41-lista-de-pedidos)
+  - [4.1 Vistas: Lista y Kanban](#41-vistas-lista-y-kanban)
+  - [4.2 Vista Lista](#42-vista-lista)
+  - [4.3 Vista Kanban](#43-vista-kanban)
 - [5. Compras](#5-compras)
 - [6. Stock e Inventario](#6-stock-e-inventario)
   - [6.1 Inventario por Sucursal](#61-inventario-por-sucursal)
@@ -575,7 +577,18 @@ El modulo de Pedidos por Mostrador permite gestionar pedidos que se toman en el 
 
 Un pedido tiene dos estados independientes: el **estado del pedido** (ciclo de vida operativo) y el **estado del pago** (situacion de cobro).
 
-### 4.1 Lista de Pedidos
+### 4.1 Vistas: Lista y Kanban
+
+**Ruta**: Menu > Pedidos por Mostrador
+
+En el header del modulo hay un **toggle de vista** con dos botones (icono de lineas horizontales = Lista / icono de grilla = Kanban). El boton activo aparece resaltado. La preferencia se guarda automaticamente en el dispositivo y se restaura al volver a abrir la pagina.
+
+- **Vista Lista** (por defecto): tabla paginada con todos los estados, incluyendo Cancelado y Facturado.
+- **Vista Kanban**: tablero de columnas para los estados operativos activos. Los pedidos Cancelados y Facturados no aparecen en el Kanban.
+
+El toggle es visible tanto en dispositivos moviles como en escritorio.
+
+### 4.2 Vista Lista
 
 **Ruta**: Menu > Pedidos por Mostrador
 
@@ -709,6 +722,40 @@ Al confirmar, `PedidoMostradorService::cancelarPedido()`:
 1. Genera contraasientos en `movimientos_caja` por cada pago activo (revierte el cobro).
 2. Marca el pedido con `estado_pedido = cancelado`, registra `motivo_cancelacion`, `cancelado_at` y `cancelado_por_usuario_id`.
 3. Revierte el stock descontado al momento de la confirmacion (contraasientos en `movimientos_stock`).
+
+### 4.3 Vista Kanban
+
+La vista Kanban muestra los pedidos activos organizados en cuatro columnas segun su estado operativo:
+
+| Columna | Color del header | Estados incluidos |
+|---------|-----------------|-------------------|
+| Confirmado | Azul | `confirmado` |
+| En preparacion | Ambar | `en_preparacion` |
+| Listo | Verde | `listo` |
+| Entregado | Esmeralda | `entregado` |
+
+Cada columna muestra en su header el **contador de pedidos** en ese estado.
+
+> Los pedidos en estado Cancelado y Facturado no aparecen en el Kanban. Para verlos, usar la Vista Lista.
+
+#### Cards del Kanban
+
+Cada card muestra:
+- Numero del pedido
+- Numero de beeper (si el pedido tiene uno asignado)
+- Nombre del cliente (o indicador de cliente temporal)
+- Total del pedido
+- Estado de pago con color: **Pagado** (verde), **Parcial** (ambar), **Pendiente** (rojo)
+
+Botones disponibles directamente en la card: **Ver** (abre el modal de detalle), **Cobrar** (abre el modal de cobro), **Cancelar** (abre el modal de cancelacion con motivo obligatorio).
+
+#### Drag and drop entre columnas
+
+Las cards se pueden arrastrar de una columna a otra para cambiar el estado del pedido. El sistema solo permite soltar la card en una columna cuyo estado sea una transicion legal desde el estado actual (las mismas reglas que el modal "Cambiar estado"). Si el destino no es una transicion valida, el drag se bloquea visualmente y la card no se puede soltar ahi.
+
+Al soltar una card en una columna valida, el estado del pedido se actualiza de inmediato. Si el servidor rechaza el cambio (por ejemplo, una condicion de carrera), la card vuelve a su columna original automaticamente.
+
+> El drag and drop **no puede cancelar** pedidos. La cancelacion requiere siempre ingresar un motivo y se hace exclusivamente desde el boton "Cancelar" en la card.
 
 #### Nuevo Pedido y Edicion de Pedido
 

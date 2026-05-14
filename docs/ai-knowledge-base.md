@@ -1525,7 +1525,7 @@ Todas las operaciones con escrituras usan `DB::connection('pymes_tenant')->trans
 | `convertirEnVenta()` | `TIPO_CONVERTIDO_VENTA` |
 | `recalcularEstadoPago()` (siempre) | `TIPO_PAGO_CAMBIADO` |
 
-#### Componente Livewire: `PedidosMostrador` (Lista)
+#### Componente Livewire: `PedidosMostrador` (Lista + Kanban)
 
 `app/Livewire/Pedidos/PedidosMostrador.php` | Ruta: `GET /pedidos/mostrador` | Name: `pedidos.mostrador`
 
@@ -1535,6 +1535,21 @@ Todas las operaciones con escrituras usan `DB::connection('pymes_tenant')->trans
 - Modales: detalle, cambiar estado, cobrar pendiente, convertir en venta, cancelar.
 - Permisos chequeados con `hasPermissionTo()` al abrir los modales de cobrar, convertir y cancelar.
 - **Tiempo real via WebSocket**: escucha el canal privado `comercios.{comercioId}.pedidos-mostrador` a traves de Laravel Echo/Reverb. Cualquier cambio en un pedido de la sucursal activa dispara un re-render automatico.
+- **Dos modos de visualizacion**: Lista (paginada, todos los estados) y Kanban (agrupado por estado, solo estados activos). La preferencia se persiste en `localStorage` del dispositivo bajo la clave `pedidos_vista_preferida`.
+
+**Constantes de Kanban**:
+- `ESTADOS_KANBAN` -- array con los cuatro estados activos del tablero: `[ESTADO_CONFIRMADO, ESTADO_EN_PREPARACION, ESTADO_LISTO, ESTADO_ENTREGADO]`. Excluye `borrador`, `facturado` y `cancelado`.
+
+**Metodo `obtenerPedidosKanban(): Collection`**:
+Retorna una `Collection` de pedidos agrupada por `estado_pedido`, con una key por cada estado de `ESTADOS_KANBAN`. Si un estado no tiene pedidos, su key existe pero contiene una coleccion vacia (inicializado con foreach explicito para evitar que `array_fill_keys` comparta la misma referencia entre keys). Aplica los mismos filtros de cliente, fecha y estado de pago que la vista lista, pero ignora el filtro `filterEstadoPedido` (siempre filtra solo a `ESTADOS_KANBAN`). Limit de 200 pedidos total; sin paginacion.
+
+**Metodo `cambiarEstadoDrag(int $pedidoId, string $nuevoEstado): void`**:
+Punto de entrada del drag and drop. Validaciones en orden:
+1. Verifica que el pedido pertenezca a la sucursal activa del usuario.
+2. Verifica que `$nuevoEstado` este dentro de `ESTADOS_KANBAN` (rechaza `cancelado` y `facturado`).
+3. Verifica que la transicion desde el estado actual del pedido sea legal segun `TRANSICIONES_PERMITIDAS`.
+4. Llama a `PedidoMostradorService::cambiarEstado()`.
+Ante cualquier rechazo (incluyendo excepciones del service), dispatcha `kanban-revertir` con `['pedidoId' => $pedidoId]` para que el frontend deshaga el cambio visual, y dispatcha un toast de error. No lanza excepciones al caller.
 
 **Propiedades de tiempo real**:
 - `$idsVistos` (array<int, int>) -- snapshot de IDs de pedidos no-borrador al montar. Baseline para detectar pedidos nuevos.
@@ -1549,6 +1564,36 @@ Todas las operaciones con escrituras usan `DB::connection('pymes_tenant')->trans
 **Metodos de acciones rapidas**:
 - `entregarRapido(int $pedidoId): void` -- valida acceso a sucursal y que la transicion a `ESTADO_ENTREGADO` sea legal via `TRANSICIONES_PERMITIDAS`. Llama `PedidoMostradorService::cambiarEstado()`. Si la sucursal tiene conversion automatica configurada, la conversion ocurre como efecto del service. Dispatcha toast.
 - `cobrarRapido(int $pedidoId): void` -- requiere permiso `func.pedidos_mostrador.cobrar`. Si el pedido tiene pagos `planificados`, los confirma todos via `confirmarPagoPlanificado()` en loop. Si no hay planificados, delega a `abrirCobrar($pedidoId)` (flujo modal estandar). Dispatcha toast de resultado.
+
+**Metodo `render()` -- datos adicionales para Kanban**:
+- `pedidosKanban` -- resultado de `obtenerPedidosKanban()`.
+- `estadosKanban` -- copia de `ESTADOS_KANBAN`.
+- `transicionesKanban` -- subconjunto de `TRANSICIONES_PERMITIDAS` filtrado a las transiciones entre estados de `ESTADOS_KANBAN` (excluye transiciones hacia/desde borrador, cancelado, facturado). Usado por Alpine para validar el `onMove` de SortableJS sin round-trip al servidor.
+
+**Vista Blade (`pedidos-mostrador.blade.php`) -- patron Kanban**:
+
+La raiz del componente usa `x-data` con una propiedad `vista` que se inicializa leyendo `localStorage.getItem('pedidos_vista_preferida') ?? 'lista'`. El toggle del header escribe en `localStorage` y cambia `vista` de forma reactiva.
+
+La vista Lista esta envuelta en `x-show="vista === 'lista'"` y la vista Kanban en `x-show="vista === 'kanban'"`.
+
+**Funcion Alpine `kanbanBoard(transiciones)`**: inicializa SortableJS en cada columna del tablero. Configuracion relevante:
+- `group: 'pedidos'` -- permite arrastrar entre columnas del mismo grupo.
+- `onMove(evt)`: callback síncrono que valida si la transicion desde el estado de origen (obtenido del `data-estado` del contenedor origen) hacia el estado destino (del contenedor destino) existe en el mapa `transiciones`. Retorna `false` para bloquear el drop si la transicion no es legal.
+- `onEnd(evt)`: se dispara al soltar. Llama a `$wire.cambiarEstadoDrag(pedidoId, nuevoEstado)`. El `pedidoId` se lee del atributo `data-pedido-id` de la card arrastrada.
+- El listener `livewire:navigated` re-invoca `kanbanBoard` para re-inicializar Sortable despues de cada re-render del componente (necesario porque Livewire destruye y recrea el DOM).
+
+**Patron de rollback visual (`kanban-revertir`)**:
+Cuando `cambiarEstadoDrag` rechaza el cambio, dispatcha el evento de browser `kanban-revertir` con el `pedidoId`. Alpine escucha `@kanban-revertir.window` y re-inserta la card en su columna original. El re-render de Livewire que sigue al rechazo tambien corrige el DOM desde el servidor, por lo que el rollback Alpine es solo una correccion visual inmediata mientras llega el re-render.
+
+**Dependencia SortableJS**:
+- Paquete `sortablejs` en `package.json`.
+- Importado en `resources/js/bootstrap.js` como `window.Sortable = Sortable` para que sea accesible desde Alpine sin bundling adicional.
+
+**Validacion dual de transiciones**:
+| Capa | Donde | Que valida | Que hace si falla |
+|------|-------|-----------|-------------------|
+| Frontend `onMove` | Alpine/SortableJS | `transicionesKanban` pasado como prop desde el servidor | Bloquea el drop visualmente (retorna false en onMove) |
+| Backend `cambiarEstadoDrag` | PHP/Livewire | `TRANSICIONES_PERMITIDAS` completo + acceso a sucursal + estado dentro de ESTADOS_KANBAN | Dispatcha `kanban-revertir` + toast de error |
 
 **Integracion con NuevoPedidoMostrador (modal full-screen)**:
 
