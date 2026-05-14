@@ -1,8 +1,14 @@
 # Pedidos Mostrador — Paridad de persistencia con Venta — Especificación
 
-## Estado: APROBADO — EN PROGRESO
+## Estado: PARCIAL — PAUSADO 2026-05-14
 
-> Aprobado por el usuario el 2026-05-14. Branch: `feat/pedidos-mostrador-paridad-venta`. Cierra el bug de "parcial" erróneo cuando un pedido se cobra con una forma de pago con descuento/recargo. Hace que el pedido persista la composición completa del cálculo (igual que una venta) para que la suma de pagos siempre cuadre contra `total_final`.
+> Aprobado por el usuario el 2026-05-14. Branch: `feat/pedidos-mostrador-paridad-venta`.
+>
+> **Hot-fix del bug aplicado**: condición `$desgloseEstaCompleto && $esMixto` cambiada a `$desgloseEstaCompleto` en `NuevoPedidoMostrador::construirDataPedido()` (líneas 1281-1291). Eso cierra el caso reportado (FP simple con descuento → `total_final` correcto → `estado_pago` correcto).
+>
+> **Schema agregado** (Fases 1+2 del plan): 4 columnas en `pedidos_mostrador` + 2 en `pedidos_mostrador_pagos` + modelos actualizados. Schema queda listo aunque todavía no se usa en flujo activo.
+>
+> **PENDIENTE para próxima sesión**: Fases 3 a 7 del plan (service core con `recalcularTotales()` autoritativo + persistencia de `pedido_mostrador_promociones` + descuentos por línea + conversión + tests focales). Sin esto, el schema agregado queda sin uso real y aún podrían aparecer otros bugs similares en flujos no cubiertos por el hot-fix.
 
 ---
 
@@ -216,35 +222,58 @@ Sin traducciones nuevas. Cambios internos de persistencia, no se agregan mensaje
 2. ✅ `PedidoMostradorPago.php`: agregadas `saldo_pendiente` y `operacion_origen` a `$fillable`. Cast `decimal:2` para `saldo_pendiente`. 4 constantes `OPERACION_*` para los valores del ENUM (paridad con venta).
 3. ✅ Smoke test SmokePedidosTest 15/15 verde.
 
-### Fase 3: Service core [PENDIENTE]
-1. Implementar `PedidoMostradorService::recalcularTotales()` (espejo línea-por-línea de `Venta::actualizarTotales()`).
-2. Implementar `PedidoMostradorService::guardarPromocionesPedido()` (espejo de `VentaService::guardarPromocionesVenta()`).
-3. Ajustar `crearPedido()` y `actualizarPedido()`: aceptar `$promociones`, invocar `recalcularTotales()` + `guardarPromocionesPedido()`.
-4. Ajustar `crearDetalle()` para persistir los 5 campos de promo/lista por línea.
+### Fase 3: Service core [PENDIENTE — próxima sesión]
 
-### Fase 4: Livewire alta/edición [PENDIENTE]
-1. Ajustar `construirDataPedido()`: incluir 4 campos de puntos.
-2. Ajustar `construirDetallesPedido()`: incluir 5 campos de promo/lista por línea.
-3. Implementar `construirPromocionesPedido()` (espejo de `NuevaVenta`).
-4. Llamar a `crearPedido()` / `actualizarPedido()` con el tercer parámetro.
+> **Hallazgo de exploración importante** (anotado para no repetir el análisis):
+> `Venta::actualizarTotales()` (`app/Models/Venta.php:360`) es muy simple: sólo recalcula subtotal/iva/total desde detalles, **NO recalcula `total_final` ni `ajuste_forma_pago`**. En el flujo normal, `VentaService::crearVenta()` recibe `$usarTotalesProporcionados = true` y persiste `total_final` y `ajuste_forma_pago` tal como vienen del Livewire (línea 134-135).
+>
+> Conclusión: el patrón "service autoritativo" en Venta no aplica a `total_final` — éste depende del pago/desglose y se calcula en el frontend. Para Pedido, el approach correcto en próxima sesión es:
+> 1. **`recalcularTotales()` se llama después de cada cambio en pagos** (`agregarPago`, `confirmarPagoPlanificado`, `anularPago`, `eliminarPagoPlanificado`), no sólo al crear el pedido.
+> 2. La lógica: `total_final = total + sum(pagos.monto_ajuste activos+planificados) + sum(pagos.recargo_cuotas_monto activos+planificados)`. El signo de `monto_ajuste` ya viene aplicado (negativo en descuento, positivo en recargo).
+> 3. Al crear el pedido inicial (antes de tener pagos), confiar en lo que envía el Livewire (idem a Venta). Pero apenas hay pagos, el service toma el control.
+> 4. Si los pagos planificados cambian (edición), recalcular y actualizar `total_final` en cascada.
 
-### Fase 5: Conversión a venta [PENDIENTE]
-1. Ajustar `convertirEnVenta()`: pasar 4 campos de puntos a `VentaService::crearVenta()`.
-2. Tras crear la venta, INSERT batch en `venta_promociones` desde `pedido_mostrador_promociones`.
-3. Al crear cada `VentaPago`, mapear `saldo_pendiente`, `operacion_origen`, `creado_por_usuario_id` (estos últimos ya existen en venta_pagos según reporte de exploración).
+Pasos concretos:
+1. Implementar `PedidoMostradorService::recalcularTotales(PedidoMostrador $pedido): void`:
+   - Si hay pagos activos/planificados: recalcular `ajuste_forma_pago` desde ellos.
+   - Si no: respetar lo que está persistido (no pisar con 0).
+   - Persistir `subtotal`, `iva`, `total`, `ajuste_forma_pago`, `total_final`.
+2. Llamar `recalcularTotales()` al final de `agregarPago()`, `confirmarPagoPlanificado()`, `anularPago()`, `eliminarPagoPlanificado()`.
+3. Implementar `PedidoMostradorService::guardarPromocionesPedido(PedidoMostrador $pedido, array $promociones): void` (espejo de `VentaService::guardarPromocionesVenta()` línea 436).
+4. Ajustar `crearPedido()` y `actualizarPedido()`: aceptar `$promociones`, invocar `guardarPromocionesPedido()`.
+5. Ajustar `crearDetalle()` para persistir los 5 campos de promo/lista por línea (`descuento_promocion`, `descuento_promocion_especial`, `descuento_cupon`, `descuento_lista`, `tiene_promocion`).
 
-### Fase 6: Tests focales [PENDIENTE]
-1. Test reproductor (CA-01): pedido $100 + FP efectivo 10% = $90 → `pagado`.
-2. Test persistencia promo nivel pedido (CA-02).
-3. Test persistencia descuento promo en línea (CA-03).
-4. Test recálculo autoritativo (CA-04): el service ignora `total_final` erróneo.
-5. Test conversión (CA-05): paridad pedido → venta.
+### Fase 4: Livewire alta/edición [PENDIENTE — próxima sesión]
+1. Ajustar `construirDataPedido()`: incluir 4 campos de puntos (`puntos_canjeados_pago`, `puntos_canjeados_articulos`, `puntos_usados_monto`, `articulos_canjeados_monto`). Hoy quedan en 0 al persistir. Buscar en el trait `WithPuntos` los nombres de las propiedades equivalentes a las que usa `NuevaVenta`.
+2. Ajustar `construirDetallesPedido()`: incluir 5 campos de promo/lista por línea. Calcularlos desde el carrito (los traits `WithCalculoVenta` / `WithCupones` ya los tienen).
+3. Implementar `construirPromocionesPedido()` espejo del de `NuevaVenta`. Buscar `NuevaVenta::construirPromociones*` o equivalente para ver la estructura.
+4. Llamar a `crearPedido()` / `actualizarPedido()` con el tercer parámetro `$promociones`.
 
-### Fase 7: Verificación [PENDIENTE]
+### Fase 5: Conversión a venta [PENDIENTE — próxima sesión]
+1. Ajustar `convertirEnVenta()` en `PedidoMostradorService`: pasar 4 campos de puntos a `VentaService::crearVenta()`.
+2. Tras crear la venta, INSERT batch en `venta_promociones` desde `pedido_mostrador_promociones` (clonar campo a campo, sólo cambiar `pedido_mostrador_id` por `venta_id`).
+3. Al crear cada `VentaPago`, mapear `saldo_pendiente` (probablemente igual a `monto_final` para pagos sin parcial) y `operacion_origen` (probablemente `'venta_original'` por defecto al venir de pedido).
+
+### Fase 6: Tests focales [PENDIENTE — próxima sesión]
+1. **Test reproductor del bug original** (CA-01): pedido $100 + FP efectivo con 10% descuento + cobro 1-paso → `estado_pago = pagado`. Setup: usar `$reflection->invoke($livewire->instance(), 'construirDataPedido')` con estado interno preconfigurado, o un test E2E completo del flujo de Livewire. **Validar también el camino post-hot-fix**: re-aplicar el `&& $esMixto` y verificar que el test rompe (regression guard).
+2. Test persistencia promo nivel pedido (CA-02): aplicar promo de FP → `pedido_mostrador_promociones` queda con 1 row.
+3. Test persistencia descuento promo en línea (CA-03): aplicar promo a un artículo → `pedido_mostrador_detalle.descuento_promocion` > 0.
+4. Test recálculo (CA-04): agregar pago → llamar `recalcularTotales()` → ver que `total_final` queda con ajuste FP correcto independientemente de lo que envió el Livewire.
+5. Test conversión (CA-05): convertir pedido a venta → `pedido.total_final === venta.total_final`, `venta_promociones` poblada igual que `pedido_mostrador_promociones`.
+
+### Fase 7: Verificación [PENDIENTE — próxima sesión]
 1. `php artisan test --filter=SmokePedidos` (CA-06).
 2. `php vendor/bin/pint --test` (CA-07).
-3. Verificar `tenant_tables.sql` (CA-08).
-4. PR + review CI.
+3. `tenant_tables.sql` ya regenerado en Fase 1 — verificar con `git diff` que no quedó nada.
+4. Verificar manualmente en browser el flujo completo (no sólo el reproductor del bug).
+5. Commit final + push + PR review CI.
+
+## Para retomar (próxima sesión)
+
+1. `git checkout feat/pedidos-mostrador-paridad-venta` (si sigue sin mergear) o crear branch nuevo desde master si el hot-fix ya está mergeado.
+2. Leer estas Fases 3-7 en orden.
+3. Antes de Fase 3, releer `app/Services/VentaService.php` líneas 119-180 (cómo persiste totales y promociones) y `app/Services/Pedidos/PedidoMostradorService.php::crearPedido/actualizarPedido` para entender el diff.
+4. Para Fase 6 test 1, mirar `tests/Integration/Livewire/Ventas/NuevaVentaCambioFPTest.php` como referencia de patrones de testing del flujo de cobro.
 
 ---
 
