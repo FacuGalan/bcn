@@ -4,7 +4,7 @@ namespace App\Events\Broadcasting;
 
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
@@ -18,8 +18,13 @@ use Illuminate\Queue\SerializesModels;
  *
  * Subclases deben implementar `resourceName()` (sufijo dinamico del canal,
  * ej: "pedidos-mostrador" o "mesas.42"). El prefijo lo decide esta clase.
+ *
+ * Usa `ShouldBroadcastNow` (no `ShouldBroadcast`) para que el evento se
+ * transmita sincronicamente sin pasar por la queue. Razon: para tiempo real
+ * el delay de la queue arruina el "instantaneo". Trade-off conocido: el
+ * dispatch agrega latencia chica al request HTTP que lo origina.
  */
-abstract class TenantBroadcastEvent implements ShouldBroadcast
+abstract class TenantBroadcastEvent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
