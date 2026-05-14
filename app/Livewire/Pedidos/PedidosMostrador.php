@@ -419,6 +419,137 @@ class PedidosMostrador extends Component
         $this->mostrarBorradores = ! $this->mostrarBorradores;
     }
 
+    // ==================== KANBAN ====================
+
+    /**
+     * 4 estados que se muestran como columnas Kanban. Cancelados/Facturados
+     * quedan fuera (terminales o solo visibles en vista Lista).
+     */
+    public const ESTADOS_KANBAN = [
+        PedidoMostrador::ESTADO_CONFIRMADO,
+        PedidoMostrador::ESTADO_EN_PREPARACION,
+        PedidoMostrador::ESTADO_LISTO,
+        PedidoMostrador::ESTADO_ENTREGADO,
+    ];
+
+    /**
+     * Pedidos para la vista Kanban, agrupados por estado_pedido. Mismos
+     * filtros que la lista (cliente, fecha, pago) pero SIN paginacion —
+     * limitado a 200 para que Sortable no se ponga pesado.
+     *
+     * @return array<string, \Illuminate\Support\Collection>
+     */
+    protected function obtenerPedidosKanban(): array
+    {
+        $sucursalId = $this->sucursalActual();
+        if ($sucursalId === null) {
+            $vacio = [];
+            foreach (self::ESTADOS_KANBAN as $estado) {
+                $vacio[$estado] = collect();
+            }
+
+            return $vacio;
+        }
+
+        $query = PedidoMostrador::with([
+            'cliente:id,nombre,telefono',
+            'pagos' => fn ($q) => $q->whereIn('estado', [
+                PedidoMostradorPago::ESTADO_ACTIVO,
+                PedidoMostradorPago::ESTADO_PLANIFICADO,
+            ]),
+        ])
+            ->where('sucursal_id', $sucursalId)
+            ->whereIn('estado_pedido', self::ESTADOS_KANBAN);
+
+        if ($this->filterEstadoPago !== 'all') {
+            $query->where('estado_pago', $this->filterEstadoPago);
+        }
+        if ($this->filterFechaDesde) {
+            $query->whereDate('fecha', '>=', $this->filterFechaDesde);
+        }
+        if ($this->filterFechaHasta) {
+            $query->whereDate('fecha', '<=', $this->filterFechaHasta);
+        }
+        if ($this->search !== '') {
+            $term = trim($this->search);
+            $query->where(function ($q) use ($term) {
+                if (is_numeric($term)) {
+                    $q->orWhere('numero', $term);
+                }
+                $q->orWhere('numero_beeper', 'like', "%{$term}%")
+                    ->orWhere('nombre_cliente_temporal', 'like', "%{$term}%")
+                    ->orWhere('telefono_cliente_temporal', 'like', "%{$term}%")
+                    ->orWhereHas('cliente', fn ($c) => $c->where('nombre', 'like', "%{$term}%")
+                        ->orWhere('telefono', 'like', "%{$term}%"));
+            });
+        }
+
+        $pedidos = $query->orderByDesc('fecha')->orderByDesc('id')->limit(200)->get();
+
+        // Inicializar cada columna con una Collection FRESCA. array_fill_keys con
+        // collect() comparte la misma referencia entre todas las keys (bug subtle).
+        $agrupados = [];
+        foreach (self::ESTADOS_KANBAN as $estado) {
+            $agrupados[$estado] = collect();
+        }
+
+        foreach ($pedidos as $pedido) {
+            if (isset($agrupados[$pedido->estado_pedido])) {
+                $agrupados[$pedido->estado_pedido]->push($pedido);
+            }
+        }
+
+        return $agrupados;
+    }
+
+    /**
+     * Cambia el estado de un pedido al soltar una card en otra columna del
+     * Kanban. Valida que la transicion sea legal segun TRANSICIONES_PERMITIDAS.
+     * Si no lo es, dispara toast-error y el frontend revierte visualmente la
+     * card a su columna original (Sortable lo hace solo si lanzamos refresh).
+     */
+    public function cambiarEstadoDrag(int $pedidoId, string $nuevoEstado): void
+    {
+        $pedido = PedidoMostrador::find($pedidoId);
+        if (! $pedido || ! $this->tieneAccesoASucursal($pedido->sucursal_id)) {
+            $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+            $this->dispatch('kanban-revertir');
+
+            return;
+        }
+
+        if (! in_array($nuevoEstado, self::ESTADOS_KANBAN, true)) {
+            $this->dispatch('toast-error', message: __('Estado destino inválido'));
+            $this->dispatch('kanban-revertir');
+
+            return;
+        }
+
+        $transiciones = PedidoMostrador::TRANSICIONES_PERMITIDAS[$pedido->estado_pedido] ?? [];
+        if (! in_array($nuevoEstado, $transiciones, true)) {
+            $this->dispatch('toast-error', message: __('Transición :de → :a no permitida', [
+                'de' => $pedido->estado_pedido,
+                'a' => $nuevoEstado,
+            ]));
+            $this->dispatch('kanban-revertir');
+
+            return;
+        }
+
+        try {
+            $this->service->cambiarEstado($pedido, $nuevoEstado);
+            $this->dispatch('toast-success', message: __('Estado actualizado'));
+        } catch (Exception $e) {
+            Log::error('Error al cambiar estado via drag&drop', [
+                'pedido_id' => $pedidoId,
+                'nuevo_estado' => $nuevoEstado,
+                'error' => $e->getMessage(),
+            ]);
+            $this->dispatch('toast-error', message: $e->getMessage());
+            $this->dispatch('kanban-revertir');
+        }
+    }
+
     // ==================== DETALLE ====================
 
     public function verDetalle(int $pedidoId): void
@@ -888,6 +1019,17 @@ class PedidosMostrador extends Component
     {
         $pedidos = $this->obtenerPedidos();
         $borradores = $this->obtenerBorradores();
+        $pedidosKanban = $this->obtenerPedidosKanban();
+
+        // Mapa de transiciones permitidas SOLO entre estados del Kanban (cancelar/facturar
+        // quedan fuera). El frontend usa este array para validar onMove de SortableJS.
+        $transicionesKanban = [];
+        foreach (self::ESTADOS_KANBAN as $estado) {
+            $transicionesKanban[$estado] = array_values(array_intersect(
+                PedidoMostrador::TRANSICIONES_PERMITIDAS[$estado] ?? [],
+                self::ESTADOS_KANBAN,
+            ));
+        }
 
         $pedidoDetalle = $this->pedidoDetalleId
             ? PedidoMostrador::with([
@@ -904,6 +1046,9 @@ class PedidosMostrador extends Component
         return view('livewire.pedidos.pedidos-mostrador', [
             'pedidos' => $pedidos,
             'borradores' => $borradores,
+            'pedidosKanban' => $pedidosKanban,
+            'transicionesKanban' => $transicionesKanban,
+            'estadosKanban' => self::ESTADOS_KANBAN,
             'pedidoDetalle' => $pedidoDetalle,
             'estadosPedido' => PedidoMostrador::ESTADOS,
             'estadosPago' => PedidoMostrador::ESTADOS_PAGO,
