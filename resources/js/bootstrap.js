@@ -10,5 +10,8 @@ import './echo.js';
 import Sortable from 'sortablejs';
 window.Sortable = Sortable;
 
+// Componente Alpine kanbanBoard (registrado en alpine:init)
+import './kanban.js';
+
 // Modulo de impresion QZ Tray
 import './qz-integration.js';

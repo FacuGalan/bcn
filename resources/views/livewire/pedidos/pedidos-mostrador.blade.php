@@ -476,8 +476,8 @@
             ];
         @endphp
         <div x-show="vista === 'kanban'" x-cloak
-            x-data="kanbanBoard(@js($transicionesKanban))"
-            x-init="$nextTick(() => initSortables())"
+            x-data="kanbanBoard"
+            data-transiciones="{{ json_encode($transicionesKanban) }}"
             wire:key="kanban-{{ collect($pedidosKanban)->map->pluck('id')->flatten()->implode('-') }}">
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 @foreach($estadosKanban as $estado)
@@ -493,7 +493,7 @@
                         <div class="flex-1 p-2 space-y-2 kanban-col overflow-y-auto max-h-[70vh]"
                             data-estado="{{ $estado }}">
                             @forelse($pedidosKanban[$estado] as $pedido)
-                                <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-3 cursor-move hover:shadow-md transition-shadow"
+                                <div class="kanban-card bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-3 cursor-move hover:shadow-md transition-shadow select-none"
                                     data-pedido-id="{{ $pedido->id }}"
                                     wire:key="kanban-card-{{ $pedido->id }}">
                                     <div class="flex justify-between items-start mb-2">
@@ -528,22 +528,46 @@
                                     <div class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 flex gap-1 flex-wrap"
                                         @mousedown.stop @touchstart.stop>
                                         <button type="button" wire:click="verDetalle({{ $pedido->id }})"
-                                            class="text-[10px] px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                            class="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
                                             title="{{ __('Ver detalle') }}">
-                                            {{ __('Ver') }}
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                            </svg>
                                         </button>
                                         @if(($pedido->total_planificado > 0 || $pedido->total_cobrado < $pedido->total_final - 0.005) && auth()->user()?->hasPermissionTo('func.pedidos_mostrador.cobrar'))
                                             <button type="button" wire:click="cobrarRapido({{ $pedido->id }})"
-                                                class="text-[10px] px-2 py-1 rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/60"
+                                                class="inline-flex items-center px-2 py-1 border border-green-300 dark:border-green-600 rounded text-xs text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30"
                                                 title="{{ $pedido->total_planificado > 0 ? __('Confirmar pagos planificados') : __('Abrir desglose de cobro') }}">
-                                                {{ __('Cobrar') }}
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
                                             </button>
                                         @endif
+                                        @if($pedido->estado_pedido !== 'borrador' && auth()->user()?->hasPermissionTo('func.pedidos_mostrador.convertir_venta'))
+                                            <button type="button" wire:click="abrirConvertir({{ $pedido->id }})"
+                                                class="inline-flex items-center px-2 py-1 border border-bcn-primary rounded text-xs text-bcn-primary hover:bg-bcn-primary hover:text-white"
+                                                title="{{ __('Convertir en venta') }}">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                                </svg>
+                                            </button>
+                                        @endif
+                                        <button type="button" wire:click="reimprimirComanda({{ $pedido->id }})"
+                                            class="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                            title="{{ __('Imprimir comanda') }}">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                            </svg>
+                                        </button>
                                         @if(auth()->user()?->hasPermissionTo('func.pedidos_mostrador.cancelar'))
                                             <button type="button" wire:click="abrirCancelar({{ $pedido->id }})"
-                                                class="text-[10px] px-2 py-1 rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60"
+                                                class="inline-flex items-center px-2 py-1 border border-red-300 dark:border-red-600 rounded text-xs text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30"
                                                 title="{{ __('Cancelar pedido') }}">
-                                                {{ __('Cancelar') }}
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
                                             </button>
                                         @endif
                                     </div>
@@ -563,55 +587,10 @@
         </div>
         {{-- FIN VISTA KANBAN --}}
 
-        <script>
-            function kanbanBoard(transiciones) {
-                return {
-                    transiciones: transiciones,
-                    sortables: [],
-                    initSortables() {
-                        // Limpiar instancias previas si las hubiera (en re-renders de Livewire)
-                        this.sortables.forEach(s => s.destroy && s.destroy());
-                        this.sortables = [];
-                        const cols = this.$el.querySelectorAll('.kanban-col');
-                        cols.forEach(col => {
-                            const sortable = new Sortable(col, {
-                                group: 'pedidos',
-                                animation: 150,
-                                ghostClass: 'kanban-ghost',
-                                dragClass: 'kanban-dragging',
-                                onMove: (evt) => {
-                                    const origen = evt.from.dataset.estado;
-                                    const destino = evt.to.dataset.estado;
-                                    if (origen === destino) return true;
-                                    const permitidas = this.transiciones[origen] || [];
-                                    return permitidas.includes(destino);
-                                },
-                                onEnd: (evt) => {
-                                    const origen = evt.from.dataset.estado;
-                                    const destino = evt.to.dataset.estado;
-                                    if (origen === destino) return;
-                                    const pedidoId = parseInt(evt.item.dataset.pedidoId);
-                                    if (!pedidoId) return;
-                                    $wire.cambiarEstadoDrag(pedidoId, destino);
-                                },
-                            });
-                            this.sortables.push(sortable);
-                        });
-                    },
-                };
-            }
-            // Re-init Sortable después de cada render de Livewire (las cards pueden cambiar)
-            document.addEventListener('livewire:navigated', () => {
-                document.querySelectorAll('[x-data^="kanbanBoard"]').forEach(el => {
-                    if (el._x_dataStack && el._x_dataStack[0].initSortables) {
-                        el._x_dataStack[0].initSortables();
-                    }
-                });
-            });
-        </script>
         <style>
-            .kanban-ghost { opacity: 0.4; }
-            .kanban-dragging { cursor: grabbing; }
+            .kanban-card { user-select: none; -webkit-user-select: none; }
+            .kanban-ghost { opacity: 0.4; background: #fef3c7; }
+            .kanban-dragging { cursor: grabbing; opacity: 0.9; transform: rotate(2deg); }
             [x-cloak] { display: none !important; }
         </style>
     </div>
