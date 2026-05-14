@@ -2,6 +2,7 @@
 
 namespace App\Services\Pedidos;
 
+use App\Events\Broadcasting\PedidoMostradorBroadcast;
 use App\Events\PedidoMostrador\PedidoCancelado;
 use App\Events\PedidoMostrador\PedidoConvertidoEnVenta;
 use App\Events\PedidoMostrador\PedidoCreado;
@@ -114,6 +115,7 @@ class PedidoMostradorService
                     sucursalId: $pedido->sucursal_id,
                     usuarioId: $pedido->usuario_id,
                 ));
+                $this->dispatchBroadcast($pedido, PedidoMostradorBroadcast::TIPO_CREADO);
 
                 $this->maybeImprimirComandaAutomatica($pedido);
             }
@@ -250,6 +252,7 @@ class PedidoMostradorService
                 estadoNuevo: $nuevoEstado,
                 usuarioId: (int) auth()->id() ?: $pedido->usuario_id,
             ));
+            $this->dispatchBroadcast($pedido, PedidoMostradorBroadcast::TIPO_ESTADO_CAMBIADO);
         });
 
         // Conversión automática post-commit si está configurada.
@@ -292,6 +295,7 @@ class PedidoMostradorService
             sucursalId: $pedido->sucursal_id,
             usuarioId: (int) auth()->id() ?: $pedido->usuario_id,
         ));
+        $this->dispatchBroadcast($pedido, PedidoMostradorBroadcast::TIPO_CREADO);
 
         $this->maybeImprimirComandaAutomatica($pedido);
 
@@ -535,6 +539,7 @@ class PedidoMostradorService
                 motivo: $motivo,
                 usuarioId: $usuarioId,
             ));
+            $this->dispatchBroadcast($pedido, PedidoMostradorBroadcast::TIPO_CANCELADO);
         });
     }
 
@@ -632,6 +637,7 @@ class PedidoMostradorService
                 ventaId: $venta->id,
                 usuarioId: (int) auth()->id() ?: $pedido->usuario_id,
             ));
+            $this->dispatchBroadcast($pedido, PedidoMostradorBroadcast::TIPO_CONVERTIDO_VENTA);
 
             Log::info('Pedido mostrador convertido en venta', [
                 'pedido_id' => $pedido->id,
@@ -939,6 +945,11 @@ class PedidoMostradorService
                 estadoNuevo: $nuevo,
             ));
         }
+
+        // Broadcast siempre que se recalcula pago, incluso si el estado_pago
+        // no cambia (ej: parcial -> parcial con mas pagos). El cliente refresca
+        // y ve los nuevos montos.
+        $this->dispatchBroadcast($pedido, PedidoMostradorBroadcast::TIPO_PAGO_CAMBIADO);
     }
 
     /**
@@ -1111,6 +1122,39 @@ class PedidoMostradorService
             }
 
             $pago->update(['venta_pago_id' => $ventaPago->id]);
+        }
+    }
+
+    /**
+     * Dispatch del evento broadcast PedidoMostradorBroadcast.
+     *
+     * Resuelve el comercio activo del TenantService (sesion web). Si no hay
+     * contexto tenant (CLI, jobs sin sesion) se hace silent-skip — los flujos
+     * de negocio funcionan igual, solo no llega notificacion al cliente.
+     *
+     * Si falla el dispatch (Reverb caido, etc.), se loggea pero NO rompe el
+     * flujo principal del pedido. La consistencia de BD es prioritaria; el
+     * tiempo real es best-effort.
+     */
+    private function dispatchBroadcast(PedidoMostrador $pedido, string $tipo): void
+    {
+        try {
+            $comercioId = app(\App\Services\TenantService::class)->getComercioId();
+            if ($comercioId === null) {
+                return;
+            }
+            PedidoMostradorBroadcast::dispatch(
+                $comercioId,
+                (int) $pedido->sucursal_id,
+                (int) $pedido->id,
+                $tipo,
+            );
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo broadcastear PedidoMostradorBroadcast', [
+                'pedido_id' => $pedido->id,
+                'tipo' => $tipo,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }

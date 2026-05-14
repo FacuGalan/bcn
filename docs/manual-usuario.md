@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-05-13
+> Version: 0.1.x | Ultima actualizacion: 2026-05-14
 
 ---
 
@@ -579,7 +579,11 @@ Un pedido tiene dos estados independientes: el **estado del pedido** (ciclo de v
 
 **Ruta**: Menu > Pedidos por Mostrador
 
-La lista muestra todos los pedidos de la sucursal activa. Se refresca automaticamente cada 15 segundos para reflejar cambios realizados desde otras terminales.
+La lista muestra todos los pedidos de la sucursal activa. Se actualiza en **tiempo real** via WebSocket (Reverb/Echo): cuando otro usuario o terminal crea, cambia el estado, cobra o cancela un pedido, la lista se refresca instantaneamente sin necesidad de recargar la pagina. Como respaldo defensivo, la pagina tambien se refresca automaticamente cada 60 segundos si la conexion WebSocket estuviera caida.
+
+#### Badge de pedidos nuevos
+
+Si mientras la pagina esta abierta ingresan pedidos nuevos (desde otras terminales o canales), aparece un **badge pulsante** debajo del titulo de la seccion con el texto "X nuevos". Al hacer click sobre el badge, el contador se resetea y la lista se actualiza mostrando todos los pedidos al dia. El badge no aparece si no hay pedidos nuevos desde que se abrio la pagina.
 
 #### Filtros disponibles
 
@@ -604,14 +608,32 @@ Las acciones disponibles dependen del estado del pedido y los permisos del usuar
 | Accion | Condicion | Permiso requerido |
 |--------|-----------|-------------------|
 | Ver detalle | Siempre disponible | Ninguno adicional |
+| Entregar (rapido) | Pedido en estado confirmado, en preparacion o listo | Ninguno adicional |
 | Cambiar estado | Pedido no cancelado ni facturado | Ninguno adicional |
-| Cobrar pendiente | Pedido no cancelado ni facturado | `func.pedidos_mostrador.cobrar` |
+| Cobrar (rapido) | Pedido no cancelado ni facturado con monto pendiente o planificado | `func.pedidos_mostrador.cobrar` |
 | Convertir en venta | Pedido confirmado, en preparacion, listo o entregado | `func.pedidos_mostrador.convertir_venta` |
 | Reimprimir comanda | Siempre disponible | Ninguno adicional |
 | Reimprimir precuenta | Siempre disponible | Ninguno adicional |
 | Cancelar | Pedido no cancelado ni facturado | `func.pedidos_mostrador.cancelar` |
 
 > Si el usuario no tiene el permiso correspondiente, al intentar la accion vera un mensaje de error y el modal no se abrira.
+
+#### Accion rapida: Entregar
+
+El boton **"Entregar"** (icono check verde, color emerald) aparece en cada fila cuando el estado actual del pedido admite la transicion a `entregado` (es decir: confirmado, en preparacion o listo). Al hacer click, aparece una confirmacion rapida. Si se acepta, el pedido pasa directamente a estado entregado sin necesidad de abrir el modal de cambio de estado.
+
+Si la sucursal tiene activada la opcion de conversion automatica al entregar (`pedido_conversion_automatica_al_entregar = true`), el sistema convierte el pedido en venta automaticamente como efecto secundario del cambio de estado.
+
+En moviles el boton muestra solo el icono; en escritorio muestra icono y texto.
+
+#### Accion rapida: Cobrar
+
+El boton **"Cobrar"** (icono $ verde) reemplaza al anterior boton de "Cobrar pendiente" en la fila. Su comportamiento es condicional segun el desglose de pagos del pedido:
+
+- **Si el pedido tiene pagos planificados**: confirma todos los pagos planificados de una vez sin abrir ningun modal. Cada pago genera su movimiento en la caja activa. Al terminar aparece un mensaje de confirmacion indicando cuantos pagos se confirmaron. El tooltip del boton muestra "Confirmar pagos planificados".
+- **Si el pedido NO tiene pagos planificados**: abre el modal estandar de "Cobrar pendiente" para que el operario defina la forma de pago manualmente. El tooltip muestra "Abrir desglose de cobro".
+
+> El tooltip del boton anticipa cual de los dos comportamientos se va a ejecutar, sin necesidad de hacer click primero.
 
 #### Modal: Ver detalle
 

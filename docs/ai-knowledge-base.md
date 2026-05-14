@@ -1500,26 +1500,55 @@ Los pagos `planificados` no cuentan para este calculo. Solo los `activos`.
 `app/Services/Pedidos/PedidoMostradorService.php`
 
 Metodos principales:
-- `crearPedido(array $data, array $detalles, bool $esBorrador): PedidoMostrador` -- Alta. Si no es borrador: asigna numero, descuenta stock, emite evento `PedidoCreado`, imprime comanda si esta configurado.
-- `cambiarEstado(PedidoMostrador $pedido, string $nuevoEstado, ?string $observacion): void` -- Valida transicion contra `TRANSICIONES_PERMITIDAS`, actualiza timestamps, emite `PedidoEstadoCambiado`.
-- `confirmarPagoPlanificado(PedidoMostradorPago $pago): void` -- Materializa pago: crea `MovimientoCaja`, cambia estado a `activo`, recalcula `estado_pago`.
+- `crearPedido(array $data, array $detalles, bool $esBorrador): PedidoMostrador` -- Alta. Si no es borrador: asigna numero, descuenta stock, emite evento `PedidoCreado`, imprime comanda si esta configurado. Dispatcha broadcast `TIPO_CREADO`.
+- `confirmarBorrador(PedidoMostrador $pedido): void` -- Convierte borrador en pedido confirmado. Asigna numero, descuenta stock. Dispatcha broadcast `TIPO_CREADO`.
+- `cambiarEstado(PedidoMostrador $pedido, string $nuevoEstado, ?string $observacion): void` -- Valida transicion contra `TRANSICIONES_PERMITIDAS`, actualiza timestamps, emite `PedidoEstadoCambiado`. Dispatcha broadcast `TIPO_ESTADO_CAMBIADO`.
+- `confirmarPagoPlanificado(PedidoMostradorPago $pago): void` -- Materializa pago: crea `MovimientoCaja`, cambia estado a `activo`, recalcula `estado_pago`. Dispatcha broadcast `TIPO_PAGO_CAMBIADO` via `recalcularEstadoPago()`.
 - `eliminarPagoPlanificado(PedidoMostradorPago $pago): void` -- Elimina sin movimiento de caja.
-- `cancelarPedido(PedidoMostrador $pedido, string $motivo): void` -- Genera contraasientos de caja por pagos activos, revierte stock, marca cancelado.
-- `convertirEnVenta(PedidoMostrador $pedido): Venta` -- Materializa planificados, crea `Venta` con todos sus detalles y pagos, marca pedido como `facturado`.
+- `cancelarPedido(PedidoMostrador $pedido, string $motivo): void` -- Genera contraasientos de caja por pagos activos, revierte stock, marca cancelado. Dispatcha broadcast `TIPO_CANCELADO`.
+- `convertirEnVenta(PedidoMostrador $pedido): Venta` -- Materializa planificados, crea `Venta` con todos sus detalles y pagos, marca pedido como `facturado`. Dispatcha broadcast `TIPO_CONVERTIDO_VENTA`.
 - `imprimirComanda(PedidoMostrador $pedido): array` -- Retorna payload para el evento `imprimir-comanda`.
 - `imprimirPrecuenta(PedidoMostrador $pedido): array` -- Retorna payload para el evento `imprimir-precuenta`.
 
 Todas las operaciones con escrituras usan `DB::connection('pymes_tenant')->transaction()`.
+
+**Metodo privado `dispatchBroadcast(PedidoMostrador $pedido, string $tipo): void`**: resuelve `comercioId` via `TenantService::getComercioId()`. Si el resultado es `null` (contexto CLI o job sin sesion), hace silent-skip. Si el dispatch falla (Reverb caido, etc.), loggea `Log::warning` pero NO lanza excepcion -- la consistencia de BD es prioritaria sobre el tiempo real.
+
+**Puntos de dispatch en el service**:
+
+| Metodo | Tipo broadcast |
+|--------|---------------|
+| `crearPedido()` (si no borrador) | `TIPO_CREADO` |
+| `confirmarBorrador()` | `TIPO_CREADO` |
+| `cambiarEstado()` | `TIPO_ESTADO_CAMBIADO` |
+| `cancelarPedido()` | `TIPO_CANCELADO` |
+| `convertirEnVenta()` | `TIPO_CONVERTIDO_VENTA` |
+| `recalcularEstadoPago()` (siempre) | `TIPO_PAGO_CAMBIADO` |
 
 #### Componente Livewire: `PedidosMostrador` (Lista)
 
 `app/Livewire/Pedidos/PedidosMostrador.php` | Ruta: `GET /pedidos/mostrador` | Name: `pedidos.mostrador`
 
 - Full-page, `#[Lazy]`, `SucursalAware`, `WithPagination`.
-- Polling de 15 segundos via `wire:poll.15s` para refrescar la lista.
+- Polling de 60 segundos via `wire:poll.60s` como fallback defensivo (reducido de 15s al agregar tiempo real).
 - Filtra por sucursal activa, estado pedido, estado pago, rango de fechas y busqueda libre.
 - Modales: detalle, cambiar estado, cobrar pendiente, convertir en venta, cancelar.
 - Permisos chequeados con `hasPermissionTo()` al abrir los modales de cobrar, convertir y cancelar.
+- **Tiempo real via WebSocket**: escucha el canal privado `comercios.{comercioId}.pedidos-mostrador` a traves de Laravel Echo/Reverb. Cualquier cambio en un pedido de la sucursal activa dispara un re-render automatico.
+
+**Propiedades de tiempo real**:
+- `$idsVistos` (array<int, int>) -- snapshot de IDs de pedidos no-borrador al montar. Baseline para detectar pedidos nuevos.
+- `$nuevosCount` (int) -- contador de pedidos que llegaron via broadcast sin estar en el snapshot. Controla la visibilidad del badge en la UI.
+
+**Metodos de tiempo real**:
+- `snapshotIdsVistos(): void` -- consulta los IDs actuales (excluye borradores) y los almacena en `$idsVistos`. Se llama en `mount()` y al resetear el contador.
+- `getListeners(): array` -- override dinamico. Resuelve `comercioId` via `TenantService::getComercioId()`. Si no hay contexto tenant, retorna array vacio (sin suscripcion). Canal: `echo-private:comercios.{comercioId}.pedidos-mostrador,.PedidoMostradorBroadcast`.
+- `onPedidoBroadcast(array $event): void` -- handler del evento. Filtra por `sucursalId` (ignora pedidos de otras sucursales). Si el tipo es `TIPO_CREADO` y el `pedidoId` no esta en `$idsVistos`, incrementa `$nuevosCount`. Todos los tipos causan re-render automatico de Livewire.
+- `marcarTodosVistos(): void` -- resetea `$nuevosCount` a 0, actualiza el snapshot con `snapshotIdsVistos()` y llama `resetPage()` para refrescar la lista.
+
+**Metodos de acciones rapidas**:
+- `entregarRapido(int $pedidoId): void` -- valida acceso a sucursal y que la transicion a `ESTADO_ENTREGADO` sea legal via `TRANSICIONES_PERMITIDAS`. Llama `PedidoMostradorService::cambiarEstado()`. Si la sucursal tiene conversion automatica configurada, la conversion ocurre como efecto del service. Dispatcha toast.
+- `cobrarRapido(int $pedidoId): void` -- requiere permiso `func.pedidos_mostrador.cobrar`. Si el pedido tiene pagos `planificados`, los confirma todos via `confirmarPagoPlanificado()` en loop. Si no hay planificados, delega a `abrirCobrar($pedidoId)` (flujo modal estandar). Dispatcha toast de resultado.
 
 **Integracion con NuevoPedidoMostrador (modal full-screen)**:
 
@@ -1578,6 +1607,47 @@ Wrapper: `<div class="fixed inset-0 z-40 bg-white dark:bg-gray-900 flex flex-col
 - Tras alta o edicion exitosa: despacha evento `pedido-guardado` al componente padre.
 
 **Atajo de teclado**: Esc cierra el modal (manejado en Alpine con `@keydown.escape.window`).
+
+#### Evento Broadcast: `PedidoMostradorBroadcast`
+
+`app/Events/Broadcasting/PedidoMostradorBroadcast.php` -- extiende `TenantBroadcastEvent`.
+
+Evento broadcast unificado para todos los cambios visibles en pedidos por mostrador. Transporta solo IDs y tipo (no el pedido completo); el cliente re-consulta la BD para obtener el estado fresco. Esto reduce el payload y evita race conditions cuando varios cambios llegan en rafaga.
+
+**Canal**: `private-comercios.{comercioId}.pedidos-mostrador`
+
+Patron multi-tenant: el canal esta prefijado por `comercioId`, por lo que un usuario del comercio A no puede recibir eventos del comercio B. La autorizacion del canal se valida en `routes/channels.php`.
+
+**Clase base `TenantBroadcastEvent`** (`app/Events/Broadcasting/TenantBroadcastEvent.php`): clase abstracta que implementa `ShouldBroadcast`. Toda subclase transmite en el canal `private-comercios.{comercioId}.{resourceName()}`. Las subclases solo deben implementar `resourceName()` para definir el sufijo dinamico del canal.
+
+**Tipos de evento** (constantes en `PedidoMostradorBroadcast`):
+
+| Constante | Valor | Cuando se despacha |
+|-----------|-------|--------------------|
+| `TIPO_CREADO` | `'creado'` | Alta de pedido no borrador; confirmacion de borrador |
+| `TIPO_ESTADO_CAMBIADO` | `'estado_cambiado'` | Cambio de estado operativo del pedido |
+| `TIPO_PAGO_CAMBIADO` | `'pago_cambiado'` | Cada recalculo de `estado_pago` (incluye sin cambio real) |
+| `TIPO_CANCELADO` | `'cancelado'` | Cancelacion del pedido |
+| `TIPO_CONVERTIDO_VENTA` | `'convertido_venta'` | Conversion exitosa en venta |
+
+**Payload broadcast** (`broadcastWith()`):
+```json
+{
+  "pedidoId": 42,
+  "sucursalId": 3,
+  "tipo": "creado",
+  "at": "2026-05-14T10:30:00+00:00"
+}
+```
+
+**Nombre de evento en el cliente**: `.PedidoMostradorBroadcast` (definido en `broadcastAs()` para evitar usar el FQCN completo de Laravel).
+
+**Ejemplo de suscripcion desde Livewire** (via `getListeners()`):
+```php
+return [
+    "echo-private:comercios.{$comercioId}.pedidos-mostrador,.PedidoMostradorBroadcast" => 'onPedidoBroadcast',
+];
+```
 
 #### Patrones de consulta SQL utiles
 
