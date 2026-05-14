@@ -1,4 +1,5 @@
-<div class="py-4" wire:poll.60s
+<div wire:poll.60s>
+<div class="py-4"
     x-data="{
         vista: localStorage.getItem('pedidos_vista_preferida') || 'lista',
         setVista(v) {
@@ -475,8 +476,8 @@
                 'entregado' => ['header' => 'bg-emerald-600', 'border' => 'border-emerald-300 dark:border-emerald-700'],
             ];
         @endphp
-        <div x-show="vista === 'kanban'" x-cloak
-            x-data="kanbanBoard"
+        <div x-show="vista === 'kanban'" x-cloak>
+        <div x-data="kanbanBoard"
             data-transiciones="{{ json_encode($transicionesKanban) }}"
             wire:key="kanban-{{ collect($pedidosKanban)->map->pluck('id')->flatten()->implode('-') }}">
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -584,6 +585,7 @@
             <p class="mt-3 text-xs text-gray-500 dark:text-gray-400 text-center">
                 {{ __('Arrastrá las tarjetas entre columnas para cambiar el estado del pedido. Solo se permiten transiciones legales.') }}
             </p>
+        </div>
         </div>
         {{-- FIN VISTA KANBAN --}}
 
@@ -985,4 +987,5 @@
             :key="'modal-nuevo-pedido-' . $modalNuevoPedidoKey"
         />
     @endif
+</div>
 </div>
