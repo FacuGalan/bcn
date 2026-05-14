@@ -101,6 +101,20 @@ class PedidosMostrador extends Component
     /** Counter para forzar remount del sub-componente al reabrir el modal. */
     public int $modalNuevoPedidoKey = 0;
 
+    // ==================== TIEMPO REAL ====================
+
+    /**
+     * IDs de pedidos que el usuario ya vio (snapshot al montar). Si llega un
+     * pedido nuevo cuyo ID no esta en este array, se incrementa el contador
+     * `nuevosCount` para mostrar un badge "X nuevos" en la UI.
+     *
+     * @var array<int, int>
+     */
+    public array $idsVistos = [];
+
+    /** Cantidad de pedidos nuevos entrados via broadcast desde que se monto la pagina. */
+    public int $nuevosCount = 0;
+
     protected PedidoMostradorService $service;
 
     public function boot(PedidoMostradorService $service): void
@@ -119,6 +133,87 @@ class PedidosMostrador extends Component
     {
         $this->filterFechaDesde = now()->subDays(7)->format('Y-m-d');
         $this->filterFechaHasta = now()->format('Y-m-d');
+
+        $this->snapshotIdsVistos();
+    }
+
+    /**
+     * Captura los IDs de pedidos visibles ahora (excluyendo borradores). Se
+     * usa como baseline para detectar pedidos "nuevos" que entran via
+     * broadcast.
+     */
+    protected function snapshotIdsVistos(): void
+    {
+        $sucursalId = $this->sucursalActual();
+        if ($sucursalId === null) {
+            $this->idsVistos = [];
+
+            return;
+        }
+
+        $this->idsVistos = PedidoMostrador::where('sucursal_id', $sucursalId)
+            ->where('estado_pedido', '!=', PedidoMostrador::ESTADO_BORRADOR)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->toArray();
+    }
+
+    /**
+     * Listeners dinamicos. El nombre del canal lleva el comercio_id del user
+     * activo, asi que se resuelve via TenantService. Sin contexto tenant, no
+     * se subscribe a ningun canal.
+     *
+     * @return array<string, string>
+     */
+    public function getListeners(): array
+    {
+        $comercioId = app(\App\Services\TenantService::class)->getComercioId();
+        if ($comercioId === null) {
+            return [];
+        }
+
+        return [
+            "echo-private:comercios.{$comercioId}.pedidos-mostrador,.PedidoMostradorBroadcast" => 'onPedidoBroadcast',
+        ];
+    }
+
+    /**
+     * Handler del evento broadcast PedidoMostradorBroadcast.
+     *
+     * Filtra por sucursal: solo procesa eventos de la sucursal actual. Si el
+     * tipo es "creado" y el pedidoId no estaba en el snapshot, incrementa el
+     * contador de nuevos. Cualquier tipo dispara re-render (Livewire lo hace
+     * automaticamente al terminar el metodo).
+     *
+     * @param  array{pedidoId?: int, sucursalId?: int, tipo?: string, at?: string}  $event
+     */
+    public function onPedidoBroadcast(array $event): void
+    {
+        $pedidoId = (int) ($event['pedidoId'] ?? 0);
+        $sucursalEvt = (int) ($event['sucursalId'] ?? 0);
+        $tipo = (string) ($event['tipo'] ?? '');
+
+        if ($pedidoId === 0 || $sucursalEvt !== (int) $this->sucursalActual()) {
+            return;
+        }
+
+        if ($tipo === \App\Events\Broadcasting\PedidoMostradorBroadcast::TIPO_CREADO
+            && ! in_array($pedidoId, $this->idsVistos, true)) {
+            $this->idsVistos[] = $pedidoId;
+            $this->nuevosCount++;
+        }
+        // Otros tipos: el render automatico de Livewire trae la data fresca.
+    }
+
+    /**
+     * El usuario hizo click en "Ver X nuevos" — resetea el contador y
+     * actualiza el snapshot al estado actual.
+     */
+    public function marcarTodosVistos(): void
+    {
+        $this->nuevosCount = 0;
+        $this->snapshotIdsVistos();
+        $this->resetPage();
     }
 
     /**
@@ -407,6 +502,93 @@ class PedidosMostrador extends Component
         $this->nuevoEstado = '';
         $this->observacionEstado = '';
         $this->transicionesDisponibles = [];
+    }
+
+    // ==================== ACCIONES RAPIDAS ====================
+
+    /**
+     * Marca un pedido como ENTREGADO sin abrir el modal de cambio de estado.
+     * Valida que la transicion sea legal (CONFIRMADO/EN_PREPARACION/LISTO ->
+     * ENTREGADO) antes de invocar el service. Si la sucursal tiene
+     * `pedido_conversion_automatica_al_entregar=true`, el service se encarga
+     * de convertir en venta como efecto secundario.
+     */
+    public function entregarRapido(int $pedidoId): void
+    {
+        $pedido = PedidoMostrador::find($pedidoId);
+        if (! $pedido || ! $this->tieneAccesoASucursal($pedido->sucursal_id)) {
+            $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+
+            return;
+        }
+
+        $transiciones = PedidoMostrador::TRANSICIONES_PERMITIDAS[$pedido->estado_pedido] ?? [];
+        if (! in_array(PedidoMostrador::ESTADO_ENTREGADO, $transiciones, true)) {
+            $this->dispatch('toast-error', message: __("No se puede marcar como entregado desde el estado ':estado'", ['estado' => $pedido->estado_pedido]));
+
+            return;
+        }
+
+        try {
+            $this->service->cambiarEstado($pedido, PedidoMostrador::ESTADO_ENTREGADO);
+            $this->dispatch('toast-success', message: __('Pedido entregado'));
+        } catch (Exception $e) {
+            Log::error('Error al entregar pedido rapido', [
+                'pedido_id' => $pedidoId,
+                'error' => $e->getMessage(),
+            ]);
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
+    }
+
+    /**
+     * Cobra un pedido pendiente "rapido":
+     * - Si hay pagos planificados → los confirma TODOS sin preguntar
+     *   (auto-cobro segun el desglose que el operario ya armo al armar el pedido).
+     * - Si NO hay planificados → abre el modal estandar de "Cobrar pendiente"
+     *   para que el operario defina la forma de pago.
+     */
+    public function cobrarRapido(int $pedidoId): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.pedidos_mostrador.cobrar')) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para cobrar pedidos'));
+
+            return;
+        }
+
+        $pedido = PedidoMostrador::with('pagos')->find($pedidoId);
+        if (! $pedido || ! $this->tieneAccesoASucursal($pedido->sucursal_id)) {
+            $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+
+            return;
+        }
+
+        if (in_array($pedido->estado_pedido, [PedidoMostrador::ESTADO_CANCELADO, PedidoMostrador::ESTADO_FACTURADO], true)) {
+            $this->dispatch('toast-error', message: __('Este pedido no acepta pagos'));
+
+            return;
+        }
+
+        $planificados = $pedido->pagos->where('estado', PedidoMostradorPago::ESTADO_PLANIFICADO);
+
+        if ($planificados->isEmpty()) {
+            $this->abrirCobrar($pedidoId);
+
+            return;
+        }
+
+        try {
+            foreach ($planificados as $pago) {
+                $this->service->confirmarPagoPlanificado($pago);
+            }
+            $this->dispatch('toast-success', message: __(':n pago(s) confirmados', ['n' => $planificados->count()]));
+        } catch (Exception $e) {
+            Log::error('Error al cobrar rapido', [
+                'pedido_id' => $pedidoId,
+                'error' => $e->getMessage(),
+            ]);
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
     }
 
     // ==================== CANCELAR ====================
