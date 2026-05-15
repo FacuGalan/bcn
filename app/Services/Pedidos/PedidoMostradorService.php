@@ -1463,7 +1463,11 @@ class PedidoMostradorService
                 );
                 $algo_canjeado = true;
             } catch (\Throwable $e) {
-                Log::warning('No se pudo registrar canje de puntos como descuento al convertir pedido', [
+                // Es operación financiera (descuenta puntos del saldo del
+                // cliente). Si falla, queda discrepancia entre el flag
+                // es_pago_puntos del VentaPago y el saldo real → ERROR no
+                // WARNING para que oncall vea esto en logs.
+                Log::error('No se pudo registrar canje de puntos como descuento al convertir pedido', [
                     'pedido_id' => $pedido->id,
                     'venta_id' => $venta->id,
                     'venta_pago_id' => $vp->id,
@@ -1495,7 +1499,7 @@ class PedidoMostradorService
                 );
                 $algo_canjeado = true;
             } catch (\Throwable $e) {
-                Log::warning('No se pudo registrar canje de artículo por puntos al convertir pedido', [
+                Log::error('No se pudo registrar canje de artículo por puntos al convertir pedido', [
                     'pedido_id' => $pedido->id,
                     'venta_id' => $venta->id,
                     'detalle_id' => $d->id,

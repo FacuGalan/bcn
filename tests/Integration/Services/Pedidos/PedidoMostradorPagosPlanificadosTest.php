@@ -10,6 +10,7 @@ use App\Services\Pedidos\PedidoMostradorService;
 use Exception;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
+use Tests\Traits\WithPedidoMostradorHelpers;
 use Tests\Traits\WithSucursal;
 use Tests\Traits\WithTenant;
 use Tests\Traits\WithVentaHelpers;
@@ -28,7 +29,7 @@ use Tests\Traits\WithVentaHelpers;
  */
 class PedidoMostradorPagosPlanificadosTest extends TestCase
 {
-    use WithSucursal, WithTenant, WithVentaHelpers;
+    use WithPedidoMostradorHelpers, WithSucursal, WithTenant, WithVentaHelpers;
 
     protected PedidoMostradorService $service;
 
@@ -52,7 +53,7 @@ class PedidoMostradorPagosPlanificadosTest extends TestCase
         Event::fake([PedidoEstadoPagoCambiado::class]);
 
         $caja = $this->crearCajaAbierta($this->sucursalId);
-        $pedido = $this->pedidoConfirmado(total: 1000, cajaId: $caja->id);
+        $pedido = $this->pedidoConfirmadoSimple(totalFinal: 1000, cajaId: $caja->id);
         $efectivo = $this->crearFormaPagoEfectivo();
 
         $saldoAntes = (float) $caja->fresh()->saldo_actual;
@@ -84,7 +85,7 @@ class PedidoMostradorPagosPlanificadosTest extends TestCase
         Event::fake([PedidoEstadoPagoCambiado::class]);
 
         $caja = $this->crearCajaAbierta($this->sucursalId);
-        $pedido = $this->pedidoConfirmado(total: 1000, cajaId: $caja->id);
+        $pedido = $this->pedidoConfirmadoSimple(totalFinal: 1000, cajaId: $caja->id);
         $efectivo = $this->crearFormaPagoEfectivo();
 
         $pago = $this->service->agregarPago($pedido, [
@@ -120,7 +121,7 @@ class PedidoMostradorPagosPlanificadosTest extends TestCase
     public function test_confirmar_pago_no_planificado_lanza_excepcion(): void
     {
         $caja = $this->crearCajaAbierta($this->sucursalId);
-        $pedido = $this->pedidoConfirmado(total: 1000, cajaId: $caja->id);
+        $pedido = $this->pedidoConfirmadoSimple(totalFinal: 1000, cajaId: $caja->id);
         $efectivo = $this->crearFormaPagoEfectivo();
 
         $pago = $this->service->agregarPago($pedido, [
@@ -139,7 +140,7 @@ class PedidoMostradorPagosPlanificadosTest extends TestCase
 
     public function test_eliminar_pago_planificado_borra_directo(): void
     {
-        $pedido = $this->pedidoConfirmado(total: 500);
+        $pedido = $this->pedidoConfirmadoSimple(totalFinal: 500);
         $efectivo = $this->crearFormaPagoEfectivo();
 
         $pago = $this->service->agregarPago($pedido, [
@@ -158,7 +159,7 @@ class PedidoMostradorPagosPlanificadosTest extends TestCase
     public function test_eliminar_pago_activo_lanza_excepcion(): void
     {
         $caja = $this->crearCajaAbierta($this->sucursalId);
-        $pedido = $this->pedidoConfirmado(total: 500, cajaId: $caja->id);
+        $pedido = $this->pedidoConfirmadoSimple(totalFinal: 500, cajaId: $caja->id);
         $efectivo = $this->crearFormaPagoEfectivo();
 
         $pago = $this->service->agregarPago($pedido, [
@@ -252,7 +253,7 @@ class PedidoMostradorPagosPlanificadosTest extends TestCase
     public function test_accessors_total_planificado_y_total_cobrado(): void
     {
         $caja = $this->crearCajaAbierta($this->sucursalId);
-        $pedido = $this->pedidoConfirmado(total: 1500, cajaId: $caja->id);
+        $pedido = $this->pedidoConfirmadoSimple(totalFinal: 1500, cajaId: $caja->id);
         $efectivo = $this->crearFormaPagoEfectivo();
 
         // 500 cobrado real
@@ -336,7 +337,7 @@ class PedidoMostradorPagosPlanificadosTest extends TestCase
     {
         // Pedido sin caja (canal totem, app externa, etc): puede tener pagos
         // planificados que se materializan después cuando entra a una caja.
-        $pedido = $this->pedidoConfirmado(total: 800, cajaId: null);
+        $pedido = $this->pedidoConfirmadoSimple(totalFinal: 800, cajaId: null);
         $efectivo = $this->crearFormaPagoEfectivo();
 
         $pago = $this->service->agregarPago($pedido, [
@@ -351,53 +352,5 @@ class PedidoMostradorPagosPlanificadosTest extends TestCase
         $this->assertNull($pago->movimiento_caja_id);
     }
 
-    // ==================== HELPERS ====================
-
-    private function datosBaseDelPedido(float $total = 1000, ?int $cajaId = null): array
-    {
-        return [
-            'sucursal_id' => $this->sucursalId,
-            'caja_id' => $cajaId,
-            'usuario_id' => 1,
-            'fecha' => now(),
-            'subtotal' => $total,
-            'iva' => 0,
-            'descuento' => 0,
-            'total' => $total,
-            'ajuste_forma_pago' => 0,
-            'total_final' => $total,
-            'identificador' => 'Mesa 1',
-        ];
-    }
-
-    private function detalleDe($articulo, float $cantidad, float $precioUnitario): array
-    {
-        $subtotal = $precioUnitario * $cantidad;
-
-        return [
-            'articulo_id' => $articulo->id,
-            'tipo_iva_id' => $articulo->tipo_iva_id,
-            'es_concepto' => false,
-            'cantidad' => $cantidad,
-            'precio_unitario' => $precioUnitario,
-            'precio_sin_iva' => $precioUnitario / 1.21,
-            'descuento' => 0,
-            'precio_lista' => $precioUnitario,
-            'subtotal' => $subtotal,
-            'iva_porcentaje' => 21,
-            'iva_monto' => $subtotal - ($subtotal / 1.21),
-            'total' => $subtotal,
-        ];
-    }
-
-    private function pedidoConfirmado(float $total = 1000, ?int $cajaId = null): PedidoMostrador
-    {
-        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 100);
-
-        return $this->service->crearPedido(
-            data: $this->datosBaseDelPedido(total: $total, cajaId: $cajaId),
-            detalles: [$this->detalleDe($articulo, cantidad: 1, precioUnitario: $total)],
-            esBorrador: false,
-        );
-    }
+    // Helpers en tests/Traits/WithPedidoMostradorHelpers.php.
 }
