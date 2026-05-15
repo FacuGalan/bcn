@@ -842,79 +842,116 @@
                                     </div>
                                 </div>
 
-                                <!-- Descripción -->
-                                <div>
-                                    <label for="descripcion" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Descripción') }}</label>
-                                    <textarea
-                                        id="descripcion"
-                                        wire:model="descripcion"
-                                        rows="2"
-                                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                        placeholder="{{ __('Descripción detallada del artículo...') }}"
-                                    ></textarea>
-                                    @error('descripcion') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                </div>
+                                {{-- Descripción + Imagen lado a lado en desktop --}}
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <!-- Descripción -->
+                                    <div>
+                                        <label for="descripcion" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Descripción') }}</label>
+                                        <textarea
+                                            id="descripcion"
+                                            wire:model="descripcion"
+                                            rows="4"
+                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
+                                            placeholder="{{ __('Descripción detallada del artículo...') }}"
+                                        ></textarea>
+                                        @error('descripcion') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                    </div>
 
-                                <!-- Imagen del artículo -->
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        {{ __('Imagen') }}
-                                        <span class="text-xs text-gray-500 dark:text-gray-400 font-normal ml-1">
-                                            {{ __('JPG, PNG o WebP, máx. 5MB. Se redimensiona automáticamente.') }}
-                                        </span>
-                                    </label>
+                                    <!-- Imagen del artículo (dropzone moderno) -->
+                                    <div>
+                                        <label for="imagenUpload" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Imagen') }}</label>
 
-                                    <div class="flex items-start gap-3" wire:loading.class="opacity-60" wire:target="imagenUpload">
-                                        <!-- Preview de imagen actual / nueva subida / placeholder -->
-                                        <div class="w-24 h-24 flex-shrink-0 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
+                                        {{-- Input file oculto. Cualquier <label for="imagenUpload"> abre el selector. --}}
+                                        <input
+                                            type="file"
+                                            id="imagenUpload"
+                                            wire:model="imagenUpload"
+                                            accept="image/jpeg,image/png,image/webp"
+                                            class="sr-only"
+                                        />
+
+                                        @php
+                                            $tienePreview = $imagenUpload || (! $quitarImagen && $imagenPathActual);
+                                            $previewUrl = $imagenUpload
+                                                ? $imagenUpload->temporaryUrl()
+                                                : (! $quitarImagen && $imagenPathActual ? '/storage/'.ltrim($imagenPathActual, '/') : null);
+                                        @endphp
+
+                                        <div class="mt-1 relative group" wire:loading.class="opacity-60" wire:target="imagenUpload">
+                                            {{-- Área clickable: si tiene preview, muestra la foto; si no, dropzone con borde dashed. --}}
+                                            <label for="imagenUpload"
+                                                class="block cursor-pointer rounded-md overflow-hidden border-2 transition-colors
+                                                    {{ $tienePreview
+                                                        ? 'border-gray-200 dark:border-gray-700 hover:border-bcn-primary'
+                                                        : 'border-dashed border-gray-300 dark:border-gray-600 hover:border-bcn-primary hover:bg-bcn-primary/5 dark:hover:bg-bcn-primary/10 bg-gray-50 dark:bg-gray-700/50' }}">
+                                                @if($tienePreview)
+                                                    <div class="relative aspect-[4/3] w-full bg-gray-100 dark:bg-gray-800">
+                                                        <img src="{{ $previewUrl }}" alt="{{ __('Imagen del artículo') }}"
+                                                            class="w-full h-full object-contain" />
+                                                        {{-- Overlay de hover: invita a cambiar la imagen --}}
+                                                        <div class="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                                            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white/95 text-gray-900 text-xs font-semibold shadow">
+                                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                                                                </svg>
+                                                                {{ __('Cambiar imagen') }}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                @else
+                                                    <div class="aspect-[4/3] w-full flex flex-col items-center justify-center gap-1 py-4 text-gray-500 dark:text-gray-400 group-hover:text-bcn-primary">
+                                                        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                                                        </svg>
+                                                        <span class="text-sm font-medium">{{ __('Subir imagen') }}</span>
+                                                        <span class="text-[11px] opacity-80">{{ __('JPG, PNG o WebP · máx 5MB') }}</span>
+                                                    </div>
+                                                @endif
+                                            </label>
+
+                                            {{-- Botón flotante para quitar/cancelar (solo si hay preview). --}}
                                             @if($imagenUpload)
-                                                {{-- Preview de la nueva imagen recién seleccionada (antes de guardar) --}}
-                                                <img src="{{ $imagenUpload->temporaryUrl() }}" alt="{{ __('Vista previa') }}" class="w-full h-full object-cover" />
-                                            @elseif(!$quitarImagen && $imagenPathActual)
-                                                <img src="/storage/{{ ltrim($imagenPathActual, '/') }}" alt="{{ __('Imagen actual') }}" class="w-full h-full object-cover" />
-                                            @else
-                                                <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                                </svg>
+                                                <button type="button" wire:click="cancelarImagenUpload"
+                                                    class="absolute top-2 right-2 inline-flex items-center justify-center w-7 h-7 rounded-full bg-white/95 text-gray-700 hover:bg-white hover:text-red-600 shadow-md transition-colors cursor-pointer"
+                                                    title="{{ __('Descartar selección') }}">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                                                    </svg>
+                                                </button>
+                                            @elseif(! $quitarImagen && $imagenPathActual)
+                                                <button type="button" wire:click="quitarImagenActual"
+                                                    class="absolute top-2 right-2 inline-flex items-center justify-center w-7 h-7 rounded-full bg-white/95 text-gray-700 hover:bg-red-600 hover:text-white shadow-md transition-colors cursor-pointer"
+                                                    title="{{ __('Quitar imagen') }}">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/>
+                                                    </svg>
+                                                </button>
                                             @endif
                                         </div>
 
-                                        <!-- Controles -->
-                                        <div class="flex-1 space-y-2">
-                                            <input
-                                                type="file"
-                                                wire:model="imagenUpload"
-                                                accept="image/jpeg,image/png,image/webp"
-                                                class="block w-full text-xs text-gray-600 dark:text-gray-400
-                                                    file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0
-                                                    file:text-xs file:font-semibold
-                                                    file:bg-bcn-primary file:text-white hover:file:bg-opacity-90 cursor-pointer"
-                                            />
-                                            <div class="flex flex-wrap gap-2 text-xs">
-                                                @if($imagenUpload)
-                                                    <button type="button" wire:click="cancelarImagenUpload"
-                                                        class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white underline">
-                                                        {{ __('Descartar selección') }}
-                                                    </button>
-                                                @elseif(!$quitarImagen && $imagenPathActual)
-                                                    <button type="button" wire:click="quitarImagenActual"
-                                                        class="text-red-600 dark:text-red-400 hover:underline">
-                                                        {{ __('Quitar imagen actual') }}
-                                                    </button>
-                                                @elseif($quitarImagen)
-                                                    <span class="text-amber-600 dark:text-amber-400">
+                                        {{-- Estado: "se borrará al guardar" + indicador de carga + errores --}}
+                                        <div class="mt-1 text-xs space-y-1">
+                                            @if($quitarImagen && ! $imagenUpload)
+                                                <div class="flex items-center justify-between text-amber-600 dark:text-amber-400">
+                                                    <span class="inline-flex items-center gap-1">
+                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                                        </svg>
                                                         {{ __('La imagen se borrará al guardar') }}
                                                     </span>
                                                     <button type="button" wire:click="$set('quitarImagen', false)"
-                                                        class="text-gray-600 dark:text-gray-300 hover:underline">
-                                                        {{ __('Cancelar') }}
+                                                        class="text-gray-600 dark:text-gray-300 hover:underline cursor-pointer">
+                                                        {{ __('Deshacer') }}
                                                     </button>
-                                                @endif
-                                            </div>
-                                            <div wire:loading wire:target="imagenUpload" class="text-xs text-bcn-primary">
+                                                </div>
+                                            @endif
+                                            <div wire:loading wire:target="imagenUpload" class="text-bcn-primary inline-flex items-center gap-1.5">
+                                                <svg class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                                </svg>
                                                 {{ __('Cargando imagen...') }}
                                             </div>
-                                            @error('imagenUpload') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                            @error('imagenUpload') <span class="text-red-600">{{ $message }}</span> @enderror
                                         </div>
                                     </div>
                                 </div>
