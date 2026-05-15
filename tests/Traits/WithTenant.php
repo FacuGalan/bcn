@@ -78,6 +78,9 @@ trait WithTenant
         'pedido_mostrador_detalle_opcionales',
         'pedidos_mostrador_detalle',
         'pedidos_mostrador',
+        'movimientos_puntos',
+        'configuracion_puntos',
+        'configuracion_puntos_sucursales',
     ];
 
     protected function setUpTenant(): void

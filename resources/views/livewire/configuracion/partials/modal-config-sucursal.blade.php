@@ -242,6 +242,69 @@
                     </div>
                 </div>
 
+                {{-- SECCION: Pedidos por Mostrador --}}
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-4 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                        {{ __('Pedidos por Mostrador') }}
+                    </h4>
+
+                    <div class="space-y-3">
+                        <div class="flex items-start">
+                            <div class="flex items-center h-5">
+                                <input
+                                    type="checkbox"
+                                    id="pedidoConversionAutomaticaAlEntregar"
+                                    wire:model="configPedidoConversionAutomaticaAlEntregar"
+                                    class="h-4 w-4 text-bcn-primary focus:ring-bcn-primary border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600"
+                                >
+                            </div>
+                            <div class="ml-3 text-sm">
+                                <label for="pedidoConversionAutomaticaAlEntregar" class="font-medium text-gray-700 dark:text-gray-300">
+                                    {{ __('Convertir en venta automáticamente al entregar') }}
+                                </label>
+                                <p class="text-gray-500 dark:text-gray-400 text-xs">{{ __('Al pasar un pedido a estado Entregado, genera la venta sin pasos adicionales.') }}</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <div class="flex items-center h-5">
+                                <input
+                                    type="checkbox"
+                                    id="imprimeComandaAutomatico"
+                                    wire:model="configImprimeComandaAutomatico"
+                                    class="h-4 w-4 text-bcn-primary focus:ring-bcn-primary border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600"
+                                >
+                            </div>
+                            <div class="ml-3 text-sm">
+                                <label for="imprimeComandaAutomatico" class="font-medium text-gray-700 dark:text-gray-300">
+                                    {{ __('Imprimir comanda automáticamente al confirmar') }}
+                                </label>
+                                <p class="text-gray-500 dark:text-gray-400 text-xs">{{ __('Manda la comanda a la impresora apenas se confirma el pedido.') }}</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start">
+                            <div class="flex items-center h-5">
+                                <input
+                                    type="checkbox"
+                                    id="usaBeepers"
+                                    wire:model="configUsaBeepers"
+                                    class="h-4 w-4 text-bcn-primary focus:ring-bcn-primary border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600"
+                                >
+                            </div>
+                            <div class="ml-3 text-sm">
+                                <label for="usaBeepers" class="font-medium text-gray-700 dark:text-gray-300">
+                                    {{ __('Usa beepers para llamar al cliente') }}
+                                </label>
+                                <p class="text-gray-500 dark:text-gray-400 text-xs">{{ __('Habilita el campo de número de beeper al alta del pedido y lo muestra en la comanda.') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 {{-- SECCION: WhatsApp --}}
                 <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 flex-1">
                     <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-4 flex items-center">

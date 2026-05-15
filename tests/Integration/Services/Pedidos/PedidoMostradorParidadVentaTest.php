@@ -327,6 +327,151 @@ class PedidoMostradorParidadVentaTest extends TestCase
         $this->assertEquals(50, (float) $promosVenta->first()->descuento_aplicado);
     }
 
+    /**
+     * Conversión auto al entregar: si la sucursal tiene el flag activado, al
+     * pasar el pedido a ESTADO_ENTREGADO se dispara `convertirEnVenta()` y
+     * queda como `facturado` con `venta_id` apuntando a la venta nueva.
+     */
+    public function test_conversion_auto_al_entregar_genera_venta_sin_pasos_extra(): void
+    {
+        \App\Models\Sucursal::where('id', $this->sucursalId)->update([
+            'pedido_conversion_automatica_al_entregar' => true,
+        ]);
+
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+        $pedido = $this->pedidoConfirmadoSimple(totalFinal: 100, cajaId: $caja->id);
+        $efectivo = $this->crearFormaPagoEfectivo();
+
+        // Pago activo que cubre el total para que la conversión no rechace.
+        $this->service->agregarPago($pedido, [
+            'forma_pago_id' => $efectivo['formaPago']->id,
+            'monto_base' => 100,
+            'monto_final' => 100,
+            'afecta_caja' => true,
+        ]);
+
+        // Transición a entregado (forzar primero estados intermedios legales).
+        $pedido->refresh();
+        $this->service->cambiarEstado($pedido, PedidoMostrador::ESTADO_EN_PREPARACION);
+        $this->service->cambiarEstado($pedido->fresh(), PedidoMostrador::ESTADO_LISTO);
+        $this->service->cambiarEstado($pedido->fresh(), PedidoMostrador::ESTADO_ENTREGADO);
+
+        $pedido->refresh();
+        $this->assertEquals(PedidoMostrador::ESTADO_FACTURADO, $pedido->estado_pedido,
+            'Conversión auto debe haber transicionado a facturado');
+        $this->assertNotNull($pedido->venta_id, 'venta_id debe quedar seteado');
+    }
+
+    /**
+     * Canje de puntos como medio de pago durante la conversión: un VentaPago
+     * con `es_pago_puntos=true` debe disparar `PuntosService::canjearPuntosComoDescuento()`
+     * y descontar puntos del cliente.
+     */
+    public function test_convertir_con_pago_de_puntos_crea_movimiento_punto(): void
+    {
+        // Configuración de programa de puntos.
+        \App\Models\ConfiguracionPuntos::firstOrCreate([], [
+            'activo' => true,
+            'modo_acumulacion' => 'global',
+            'monto_por_punto' => 100,
+            'valor_punto_canje' => 1, // 1 punto = $1
+            'minimo_canje' => 1,
+        ]);
+
+        $cliente = \App\Models\Cliente::create([
+            'nombre' => 'Cliente con puntos',
+            'condicion_iva_id' => 1,
+            'puntos_saldo_cache' => 0,
+        ]);
+
+        // Acreditar 500 puntos al cliente.
+        \App\Models\MovimientoPunto::create([
+            'cliente_id' => $cliente->id,
+            'sucursal_id' => $this->sucursalId,
+            'fecha' => now(),
+            'tipo' => \App\Models\MovimientoPunto::TIPO_ACUMULACION,
+            'puntos' => 500,
+            'monto_asociado' => 0,
+            'concepto' => 'Saldo inicial test',
+            'estado' => 'activo',
+            'usuario_id' => 1,
+        ]);
+
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+        $efectivo = $this->crearFormaPagoEfectivo();
+
+        $pedido = $this->service->crearPedido(
+            data: array_merge($this->datosBaseDelPedido(total: 1000, cajaId: $caja->id), [
+                'cliente_id' => $cliente->id,
+            ]),
+            detalles: [$this->detalleDe($articulo, cantidad: 1, precioUnitario: 1000)],
+            esBorrador: false,
+        );
+
+        // Pago activo con $200 en puntos (200 puntos = $200).
+        $this->service->agregarPago($pedido, [
+            'forma_pago_id' => $efectivo['formaPago']->id,
+            'monto_base' => 200,
+            'monto_final' => 200,
+            'es_pago_puntos' => true,
+            'puntos_usados' => 200,
+            'afecta_caja' => false,
+        ]);
+
+        // Pago activo en efectivo por el resto.
+        $this->service->agregarPago($pedido, [
+            'forma_pago_id' => $efectivo['formaPago']->id,
+            'monto_base' => 800,
+            'monto_final' => 800,
+            'afecta_caja' => true,
+        ]);
+
+        $venta = $this->service->convertirEnVenta($pedido->fresh());
+
+        $movs = \App\Models\MovimientoPunto::where('cliente_id', $cliente->id)
+            ->where('venta_id', $venta->id)
+            ->where('tipo', \App\Models\MovimientoPunto::TIPO_CANJE_DESCUENTO)
+            ->get();
+
+        $this->assertCount(1, $movs, 'Debe crearse un MovimientoPunto tipo canje_descuento');
+        // Canje devuelve puntos negativos (sale del saldo del cliente).
+        $this->assertEquals(-200, (int) $movs->first()->puntos);
+        $this->assertEquals(200.0, (float) $movs->first()->monto_asociado);
+
+        // Saldo descontado: 500 inicial - 200 canjeados = 300.
+        $saldo = \App\Services\PuntosService::class;
+        $saldoActual = app($saldo)->obtenerSaldo($cliente->id);
+        $this->assertEquals(300, $saldoActual);
+    }
+
+    /**
+     * Conversión sin cliente: aunque haya flags de canje en los detalles o
+     * pagos, NO se crean MovimientoPunto y la conversión no rompe.
+     */
+    public function test_convertir_sin_cliente_omite_canjes_de_puntos(): void
+    {
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+        $pedido = $this->pedidoConfirmadoSimple(totalFinal: 100, cajaId: $caja->id);
+        $efectivo = $this->crearFormaPagoEfectivo();
+
+        // Pago en "puntos" pero el pedido no tiene cliente_id.
+        $this->service->agregarPago($pedido, [
+            'forma_pago_id' => $efectivo['formaPago']->id,
+            'monto_base' => 100,
+            'monto_final' => 100,
+            'es_pago_puntos' => true,
+            'puntos_usados' => 100,
+            'afecta_caja' => false,
+        ]);
+
+        $venta = $this->service->convertirEnVenta($pedido->fresh());
+
+        $this->assertNull($pedido->fresh()->cliente_id);
+        $this->assertEquals(0, \App\Models\MovimientoPunto::where('venta_id', $venta->id)->count(),
+            'Sin cliente no se crean MovimientoPunto');
+    }
+
     // ==================== HELPERS (espejo de PedidoMostradorServiceTest) ====================
 
     private function datosBaseDelPedido(float $total = 1000, ?int $cajaId = null): array

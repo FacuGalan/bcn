@@ -152,6 +152,13 @@ class ConfiguracionEmpresa extends Component
 
     public $configMensajeWhatsappListo = '';
 
+    // Pedidos por Mostrador (flags de la sucursal)
+    public bool $configPedidoConversionAutomaticaAlEntregar = false;
+
+    public bool $configUsaBeepers = false;
+
+    public bool $configImprimeComandaAutomatico = false;
+
     // ==================== TAB CAJAS ====================
     // Edición de puntos de venta
     public $cajaEditandoPuntosId = null;
@@ -755,6 +762,9 @@ class ConfiguracionEmpresa extends Component
         $this->configMensajeWhatsappComanda = $sucursal->mensaje_whatsapp_comanda ?? '';
         $this->configEnviaWhatsappListo = $sucursal->envia_whatsapp_listo ?? false;
         $this->configMensajeWhatsappListo = $sucursal->mensaje_whatsapp_listo ?? '';
+        $this->configPedidoConversionAutomaticaAlEntregar = (bool) ($sucursal->pedido_conversion_automatica_al_entregar ?? false);
+        $this->configUsaBeepers = (bool) ($sucursal->usa_beepers ?? false);
+        $this->configImprimeComandaAutomatico = (bool) ($sucursal->imprime_comanda_automatico ?? false);
 
         $this->mostrarModalConfigSucursal = true;
     }
@@ -802,6 +812,9 @@ class ConfiguracionEmpresa extends Component
                 'mensaje_whatsapp_comanda' => $this->configEnviaWhatsappComanda ? $this->configMensajeWhatsappComanda : null,
                 'envia_whatsapp_listo' => $this->configEnviaWhatsappListo,
                 'mensaje_whatsapp_listo' => $this->configEnviaWhatsappListo ? $this->configMensajeWhatsappListo : null,
+                'pedido_conversion_automatica_al_entregar' => $this->configPedidoConversionAutomaticaAlEntregar,
+                'usa_beepers' => $this->configUsaBeepers,
+                'imprime_comanda_automatico' => $this->configImprimeComandaAutomatico,
             ]);
 
             $this->cerrarModalConfigSucursal();
@@ -831,6 +844,9 @@ class ConfiguracionEmpresa extends Component
         $this->configMensajeWhatsappComanda = '';
         $this->configEnviaWhatsappListo = false;
         $this->configMensajeWhatsappListo = '';
+        $this->configPedidoConversionAutomaticaAlEntregar = false;
+        $this->configUsaBeepers = false;
+        $this->configImprimeComandaAutomatico = false;
         $this->resetErrorBag();
     }
 

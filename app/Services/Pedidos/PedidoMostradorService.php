@@ -670,6 +670,7 @@ class PedidoMostradorService
             $this->migrarPromocionesAVenta($pedido, $venta);
             $this->reasignarMovimientosStockAVenta($pedido, $venta);
             $this->migrarPagosAVenta($pedido, $venta);
+            $this->procesarCanjesPuntos($pedido, $venta);
 
             $pedido->update([
                 'estado_pedido' => PedidoMostrador::ESTADO_FACTURADO,
@@ -1303,6 +1304,103 @@ class PedidoMostradorService
         })->all();
 
         DB::connection('pymes_tenant')->table('venta_promociones')->insert($rows);
+    }
+
+    /**
+     * Procesa los canjes de puntos asociados a la venta recién creada:
+     *
+     *   1. Pagos `es_pago_puntos=true` → `PuntosService::canjearPuntosComoDescuento()`
+     *      (crea `MovimientoPunto` tipo canje-descuento atado al venta_pago).
+     *   2. Detalles `pagado_con_puntos=true` → `PuntosService::canjearArticuloConPuntos()`
+     *      (crea `MovimientoPunto` tipo canje-articulo atado a la venta).
+     *
+     * Espejo de lo que hace `WithPagosDesglose::confirmarPago()` en NuevaVenta
+     * (líneas ~2150-2225). Sin este método, los puntos quedaban como flag en
+     * el modelo pero NO se descontaban del saldo del cliente.
+     *
+     * Si el pedido no tiene `cliente_id`, no se puede canjear (los puntos van
+     * por cliente). Se loggea warning y se omite.
+     */
+    protected function procesarCanjesPuntos(PedidoMostrador $pedido, Venta $venta): void
+    {
+        if (! $pedido->cliente_id) {
+            return;
+        }
+
+        $puntosService = app(\App\Services\PuntosService::class);
+        $usuarioId = (int) auth()->id() ?: $pedido->usuario_id;
+        $algo_canjeado = false;
+
+        // 1) VentaPagos creados desde migrarPagosAVenta() con es_pago_puntos=true.
+        $pagosPuntos = $venta->pagos()
+            ->where('es_pago_puntos', true)
+            ->where('estado', 'activo')
+            ->where('puntos_usados', '>', 0)
+            ->get();
+
+        foreach ($pagosPuntos as $vp) {
+            try {
+                $puntosService->canjearPuntosComoDescuento(
+                    clienteId: $pedido->cliente_id,
+                    sucursalId: $pedido->sucursal_id,
+                    montoDescuento: (float) $vp->monto_final,
+                    ventaPagoId: $vp->id,
+                    ventaId: $venta->id,
+                    usuarioId: $usuarioId,
+                );
+                $algo_canjeado = true;
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo registrar canje de puntos como descuento al convertir pedido', [
+                    'pedido_id' => $pedido->id,
+                    'venta_id' => $venta->id,
+                    'venta_pago_id' => $vp->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // 2) Detalles del pedido con artículos pagados con puntos. Los pasamos
+        // por detalles del pedido (no del venta) porque el orden puede diferir
+        // tras la creación. Igual referencian la misma venta_id ya creada.
+        $detallesPuntos = $pedido->detalles()
+            ->where('pagado_con_puntos', true)
+            ->where('puntos_usados', '>', 0)
+            ->get();
+
+        foreach ($detallesPuntos as $d) {
+            if (! $d->articulo_id) {
+                continue; // conceptos libres no canjean por puntos
+            }
+            try {
+                $puntosService->canjearArticuloConPuntos(
+                    clienteId: $pedido->cliente_id,
+                    articuloId: $d->articulo_id,
+                    sucursalId: $pedido->sucursal_id,
+                    puntosNecesarios: (int) $d->puntos_usados,
+                    ventaId: $venta->id,
+                    usuarioId: $usuarioId,
+                );
+                $algo_canjeado = true;
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo registrar canje de artículo por puntos al convertir pedido', [
+                    'pedido_id' => $pedido->id,
+                    'venta_id' => $venta->id,
+                    'detalle_id' => $d->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($algo_canjeado) {
+            try {
+                $puntosService->actualizarCacheCliente($pedido->cliente_id);
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo actualizar cache de puntos del cliente', [
+                    'cliente_id' => $pedido->cliente_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     /**
