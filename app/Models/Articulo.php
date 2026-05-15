@@ -70,6 +70,7 @@ class Articulo extends Model
         'puntos_canje',
         'es_materia_prima',
         'pesable',
+        'imagen_path',
         'activo',
         'tipo_iva_id',
         'precio_iva_incluido',
@@ -564,5 +565,30 @@ class Articulo extends Model
             ->with(['grupoOpcional', 'opciones.opcional'])
             ->orderBy('orden')
             ->get();
+    }
+
+    // ==================== IMAGEN ====================
+
+    /**
+     * Indica si el artículo tiene una imagen subida y el archivo aún existe
+     * en el disk public.
+     */
+    public function hasImagen(): bool
+    {
+        return ! empty($this->imagen_path)
+            && \Illuminate\Support\Facades\Storage::disk('public')->exists($this->imagen_path);
+    }
+
+    /**
+     * URL pública de la imagen, o null si no hay. Usar en blade en
+     * lugar de armar Storage::url() a mano.
+     */
+    public function imagenUrl(): ?string
+    {
+        if (empty($this->imagen_path)) {
+            return null;
+        }
+
+        return \Illuminate\Support\Facades\Storage::disk('public')->url($this->imagen_path);
     }
 }

@@ -673,6 +673,11 @@
                                     @foreach($pedidoDetalle->detalles as $detalle)
                                         <tr>
                                             <td class="px-4 py-2.5 text-sm text-gray-900 dark:text-white">
+                                                @if(!$detalle->es_concepto && $detalle->articulo?->hasImagen())
+                                                    <img src="{{ $detalle->articulo->imagenUrl() }}"
+                                                        alt="{{ $detalle->articulo->nombre }}"
+                                                        class="inline-block w-8 h-8 rounded object-cover align-middle mr-2 border border-gray-200 dark:border-gray-700" />
+                                                @endif
                                                 {{ $detalle->es_concepto ? ($detalle->concepto_descripcion ?? '—') : ($detalle->articulo?->nombre ?? '—') }}
                                                 @if($detalle->es_concepto)
                                                     <span class="text-xs text-gray-500">({{ __('Concepto') }})</span>

@@ -324,7 +324,7 @@ class NuevoPedidoMostrador extends Component
             ->whereNotNull('categoria_id')
             ->withCount('gruposOpcionales')
             ->orderBy('nombre')
-            ->get(['id', 'nombre', 'codigo', 'categoria_id', 'precio_base', 'pesable']);
+            ->get(['id', 'nombre', 'codigo', 'categoria_id', 'precio_base', 'pesable', 'imagen_path']);
 
         $articulosPorCategoria = $articulos->groupBy('categoria_id');
 
@@ -347,7 +347,9 @@ class NuevoPedidoMostrador extends Component
                     'precio' => (float) ($a->precio_base ?? 0),
                     'es_pesable' => (bool) $a->pesable,
                     'tiene_opcionales' => (int) ($a->grupos_opcionales_count ?? 0) > 0,
-                    'imagen_url' => null, // se carga en PR siguiente (imagen artículo)
+                    'imagen_url' => $a->imagen_path
+                        ? \Illuminate\Support\Facades\Storage::disk('public')->url($a->imagen_path)
+                        : null,
                 ])->values()->toArray(),
             ];
         })->filter()->values()->toArray();

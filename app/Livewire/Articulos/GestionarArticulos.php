@@ -151,6 +151,15 @@ class GestionarArticulos extends Component
 
     public bool $pesable = false;
 
+    /** Upload temporal de imagen (Livewire WithFileUploads). Reset al cerrar modal. */
+    public $imagenUpload = null;
+
+    /** Path actual de la imagen del artículo en edición (cargado en `edit()`). */
+    public ?string $imagenPathActual = null;
+
+    /** Bandera para indicar que el usuario pidió quitar la imagen al guardar. */
+    public bool $quitarImagen = false;
+
     public ?int $tipo_iva_id = null;
 
     public bool $precio_iva_incluido = true;
@@ -630,6 +639,9 @@ class GestionarArticulos extends Component
         $this->precio_iva_incluido = $articulo->precio_iva_incluido ?? true;
         $this->precio_base = $articulo->precio_base;
         $this->activo = $articulo->activo ?? true;
+        $this->imagenPathActual = $articulo->imagen_path;
+        $this->imagenUpload = null;
+        $this->quitarImagen = false;
 
         // Cargar datos de la sucursal activa
         $sucursalId = sucursal_activa();
@@ -677,6 +689,9 @@ class GestionarArticulos extends Component
             'modo_stock' => 'required|in:ninguno,unitario,receta',
             'precio_sucursal' => 'nullable|numeric|min:0',
             'vendible' => 'boolean',
+            // Imagen: límite y mimes para que Livewire rechace temprano. El
+            // service después valida MIME real con finfo (defensa adicional).
+            'imagenUpload' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:'.(\App\Services\ImagenArticuloService::MAX_SIZE_BYTES / 1024),
         ];
 
         $this->validate($rules);
@@ -724,6 +739,22 @@ class GestionarArticulos extends Component
             ]);
 
             $message = __('Artículo creado correctamente');
+        }
+
+        // Procesar imagen: subir nueva, quitar la actual, o no tocar.
+        // El service valida MIME real (defensa post-Livewire) y reemplaza
+        // la imagen anterior si la había.
+        try {
+            $imagenService = app(\App\Services\ImagenArticuloService::class);
+            if ($this->imagenUpload) {
+                $imagenService->actualizar($articulo, $this->imagenUpload);
+            } elseif ($this->quitarImagen && $articulo->imagen_path) {
+                $imagenService->eliminar($articulo);
+            }
+        } catch (\Exception $e) {
+            $this->dispatch('notify', message: $e->getMessage(), type: 'error');
+
+            return;
         }
 
         // Sincronizar sucursales
@@ -816,6 +847,25 @@ class GestionarArticulos extends Component
         $this->resetFormularioArticulo();
     }
 
+    /**
+     * Marca la imagen actual para borrarse al guardar. La acción es
+     * diferida (no impacta la BD hasta save()) para que el usuario pueda
+     * arrepentirse cancelando el modal.
+     */
+    public function quitarImagenActual(): void
+    {
+        $this->quitarImagen = true;
+        $this->imagenUpload = null;
+    }
+
+    /**
+     * Cancela la subida temporal de imagen (vuelve a mostrar la actual).
+     */
+    public function cancelarImagenUpload(): void
+    {
+        $this->imagenUpload = null;
+    }
+
     protected function resetFormularioArticulo(): void
     {
         $this->reset([
@@ -825,6 +875,7 @@ class GestionarArticulos extends Component
             'sucursales_seleccionadas', 'etiquetas_seleccionadas', 'busquedaEtiqueta',
             'modo_stock', 'precio_sucursal', 'vendible',
             'showAltaRapidaCategoria', 'nuevaCategoriaNombre', 'nuevaCategoriaPrefijo',
+            'imagenUpload', 'imagenPathActual', 'quitarImagen',
         ]);
     }
 
