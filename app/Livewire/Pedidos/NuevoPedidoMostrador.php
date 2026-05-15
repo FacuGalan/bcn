@@ -1541,6 +1541,13 @@ class NuevoPedidoMostrador extends Component
                 'tiene_promocion' => $tienePromocion,
                 'total' => (float) $item['precio'] * $cantidad,
                 'opcionales' => $item['opcionales'] ?? [],
+                // Promociones aplicadas a la línea para que el service las
+                // persista en pedido_mostrador_detalle_promociones (paridad
+                // con VentaService::crearDetalleVenta + guardarPromocionesDetalle).
+                '_promociones_item' => $esConcepto ? [] : [
+                    'promociones_comunes' => $promocionesComunes,
+                    'promociones_especiales' => $promocionesEspeciales,
+                ],
             ];
         }
 

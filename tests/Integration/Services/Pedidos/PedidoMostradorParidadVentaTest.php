@@ -472,6 +472,122 @@ class PedidoMostradorParidadVentaTest extends TestCase
             'Sin cliente no se crean MovimientoPunto');
     }
 
+    // ==================== REPASO COMPLETO (C1, B2, B3) ====================
+
+    /**
+     * C1 — Guard cierre_turno_id en anularPago: si el pago tiene cierre_turno_id
+     * y el usuario no tiene permiso `func.cambiar_forma_pago_turno_cerrado`,
+     * rechaza con Exception. Paridad con CambioFormaPagoService (Ventas).
+     */
+    public function test_anular_pago_rechaza_si_turno_cerrado_y_sin_permiso(): void
+    {
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+        $pedido = $this->pedidoConfirmadoSimple(totalFinal: 100, cajaId: $caja->id);
+        $efectivo = $this->crearFormaPagoEfectivo();
+
+        $pago = $this->service->agregarPago($pedido, [
+            'forma_pago_id' => $efectivo['formaPago']->id,
+            'monto_base' => 100,
+            'monto_final' => 100,
+            'afecta_caja' => true,
+        ]);
+
+        // Simular cierre de turno: setear cierre_turno_id en el pago.
+        $pago->update(['cierre_turno_id' => 999]);
+
+        // Usuario sin permiso (Auth::id() es null o user sin permiso).
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessageMatches('/turnos cerrados|permiso/i');
+
+        $this->service->anularPago($pago->fresh(), motivo: 'test');
+    }
+
+    /**
+     * B2 — Promociones por línea: se persisten en pedido_mostrador_detalle_promociones
+     * al crear el pedido, y se migran a venta_detalle_promociones al convertir.
+     */
+    public function test_promociones_por_linea_se_persisten_y_migran_a_venta(): void
+    {
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+        $efectivo = $this->crearFormaPagoEfectivo();
+
+        // Detalle con _promociones_item (espejo del payload que arma el Livewire).
+        $detalle = array_merge(
+            $this->detalleDe($articulo, cantidad: 1, precioUnitario: 1000),
+            [
+                'descuento_promocion' => 100,
+                'tiene_promocion' => true,
+                '_promociones_item' => [
+                    'promociones_comunes' => [
+                        [
+                            'promocion_id' => null,
+                            'nombre' => '10% off',
+                            'tipo_beneficio' => 'porcentaje',
+                            'valor' => 10,
+                            'descuento_item' => 100,
+                        ],
+                    ],
+                    'promociones_especiales' => [],
+                ],
+            ],
+        );
+
+        $pedido = $this->service->crearPedido(
+            data: $this->datosBaseDelPedido(total: 1000, cajaId: $caja->id),
+            detalles: [$detalle],
+            esBorrador: false,
+        );
+
+        // 1) Persistencia a nivel pedido en pedido_mostrador_detalle_promociones.
+        $detalleId = $pedido->detalles->first()->id;
+        $filas = DB::connection('pymes_tenant')
+            ->table('pedido_mostrador_detalle_promociones')
+            ->where('pedido_mostrador_detalle_id', $detalleId)
+            ->get();
+        $this->assertCount(1, $filas, 'Debe persistirse 1 promo por línea en pedido_mostrador_detalle_promociones');
+        $this->assertEquals('10% off', $filas->first()->descripcion_promocion);
+        $this->assertEquals(100, (float) $filas->first()->descuento_aplicado);
+
+        // 2) Conversión a venta migra las promos por línea a venta_detalle_promociones.
+        // Pago cubre el total del pedido (la guard de cobertura es contra total_final).
+        $this->service->agregarPago($pedido, [
+            'forma_pago_id' => $efectivo['formaPago']->id,
+            'monto_base' => 1000,
+            'monto_final' => 1000,
+            'afecta_caja' => true,
+        ]);
+
+        $venta = $this->service->convertirEnVenta($pedido->fresh());
+        $detalleVentaId = $venta->detalles->first()->id;
+        $filasVenta = DB::connection('pymes_tenant')
+            ->table('venta_detalle_promociones')
+            ->where('venta_detalle_id', $detalleVentaId)
+            ->get();
+        $this->assertCount(1, $filasVenta, 'Debe migrarse 1 promo por línea a venta_detalle_promociones');
+        $this->assertEquals('10% off', $filasVenta->first()->descripcion_promocion);
+        $this->assertEquals(100, (float) $filasVenta->first()->descuento_aplicado);
+    }
+
+    /**
+     * B3 — Idempotencia de cancelar: doble cancelación lanza Exception (no daña data).
+     */
+    public function test_cancelar_pedido_dos_veces_lanza_excepcion(): void
+    {
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+        $pedido = $this->pedidoConfirmadoSimple(totalFinal: 100, cajaId: $caja->id);
+
+        // Primera cancelación: OK.
+        $this->service->cancelarPedido($pedido, motivo: 'primera');
+        $this->assertEquals(PedidoMostrador::ESTADO_CANCELADO, $pedido->fresh()->estado_pedido);
+
+        // Segunda cancelación: debe rechazar con Exception.
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessageMatches('/no se puede cancelar/i');
+
+        $this->service->cancelarPedido($pedido->fresh(), motivo: 'segunda');
+    }
+
     // ==================== HELPERS (espejo de PedidoMostradorServiceTest) ====================
 
     private function datosBaseDelPedido(float $total = 1000, ?int $cajaId = null): array

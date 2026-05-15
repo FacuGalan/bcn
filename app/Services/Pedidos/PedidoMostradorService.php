@@ -501,6 +501,17 @@ class PedidoMostradorService
             throw new Exception('El pago ya estaba anulado');
         }
 
+        // Guard: paridad con CambioFormaPagoService::puedeModificarPago().
+        // Si el pago ya forma parte de un cierre de turno cerrado, anularlo
+        // dejaría el contraasiento fuera del cierre y descuadraría el arqueo.
+        // Solo se permite con permiso explícito func.cambiar_forma_pago_turno_cerrado.
+        if ($pago->cierre_turno_id !== null) {
+            $user = \App\Models\User::find((int) auth()->id());
+            if (! $user || ! $user->hasPermissionTo('func.cambiar_forma_pago_turno_cerrado')) {
+                throw new Exception(__('No tenés permiso para anular pagos de turnos cerrados.'));
+            }
+        }
+
         DB::connection('pymes_tenant')->transaction(function () use ($pago, $motivo) {
             $usuarioId = (int) auth()->id() ?: $pago->creado_por_usuario_id;
 
@@ -779,7 +790,7 @@ class PedidoMostradorService
 
     protected function crearDetalle(PedidoMostrador $pedido, array $detalle): PedidoMostradorDetalle
     {
-        return PedidoMostradorDetalle::create([
+        $pmDetalle = PedidoMostradorDetalle::create([
             'pedido_mostrador_id' => $pedido->id,
             'articulo_id' => $detalle['articulo_id'] ?? null,
             'es_concepto' => (bool) ($detalle['es_concepto'] ?? false),
@@ -812,6 +823,83 @@ class PedidoMostradorService
             'tiene_promocion' => (bool) ($detalle['tiene_promocion'] ?? false),
             'total' => $detalle['total'] ?? ($detalle['precio_unitario'] * $detalle['cantidad']),
         ]);
+
+        // Persistir promociones aplicadas por línea (espejo de
+        // VentaService::guardarPromocionesDetalle). Antes de este fix la tabla
+        // pedido_mostrador_detalle_promociones quedaba vacía y la auditoría
+        // de promo por línea se perdía. El payload viene del Livewire en
+        // `_promociones_item` con `promociones_comunes` y `promociones_especiales`.
+        if (! empty($detalle['_promociones_item'])) {
+            $this->guardarPromocionesDetalle($pmDetalle, $detalle['_promociones_item']);
+        }
+
+        return $pmDetalle;
+    }
+
+    /**
+     * Persiste las promociones aplicadas a un detalle del pedido en
+     * `pedido_mostrador_detalle_promociones`. Espejo de
+     * `VentaService::guardarPromocionesDetalle()`.
+     */
+    protected function guardarPromocionesDetalle(PedidoMostradorDetalle $detalle, array $promocionesItem): void
+    {
+        $promocionesComunes = $promocionesItem['promociones_comunes'] ?? [];
+        foreach ($promocionesComunes as $promo) {
+            if (is_string($promo)) {
+                continue;
+            }
+            DB::connection('pymes_tenant')->table('pedido_mostrador_detalle_promociones')->insert([
+                'pedido_mostrador_detalle_id' => $detalle->id,
+                'tipo_promocion' => 'promocion',
+                'promocion_id' => $promo['promocion_id'] ?? $promo['id'] ?? null,
+                'promocion_especial_id' => null,
+                'lista_precio_id' => null,
+                'descripcion_promocion' => $promo['nombre'] ?? 'Promoción',
+                'tipo_beneficio' => $promo['tipo_beneficio'] ?? 'porcentaje',
+                'valor_beneficio' => $promo['valor'] ?? $promo['valor_beneficio'] ?? 0,
+                'descuento_aplicado' => $promo['descuento_item'] ?? $promo['descuento'] ?? 0,
+                'cantidad_requerida' => null,
+                'cantidad_bonificada' => null,
+                'created_at' => now(),
+            ]);
+        }
+
+        $promocionesEspeciales = $promocionesItem['promociones_especiales'] ?? [];
+        foreach ($promocionesEspeciales as $promo) {
+            if (is_string($promo)) {
+                DB::connection('pymes_tenant')->table('pedido_mostrador_detalle_promociones')->insert([
+                    'pedido_mostrador_detalle_id' => $detalle->id,
+                    'tipo_promocion' => 'promocion_especial',
+                    'promocion_id' => null,
+                    'promocion_especial_id' => null,
+                    'lista_precio_id' => null,
+                    'descripcion_promocion' => $promo,
+                    'tipo_beneficio' => 'monto_fijo',
+                    'valor_beneficio' => 0,
+                    'descuento_aplicado' => 0,
+                    'cantidad_requerida' => null,
+                    'cantidad_bonificada' => null,
+                    'created_at' => now(),
+                ]);
+
+                continue;
+            }
+
+            DB::connection('pymes_tenant')->table('pedido_mostrador_detalle_promociones')->insert([
+                'pedido_mostrador_detalle_id' => $detalle->id,
+                'tipo_promocion' => 'promocion_especial',
+                'promocion_id' => null,
+                'promocion_especial_id' => $promo['promocion_especial_id'] ?? $promo['id'] ?? null,
+                'lista_precio_id' => null,
+                'descripcion_promocion' => $promo['nombre'] ?? 'Promoción Especial',
+                'tipo_beneficio' => 'monto_fijo',
+                'valor_beneficio' => $promo['descuento'] ?? 0,
+                'descuento_aplicado' => $promo['descuento'] ?? 0,
+                'cantidad_requerida' => null,
+                'cantidad_bonificada' => null,
+                'created_at' => now(),
+            ]);
+        }
     }
 
     /**
@@ -1168,6 +1256,25 @@ class PedidoMostradorService
 
     protected function mapearDetalleAArrayVenta(PedidoMostradorDetalle $d): array
     {
+        // Reconstruir _promociones_item desde las filas persistidas en
+        // pedido_mostrador_detalle_promociones, para que VentaService::
+        // crearDetalleVenta llame a guardarPromocionesDetalle y se replique
+        // la auditoría de promo por línea en venta_detalle_promociones.
+        $promosLinea = $d->promocionesAplicadas ?? collect();
+        $promocionesComunes = $promosLinea->where('tipo_promocion', 'promocion')->map(fn ($p) => [
+            'promocion_id' => $p->promocion_id,
+            'nombre' => $p->descripcion_promocion,
+            'tipo_beneficio' => $p->tipo_beneficio,
+            'valor' => (float) $p->valor_beneficio,
+            'descuento_item' => (float) $p->descuento_aplicado,
+        ])->values()->all();
+
+        $promocionesEspeciales = $promosLinea->where('tipo_promocion', 'promocion_especial')->map(fn ($p) => [
+            'promocion_especial_id' => $p->promocion_especial_id,
+            'nombre' => $p->descripcion_promocion,
+            'descuento' => (float) $p->descuento_aplicado,
+        ])->values()->all();
+
         return [
             'articulo_id' => $d->articulo_id,
             'es_concepto' => (bool) $d->es_concepto,
@@ -1193,6 +1300,12 @@ class PedidoMostradorService
             'tiene_promocion' => (bool) $d->tiene_promocion,
             'total' => (float) $d->total,
             'precio_iva_incluido' => true,
+            // Promociones por línea reconstruidas para que VentaService las persista
+            // en venta_detalle_promociones (paridad post-conversión).
+            '_promociones_item' => [
+                'promociones_comunes' => $promocionesComunes,
+                'promociones_especiales' => $promocionesEspeciales,
+            ],
             // Mapeo back-pointer: el caller puede aprovecharlo para re-asociar
             // movimientos de stock por detalle si quisiera.
             '_pedido_detalle_id' => $d->id,
