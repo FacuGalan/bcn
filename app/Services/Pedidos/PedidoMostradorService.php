@@ -99,9 +99,15 @@ class PedidoMostradorService
                 'monto_cupon' => $data['monto_cupon'] ?? 0,
                 'puntos_ganados' => $data['puntos_ganados'] ?? 0,
                 'puntos_usados' => $data['puntos_usados'] ?? 0,
+                'puntos_canjeados_pago' => $data['puntos_canjeados_pago'] ?? 0,
+                'puntos_canjeados_articulos' => $data['puntos_canjeados_articulos'] ?? 0,
+                'puntos_usados_monto' => $data['puntos_usados_monto'] ?? 0,
+                'articulos_canjeados_monto' => $data['articulos_canjeados_monto'] ?? 0,
                 'observaciones' => $data['observaciones'] ?? null,
                 'confirmado_at' => $esBorrador ? null : now(),
             ]);
+
+            $this->guardarPromocionesPedido($pedido, $data);
 
             foreach ($detalles as $detalle) {
                 $this->crearDetalle($pedido, $detalle);
@@ -187,8 +193,14 @@ class PedidoMostradorService
                 'monto_cupon' => $data['monto_cupon'] ?? 0,
                 'puntos_ganados' => $data['puntos_ganados'] ?? 0,
                 'puntos_usados' => $data['puntos_usados'] ?? 0,
+                'puntos_canjeados_pago' => $data['puntos_canjeados_pago'] ?? 0,
+                'puntos_canjeados_articulos' => $data['puntos_canjeados_articulos'] ?? 0,
+                'puntos_usados_monto' => $data['puntos_usados_monto'] ?? 0,
+                'articulos_canjeados_monto' => $data['articulos_canjeados_monto'] ?? 0,
                 'observaciones' => $data['observaciones'] ?? null,
             ]);
+
+            $this->guardarPromocionesPedido($pedido, $data);
 
             foreach ($detalles as $detalle) {
                 $this->crearDetalle($pedido, $detalle);
@@ -198,7 +210,8 @@ class PedidoMostradorService
                 $this->descontarStockPorPedido($pedido);
             }
 
-            // Recalcular estado_pago contra el nuevo total_final.
+            // Recalcular totales (ajuste FP desde pagos) y luego estado_pago.
+            $this->recalcularTotales($pedido);
             $this->recalcularEstadoPago($pedido);
 
             return $pedido->fresh(['detalles', 'pagos']);
@@ -382,6 +395,10 @@ class PedidoMostradorService
                 'tipo_cambio_tasa' => $datosPago['tipo_cambio_tasa'] ?? null,
             ]);
 
+            // Recalcular totales con el nuevo pago (activo o planificado): el
+            // ajuste FP y recargo de cuotas afectan total_final independiente
+            // del estado. Luego recalcular estado_pago solo si es activo.
+            $this->recalcularTotales($pedido);
             if (! $esPlanificado) {
                 $this->recalcularEstadoPago($pedido);
             }
@@ -440,6 +457,10 @@ class PedidoMostradorService
             }
 
             $pago->update($update);
+            // Confirmar un planificado no cambia ajuste FP (mismo monto_ajuste,
+            // ya estaba contado en total_final), pero por consistencia llamamos
+            // recalcularTotales — es idempotente y barato.
+            $this->recalcularTotales($pedido);
             $this->recalcularEstadoPago($pedido);
 
             return $pago->fresh();
@@ -456,7 +477,18 @@ class PedidoMostradorService
             throw new Exception("Solo se pueden eliminar pagos en estado 'planificado' (actual: '{$pago->estado}'). Para anular un pago activo, usar anularPago.");
         }
 
-        $pago->delete();
+        DB::connection('pymes_tenant')->transaction(function () use ($pago) {
+            $pedidoId = $pago->pedido_mostrador_id;
+            $pago->delete();
+
+            // Recalcular total_final del pedido al desaparecer un planificado
+            // que aportaba ajuste FP / recargo cuotas.
+            $pedido = PedidoMostrador::find($pedidoId);
+            if ($pedido) {
+                $this->recalcularTotales($pedido);
+                $this->recalcularEstadoPago($pedido);
+            }
+        });
     }
 
     /**
@@ -492,7 +524,10 @@ class PedidoMostradorService
                 'motivo_anulacion' => $motivo,
             ]);
 
-            $this->recalcularEstadoPago($pago->pedido()->first());
+            $pedido = $pago->pedido()->first();
+            // El pago anulado deja de contar para ajuste FP: recalcular total_final.
+            $this->recalcularTotales($pedido);
+            $this->recalcularEstadoPago($pedido);
         });
     }
 
@@ -611,6 +646,8 @@ class PedidoMostradorService
                 'cupon_id' => $pedido->cupon_id,
                 'monto_cupon' => $pedido->monto_cupon,
                 'puntos_usados' => $pedido->puntos_usados,
+                'puntos_usados_monto' => (float) $pedido->puntos_usados_monto,
+                'articulos_canjeados_monto' => (float) $pedido->articulos_canjeados_monto,
                 'es_cuenta_corriente' => $this->pedidoTieneSaldoEnCC($pedido),
                 'observaciones' => $pedido->observaciones,
             ];
@@ -623,6 +660,14 @@ class PedidoMostradorService
                 opciones: ['stock_ya_descontado' => true],
             );
 
+            // Update post-crear venta para los 2 campos de puntos que VentaService::crearVenta
+            // no toma en su Venta::create() (NuevaVenta los setea de igual forma post-crear).
+            $venta->update([
+                'puntos_canjeados_pago' => $pedido->puntos_canjeados_pago,
+                'puntos_canjeados_articulos' => $pedido->puntos_canjeados_articulos,
+            ]);
+
+            $this->migrarPromocionesAVenta($pedido, $venta);
             $this->reasignarMovimientosStockAVenta($pedido, $venta);
             $this->migrarPagosAVenta($pedido, $venta);
 
@@ -918,6 +963,103 @@ class PedidoMostradorService
     }
 
     /**
+     * Recalcula `ajuste_forma_pago` y `total_final` del pedido a partir de los
+     * pagos activos + planificados.
+     *
+     * Espejo del cálculo que hace `WithCalculoVenta::aplicarAjusteFormaPago()`
+     * server-side: total_final = total (sin ajuste) + Σ monto_ajuste + Σ recargo_cuotas_monto
+     * de pagos activos+planificados. El signo de `monto_ajuste` ya viene
+     * aplicado (negativo en descuento, positivo en recargo).
+     *
+     * Si NO hay pagos, respeta el `total_final` ya persistido (lo que envió
+     * el Livewire al crear el pedido). Apenas hay pagos, el service toma el
+     * control y sobrescribe silenciosamente — alineado con
+     * feedback_api_first_services (service es el contrato).
+     */
+    protected function recalcularTotales(PedidoMostrador $pedido): void
+    {
+        $pagos = $pedido->pagos()
+            ->whereIn('estado', [
+                PedidoMostradorPago::ESTADO_ACTIVO,
+                PedidoMostradorPago::ESTADO_PLANIFICADO,
+            ])
+            ->get(['monto_ajuste', 'recargo_cuotas_monto']);
+
+        if ($pagos->isEmpty()) {
+            return;
+        }
+
+        $sumaAjuste = (float) $pagos->sum(fn ($p) => (float) $p->monto_ajuste);
+        $sumaRecargo = (float) $pagos->sum(fn ($p) => (float) ($p->recargo_cuotas_monto ?? 0));
+        $ajusteTotal = round($sumaAjuste + $sumaRecargo, 2);
+        $totalBase = (float) $pedido->total;
+        $totalFinal = round($totalBase + $ajusteTotal, 2);
+
+        $pedido->update([
+            'ajuste_forma_pago' => $ajusteTotal,
+            'total_final' => $totalFinal,
+        ]);
+    }
+
+    /**
+     * Persiste las promociones a nivel pedido en `pedido_mostrador_promociones`.
+     *
+     * Espejo de `VentaService::guardarPromocionesVenta()`. Lee
+     * `_promociones_comunes` y `_promociones_especiales` del array de datos.
+     * Idempotente: DELETE previo antes de INSERT batch, así puede llamarse
+     * tanto en crearPedido como actualizarPedido.
+     */
+    protected function guardarPromocionesPedido(PedidoMostrador $pedido, array $datos): void
+    {
+        DB::connection('pymes_tenant')
+            ->table('pedido_mostrador_promociones')
+            ->where('pedido_mostrador_id', $pedido->id)
+            ->delete();
+
+        $promocionesComunes = $datos['_promociones_comunes'] ?? [];
+        $promocionesEspeciales = $datos['_promociones_especiales'] ?? [];
+
+        foreach ($promocionesComunes as $promo) {
+            DB::connection('pymes_tenant')->table('pedido_mostrador_promociones')->insert([
+                'pedido_mostrador_id' => $pedido->id,
+                'tipo_promocion' => 'promocion',
+                'promocion_id' => $promo['promocion_id'] ?? $promo['id'] ?? null,
+                'promocion_especial_id' => null,
+                'forma_pago_id' => null,
+                'codigo_cupon' => null,
+                'descripcion_promocion' => $promo['nombre'] ?? $promo['descripcion'] ?? 'Promoción',
+                'tipo_beneficio' => $promo['tipo_beneficio'] ?? 'porcentaje',
+                'valor_beneficio' => $promo['valor'] ?? $promo['valor_beneficio'] ?? 0,
+                'descuento_aplicado' => $promo['descuento'] ?? 0,
+                'monto_minimo_requerido' => $promo['monto_minimo'] ?? null,
+                'created_at' => now(),
+            ]);
+        }
+
+        foreach ($promocionesEspeciales as $promo) {
+            $tipoBeneficio = $promo['tipo'] ?? 'monto_fijo';
+            if (! in_array($tipoBeneficio, ['porcentaje', 'monto_fijo'], true)) {
+                $tipoBeneficio = 'monto_fijo';
+            }
+
+            DB::connection('pymes_tenant')->table('pedido_mostrador_promociones')->insert([
+                'pedido_mostrador_id' => $pedido->id,
+                'tipo_promocion' => 'promocion_especial',
+                'promocion_id' => null,
+                'promocion_especial_id' => $promo['promocion_especial_id'] ?? $promo['id'] ?? null,
+                'forma_pago_id' => null,
+                'codigo_cupon' => null,
+                'descripcion_promocion' => $promo['nombre'] ?? $promo['descripcion'] ?? 'Promoción Especial',
+                'tipo_beneficio' => $tipoBeneficio,
+                'valor_beneficio' => $promo['descuento'] ?? 0,
+                'descuento_aplicado' => $promo['descuento'] ?? 0,
+                'monto_minimo_requerido' => null,
+                'created_at' => now(),
+            ]);
+        }
+    }
+
+    /**
      * Recalcula el estado_pago del pedido basado en la suma de pagos activos
      * vs total_final. Dispara PedidoEstadoPagoCambiado si cambia.
      */
@@ -1093,6 +1235,8 @@ class PedidoMostradorService
                 'ajuste_porcentaje' => $pago->ajuste_porcentaje,
                 'monto_ajuste' => $pago->monto_ajuste,
                 'monto_final' => $pago->monto_final,
+                'saldo_pendiente' => $pago->saldo_pendiente ?? 0,
+                'operacion_origen' => $pago->operacion_origen ?? 'venta_original',
                 'monto_recibido' => $pago->monto_recibido,
                 'vuelto' => $pago->vuelto,
                 'cuotas' => $pago->cuotas,
@@ -1123,6 +1267,42 @@ class PedidoMostradorService
 
             $pago->update(['venta_pago_id' => $ventaPago->id]);
         }
+    }
+
+    /**
+     * Copia las filas de `pedido_mostrador_promociones` a `venta_promociones`
+     * preservando todos los campos (las tablas tienen estructura idéntica salvo
+     * la FK). Sin DELETE previo en venta_promociones porque la venta es nueva.
+     */
+    protected function migrarPromocionesAVenta(PedidoMostrador $pedido, Venta $venta): void
+    {
+        $promos = DB::connection('pymes_tenant')
+            ->table('pedido_mostrador_promociones')
+            ->where('pedido_mostrador_id', $pedido->id)
+            ->get();
+
+        if ($promos->isEmpty()) {
+            return;
+        }
+
+        $rows = $promos->map(function ($p) use ($venta) {
+            return [
+                'venta_id' => $venta->id,
+                'tipo_promocion' => $p->tipo_promocion,
+                'promocion_id' => $p->promocion_id,
+                'promocion_especial_id' => $p->promocion_especial_id,
+                'forma_pago_id' => $p->forma_pago_id,
+                'codigo_cupon' => $p->codigo_cupon,
+                'descripcion_promocion' => $p->descripcion_promocion,
+                'tipo_beneficio' => $p->tipo_beneficio,
+                'valor_beneficio' => $p->valor_beneficio,
+                'descuento_aplicado' => $p->descuento_aplicado,
+                'monto_minimo_requerido' => $p->monto_minimo_requerido,
+                'created_at' => $p->created_at ?? now(),
+            ];
+        })->all();
+
+        DB::connection('pymes_tenant')->table('venta_promociones')->insert($rows);
     }
 
     /**

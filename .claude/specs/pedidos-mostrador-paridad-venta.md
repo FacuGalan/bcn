@@ -1,14 +1,22 @@
 # Pedidos Mostrador — Paridad de persistencia con Venta — Especificación
 
-## Estado: PARCIAL — PAUSADO 2026-05-14
+## Estado: COMPLETO — 2026-05-15
 
-> Aprobado por el usuario el 2026-05-14. Branch: `feat/pedidos-mostrador-paridad-venta`.
+> Aprobado por el usuario el 2026-05-14. Branches:
+> - `feat/pedidos-mostrador-paridad-venta` (PR #89, mergeado) — Fases 1+2: schema + modelos + hot-fix.
+> - `feat/pedidos-mostrador-paridad-logica` — Fases 3-7: service core, livewire, conversión, tests.
 >
 > **Hot-fix del bug aplicado**: condición `$desgloseEstaCompleto && $esMixto` cambiada a `$desgloseEstaCompleto` en `NuevoPedidoMostrador::construirDataPedido()` (líneas 1281-1291). Eso cierra el caso reportado (FP simple con descuento → `total_final` correcto → `estado_pago` correcto).
 >
-> **Schema agregado** (Fases 1+2 del plan): 4 columnas en `pedidos_mostrador` + 2 en `pedidos_mostrador_pagos` + modelos actualizados. Schema queda listo aunque todavía no se usa en flujo activo.
+> **Schema agregado** (Fases 1+2): 4 columnas en `pedidos_mostrador` + 2 en `pedidos_mostrador_pagos` + modelos actualizados.
 >
-> **PENDIENTE para próxima sesión**: Fases 3 a 7 del plan (service core con `recalcularTotales()` autoritativo + persistencia de `pedido_mostrador_promociones` + descuentos por línea + conversión + tests focales). Sin esto, el schema agregado queda sin uso real y aún podrían aparecer otros bugs similares en flujos no cubiertos por el hot-fix.
+> **Lógica autoritativa agregada** (Fases 3-7):
+> - `PedidoMostradorService::recalcularTotales()` se invoca tras cada cambio de pagos (agregar, confirmar planificado, anular, eliminar planificado) y al editar pedido. Pisa `total_final` y `ajuste_forma_pago` desde la suma de `monto_ajuste` + `recargo_cuotas_monto` de pagos activos+planificados.
+> - `PedidoMostradorService::guardarPromocionesPedido()` espejo de `VentaService::guardarPromocionesVenta()`. Insertan promociones desde `_promociones_comunes`/`_promociones_especiales` del payload.
+> - `NuevoPedidoMostrador::construirDataPedido()` agrega los 4 campos de puntos + `_promociones_*`.
+> - `NuevoPedidoMostrador::construirDetallesPedido()` deriva `descuento_promocion`, `descuento_promocion_especial`, `descuento_cupon`, `tiene_promocion` desde `$this->resultado['items']`.
+> - `convertirEnVenta()` mapea los 4 campos de puntos + clona `pedido_mostrador_promociones` → `venta_promociones` + mapea `saldo_pendiente` y `operacion_origen` en venta_pagos.
+> - 7 tests focales nuevos en `PedidoMostradorParidadVentaTest` (CA-01 a CA-05), todos verdes.
 
 ---
 
@@ -198,14 +206,14 @@ Sin traducciones nuevas. Cambios internos de persistencia, no se agregan mensaje
 
 ## Criterios de Aceptación
 
-- [ ] **CA-01** — Test reproductor del bug pasa: pedido total $100, FP efectivo 10% descuento, pago $90 → `estado_pago = pagado`.
-- [ ] **CA-02** — `pedido_mostrador_promociones` se puebla al crear/editar pedido con promo nivel pedido (test con promo de FP).
-- [ ] **CA-03** — `pedido_mostrador_detalle.descuento_promocion`, `descuento_promocion_especial`, `descuento_cupon` se pueblan por línea (test con cupón + promo).
-- [ ] **CA-04** — `recalcularTotales()` ignora `total_final` erróneo enviado por el Livewire y persiste el cálculo correcto (test focal).
-- [ ] **CA-05** — Conversión Pedido → Venta migra promociones, puntos y todos los nuevos campos sin recálculo divergente. `pedido.total_final === venta.total_final`.
-- [ ] **CA-06** — Smoke tests existentes siguen verdes (`SmokePedidosTest` 15/15 + `SmokeVentasTest`).
-- [ ] **CA-07** — Lint Pint OK en archivos modificados.
-- [ ] **CA-08** — `database/sql/tenant_tables.sql` regenerado y verificado (sin FK sin prefijo).
+- [x] **CA-01** — Test reproductor del bug pasa: pedido total $100, FP efectivo 10% descuento, pago $90 → `estado_pago = pagado`. (`test_pago_con_fp_descuento_marca_pedido_pagado_y_recalcula_total_final`).
+- [x] **CA-02** — `pedido_mostrador_promociones` se puebla al crear/editar pedido con promo nivel pedido (`test_guarda_promociones_a_nivel_pedido` + `test_actualizar_pedido_reemplaza_promociones_previas`).
+- [x] **CA-03** — `pedido_mostrador_detalle.descuento_promocion`, `descuento_promocion_especial`, `descuento_cupon` se pueblan por línea (`test_persiste_descuentos_de_promocion_y_cupon_por_linea`).
+- [x] **CA-04** — `recalcularTotales()` ignora `total_final` erróneo enviado por el Livewire y persiste el cálculo correcto (`test_recalcular_totales_sobrescribe_total_final_erroneo_desde_pagos` + `test_anular_pago_revierte_ajuste_fp_en_total_final`).
+- [x] **CA-05** — Conversión Pedido → Venta migra promociones, puntos y todos los nuevos campos sin recálculo divergente (`test_conversion_a_venta_preserva_totales_y_migra_promociones`).
+- [x] **CA-06** — Smoke tests existentes siguen verdes: 63/63 tests de Pedido en verde.
+- [x] **CA-07** — Lint Pint OK en archivos modificados.
+- [x] **CA-08** — `database/sql/tenant_tables.sql` ya regenerado en PR #89 (Fases 1+2). Esta fase no toca schema.
 
 ---
 
