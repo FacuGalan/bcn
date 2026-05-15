@@ -897,7 +897,36 @@ class NuevoPedidoMostrador extends Component
             $this->formaPagoId = (int) $primerPago->forma_pago_id;
             $this->cargarCuotasFormaPago();
             $this->calcularAjusteFormaPago();
+
+            return;
         }
+
+        // Desglose mixto (varios pagos) o pago único parcial: el path "FP simple"
+        // de arriba no aplica, pero igual hay que reflejar el ajuste FP + recargo
+        // cuotas en `ajusteFormaPagoInfo` para que la vista calcule bien el total
+        // visible (`total_final + ajusteFormaPagoInfo.monto`).
+        $sumaAjuste = (float) $pagos->sum(fn ($p) => (float) $p->monto_ajuste);
+        $sumaRecargo = (float) $pagos->sum(fn ($p) => (float) ($p->recargo_cuotas_monto ?? 0));
+        $ajusteTotal = round($sumaAjuste + $sumaRecargo, 2);
+        $totalBase = (float) ($pedido->total ?? 0);
+
+        $this->ajusteFormaPagoInfo = [
+            'nombre' => $this->cuentaPagosOriginales > 1
+                ? __('Mixto')
+                : ($pagos->first()->formaPago?->nombre ?? ''),
+            'porcentaje' => 0,
+            'monto' => $ajusteTotal,
+            'total_con_ajuste' => round($totalBase + $ajusteTotal, 2),
+            'es_mixta' => $this->cuentaPagosOriginales > 1,
+            'cuotas' => 1,
+            'recargo_cuotas_porcentaje' => 0,
+            'recargo_cuotas_monto' => round($sumaRecargo, 2),
+            'valor_cuota' => 0,
+        ];
+
+        // Propagar el ajuste al desglose IVA para que el footer del form
+        // refleje el mismo total que ve la lista (incluye recargo/descuento FP).
+        $this->actualizarDesgloseIvaConAjusteFormaPago($sumaAjuste, $sumaRecargo);
     }
 
     protected function detalleAItemCarrito(PedidoMostradorDetalle $detalle): array

@@ -1037,9 +1037,11 @@ class PedidosMostrador extends Component
                 'sucursal:id,nombre',
                 'caja:id,nombre',
                 'venta:id,numero',
+                'cupon',
                 'detalles.articulo:id,nombre',
                 'detalles.opcionales',
-                'pagos.formaPago:id,nombre',
+                'pagos.formaPago:id,nombre,codigo',
+                'promociones',
             ])->find($this->pedidoDetalleId)
             : null;
 

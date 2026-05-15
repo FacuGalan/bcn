@@ -602,107 +602,307 @@
         <x-bcn-modal
             :title="__('Pedido') . ' ' . ($pedidoDetalle->numero ? '#' . $pedidoDetalle->numero : __('(Borrador)'))"
             color="bg-bcn-secondary"
-            maxWidth="3xl"
+            maxWidth="4xl"
             onClose="cerrarDetalle"
         >
             <x-slot:body>
-                <div class="space-y-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <p class="text-sm text-gray-500 dark:text-gray-400 -mt-2 mb-4">
+                    {{ $pedidoDetalle->fecha->format('d/m/Y H:i') }}
+                    @if($pedidoDetalle->sucursal)
+                        | {{ $pedidoDetalle->sucursal->nombre }}
+                    @endif
+                </p>
+                <div class="space-y-5">
+                    {{-- Información general --}}
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                         <div>
-                            <div class="font-semibold text-gray-700 dark:text-gray-300">{{ __('Cliente') }}</div>
-                            <div class="text-gray-900 dark:text-gray-100">{{ $pedidoDetalle->nombre_cliente_final ?? __('Sin cliente') }}</div>
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Cliente') }}</label>
+                            <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">
+                                {{ $pedidoDetalle->nombre_cliente_final ?? __('Sin cliente') }}
+                            </p>
                             @if($pedidoDetalle->telefono_cliente_final)
-                                <div class="text-gray-500 dark:text-gray-400 text-xs">{{ $pedidoDetalle->telefono_cliente_final }}</div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $pedidoDetalle->telefono_cliente_final }}</p>
                             @endif
                         </div>
                         <div>
-                            <div class="font-semibold text-gray-700 dark:text-gray-300">{{ __('Fecha') }}</div>
-                            <div class="text-gray-900 dark:text-gray-100">{{ $pedidoDetalle->fecha->format('d/m/Y H:i') }}</div>
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Caja') }}</label>
+                            <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">{{ $pedidoDetalle->caja->nombre ?? 'N/A' }}</p>
                         </div>
-                        @if($pedidoDetalle->numero_beeper)
-                            <div>
-                                <div class="font-semibold text-gray-700 dark:text-gray-300">{{ __('Beeper') }}</div>
-                                <div class="inline-flex items-center px-2 py-0.5 rounded text-base font-mono font-bold bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                                    🔔 {{ $pedidoDetalle->numero_beeper }}
-                                </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Identificador') }}</label>
+                            <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">{{ $pedidoDetalle->identificador ?? '—' }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Estado') }}</label>
+                            <div class="mt-1 flex flex-wrap gap-1">
+                                <x-pedidos.badge-estado-pedido :estado="$pedidoDetalle->estado_pedido" />
+                                <x-pedidos.badge-estado-pago :estado="$pedidoDetalle->estado_pago" />
                             </div>
-                        @endif
+                        </div>
                     </div>
 
-                    <div class="flex flex-wrap gap-2">
-                        <x-pedidos.badge-estado-pedido :estado="$pedidoDetalle->estado_pedido" />
-                        <x-pedidos.badge-estado-pago :estado="$pedidoDetalle->estado_pago" />
-                        @if($pedidoDetalle->venta_id)
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                                {{ __('Venta') }} #{{ $pedidoDetalle->venta?->numero ?? $pedidoDetalle->venta_id }}
-                            </span>
-                        @endif
-                    </div>
+                    @if($pedidoDetalle->numero_beeper || $pedidoDetalle->venta_id)
+                        <div class="flex flex-wrap gap-2 -mt-2">
+                            @if($pedidoDetalle->numero_beeper)
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-sm font-mono font-bold bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                    🔔 {{ __('Beeper') }} {{ $pedidoDetalle->numero_beeper }}
+                                </span>
+                            @endif
+                            @if($pedidoDetalle->venta_id)
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                                    {{ __('Convertido en venta') }} #{{ $pedidoDetalle->venta?->numero ?? $pedidoDetalle->venta_id }}
+                                </span>
+                            @endif
+                        </div>
+                    @endif
 
-                    {{-- Items --}}
+                    {{-- Detalles de items --}}
                     <div>
-                        <div class="font-semibold text-gray-700 dark:text-gray-300 mb-2 text-sm">{{ __('Detalle') }}</div>
-                        <div class="border border-gray-200 dark:border-gray-700 rounded overflow-hidden">
-                            <table class="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700">
-                                <thead class="bg-gray-50 dark:bg-gray-900">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Artículos') }}</label>
+                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead class="bg-gray-50 dark:bg-gray-700">
                                     <tr>
-                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">{{ __('Artículo') }}</th>
-                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">{{ __('Cant.') }}</th>
-                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">{{ __('P.U.') }}</th>
-                                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">{{ __('Total') }}</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Artículo') }}</th>
+                                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Cant.') }}</th>
+                                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('P.U.') }}</th>
+                                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Subtotal') }}</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                     @foreach($pedidoDetalle->detalles as $detalle)
                                         <tr>
-                                            <td class="px-3 py-2 text-gray-900 dark:text-gray-100">
-                                                {{ $detalle->es_concepto ? $detalle->concepto_descripcion : ($detalle->articulo?->nombre ?? '-') }}
+                                            <td class="px-4 py-2.5 text-sm text-gray-900 dark:text-white">
+                                                {{ $detalle->es_concepto ? ($detalle->concepto_descripcion ?? '—') : ($detalle->articulo?->nombre ?? '—') }}
+                                                @if($detalle->es_concepto)
+                                                    <span class="text-xs text-gray-500">({{ __('Concepto') }})</span>
+                                                @endif
+                                                @if($detalle->pagado_con_puntos)
+                                                    <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+                                                        ⭐ {{ $detalle->puntos_usados }} pts
+                                                    </span>
+                                                @endif
+                                                @if($detalle->descuento_cupon > 0)
+                                                    <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                                        {{ __('Cupón') }} -${{ number_format($detalle->descuento_cupon, 2, ',', '.') }}
+                                                    </span>
+                                                @endif
+                                                @if($detalle->tiene_promocion)
+                                                    <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">
+                                                        🏷️ {{ __('Promo') }}
+                                                    </span>
+                                                @endif
                                                 @if($detalle->opcionales->isNotEmpty())
                                                     <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                                         @foreach($detalle->opcionales as $opc)
-                                                            <span class="inline-block mr-2">+ {{ $opc->descripcion }}</span>
+                                                            <span class="inline-block mr-2">+ {{ $opc->descripcion ?? $opc->nombre_opcional ?? '—' }}</span>
                                                         @endforeach
                                                     </div>
                                                 @endif
                                             </td>
-                                            <td class="px-3 py-2 text-right text-gray-900 dark:text-gray-100">{{ number_format($detalle->cantidad, 2, ',', '.') }}</td>
-                                            <td class="px-3 py-2 text-right text-gray-900 dark:text-gray-100">${{ number_format($detalle->precio_unitario, 2, ',', '.') }}</td>
-                                            <td class="px-3 py-2 text-right text-gray-900 dark:text-gray-100 font-medium">${{ number_format($detalle->total, 2, ',', '.') }}</td>
+                                            <td class="px-4 py-2.5 text-sm text-gray-900 dark:text-white text-right">{{ number_format($detalle->cantidad, 2, ',', '.') }}</td>
+                                            <td class="px-4 py-2.5 text-sm text-gray-900 dark:text-white text-right">${{ number_format($detalle->precio_unitario, 2, ',', '.') }}</td>
+                                            <td class="px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-white text-right">${{ number_format($detalle->subtotal, 2, ',', '.') }}</td>
                                         </tr>
                                     @endforeach
                                 </tbody>
-                                <tfoot class="bg-gray-50 dark:bg-gray-900">
-                                    <tr>
-                                        <td colspan="3" class="px-3 py-2 text-right text-sm font-semibold text-gray-700 dark:text-gray-200">{{ __('Total final') }}</td>
-                                        <td class="px-3 py-2 text-right text-sm font-bold text-bcn-secondary dark:text-white">${{ number_format($pedidoDetalle->total_final, 2, ',', '.') }}</td>
-                                    </tr>
-                                </tfoot>
                             </table>
                         </div>
                     </div>
 
-                    {{-- Pagos --}}
+                    {{-- Promociones aplicadas (nivel pedido) --}}
+                    @if($pedidoDetalle->promociones->count() > 0)
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Promociones aplicadas') }}</label>
+                            <div class="space-y-2">
+                                @foreach($pedidoDetalle->promociones as $promo)
+                                    <div class="flex items-center justify-between bg-amber-50 dark:bg-amber-900/20 rounded-lg px-4 py-2 border border-amber-200 dark:border-amber-800">
+                                        <div class="flex items-center gap-2">
+                                            <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                                            </svg>
+                                            <div>
+                                                <span class="text-sm font-medium text-amber-800 dark:text-amber-200">{{ $promo->descripcion_promocion }}</span>
+                                                <span class="text-xs text-amber-600 dark:text-amber-400 ml-2">
+                                                    ({{ $promo->esPromocionEspecial() ? __('Especial') : __('Común') }})
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <span class="text-sm font-semibold text-red-600 dark:text-red-400">-${{ number_format($promo->descuento_aplicado, 2, ',', '.') }}</span>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
+                    {{-- Cupón aplicado --}}
+                    @if($pedidoDetalle->cupon_id && $pedidoDetalle->monto_cupon > 0)
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Cupón aplicado') }}</label>
+                            <div class="flex items-center justify-between bg-amber-50 dark:bg-amber-900/20 rounded-lg px-4 py-2 border border-amber-200 dark:border-amber-800">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/>
+                                    </svg>
+                                    <span class="text-sm font-medium text-amber-800 dark:text-amber-200">
+                                        {{ $pedidoDetalle->cupon_codigo_snapshot ?? $pedidoDetalle->cupon?->codigo ?? __('Cupón') }}
+                                    </span>
+                                    @if($pedidoDetalle->cupon_descripcion_snapshot)
+                                        <span class="text-xs text-amber-600 dark:text-amber-400">{{ $pedidoDetalle->cupon_descripcion_snapshot }}</span>
+                                    @endif
+                                </div>
+                                <span class="text-sm font-semibold text-red-600 dark:text-red-400">-${{ number_format($pedidoDetalle->monto_cupon, 2, ',', '.') }}</span>
+                            </div>
+                        </div>
+                    @endif
+
+                    {{-- Puntos canjeados (artículos + monto) --}}
+                    @if($pedidoDetalle->puntos_usados > 0)
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Puntos canjeados') }}</label>
+                            <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg px-4 py-3 border border-yellow-200 dark:border-yellow-800 space-y-2">
+                                @if($pedidoDetalle->puntos_canjeados_articulos > 0)
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-sm text-yellow-800 dark:text-yellow-200">
+                                                ⭐ {{ __('Artículos canjeados') }}: {{ $pedidoDetalle->puntos_canjeados_articulos }} pts
+                                            </span>
+                                        </div>
+                                        <span class="text-sm font-semibold text-yellow-700 dark:text-yellow-300">
+                                            -${{ number_format($pedidoDetalle->articulos_canjeados_monto, 2, ',', '.') }}
+                                        </span>
+                                    </div>
+                                @endif
+                                @if($pedidoDetalle->puntos_canjeados_pago > 0)
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-sm text-yellow-800 dark:text-yellow-200">
+                                                💳 {{ __('Pago con puntos') }}: {{ $pedidoDetalle->puntos_canjeados_pago }} pts
+                                            </span>
+                                        </div>
+                                        <span class="text-sm font-semibold text-yellow-700 dark:text-yellow-300">
+                                            -${{ number_format($pedidoDetalle->puntos_usados_monto, 2, ',', '.') }}
+                                        </span>
+                                    </div>
+                                @endif
+                                <div class="flex items-center justify-between pt-1 border-t border-yellow-200 dark:border-yellow-700">
+                                    <span class="text-xs font-medium text-yellow-700 dark:text-yellow-400">{{ __('Total puntos usados') }}</span>
+                                    <span class="text-sm font-bold text-yellow-800 dark:text-yellow-200">{{ number_format($pedidoDetalle->puntos_usados) }} pts</span>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+
+                    {{-- Puntos ganados --}}
+                    @if($pedidoDetalle->puntos_ganados > 0)
+                        <div class="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 rounded-lg px-4 py-2.5 border border-green-200 dark:border-green-800">
+                            <span class="text-sm text-green-800 dark:text-green-200">
+                                ⭐ {{ __('Puntos a ganar al cobrar') }}:
+                                <span class="font-bold">+{{ number_format($pedidoDetalle->puntos_ganados) }} pts</span>
+                            </span>
+                        </div>
+                    @endif
+
+                    {{-- Desglose de pagos --}}
                     @if($pedidoDetalle->pagos->isNotEmpty())
                         <div>
-                            <div class="font-semibold text-gray-700 dark:text-gray-300 mb-2 text-sm">{{ __('Pagos') }}</div>
-                            <div class="border border-gray-200 dark:border-gray-700 rounded overflow-hidden">
-                                <table class="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700">
-                                    <thead class="bg-gray-50 dark:bg-gray-900">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Desglose de pagos') }}</label>
+
+                            {{-- Cards móvil --}}
+                            <div class="sm:hidden space-y-2">
+                                @foreach($pedidoDetalle->pagos as $pago)
+                                    @php
+                                        $pagoAnulado = $pago->estado === 'anulado';
+                                        $pagoPlanificado = $pago->estado === 'planificado';
+                                    @endphp
+                                    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 {{ $pagoAnulado ? 'opacity-60' : '' }}">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $pago->formaPago?->nombre ?? '—' }}</span>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium
+                                                @if($pago->estado === 'activo') bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                                                @elseif($pagoPlanificado) bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                                                @else bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 @endif">
+                                                {{ __(ucfirst($pago->estado)) }}
+                                            </span>
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2 text-xs">
+                                            <div>
+                                                <span class="text-gray-500 dark:text-gray-400">{{ __('Base') }}:</span>
+                                                <span class="text-gray-700 dark:text-gray-200">${{ number_format($pago->monto_base, 2, ',', '.') }}</span>
+                                            </div>
+                                            @if((float) $pago->monto_ajuste !== 0.0)
+                                                <div>
+                                                    <span class="text-gray-500 dark:text-gray-400">{{ __('Ajuste FP') }}:</span>
+                                                    <span class="{{ $pago->monto_ajuste < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' }}">
+                                                        {{ $pago->monto_ajuste < 0 ? '-' : '+' }}${{ number_format(abs($pago->monto_ajuste), 2, ',', '.') }}
+                                                    </span>
+                                                </div>
+                                            @endif
+                                            @if($pago->cuotas && $pago->cuotas > 1)
+                                                <div class="col-span-2">
+                                                    <span class="text-gray-500 dark:text-gray-400">{{ __('Cuotas') }}:</span>
+                                                    <span class="text-gray-700 dark:text-gray-200">
+                                                        {{ $pago->cuotas }}x ${{ number_format($pago->monto_cuota ?? 0, 2, ',', '.') }}
+                                                    </span>
+                                                </div>
+                                            @endif
+                                            <div class="col-span-2 pt-1 border-t border-gray-200 dark:border-gray-600">
+                                                <span class="text-gray-500 dark:text-gray-400">{{ __('Total cobrado') }}:</span>
+                                                <span class="text-sm font-bold text-gray-900 dark:text-white">${{ number_format($pago->monto_final, 2, ',', '.') }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+
+                            {{-- Tabla desktop --}}
+                            <div class="hidden sm:block border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                    <thead class="bg-gray-50 dark:bg-gray-700">
                                         <tr>
-                                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">{{ __('Forma de pago') }}</th>
-                                            <th class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">{{ __('Monto') }}</th>
-                                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">{{ __('Estado') }}</th>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Forma de pago') }}</th>
+                                            <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Base') }}</th>
+                                            <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Ajuste FP') }}</th>
+                                            <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Cuotas') }}</th>
+                                            <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Total') }}</th>
+                                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Estado') }}</th>
                                         </tr>
                                     </thead>
-                                    <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                         @foreach($pedidoDetalle->pagos as $pago)
-                                            <tr>
-                                                <td class="px-3 py-2 text-gray-900 dark:text-gray-100">{{ $pago->formaPago?->nombre ?? '-' }}</td>
-                                                <td class="px-3 py-2 text-right text-gray-900 dark:text-gray-100 font-medium">${{ number_format($pago->monto_final, 2, ',', '.') }}</td>
-                                                <td class="px-3 py-2">
+                                            @php
+                                                $pagoAnulado = $pago->estado === 'anulado';
+                                                $pagoPlanificado = $pago->estado === 'planificado';
+                                            @endphp
+                                            <tr class="{{ $pagoAnulado ? 'opacity-60' : '' }}">
+                                                <td class="px-3 py-2 text-sm text-gray-900 dark:text-white">
+                                                    {{ $pago->formaPago?->nombre ?? '—' }}
+                                                    @if($pago->es_pago_puntos)
+                                                        <span class="ml-1 text-[10px] text-yellow-600 dark:text-yellow-400">(puntos)</span>
+                                                    @endif
+                                                </td>
+                                                <td class="px-3 py-2 text-sm text-gray-700 dark:text-gray-200 text-right">${{ number_format($pago->monto_base, 2, ',', '.') }}</td>
+                                                <td class="px-3 py-2 text-sm text-right">
+                                                    @if((float) $pago->monto_ajuste !== 0.0)
+                                                        <span class="{{ $pago->monto_ajuste < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' }}">
+                                                            {{ $pago->monto_ajuste < 0 ? '-' : '+' }}${{ number_format(abs($pago->monto_ajuste), 2, ',', '.') }}
+                                                        </span>
+                                                    @else
+                                                        <span class="text-gray-400">—</span>
+                                                    @endif
+                                                </td>
+                                                <td class="px-3 py-2 text-sm text-gray-700 dark:text-gray-200 text-right">
+                                                    @if($pago->cuotas && $pago->cuotas > 1)
+                                                        {{ $pago->cuotas }}x ${{ number_format($pago->monto_cuota ?? 0, 2, ',', '.') }}
+                                                    @else
+                                                        <span class="text-gray-400">—</span>
+                                                    @endif
+                                                </td>
+                                                <td class="px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white text-right">${{ number_format($pago->monto_final, 2, ',', '.') }}</td>
+                                                <td class="px-3 py-2 text-center">
                                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                                                         @if($pago->estado === 'activo') bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
-                                                        @elseif($pago->estado === 'planificado') bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
+                                                        @elseif($pagoPlanificado) bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
                                                         @else bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 @endif">
                                                         {{ __(ucfirst($pago->estado)) }}
                                                     </span>
@@ -715,10 +915,53 @@
                         </div>
                     @endif
 
+                    {{-- Totales (desglose) --}}
+                    <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <dl class="space-y-1 text-sm">
+                            <div class="flex justify-between">
+                                <dt class="text-gray-500 dark:text-gray-400">{{ __('Subtotal') }}</dt>
+                                <dd class="text-gray-900 dark:text-gray-100">${{ number_format($pedidoDetalle->subtotal, 2, ',', '.') }}</dd>
+                            </div>
+                            @if((float) $pedidoDetalle->iva > 0)
+                                <div class="flex justify-between">
+                                    <dt class="text-gray-500 dark:text-gray-400">{{ __('IVA') }}</dt>
+                                    <dd class="text-gray-900 dark:text-gray-100">${{ number_format($pedidoDetalle->iva, 2, ',', '.') }}</dd>
+                                </div>
+                            @endif
+                            @if((float) $pedidoDetalle->descuento_general_monto > 0)
+                                <div class="flex justify-between">
+                                    <dt class="text-gray-500 dark:text-gray-400">
+                                        {{ __('Descuento general') }}
+                                        @if($pedidoDetalle->descuento_general_tipo === 'porcentaje' && $pedidoDetalle->descuento_general_valor)
+                                            ({{ number_format($pedidoDetalle->descuento_general_valor, 2, ',', '.') }}%)
+                                        @endif
+                                    </dt>
+                                    <dd class="text-red-600 dark:text-red-400">-${{ number_format($pedidoDetalle->descuento_general_monto, 2, ',', '.') }}</dd>
+                                </div>
+                            @endif
+                            <div class="flex justify-between font-medium">
+                                <dt class="text-gray-700 dark:text-gray-200">{{ __('Total') }}</dt>
+                                <dd class="text-gray-900 dark:text-white">${{ number_format($pedidoDetalle->total, 2, ',', '.') }}</dd>
+                            </div>
+                            @if((float) $pedidoDetalle->ajuste_forma_pago !== 0.0)
+                                <div class="flex justify-between">
+                                    <dt class="text-gray-500 dark:text-gray-400">{{ __('Ajuste forma de pago') }}</dt>
+                                    <dd class="{{ $pedidoDetalle->ajuste_forma_pago < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' }}">
+                                        {{ $pedidoDetalle->ajuste_forma_pago < 0 ? '-' : '+' }}${{ number_format(abs($pedidoDetalle->ajuste_forma_pago), 2, ',', '.') }}
+                                    </dd>
+                                </div>
+                            @endif
+                            <div class="flex justify-between pt-2 border-t border-gray-200 dark:border-gray-600 text-base font-bold">
+                                <dt class="text-gray-900 dark:text-white">{{ __('Total final') }}</dt>
+                                <dd class="text-bcn-secondary dark:text-white">${{ number_format($pedidoDetalle->total_final, 2, ',', '.') }}</dd>
+                            </div>
+                        </dl>
+                    </div>
+
                     @if($pedidoDetalle->observaciones)
                         <div>
-                            <div class="font-semibold text-gray-700 dark:text-gray-300 mb-1 text-sm">{{ __('Observaciones') }}</div>
-                            <p class="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">{{ $pedidoDetalle->observaciones }}</p>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Observaciones') }}</label>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line bg-gray-50 dark:bg-gray-700/40 rounded-lg px-3 py-2 border border-gray-200 dark:border-gray-700">{{ $pedidoDetalle->observaciones }}</p>
                         </div>
                     @endif
                 </div>

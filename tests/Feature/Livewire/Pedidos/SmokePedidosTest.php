@@ -272,6 +272,109 @@ class SmokePedidosTest extends TestCase
         $this->assertSame(PedidoMostrador::ESTADO_ENTREGADO, $pedido->fresh()->estado_pedido);
     }
 
+    /**
+     * Reproductor: al editar un pedido con desglose mixto persistido, el
+     * `ajusteFormaPagoInfo` debe reflejar el ajuste real para que el total
+     * visible en el form coincida con `pedido.total_final`.
+     */
+    public function test_editar_pedido_con_desglose_mixto_hidrata_ajuste_fp(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+        $efectivo = $this->crearFormaPagoEfectivo();
+
+        $service = app(PedidoMostradorService::class);
+        $pedido = $service->crearPedido([
+            'sucursal_id' => $this->sucursalId,
+            'caja_id' => $caja->id,
+            'usuario_id' => auth()->id() ?? 1,
+            'fecha' => now(),
+            'subtotal' => 1000,
+            'iva' => 0,
+            'descuento' => 0,
+            'total' => 1000,
+            'ajuste_forma_pago' => 0,
+            'total_final' => 1000,
+        ], [
+            [
+                'articulo_id' => $articulo->id,
+                'cantidad' => 1,
+                'precio_unitario' => 1000,
+                'precio_sin_iva' => 826.45,
+                'subtotal' => 1000,
+                'iva_porcentaje' => 21,
+                'iva_monto' => 173.55,
+                'total' => 1000,
+            ],
+        ], esBorrador: false);
+
+        // Dos pagos planificados sumando el total con un descuento FP de $50.
+        $service->agregarPago($pedido, [
+            'forma_pago_id' => $efectivo['formaPago']->id,
+            'monto_base' => 600,
+            'monto_ajuste' => -30,
+            'monto_final' => 570,
+            'planificado' => true,
+            'afecta_caja' => true,
+        ]);
+        $service->agregarPago($pedido, [
+            'forma_pago_id' => $efectivo['formaPago']->id,
+            'monto_base' => 400,
+            'monto_ajuste' => -20,
+            'monto_final' => 380,
+            'planificado' => true,
+            'afecta_caja' => true,
+        ]);
+
+        $pedido->refresh();
+        $this->assertEqualsWithDelta(950.0, (float) $pedido->total_final, 0.01, 'recalcularTotales debe haber dejado total_final=950');
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class, ['pedidoId' => $pedido->id]);
+
+        $info = $componente->get('ajusteFormaPagoInfo');
+        $this->assertTrue((bool) $info['es_mixta'], 'es_mixta debe ser true para desglose multi-pago');
+        $this->assertEqualsWithDelta(-50.0, (float) $info['monto'], 0.01, 'monto del ajuste debe reflejar la suma de los ajustes persistidos');
+        $this->assertEqualsWithDelta(950.0, (float) $info['total_con_ajuste'], 0.01, 'total_con_ajuste = total + ajuste FP');
+
+        // desglosePagos debe quedar con los 2 pagos.
+        $desglose = $componente->get('desglosePagos');
+        $this->assertCount(2, $desglose);
+    }
+
+    /**
+     * Smoke del modal Ver pedido: render sin errores con un pedido que incluye
+     * promociones, pagos y observaciones (camino completo de paridad con Ver venta).
+     */
+    public function test_render_modal_ver_pedido_completo(): void
+    {
+        $pedido = $this->crearPedidoConfirmado();
+
+        // Marcar promo nivel pedido para forzar render de la sección.
+        \Illuminate\Support\Facades\DB::connection('pymes_tenant')
+            ->table('pedido_mostrador_promociones')->insert([
+                'pedido_mostrador_id' => $pedido->id,
+                'tipo_promocion' => 'promocion',
+                'promocion_id' => null,
+                'promocion_especial_id' => null,
+                'forma_pago_id' => null,
+                'codigo_cupon' => null,
+                'descripcion_promocion' => 'Promo test',
+                'tipo_beneficio' => 'porcentaje',
+                'valor_beneficio' => 10,
+                'descuento_aplicado' => 100,
+                'monto_minimo_requerido' => null,
+                'created_at' => now(),
+            ]);
+
+        Livewire::test(PedidosMostrador::class)
+            ->call('verDetalle', $pedido->id)
+            ->assertOk()
+            ->assertSet('showDetalleModal', true)
+            ->assertSet('pedidoDetalleId', $pedido->id)
+            ->assertSee('Promo test')
+            ->assertSee('Promociones aplicadas');
+    }
+
     public function test_render_kanban_agrupa_pedidos_por_estado(): void
     {
         $pedido1 = $this->crearPedidoConfirmado();
