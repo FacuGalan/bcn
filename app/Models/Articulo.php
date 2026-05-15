@@ -70,6 +70,9 @@ class Articulo extends Model
         'puntos_canje',
         'es_materia_prima',
         'pesable',
+        'imagen_path',
+        'imagen_focal_x',
+        'imagen_focal_y',
         'activo',
         'tipo_iva_id',
         'precio_iva_incluido',
@@ -80,6 +83,8 @@ class Articulo extends Model
         'puntos_canje' => 'integer',
         'es_materia_prima' => 'boolean',
         'pesable' => 'boolean',
+        'imagen_focal_x' => 'decimal:2',
+        'imagen_focal_y' => 'decimal:2',
         'activo' => 'boolean',
         'precio_iva_incluido' => 'boolean',
     ];
@@ -564,5 +569,49 @@ class Articulo extends Model
             ->with(['grupoOpcional', 'opciones.opcional'])
             ->orderBy('orden')
             ->get();
+    }
+
+    // ==================== IMAGEN ====================
+
+    /**
+     * Indica si el artículo tiene una imagen subida y el archivo aún existe
+     * en el disk public.
+     */
+    public function hasImagen(): bool
+    {
+        return ! empty($this->imagen_path)
+            && \Illuminate\Support\Facades\Storage::disk('public')->exists($this->imagen_path);
+    }
+
+    /**
+     * URL pública de la imagen como path relativo al host actual,
+     * o null si no hay. Usar en blade en lugar de armar Storage::url()
+     * a mano.
+     *
+     * Devolvemos PATH RELATIVO (`/storage/...`) en lugar de URL absoluta
+     * porque `Storage::url()` arma con `APP_URL` y eso suele venir sin el
+     * puerto correcto en dev (`http://localhost` vs `http://localhost:8000`).
+     * El path relativo es portable: usa el host:puerto desde el que se
+     * está sirviendo el HTML.
+     */
+    public function imagenUrl(): ?string
+    {
+        if (empty($this->imagen_path)) {
+            return null;
+        }
+
+        return '/storage/'.ltrim($this->imagen_path, '/');
+    }
+
+    /**
+     * Valor listo para CSS `object-position` (e.g. "30.50% 70.00%").
+     * Default centro si no hay focal point seteado.
+     */
+    public function imagenFocalPosition(): string
+    {
+        $x = (float) ($this->imagen_focal_x ?? 50);
+        $y = (float) ($this->imagen_focal_y ?? 50);
+
+        return number_format($x, 2, '.', '').'% '.number_format($y, 2, '.', '').'%';
     }
 }
