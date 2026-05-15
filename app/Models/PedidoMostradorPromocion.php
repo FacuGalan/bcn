@@ -59,4 +59,14 @@ class PedidoMostradorPromocion extends Model
     {
         return $this->belongsTo(FormaPago::class, 'forma_pago_id');
     }
+
+    public function esPromocionEspecial(): bool
+    {
+        return $this->tipo_promocion === 'promocion_especial';
+    }
+
+    public function esPromocionComun(): bool
+    {
+        return $this->tipo_promocion === 'promocion';
+    }
 }

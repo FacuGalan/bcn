@@ -857,30 +857,49 @@ class NuevoPedidoMostrador extends Component
             return;
         }
 
-        $this->desglosePagos = $pagos->map(fn ($p) => [
-            'forma_pago_id' => $p->forma_pago_id,
-            'nombre' => $p->formaPago?->nombre ?? '',
-            'codigo' => $p->formaPago?->codigo ?? '',
-            'monto_base' => (float) $p->monto_base,
-            'ajuste_porcentaje' => (float) $p->ajuste_porcentaje,
-            'monto_ajuste' => (float) $p->monto_ajuste,
-            'monto_final' => (float) $p->monto_final,
-            'cuotas' => $p->cuotas ? (int) $p->cuotas : 1,
-            'recargo_cuotas_porcentaje' => $p->recargo_cuotas_porcentaje !== null ? (float) $p->recargo_cuotas_porcentaje : 0,
-            'recargo_cuotas_monto' => $p->recargo_cuotas_monto !== null ? (float) $p->recargo_cuotas_monto : 0,
-            'monto_cuota' => $p->monto_cuota !== null ? (float) $p->monto_cuota : null,
-            'monto_recibido' => $p->monto_recibido !== null ? (float) $p->monto_recibido : (float) $p->monto_final,
-            'vuelto' => (float) $p->vuelto,
-            'referencia' => $p->referencia,
-            'observaciones' => $p->observaciones,
-            'es_cuenta_corriente' => (bool) $p->es_cuenta_corriente,
-            'es_pago_puntos' => (bool) $p->es_pago_puntos,
-            'puntos_usados' => (int) $p->puntos_usados,
-            'afecta_caja' => (bool) $p->afecta_caja,
-            'factura_fiscal' => false,
-            'planificado' => $p->estado === 'planificado',
-            'estado_persistido' => $p->estado,
-        ])->values()->toArray();
+        // Metadata de cada FP indexada por id (permite_cuotas, cuotas, etc).
+        // El modal de desglose espera estas claves al renderizar cada pago.
+        $fpsPorId = collect($this->formasPagoSucursal)->keyBy('id');
+
+        $this->desglosePagos = $pagos->map(function ($p) use ($fpsPorId) {
+            $fpMeta = $fpsPorId->get((int) $p->forma_pago_id, []);
+
+            return [
+                'forma_pago_id' => $p->forma_pago_id,
+                'nombre' => $p->formaPago?->nombre ?? ($fpMeta['nombre'] ?? ''),
+                'codigo' => $p->formaPago?->codigo ?? ($fpMeta['codigo'] ?? ''),
+                'monto_base' => (float) $p->monto_base,
+                'ajuste_porcentaje' => (float) $p->ajuste_porcentaje,
+                'monto_ajuste' => (float) $p->monto_ajuste,
+                'monto_final' => (float) $p->monto_final,
+                'cuotas' => $p->cuotas ? (int) $p->cuotas : 1,
+                'recargo_cuotas_porcentaje' => $p->recargo_cuotas_porcentaje !== null ? (float) $p->recargo_cuotas_porcentaje : 0,
+                'recargo_cuotas_monto' => $p->recargo_cuotas_monto !== null ? (float) $p->recargo_cuotas_monto : 0,
+                'recargo_cuotas' => $p->recargo_cuotas_monto !== null ? (float) $p->recargo_cuotas_monto : 0,
+                'monto_cuota' => $p->monto_cuota !== null ? (float) $p->monto_cuota : null,
+                'monto_recibido' => $p->monto_recibido !== null ? (float) $p->monto_recibido : (float) $p->monto_final,
+                'vuelto' => (float) $p->vuelto,
+                'referencia' => $p->referencia,
+                'observaciones' => $p->observaciones,
+                'es_cuenta_corriente' => (bool) $p->es_cuenta_corriente,
+                'es_pago_puntos' => (bool) $p->es_pago_puntos,
+                'puntos_usados' => (int) $p->puntos_usados,
+                'afecta_caja' => (bool) $p->afecta_caja,
+                // Metadata de la FP que el modal de desglose espera.
+                'permite_cuotas' => (bool) ($fpMeta['permite_cuotas'] ?? false),
+                'permite_vuelto' => (bool) ($fpMeta['permite_vuelto'] ?? false),
+                'cuotas_disponibles' => $fpMeta['cuotas'] ?? [],
+                'factura_fiscal' => (bool) ($fpMeta['factura_fiscal'] ?? false),
+                'moneda_id' => $p->moneda_id,
+                'es_moneda_extranjera' => false,
+                'moneda_info' => $fpMeta['moneda_info'] ?? null,
+                'tipo_cambio_tasa' => $p->tipo_cambio_tasa !== null ? (float) $p->tipo_cambio_tasa : null,
+                'tipo_cambio_id' => $p->tipo_cambio_id,
+                'monto_moneda_original' => $p->monto_moneda_original !== null ? (float) $p->monto_moneda_original : null,
+                'planificado' => $p->estado === 'planificado',
+                'estado_persistido' => $p->estado,
+            ];
+        })->values()->toArray();
 
         $totalDesglose = (float) $pagos->sum('monto_final');
         $this->totalConAjustes = $totalDesglose;
@@ -897,7 +916,47 @@ class NuevoPedidoMostrador extends Component
             $this->formaPagoId = (int) $primerPago->forma_pago_id;
             $this->cargarCuotasFormaPago();
             $this->calcularAjusteFormaPago();
+
+            return;
         }
+
+        // Desglose mixto (varios pagos) o pago único parcial: el path "FP simple"
+        // de arriba no aplica, pero igual hay que reflejar el ajuste FP + recargo
+        // cuotas en `ajusteFormaPagoInfo` para que la vista calcule bien el total
+        // visible (`total_final + ajusteFormaPagoInfo.monto`).
+        $sumaAjuste = (float) $pagos->sum(fn ($p) => (float) $p->monto_ajuste);
+        $sumaRecargo = (float) $pagos->sum(fn ($p) => (float) ($p->recargo_cuotas_monto ?? 0));
+        $ajusteTotal = round($sumaAjuste + $sumaRecargo, 2);
+        $totalBase = (float) ($pedido->total ?? 0);
+
+        // Si hay >1 pago, deducir la FP "Mixta" raíz de la sucursal (espejo
+        // de WithPagosDesglose:1787) y setearla como formaPagoId. Sin esto el
+        // selector queda en "Seleccionar forma de pago" pese a tener el
+        // desglose hidratado.
+        if ($this->cuentaPagosOriginales > 1) {
+            $formaMixta = FormaPago::where('es_mixta', true)->where('activo', true)->first();
+            if ($formaMixta) {
+                $this->formaPagoId = (int) $formaMixta->id;
+            }
+        }
+
+        $this->ajusteFormaPagoInfo = [
+            'nombre' => $this->cuentaPagosOriginales > 1
+                ? __('Mixto')
+                : ($pagos->first()->formaPago?->nombre ?? ''),
+            'porcentaje' => 0,
+            'monto' => $ajusteTotal,
+            'total_con_ajuste' => round($totalBase + $ajusteTotal, 2),
+            'es_mixta' => $this->cuentaPagosOriginales > 1,
+            'cuotas' => 1,
+            'recargo_cuotas_porcentaje' => 0,
+            'recargo_cuotas_monto' => round($sumaRecargo, 2),
+            'valor_cuota' => 0,
+        ];
+
+        // Propagar el ajuste al desglose IVA para que el footer del form
+        // refleje el mismo total que ve la lista (incluye recargo/descuento FP).
+        $this->actualizarDesgloseIvaConAjusteFormaPago($sumaAjuste, $sumaRecargo);
     }
 
     protected function detalleAItemCarrito(PedidoMostradorDetalle $detalle): array
@@ -1055,6 +1114,35 @@ class NuevoPedidoMostrador extends Component
         $this->desglosePagos = [];
         $this->montoPendienteDesglose = $this->resultado['total_final'] ?? 0;
         $this->totalConAjustes = $this->montoPendienteDesglose;
+        $this->resetNuevoPago();
+        $this->mostrarModalPago = true;
+    }
+
+    /**
+     * Abre el modal de desglose con los pagos ya cargados (espejo de
+     * NuevaVenta::editarDesglose). Se invoca desde el botón "Editar desglose"
+     * en `_resumen-totales.blade.php`. Si no hay desglose, abre como nuevo.
+     */
+    public function editarDesglose(): void
+    {
+        if (empty($this->items) || ! $this->resultado) {
+            $this->dispatch('toast-error', message: __('El carrito está vacío'));
+
+            return;
+        }
+
+        if (empty($this->desglosePagos)) {
+            $this->abrirModalDesglose();
+
+            return;
+        }
+
+        $this->cargarFormasPagoSucursal();
+
+        $totalDesglosado = collect($this->desglosePagos)->sum('monto_base');
+        $this->montoPendienteDesglose = max(0, ($this->resultado['total_final'] ?? 0) - $totalDesglosado);
+        $this->totalConAjustes = collect($this->desglosePagos)->sum('monto_final');
+
         $this->resetNuevoPago();
         $this->mostrarModalPago = true;
     }
