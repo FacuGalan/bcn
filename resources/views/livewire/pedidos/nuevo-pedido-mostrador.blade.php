@@ -1,6 +1,22 @@
 {{-- Modal Full-Screen con margen mínimo: Alta/Edición de Pedido por Mostrador --}}
 <div class="fixed inset-0 z-40 bg-black/40 flex items-stretch justify-center p-2 sm:p-3"
-    x-data
+    x-data="{
+        _stackId: null,
+        init() {
+            window._bcnModalStack = window._bcnModalStack || [];
+            this._stackId = Symbol();
+            window._bcnModalStack.push(this._stackId);
+            document.body.classList.add('overflow-hidden');
+        },
+        destroy() {
+            if (this._stackId && window._bcnModalStack) {
+                window._bcnModalStack = window._bcnModalStack.filter(id => id !== this._stackId);
+            }
+            if (!(window._bcnModalStack || []).length) {
+                document.body.classList.remove('overflow-hidden');
+            }
+        }
+    }"
     @keydown.escape.window="$wire.cerrar()"
 >
     <div class="w-full bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-lg shadow-2xl">
@@ -40,9 +56,12 @@
                         this.categoriaSel = this.catalogo[0].id;
                     }
                 },
+                categoriaActual() {
+                    if (!this.categoriaSel) return null;
+                    return this.catalogo.find(c => c.id === this.categoriaSel) || null;
+                },
                 articulosCategoria() {
-                    if (!this.categoriaSel) return [];
-                    const cat = this.catalogo.find(c => c.id === this.categoriaSel);
+                    const cat = this.categoriaActual();
                     return cat ? cat.articulos : [];
                 },
                 seleccionar(id) {
@@ -55,16 +74,8 @@
             {{-- Búsqueda / scan (siempre visible) --}}
             @include('livewire.carrito._busqueda-articulos')
 
-            {{-- Toggle Detalle / Panel táctil --}}
+            {{-- Toggle Panel táctil / Detalle (panel táctil primero) --}}
             <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-1 flex gap-1">
-                <button type="button" @click="tactil = false"
-                    :class="!tactil ? 'bg-bcn-primary text-white shadow' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
-                    class="flex-1 inline-flex justify-center items-center px-3 py-1.5 rounded text-xs font-medium transition-colors">
-                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
-                    </svg>
-                    {{ __('Detalle') }}
-                </button>
                 <button type="button" @click="tactil = true"
                     :class="tactil ? 'bg-bcn-primary text-white shadow' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
                     class="flex-1 inline-flex justify-center items-center px-3 py-1.5 rounded text-xs font-medium transition-colors">
@@ -74,6 +85,14 @@
                     {{ __('Panel táctil') }}
                     <kbd class="hidden sm:inline ml-1.5 px-1 py-0 text-[9px] bg-black/20 rounded">Ctrl+B</kbd>
                 </button>
+                <button type="button" @click="tactil = false"
+                    :class="!tactil ? 'bg-bcn-primary text-white shadow' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                    class="flex-1 inline-flex justify-center items-center px-3 py-1.5 rounded text-xs font-medium transition-colors">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                    </svg>
+                    {{ __('Detalle') }}
+                </button>
             </div>
 
             {{-- Vista DETALLE (con promociones aplicadas debajo) --}}
@@ -82,41 +101,255 @@
                 @include('livewire.carrito._promociones-aplicadas')
             </div>
 
-            {{-- Vista PANEL TÁCTIL --}}
-            <div x-show="tactil" x-transition.opacity class="flex-1 flex flex-col min-h-0 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                {{-- Barra de categorías sticky --}}
-                <div class="flex-shrink-0 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 overflow-x-auto">
-                    <div class="flex gap-1 p-1.5 min-w-max">
+            {{-- Vista PANEL TÁCTIL: categorías a la izquierda + grilla artículos a la derecha --}}
+            <div x-show="tactil" x-transition.opacity
+                class="flex-1 flex flex-row min-h-0 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+
+                {{-- Columna lateral: categorías con scroll vertical e indicadores estilo header --}}
+                <div
+                    x-data="{
+                        canScrollUp: false,
+                        canScrollDown: false,
+                        autoScrollFrame: null,
+                        autoScrollDelta: 0,
+                        init() {
+                            this.$nextTick(() => this.updateScrollState());
+                            this.$refs.catScroller.addEventListener('scroll', () => this.updateScrollState(), { passive: true });
+                            new ResizeObserver(() => this.updateScrollState()).observe(this.$refs.catScroller);
+                        },
+                        updateScrollState() {
+                            const el = this.$refs.catScroller;
+                            if (!el) return;
+                            this.canScrollUp = el.scrollTop > 0;
+                            this.canScrollDown = el.scrollTop < (el.scrollHeight - el.clientHeight - 1);
+                        },
+                        handleMouseMove(e) {
+                            const el = this.$refs.catScroller;
+                            const rect = el.getBoundingClientRect();
+                            const y = e.clientY - rect.top;
+                            const edge = 50;
+                            const max = 8;
+                            if (y < edge && this.canScrollUp) {
+                                this.autoScrollDelta = -max * (1 - y / edge);
+                                this.startAutoScroll();
+                            } else if (y > rect.height - edge && this.canScrollDown) {
+                                this.autoScrollDelta = max * (1 - (rect.height - y) / edge);
+                                this.startAutoScroll();
+                            } else {
+                                this.stopAutoScroll();
+                            }
+                        },
+                        startAutoScroll() {
+                            if (this.autoScrollFrame !== null) return;
+                            const tick = () => {
+                                if (this.autoScrollDelta === 0) {
+                                    this.autoScrollFrame = null;
+                                    return;
+                                }
+                                this.$refs.catScroller.scrollTop += this.autoScrollDelta;
+                                this.autoScrollFrame = requestAnimationFrame(tick);
+                            };
+                            this.autoScrollFrame = requestAnimationFrame(tick);
+                        },
+                        stopAutoScroll() {
+                            this.autoScrollDelta = 0;
+                            if (this.autoScrollFrame !== null) {
+                                cancelAnimationFrame(this.autoScrollFrame);
+                                this.autoScrollFrame = null;
+                            }
+                        }
+                    }"
+                    @mousemove="handleMouseMove($event)"
+                    @mouseleave="stopAutoScroll()"
+                    class="relative w-[100px] flex-shrink-0 bg-gray-50 dark:bg-gray-700 border-r border-gray-200 dark:border-gray-600"
+                >
+                    {{-- Indicador superior de scroll --}}
+                    <div
+                        x-show="canScrollUp"
+                        x-cloak
+                        x-transition.opacity
+                        class="absolute top-0 inset-x-0 flex justify-center items-start pt-1 pointer-events-none h-6 bg-gradient-to-b from-gray-50 dark:from-gray-700 to-transparent z-10"
+                    >
+                        <svg class="w-4 h-4 text-gray-500 dark:text-gray-300 drop-shadow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" />
+                        </svg>
+                    </div>
+
+                    {{-- Indicador inferior de scroll --}}
+                    <div
+                        x-show="canScrollDown"
+                        x-cloak
+                        x-transition.opacity
+                        class="absolute bottom-0 inset-x-0 flex justify-center items-end pb-1 pointer-events-none h-6 bg-gradient-to-t from-gray-50 dark:from-gray-700 to-transparent z-10"
+                    >
+                        <svg class="w-4 h-4 text-gray-500 dark:text-gray-300 drop-shadow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+
+                    <div x-ref="catScroller"
+                        class="h-full overflow-y-auto p-1.5 space-y-1.5 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar]:h-1 [scrollbar-width:thin]">
                         <template x-for="cat in catalogo" :key="cat.id">
                             <button type="button"
                                 @click="categoriaSel = cat.id"
-                                :class="categoriaSel === cat.id ? 'ring-2 ring-bcn-primary shadow' : 'opacity-80 hover:opacity-100'"
-                                :style="categoriaSel === cat.id ? `background-color: ${cat.color}; color: white;` : `background-color: ${cat.color}20; color: ${cat.color};`"
-                                class="px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all">
-                                <span x-text="cat.nombre"></span>
-                                <span class="text-[10px] opacity-75" x-text="`(${cat.articulos.length})`"></span>
+                                :class="categoriaSel === cat.id ? 'ring-2 ring-offset-1 ring-bcn-primary shadow-md' : 'opacity-90 hover:opacity-100 hover:shadow'"
+                                :style="categoriaSel === cat.id
+                                    ? `background-color: ${cat.color}; color: white;`
+                                    : `background-color: ${cat.color}1F; color: ${cat.color};`"
+                                class="relative w-full aspect-square rounded-md p-1.5 flex flex-col items-center justify-center gap-1 transition-all">
+                                {{-- Contador de artículos --}}
+                                <span class="absolute top-1 right-1 text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full bg-white/80 dark:bg-gray-900/70"
+                                    :style="`color: ${cat.color};`"
+                                    x-text="cat.articulos.length"></span>
+                                {{-- Ícono Heroicon pre-renderizado (con fallback si no tiene) --}}
+                                <div class="flex items-center justify-center"
+                                    x-html="cat.icono_svg || `<svg class='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M4 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM4 14a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4z'/></svg>`">
+                                </div>
+                                <div class="text-[10px] font-semibold text-center leading-tight line-clamp-2"
+                                    x-text="cat.nombre"></div>
                             </button>
                         </template>
                         <template x-if="catalogo.length === 0">
-                            <div class="px-3 py-1.5 text-xs italic text-gray-500">
+                            <div class="px-1 py-4 text-[10px] italic text-gray-500 text-center">
                                 {{ __('Sin categorías con artículos') }}
                             </div>
                         </template>
                     </div>
                 </div>
 
-                {{-- Grilla de artículos --}}
-                <div class="flex-1 overflow-y-auto p-2">
+                {{-- Grilla de artículos: foto/ícono compacto arriba + info abajo --}}
+                {{-- Wrapper Alpine para indicadores de scroll + auto-scroll por hover (mismo patrón que la columna de categorías). --}}
+                <div
+                    x-data="{
+                        canScrollUp: false,
+                        canScrollDown: false,
+                        autoScrollFrame: null,
+                        autoScrollDelta: 0,
+                        init() {
+                            this.$nextTick(() => this.updateScrollState());
+                            this.$refs.artScroller.addEventListener('scroll', () => this.updateScrollState(), { passive: true });
+                            new ResizeObserver(() => this.updateScrollState()).observe(this.$refs.artScroller);
+                            // Recalcular cuando cambia la categoría seleccionada (otra cantidad de artículos).
+                            this.$watch('categoriaSel', () => this.$nextTick(() => {
+                                this.$refs.artScroller.scrollTop = 0;
+                                this.updateScrollState();
+                            }));
+                        },
+                        updateScrollState() {
+                            const el = this.$refs.artScroller;
+                            if (!el) return;
+                            this.canScrollUp = el.scrollTop > 0;
+                            this.canScrollDown = el.scrollTop < (el.scrollHeight - el.clientHeight - 1);
+                        },
+                        handleMouseMove(e) {
+                            const el = this.$refs.artScroller;
+                            const rect = el.getBoundingClientRect();
+                            const y = e.clientY - rect.top;
+                            const edge = 60;
+                            const max = 10;
+                            if (y < edge && this.canScrollUp) {
+                                this.autoScrollDelta = -max * (1 - y / edge);
+                                this.startAutoScroll();
+                            } else if (y > rect.height - edge && this.canScrollDown) {
+                                this.autoScrollDelta = max * (1 - (rect.height - y) / edge);
+                                this.startAutoScroll();
+                            } else {
+                                this.stopAutoScroll();
+                            }
+                        },
+                        startAutoScroll() {
+                            if (this.autoScrollFrame !== null) return;
+                            const tick = () => {
+                                if (this.autoScrollDelta === 0) {
+                                    this.autoScrollFrame = null;
+                                    return;
+                                }
+                                this.$refs.artScroller.scrollTop += this.autoScrollDelta;
+                                this.autoScrollFrame = requestAnimationFrame(tick);
+                            };
+                            this.autoScrollFrame = requestAnimationFrame(tick);
+                        },
+                        stopAutoScroll() {
+                            this.autoScrollDelta = 0;
+                            if (this.autoScrollFrame !== null) {
+                                cancelAnimationFrame(this.autoScrollFrame);
+                                this.autoScrollFrame = null;
+                            }
+                        }
+                    }"
+                    @mousemove="handleMouseMove($event)"
+                    @mouseleave="stopAutoScroll()"
+                    class="relative flex-1 min-w-0"
+                >
+                    {{-- Indicador superior de scroll --}}
+                    <div
+                        x-show="canScrollUp"
+                        x-cloak
+                        x-transition.opacity
+                        class="absolute top-0 inset-x-0 flex justify-center items-start pt-1 pointer-events-none h-8 bg-gradient-to-b from-white dark:from-gray-900 to-transparent z-10"
+                    >
+                        <svg class="w-5 h-5 text-gray-500 dark:text-gray-300 drop-shadow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" />
+                        </svg>
+                    </div>
+
+                    {{-- Indicador inferior de scroll --}}
+                    <div
+                        x-show="canScrollDown"
+                        x-cloak
+                        x-transition.opacity
+                        class="absolute bottom-0 inset-x-0 flex justify-center items-end pb-1 pointer-events-none h-8 bg-gradient-to-t from-white dark:from-gray-900 to-transparent z-10"
+                    >
+                        <svg class="w-5 h-5 text-gray-500 dark:text-gray-300 drop-shadow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+
+                    <div x-ref="artScroller"
+                        class="h-full overflow-y-auto p-2 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar]:h-1 [scrollbar-width:thin]">
                     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                         <template x-for="art in articulosCategoria()" :key="art.id">
                             <button type="button" @click="seleccionar(art.id)"
-                                class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 rounded-md p-2 text-left hover:border-bcn-primary hover:shadow active:scale-95 transition-all">
-                                <div class="text-xs font-semibold text-gray-900 dark:text-white truncate" x-text="art.nombre"></div>
-                                <div class="text-[10px] text-gray-500 dark:text-gray-400 truncate" x-text="art.codigo"></div>
-                                <div class="mt-1 text-sm font-bold text-bcn-primary" x-text="'$' + Number(art.precio).toLocaleString('es-AR', { minimumFractionDigits: 2 })"></div>
-                                <template x-if="art.es_pesable">
-                                    <div class="text-[9px] text-amber-600 mt-0.5">⚖️ {{ __('Pesable') }}</div>
-                                </template>
+                                class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 rounded-md overflow-hidden text-left hover:border-bcn-primary hover:shadow active:scale-95 transition-all flex flex-col">
+                                {{-- Foto del artículo (cuando exista) o ícono de la categoría como fallback. Aspect 4:3 para que la card no quede muy alta. --}}
+                                <div class="relative aspect-[4/3] w-full flex items-center justify-center"
+                                    :style="`background-color: ${categoriaActual()?.color || '#9CA3AF'}14;`">
+                                    <template x-if="art.imagen_url">
+                                        <img :src="art.imagen_url" :alt="art.nombre"
+                                            class="w-full h-full object-cover" />
+                                    </template>
+                                    <template x-if="!art.imagen_url">
+                                        <div class="opacity-60"
+                                            :style="`color: ${categoriaActual()?.color || '#6B7280'};`"
+                                            x-html="categoriaActual()?.icono_svg || `<svg class='w-8 h-8' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'/></svg>`">
+                                        </div>
+                                    </template>
+                                    {{-- Código como overlay en esquina inferior izquierda. Fondo oscuro semi-transparente para que se lea sobre cualquier imagen. --}}
+                                    <template x-if="art.codigo">
+                                        <span class="absolute bottom-1 left-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold text-white bg-black/60 backdrop-blur-sm leading-none tracking-wide"
+                                            x-text="art.codigo"></span>
+                                    </template>
+                                </div>
+                                {{-- Info compacta abajo --}}
+                                <div class="px-1.5 py-1 flex-shrink-0">
+                                    <div class="text-xs font-semibold text-gray-900 dark:text-white truncate leading-tight" x-text="art.nombre"></div>
+                                    <div class="flex items-center justify-between gap-1 mt-0.5">
+                                        {{-- Badges: pesable y/o tiene opcionales. Reemplazan al código (ahora en overlay). --}}
+                                        <div class="flex items-center gap-1 min-h-[14px]">
+                                            <template x-if="art.es_pesable">
+                                                <span class="inline-flex items-center text-[9px] text-amber-700 dark:text-amber-400 font-semibold leading-none"
+                                                    title="{{ __('Pesable') }}">⚖️</span>
+                                            </template>
+                                            <template x-if="art.tiene_opcionales">
+                                                <span class="inline-flex items-center text-blue-700 dark:text-blue-400 leading-none"
+                                                    title="{{ __('Con opcionales') }}">
+                                                    <x-heroicon-o-adjustments-horizontal class="w-3 h-3" />
+                                                </span>
+                                            </template>
+                                        </div>
+                                        <span class="text-xs font-bold text-bcn-primary whitespace-nowrap" x-text="'$' + Number(art.precio).toLocaleString('es-AR', { minimumFractionDigits: 2 })"></span>
+                                    </div>
+                                </div>
                             </button>
                         </template>
                         <template x-if="articulosCategoria().length === 0">
@@ -125,9 +358,10 @@
                             </div>
                         </template>
                     </div>
-                </div>
-            </div>
-        </div>
+                    </div>{{-- /artScroller --}}
+                </div>{{-- /wrapper Alpine de artículos --}}
+            </div>{{-- /panel táctil flex-row --}}
+        </div>{{-- /columna izquierda del modal --}}
 
         {{-- Columna derecha: contenido scrolleable + footer fijo --}}
         <div class="w-full lg:w-96 lg:flex-shrink-0 flex flex-col min-h-0 gap-2">
