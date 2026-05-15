@@ -329,6 +329,18 @@ class SmokePedidosTest extends TestCase
         $pedido->refresh();
         $this->assertEqualsWithDelta(950.0, (float) $pedido->total_final, 0.01, 'recalcularTotales debe haber dejado total_final=950');
 
+        // Crear FP "Mixta" para que la hidratación pueda restaurar formaPagoId.
+        $fpMixta = \App\Models\FormaPago::create([
+            'nombre' => 'Mixto',
+            'codigo' => 'mixto',
+            'concepto' => 'otro',
+            'concepto_pago_id' => $efectivo['concepto']->id,
+            'es_mixta' => true,
+            'permite_cuotas' => false,
+            'ajuste_porcentaje' => 0,
+            'activo' => true,
+        ]);
+
         $componente = Livewire::test(NuevoPedidoMostrador::class, ['pedidoId' => $pedido->id]);
 
         $info = $componente->get('ajusteFormaPagoInfo');
@@ -336,9 +348,18 @@ class SmokePedidosTest extends TestCase
         $this->assertEqualsWithDelta(-50.0, (float) $info['monto'], 0.01, 'monto del ajuste debe reflejar la suma de los ajustes persistidos');
         $this->assertEqualsWithDelta(950.0, (float) $info['total_con_ajuste'], 0.01, 'total_con_ajuste = total + ajuste FP');
 
-        // desglosePagos debe quedar con los 2 pagos.
         $desglose = $componente->get('desglosePagos');
         $this->assertCount(2, $desglose);
+
+        // formaPagoId debe quedar seteado en la FP Mixta para que el selector la muestre.
+        $this->assertEquals($fpMixta->id, (int) $componente->get('formaPagoId'),
+            'formaPagoId debe restaurarse a la FP Mixta cuando hay desglose multi-pago');
+
+        // editarDesglose() debe existir y abrir el modal con el desglose cargado.
+        $componente->call('editarDesglose')
+            ->assertSet('mostrarModalPago', true);
+        $this->assertCount(2, $componente->get('desglosePagos'),
+            'editarDesglose no debe vaciar desglosePagos');
     }
 
     /**
