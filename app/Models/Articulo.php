@@ -580,8 +580,15 @@ class Articulo extends Model
     }
 
     /**
-     * URL pública de la imagen, o null si no hay. Usar en blade en
-     * lugar de armar Storage::url() a mano.
+     * URL pública de la imagen como path relativo al host actual,
+     * o null si no hay. Usar en blade en lugar de armar Storage::url()
+     * a mano.
+     *
+     * Devolvemos PATH RELATIVO (`/storage/...`) en lugar de URL absoluta
+     * porque `Storage::url()` arma con `APP_URL` y eso suele venir sin el
+     * puerto correcto en dev (`http://localhost` vs `http://localhost:8000`).
+     * El path relativo es portable: usa el host:puerto desde el que se
+     * está sirviendo el HTML.
      */
     public function imagenUrl(): ?string
     {
@@ -589,6 +596,6 @@ class Articulo extends Model
             return null;
         }
 
-        return \Illuminate\Support\Facades\Storage::disk('public')->url($this->imagen_path);
+        return '/storage/'.ltrim($this->imagen_path, '/');
     }
 }

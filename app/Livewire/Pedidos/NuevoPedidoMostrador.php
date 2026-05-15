@@ -347,9 +347,7 @@ class NuevoPedidoMostrador extends Component
                     'precio' => (float) ($a->precio_base ?? 0),
                     'es_pesable' => (bool) $a->pesable,
                     'tiene_opcionales' => (int) ($a->grupos_opcionales_count ?? 0) > 0,
-                    'imagen_url' => $a->imagen_path
-                        ? \Illuminate\Support\Facades\Storage::disk('public')->url($a->imagen_path)
-                        : null,
+                    'imagen_url' => $a->imagenUrl(),
                 ])->values()->toArray(),
             ];
         })->filter()->values()->toArray();
