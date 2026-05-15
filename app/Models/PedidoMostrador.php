@@ -205,6 +205,16 @@ class PedidoMostrador extends Model
         return $this->belongsTo(Cupon::class, 'cupon_id');
     }
 
+    public function usuario(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'usuario_id');
+    }
+
+    public function canceladoPorUsuario(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelado_por_usuario_id');
+    }
+
     public function detalles(): HasMany
     {
         return $this->hasMany(PedidoMostradorDetalle::class, 'pedido_mostrador_id');
