@@ -19,7 +19,10 @@ Lo mergeado en master que se está desplegando:
 
 Cambios introducidos:
 - Nueva dependencia composer: `intervention/image: ^3.11`
-- Nueva columna tenant: `articulos.imagen_path` (varchar nullable)
+- Nuevas columnas tenant en `articulos`:
+  - `imagen_path` (varchar nullable) — ruta del archivo
+  - `imagen_focal_x` (decimal 5,2 default 50) — focal point X% para `object-position`
+  - `imagen_focal_y` (decimal 5,2 default 50) — focal point Y%
 - Nuevo storage path: `storage/app/public/articulos/{comercio_id}/{uuid}.webp`
 
 ---
