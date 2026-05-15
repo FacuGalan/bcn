@@ -296,7 +296,13 @@ class NuevoPedidoMostrador extends Component
      * con sus artículos básicos. Pensado para que Alpine renderice la grilla
      * sin viajes a Livewire al cambiar de categoría (cambio 100% local).
      *
-     * Estructura: [{ id, nombre, color, articulos: [{ id, nombre, precio, codigo, es_pesable }] }]
+     * Estructura por categoría: { id, nombre, color, icono, icono_svg, articulos: [...] }
+     * Estructura por artículo: { id, nombre, codigo, precio, es_pesable, imagen_url }
+     *
+     * `icono_svg` viene pre-renderizado como HTML (Alpine no puede resolver
+     * componentes Blade en runtime). Se renderiza con `x-html` en la vista.
+     * `imagen_url` queda null mientras el upload de imágenes no esté
+     * implementado: el fallback visual es el ícono SVG de la categoría.
      */
     protected function cargarCatalogoTactil(): void
     {
@@ -308,13 +314,15 @@ class NuevoPedidoMostrador extends Component
 
         $categorias = \App\Models\Categoria::where('activo', true)
             ->orderBy('nombre')
-            ->get(['id', 'nombre', 'color']);
+            ->get(['id', 'nombre', 'color', 'icono']);
 
         // Precio base del artículo como referencia visual. Al hacer click,
         // seleccionarArticulo aplica precios según la lista del pedido.
+        // withCount marca tiene_opcionales sin hidratar las relaciones.
         $articulos = \App\Models\Articulo::query()
             ->where('activo', true)
             ->whereNotNull('categoria_id')
+            ->withCount('gruposOpcionales')
             ->orderBy('nombre')
             ->get(['id', 'nombre', 'codigo', 'categoria_id', 'precio_base', 'pesable']);
 
@@ -330,15 +338,45 @@ class NuevoPedidoMostrador extends Component
                 'id' => (int) $cat->id,
                 'nombre' => $cat->nombre,
                 'color' => $cat->color ?: '#6B7280',
+                'icono' => $cat->icono,
+                'icono_svg' => $this->renderIconoSvg($cat->icono),
                 'articulos' => $arts->map(fn ($a) => [
                     'id' => (int) $a->id,
                     'nombre' => $a->nombre,
                     'codigo' => $a->codigo,
                     'precio' => (float) ($a->precio_base ?? 0),
                     'es_pesable' => (bool) $a->pesable,
+                    'tiene_opcionales' => (int) ($a->grupos_opcionales_count ?? 0) > 0,
+                    'imagen_url' => null, // se carga en PR siguiente (imagen artículo)
                 ])->values()->toArray(),
             ];
         })->filter()->values()->toArray();
+    }
+
+    /**
+     * Pre-renderiza el componente Blade del ícono a string HTML para que
+     * Alpine lo inyecte vía `x-html` (no puede resolver componentes Blade en
+     * runtime). Soporta cualquier ícono que use `<x-dynamic-component>`:
+     * heroicons (`heroicon-o-...`), componentes custom del proyecto
+     * (`food.hamburguesa`, `icon.tag`, etc.). Devuelve null si el ícono no
+     * está seteado o el componente no existe.
+     *
+     * Se ejecuta una sola vez al cargar el catálogo en mount(), no por
+     * render, así que el costo de compilar Blade es aceptable.
+     */
+    protected function renderIconoSvg(?string $icono): ?string
+    {
+        if (! $icono) {
+            return null;
+        }
+        try {
+            return trim(\Illuminate\Support\Facades\Blade::render(
+                '<x-dynamic-component :component="$icono" class="w-6 h-6" />',
+                ['icono' => $icono],
+            ));
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     public function togglePanelTactil(): void
