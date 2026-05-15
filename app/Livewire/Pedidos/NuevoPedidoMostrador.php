@@ -1265,10 +1265,13 @@ class NuevoPedidoMostrador extends Component
         $totalBase = (float) ($r['total_final'] ?? $r['total'] ?? 0);
 
         // Calcular el total_final del pedido. El criterio:
-        //  - Desglose mixto COMPLETO (suma de monto_base de los pagos cubre
-        //    el total real del pedido, no la propia suma totalConAjustes):
-        //    usar totalConAjustes (refleja recargos/descuentos por FP).
-        //  - FP simple con ajuste o recargo cuotas: ajusteFormaPagoInfo[total_con_ajuste].
+        //  - Desglose COMPLETO (suma de monto_base de los pagos cubre el total
+        //    real del pedido): usar totalConAjustes (refleja recargos/descuentos
+        //    por FP). Aplica tanto a una sola FP como a desgloses mixtos —
+        //    antes se exigía es_mixta, pero eso dejaba a las FP simples con
+        //    ajuste (ej: efectivo 10% off) sin persistir el ajuste en
+        //    total_final, generando estado_pago = parcial errado.
+        //  - FP simple con ajuste sin modal abierto: ajusteFormaPagoInfo[total_con_ajuste].
         //  - Sino (sin desglose, o desglose parcial): totalBase. No truncamos
         //    el monto del pedido al monto cargado en un desglose incompleto.
         //
@@ -1278,7 +1281,7 @@ class NuevoPedidoMostrador extends Component
         $hayDesglose = ! empty($this->desglosePagos);
         $desgloseEstaCompleto = $hayDesglose && $this->desgloseCompleto();
 
-        if ($desgloseEstaCompleto && $esMixto) {
+        if ($desgloseEstaCompleto) {
             $totalFinal = (float) $this->totalConAjustes;
         } elseif (! $hayDesglose && ! $esMixto
             && isset($this->ajusteFormaPagoInfo['total_con_ajuste'])

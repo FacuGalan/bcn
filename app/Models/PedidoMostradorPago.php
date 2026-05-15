@@ -44,6 +44,19 @@ class PedidoMostradorPago extends Model
 
     public const ESTADO_ANULADO = 'anulado';
 
+    /**
+     * Valores del ENUM operacion_origen (paridad con venta_pagos).
+     * Aunque "venta_original" suene raro en pedido, mantenemos los mismos
+     * literales para que el mapeo a VentaPago al convertir sea trivial.
+     */
+    public const OPERACION_VENTA_ORIGINAL = 'venta_original';
+
+    public const OPERACION_CAMBIO_PAGO = 'cambio_pago';
+
+    public const OPERACION_PAGO_AGREGADO = 'pago_agregado';
+
+    public const OPERACION_ANULACION_SIN_REEMPLAZO = 'anulacion_sin_reemplazo';
+
     protected $fillable = [
         'pedido_mostrador_id',
         'forma_pago_id',
@@ -52,6 +65,8 @@ class PedidoMostradorPago extends Model
         'ajuste_porcentaje',
         'monto_ajuste',
         'monto_final',
+        'saldo_pendiente',
+        'operacion_origen',
         'monto_recibido',
         'vuelto',
         'cuotas',
@@ -83,6 +98,7 @@ class PedidoMostradorPago extends Model
         'ajuste_porcentaje' => 'decimal:2',
         'monto_ajuste' => 'decimal:2',
         'monto_final' => 'decimal:2',
+        'saldo_pendiente' => 'decimal:2',
         'monto_recibido' => 'decimal:2',
         'vuelto' => 'decimal:2',
         'cuotas' => 'integer',
