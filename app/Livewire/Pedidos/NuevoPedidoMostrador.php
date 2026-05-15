@@ -1322,15 +1322,35 @@ class NuevoPedidoMostrador extends Component
             'cupon_descripcion_snapshot' => $this->cuponAplicado['descripcion'] ?? null,
             'monto_cupon' => (float) ($this->cuponMontoDescuento ?? 0),
             'puntos_ganados' => 0,
-            'puntos_usados' => (int) ($this->canjePuntosActivo ? $this->canjePuntosUnidades : 0),
+            // Paridad puntos con Venta:
+            //   puntos_usados = total de puntos canjeados (monto + artículos),
+            //   puntos_canjeados_pago = solo el canje como medio de pago,
+            //   puntos_canjeados_articulos = solo los artículos pagados con puntos,
+            //   puntos_usados_monto = equivalente en pesos del canje monto,
+            //   articulos_canjeados_monto = equivalente en pesos del canje artículo.
+            'puntos_usados' => (int) (($this->canjePuntosActivo ? $this->canjePuntosUnidades : 0) + $this->calcularPuntosUsadosEnArticulos()),
+            'puntos_canjeados_pago' => (int) ($this->canjePuntosActivo ? $this->canjePuntosUnidades : 0),
+            'puntos_canjeados_articulos' => (int) $this->calcularPuntosUsadosEnArticulos(),
+            'puntos_usados_monto' => (float) ($r['puntos_usados_monto'] ?? 0),
+            'articulos_canjeados_monto' => (float) ($r['articulos_canjeados_monto'] ?? 0),
+            // Promociones aplicadas a nivel pedido (espejo de Venta).
+            // PedidoMostradorService::guardarPromocionesPedido las inserta en
+            // pedido_mostrador_promociones.
+            '_promociones_comunes' => $r['promociones_comunes_aplicadas'] ?? [],
+            '_promociones_especiales' => $r['promociones_especiales_aplicadas'] ?? [],
             'observaciones' => trim($this->observaciones ?? '') ?: null,
         ];
     }
 
     protected function construirDetallesPedido(): array
     {
+        // Trazabilidad de cupón por ítem: WithCupones calcula la distribución.
+        $descuentoCuponPorItem = method_exists($this, 'calcularDescuentoCuponPorItem')
+            ? $this->calcularDescuentoCuponPorItem()
+            : [];
+
         $detalles = [];
-        foreach ($this->items as $item) {
+        foreach ($this->items as $index => $item) {
             $cantidad = (float) ($item['cantidad'] ?? 0);
             if ($cantidad <= 0) {
                 continue;
@@ -1343,13 +1363,31 @@ class NuevoPedidoMostrador extends Component
                 ? round($precioUnitario / (1 + $ivaPorc / 100), 2)
                 : $precioUnitario;
 
+            // Atribución de promociones por línea desde $this->resultado['items'][$index]
+            // (espejo de WithPagosDesglose::confirmarPago).
+            $itemResultado = $this->resultado['items'][$index] ?? [];
+            $promocionesComunes = $itemResultado['promociones_comunes'] ?? [];
+            $promocionesEspeciales = $itemResultado['promociones_especiales'] ?? [];
+            $esConcepto = (bool) ($item['es_concepto'] ?? false);
+
+            $descuentoPromocion = $esConcepto ? 0 : (float) ($itemResultado['descuento_comun'] ?? 0);
+            $descuentoPromocionEspecial = 0.0;
+            if (! $esConcepto) {
+                foreach ($promocionesEspeciales as $promoEsp) {
+                    $descuentoPromocionEspecial += (float) ($promoEsp['descuento'] ?? 0);
+                }
+            }
+            $tienePromocion = ! $esConcepto && (! empty($promocionesComunes) || ! empty($promocionesEspeciales));
+
+            $descuentoCupon = (float) ($descuentoCuponPorItem[$index] ?? ($item['descuento_cupon'] ?? 0));
+
             $detalles[] = [
                 'articulo_id' => $item['articulo_id'] ?? null,
-                'es_concepto' => (bool) ($item['es_concepto'] ?? false),
+                'es_concepto' => $esConcepto,
                 'concepto_descripcion' => $item['concepto_descripcion'] ?? null,
                 'concepto_categoria_id' => $item['concepto_categoria_id'] ?? $item['categoria_id'] ?? null,
                 'tipo_iva_id' => null,
-                'lista_precio_id' => $this->listaPrecioId,
+                'lista_precio_id' => $esConcepto ? null : $this->listaPrecioId,
                 'cantidad' => $cantidad,
                 'precio_unitario' => $precioUnitario,
                 'precio_sin_iva' => $precioSinIva,
@@ -1368,11 +1406,11 @@ class NuevoPedidoMostrador extends Component
                 'iva_monto' => (float) ($item['iva_monto'] ?? 0),
                 'descuento_porcentaje' => 0,
                 'descuento_monto' => 0,
-                'descuento_promocion' => 0,
-                'descuento_promocion_especial' => 0,
-                'descuento_cupon' => (float) ($item['descuento_cupon'] ?? 0),
+                'descuento_promocion' => round($descuentoPromocion, 2),
+                'descuento_promocion_especial' => round($descuentoPromocionEspecial, 2),
+                'descuento_cupon' => round($descuentoCupon, 2),
                 'descuento_lista' => 0,
-                'tiene_promocion' => (bool) ($item['tiene_promocion'] ?? false),
+                'tiene_promocion' => $tienePromocion,
                 'total' => (float) $item['precio'] * $cantidad,
                 'opcionales' => $item['opcionales'] ?? [],
             ];
