@@ -324,7 +324,8 @@ class NuevoPedidoMostrador extends Component
             ->whereNotNull('categoria_id')
             ->withCount('gruposOpcionales')
             ->orderBy('nombre')
-            ->get(['id', 'nombre', 'codigo', 'categoria_id', 'precio_base', 'pesable', 'imagen_path']);
+            ->get(['id', 'nombre', 'codigo', 'categoria_id', 'precio_base', 'pesable',
+                'imagen_path', 'imagen_focal_x', 'imagen_focal_y']);
 
         $articulosPorCategoria = $articulos->groupBy('categoria_id');
 
@@ -348,6 +349,7 @@ class NuevoPedidoMostrador extends Component
                     'es_pesable' => (bool) $a->pesable,
                     'tiene_opcionales' => (int) ($a->grupos_opcionales_count ?? 0) > 0,
                     'imagen_url' => $a->imagenUrl(),
+                    'imagen_focal' => $a->imagenFocalPosition(),
                 ])->values()->toArray(),
             ];
         })->filter()->values()->toArray();

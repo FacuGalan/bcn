@@ -316,6 +316,7 @@
                                     :style="`background-color: ${categoriaActual()?.color || '#9CA3AF'}14;`">
                                     <template x-if="art.imagen_url">
                                         <img :src="art.imagen_url" :alt="art.nombre"
+                                            :style="`object-position: ${art.imagen_focal || '50% 50%'};`"
                                             class="w-full h-full object-cover" />
                                     </template>
                                     <template x-if="!art.imagen_url">

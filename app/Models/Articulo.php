@@ -71,6 +71,8 @@ class Articulo extends Model
         'es_materia_prima',
         'pesable',
         'imagen_path',
+        'imagen_focal_x',
+        'imagen_focal_y',
         'activo',
         'tipo_iva_id',
         'precio_iva_incluido',
@@ -81,6 +83,8 @@ class Articulo extends Model
         'puntos_canje' => 'integer',
         'es_materia_prima' => 'boolean',
         'pesable' => 'boolean',
+        'imagen_focal_x' => 'decimal:2',
+        'imagen_focal_y' => 'decimal:2',
         'activo' => 'boolean',
         'precio_iva_incluido' => 'boolean',
     ];
@@ -597,5 +601,17 @@ class Articulo extends Model
         }
 
         return '/storage/'.ltrim($this->imagen_path, '/');
+    }
+
+    /**
+     * Valor listo para CSS `object-position` (e.g. "30.50% 70.00%").
+     * Default centro si no hay focal point seteado.
+     */
+    public function imagenFocalPosition(): string
+    {
+        $x = (float) ($this->imagen_focal_x ?? 50);
+        $y = (float) ($this->imagen_focal_y ?? 50);
+
+        return number_format($x, 2, '.', '').'% '.number_format($y, 2, '.', '').'%';
     }
 }

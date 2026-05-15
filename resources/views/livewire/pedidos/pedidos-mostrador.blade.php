@@ -676,6 +676,7 @@
                                                 @if(!$detalle->es_concepto && $detalle->articulo?->hasImagen())
                                                     <img src="{{ $detalle->articulo->imagenUrl() }}"
                                                         alt="{{ $detalle->articulo->nombre }}"
+                                                        style="object-position: {{ $detalle->articulo->imagenFocalPosition() }};"
                                                         class="inline-block w-8 h-8 rounded object-cover align-middle mr-2 border border-gray-200 dark:border-gray-700" />
                                                 @endif
                                                 {{ $detalle->es_concepto ? ($detalle->concepto_descripcion ?? '—') : ($detalle->articulo?->nombre ?? '—') }}

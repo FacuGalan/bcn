@@ -29,6 +29,8 @@ CREATE TABLE `{{PREFIX}}articulos` (
   `es_materia_prima` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Informativo: indica si es materia prima (para filtrado)',
   `pesable` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si el artículo se vende por peso',
   `imagen_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Ruta relativa de la imagen en disk public (PR2.E)',
+  `imagen_focal_x` decimal(5,2) NOT NULL DEFAULT '50.00' COMMENT 'Punto focal X (%) para object-position',
+  `imagen_focal_y` decimal(5,2) NOT NULL DEFAULT '50.00' COMMENT 'Punto focal Y (%) para object-position',
   `codigo_barra` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Código de barras',
   `tipo_iva_id` bigint(20) unsigned DEFAULT NULL COMMENT 'FK a tipos_iva',
   `precio_iva_incluido` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Si los precios incluyen IVA',

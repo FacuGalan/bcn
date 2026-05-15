@@ -160,6 +160,12 @@ class GestionarArticulos extends Component
     /** Bandera para indicar que el usuario pidió quitar la imagen al guardar. */
     public bool $quitarImagen = false;
 
+    /** Focal point X (% 0-100) — qué parte de la imagen mantener visible con object-cover. */
+    public float $imagenFocalX = 50.0;
+
+    /** Focal point Y (% 0-100). */
+    public float $imagenFocalY = 50.0;
+
     public ?int $tipo_iva_id = null;
 
     public bool $precio_iva_incluido = true;
@@ -640,6 +646,8 @@ class GestionarArticulos extends Component
         $this->precio_base = $articulo->precio_base;
         $this->activo = $articulo->activo ?? true;
         $this->imagenPathActual = $articulo->imagen_path;
+        $this->imagenFocalX = (float) ($articulo->imagen_focal_x ?? 50);
+        $this->imagenFocalY = (float) ($articulo->imagen_focal_y ?? 50);
         $this->imagenUpload = null;
         $this->quitarImagen = false;
 
@@ -747,9 +755,16 @@ class GestionarArticulos extends Component
         try {
             $imagenService = app(\App\Services\ImagenArticuloService::class);
             if ($this->imagenUpload) {
+                // El service resetea focal a 50/50 (imagen nueva = focal nuevo).
                 $imagenService->actualizar($articulo, $this->imagenUpload);
             } elseif ($this->quitarImagen && $articulo->imagen_path) {
                 $imagenService->eliminar($articulo);
+            } elseif ($articulo->imagen_path) {
+                // Mismo archivo, posible cambio de focal point.
+                $articulo->update([
+                    'imagen_focal_x' => max(0, min(100, $this->imagenFocalX)),
+                    'imagen_focal_y' => max(0, min(100, $this->imagenFocalY)),
+                ]);
             }
         } catch (\Exception $e) {
             $this->dispatch('notify', message: $e->getMessage(), type: 'error');
@@ -859,6 +874,17 @@ class GestionarArticulos extends Component
     }
 
     /**
+     * Setea el focal point de la imagen. Llamado desde el JS de la vista
+     * (Alpine) cuando el usuario hace click en el preview. Coords en
+     * porcentaje 0..100 — la vista calcula relativo al tamaño renderizado.
+     */
+    public function setImagenFocal(float $x, float $y): void
+    {
+        $this->imagenFocalX = max(0, min(100, $x));
+        $this->imagenFocalY = max(0, min(100, $y));
+    }
+
+    /**
      * Cancela la subida temporal de imagen (vuelve a mostrar la actual).
      */
     public function cancelarImagenUpload(): void
@@ -876,6 +902,7 @@ class GestionarArticulos extends Component
             'modo_stock', 'precio_sucursal', 'vendible',
             'showAltaRapidaCategoria', 'nuevaCategoriaNombre', 'nuevaCategoriaPrefijo',
             'imagenUpload', 'imagenPathActual', 'quitarImagen',
+            'imagenFocalX', 'imagenFocalY',
         ]);
     }
 

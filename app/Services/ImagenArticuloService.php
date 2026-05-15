@@ -92,7 +92,14 @@ class ImagenArticuloService
 
         Storage::disk('public')->put($path, (string) $encoded);
 
-        $articulo->update(['imagen_path' => $path]);
+        // Imagen nueva = focal point al centro. El usuario lo ajusta después
+        // si quiere otro punto. Si no resetearamos, una imagen distinta podría
+        // heredar el focal de la anterior (que ya no aplica).
+        $articulo->update([
+            'imagen_path' => $path,
+            'imagen_focal_x' => 50,
+            'imagen_focal_y' => 50,
+        ]);
 
         return $path;
     }
