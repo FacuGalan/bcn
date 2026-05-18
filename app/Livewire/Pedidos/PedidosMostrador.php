@@ -5,6 +5,7 @@ namespace App\Livewire\Pedidos;
 use App\Models\PedidoMostrador;
 use App\Models\PedidoMostradorPago;
 use App\Services\Pedidos\PedidoMostradorService;
+use App\Traits\CajaAware;
 use App\Traits\SucursalAware;
 use Exception;
 use Illuminate\Support\Facades\Log;
@@ -25,7 +26,13 @@ use Livewire\WithPagination;
 #[Lazy]
 class PedidosMostrador extends Component
 {
-    use SucursalAware, WithPagination;
+    use CajaAware, SucursalAware, WithPagination {
+        // Ambos traits definen getListeners() — el de CajaAware ya incluye los
+        // listeners de sucursal-changed/sucursal-cambiada (porque caja implica
+        // sucursal), asi que tomamos ese y descartamos el de SucursalAware. El
+        // override de la clase ($this->getListeners()) sigue ganando igual.
+        CajaAware::getListeners insteadof SucursalAware;
+    }
 
     // ==================== FILTROS ====================
 
@@ -151,9 +158,15 @@ class PedidosMostrador extends Component
             return;
         }
 
-        $this->idsVistos = PedidoMostrador::where('sucursal_id', $sucursalId)
-            ->where('estado_pedido', '!=', PedidoMostrador::ESTADO_BORRADOR)
-            ->pluck('id')
+        $query = PedidoMostrador::where('sucursal_id', $sucursalId)
+            ->where('estado_pedido', '!=', PedidoMostrador::ESTADO_BORRADOR);
+
+        $cajaId = $this->cajaActual();
+        if ($cajaId !== null) {
+            $query->where('caja_id', $cajaId);
+        }
+
+        $this->idsVistos = $query->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->toArray();
     }
@@ -168,13 +181,19 @@ class PedidosMostrador extends Component
     public function getListeners(): array
     {
         $comercioId = app(\App\Services\TenantService::class)->getComercioId();
-        if ($comercioId === null) {
-            return [];
+        $listeners = [];
+        if ($comercioId !== null) {
+            $listeners["echo-private:comercios.{$comercioId}.pedidos-mostrador,.PedidoMostradorBroadcast"] = 'onPedidoBroadcast';
         }
 
-        return [
-            "echo-private:comercios.{$comercioId}.pedidos-mostrador,.PedidoMostradorBroadcast" => 'onPedidoBroadcast',
-        ];
+        // Listeners de los traits CajaAware/SucursalAware se agregan manualmente
+        // porque este metodo sobreescribe al de los traits. handleCajaChanged y
+        // handleSucursalChangedFromCaja viven en CajaAware.
+        return array_merge($listeners, [
+            'caja-changed' => 'handleCajaChanged',
+            'sucursal-changed' => 'handleSucursalChangedFromCaja',
+            'sucursal-cambiada' => 'handleSucursalChangedFromCaja',
+        ]);
     }
 
     /**
@@ -197,11 +216,28 @@ class PedidosMostrador extends Component
             return;
         }
 
+        // Si el componente esta filtrando por caja, descartar broadcasts de
+        // pedidos de otras cajas en la misma sucursal.
+        $cajaId = $this->cajaActual();
+        if ($cajaId !== null) {
+            $cajaEvt = PedidoMostrador::where('id', $pedidoId)->value('caja_id');
+            if ($cajaEvt !== null && (int) $cajaEvt !== $cajaId) {
+                return;
+            }
+        }
+
         if ($tipo === \App\Events\Broadcasting\PedidoMostradorBroadcast::TIPO_CREADO
             && ! in_array($pedidoId, $this->idsVistos, true)) {
             $this->idsVistos[] = $pedidoId;
             $this->nuevosCount++;
         }
+
+        // Notifica al frontend para resaltar visualmente la fila/card del pedido
+        // hasta que el usuario interactue con ella (Alpine local, sin tocar
+        // estado server-side). Aplica a TODOS los tipos: creado, estado_cambiado,
+        // pago_cambiado, etc. — cualquier cambio en vivo merece destacarse.
+        $this->dispatch('pedido-destacado', pedidoId: $pedidoId);
+
         // Otros tipos: el render automatico de Livewire trae la data fresca.
     }
 
@@ -220,6 +256,28 @@ class PedidosMostrador extends Component
      * Limpia estado modal-side al cambiar sucursal (además del default del trait).
      */
     protected function onSucursalChanged($sucursalId, $sucursalNombre): void
+    {
+        $this->resetEstadoComponente();
+        $this->snapshotIdsVistos();
+        $this->nuevosCount = 0;
+    }
+
+    /**
+     * Limpia estado modal-side al cambiar caja (igual que sucursal). Refresca
+     * el snapshot porque cambia el universo de pedidos visibles.
+     */
+    protected function onCajaChanged($cajaId, $cajaNombre): void
+    {
+        $this->resetEstadoComponente();
+        $this->snapshotIdsVistos();
+        $this->nuevosCount = 0;
+    }
+
+    /**
+     * Helper compartido entre cambio de sucursal y cambio de caja: cierra
+     * todos los modales abiertos y resetea estado intermedio.
+     */
+    protected function resetEstadoComponente(): void
     {
         $this->showDetalleModal = false;
         $this->showCambiarEstadoModal = false;
@@ -354,6 +412,13 @@ class PedidosMostrador extends Component
         ])
             ->where('sucursal_id', $this->sucursalActual());
 
+        // Si hay caja activa, filtrar tambien por caja. Sin caja seleccionada
+        // se muestran todos los pedidos de la sucursal (estado operativo).
+        $cajaId = $this->cajaActual();
+        if ($cajaId !== null) {
+            $query->where('caja_id', $cajaId);
+        }
+
         // Estado del pedido. Los BORRADORES nunca aparecen en la tabla
         // principal — viven en su propio desplegable arriba (obtenerBorradores).
         if ($this->filterEstadoPedido === 'activos') {
@@ -406,12 +471,16 @@ class PedidosMostrador extends Component
      */
     protected function obtenerBorradores()
     {
-        return PedidoMostrador::with(['cliente:id,nombre,telefono'])
+        $query = PedidoMostrador::with(['cliente:id,nombre,telefono'])
             ->where('sucursal_id', $this->sucursalActual())
-            ->where('estado_pedido', PedidoMostrador::ESTADO_BORRADOR)
-            ->orderByDesc('updated_at')
-            ->limit(50)
-            ->get();
+            ->where('estado_pedido', PedidoMostrador::ESTADO_BORRADOR);
+
+        $cajaId = $this->cajaActual();
+        if ($cajaId !== null) {
+            $query->where('caja_id', $cajaId);
+        }
+
+        return $query->orderByDesc('updated_at')->limit(50)->get();
     }
 
     public function toggleBorradores(): void
@@ -461,6 +530,11 @@ class PedidosMostrador extends Component
             ->where('sucursal_id', $sucursalId)
             ->whereIn('estado_pedido', self::ESTADOS_KANBAN);
 
+        $cajaId = $this->cajaActual();
+        if ($cajaId !== null) {
+            $query->where('caja_id', $cajaId);
+        }
+
         if ($this->filterEstadoPago !== 'all') {
             $query->where('estado_pago', $this->filterEstadoPago);
         }
@@ -484,7 +558,10 @@ class PedidosMostrador extends Component
             });
         }
 
-        $pedidos = $query->orderByDesc('fecha')->orderByDesc('id')->limit(200)->get();
+        // Orden Kanban: prioridad al `orden_kanban` (que el usuario manipula con
+        // drag dentro de la misma columna). Tiebreak por id DESC para casos en
+        // que dos pedidos compartan orden_kanban (no deberia, pero por las dudas).
+        $pedidos = $query->orderByDesc('orden_kanban')->orderByDesc('id')->limit(200)->get();
 
         // Inicializar cada columna con una Collection FRESCA. array_fill_keys con
         // collect() comparte la misma referencia entre todas las keys (bug subtle).
@@ -547,6 +624,33 @@ class PedidosMostrador extends Component
             ]);
             $this->dispatch('toast-error', message: $e->getMessage());
             $this->dispatch('kanban-revertir');
+        }
+    }
+
+    /**
+     * Persiste el orden manual de una columna Kanban (drag dentro del mismo
+     * estado). Lo invoca SortableJS via $wire desde kanban.js. NO dispatchea
+     * broadcast: el reordenamiento es preferencia local del operador, otras
+     * terminales mantienen su propio orden hasta el proximo refresh.
+     *
+     * @param  array<int>  $idsOrdenados  IDs de la columna en orden visible (top → bottom).
+     */
+    public function reordenarColumna(string $estado, array $idsOrdenados): void
+    {
+        try {
+            $this->service->reordenarColumna(
+                sucursalId: (int) $this->sucursalActual(),
+                cajaId: $this->cajaActual(),
+                estado: $estado,
+                idsOrdenados: $idsOrdenados,
+            );
+        } catch (Exception $e) {
+            Log::error('Error al reordenar columna Kanban', [
+                'estado' => $estado,
+                'ids' => $idsOrdenados,
+                'error' => $e->getMessage(),
+            ]);
+            $this->dispatch('toast-error', message: __('No se pudo guardar el nuevo orden'));
         }
     }
 

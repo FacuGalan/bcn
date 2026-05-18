@@ -257,6 +257,12 @@ class PedidoMostradorService
                 $update['observaciones'] = trim(($pedido->observaciones ?? '')."\n[{$nuevoEstado}] {$observacion}");
             }
 
+            // Cambio de columna en Kanban: resetear orden a su valor natural
+            // (id). Asi cuando el pedido entra a la nueva columna se posiciona
+            // segun el orden por defecto (id DESC) y el usuario no tiene que
+            // arrastrar con precision para encontrar el lugar correcto.
+            $update['orden_kanban'] = $pedido->id;
+
             $pedido->update($update);
 
             event(new PedidoEstadoCambiado(
@@ -1538,12 +1544,16 @@ class PedidoMostradorService
             if ($comercioId === null) {
                 return;
             }
-            PedidoMostradorBroadcast::dispatch(
+            // toOthers() excluye al socket que originó la accion (gracias al
+            // header X-Socket-ID que Echo manda en cada request). Asi la PC del
+            // operador que cambia el pedido no recibe su propio broadcast y no
+            // se resalta a si misma. Las demas terminales si lo reciben.
+            broadcast(new PedidoMostradorBroadcast(
                 $comercioId,
                 (int) $pedido->sucursal_id,
                 (int) $pedido->id,
                 $tipo,
-            );
+            ))->toOthers();
         } catch (\Throwable $e) {
             Log::warning('No se pudo broadcastear PedidoMostradorBroadcast', [
                 'pedido_id' => $pedido->id,
@@ -1551,5 +1561,75 @@ class PedidoMostradorService
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Persiste un nuevo orden de los pedidos dentro de una columna del Kanban
+     * (drag dentro del mismo estado). Asigna `orden_kanban` decreciente desde
+     * MAX(orden_kanban del estado)+N, garantizando que el nuevo orden gane
+     * sobre el viejo y que pedidos nuevos sigan apareciendo arriba al
+     * inicializarse con `orden_kanban = id`.
+     *
+     * Solo afecta a IDs que existen en la sucursal/caja+estado dados. IDs
+     * desconocidos o que cambiaron de columna entre el drop y la llamada se
+     * ignoran silenciosamente (no rompe la transaccion).
+     *
+     * @param  int  $sucursalId  Sucursal activa que filtra los pedidos.
+     * @param  int|null  $cajaId  Caja activa (null = sin filtro de caja).
+     * @param  string  $estado  Estado del Kanban donde ocurrio el drop.
+     * @param  array<int>  $idsOrdenados  IDs en orden de arriba a abajo segun se ven en la UI.
+     */
+    public function reordenarColumna(int $sucursalId, ?int $cajaId, string $estado, array $idsOrdenados): void
+    {
+        if (! in_array($estado, [
+            PedidoMostrador::ESTADO_CONFIRMADO,
+            PedidoMostrador::ESTADO_EN_PREPARACION,
+            PedidoMostrador::ESTADO_LISTO,
+            PedidoMostrador::ESTADO_ENTREGADO,
+        ], true)) {
+            throw new \InvalidArgumentException("Estado '{$estado}' no es del Kanban");
+        }
+
+        // Sanitizar a ints positivos unicos.
+        $idsOrdenados = array_values(array_unique(array_filter(array_map('intval', $idsOrdenados))));
+        if (empty($idsOrdenados)) {
+            return;
+        }
+
+        DB::connection('pymes_tenant')->transaction(function () use ($sucursalId, $cajaId, $estado, $idsOrdenados) {
+            // Filtrar a IDs que realmente pertenecen al estado/sucursal/caja.
+            // Asi descartamos cards que cambiaron de columna entre el drop y
+            // esta llamada (race) o IDs maliciosos.
+            $query = PedidoMostrador::where('sucursal_id', $sucursalId)
+                ->where('estado_pedido', $estado)
+                ->whereIn('id', $idsOrdenados);
+            if ($cajaId !== null) {
+                $query->where('caja_id', $cajaId);
+            }
+            $idsValidos = $query->pluck('id')->map(fn ($i) => (int) $i)->all();
+            if (empty($idsValidos)) {
+                return;
+            }
+
+            // Mantener el orden original solicitado, descartando los invalidos.
+            $set = array_flip($idsValidos);
+            $idsOrdenadosFinales = array_values(array_filter($idsOrdenados, fn ($id) => isset($set[$id])));
+            if (empty($idsOrdenadosFinales)) {
+                return;
+            }
+
+            // Base = max(orden_kanban) del estado + cantidad de cards, para que
+            // los nuevos valores queden por encima de los viejos. Asignacion
+            // decreciente: primer ID recibe el mayor, ultimo el menor.
+            $maxOrden = (int) PedidoMostrador::where('sucursal_id', $sucursalId)
+                ->where('estado_pedido', $estado)
+                ->when($cajaId !== null, fn ($q) => $q->where('caja_id', $cajaId))
+                ->max('orden_kanban');
+
+            $base = $maxOrden + count($idsOrdenadosFinales);
+            foreach ($idsOrdenadosFinales as $i => $id) {
+                PedidoMostrador::where('id', $id)->update(['orden_kanban' => $base - $i]);
+            }
+        });
     }
 }

@@ -1355,10 +1355,11 @@ Documento operativo principal del modulo.
 | `cancelado_por_usuario_id` | bigint nullable | FK logico al usuario que cancelo |
 | `venta_id` | bigint FK nullable | FK a `ventas.id` tras conversion (ON DELETE SET NULL) |
 | `convertido_at` | timestamp nullable | Timestamp de conversion a venta |
+| `orden_kanban` | bigint unsigned NOT NULL default 0 | Posicion dentro de la columna del Kanban. Inicializado con `id` en pedidos existentes y en `booted::created`. Renumerado al reordenar dentro de la columna. Reseteado a `id` al cambiar de columna. |
 | `created_at`, `updated_at` | timestamp | Timestamps |
 | `deleted_at` | timestamp nullable | Soft delete |
 
-**Indices**: `sucursal_id`, `estado_pedido`, `estado_pago`, `fecha`, `cliente_id`, `caja_id`, `venta_id`, `telefono_cliente_temporal`.
+**Indices**: `sucursal_id`, `estado_pedido`, `estado_pago`, `fecha`, `cliente_id`, `caja_id`, `venta_id`, `telefono_cliente_temporal`, `(estado_pedido, orden_kanban)`.
 
 **Estados `estado_pedido`**:
 - `borrador` -- Pedido en edicion, sin numero asignado, sin descuento de stock.
@@ -1379,6 +1380,8 @@ Documento operativo principal del modulo.
 - `cancelado` → (ninguna, estado terminal)
 
 **Scope `activos()`**: excluye `facturado` y `cancelado`. Es la vista operativa predeterminada del listado.
+
+**Hook `booted::created`**: al crear un registro nuevo, setea `orden_kanban = id` via `static::created(fn($p) => $p->update(['orden_kanban' => $p->id]))`. Garantiza que los pedidos nuevos entren al Kanban con un orden natural consistente sin requerir logica extra en el service.
 
 **Accessors utiles**:
 - `nombre_cliente_final`: devuelve `cliente.nombre` si hay cliente asociado, sino `nombre_cliente_temporal`.
@@ -1500,19 +1503,20 @@ Los pagos `planificados` no cuentan para este calculo. Solo los `activos`.
 `app/Services/Pedidos/PedidoMostradorService.php`
 
 Metodos principales:
-- `crearPedido(array $data, array $detalles, bool $esBorrador): PedidoMostrador` -- Alta. Si no es borrador: asigna numero, descuenta stock, emite evento `PedidoCreado`, imprime comanda si esta configurado. Dispatcha broadcast `TIPO_CREADO`.
-- `confirmarBorrador(PedidoMostrador $pedido): void` -- Convierte borrador en pedido confirmado. Asigna numero, descuenta stock. Dispatcha broadcast `TIPO_CREADO`.
-- `cambiarEstado(PedidoMostrador $pedido, string $nuevoEstado, ?string $observacion): void` -- Valida transicion contra `TRANSICIONES_PERMITIDAS`, actualiza timestamps, emite `PedidoEstadoCambiado`. Dispatcha broadcast `TIPO_ESTADO_CAMBIADO`.
-- `confirmarPagoPlanificado(PedidoMostradorPago $pago): void` -- Materializa pago: crea `MovimientoCaja`, cambia estado a `activo`, recalcula `estado_pago`. Dispatcha broadcast `TIPO_PAGO_CAMBIADO` via `recalcularEstadoPago()`.
+- `crearPedido(array $data, array $detalles, bool $esBorrador): PedidoMostrador` -- Alta. Si no es borrador: asigna numero, descuenta stock, emite evento `PedidoCreado`, imprime comanda si esta configurado. Dispatcha broadcast `TIPO_CREADO` con `toOthers()`.
+- `confirmarBorrador(PedidoMostrador $pedido): void` -- Convierte borrador en pedido confirmado. Asigna numero, descuenta stock. Dispatcha broadcast `TIPO_CREADO` con `toOthers()`.
+- `cambiarEstado(PedidoMostrador $pedido, string $nuevoEstado, ?string $observacion): void` -- Valida transicion contra `TRANSICIONES_PERMITIDAS`, actualiza timestamps, emite `PedidoEstadoCambiado`. Resetea `orden_kanban = id` (el pedido entra en la nueva columna segun orden natural). Dispatcha broadcast `TIPO_ESTADO_CAMBIADO` con `toOthers()`.
+- `confirmarPagoPlanificado(PedidoMostradorPago $pago): void` -- Materializa pago: crea `MovimientoCaja`, cambia estado a `activo`, recalcula `estado_pago`. Dispatcha broadcast `TIPO_PAGO_CAMBIADO` con `toOthers()` via `recalcularEstadoPago()`.
 - `eliminarPagoPlanificado(PedidoMostradorPago $pago): void` -- Elimina sin movimiento de caja.
-- `cancelarPedido(PedidoMostrador $pedido, string $motivo): void` -- Genera contraasientos de caja por pagos activos, revierte stock, marca cancelado. Dispatcha broadcast `TIPO_CANCELADO`.
-- `convertirEnVenta(PedidoMostrador $pedido): Venta` -- Materializa planificados, crea `Venta` con todos sus detalles y pagos, marca pedido como `facturado`. Dispatcha broadcast `TIPO_CONVERTIDO_VENTA`.
+- `cancelarPedido(PedidoMostrador $pedido, string $motivo): void` -- Genera contraasientos de caja por pagos activos, revierte stock, marca cancelado. Dispatcha broadcast `TIPO_CANCELADO` con `toOthers()`.
+- `convertirEnVenta(PedidoMostrador $pedido): Venta` -- Materializa planificados, crea `Venta` con todos sus detalles y pagos, marca pedido como `facturado`. Dispatcha broadcast `TIPO_CONVERTIDO_VENTA` con `toOthers()`.
+- `reordenarColumna(int $sucursalId, ?int $cajaId, string $estado, array $idsOrdenados): void` -- Persiste el orden intra-columna del Kanban. Valida que `$estado` sea un estado de `ESTADOS_KANBAN`. Descarta IDs cuyo `estado_pedido` no coincida con `$estado` o cuya `caja_id` difiera de la activa (cuando hay caja activa). Renumera los IDs validos asignando valores decrecientes partiendo de `MAX(orden_kanban)` del estado + N, de modo que el primer ID del array quede con el valor mas alto (posicion 0 del DOM = top de la columna). Solo afecta drops dentro de la misma columna; los cross-column pasan por `cambiarEstado` sin tocar el orden.
 - `imprimirComanda(PedidoMostrador $pedido): array` -- Retorna payload para el evento `imprimir-comanda`.
 - `imprimirPrecuenta(PedidoMostrador $pedido): array` -- Retorna payload para el evento `imprimir-precuenta`.
 
 Todas las operaciones con escrituras usan `DB::connection('pymes_tenant')->transaction()`.
 
-**Metodo privado `dispatchBroadcast(PedidoMostrador $pedido, string $tipo): void`**: resuelve `comercioId` via `TenantService::getComercioId()`. Si el resultado es `null` (contexto CLI o job sin sesion), hace silent-skip. Si el dispatch falla (Reverb caido, etc.), loggea `Log::warning` pero NO lanza excepcion -- la consistencia de BD es prioritaria sobre el tiempo real.
+**Metodo privado `dispatchBroadcast(PedidoMostrador $pedido, string $tipo): void`**: resuelve `comercioId` via `TenantService::getComercioId()`. Si el resultado es `null` (contexto CLI o job sin sesion), hace silent-skip. Si el dispatch falla (Reverb caido, etc.), loggea `Log::warning` pero NO lanza excepcion -- la consistencia de BD es prioritaria sobre el tiempo real. Usa `broadcast(...)->toOthers()` en lugar de `dispatch()`: el header `X-Socket-ID` enviado por Laravel Echo permite a Reverb excluir automaticamente la conexion WebSocket de origen, de modo que la terminal que genera el cambio no recibe su propio evento de resaltado.
 
 **Puntos de dispatch en el service**:
 
@@ -1529,9 +1533,10 @@ Todas las operaciones con escrituras usan `DB::connection('pymes_tenant')->trans
 
 `app/Livewire/Pedidos/PedidosMostrador.php` | Ruta: `GET /pedidos/mostrador` | Name: `pedidos.mostrador`
 
-- Full-page, `#[Lazy]`, `SucursalAware`, `WithPagination`.
+- Full-page, `#[Lazy]`, `SucursalAware`, `CajaAware`, `WithPagination`.
+- `CajaAware` y `SucursalAware` se usan juntos; el conflicto en `getListeners()` se resuelve con `use CajaAware, SucursalAware { CajaAware::getListeners insteadof SucursalAware; }`. El override propio de `getListeners()` llama a ambos padres manualmente via alias o ignora el trait y reimplementa la logica combinada.
 - Polling de 60 segundos via `wire:poll.60s` como fallback defensivo (reducido de 15s al agregar tiempo real).
-- Filtra por sucursal activa, estado pedido, estado pago, rango de fechas y busqueda libre.
+- Filtra por sucursal activa, estado pedido, estado pago, rango de fechas y busqueda libre. Cuando hay caja activa, agrega filtro adicional por `caja_id`.
 - Modales: detalle, cambiar estado, cobrar pendiente, convertir en venta, cancelar.
 - Permisos chequeados con `hasPermissionTo()` al abrir los modales de cobrar, convertir y cancelar.
 - **Tiempo real via WebSocket**: escucha el canal privado `comercios.{comercioId}.pedidos-mostrador` a traves de Laravel Echo/Reverb. Cualquier cambio en un pedido de la sucursal activa dispara un re-render automatico.
@@ -1541,7 +1546,7 @@ Todas las operaciones con escrituras usan `DB::connection('pymes_tenant')->trans
 - `ESTADOS_KANBAN` -- array con los cuatro estados activos del tablero: `[ESTADO_CONFIRMADO, ESTADO_EN_PREPARACION, ESTADO_LISTO, ESTADO_ENTREGADO]`. Excluye `borrador`, `facturado` y `cancelado`.
 
 **Metodo `obtenerPedidosKanban(): Collection`**:
-Retorna una `Collection` de pedidos agrupada por `estado_pedido`, con una key por cada estado de `ESTADOS_KANBAN`. Si un estado no tiene pedidos, su key existe pero contiene una coleccion vacia (inicializado con foreach explicito para evitar que `array_fill_keys` comparta la misma referencia entre keys). Aplica los mismos filtros de cliente, fecha y estado de pago que la vista lista, pero ignora el filtro `filterEstadoPedido` (siempre filtra solo a `ESTADOS_KANBAN`). Limit de 200 pedidos total; sin paginacion.
+Retorna una `Collection` de pedidos agrupada por `estado_pedido`, con una key por cada estado de `ESTADOS_KANBAN`. Si un estado no tiene pedidos, su key existe pero contiene una coleccion vacia (inicializado con foreach explicito para evitar que `array_fill_keys` comparta la misma referencia entre keys). Aplica los mismos filtros de cliente, fecha y estado de pago que la vista lista, pero ignora el filtro `filterEstadoPedido` (siempre filtra solo a `ESTADOS_KANBAN`). Cuando hay caja activa, agrega filtro por `caja_id`. Limit de 200 pedidos total; sin paginacion. Ordena por `orden_kanban DESC, id DESC`.
 
 **Metodo `cambiarEstadoDrag(int $pedidoId, string $nuevoEstado): void`**:
 Punto de entrada del drag and drop. Validaciones en orden:
@@ -1558,12 +1563,13 @@ Ante cualquier rechazo (incluyendo excepciones del service), dispatcha `kanban-r
 **Metodos de tiempo real**:
 - `snapshotIdsVistos(): void` -- consulta los IDs actuales (excluye borradores) y los almacena en `$idsVistos`. Se llama en `mount()` y al resetear el contador.
 - `getListeners(): array` -- override dinamico. Resuelve `comercioId` via `TenantService::getComercioId()`. Si no hay contexto tenant, retorna array vacio (sin suscripcion). Canal: `echo-private:comercios.{comercioId}.pedidos-mostrador,.PedidoMostradorBroadcast`.
-- `onPedidoBroadcast(array $event): void` -- handler del evento. Filtra por `sucursalId` (ignora pedidos de otras sucursales). Si el tipo es `TIPO_CREADO` y el `pedidoId` no esta en `$idsVistos`, incrementa `$nuevosCount`. Todos los tipos causan re-render automatico de Livewire.
+- `onPedidoBroadcast(array $event): void` -- handler del evento. Filtra por `sucursalId` (ignora pedidos de otras sucursales). Si hay caja activa, consulta `PedidoMostrador::where('id', $pedidoId)->value('caja_id')` y descarta el evento si la caja del pedido no coincide con la activa. Si el tipo es `TIPO_CREADO` y el `pedidoId` no esta en `$idsVistos`, incrementa `$nuevosCount`. Para cualquier tipo de evento (`TIPO_CREADO`, `TIPO_ESTADO_CAMBIADO`, `TIPO_PAGO_CAMBIADO`, `TIPO_CANCELADO`, `TIPO_CONVERTIDO_VENTA`), dispatcha el evento de browser `pedido-destacado` con `['pedidoId' => $pedidoId]` para activar el resaltado visual en el frontend. Todos los tipos causan re-render automatico de Livewire.
 - `marcarTodosVistos(): void` -- resetea `$nuevosCount` a 0, actualiza el snapshot con `snapshotIdsVistos()` y llama `resetPage()` para refrescar la lista.
 
 **Metodos de acciones rapidas**:
 - `entregarRapido(int $pedidoId): void` -- valida acceso a sucursal y que la transicion a `ESTADO_ENTREGADO` sea legal via `TRANSICIONES_PERMITIDAS`. Llama `PedidoMostradorService::cambiarEstado()`. Si la sucursal tiene conversion automatica configurada, la conversion ocurre como efecto del service. Dispatcha toast.
 - `cobrarRapido(int $pedidoId): void` -- requiere permiso `func.pedidos_mostrador.cobrar`. Si el pedido tiene pagos `planificados`, los confirma todos via `confirmarPagoPlanificado()` en loop. Si no hay planificados, delega a `abrirCobrar($pedidoId)` (flujo modal estandar). Dispatcha toast de resultado.
+- `reordenarColumna(string $estado, array $idsOrdenados): void` -- persiste el orden intra-columna del Kanban. Delega a `PedidoMostradorService::reordenarColumna()`. Ante error, dispatcha toast pero no lanza excepcion al caller. Al cambiar caja activa, los snapshots y `$nuevosCount` se resetean.
 
 **Metodo `render()` -- datos adicionales para Kanban**:
 - `pedidosKanban` -- resultado de `obtenerPedidosKanban()`.
@@ -1576,10 +1582,21 @@ La raiz del componente usa `x-data` con una propiedad `vista` que se inicializa 
 
 La vista Lista esta envuelta en `x-show="vista === 'lista'"` y la vista Kanban en `x-show="vista === 'kanban'"`.
 
+**Resaltado en vivo de pedidos (`pedido-destacado`)**:
+
+El `x-data` raiz del componente mantiene un `Set` de IDs destacados (`pedidosDestacados = new Set()`). Cuando llega el evento de browser `pedido-destacado.window`, el ID del pedido se agrega al Set. Las filas `<tr>` de la lista y las cards `.kanban-card` del tablero evaluan si su ID esta en el Set: si es asi, aplican clases CSS con animacion de pulso naranja (keyframes propios, con variantes dark mode y soporte de `prefers-reduced-motion`). El comportamiento de cada vista es:
+
+- **Lista**: fondo pulsante naranja que alterna opacidad 0.32 ↔ 0.62 + borde izquierdo `orange-500` en la fila. Periodo 1.8s.
+- **Kanban**: triple capa de `box-shadow` naranja pulsante + ring de 3px + `scale(1.015)` en el pico de la animacion. Periodo 1.8s.
+
+Un click sobre la fila o la card llama a `marcarVisto(id)`, que elimina el ID del Set y quita el resaltado de inmediato. El Set vive solo en memoria del navegador: un refresh limpia todos los resaltados.
+
 **Funcion Alpine `kanbanBoard(transiciones)`**: inicializa SortableJS en cada columna del tablero. Configuracion relevante:
 - `group: 'pedidos'` -- permite arrastrar entre columnas del mismo grupo.
 - `onMove(evt)`: callback síncrono que valida si la transicion desde el estado de origen (obtenido del `data-estado` del contenedor origen) hacia el estado destino (del contenedor destino) existe en el mapa `transiciones`. Retorna `false` para bloquear el drop si la transicion no es legal.
-- `onEnd(evt)`: se dispara al soltar. Llama a `$wire.cambiarEstadoDrag(pedidoId, nuevoEstado)`. El `pedidoId` se lee del atributo `data-pedido-id` de la card arrastrada.
+- `onEnd(evt)`: se dispara al soltar. Bifurca segun tipo de drop:
+  - **Cross-column** (`evt.from !== evt.to`): llama a `$wire.cambiarEstadoDrag(pedidoId, nuevoEstado)`. El `pedidoId` se lee del atributo `data-pedido-id` de la card arrastrada.
+  - **Same-column** (`evt.from === evt.to && evt.oldIndex !== evt.newIndex`): recopila todos los `data-pedido-id` de las cards de la columna en el nuevo orden DOM y llama a `$wire.reordenarColumna(estado, idsOrdenados)`. El `estado` se lee del `data-estado` del contenedor de columna.
 - El listener `livewire:navigated` re-invoca `kanbanBoard` para re-inicializar Sortable despues de cada re-render del componente (necesario porque Livewire destruye y recrea el DOM).
 
 **Patron de rollback visual (`kanban-revertir`)**:
@@ -1684,6 +1701,11 @@ Patron multi-tenant: el canal esta prefijado por `comercioId`, por lo que un usu
   "at": "2026-05-14T10:30:00+00:00"
 }
 ```
+
+El payload **no incluye `cajaId`**: el filtro por caja en el frontend consulta
+`PedidoMostrador::where('id', $pedidoId)->value('caja_id')` cuando hay caja
+activa, asi se evita inflar el payload con un campo que la mayoria de los
+clientes no usa.
 
 **Nombre de evento en el cliente**: `.PedidoMostradorBroadcast` (definido en `broadcastAs()` para evitar usar el FQCN completo de Laravel).
 

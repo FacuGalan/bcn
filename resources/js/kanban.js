@@ -58,10 +58,33 @@ document.addEventListener('alpine:init', () => {
                     onEnd: (evt) => {
                         const origen = evt.from.dataset.estado;
                         const destino = evt.to.dataset.estado;
-                        if (origen === destino) return;
                         const pedidoId = parseInt(evt.item.dataset.pedidoId);
                         if (!pedidoId) return;
-                        this.$wire.cambiarEstadoDrag(pedidoId, destino);
+
+                        if (origen !== destino) {
+                            // Cross-column: cambiar estado. El backend resetea
+                            // orden_kanban al id, asi el pedido aparece en la
+                            // columna destino segun orden natural (no donde
+                            // se solto). Cubre el caso "no quiero arrastrar a
+                            // un punto exacto al cambiar de estado".
+                            this.$wire.cambiarEstadoDrag(pedidoId, destino);
+                            return;
+                        }
+
+                        // Same-column drop: si la posicion no cambio, no hay
+                        // nada que persistir.
+                        if (evt.oldIndex === evt.newIndex) return;
+
+                        // Recopilar todos los IDs en orden actual de la columna.
+                        // El DOM ya esta reordenado por SortableJS en este punto.
+                        const ids = Array.from(
+                            evt.to.querySelectorAll('.kanban-card')
+                        )
+                            .map((el) => parseInt(el.dataset.pedidoId))
+                            .filter((id) => !isNaN(id));
+
+                        if (ids.length === 0) return;
+                        this.$wire.reordenarColumna(destino, ids);
                     },
                 });
                 this.sortables.push(sortable);

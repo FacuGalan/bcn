@@ -2,11 +2,32 @@
 <div class="py-4"
     x-data="{
         vista: localStorage.getItem('pedidos_vista_preferida') || 'lista',
+        // Set de pedido_id destacados (creados/actualizados via broadcast en vivo).
+        // Solo en memoria del cliente: si el usuario navega o refresca, se pierde.
+        destacados: new Set(),
         setVista(v) {
             this.vista = v;
             localStorage.setItem('pedidos_vista_preferida', v);
         },
+        destacar(id) {
+            const n = parseInt(id);
+            if (!n) return;
+            // Reasignar el Set para triggear reactividad en Alpine (mutar con
+            // add()/delete() no dispara watchers).
+            this.destacados = new Set([...this.destacados, n]);
+        },
+        marcarVisto(id) {
+            const n = parseInt(id);
+            if (!this.destacados.has(n)) return;
+            const next = new Set(this.destacados);
+            next.delete(n);
+            this.destacados = next;
+        },
+        estaDestacado(id) {
+            return this.destacados.has(parseInt(id));
+        },
     }"
+    @pedido-destacado.window="destacar($event.detail.pedidoId)"
 >
     <div class="px-4 sm:px-6 lg:px-8">
         {{-- Header --}}
@@ -330,7 +351,11 @@
                     </thead>
                     <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                         @forelse($pedidos as $pedido)
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                            <tr
+                                wire:key="row-{{ $pedido->id }}"
+                                :class="estaDestacado({{ $pedido->id }}) ? 'pedido-destacado-row' : 'hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors'"
+                                @click="marcarVisto({{ $pedido->id }})"
+                            >
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <div class="text-sm font-bold text-bcn-secondary dark:text-white">
                                         @if($pedido->numero)
@@ -495,6 +520,8 @@
                             data-estado="{{ $estado }}">
                             @forelse($pedidosKanban[$estado] as $pedido)
                                 <div class="kanban-card bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-3 cursor-move hover:shadow-md transition-shadow select-none"
+                                    :class="estaDestacado({{ $pedido->id }}) ? 'pedido-destacado-card' : ''"
+                                    @click="marcarVisto({{ $pedido->id }})"
                                     data-pedido-id="{{ $pedido->id }}"
                                     wire:key="kanban-card-{{ $pedido->id }}">
                                     <div class="flex justify-between items-start mb-2">
@@ -594,6 +621,92 @@
             .kanban-ghost { opacity: 0.4; background: #fef3c7; }
             .kanban-dragging { cursor: grabbing; opacity: 0.9; transform: rotate(2deg); }
             [x-cloak] { display: none !important; }
+
+            /* Highlight de pedidos nuevos/modificados en vivo — pulso naranja
+               intenso que llama la atencion sin apagarse del todo. Persiste
+               hasta que el usuario clickee la fila/card. */
+            @keyframes pedidoPulseRow {
+                0%, 100% {
+                    background-color: rgba(251, 146, 60, 0.32);
+                    box-shadow: inset 4px 0 0 rgb(249, 115, 22),
+                                0 0 0 1px rgba(249, 115, 22, 0.35);
+                }
+                50% {
+                    background-color: rgba(251, 146, 60, 0.62);
+                    box-shadow: inset 5px 0 0 rgb(234, 88, 12),
+                                0 0 12px 2px rgba(249, 115, 22, 0.55),
+                                0 0 0 1px rgba(249, 115, 22, 0.75);
+                }
+            }
+            .pedido-destacado-row {
+                animation: pedidoPulseRow 1.8s ease-in-out infinite;
+                position: relative;
+                z-index: 1;
+                cursor: pointer;
+            }
+            .dark .pedido-destacado-row {
+                animation-name: pedidoPulseRowDark;
+            }
+            @keyframes pedidoPulseRowDark {
+                0%, 100% {
+                    background-color: rgba(251, 146, 60, 0.22);
+                    box-shadow: inset 4px 0 0 rgb(251, 146, 60),
+                                0 0 0 1px rgba(251, 146, 60, 0.40);
+                }
+                50% {
+                    background-color: rgba(251, 146, 60, 0.50);
+                    box-shadow: inset 5px 0 0 rgb(253, 186, 116),
+                                0 0 14px 3px rgba(251, 146, 60, 0.70),
+                                0 0 0 1px rgba(251, 186, 116, 0.85);
+                }
+            }
+
+            @keyframes pedidoPulseCard {
+                0%, 100% {
+                    box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.85),
+                                0 0 14px 3px rgba(249, 115, 22, 0.45),
+                                0 0 28px 6px rgba(249, 115, 22, 0.18);
+                    transform: scale(1);
+                }
+                50% {
+                    box-shadow: 0 0 0 3px rgba(234, 88, 12, 1),
+                                0 0 22px 6px rgba(249, 115, 22, 0.80),
+                                0 0 44px 12px rgba(249, 115, 22, 0.40);
+                    transform: scale(1.015);
+                }
+            }
+            .pedido-destacado-card {
+                animation: pedidoPulseCard 1.8s ease-in-out infinite;
+                cursor: pointer;
+                position: relative;
+                z-index: 5;
+            }
+            .dark .pedido-destacado-card {
+                animation-name: pedidoPulseCardDark;
+            }
+            @keyframes pedidoPulseCardDark {
+                0%, 100% {
+                    box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.85),
+                                0 0 16px 3px rgba(251, 146, 60, 0.55),
+                                0 0 32px 8px rgba(251, 146, 60, 0.25);
+                    transform: scale(1);
+                }
+                50% {
+                    box-shadow: 0 0 0 3px rgba(253, 186, 116, 1),
+                                0 0 24px 6px rgba(251, 146, 60, 0.90),
+                                0 0 50px 14px rgba(251, 146, 60, 0.50);
+                    transform: scale(1.015);
+                }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                .pedido-destacado-row,
+                .pedido-destacado-card {
+                    animation: none;
+                    background-color: rgba(251, 146, 60, 0.35);
+                    box-shadow: 0 0 0 2px rgb(249, 115, 22);
+                }
+            }
         </style>
     </div>
 

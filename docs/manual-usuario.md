@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-05-14
+> Version: 0.1.x | Ultima actualizacion: 2026-05-18
 
 ---
 
@@ -592,11 +592,26 @@ El toggle es visible tanto en dispositivos moviles como en escritorio.
 
 **Ruta**: Menu > Pedidos por Mostrador
 
-La lista muestra todos los pedidos de la sucursal activa. Se actualiza en **tiempo real** via WebSocket (Reverb/Echo): cuando otro usuario o terminal crea, cambia el estado, cobra o cancela un pedido, la lista se refresca instantaneamente sin necesidad de recargar la pagina. Como respaldo defensivo, la pagina tambien se refresca automaticamente cada 60 segundos si la conexion WebSocket estuviera caida.
+La lista muestra todos los pedidos de la sucursal activa. Si hay una **caja activa** seleccionada, la lista se filtra automaticamente para mostrar solo los pedidos de esa caja; sin caja activa, se muestran los pedidos de toda la sucursal. Se actualiza en **tiempo real** via WebSocket (Reverb/Echo): cuando otro usuario o terminal crea, cambia el estado, cobra o cancela un pedido, la lista se refresca instantaneamente sin necesidad de recargar la pagina. Como respaldo defensivo, la pagina tambien se refresca automaticamente cada 60 segundos si la conexion WebSocket estuviera caida.
 
 #### Badge de pedidos nuevos
 
 Si mientras la pagina esta abierta ingresan pedidos nuevos (desde otras terminales o canales), aparece un **badge pulsante** debajo del titulo de la seccion con el texto "X nuevos". Al hacer click sobre el badge, el contador se resetea y la lista se actualiza mostrando todos los pedidos al dia. El badge no aparece si no hay pedidos nuevos desde que se abrio la pagina.
+
+#### Resaltado en vivo de pedidos nuevos o modificados
+
+Cualquier pedido que llega o cambia via WebSocket mientras la pagina esta abierta recibe un **resaltado visual con animacion de pulso naranja intenso** tanto en la Vista Lista como en la Vista Kanban:
+
+- **Vista Lista**: la fila del pedido alterna entre un fondo naranja suave y un fondo naranja marcado con borde izquierdo color naranja. La animacion dura 1.8 segundos por ciclo y llama significativamente la atencion.
+- **Vista Kanban**: la card del pedido muestra una triple capa de sombra naranja pulsante, un anillo de borde de 3px y un leve aumento de escala en el pico de la animacion.
+
+El resaltado se activa para cualquier tipo de cambio recibido en tiempo real: pedido creado, estado cambiado, pago cobrado, cancelado o convertido en venta.
+
+> **La terminal donde se origina el cambio no recibe su propio resaltado.** Solo las otras terminales o dispositivos conectados a la misma sucursal ven el efecto. Esto evita que el operario que acaba de crear o modificar un pedido vea innecesariamente el parpadeo en su propia pantalla.
+
+Para quitar el resaltado de un pedido puntual, **haga click sobre la fila o la card**. El resaltado se quita al instante. Si no se hace click, el resaltado permanece hasta que se recargue la pagina.
+
+> El estado de resaltado se guarda solo en memoria del navegador y no persiste tras recargar la pagina. El badge "X nuevos" y el resaltado son mecanismos complementarios: el badge cuenta pedidos ingresados, el resaltado senala visualmente cualquier cambio.
 
 #### Filtros disponibles
 
@@ -738,6 +753,8 @@ Cada columna muestra en su header el **contador de pedidos** en ese estado.
 
 > Los pedidos en estado Cancelado y Facturado no aparecen en el Kanban. Para verlos, usar la Vista Lista.
 
+Al igual que la Vista Lista, el Kanban filtra automaticamente por caja activa cuando hay una caja seleccionada. Los eventos en tiempo real de otras cajas se ignoran silenciosamente para no perturbar el tablero.
+
 #### Cards del Kanban
 
 Cada card muestra:
@@ -756,6 +773,12 @@ Las cards se pueden arrastrar de una columna a otra para cambiar el estado del p
 Al soltar una card en una columna valida, el estado del pedido se actualiza de inmediato. Si el servidor rechaza el cambio (por ejemplo, una condicion de carrera), la card vuelve a su columna original automaticamente.
 
 > El drag and drop **no puede cancelar** pedidos. La cancelacion requiere siempre ingresar un motivo y se hace exclusivamente desde el boton "Cancelar" en la card.
+
+#### Reordenamiento dentro de una columna
+
+Ademas del drag entre columnas, las cards se pueden arrastrar **dentro de la misma columna** para cambiar su posicion. Al soltar en una posicion distinta, el nuevo orden queda guardado en el servidor: si otro operario recarga la pagina o si la vista Kanban se actualiza en tiempo real, los pedidos se muestran en el orden que se establecio. El orden es independiente por columna.
+
+Al mover una card a otra columna, el sistema la ubica al final de la columna de destino segun el orden natural del pedido (sin necesidad de soltarla en una posicion exacta).
 
 #### Nuevo Pedido y Edicion de Pedido
 

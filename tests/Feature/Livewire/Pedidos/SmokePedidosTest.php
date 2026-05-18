@@ -225,6 +225,37 @@ class SmokePedidosTest extends TestCase
         $componente->assertSet('nuevosCount', 1);
     }
 
+    public function test_broadcast_dispatcha_evento_frontend_para_destacar_pedido(): void
+    {
+        $componente = Livewire::test(PedidosMostrador::class);
+
+        $componente->call('onPedidoBroadcast', [
+            'pedidoId' => 7777,
+            'sucursalId' => $this->sucursalId,
+            'tipo' => PedidoMostradorBroadcast::TIPO_ESTADO_CAMBIADO,
+            'at' => now()->toIso8601String(),
+        ]);
+
+        // El frontend escucha `pedido-destacado` (.window) para resaltar la fila/card
+        // del pedido hasta que el usuario interactue. Debe dispatchearse para
+        // CUALQUIER tipo de evento broadcast (creado, estado cambiado, etc).
+        $componente->assertDispatched('pedido-destacado', pedidoId: 7777);
+    }
+
+    public function test_broadcast_no_dispatcha_destacado_si_sucursal_no_coincide(): void
+    {
+        $componente = Livewire::test(PedidosMostrador::class);
+
+        $componente->call('onPedidoBroadcast', [
+            'pedidoId' => 7777,
+            'sucursalId' => $this->sucursalId + 999,
+            'tipo' => PedidoMostradorBroadcast::TIPO_CREADO,
+            'at' => now()->toIso8601String(),
+        ]);
+
+        $componente->assertNotDispatched('pedido-destacado');
+    }
+
     public function test_marcar_todos_vistos_resetea_contador(): void
     {
         $componente = Livewire::test(PedidosMostrador::class)
@@ -394,6 +425,130 @@ class SmokePedidosTest extends TestCase
             ->assertSet('pedidoDetalleId', $pedido->id)
             ->assertSee('Promo test')
             ->assertSee('Promociones aplicadas');
+    }
+
+    // ==================== ORDEN PERSISTIDO KANBAN ====================
+
+    public function test_pedido_nuevo_recibe_orden_kanban_igual_al_id(): void
+    {
+        $pedido = $this->crearPedidoConfirmado();
+
+        $this->assertSame((int) $pedido->id, (int) $pedido->fresh()->orden_kanban,
+            'El hook booted::created debe setear orden_kanban = id para pedidos nuevos');
+    }
+
+    public function test_reordenar_columna_asigna_valores_decrecientes_desde_max(): void
+    {
+        $p1 = $this->crearPedidoConfirmado();
+        $p2 = $this->crearPedidoConfirmado();
+        $p3 = $this->crearPedidoConfirmado();
+
+        $service = app(PedidoMostradorService::class);
+
+        // Reordenar visualmente: p3 arriba, p1 medio, p2 abajo.
+        $service->reordenarColumna(
+            sucursalId: $this->sucursalId,
+            cajaId: null,
+            estado: PedidoMostrador::ESTADO_CONFIRMADO,
+            idsOrdenados: [$p3->id, $p1->id, $p2->id],
+        );
+
+        $p1->refresh();
+        $p2->refresh();
+        $p3->refresh();
+
+        $this->assertGreaterThan($p1->orden_kanban, $p3->orden_kanban,
+            'p3 debe tener orden_kanban mayor que p1 (aparece arriba)');
+        $this->assertGreaterThan($p2->orden_kanban, $p1->orden_kanban,
+            'p1 debe tener orden_kanban mayor que p2');
+    }
+
+    public function test_cambiar_estado_resetea_orden_kanban_al_id(): void
+    {
+        $p1 = $this->crearPedidoConfirmado();
+        $p2 = $this->crearPedidoConfirmado();
+
+        $service = app(PedidoMostradorService::class);
+
+        // Reordenar para que p1 quede arriba con orden_kanban alto.
+        $service->reordenarColumna(
+            sucursalId: $this->sucursalId,
+            cajaId: null,
+            estado: PedidoMostrador::ESTADO_CONFIRMADO,
+            idsOrdenados: [$p1->id, $p2->id],
+        );
+        $p1->refresh();
+        $ordenManual = (int) $p1->orden_kanban;
+        $this->assertGreaterThan((int) $p1->id, $ordenManual,
+            'Sanity: tras reordenar, orden_kanban deberia ser > id');
+
+        // Cambiar de estado debe resetear el orden al id (default).
+        $service->cambiarEstado($p1, PedidoMostrador::ESTADO_LISTO);
+        $p1->refresh();
+
+        $this->assertSame((int) $p1->id, (int) $p1->orden_kanban,
+            'Al cambiar de columna, orden_kanban debe resetearse a id');
+    }
+
+    public function test_reordenar_columna_descarta_ids_de_otra_columna(): void
+    {
+        $pConfirmado = $this->crearPedidoConfirmado();
+        $pListo = $this->crearPedidoConfirmado();
+        $pListo->update(['estado_pedido' => PedidoMostrador::ESTADO_LISTO]);
+
+        $service = app(PedidoMostradorService::class);
+        $ordenInicialListo = (int) $pListo->orden_kanban;
+
+        // Incluir un id que pertenece a otra columna — debe ser ignorado.
+        $service->reordenarColumna(
+            sucursalId: $this->sucursalId,
+            cajaId: null,
+            estado: PedidoMostrador::ESTADO_CONFIRMADO,
+            idsOrdenados: [$pConfirmado->id, $pListo->id],
+        );
+
+        $this->assertSame($ordenInicialListo, (int) $pListo->fresh()->orden_kanban,
+            'Un pedido de otra columna no debe afectarse por reordenarColumna');
+    }
+
+    public function test_reordenar_columna_rechaza_estado_invalido(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        $service = app(PedidoMostradorService::class);
+        $service->reordenarColumna(
+            sucursalId: $this->sucursalId,
+            cajaId: null,
+            estado: PedidoMostrador::ESTADO_CANCELADO, // no es del Kanban
+            idsOrdenados: [1, 2, 3],
+        );
+    }
+
+    public function test_kanban_query_ordena_por_orden_kanban_desc(): void
+    {
+        $p1 = $this->crearPedidoConfirmado();
+        $p2 = $this->crearPedidoConfirmado();
+        $p3 = $this->crearPedidoConfirmado();
+
+        $service = app(PedidoMostradorService::class);
+
+        // Reordenar: p1 primero, p3 ultimo.
+        $service->reordenarColumna(
+            sucursalId: $this->sucursalId,
+            cajaId: null,
+            estado: PedidoMostrador::ESTADO_CONFIRMADO,
+            idsOrdenados: [$p1->id, $p2->id, $p3->id],
+        );
+
+        $componente = Livewire::test(PedidosMostrador::class);
+        $kanban = $componente->viewData('pedidosKanban');
+
+        $idsEnColumna = $kanban[PedidoMostrador::ESTADO_CONFIRMADO]->pluck('id')->all();
+        $this->assertEquals(
+            [$p1->id, $p2->id, $p3->id],
+            $idsEnColumna,
+            'La query del Kanban debe respetar el orden_kanban DESC (p1 arriba, p3 abajo)'
+        );
     }
 
     public function test_render_kanban_agrupa_pedidos_por_estado(): void
