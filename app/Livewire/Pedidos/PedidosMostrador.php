@@ -202,6 +202,13 @@ class PedidosMostrador extends Component
             $this->idsVistos[] = $pedidoId;
             $this->nuevosCount++;
         }
+
+        // Notifica al frontend para resaltar visualmente la fila/card del pedido
+        // hasta que el usuario interactue con ella (Alpine local, sin tocar
+        // estado server-side). Aplica a TODOS los tipos: creado, estado_cambiado,
+        // pago_cambiado, etc. — cualquier cambio en vivo merece destacarse.
+        $this->dispatch('pedido-destacado', pedidoId: $pedidoId);
+
         // Otros tipos: el render automatico de Livewire trae la data fresca.
     }
 

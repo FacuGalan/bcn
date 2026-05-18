@@ -225,6 +225,37 @@ class SmokePedidosTest extends TestCase
         $componente->assertSet('nuevosCount', 1);
     }
 
+    public function test_broadcast_dispatcha_evento_frontend_para_destacar_pedido(): void
+    {
+        $componente = Livewire::test(PedidosMostrador::class);
+
+        $componente->call('onPedidoBroadcast', [
+            'pedidoId' => 7777,
+            'sucursalId' => $this->sucursalId,
+            'tipo' => PedidoMostradorBroadcast::TIPO_ESTADO_CAMBIADO,
+            'at' => now()->toIso8601String(),
+        ]);
+
+        // El frontend escucha `pedido-destacado` (.window) para resaltar la fila/card
+        // del pedido hasta que el usuario interactue. Debe dispatchearse para
+        // CUALQUIER tipo de evento broadcast (creado, estado cambiado, etc).
+        $componente->assertDispatched('pedido-destacado', pedidoId: 7777);
+    }
+
+    public function test_broadcast_no_dispatcha_destacado_si_sucursal_no_coincide(): void
+    {
+        $componente = Livewire::test(PedidosMostrador::class);
+
+        $componente->call('onPedidoBroadcast', [
+            'pedidoId' => 7777,
+            'sucursalId' => $this->sucursalId + 999,
+            'tipo' => PedidoMostradorBroadcast::TIPO_CREADO,
+            'at' => now()->toIso8601String(),
+        ]);
+
+        $componente->assertNotDispatched('pedido-destacado');
+    }
+
     public function test_marcar_todos_vistos_resetea_contador(): void
     {
         $componente = Livewire::test(PedidosMostrador::class)
