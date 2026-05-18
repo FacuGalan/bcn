@@ -671,8 +671,8 @@
                     </div>
                 @endforeach
             </div>
-            <p class="mt-3 text-xs text-gray-500 dark:text-gray-400 text-center">
-                {{ __('Arrastrá las tarjetas entre columnas para cambiar el estado del pedido. Solo se permiten transiciones legales.') }}
+            <p class="mt-1 text-[10px] text-gray-400 dark:text-gray-500 text-center leading-tight flex-shrink-0">
+                {{ __('Arrastrá entre columnas para cambiar estado · dentro de la columna para reordenar') }}
             </p>
         </div>
         </div>
