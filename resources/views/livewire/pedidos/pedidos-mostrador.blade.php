@@ -622,50 +622,80 @@
             .kanban-dragging { cursor: grabbing; opacity: 0.9; transform: rotate(2deg); }
             [x-cloak] { display: none !important; }
 
-            /* Highlight de pedidos nuevos/modificados en vivo — pulso suave naranja
-               que no se apaga del todo, hasta que el usuario clickee la fila/card. */
+            /* Highlight de pedidos nuevos/modificados en vivo — pulso naranja
+               intenso que llama la atencion sin apagarse del todo. Persiste
+               hasta que el usuario clickee la fila/card. */
             @keyframes pedidoPulseRow {
-                0%, 100% { background-color: rgba(251, 146, 60, 0.18); }
-                50%      { background-color: rgba(251, 146, 60, 0.38); }
+                0%, 100% {
+                    background-color: rgba(251, 146, 60, 0.32);
+                    box-shadow: inset 4px 0 0 rgb(249, 115, 22),
+                                0 0 0 1px rgba(249, 115, 22, 0.35);
+                }
+                50% {
+                    background-color: rgba(251, 146, 60, 0.62);
+                    box-shadow: inset 5px 0 0 rgb(234, 88, 12),
+                                0 0 12px 2px rgba(249, 115, 22, 0.55),
+                                0 0 0 1px rgba(249, 115, 22, 0.75);
+                }
             }
             .pedido-destacado-row {
-                animation: pedidoPulseRow 2.2s ease-in-out infinite;
-                border-left: 3px solid rgb(249, 115, 22); /* orange-500 */
+                animation: pedidoPulseRow 1.8s ease-in-out infinite;
+                position: relative;
+                z-index: 1;
                 cursor: pointer;
             }
             .dark .pedido-destacado-row {
                 animation-name: pedidoPulseRowDark;
             }
             @keyframes pedidoPulseRowDark {
-                0%, 100% { background-color: rgba(251, 146, 60, 0.14); }
-                50%      { background-color: rgba(251, 146, 60, 0.30); }
+                0%, 100% {
+                    background-color: rgba(251, 146, 60, 0.22);
+                    box-shadow: inset 4px 0 0 rgb(251, 146, 60),
+                                0 0 0 1px rgba(251, 146, 60, 0.40);
+                }
+                50% {
+                    background-color: rgba(251, 146, 60, 0.50);
+                    box-shadow: inset 5px 0 0 rgb(253, 186, 116),
+                                0 0 14px 3px rgba(251, 146, 60, 0.70),
+                                0 0 0 1px rgba(251, 186, 116, 0.85);
+                }
             }
 
             @keyframes pedidoPulseCard {
                 0%, 100% {
-                    box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.55),
-                                0 0 10px 1px rgba(249, 115, 22, 0.25);
+                    box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.85),
+                                0 0 14px 3px rgba(249, 115, 22, 0.45),
+                                0 0 28px 6px rgba(249, 115, 22, 0.18);
+                    transform: scale(1);
                 }
                 50% {
-                    box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.95),
-                                0 0 18px 3px rgba(249, 115, 22, 0.50);
+                    box-shadow: 0 0 0 3px rgba(234, 88, 12, 1),
+                                0 0 22px 6px rgba(249, 115, 22, 0.80),
+                                0 0 44px 12px rgba(249, 115, 22, 0.40);
+                    transform: scale(1.015);
                 }
             }
             .pedido-destacado-card {
-                animation: pedidoPulseCard 2.2s ease-in-out infinite;
+                animation: pedidoPulseCard 1.8s ease-in-out infinite;
                 cursor: pointer;
+                position: relative;
+                z-index: 5;
             }
             .dark .pedido-destacado-card {
                 animation-name: pedidoPulseCardDark;
             }
             @keyframes pedidoPulseCardDark {
                 0%, 100% {
-                    box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.50),
-                                0 0 12px 2px rgba(251, 146, 60, 0.30);
+                    box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.85),
+                                0 0 16px 3px rgba(251, 146, 60, 0.55),
+                                0 0 32px 8px rgba(251, 146, 60, 0.25);
+                    transform: scale(1);
                 }
                 50% {
-                    box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.90),
-                                0 0 20px 4px rgba(251, 146, 60, 0.55);
+                    box-shadow: 0 0 0 3px rgba(253, 186, 116, 1),
+                                0 0 24px 6px rgba(251, 146, 60, 0.90),
+                                0 0 50px 14px rgba(251, 146, 60, 0.50);
+                    transform: scale(1.015);
                 }
             }
 
@@ -673,7 +703,8 @@
                 .pedido-destacado-row,
                 .pedido-destacado-card {
                     animation: none;
-                    background-color: rgba(251, 146, 60, 0.25);
+                    background-color: rgba(251, 146, 60, 0.35);
+                    box-shadow: 0 0 0 2px rgb(249, 115, 22);
                 }
             }
         </style>

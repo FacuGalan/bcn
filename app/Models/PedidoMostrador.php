@@ -137,6 +137,7 @@ class PedidoMostrador extends Model
         'puntos_usados_monto',
         'articulos_canjeados_monto',
         'observaciones',
+        'orden_kanban',
         'motivo_cancelacion',
         'confirmado_at',
         'en_preparacion_at',
@@ -163,6 +164,7 @@ class PedidoMostrador extends Model
         'puntos_usados' => 'integer',
         'puntos_canjeados_pago' => 'integer',
         'puntos_canjeados_articulos' => 'integer',
+        'orden_kanban' => 'integer',
         'puntos_usados_monto' => 'decimal:2',
         'articulos_canjeados_monto' => 'decimal:2',
         'confirmado_at' => 'datetime',
@@ -172,6 +174,22 @@ class PedidoMostrador extends Model
         'cancelado_at' => 'datetime',
         'convertido_at' => 'datetime',
     ];
+
+    /**
+     * Hook que inicializa `orden_kanban = id` para pedidos nuevos cuyo orden
+     * aun no fue seteado explicitamente. Asi cada pedido nace en su posicion
+     * "natural" del Kanban (id DESC). Si el usuario despues reordena dentro
+     * de una columna, el service::reordenarColumna pisa este valor.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (self $pedido) {
+            if ((int) $pedido->orden_kanban === 0) {
+                $pedido->orden_kanban = $pedido->id;
+                $pedido->saveQuietly();
+            }
+        });
+    }
 
     // ==================== RELACIONES ====================
 
