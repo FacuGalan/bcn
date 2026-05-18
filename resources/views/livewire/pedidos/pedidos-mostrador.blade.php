@@ -1328,7 +1328,7 @@
 
                     @if(empty($cobrarPagosPlanificados))
                         <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded p-4 text-sm text-blue-800 dark:text-blue-200">
-                            {{ __('Este pedido no tiene pagos planificados. Para agregar nuevos pagos, abrí el pedido desde "Nuevo Pedido" (disponible en próxima entrega).') }}
+                            {{ __('Este pedido no tiene pagos planificados. Usá "Definir pagos" para cobrar el saldo pendiente con desglose de formas de pago.') }}
                         </div>
                     @else
                         <div>
@@ -1366,6 +1366,16 @@
                 </div>
             </x-slot:body>
             <x-slot:footer>
+                @if(($cobrarPedidoInfo['pendiente'] ?? 0) > 0.01)
+                    <button type="button"
+                        wire:click="abrirCobroRapido({{ $pedidoCobrarId ?? 0 }})"
+                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                        <svg class="w-5 h-5 mr-1 hidden sm:inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {{ __('Definir pagos') }}
+                    </button>
+                @endif
                 <button type="button" @click="close()"
                     class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 sm:w-auto sm:text-sm">
                     {{ __('Listo') }}
@@ -1436,6 +1446,15 @@
         <livewire:pedidos.nuevo-pedido-mostrador
             :pedidoId="$pedidoIdEnEdicion"
             :key="'modal-nuevo-pedido-' . $modalNuevoPedidoKey"
+        />
+    @endif
+
+    {{-- Sub-componente Livewire: cobro rapido (solo modal de desglose) --}}
+    @if($pedidoCobroRapidoId)
+        <livewire:pedidos.nuevo-pedido-mostrador
+            :pedidoId="$pedidoCobroRapidoId"
+            :modoCobroRapido="true"
+            :key="'cobro-rapido-' . $pedidoCobroRapidoId . '-' . $cobroRapidoKey"
         />
     @endif
 </div>

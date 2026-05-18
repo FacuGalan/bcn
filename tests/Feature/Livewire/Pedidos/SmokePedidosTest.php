@@ -169,17 +169,95 @@ class SmokePedidosTest extends TestCase
         $this->assertSame(PedidoMostrador::ESTADO_CANCELADO, $pedido->fresh()->estado_pedido);
     }
 
-    public function test_cobrar_rapido_sin_planificados_abre_editor_para_pedido_editable(): void
+    public function test_cobrar_rapido_sin_planificados_abre_cobro_rapido_para_pedido_editable(): void
     {
         // Pedido CONFIRMADO con estado_pago=pendiente: cumple regla de
-        // pedidoEsEditable() → cobrarRapido abre el editor full-screen
-        // (reusa toda la logica de desglose mixto y calculos del carrito).
+        // pedidoEsEditable() → cobrarRapido abre el MODAL de cobro rapido
+        // (sub-componente NuevoPedidoMostrador en modoCobroRapido=true) en
+        // lugar del editor full-screen.
         $pedido = $this->crearPedidoConfirmado();
 
         Livewire::test(PedidosMostrador::class)
             ->call('cobrarRapido', $pedido->id)
-            ->assertSet('modalNuevoPedidoAbierto', true)
-            ->assertSet('pedidoIdEnEdicion', $pedido->id);
+            ->assertSet('pedidoCobroRapidoId', $pedido->id)
+            ->assertSet('modalNuevoPedidoAbierto', false);
+    }
+
+    public function test_nuevo_pedido_mostrador_modo_cobro_rapido_monta_sobre_pedido_confirmado(): void
+    {
+        // Smoke test del modo cobro rapido: el componente debe montar sin
+        // errores y dejar el modal de desglose abierto con monto pendiente
+        // igual al saldo del pedido.
+        $pedido = $this->crearPedidoConfirmado();
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class, [
+            'pedidoId' => $pedido->id,
+            'modoCobroRapido' => true,
+        ])->assertOk();
+
+        $componente->assertSet('modoCobroRapido', true)
+            ->assertSet('mostrarModalPago', true)
+            ->assertSet('modalPagoEnModoCobro', true);
+
+        $this->assertEqualsWithDelta(
+            (float) $pedido->total_final,
+            (float) $componente->get('montoPendienteDesglose'),
+            0.01,
+            'montoPendienteDesglose debe arrancar igual al saldo (no hay cobrado ni planificado)'
+        );
+    }
+
+    public function test_cobro_rapido_con_una_fp_persiste_pago_activo_con_esa_fp(): void
+    {
+        // Caso "feature extra" del flujo: el desglose con UNA sola FP que
+        // cubre el total debe crear UN pago con esa FP individual (no con
+        // la FP mixta). Esto valida implicitamente: PedidoMostrador no
+        // tiene forma_pago_id propio — los pagos llevan la suya por fila.
+        $pedido = $this->crearPedidoConfirmado();
+        $efectivo = $this->crearFormaPagoEfectivo();
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class, [
+            'pedidoId' => $pedido->id,
+            'modoCobroRapido' => true,
+        ]);
+
+        $componente->set('nuevoPago.forma_pago_id', $efectivo['formaPago']->id)
+            ->set('nuevoPago.monto', (float) $pedido->total_final)
+            ->call('agregarAlDesglose');
+
+        $this->assertCount(1, $componente->get('desglosePagos'),
+            'El desglose debe tener 1 pago tras agregarAlDesglose');
+
+        $componente->call('confirmarPago')
+            ->assertDispatched('cobro-rapido-completado');
+
+        $pagos = $pedido->pagos()->get();
+        $this->assertCount(1, $pagos, 'Debe haberse persistido 1 pago en el pedido');
+        $this->assertSame('activo', $pagos->first()->estado,
+            'El pago debe quedar ACTIVO (no planificado)');
+        $this->assertSame($efectivo['formaPago']->id, (int) $pagos->first()->forma_pago_id,
+            'El pago debe llevar la FP individual (no la FP mixta)');
+
+        $pedido->refresh();
+        $this->assertSame(PedidoMostrador::ESTADO_PAGO_PAGADO, $pedido->estado_pago,
+            'Tras cobrar el total, estado_pago debe pasar a PAGADO');
+    }
+
+    public function test_cobro_rapido_desde_modal_parcial_dispara_abrir_cobro_rapido(): void
+    {
+        // Cuando el pedido esta parcialmente cobrado (no editable), el
+        // modal "Cobrar pendiente" se abre con el boton "Definir pagos".
+        // Verificamos que ese boton invoca abrirCobroRapido y deja
+        // pedidoCobroRapidoId seteado + cierra el modal parcial.
+        $pedido = $this->crearPedidoConfirmado();
+        $pedido->update(['estado_pago' => PedidoMostrador::ESTADO_PAGO_PARCIAL]);
+
+        Livewire::test(PedidosMostrador::class)
+            ->call('abrirCobrar', $pedido->id)
+            ->assertSet('showCobrarModal', true)
+            ->call('abrirCobroRapido', $pedido->id)
+            ->assertSet('pedidoCobroRapidoId', $pedido->id)
+            ->assertSet('showCobrarModal', false);
     }
 
     public function test_cobrar_rapido_sin_planificados_abre_modal_para_pedido_no_editable(): void

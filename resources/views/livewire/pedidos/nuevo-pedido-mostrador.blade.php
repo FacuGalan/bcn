@@ -1,4 +1,17 @@
 {{-- Modal Full-Screen con margen mínimo: Alta/Edición de Pedido por Mostrador --}}
+{{-- En modo "cobro rapido" no renderizamos el editor full-screen — solo se
+     monta el modal de desglose (_modal-pago-mixto) superpuesto sobre el
+     listado de pedidos. El componente sigue cargando todos sus traits para
+     reusar la logica de calculo, pero la UI visible es solo el modal.
+     Wrapper <div> raiz comun para garantizar el tag root que requiere
+     Livewire (los modales internos pueden estar cerrados y no emitir
+     ningun tag HTML). --}}
+<div data-livewire-root="nuevo-pedido-mostrador">
+@if($modoCobroRapido)
+    @include("livewire.carrito._modal-pago-mixto")
+    @include("livewire.carrito._modal-moneda-extranjera")
+    @include("livewire.carrito._modal-vuelto")
+@else
 <div class="fixed inset-0 z-40 bg-black/40 flex items-stretch justify-center p-2 sm:p-3"
     x-data="{
         _stackId: null,
@@ -710,3 +723,5 @@
     @include("livewire.carrito._modal-vuelto")
     </div>{{-- /modal contenedor con margen --}}
 </div>
+@endif
+</div>{{-- /wrapper raiz --}}
