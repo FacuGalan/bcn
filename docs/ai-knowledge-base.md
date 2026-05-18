@@ -1558,7 +1558,7 @@ Ante cualquier rechazo (incluyendo excepciones del service), dispatcha `kanban-r
 **Metodos de tiempo real**:
 - `snapshotIdsVistos(): void` -- consulta los IDs actuales (excluye borradores) y los almacena en `$idsVistos`. Se llama en `mount()` y al resetear el contador.
 - `getListeners(): array` -- override dinamico. Resuelve `comercioId` via `TenantService::getComercioId()`. Si no hay contexto tenant, retorna array vacio (sin suscripcion). Canal: `echo-private:comercios.{comercioId}.pedidos-mostrador,.PedidoMostradorBroadcast`.
-- `onPedidoBroadcast(array $event): void` -- handler del evento. Filtra por `sucursalId` (ignora pedidos de otras sucursales). Si el tipo es `TIPO_CREADO` y el `pedidoId` no esta en `$idsVistos`, incrementa `$nuevosCount`. Todos los tipos causan re-render automatico de Livewire.
+- `onPedidoBroadcast(array $event): void` -- handler del evento. Filtra por `sucursalId` (ignora pedidos de otras sucursales). Si el tipo es `TIPO_CREADO` y el `pedidoId` no esta en `$idsVistos`, incrementa `$nuevosCount`. Para cualquier tipo de evento (`TIPO_CREADO`, `TIPO_ESTADO_CAMBIADO`, `TIPO_PAGO_CAMBIADO`, `TIPO_CANCELADO`, `TIPO_CONVERTIDO_VENTA`), dispatcha el evento de browser `pedido-destacado` con `['pedidoId' => $pedidoId]` para activar el resaltado visual en el frontend. Todos los tipos causan re-render automatico de Livewire.
 - `marcarTodosVistos(): void` -- resetea `$nuevosCount` a 0, actualiza el snapshot con `snapshotIdsVistos()` y llama `resetPage()` para refrescar la lista.
 
 **Metodos de acciones rapidas**:
@@ -1575,6 +1575,15 @@ Ante cualquier rechazo (incluyendo excepciones del service), dispatcha `kanban-r
 La raiz del componente usa `x-data` con una propiedad `vista` que se inicializa leyendo `localStorage.getItem('pedidos_vista_preferida') ?? 'lista'`. El toggle del header escribe en `localStorage` y cambia `vista` de forma reactiva.
 
 La vista Lista esta envuelta en `x-show="vista === 'lista'"` y la vista Kanban en `x-show="vista === 'kanban'"`.
+
+**Resaltado en vivo de pedidos (`pedido-destacado`)**:
+
+El `x-data` raiz del componente mantiene un `Set` de IDs destacados (`pedidosDestacados = new Set()`). Cuando llega el evento de browser `pedido-destacado.window`, el ID del pedido se agrega al Set. Las filas `<tr>` de la lista y las cards `.kanban-card` del tablero evaluan si su ID esta en el Set: si es asi, aplican clases CSS con animacion de pulso naranja (keyframes propios, con variantes dark mode y soporte de `prefers-reduced-motion`). El comportamiento de cada vista es:
+
+- **Lista**: fondo pulsante naranja suave + borde izquierdo `orange-500` en la fila.
+- **Kanban**: `box-shadow` pulsante naranja en la card.
+
+Un click sobre la fila o la card llama a `marcarVisto(id)`, que elimina el ID del Set y quita el resaltado de inmediato. El Set vive solo en memoria del navegador: un refresh limpia todos los resaltados.
 
 **Funcion Alpine `kanbanBoard(transiciones)`**: inicializa SortableJS en cada columna del tablero. Configuracion relevante:
 - `group: 'pedidos'` -- permite arrastrar entre columnas del mismo grupo.

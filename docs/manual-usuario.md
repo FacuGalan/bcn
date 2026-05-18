@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-05-14
+> Version: 0.1.x | Ultima actualizacion: 2026-05-18
 
 ---
 
@@ -597,6 +597,19 @@ La lista muestra todos los pedidos de la sucursal activa. Se actualiza en **tiem
 #### Badge de pedidos nuevos
 
 Si mientras la pagina esta abierta ingresan pedidos nuevos (desde otras terminales o canales), aparece un **badge pulsante** debajo del titulo de la seccion con el texto "X nuevos". Al hacer click sobre el badge, el contador se resetea y la lista se actualiza mostrando todos los pedidos al dia. El badge no aparece si no hay pedidos nuevos desde que se abrio la pagina.
+
+#### Resaltado en vivo de pedidos nuevos o modificados
+
+Cualquier pedido que llega o cambia via WebSocket mientras la pagina esta abierta recibe un **resaltado visual con animacion de pulso naranja** tanto en la Vista Lista como en la Vista Kanban:
+
+- **Vista Lista**: la fila del pedido muestra un fondo pulsante naranja suave y un borde izquierdo color naranja.
+- **Vista Kanban**: la card del pedido muestra una sombra pulsante naranja.
+
+El resaltado se activa para cualquier tipo de cambio recibido en tiempo real: pedido creado, estado cambiado, pago cobrado, cancelado o convertido en venta.
+
+Para quitar el resaltado de un pedido puntual, **haga click sobre la fila o la card**. El resaltado se quita al instante. Si no se hace click, el resaltado permanece hasta que se recargue la pagina.
+
+> El estado de resaltado se guarda solo en memoria del navegador y no persiste tras recargar la pagina. El badge "X nuevos" y el resaltado son mecanismos complementarios: el badge cuenta pedidos ingresados, el resaltado senala visualmente cualquier cambio.
 
 #### Filtros disponibles
 
