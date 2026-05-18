@@ -1576,11 +1576,34 @@ Ante cualquier rechazo (incluyendo excepciones del service), dispatcha `kanban-r
 - `estadosKanban` -- copia de `ESTADOS_KANBAN`.
 - `transicionesKanban` -- subconjunto de `TRANSICIONES_PERMITIDAS` filtrado a las transiciones entre estados de `ESTADOS_KANBAN` (excluye transiciones hacia/desde borrador, cancelado, facturado). Usado por Alpine para validar el `onMove` de SortableJS sin round-trip al servidor.
 
+**Layout fullscreen**:
+El wrapper raiz del componente usa las clases `h-[calc(100vh-5.5rem)] flex flex-col overflow-hidden`, identico al layout de NuevaVenta. La pagina no scrollea verticalmente; el scroll interno queda dentro del contenedor de contenido (lista o kanban).
+
 **Vista Blade (`pedidos-mostrador.blade.php`) -- patron Kanban**:
 
-La raiz del componente usa `x-data` con una propiedad `vista` que se inicializa leyendo `localStorage.getItem('pedidos_vista_preferida') ?? 'lista'`. El toggle del header escribe en `localStorage` y cambia `vista` de forma reactiva.
+La raiz del componente usa `x-data` con las siguientes propiedades Alpine locales:
+- `vista` -- inicializada con `localStorage.getItem('pedidos_vista_preferida') ?? 'lista'`. El toggle del header escribe en `localStorage` y cambia `vista` de forma reactiva.
+- `mostrarBorradoresPanel` (bool, default `false`) -- controla la visibilidad del dropdown de borradores. Reemplaza la propiedad Livewire `$mostrarBorradores` que fue eliminada.
+- `focusSearch()` -- funcion Alpine que pone el foco en el campo de busqueda del header.
+- `esInputActivo()` -- funcion Alpine que retorna `true` si el elemento con foco activo es un `INPUT`, `TEXTAREA` o `SELECT`. Usada como guard en los listeners de atajos de teclado para evitar disparos accidentales.
 
 La vista Lista esta envuelta en `x-show="vista === 'lista'"` y la vista Kanban en `x-show="vista === 'kanban'"`.
+
+**Header compacto (una sola fila, h-9)**:
+El header ya no contiene titulo ni descripcion del modulo. Contiene en una sola fila: contador de pedidos, badge de nuevos, boton de borradores (condicional), chips removibles de filtros activos, search inline (md+), boton filtros, boton refrescar con estado loading (`wire:loading.remove` / `wire:loading`), toggle lista/kanban y boton nuevo.
+
+**Boton borradores (Alpine puro, sin round-trip)**:
+Reemplaza el desplegable Livewire previo. El boton aparece condicionalmente si `$borradores->count() > 0`. Click activa `mostrarBorradoresPanel = true`; `@click.outside` y `@keydown.escape.window` lo cierran. Las propiedades Livewire `$mostrarBorradores` y el metodo `toggleBorradores()` fueron eliminados del componente PHP.
+
+**Chips de filtros activos**:
+Por cada filtro con valor distinto al default (estado pedido, estado pago, busqueda), el header renderiza un chip con un boton de cierre. Click en el boton del chip hace `wire:click` que limpia la propiedad Livewire correspondiente (`filterEstadoPedido = ''`, `filterEstadoPago = ''`, `search = ''`).
+
+**Atajos de teclado (`@keydown.window`)**:
+Registrados en el `x-data` raiz via Alpine:
+- `ctrl.n` / `meta.n` → llama `abrirModalNuevoPedido()` via `$wire`. Guard: `!esInputActivo()`.
+- `ctrl.k` / `meta.k` → llama `focusSearch()`.
+- `/` → llama `focusSearch()`. Guard: `!esInputActivo()`.
+- `escape` → `mostrarBorradoresPanel = false`.
 
 **Resaltado en vivo de pedidos (`pedido-destacado`)**:
 

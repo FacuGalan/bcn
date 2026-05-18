@@ -581,12 +581,33 @@ Un pedido tiene dos estados independientes: el **estado del pedido** (ciclo de v
 
 **Ruta**: Menu > Pedidos por Mostrador
 
-En el header del modulo hay un **toggle de vista** con dos botones (icono de lineas horizontales = Lista / icono de grilla = Kanban). El boton activo aparece resaltado. La preferencia se guarda automaticamente en el dispositivo y se restaura al volver a abrir la pagina.
+La pagina ocupa toda la altura de la pantalla disponible (fullscreen), igual que la vista de Nueva Venta. No hay scroll vertical de pagina; el contenido interno del area de lista o kanban scrollea de forma independiente.
+
+El **header** es una sola fila compacta de 36px que contiene, de izquierda a derecha:
+
+- **Contador de pedidos**: texto "{N} pedidos" con el total visible segun filtros activos.
+- **Badge "X nuevos"**: aparece en amarillo pulsante cuando ingresan pedidos nuevos desde otras terminales. Click → resetea el contador y actualiza la lista.
+- **Boton "X en borrador"** (solo si hay borradores): badge amarillo. Al hacer click se despliega un panel con la lista de borradores. Click fuera del panel o tecla Escape lo cierra. Si no hay borradores, el boton no aparece.
+- **Chips de filtros activos**: por cada filtro activo (estado pedido, estado pago, busqueda) aparece un chip removible con el nombre del filtro. Click en la X del chip limpia ese filtro.
+- **Search inline** (solo pantallas medianas y grandes): campo de busqueda directamente en el header. En mobile el campo se traslada al panel de filtros.
+- **Boton Filtros**: abre el panel de filtros lateral.
+- **Boton Refrescar**: icono de flecha circular. Fuerza un fetch inmediato desde el servidor (util cuando la conexion WebSocket esta caida). Durante la recarga muestra un spinner en lugar del icono.
+- **Toggle Lista / Kanban**: icono de lineas horizontales = Lista / icono de grilla = Kanban. El boton activo aparece resaltado. La preferencia se guarda en el dispositivo y se restaura al volver.
+- **Boton Nuevo**: abre el modal de creacion de pedido.
 
 - **Vista Lista** (por defecto): tabla paginada con todos los estados, incluyendo Cancelado y Facturado.
 - **Vista Kanban**: tablero de columnas para los estados operativos activos. Los pedidos Cancelados y Facturados no aparecen en el Kanban.
 
-El toggle es visible tanto en dispositivos moviles como en escritorio.
+#### Atajos de teclado
+
+| Atajo | Accion |
+|-------|--------|
+| `Ctrl+N` / `Cmd+N` | Abre el modal de Nuevo Pedido |
+| `Ctrl+K` / `Cmd+K` | Pone el foco en el campo de busqueda |
+| `/` | Pone el foco en el campo de busqueda |
+| `Escape` | Cierra el panel de borradores si esta abierto |
+
+> Los atajos `Ctrl+N`, `/` y `Escape` no se disparan si el foco esta dentro de un campo de texto.
 
 ### 4.2 Vista Lista
 
@@ -596,7 +617,7 @@ La lista muestra todos los pedidos de la sucursal activa. Si hay una **caja acti
 
 #### Badge de pedidos nuevos
 
-Si mientras la pagina esta abierta ingresan pedidos nuevos (desde otras terminales o canales), aparece un **badge pulsante** debajo del titulo de la seccion con el texto "X nuevos". Al hacer click sobre el badge, el contador se resetea y la lista se actualiza mostrando todos los pedidos al dia. El badge no aparece si no hay pedidos nuevos desde que se abrio la pagina.
+Si mientras la pagina esta abierta ingresan pedidos nuevos (desde otras terminales o canales), aparece el **badge "X nuevos"** en el header con animacion pulsante. Al hacer click sobre el badge, el contador se resetea y la lista se actualiza mostrando todos los pedidos al dia. El badge no aparece si no hay pedidos nuevos desde que se abrio la pagina.
 
 #### Resaltado en vivo de pedidos nuevos o modificados
 
