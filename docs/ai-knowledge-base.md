@@ -1494,6 +1494,21 @@ Pagos aplicados al pedido. Espejo de `venta_pagos` sin campos fiscales.
 
 Los pagos `planificados` no cuentan para este calculo. Solo los `activos`.
 
+#### Permisos del modulo
+
+Los permisos se crean en la migracion `add_pedidos_mostrador_permissions_to_admin_roles` y se asignan a los roles Administrador y Super Administrador via `ProvisionComercioCommand::seedRolesYPermisos()` al provisionar un comercio nuevo.
+
+| Permiso | Accion protegida |
+|---------|-----------------|
+| `func.pedidos_mostrador.cobrar` | Cobrar pedido (rapido, desglose, confirmar planificados) |
+| `func.pedidos_mostrador.cancelar` | Cancelar pedido |
+| `func.pedidos_mostrador.convertir_venta` | Convertir pedido en venta |
+| `func.pedidos_mostrador.anular_pago` | Anular un pago activo del pedido |
+| `func.pedidos_mostrador.modificar_pago` | Modificar un pago existente |
+| `func.pedidos_mostrador.reordenar_kanban` | Reordenar cards dentro de una columna Kanban |
+
+Los roles Administrador y Super Administrador reciben todos estos permisos automaticamente. Los roles operativos (cajero, vendedor, etc.) los reciben segun configuracion manual del comercio.
+
 #### Campos agregados a tablas existentes
 
 - **`sucursales`**: `pedido_mostrador_activo` (boolean, habilita el modulo por sucursal), `pedido_mostrador_imprime_comanda_auto` (boolean, imprime comanda al confirmar), `pedido_mostrador_ultimo_numero` (int unsigned, contador atomico del numero correlativo).
@@ -1510,6 +1525,7 @@ Metodos principales:
 - `eliminarPagoPlanificado(PedidoMostradorPago $pago): void` -- Elimina sin movimiento de caja.
 - `cancelarPedido(PedidoMostrador $pedido, string $motivo): void` -- Genera contraasientos de caja por pagos activos, revierte stock, marca cancelado. Dispatcha broadcast `TIPO_CANCELADO` con `toOthers()`.
 - `convertirEnVenta(PedidoMostrador $pedido): Venta` -- Materializa planificados, crea `Venta` con todos sus detalles y pagos, marca pedido como `facturado`. Dispatcha broadcast `TIPO_CONVERTIDO_VENTA` con `toOthers()`.
+- `agregarPago(PedidoMostrador $pedido, array $datosPago): PedidoMostradorPago` -- Agrega un pago al pedido. Si `$datosPago['planificado']` es `false`, crea `MovimientoCaja` inmediatamente (pago `activo`). Si es `true`, solo persiste el registro `planificado` sin movimiento de caja. Llama `recalcularEstadoPago()` al final. Dispatcha broadcast `TIPO_PAGO_CAMBIADO` con `toOthers()`.
 - `reordenarColumna(int $sucursalId, ?int $cajaId, string $estado, array $idsOrdenados): void` -- Persiste el orden intra-columna del Kanban. Valida que `$estado` sea un estado de `ESTADOS_KANBAN`. Descarta IDs cuyo `estado_pedido` no coincida con `$estado` o cuya `caja_id` difiera de la activa (cuando hay caja activa). Renumera los IDs validos asignando valores decrecientes partiendo de `MAX(orden_kanban)` del estado + N, de modo que el primer ID del array quede con el valor mas alto (posicion 0 del DOM = top de la columna). Solo afecta drops dentro de la misma columna; los cross-column pasan por `cambiarEstado` sin tocar el orden.
 - `imprimirComanda(PedidoMostrador $pedido): array` -- Retorna payload para el evento `imprimir-comanda`.
 - `imprimirPrecuenta(PedidoMostrador $pedido): array` -- Retorna payload para el evento `imprimir-precuenta`.
@@ -1568,7 +1584,9 @@ Ante cualquier rechazo (incluyendo excepciones del service), dispatcha `kanban-r
 
 **Metodos de acciones rapidas**:
 - `entregarRapido(int $pedidoId): void` -- valida acceso a sucursal y que la transicion a `ESTADO_ENTREGADO` sea legal via `TRANSICIONES_PERMITIDAS`. Llama `PedidoMostradorService::cambiarEstado()`. Si la sucursal tiene conversion automatica configurada, la conversion ocurre como efecto del service. Dispatcha toast.
-- `cobrarRapido(int $pedidoId): void` -- requiere permiso `func.pedidos_mostrador.cobrar`. Si el pedido tiene pagos `planificados`, los confirma todos via `confirmarPagoPlanificado()` en loop. Si no hay planificados, delega a `abrirCobrar($pedidoId)` (flujo modal estandar). Dispatcha toast de resultado.
+- `cobrarRapido(int $pedidoId): void` -- requiere permiso `func.pedidos_mostrador.cobrar`. Flujo condicional en tres ramas: (1) si el pedido tiene pagos `planificados`, los confirma todos via `confirmarPagoPlanificado()` en loop; (2) si no hay planificados y `pedidoEsEditable()` retorna `true`, llama `abrirCobroRapido($pedidoId)` — monta `NuevoPedidoMostrador` con `modoCobroRapido=true`; (3) si no es editable, delega a `abrirCobrar($pedidoId)` (flujo modal estandar "Cobrar pendiente"). Dispatcha toast de resultado.
+- `pedidoEsEditable(PedidoMostrador $pedido): bool` -- helper publico. Retorna `true` si `estado_pedido === ESTADO_BORRADOR`, o si `estado_pedido === ESTADO_CONFIRMADO && estado_pago === ESTADO_PAGO_PENDIENTE`. Usado en la vista para mostrar/ocultar el boton Editar y en `cobrarRapido()` para decidir el flujo.
+- `abrirCobroRapido(int $pedidoId): void` -- verifica permiso `func.pedidos_mostrador.cobrar`, acceso a sucursal y que el pedido no este cancelado/facturado. Incrementa `$cobroRapidoKey`, asigna `$pedidoCobroRapidoId = $pedidoId`, cierra `$showCobrarModal` y `$showDetalleModal` si estaban abiertos.
 - `reordenarColumna(string $estado, array $idsOrdenados): void` -- persiste el orden intra-columna del Kanban. Delega a `PedidoMostradorService::reordenarColumna()`. Ante error, dispatcha toast pero no lanza excepcion al caller. Al cambiar caja activa, los snapshots y `$nuevosCount` se resetean.
 
 **Metodo `render()` -- datos adicionales para Kanban**:
@@ -1616,7 +1634,7 @@ Un click sobre la fila o la card llama a `marcarVisto(id)`, que elimina el ID de
 
 **Funcion Alpine `kanbanBoard(transiciones)`**: inicializa SortableJS en cada columna del tablero. Configuracion relevante:
 - `group: 'pedidos'` -- permite arrastrar entre columnas del mismo grupo.
-- `onMove(evt)`: callback síncrono que valida si la transicion desde el estado de origen (obtenido del `data-estado` del contenedor origen) hacia el estado destino (del contenedor destino) existe en el mapa `transiciones`. Retorna `false` para bloquear el drop si la transicion no es legal.
+- `onMove(evt)`: callback sincrono que valida si la transicion desde el estado de origen (obtenido del `data-estado` del contenedor origen) hacia el estado destino (del contenedor destino) existe en el mapa `transiciones`. Retorna `false` para bloquear el drop si la transicion no es legal.
 - `onEnd(evt)`: se dispara al soltar. Bifurca segun tipo de drop:
   - **Cross-column** (`evt.from !== evt.to`): llama a `$wire.cambiarEstadoDrag(pedidoId, nuevoEstado)`. El `pedidoId` se lee del atributo `data-pedido-id` de la card arrastrada.
   - **Same-column** (`evt.from === evt.to && evt.oldIndex !== evt.newIndex`): recopila todos los `data-pedido-id` de las cards de la columna en el nuevo orden DOM y llama a `$wire.reordenarColumna(estado, idsOrdenados)`. El `estado` se lee del `data-estado` del contenedor de columna.
@@ -1635,63 +1653,103 @@ Cuando `cambiarEstadoDrag` rechaza el cambio, dispatcha el evento de browser `ka
 | Frontend `onMove` | Alpine/SortableJS | `transicionesKanban` pasado como prop desde el servidor | Bloquea el drop visualmente (retorna false en onMove) |
 | Backend `cambiarEstadoDrag` | PHP/Livewire | `TRANSICIONES_PERMITIDAS` completo + acceso a sucursal + estado dentro de ESTADOS_KANBAN | Dispatcha `kanban-revertir` + toast de error |
 
-**Integracion con NuevoPedidoMostrador (modal full-screen)**:
+**Integracion con NuevoPedidoMostrador (modal full-screen y cobro rapido)**:
 
-El componente renderiza condicionalmente al final de su vista:
+El componente renderiza condicionalmente al final de su vista dos instancias posibles de `NuevoPedidoMostrador`:
+
 ```blade
-<livewire:pedidos.nuevo-pedido-mostrador :pedidoId="$pedidoIdEnEdicion" :key="$modalNuevoPedidoKey" />
+{{-- Editor full-screen (alta y edicion) --}}
+@if($modalNuevoPedidoAbierto)
+<livewire:pedidos.nuevo-pedido-mostrador :pedidoId="$pedidoIdEnEdicion" :key="'modal-nuevo-pedido-' . $modalNuevoPedidoKey" />
+@endif
+
+{{-- Cobro rapido (solo modal de desglose, sin UI del editor) --}}
+@if($pedidoCobroRapidoId)
+<livewire:pedidos.nuevo-pedido-mostrador :pedidoId="$pedidoCobroRapidoId" :modoCobroRapido="true" :key="'cobro-rapido-' . $pedidoCobroRapidoId . '-' . $cobroRapidoKey" />
+@endif
 ```
 
-Props de control en `PedidosMostrador`:
+Props de control en `PedidosMostrador` -- editor full-screen:
 - `$modalNuevoPedidoAbierto` (bool) -- controla visibilidad del modal.
 - `$pedidoIdEnEdicion` (int|null) -- null para alta, ID para edicion.
 - `$modalNuevoPedidoKey` (int) -- counter incrementado cada vez que se abre, fuerza remount del sub-componente para resetear su estado.
 
-Metodos de apertura:
+Props de control en `PedidosMostrador` -- cobro rapido:
+- `$pedidoCobroRapidoId` (?int) -- ID del pedido sobre el que se abrio el cobro rapido. `null` cuando no esta activo.
+- `$cobroRapidoKey` (int) -- counter para forzar remount al re-abrir.
+
+Metodos de apertura (editor full-screen):
 - `abrirModalNuevoPedido()` -- modo alta: `$pedidoIdEnEdicion = null`, incrementa key.
 - `abrirModalEditarPedido($id)` -- modo edicion: `$pedidoIdEnEdicion = $id`, incrementa key.
 
-Eventos escuchados (via `#[On]`):
+Eventos escuchados (via `#[On]`) -- editor full-screen:
 - `cerrar-modal-pedido` -- despacha el sub-componente al cancelar. Cierra el modal sin refrescar.
 - `pedido-guardado` -- despacha el sub-componente tras alta o edicion exitosa. Cierra el modal y llama `$this->resetPage()` para refrescar la lista.
 
-El modal de detalle agrega el boton **"Editar pedido"** cuando `$pedido->estado_pedido` esta en `{borrador, confirmado}`.
+Eventos escuchados (via `#[On]`) -- cobro rapido:
+- `cobro-rapido-completado` -- handler `trasCobroRapidoCompletado()`. Resetea `$pedidoCobroRapidoId = null` y llama `resetPage()`.
+- `cerrar-cobro-rapido` -- handler `trasCerrarCobroRapido()`. Resetea `$pedidoCobroRapidoId = null` sin refrescar.
 
-#### Componente Livewire: `NuevoPedidoMostrador` (Modal Full-Screen)
+El modal de detalle agrega el boton **"Editar pedido"** cuando `$pedido->estado_pedido` esta en `{borrador, confirmado}`. El boton **"Editar"** rapido tambien aparece directamente en cada fila de la lista y en cada card del Kanban cuando `pedidoEsEditable()` es `true`.
+
+#### Componente Livewire: `NuevoPedidoMostrador` (Modal Full-Screen / Cobro Rapido)
 
 `app/Livewire/Pedidos/NuevoPedidoMostrador.php` | Sin ruta dedicada -- invocado como sub-componente de `PedidosMostrador`.
 
 No hay rutas `/pedidos/mostrador/nuevo` ni `/pedidos/mostrador/{pedido}/editar`. El alta y la edicion ocurren exclusivamente dentro del modal full-screen.
 
 **Props**:
-- `$pedidoId` (int|null) -- null = modo alta, ID = modo edicion (solo borrador o confirmado).
+- `$pedidoId` (int|null) -- null = modo alta, ID = modo edicion o cobro rapido.
+- `$modoCobroRapido` (bool, default `false`) -- cuando `true`, el componente monta solo el modal de desglose de pagos sobre el listado, sin renderizar la UI completa del editor. El `mount()` acepta este parametro directamente.
 
-**Traits del Carrito incluidos** (10 de 11 -- excluye `WithPagosDesglose`, pendiente para PR2.C.2.B):
-`WithCarritoItems`, `WithCarritoDescuentos`, `WithCarritoCupon`, `WithCarritoPuntos`, `WithCarritoCliente`, `WithCarritoListaPrecios`, `WithCarritoTotales`, `WithArticulosRapidos`, `WithClientesRapidos`, `WithCarritoOpcionales`.
+**Traits del Carrito incluidos** (11 de 11):
+`WithCarritoItems`, `WithCarritoDescuentos`, `WithCarritoCupon`, `WithCarritoPuntos`, `WithCarritoCliente`, `WithCarritoListaPrecios`, `WithCarritoTotales`, `WithArticulosRapidos`, `WithClientesRapidos`, `WithCarritoOpcionales`, `WithPagosDesglose`.
 
 **Vista**: `resources/views/livewire/pedidos/nuevo-pedido-mostrador.blade.php`
 
-Wrapper: `<div class="fixed inset-0 z-40 bg-white dark:bg-gray-900 flex flex-col overflow-hidden">`. Header sticky con titulo, botones de accion y boton cerrar. Layout de dos columnas:
-- Columna izquierda: incluye los parciales `livewire.carrito._busqueda-articulos` y `livewire.carrito._detalle-items` (los mismos parciales extraidos en PR #78, UI identica a NuevaVenta).
-- Columna derecha: cliente, identificador + beeper, lista de precios, descuentos/cupon/puntos, observaciones, totales en vivo.
+El archivo tiene un wrapper raiz `<div data-livewire-root="nuevo-pedido-mostrador">` que garantiza el tag root que Livewire requiere incluso cuando los modales internos estan cerrados. Adentro un `@if($modoCobroRapido) ... @else ...` bifurca:
+- **Modo cobro rapido**: renderiza solo los tres parciales de pago (`_modal-pago-mixto`, `_modal-moneda-extranjera`, `_modal-vuelto`) superpuestos sobre el listado. No hay UI de editor.
+- **Modo editor (default)**: renderiza el modal full-screen con header, carrito y panel de totales. Wrapper interno: `<div class="fixed inset-0 z-40 bg-black/40 flex items-stretch justify-center p-2 sm:p-3">`.
 
-**Reutilizacion de modales del carrito**: `_modal-cliente-rapido`, `_modal-articulo-rapido`, `_modal-busqueda-articulos`, `_modal-pesable`, `_wizard-opcionales`, `_modal-descuentos` (mismos parciales que NuevaVenta).
+**Reutilizacion de modales del carrito** (modo editor): `_modal-cliente-rapido`, `_modal-articulo-rapido`, `_modal-busqueda-articulos`, `_modal-pesable`, `_wizard-opcionales`, `_modal-descuentos` (mismos parciales que NuevaVenta).
 
-**Modales propios**: concepto libre, confirmar limpiar carrito, edicion de nombre de item.
+**Modales propios** (modo editor): concepto libre, confirmar limpiar carrito, edicion de nombre de item.
 
 **Modos de operacion**:
 - Alta (`$pedidoId === null`): sin numero, sin descuento de stock al guardar borrador.
-- Edicion (`$pedidoId` provisto): precarga datos del pedido. Solo disponible para estados borrador y confirmado.
+- Edicion (`$pedidoId` provisto, `$modoCobroRapido = false`): precarga datos del pedido. Solo disponible para estados borrador y confirmado.
+- Cobro rapido (`$pedidoId` provisto, `$modoCobroRapido = true`): llama `iniciarCobroRapido()` al final de `mount()`. No carga catalogo tactil.
 
 **Logica de beeper**: el campo `numero_beeper` es obligatorio al confirmar si `sucursal.usa_beepers = true`. No se valida al guardar como borrador.
 
-**Acciones**:
+**Metodo `iniciarCobroRapido()`**:
+- Calcula `$saldo = round(total_final - total_cobrado - total_planificado, 2)`.
+- Si `$saldo <= 0.01`, dispatcha error y `cerrar-cobro-rapido`.
+- Sobreescribe `$this->resultado['total_final'] = $saldo` para que toda la logica de `WithPagosDesglose` (recalcularTotalConAjustes, desgloseCompleto, IVA mixto) opere sobre el saldo y no sobre el total original.
+- Limpia `$desglosePagos`, inicializa `$montoPendienteDesglose`, `$totalConAjustes` y `$ajusteFormaPagoInfo` con el saldo.
+- Abre el modal en modo cobro: `$modalPagoEnModoCobro = true`, `$mostrarModalPago = true`.
+
+**Override `procesarVentaConDesglose()`**:
+En modo cobro rapido delega a `procesarCobroRapido()` antes de la logica estandar.
+
+**Metodo `procesarCobroRapido()`**:
+- Valida que `$desglosePagos` no este vacio y que `$pedidoId` exista.
+- Valida caja abierta para pagos que la afecten (pagos que no sean cuenta corriente).
+- Itera `$this->desglosePagos` y llama `PedidoMostradorService::agregarPago($pedido, normalizarPagoDelDesglose($pago, planificadoForzado: false))` por cada fila.
+- Dispatcha `toast-success` y evento `cobro-rapido-completado` al padre.
+- Si una sola FP cubre el total, el pago queda con esa FP individual (no se usa la FP "mixta" del selector).
+
+**Override `cerrarModalPago()`**:
+- En modo cobro rapido: cierra `$mostrarModalPago` y dispatcha `cerrar-cobro-rapido`. No limpia el desglose (el componente se desmonta entero).
+- En modo editor: replica la logica estandar del trait (recalcula ajuste si el desglose esta completo, limpia si no lo esta).
+
+**Acciones (modo editor)**:
 - **Guardar borrador**: llama a `PedidoMostradorService::crearPedido()` con `esBorrador = true` (alta) o actualiza el pedido existente. Sin numero, sin stock.
 - **Confirmar pedido**: `esBorrador = false`. Asigna numero correlativo, descuenta stock, imprime comanda si corresponde.
 - **Cerrar / Cancelar**: despacha evento `cerrar-modal-pedido` al componente padre.
 - Tras alta o edicion exitosa: despacha evento `pedido-guardado` al componente padre.
 
-**Atajo de teclado**: Esc cierra el modal (manejado en Alpine con `@keydown.escape.window`).
+**Atajo de teclado**: Esc cierra el modal (manejado en Alpine con `@keydown.escape.window`). Solo aplica en modo editor.
 
 #### Evento Broadcast: `PedidoMostradorBroadcast`
 
