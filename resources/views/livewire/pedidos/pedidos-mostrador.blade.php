@@ -1,19 +1,23 @@
 <div wire:poll.60s>
-<div class="py-4"
+<div class="h-[calc(100vh-5.5rem)] flex flex-col overflow-hidden px-3 sm:px-4 lg:px-6 py-2"
     x-data="{
         vista: localStorage.getItem('pedidos_vista_preferida') || 'lista',
-        // Set de pedido_id destacados (creados/actualizados via broadcast en vivo).
-        // Solo en memoria del cliente: si el usuario navega o refresca, se pierde.
         destacados: new Set(),
+        mostrarBorradoresPanel: false,
         setVista(v) {
             this.vista = v;
             localStorage.setItem('pedidos_vista_preferida', v);
         },
+        toggleBorradoresPanel() {
+            this.mostrarBorradoresPanel = !this.mostrarBorradoresPanel;
+        },
+        focusSearch() {
+            const el = this.$refs.searchInput || document.getElementById('search');
+            if (el) { el.focus(); el.select?.(); }
+        },
         destacar(id) {
             const n = parseInt(id);
             if (!n) return;
-            // Reasignar el Set para triggear reactividad en Alpine (mutar con
-            // add()/delete() no dispara watchers).
             this.destacados = new Set([...this.destacados, n]);
         },
         marcarVisto(id) {
@@ -26,213 +30,262 @@
         estaDestacado(id) {
             return this.destacados.has(parseInt(id));
         },
+        esInputActivo(target) {
+            return target && ['INPUT','TEXTAREA','SELECT'].includes(target.tagName);
+        },
     }"
     @pedido-destacado.window="destacar($event.detail.pedidoId)"
+    @keydown.window="
+        if ($event.key === 'Escape' && mostrarBorradoresPanel) {
+            mostrarBorradoresPanel = false;
+            return;
+        }
+        if (($event.ctrlKey || $event.metaKey) && $event.key.toLowerCase() === 'n' && !esInputActivo($event.target)) {
+            $event.preventDefault();
+            $wire.abrirModalNuevoPedido();
+            return;
+        }
+        if (($event.ctrlKey || $event.metaKey) && $event.key.toLowerCase() === 'k') {
+            $event.preventDefault();
+            focusSearch();
+            return;
+        }
+        if ($event.key === '/' && !esInputActivo($event.target)) {
+            $event.preventDefault();
+            focusSearch();
+        }
+    "
 >
-    <div class="px-4 sm:px-6 lg:px-8">
-        {{-- Header --}}
-        <div class="mb-4 sm:mb-6">
-            <div class="flex justify-between items-start gap-3 sm:gap-4">
-                <div class="flex-1">
-                    <div class="flex items-center justify-between gap-3 sm:block">
-                        <h2 class="text-xl sm:text-2xl font-bold text-bcn-secondary dark:text-white flex items-center h-10 sm:h-auto">
-                            {{ __('Pedidos por Mostrador') }}
-                        </h2>
-                        {{-- Botón móvil --}}
-                        <div class="sm:hidden flex gap-2">
-                            <button type="button" wire:click="abrirModalNuevoPedido"
-                                class="inline-flex items-center justify-center flex-shrink-0 w-10 h-10 bg-bcn-primary border border-transparent rounded-md text-white hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
-                                title="{{ __('Nuevo Pedido') }}"
-                            >
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                    <p class="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-300">
-                        {{ __('Pedidos activos por sucursal — cambiar estado, cobrar, convertir en venta o cancelar') }}
-                    </p>
-                    @if($nuevosCount > 0)
-                        <button type="button" wire:click="marcarTodosVistos"
-                            class="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-bcn-primary text-white text-xs font-semibold rounded-full hover:bg-opacity-90 transition-all animate-pulse"
-                            title="{{ __('Pedidos nuevos entraron en tiempo real') }}">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                            </svg>
-                            {{ __(':n nuevos', ['n' => $nuevosCount]) }}
-                        </button>
-                    @endif
-                </div>
-                {{-- Toggle vista Lista/Kanban + Botón Nuevo (desktop) --}}
-                <div class="flex gap-2 sm:gap-3 items-start">
-                    {{-- Toggle vista (visible siempre, mobile + desktop) --}}
-                    <div class="inline-flex rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden h-10">
-                        <button type="button" @click="setVista('lista')"
-                            :class="vista === 'lista' ? 'bg-bcn-primary text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'"
-                            class="inline-flex items-center justify-center px-3 transition-colors"
-                            title="{{ __('Vista Lista') }}">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                            </svg>
-                        </button>
-                        <button type="button" @click="setVista('kanban')"
-                            :class="vista === 'kanban' ? 'bg-bcn-primary text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'"
-                            class="inline-flex items-center justify-center px-3 transition-colors border-l border-gray-300 dark:border-gray-600"
-                            title="{{ __('Vista Kanban') }}">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v6a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
-                            </svg>
-                        </button>
-                    </div>
-                    <button type="button" wire:click="abrirModalNuevoPedido"
-                        class="hidden sm:inline-flex items-center justify-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150"
-                        title="{{ __('Nuevo Pedido') }}"
-                    >
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                        </svg>
-                        {{ __('Nuevo Pedido') }}
-                    </button>
-                </div>
-            </div>
-        </div>
+    {{-- ==================== HEADER COMPACTO (1 fila) ==================== --}}
+    <div class="flex flex-wrap items-center gap-2 mb-2 flex-shrink-0">
+        {{-- Izquierda: contador + badges + chips filtros activos --}}
+        <div class="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+            <span class="text-sm font-semibold text-bcn-secondary dark:text-white whitespace-nowrap">
+                {{ $pedidos->total() }} {{ trans_choice('pedido|pedidos', $pedidos->total()) }}
+            </span>
 
-        {{-- Filtros --}}
-        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-4 sm:mb-6">
-            <div class="sm:hidden p-4 border-b border-gray-200 dark:border-gray-700">
-                <button wire:click="toggleFilters"
-                    class="w-full flex items-center justify-between text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-bcn-primary transition-colors">
-                    <span class="flex items-center">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                        </svg>
-                        {{ __('Filtros') }}
-                    </span>
-                    <svg class="w-5 h-5 transition-transform {{ $showFilters ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            @if($nuevosCount > 0)
+                <button type="button" wire:click="marcarTodosVistos"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 bg-bcn-primary text-white text-xs font-semibold rounded-full hover:bg-opacity-90 animate-pulse"
+                    title="{{ __('Pedidos nuevos entraron en tiempo real') }}">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    {{ __(':n nuevos', ['n' => $nuevosCount]) }}
+                </button>
+            @endif
+
+            @if($borradores->isNotEmpty())
+                <button type="button" @click="toggleBorradoresPanel()"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200 text-xs font-semibold rounded-full hover:bg-yellow-200 dark:hover:bg-yellow-900/60 transition-colors"
+                    title="{{ __('Borradores guardados sin confirmar') }}">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    {{ $borradores->count() }} {{ __('en borrador') }}
+                    <svg class="w-3 h-3 transition-transform" :class="mostrarBorradoresPanel ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                     </svg>
                 </button>
-            </div>
-            <div class="{{ $showFilters ? 'block' : 'hidden' }} sm:block p-4 sm:p-6">
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                        <label for="search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar') }}</label>
-                        <input type="text" id="search" wire:model.live.debounce.300ms="search"
-                            placeholder="{{ __('N°, cliente o teléfono...') }}"
-                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                    </div>
-                    <div>
-                        <label for="filterEstadoPedido" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Estado del pedido') }}</label>
-                        <select id="filterEstadoPedido" wire:model.live="filterEstadoPedido"
-                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                            <option value="activos">{{ __('Solo activos') }}</option>
-                            <option value="all">{{ __('Todos') }}</option>
-                            @foreach($estadosPedido as $key => $label)
-                                <option value="{{ $key }}">{{ __($label) }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label for="filterEstadoPago" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Estado del pago') }}</label>
-                        <select id="filterEstadoPago" wire:model.live="filterEstadoPago"
-                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                            <option value="all">{{ __('Todos') }}</option>
-                            @foreach($estadosPago as $key => $label)
-                                <option value="{{ $key }}">{{ __($label) }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div>
-                            <label for="filterFechaDesde" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Desde') }}</label>
-                            <input type="date" id="filterFechaDesde" wire:model.live="filterFechaDesde"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                        </div>
-                        <div>
-                            <label for="filterFechaHasta" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Hasta') }}</label>
-                            <input type="date" id="filterFechaHasta" wire:model.live="filterFechaHasta"
-                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-4 flex justify-end">
-                    <button wire:click="resetFilters"
-                        class="text-xs text-gray-600 dark:text-gray-400 hover:text-bcn-primary underline">
-                        {{ __('Limpiar filtros') }}
-                    </button>
-                </div>
-            </div>
+            @endif
+
+            {{-- Chips: filtros activos --}}
+            @if($filterEstadoPedido !== 'activos')
+                <button type="button" wire:click="$set('filterEstadoPedido', 'activos')"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs rounded-full hover:bg-gray-200 dark:hover:bg-gray-600">
+                    <span>{{ __('Estado') }}: {{ $filterEstadoPedido === 'all' ? __('todos') : __($estadosPedido[$filterEstadoPedido] ?? $filterEstadoPedido) }}</span>
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            @endif
+            @if($filterEstadoPago !== 'all')
+                <button type="button" wire:click="$set('filterEstadoPago', 'all')"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs rounded-full hover:bg-gray-200 dark:hover:bg-gray-600">
+                    <span>{{ __('Pago') }}: {{ __($estadosPago[$filterEstadoPago] ?? $filterEstadoPago) }}</span>
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            @endif
+            @if($search !== '')
+                <button type="button" wire:click="$set('search', '')"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs rounded-full hover:bg-gray-200 dark:hover:bg-gray-600">
+                    <span>"{{ \Illuminate\Support\Str::limit($search, 18) }}"</span>
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            @endif
         </div>
 
-        {{-- Desplegable de Borradores: solo aparece si hay al menos uno --}}
-        @if($borradores->isNotEmpty())
-            <div class="mb-4 sm:mb-6 bg-white dark:bg-gray-800 shadow-sm rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-                <button type="button" wire:click="toggleBorradores"
-                    class="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                    <div class="flex items-center gap-2">
-                        <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                            {{ __('Borradores') }}
-                        </span>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                            {{ $borradores->count() }}
-                        </span>
-                    </div>
-                    <svg class="w-5 h-5 transition-transform {{ $mostrarBorradores ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        {{-- Derecha: search + filtros + refresh + toggle vista + nuevo --}}
+        <div class="flex items-center gap-1.5 flex-shrink-0">
+            {{-- Search inline (desktop) --}}
+            <div class="relative hidden md:block">
+                <svg class="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <input x-ref="searchInput" type="text" id="search" wire:model.live.debounce.300ms="search"
+                    placeholder="{{ __('Buscar...') }}"
+                    class="pl-7 pr-9 py-1.5 w-48 lg:w-56 h-9 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-1 focus:ring-bcn-primary" />
+                <kbd class="hidden lg:inline-flex absolute right-2 top-1/2 -translate-y-1/2 items-center text-[10px] font-mono text-gray-400 border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 pointer-events-none">/</kbd>
+            </div>
+
+            {{-- Filtros toggle --}}
+            <button type="button" wire:click="toggleFilters"
+                class="h-9 px-2.5 inline-flex items-center gap-1 border rounded-md text-sm transition-colors {{ $showFilters ? 'border-bcn-primary text-bcn-primary bg-bcn-primary/5' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' }}"
+                title="{{ __('Filtros') }}">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                <span class="hidden sm:inline">{{ __('Filtros') }}</span>
+            </button>
+
+            {{-- Refrescar --}}
+            <button type="button" wire:click="$refresh"
+                class="h-9 w-9 inline-flex items-center justify-center border border-gray-300 dark:border-gray-600 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                title="{{ __('Refrescar') }}">
+                <svg wire:loading.remove wire:target="$refresh" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <svg wire:loading wire:target="$refresh" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+            </button>
+
+            {{-- Toggle vista Lista/Kanban --}}
+            <div class="inline-flex rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden h-9">
+                <button type="button" @click="setVista('lista')"
+                    :class="vista === 'lista' ? 'bg-bcn-primary text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                    class="inline-flex items-center justify-center px-2.5 transition-colors"
+                    title="{{ __('Vista Lista') }}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                     </svg>
                 </button>
-                @if($mostrarBorradores)
-                    <div class="border-t border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700 max-h-72 overflow-y-auto">
-                        @foreach($borradores as $borrador)
-                            <div class="px-4 py-2 flex items-center justify-between gap-2 hover:bg-gray-50 dark:hover:bg-gray-700">
-                                <div class="flex-1 min-w-0">
-                                    <div class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                                        @if($borrador->cliente)
-                                            {{ $borrador->cliente->nombre }}
-                                            @if($borrador->cliente->telefono)
-                                                <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $borrador->cliente->telefono }}</span>
-                                            @endif
-                                        @elseif($borrador->nombre_cliente_temporal)
-                                            {{ $borrador->nombre_cliente_temporal }}
-                                            @if($borrador->telefono_cliente_temporal)
-                                                <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $borrador->telefono_cliente_temporal }}</span>
-                                            @endif
-                                        @else
-                                            <span class="italic text-gray-500">{{ __('Sin cliente') }}</span>
-                                        @endif
-                                    </div>
-                                    <div class="text-xs text-gray-500 dark:text-gray-400">
-                                        {{ __('Actualizado') }}: {{ $borrador->updated_at->diffForHumans() }}
-                                        · ${{ number_format($borrador->total_final, 2, ',', '.') }}
-                                    </div>
-                                </div>
-                                <div class="flex gap-1">
-                                    <button type="button" wire:click="abrirModalEditarPedido({{ $borrador->id }})"
-                                        class="inline-flex items-center px-3 py-1.5 bg-bcn-primary text-white text-xs font-medium rounded hover:bg-opacity-90"
-                                        title="{{ __('Continuar borrador') }}">
-                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                        </svg>
-                                        {{ __('Continuar') }}
-                                    </button>
-                                    <button type="button" wire:click="abrirCancelar({{ $borrador->id }})"
-                                        class="inline-flex items-center p-1.5 border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/30"
-                                        title="{{ __('Descartar borrador') }}">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
+                <button type="button" @click="setVista('kanban')"
+                    :class="vista === 'kanban' ? 'bg-bcn-primary text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                    class="inline-flex items-center justify-center px-2.5 transition-colors border-l border-gray-300 dark:border-gray-600"
+                    title="{{ __('Vista Kanban') }}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v6a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
+                    </svg>
+                </button>
+            </div>
+
+            {{-- Nuevo Pedido --}}
+            <button type="button" wire:click="abrirModalNuevoPedido"
+                class="h-9 px-3 inline-flex items-center gap-1.5 bg-bcn-primary border border-transparent rounded-md font-semibold text-sm text-white hover:bg-opacity-90 transition-colors"
+                title="{{ __('Nuevo Pedido') }} (Ctrl+N)">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span class="hidden sm:inline">{{ __('Nuevo') }}</span>
+            </button>
+        </div>
+    </div>
+
+    {{-- ==================== FILTROS COLAPSABLES ==================== --}}
+    @if($showFilters)
+        <div class="bg-white dark:bg-gray-800 shadow-sm rounded-md mb-2 flex-shrink-0 border border-gray-200 dark:border-gray-700">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3">
+                {{-- Search (visible aca en mobile, oculto en desktop porque ya esta en header) --}}
+                <div class="md:hidden">
+                    <label for="search-mobile" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar') }}</label>
+                    <input type="text" id="search-mobile" wire:model.live.debounce.300ms="search"
+                        placeholder="{{ __('N°, cliente o teléfono...') }}"
+                        class="w-full h-9 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
+                </div>
+                <div>
+                    <label for="filterEstadoPedido" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Estado del pedido') }}</label>
+                    <select id="filterEstadoPedido" wire:model.live="filterEstadoPedido"
+                        class="w-full h-9 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm">
+                        <option value="activos">{{ __('Solo activos') }}</option>
+                        <option value="all">{{ __('Todos') }}</option>
+                        @foreach($estadosPedido as $key => $label)
+                            <option value="{{ $key }}">{{ __($label) }}</option>
                         @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label for="filterEstadoPago" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Estado del pago') }}</label>
+                    <select id="filterEstadoPago" wire:model.live="filterEstadoPago"
+                        class="w-full h-9 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm">
+                        <option value="all">{{ __('Todos') }}</option>
+                        @foreach($estadosPago as $key => $label)
+                            <option value="{{ $key }}">{{ __($label) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label for="filterFechaDesde" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Desde') }}</label>
+                        <input type="date" id="filterFechaDesde" wire:model.live="filterFechaDesde"
+                            class="w-full h-9 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
                     </div>
-                @endif
+                    <div>
+                        <label for="filterFechaHasta" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Hasta') }}</label>
+                        <input type="date" id="filterFechaHasta" wire:model.live="filterFechaHasta"
+                            class="w-full h-9 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
+                    </div>
+                </div>
             </div>
-        @endif
+            <div class="px-3 pb-2 flex justify-end">
+                <button wire:click="resetFilters"
+                    class="text-xs text-gray-600 dark:text-gray-400 hover:text-bcn-primary underline">
+                    {{ __('Limpiar filtros') }}
+                </button>
+            </div>
+        </div>
+    @endif
+
+    {{-- ==================== DROPDOWN BORRADORES (Alpine) ==================== --}}
+    @if($borradores->isNotEmpty())
+        <div x-cloak x-show="mostrarBorradoresPanel" x-transition.opacity.duration.150ms
+            @click.outside="mostrarBorradoresPanel = false"
+            class="bg-white dark:bg-gray-800 shadow-md rounded-md border border-gray-200 dark:border-gray-700 mb-2 max-h-72 overflow-y-auto flex-shrink-0 divide-y divide-gray-100 dark:divide-gray-700">
+            @foreach($borradores as $borrador)
+                <div class="px-3 py-2 flex items-center justify-between gap-2 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                            @if($borrador->cliente)
+                                {{ $borrador->cliente->nombre }}
+                                @if($borrador->cliente->telefono)
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $borrador->cliente->telefono }}</span>
+                                @endif
+                            @elseif($borrador->nombre_cliente_temporal)
+                                {{ $borrador->nombre_cliente_temporal }}
+                                @if($borrador->telefono_cliente_temporal)
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">— {{ $borrador->telefono_cliente_temporal }}</span>
+                                @endif
+                            @else
+                                <span class="italic text-gray-500">{{ __('Sin cliente') }}</span>
+                            @endif
+                        </div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">
+                            {{ __('Actualizado') }}: {{ $borrador->updated_at->diffForHumans() }}
+                            · ${{ number_format($borrador->total_final, 2, ',', '.') }}
+                        </div>
+                    </div>
+                    <div class="flex gap-1 flex-shrink-0">
+                        <button type="button" wire:click="abrirModalEditarPedido({{ $borrador->id }})"
+                            class="inline-flex items-center px-2.5 py-1 bg-bcn-primary text-white text-xs font-medium rounded hover:bg-opacity-90"
+                            title="{{ __('Continuar borrador') }}">
+                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            {{ __('Continuar') }}
+                        </button>
+                        <button type="button" wire:click="abrirCancelar({{ $borrador->id }})"
+                            class="inline-flex items-center p-1 border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/30"
+                            title="{{ __('Descartar borrador') }}">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
+    {{-- ==================== CONTENIDO SCROLLEABLE ==================== --}}
+    <div class="flex-1 min-h-0 overflow-y-auto">
 
         {{-- ==================== VISTA LISTA ==================== --}}
         <div x-show="vista === 'lista'" x-cloak>

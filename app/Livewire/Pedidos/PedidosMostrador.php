@@ -48,9 +48,6 @@ class PedidosMostrador extends Component
 
     public bool $showFilters = false;
 
-    /** Controla el desplegable de borradores arriba de la lista. */
-    public bool $mostrarBorradores = false;
-
     // ==================== MODAL: DETALLE ====================
 
     public bool $showDetalleModal = false;
@@ -481,11 +478,6 @@ class PedidosMostrador extends Component
         }
 
         return $query->orderByDesc('updated_at')->limit(50)->get();
-    }
-
-    public function toggleBorradores(): void
-    {
-        $this->mostrarBorradores = ! $this->mostrarBorradores;
     }
 
     // ==================== KANBAN ====================
