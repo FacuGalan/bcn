@@ -48,9 +48,6 @@ class PedidosMostrador extends Component
 
     public bool $showFilters = false;
 
-    /** Controla el desplegable de borradores arriba de la lista. */
-    public bool $mostrarBorradores = false;
-
     // ==================== MODAL: DETALLE ====================
 
     public bool $showDetalleModal = false;
@@ -483,11 +480,6 @@ class PedidosMostrador extends Component
         return $query->orderByDesc('updated_at')->limit(50)->get();
     }
 
-    public function toggleBorradores(): void
-    {
-        $this->mostrarBorradores = ! $this->mostrarBorradores;
-    }
-
     // ==================== KANBAN ====================
 
     /**
@@ -807,6 +799,20 @@ class PedidosMostrador extends Component
         $planificados = $pedido->pagos->where('estado', PedidoMostradorPago::ESTADO_PLANIFICADO);
 
         if ($planificados->isEmpty()) {
+            // Sin pagos planificados: si el pedido es editable (BORRADOR o
+            // CONFIRMADO con estado_pago=pendiente), abrimos el editor full-
+            // screen donde el operador puede armar el desglose y cobrar usando
+            // toda la logica de WithPagosDesglose (calculos de IVA, cuotas,
+            // recargo por FP, vuelto, etc.) — exactamente lo que harias dentro
+            // del alta normal. Para pedidos con parcial cobrado (no editables),
+            // caemos al modal estandar que muestra la info y permite agregar
+            // pagos sueltos via la UI heredada.
+            if ($this->pedidoEsEditable($pedido)) {
+                $this->abrirModalEditarPedido($pedidoId);
+
+                return;
+            }
+
             $this->abrirCobrar($pedidoId);
 
             return;
@@ -824,6 +830,25 @@ class PedidosMostrador extends Component
             ]);
             $this->dispatch('toast-error', message: $e->getMessage());
         }
+    }
+
+    /**
+     * Encapsula la regla de edicion: borrador siempre se puede editar; un
+     * pedido confirmado solo si no tiene pagos materializados todavia. Se usa
+     * desde la UI (mostrar el boton Editar) y desde el flujo de cobro rapido
+     * para decidir entre abrir el editor o el modal limitado.
+     */
+    public function pedidoEsEditable(PedidoMostrador $pedido): bool
+    {
+        if ($pedido->estado_pedido === PedidoMostrador::ESTADO_BORRADOR) {
+            return true;
+        }
+
+        if ($pedido->estado_pedido !== PedidoMostrador::ESTADO_CONFIRMADO) {
+            return false;
+        }
+
+        return $pedido->estado_pago === PedidoMostrador::ESTADO_PAGO_PENDIENTE;
     }
 
     // ==================== CANCELAR ====================
