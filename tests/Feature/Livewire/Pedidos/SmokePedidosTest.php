@@ -169,14 +169,31 @@ class SmokePedidosTest extends TestCase
         $this->assertSame(PedidoMostrador::ESTADO_CANCELADO, $pedido->fresh()->estado_pedido);
     }
 
-    public function test_cobrar_rapido_sin_planificados_abre_modal_de_cobro(): void
+    public function test_cobrar_rapido_sin_planificados_abre_editor_para_pedido_editable(): void
     {
+        // Pedido CONFIRMADO con estado_pago=pendiente: cumple regla de
+        // pedidoEsEditable() → cobrarRapido abre el editor full-screen
+        // (reusa toda la logica de desglose mixto y calculos del carrito).
         $pedido = $this->crearPedidoConfirmado();
 
         Livewire::test(PedidosMostrador::class)
             ->call('cobrarRapido', $pedido->id)
+            ->assertSet('modalNuevoPedidoAbierto', true)
+            ->assertSet('pedidoIdEnEdicion', $pedido->id);
+    }
+
+    public function test_cobrar_rapido_sin_planificados_abre_modal_para_pedido_no_editable(): void
+    {
+        // Pedido con estado_pago=parcial (no editable): cobrarRapido cae al
+        // modal estandar showCobrarModal con la info de planificados/info.
+        $pedido = $this->crearPedidoConfirmado();
+        $pedido->update(['estado_pago' => PedidoMostrador::ESTADO_PAGO_PARCIAL]);
+
+        Livewire::test(PedidosMostrador::class)
+            ->call('cobrarRapido', $pedido->id)
             ->assertSet('showCobrarModal', true)
-            ->assertSet('pedidoCobrarId', $pedido->id);
+            ->assertSet('pedidoCobrarId', $pedido->id)
+            ->assertSet('modalNuevoPedidoAbierto', false);
     }
 
     public function test_pedido_mostrador_broadcast_se_dispatcha_al_cambiar_estado(): void
