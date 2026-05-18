@@ -284,11 +284,14 @@
         </div>
     @endif
 
-    {{-- ==================== CONTENIDO SCROLLEABLE ==================== --}}
-    <div class="flex-1 min-h-0 overflow-y-auto">
+    {{-- ==================== CONTENIDO PRINCIPAL ====================
+         Sin overflow propio: cada vista decide su comportamiento de scroll.
+         Lista scrollea verticalmente; Kanban mantiene su alto fijo con scroll
+         interno por columna. --}}
+    <div class="flex-1 min-h-0 flex flex-col">
 
         {{-- ==================== VISTA LISTA ==================== --}}
-        <div x-show="vista === 'lista'" x-cloak>
+        <div x-show="vista === 'lista'" x-cloak class="h-full overflow-y-auto">
         {{-- Cards móvil --}}
         <div class="sm:hidden space-y-3">
             @forelse($pedidos as $pedido)
@@ -554,60 +557,62 @@
                 'entregado' => ['header' => 'bg-emerald-600', 'border' => 'border-emerald-300 dark:border-emerald-700'],
             ];
         @endphp
-        <div x-show="vista === 'kanban'" x-cloak>
+        <div x-show="vista === 'kanban'" x-cloak class="h-full flex flex-col min-h-0">
         <div x-data="kanbanBoard"
             data-transiciones="{{ json_encode($transicionesKanban) }}"
-            wire:key="kanban-{{ collect($pedidosKanban)->map->pluck('id')->flatten()->implode('-') }}">
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            wire:key="kanban-{{ collect($pedidosKanban)->map->pluck('id')->flatten()->implode('-') }}"
+            class="flex-1 flex flex-col min-h-0">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 flex-1 min-h-0">
                 @foreach($estadosKanban as $estado)
-                    <div class="bg-gray-100 dark:bg-gray-900 rounded-lg border {{ $estadoColores[$estado]['border'] }} flex flex-col min-h-[300px]">
+                    <div class="bg-gray-100 dark:bg-gray-900 rounded-lg border {{ $estadoColores[$estado]['border'] }} flex flex-col min-h-0">
                         {{-- Header columna --}}
-                        <div class="{{ $estadoColores[$estado]['header'] }} text-white px-3 py-2 rounded-t-lg flex justify-between items-center text-sm font-semibold">
+                        <div class="{{ $estadoColores[$estado]['header'] }} text-white px-3 py-2 rounded-t-lg flex justify-between items-center text-sm font-semibold flex-shrink-0">
                             <span>{{ $estadoLabels[$estado] }}</span>
                             <span class="px-2 py-0.5 bg-white/20 rounded-full text-xs">
                                 {{ $pedidosKanban[$estado]->count() }}
                             </span>
                         </div>
-                        {{-- Cards --}}
-                        <div class="flex-1 p-2 space-y-2 kanban-col overflow-y-auto max-h-[70vh]"
+                        {{-- Cards (scroll interno por columna, altura dinamica que se adapta al espacio disponible) --}}
+                        <div class="flex-1 min-h-0 p-2 space-y-2 kanban-col overflow-y-auto"
                             data-estado="{{ $estado }}">
                             @forelse($pedidosKanban[$estado] as $pedido)
-                                <div class="kanban-card bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-3 cursor-move hover:shadow-md transition-shadow select-none"
+                                <div class="kanban-card bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-2.5 cursor-move hover:shadow-md transition-shadow select-none"
                                     :class="estaDestacado({{ $pedido->id }}) ? 'pedido-destacado-card' : ''"
                                     @click="marcarVisto({{ $pedido->id }})"
                                     data-pedido-id="{{ $pedido->id }}"
                                     wire:key="kanban-card-{{ $pedido->id }}">
-                                    <div class="flex justify-between items-start mb-2">
-                                        <div class="font-bold text-sm text-bcn-secondary dark:text-white">
-                                            @if($pedido->numero)
-                                                #{{ $pedido->numero }}
-                                            @else
-                                                <span class="italic text-gray-500">{{ __('S/N') }}</span>
+                                    {{-- Fila 1: numero + beeper (izq), estado pago (der) --}}
+                                    <div class="flex justify-between items-center gap-2">
+                                        <div class="flex items-center gap-1.5 min-w-0">
+                                            <span class="font-bold text-base text-bcn-secondary dark:text-white">
+                                                @if($pedido->numero)
+                                                    #{{ $pedido->numero }}
+                                                @else
+                                                    <span class="italic text-gray-500 text-sm">{{ __('S/N') }}</span>
+                                                @endif
+                                            </span>
+                                            @if($pedido->numero_beeper)
+                                                <span class="bg-bcn-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-tight">
+                                                    B{{ $pedido->numero_beeper }}
+                                                </span>
                                             @endif
                                         </div>
-                                        @if($pedido->numero_beeper)
-                                            <span class="bg-bcn-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                                                B{{ $pedido->numero_beeper }}
-                                            </span>
+                                        @if($pedido->estado_pago === 'pagado')
+                                            <span class="text-green-700 dark:text-green-400 font-bold text-xs">{{ __('Pagado') }}</span>
+                                        @elseif($pedido->estado_pago === 'parcial')
+                                            <span class="text-amber-700 dark:text-amber-400 font-bold text-xs">{{ __('Parcial') }}</span>
+                                        @else
+                                            <span class="text-red-700 dark:text-red-400 font-bold text-xs">{{ __('Pendiente') }}</span>
                                         @endif
                                     </div>
-                                    <div class="text-xs text-gray-700 dark:text-gray-300 mb-2 truncate">
+                                    {{-- Fila 2: cliente --}}
+                                    <div class="text-sm text-gray-800 dark:text-gray-200 mt-1 truncate font-medium">
                                         {{ $pedido->cliente?->nombre ?? $pedido->nombre_cliente_temporal ?? __('Sin cliente') }}
                                     </div>
-                                    <div class="flex justify-between items-center text-xs">
-                                        <span class="font-semibold text-gray-900 dark:text-white">
-                                            ${{ number_format($pedido->total_final, 2, ',', '.') }}
-                                        </span>
-                                        @if($pedido->estado_pago === 'pagado')
-                                            <span class="text-green-700 dark:text-green-400 font-semibold">{{ __('Pagado') }}</span>
-                                        @elseif($pedido->estado_pago === 'parcial')
-                                            <span class="text-amber-700 dark:text-amber-400 font-semibold">{{ __('Parcial') }}</span>
-                                        @else
-                                            <span class="text-red-700 dark:text-red-400 font-semibold">{{ __('Pendiente') }}</span>
-                                        @endif
-                                    </div>
-                                    <div class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 flex gap-1 flex-wrap"
+                                    {{-- Fila 3: acciones (izq) + monto (der) en un solo footer --}}
+                                    <div class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2"
                                         @mousedown.stop @touchstart.stop>
+                                        <div class="flex gap-1 flex-wrap">
                                         <button type="button" wire:click="verDetalle({{ $pedido->id }})"
                                             class="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
                                             title="{{ __('Ver detalle') }}">
@@ -651,7 +656,11 @@
                                                 </svg>
                                             </button>
                                         @endif
-                                    </div>
+                                        </div>{{-- /acciones --}}
+                                        <span class="text-base font-bold text-bcn-primary whitespace-nowrap">
+                                            ${{ number_format($pedido->total_final, 2, ',', '.') }}
+                                        </span>
+                                    </div>{{-- /footer --}}
                                 </div>
                             @empty
                                 <div class="text-xs text-gray-400 dark:text-gray-500 text-center py-4 italic">
