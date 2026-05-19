@@ -67,6 +67,13 @@ class VentaDetalle extends Model
         'es_concepto',
         'concepto_descripcion',
         'concepto_categoria_id',
+        // Invitaciones (cortesias)
+        'es_invitacion',
+        'invitacion_motivo',
+        'invitado_por_usuario_id',
+        'invitado_at',
+        'monto_invitado',
+        'precio_unitario_original',
     ];
 
     protected $casts = [
@@ -93,6 +100,11 @@ class VentaDetalle extends Model
         'puntos_usados' => 'integer',
         // Concepto libre
         'es_concepto' => 'boolean',
+        // Invitaciones
+        'es_invitacion' => 'boolean',
+        'invitado_at' => 'datetime',
+        'monto_invitado' => 'decimal:2',
+        'precio_unitario_original' => 'decimal:2',
     ];
 
     // Relaciones

@@ -49,6 +49,12 @@ class PedidoMostradorDetalle extends Model
         'descuento_lista',
         'tiene_promocion',
         'total',
+        'es_invitacion',
+        'invitacion_motivo',
+        'invitado_por_usuario_id',
+        'invitado_at',
+        'monto_invitado',
+        'precio_unitario_original',
     ];
 
     protected $casts = [
@@ -74,6 +80,10 @@ class PedidoMostradorDetalle extends Model
         'descuento_lista' => 'decimal:2',
         'tiene_promocion' => 'boolean',
         'total' => 'decimal:2',
+        'es_invitacion' => 'boolean',
+        'invitado_at' => 'datetime',
+        'monto_invitado' => 'decimal:2',
+        'precio_unitario_original' => 'decimal:2',
     ];
 
     public function pedido(): BelongsTo
