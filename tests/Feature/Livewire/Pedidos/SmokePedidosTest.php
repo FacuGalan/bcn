@@ -124,6 +124,81 @@ class SmokePedidosTest extends TestCase
             ->assertSet('invitarItemIndex', null);
     }
 
+    public function test_confirmar_invitacion_total_persiste_pedido_sin_pagos(): void
+    {
+        // Fase 6: ciclo completo desde el modal de cobro. Activar switch +
+        // ingresar motivo + click "Confirmar invitación" debe persistir el
+        // pedido con todos los items invitados y estado_pago=pagado.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->set('nombreClienteTemporal', 'Juan Test')
+            ->set('telefonoClienteTemporal', '12345')
+            ->call('confirmarPedido') // Abre el modal en modo cobro
+            ->assertSet('mostrarModalPago', true)
+            ->assertSet('modalPagoEnModoCobro', true)
+            ->call('toggleInvitarTodo')
+            ->assertSet('invitarTodo', true)
+            ->set('motivoInvitacionTotal', 'Cliente VIP — evento')
+            ->call('confirmarInvitacionTotal');
+
+        $componente->assertDispatched('pedido-guardado');
+
+        $pedido = PedidoMostrador::with('detalles')->first();
+        $this->assertNotNull($pedido);
+        $this->assertTrue((bool) $pedido->es_invitacion_total);
+        $this->assertSame('Cliente VIP — evento', $pedido->invitacion_motivo);
+        $this->assertNotNull($pedido->invitado_por_usuario_id);
+        $this->assertNotNull($pedido->invitado_at);
+        $this->assertEqualsWithDelta(0.0, (float) $pedido->total_final, 0.01);
+        $this->assertGreaterThan(0, (float) $pedido->total_invitado);
+        $this->assertSame(PedidoMostrador::ESTADO_PAGO_PAGADO, $pedido->estado_pago);
+        $this->assertSame(0, $pedido->pagos()->count(), 'No debe haber pagos');
+
+        $detalle = $pedido->detalles->first();
+        $this->assertTrue((bool) $detalle->es_invitacion);
+        $this->assertSame('Cliente VIP — evento', $detalle->invitacion_motivo);
+    }
+
+    public function test_confirmar_invitacion_total_rechaza_sin_motivo(): void
+    {
+        // Fase 6: el motivo es obligatorio. Sin motivo, el botón está disabled
+        // en la UI pero defendemos también en backend (vía trait).
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->set('nombreClienteTemporal', 'Juan Test')
+            ->set('telefonoClienteTemporal', '12345')
+            ->call('confirmarPedido')
+            ->call('toggleInvitarTodo')
+            ->set('motivoInvitacionTotal', '   ') // solo whitespace
+            ->call('confirmarInvitacionTotal')
+            ->assertDispatched('toast-error');
+
+        $this->assertSame(0, PedidoMostrador::count(),
+            'No debe persistirse pedido si el motivo está vacío');
+    }
+
+    public function test_toggle_invitar_todo_apaga_resetea_motivo(): void
+    {
+        // Fase 6: apagar el switch borra el motivo (evita persistir basura si
+        // el usuario decide finalmente no invitar).
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->set('nombreClienteTemporal', 'Juan Test')
+            ->set('telefonoClienteTemporal', '12345')
+            ->call('confirmarPedido')
+            ->call('toggleInvitarTodo')
+            ->set('motivoInvitacionTotal', 'Algo')
+            ->call('toggleInvitarTodo')
+            ->assertSet('invitarTodo', false)
+            ->assertSet('motivoInvitacionTotal', '');
+    }
+
     public function test_desinvitar_item_restaura_precio_y_recalcula(): void
     {
         // Fase 5: invitar y luego desinvitar via los modales debe restaurar

@@ -2029,6 +2029,26 @@ class NuevoPedidoMostrador extends Component
         $this->dispatch('toast-success', message: __('Desglose guardado. Revisá los totales y confirmá el pedido.'));
     }
 
+    /**
+     * Confirma el pedido como invitación total en un solo click desde el modal
+     * de cobro. Invita todos los items (vía trait WithInvitaciones) y persiste.
+     *
+     * El motivo y el permiso los valida `confirmarInvitarTodo()` del trait;
+     * si falla, abortamos antes de tocar la persistencia. `procesarVentaConDesglose()`
+     * detecta `total_final=0` (todo invitado) y persiste sin desglose ni caja.
+     */
+    public function confirmarInvitacionTotal(): void
+    {
+        $this->confirmarInvitarTodo();
+
+        // Si el trait no pudo marcar (sin permiso, motivo vacío), abortamos.
+        if (! $this->esInvitacionTotal) {
+            return;
+        }
+
+        $this->procesarVentaConDesglose();
+    }
+
     // ==================== OVERRIDE: PROCESAMIENTO TERMINAL ====================
     // WithPagosDesglose::procesarVentaConDesglose crea Venta + VentaPago vía
     // VentaService. Acá lo reemplazamos para crear PedidoMostrador +

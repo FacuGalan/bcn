@@ -102,6 +102,25 @@ trait WithInvitaciones
         return Auth::user()?->hasPermissionTo($permiso) ?? false;
     }
 
+    /**
+     * Computed property — accesible desde Blade como `$puedeInvitarPedido`.
+     * Permite al modal de cobro decidir si mostrar el switch "Invitar pedido
+     * completo" sin filtrar el permiso a mano en cada vista.
+     */
+    public function getPuedeInvitarPedidoProperty(): bool
+    {
+        return $this->puedeInvitarPedido();
+    }
+
+    /**
+     * Computed property — accesible desde Blade como `$puedeInvitarRenglon`.
+     * Usable por `_detalle-items` para deshabilitar el botón de invitar item.
+     */
+    public function getPuedeInvitarRenglonProperty(): bool
+    {
+        return $this->puedeInvitarRenglon();
+    }
+
     // =========================================
     // FLUJO POR ITEM
     // =========================================

@@ -383,7 +383,7 @@ Claves nuevas en `lang/{es,en,pt}.json`:
 4. Modificar la vista para mostrar el indicador visual del item invitado (badge + strike-through).
 5. Smoke visual: abrir editor, ver botones, ejecutar flujo en navegador.
 
-### Fase 6: UI switch en modal de cobro [PENDIENTE]
+### Fase 6: UI switch en modal de cobro [COMPLETO]
 
 1. Modificar `_modal-pago-mixto.blade.php`: agregar switch "Invitar pedido completo" arriba del listado de pagos.
 2. Cuando switch activo: mostrar textarea de motivo, ocultar selector de FPs, cambiar texto del botón principal a "Confirmar invitación".
