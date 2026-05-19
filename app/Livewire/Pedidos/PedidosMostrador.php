@@ -105,6 +105,20 @@ class PedidosMostrador extends Component
     /** Counter para forzar remount del sub-componente al reabrir el modal. */
     public int $modalNuevoPedidoKey = 0;
 
+    // ==================== COBRO RAPIDO (modal-only) ====================
+
+    /**
+     * ID del pedido sobre el que se abrio el modal de cobro rapido. Cuando
+     * no es null, la vista renderiza <livewire:nuevo-pedido-mostrador> con
+     * modoCobroRapido=true: el sub-componente arranca con el modal de
+     * desglose abierto (sin la UI del editor full-screen) para definir las
+     * formas de pago del saldo pendiente.
+     */
+    public ?int $pedidoCobroRapidoId = null;
+
+    /** Counter para forzar remount al re-abrir el cobro rapido. */
+    public int $cobroRapidoKey = 0;
+
     // ==================== TIEMPO REAL ====================
 
     /**
@@ -352,6 +366,65 @@ class PedidosMostrador extends Component
         $this->modalNuevoPedidoAbierto = false;
         $this->pedidoIdEnEdicion = null;
         $this->resetPage();
+    }
+
+    /**
+     * Abre el modal de cobro rapido para un pedido editable sin pagos
+     * planificados. Monta <livewire:nuevo-pedido-mostrador> con
+     * modoCobroRapido=true, que muestra SOLO el modal de desglose
+     * superpuesto al listado (no entra al editor full-screen).
+     */
+    public function abrirCobroRapido(int $pedidoId): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.pedidos_mostrador.cobrar')) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para cobrar pedidos'));
+
+            return;
+        }
+
+        $pedido = PedidoMostrador::find($pedidoId);
+        if (! $pedido || ! $this->tieneAccesoASucursal($pedido->sucursal_id)) {
+            $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+
+            return;
+        }
+
+        if (in_array($pedido->estado_pedido, [PedidoMostrador::ESTADO_CANCELADO, PedidoMostrador::ESTADO_FACTURADO], true)) {
+            $this->dispatch('toast-error', message: __('Este pedido no acepta pagos'));
+
+            return;
+        }
+
+        $this->cobroRapidoKey++;
+        $this->pedidoCobroRapidoId = $pedidoId;
+        // Cerrar el modal "Cobrar pendiente" si estaba abierto (se invoca
+        // desde el boton "Definir pagos" del modal parcial).
+        $this->showCobrarModal = false;
+        // Cerrar el modal de detalle si estaba abierto.
+        $this->showDetalleModal = false;
+        $this->pedidoDetalleId = null;
+    }
+
+    /**
+     * Listener para `cobro-rapido-completado` despachado por
+     * NuevoPedidoMostrador al confirmar el desglose. Cierra el sub-componente
+     * y refresca la lista para que se vea el cambio de estado_pago.
+     */
+    #[\Livewire\Attributes\On('cobro-rapido-completado')]
+    public function trasCobroRapidoCompletado(): void
+    {
+        $this->pedidoCobroRapidoId = null;
+        $this->resetPage();
+    }
+
+    /**
+     * Listener para `cerrar-cobro-rapido` despachado por NuevoPedidoMostrador
+     * cuando el usuario cierra el modal sin confirmar.
+     */
+    #[\Livewire\Attributes\On('cerrar-cobro-rapido')]
+    public function trasCerrarCobroRapido(): void
+    {
+        $this->pedidoCobroRapidoId = null;
     }
 
     // ==================== FILTROS / QUERY ====================
@@ -800,15 +873,17 @@ class PedidosMostrador extends Component
 
         if ($planificados->isEmpty()) {
             // Sin pagos planificados: si el pedido es editable (BORRADOR o
-            // CONFIRMADO con estado_pago=pendiente), abrimos el editor full-
-            // screen donde el operador puede armar el desglose y cobrar usando
-            // toda la logica de WithPagosDesglose (calculos de IVA, cuotas,
-            // recargo por FP, vuelto, etc.) — exactamente lo que harias dentro
-            // del alta normal. Para pedidos con parcial cobrado (no editables),
-            // caemos al modal estandar que muestra la info y permite agregar
-            // pagos sueltos via la UI heredada.
+            // CONFIRMADO con estado_pago=pendiente), abrimos el MODAL de
+            // cobro rapido — el sub-componente NuevoPedidoMostrador se monta
+            // en modoCobroRapido=true y muestra solo el modal de desglose
+            // sobre el listado (sin entrar al editor full-screen). Asi el
+            // operador define las formas de pago con toda la logica de
+            // WithPagosDesglose (IVA, cuotas, recargo FP, vuelto). Para
+            // pedidos con parcial cobrado (no editables), caemos al modal
+            // estandar que muestra los planificados existentes; desde ese
+            // modal el boton "Definir pagos" tambien abre el cobro rapido.
             if ($this->pedidoEsEditable($pedido)) {
-                $this->abrirModalEditarPedido($pedidoId);
+                $this->abrirCobroRapido($pedidoId);
 
                 return;
             }

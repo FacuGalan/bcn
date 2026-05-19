@@ -657,6 +657,7 @@ Las acciones disponibles dependen del estado del pedido y los permisos del usuar
 | Accion | Condicion | Permiso requerido |
 |--------|-----------|-------------------|
 | Ver detalle | Siempre disponible | Ninguno adicional |
+| Editar (rapido) | Pedido en estado borrador, o confirmado con estado de pago pendiente | Ninguno adicional |
 | Entregar (rapido) | Pedido en estado confirmado, en preparacion o listo | Ninguno adicional |
 | Cambiar estado | Pedido no cancelado ni facturado | Ninguno adicional |
 | Cobrar (rapido) | Pedido no cancelado ni facturado con monto pendiente o planificado | `func.pedidos_mostrador.cobrar` |
@@ -666,6 +667,12 @@ Las acciones disponibles dependen del estado del pedido y los permisos del usuar
 | Cancelar | Pedido no cancelado ni facturado | `func.pedidos_mostrador.cancelar` |
 
 > Si el usuario no tiene el permiso correspondiente, al intentar la accion vera un mensaje de error y el modal no se abrira.
+
+#### Accion rapida: Editar
+
+El boton **"Editar"** (icono lapiz, color ambar) aparece en la fila cuando el pedido es editable: estado borrador, o estado confirmado con estado de pago pendiente (sin cobros materializados). Al hacer click abre el editor full-screen con todos los datos del pedido precargados para modificar items, cliente, descuentos y demas campos.
+
+En moviles el boton muestra solo el icono; en escritorio muestra el texto "Editar".
 
 #### Accion rapida: Entregar
 
@@ -677,12 +684,13 @@ En moviles el boton muestra solo el icono; en escritorio muestra icono y texto.
 
 #### Accion rapida: Cobrar
 
-El boton **"Cobrar"** (icono $ verde) reemplaza al anterior boton de "Cobrar pendiente" en la fila. Su comportamiento es condicional segun el desglose de pagos del pedido:
+El boton **"Cobrar"** (icono $ verde) tiene tres comportamientos posibles segun el estado del pedido:
 
-- **Si el pedido tiene pagos planificados**: confirma todos los pagos planificados de una vez sin abrir ningun modal. Cada pago genera su movimiento en la caja activa. Al terminar aparece un mensaje de confirmacion indicando cuantos pagos se confirmaron. El tooltip del boton muestra "Confirmar pagos planificados".
-- **Si el pedido NO tiene pagos planificados**: abre el modal estandar de "Cobrar pendiente" para que el operario defina la forma de pago manualmente. El tooltip muestra "Abrir desglose de cobro".
+- **Si el pedido tiene pagos planificados**: confirma todos los pagos planificados de una vez sin abrir ningun modal. Cada pago genera su movimiento en la caja activa. Al terminar aparece un mensaje de confirmacion indicando cuantos pagos se confirmaron.
+- **Si el pedido es editable (borrador o confirmado con pago pendiente) y no tiene planificados**: abre directamente el **desglose de formas de pago** superpuesto sobre el listado, sin entrar al editor full-screen. El operario define el desglose (incluyendo pago mixto, cuotas, recargos, multi-moneda y vuelto) y al confirmar el saldo queda cobrado con los pagos activos resultantes.
+- **Si el pedido no es editable (tiene cobro parcial materializado) y no tiene planificados**: abre el modal "Cobrar pendiente" que muestra el resumen del cobro. Desde ese modal, el boton **"Definir pagos"** permite abrir el desglose de formas de pago para el saldo restante.
 
-> El tooltip del boton anticipa cual de los dos comportamientos se va a ejecutar, sin necesidad de hacer click primero.
+> El desglose de formas de pago se abre directamente sobre el listado: el operario no necesita entrar al editor full-screen para cobrar un pedido ya confirmado.
 
 #### Modal: Ver detalle
 
@@ -715,7 +723,7 @@ El modal incluye un campo de **observacion opcional** para dejar una nota sobre 
 
 #### Modal: Cobrar pendiente
 
-Permite materializar pagos planificados o verificar el estado de cobro del pedido. Requiere permiso `func.pedidos_mostrador.cobrar`.
+Se muestra cuando el pedido tiene cobro parcial (pagos activos ya materializados) y no tiene pagos planificados pendientes. Requiere permiso `func.pedidos_mostrador.cobrar`.
 
 El modal muestra un **panel de resumen** con cuatro valores:
 - **Total del pedido**: monto total a cobrar.
@@ -723,12 +731,29 @@ El modal muestra un **panel de resumen** con cuatro valores:
 - **Planificado**: suma de pagos en estado planificado (configurados, sin cobrar).
 - **Pendiente**: total - cobrado (los planificados no cuentan como cobrado).
 
-Debajo del resumen aparece la **lista de pagos planificados**, con forma de pago, monto, cuotas y referencia si las tiene. Por cada pago planificado hay dos botones:
+Debajo del resumen aparece la **lista de pagos planificados** (si los hay), con forma de pago, monto, cuotas y referencia si las tiene. Por cada pago planificado hay dos botones:
 
 - **Cobrar**: materializa el pago. Crea un `MovimientoCaja` en la caja activa del usuario, cambia el estado del pago a `activo` y recalcula el `estado_pago` del pedido. Si el pedido queda totalmente cobrado, su `estado_pago` pasa a `pagado`.
 - **Eliminar**: borra el pago planificado sin generar movimiento de caja.
 
+Si el saldo pendiente es mayor a cero, el modal muestra ademas el boton **"Definir pagos"** que abre el desglose de formas de pago directamente sobre el listado (igual que el cobro rapido desde la fila).
+
 > Los pagos planificados se eliminan del sistema al ser cobrados o eliminados. No generan contraasientos porque nunca afectaron la caja.
+
+#### Desglose de formas de pago (cobro rapido)
+
+Se abre superpuesto sobre el listado (sin entrar al editor full-screen) cuando el pedido es editable y el operario hace click en "Cobrar" desde la fila, la card del Kanban, o desde el boton "Definir pagos" del modal "Cobrar pendiente".
+
+El desglose funciona identico al que se usa dentro del editor:
+- Se puede elegir una sola forma de pago o varias (pago mixto).
+- Soporta cuotas con calculo de recargo automatico.
+- Permite cargar pagos en moneda extranjera con tipo de cambio.
+- Muestra el vuelto si el monto entregado supera el total.
+- El total base del desglose es el **saldo pendiente** del pedido (total - cobrado - planificado), no el total original.
+
+Al confirmar, cada fila del desglose se agrega como pago activo (estado `activo`) directamente al pedido. Si el desglose tiene una sola forma de pago, el pago queda registrado con esa FP individual. Si tiene varias, cada pago queda con su FP especifica (no se usa una FP "mixta" artificial).
+
+> Al cerrar el desglose sin confirmar, el modal se cierra y el pedido no se modifica.
 
 #### Modal: Convertir en venta
 
@@ -785,7 +810,11 @@ Cada card muestra:
 - Total del pedido
 - Estado de pago con color: **Pagado** (verde), **Parcial** (ambar), **Pendiente** (rojo)
 
-Botones disponibles directamente en la card: **Ver** (abre el modal de detalle), **Cobrar** (abre el modal de cobro), **Cancelar** (abre el modal de cancelacion con motivo obligatorio).
+Botones disponibles directamente en la card:
+- **Ver**: abre el modal de detalle.
+- **Editar** (icono lapiz, ambar): aparece solo si el pedido es editable (borrador o confirmado con pago pendiente). Abre el editor full-screen.
+- **Cobrar** (icono $, verde): comportamiento identico al de la Vista Lista (planificados, cobro rapido con desglose o modal cobrar pendiente).
+- **Cancelar**: abre el modal de cancelacion con motivo obligatorio.
 
 #### Drag and drop entre columnas
 
@@ -805,7 +834,10 @@ Al mover una card a otra columna, el sistema la ubica al final de la columna de 
 
 El boton **"Nuevo Pedido"** en la barra de acciones abre el formulario de alta como un **modal de pantalla completa** superpuesto sobre la lista. No hay una ruta dedicada para el alta ni la edicion.
 
-Para editar un pedido existente en estado borrador o confirmado, el modal de detalle incluye un boton **"Editar pedido"** que abre el mismo formulario precargado con los datos del pedido.
+Para editar un pedido existente en estado borrador o confirmado con pago pendiente, hay tres caminos equivalentes:
+- El boton **"Editar"** (icono lapiz, ambar) directo en la fila de la Vista Lista o en la card del Kanban.
+- El boton **"Editar pedido"** dentro del modal de detalle.
+- Cualquiera de los dos abre el mismo formulario full-screen precargado con los datos del pedido.
 
 ##### Identificacion del pedido
 

@@ -133,6 +133,16 @@ class NuevoPedidoMostrador extends Component
     public int $cuentaPagosOriginales = 0;
 
     /**
+     * Modo "cobro rapido": el componente arranca con el modal de desglose
+     * abierto sobre el listado, sin renderizar la UI completa del editor.
+     * Se usa para que el operador defina las formas de pago de un pedido
+     * confirmado sin entrar al editor full-screen. En este modo, al
+     * confirmar el desglose se AGREGAN pagos activos al pedido existente
+     * (no se recrea ni se modifica el carrito).
+     */
+    public bool $modoCobroRapido = false;
+
+    /**
      * Diferencia el modo del modal de pago:
      * - false (preview): se abrió por seleccionar FP mixta en el dropdown.
      *   "Confirmar" cierra el modal manteniendo el desglose y vuelve al alta
@@ -267,15 +277,19 @@ class NuevoPedidoMostrador extends Component
 
     // ==================== CICLO DE VIDA ====================
 
-    public function mount(?int $pedidoId = null): void
+    public function mount(?int $pedidoId = null, bool $modoCobroRapido = false): void
     {
+        $this->modoCobroRapido = $modoCobroRapido;
         $this->sucursalId = sucursal_activa() ?? Sucursal::activas()->first()?->id ?? 1;
         $this->cajaSeleccionada = caja_activa();
 
         $this->cargarConfiguracionSucursal();
         $this->cargarListasPrecios();
         $this->cargarFormasPagoSucursal();
-        $this->cargarCatalogoTactil();
+        // En cobro rapido no usamos el panel tactil (solo se muestra el modal).
+        if (! $this->modoCobroRapido) {
+            $this->cargarCatalogoTactil();
+        }
         $this->listaPrecioId = $this->obtenerIdListaBase();
 
         $local = collect($this->formasVenta)->firstWhere('codigo', 'local');
@@ -289,6 +303,80 @@ class NuevoPedidoMostrador extends Component
         if ($pedidoId !== null) {
             $this->cargarPedidoParaEditar($pedidoId);
         }
+
+        if ($this->modoCobroRapido) {
+            $this->iniciarCobroRapido();
+        }
+    }
+
+    /**
+     * Prepara el modal de desglose para cobrar el saldo pendiente del pedido
+     * sin abrir el editor full-screen. El pedido ya esta hidratado por
+     * cargarPedidoParaEditar(). Calcula el saldo (total_final - cobrado -
+     * planificado), lo asigna como monto a cobrar y abre el modal en modo
+     * "cobrar" (no "preview"), de modo que confirmarPago() dispare el
+     * procesamiento.
+     */
+    protected function iniciarCobroRapido(): void
+    {
+        if (! $this->modoEdicion || ! $this->pedidoId) {
+            $this->dispatch('toast-error', message: __('No se puede iniciar el cobro rapido sin un pedido valido'));
+            $this->dispatch('cerrar-cobro-rapido');
+
+            return;
+        }
+
+        $pedido = PedidoMostrador::find($this->pedidoId);
+        if (! $pedido) {
+            $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+            $this->dispatch('cerrar-cobro-rapido');
+
+            return;
+        }
+
+        $totalFinal = (float) $pedido->total_final;
+        $cobrado = (float) $pedido->total_cobrado;
+        $planificado = (float) $pedido->total_planificado;
+        $saldo = round($totalFinal - $cobrado - $planificado, 2);
+
+        if ($saldo <= 0.01) {
+            $this->dispatch('toast-error', message: __('Este pedido no tiene saldo por cobrar'));
+            $this->dispatch('cerrar-cobro-rapido');
+
+            return;
+        }
+
+        // El modal usa $resultado['total_final'] como base de calculo (cuotas,
+        // ajustes, IVA mixto, validacion desgloseCompleto). En cobro rapido
+        // sobreescribimos ese total con el saldo pendiente para que toda la
+        // logica del trait WithPagosDesglose opere sobre lo que falta cobrar
+        // y no sobre el total original del pedido.
+        if (! is_array($this->resultado)) {
+            $this->resultado = [];
+        }
+        $this->resultado['total_final'] = $saldo;
+
+        // El desglose en cobro rapido empieza vacio: los pagos existentes
+        // (cobrados/planificados) no se tocan; agregamos pagos ACTIVOS nuevos
+        // por el saldo. cargarPedidoParaEditar() pudo dejar $desglosePagos
+        // poblado al hidratar — lo limpiamos.
+        $this->desglosePagos = [];
+        $this->montoPendienteDesglose = $saldo;
+        $this->totalConAjustes = $saldo;
+        $this->ajusteFormaPagoInfo = [
+            'nombre' => '',
+            'porcentaje' => 0,
+            'monto' => 0,
+            'total_con_ajuste' => $saldo,
+            'es_mixta' => false,
+            'cuotas' => 1,
+            'recargo_cuotas_porcentaje' => 0,
+            'recargo_cuotas_monto' => 0,
+            'valor_cuota' => 0,
+        ];
+
+        $this->modalPagoEnModoCobro = true;
+        $this->mostrarModalPago = true;
     }
 
     /**
@@ -1899,6 +1987,15 @@ class NuevoPedidoMostrador extends Component
      */
     protected function procesarVentaConDesglose(): void
     {
+        // Cobro rapido: el pedido ya existe y no debe modificarse — solo
+        // agregamos pagos ACTIVOS por el saldo. Branch dedicado para no
+        // disparar actualizarPedido() ni revalidar items/cliente.
+        if ($this->modoCobroRapido) {
+            $this->procesarCobroRapido();
+
+            return;
+        }
+
         try {
             if (empty($this->items) || empty($this->desglosePagos)) {
                 $this->dispatch('toast-error', message: __('No hay pagos en el desglose'));
@@ -1989,5 +2086,116 @@ class NuevoPedidoMostrador extends Component
             ]);
             $this->dispatch('toast-error', message: $e->getMessage());
         }
+    }
+
+    /**
+     * Procesa el cobro rapido: solo agrega pagos ACTIVOS al pedido existente
+     * por el saldo pendiente. NO modifica items, descuentos ni totales del
+     * pedido (esos ya estan persistidos). Cada fila del desglose lleva su
+     * propia forma_pago_id — si hay una sola fila que cubre el total, el
+     * pago queda con esa FP individual (no con la FP "mixta" del selector).
+     */
+    protected function procesarCobroRapido(): void
+    {
+        try {
+            if (empty($this->desglosePagos)) {
+                $this->dispatch('toast-error', message: __('No hay pagos en el desglose'));
+
+                return;
+            }
+
+            if (! $this->pedidoId) {
+                $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+
+                return;
+            }
+
+            // Validar caja abierta para pagos que la afecten (no CC).
+            $cajaId = $this->cajaSeleccionada ?? caja_activa();
+            $requiereCaja = collect($this->desglosePagos)->contains(function ($pago) {
+                $esCC = $pago['es_cuenta_corriente'] ?? false;
+                if (! $esCC && isset($pago['codigo'])) {
+                    $esCC = strtoupper($pago['codigo']) === 'CTA_CTE';
+                }
+
+                return ! $esCC;
+            });
+
+            if ($requiereCaja) {
+                if (! $cajaId) {
+                    $this->dispatch('toast-error', message: __('Debe seleccionar una caja'));
+
+                    return;
+                }
+                $caja = \App\Models\Caja::find($cajaId);
+                if (! $caja || ! $caja->estaAbierta()) {
+                    $this->dispatch('toast-error', message: __('La caja debe estar abierta'));
+
+                    return;
+                }
+            }
+
+            $pedido = PedidoMostrador::find($this->pedidoId);
+            if (! $pedido) {
+                $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+
+                return;
+            }
+
+            // Persistir cada pago del desglose como ACTIVO (planificadoForzado=false).
+            // El service maneja la transaccion, MovimientoCaja y el recalculo
+            // de estado_pago del pedido.
+            foreach ($this->desglosePagos as $pago) {
+                $this->pedidoService->agregarPago(
+                    $pedido,
+                    $this->normalizarPagoDelDesglose($pago, planificadoForzado: false),
+                );
+            }
+
+            $this->dispatch('toast-success', message: __('Pedido cobrado'));
+            $this->mostrarModalPago = false;
+            $this->dispatch('cobro-rapido-completado');
+        } catch (Exception $e) {
+            Log::error('Error al procesar cobro rapido', [
+                'pedido_id' => $this->pedidoId,
+                'error' => $e->getMessage(),
+            ]);
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
+    }
+
+    /**
+     * Override de WithPagosDesglose::cerrarModalPago. En cobro rapido, cerrar
+     * el modal cierra el componente entero (el padre escucha el evento y
+     * limpia $pedidoCobroRapidoId). Para el flujo de alta/edicion, replica
+     * la logica estandar del trait (PHP no permite invocar "parent::" cuando
+     * el metodo viene de un trait).
+     */
+    public function cerrarModalPago(): void
+    {
+        if ($this->modoCobroRapido) {
+            $this->mostrarModalPago = false;
+            $this->dispatch('cerrar-cobro-rapido');
+
+            return;
+        }
+
+        if ($this->desgloseCompleto() && ! empty($this->desglosePagos)) {
+            $totalBase = $this->resultado['total_final'] ?? 0;
+            $totalConAjustes = $this->totalConAjustes;
+            $montoAjuste = $totalConAjustes - $totalBase;
+
+            $this->ajusteFormaPagoInfo['monto'] = $montoAjuste;
+            $this->ajusteFormaPagoInfo['total_con_ajuste'] = $totalConAjustes;
+        }
+
+        $this->mostrarModalPago = false;
+        if (! $this->desgloseCompleto()) {
+            $this->desglosePagos = [];
+            $this->montoPendienteDesglose = 0;
+            $this->totalConAjustes = 0;
+            $this->limpiarDesgloseIvaMixto();
+        }
+        $this->resetNuevoPago();
     }
 }
