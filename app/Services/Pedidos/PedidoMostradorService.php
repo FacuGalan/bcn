@@ -67,6 +67,13 @@ class PedidoMostradorService
             $estado = $esBorrador ? PedidoMostrador::ESTADO_BORRADOR : PedidoMostrador::ESTADO_CONFIRMADO;
             $numero = $esBorrador ? null : $this->siguienteNumero((int) $data['sucursal_id']);
 
+            // Pedido completamente invitado (total_final <= 0) nace como
+            // estado_pago=pagado: no hay nada que cobrar. Sino, pendiente.
+            $totalFinalInicial = (float) ($data['total_final'] ?? ($data['total'] ?? 0));
+            $estadoPagoInicial = $totalFinalInicial <= 0.005
+                ? PedidoMostrador::ESTADO_PAGO_PAGADO
+                : PedidoMostrador::ESTADO_PAGO_PENDIENTE;
+
             $pedido = PedidoMostrador::create([
                 'numero' => $numero,
                 'identificador' => $data['identificador'] ?? null,
@@ -82,7 +89,7 @@ class PedidoMostradorService
                 'usuario_id' => $data['usuario_id'],
                 'fecha' => $data['fecha'] ?? now(),
                 'estado_pedido' => $estado,
-                'estado_pago' => PedidoMostrador::ESTADO_PAGO_PENDIENTE,
+                'estado_pago' => $estadoPagoInicial,
                 'subtotal' => $data['subtotal'] ?? 0,
                 'iva' => $data['iva'] ?? 0,
                 'descuento' => $data['descuento'] ?? 0,
@@ -105,6 +112,11 @@ class PedidoMostradorService
                 'articulos_canjeados_monto' => $data['articulos_canjeados_monto'] ?? 0,
                 'observaciones' => $data['observaciones'] ?? null,
                 'confirmado_at' => $esBorrador ? null : now(),
+                'es_invitacion_total' => (bool) ($data['es_invitacion_total'] ?? false),
+                'invitacion_motivo' => $data['invitacion_motivo'] ?? null,
+                'invitado_por_usuario_id' => $data['invitado_por_usuario_id'] ?? null,
+                'invitado_at' => $data['invitado_at'] ?? null,
+                'total_invitado' => $data['total_invitado'] ?? 0,
             ]);
 
             $this->guardarPromocionesPedido($pedido, $data);
@@ -198,6 +210,11 @@ class PedidoMostradorService
                 'puntos_usados_monto' => $data['puntos_usados_monto'] ?? 0,
                 'articulos_canjeados_monto' => $data['articulos_canjeados_monto'] ?? 0,
                 'observaciones' => $data['observaciones'] ?? null,
+                'es_invitacion_total' => (bool) ($data['es_invitacion_total'] ?? false),
+                'invitacion_motivo' => $data['invitacion_motivo'] ?? null,
+                'invitado_por_usuario_id' => $data['invitado_por_usuario_id'] ?? null,
+                'invitado_at' => $data['invitado_at'] ?? null,
+                'total_invitado' => $data['total_invitado'] ?? 0,
             ]);
 
             $this->guardarPromocionesPedido($pedido, $data);
@@ -828,6 +845,12 @@ class PedidoMostradorService
             'descuento_lista' => $detalle['descuento_lista'] ?? 0,
             'tiene_promocion' => (bool) ($detalle['tiene_promocion'] ?? false),
             'total' => $detalle['total'] ?? ($detalle['precio_unitario'] * $detalle['cantidad']),
+            'es_invitacion' => (bool) ($detalle['es_invitacion'] ?? false),
+            'invitacion_motivo' => $detalle['invitacion_motivo'] ?? null,
+            'invitado_por_usuario_id' => $detalle['invitado_por_usuario_id'] ?? null,
+            'invitado_at' => $detalle['invitado_at'] ?? null,
+            'monto_invitado' => $detalle['monto_invitado'] ?? 0,
+            'precio_unitario_original' => $detalle['precio_unitario_original'] ?? null,
         ]);
 
         // Persistir promociones aplicadas por línea (espejo de
@@ -1168,6 +1191,9 @@ class PedidoMostradorService
         $anterior = $pedido->estado_pago;
 
         $nuevo = match (true) {
+            // Pedido sin saldo a cobrar (total_final<=0, todo invitado) ya
+            // esta "pagado" intrinsecamente — no necesita pagos para cerrar.
+            $total <= 0.005 => PedidoMostrador::ESTADO_PAGO_PAGADO,
             $pagado <= 0 => PedidoMostrador::ESTADO_PAGO_PENDIENTE,
             $pagado + 0.005 >= $total => PedidoMostrador::ESTADO_PAGO_PAGADO,
             default => PedidoMostrador::ESTADO_PAGO_PARCIAL,

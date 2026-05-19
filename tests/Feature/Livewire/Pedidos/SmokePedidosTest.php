@@ -84,6 +84,109 @@ class SmokePedidosTest extends TestCase
             ->assertSet('pedidoIdEnEdicion', null);
     }
 
+    public function test_guardar_borrador_con_item_invitado_persiste_columnas_de_cortesia(): void
+    {
+        // Fase 4 (invitaciones): el trait WithInvitaciones esta compuesto en
+        // NuevoPedidoMostrador. Cubre que el flujo Livewire → construirDataPedido
+        // / construirDetallesPedido propaga las columnas de invitacion al
+        // service, y que el pedido persistido refleja la cortesia.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirInvitarItem', 0)
+            ->set('invitarItemMotivo', 'Cliente VIP')
+            ->call('confirmarInvitarItem')
+            ->call('guardarBorrador');
+
+        $pedido = PedidoMostrador::with('detalles')->first();
+        $this->assertNotNull($pedido, 'Debe haberse creado un pedido borrador');
+
+        // Como es el unico item del carrito y esta invitado, el pedido entero
+        // queda marcado como invitacion total (computed esInvitacionTotal=true
+        // del trait).
+        $this->assertTrue((bool) $pedido->es_invitacion_total,
+            'Pedido con todos los items invitados debe tener es_invitacion_total=true');
+        $this->assertGreaterThan(0, (float) $pedido->total_invitado,
+            'total_invitado debe reflejar la suma de monto_invitado de items');
+        $this->assertEqualsWithDelta(0.0, (float) $pedido->total_final, 0.01,
+            'total_final del pedido cortesia debe ser 0');
+
+        $detalle = $pedido->detalles->first();
+        $this->assertTrue((bool) $detalle->es_invitacion);
+        $this->assertSame('Cliente VIP', $detalle->invitacion_motivo);
+        $this->assertNotNull($detalle->invitado_por_usuario_id);
+        $this->assertNotNull($detalle->invitado_at);
+        $this->assertGreaterThan(0, (float) $detalle->monto_invitado);
+        $this->assertNotNull($detalle->precio_unitario_original);
+        $this->assertEqualsWithDelta(0.0, (float) $detalle->precio_unitario, 0.01,
+            'precio_unitario del item invitado se persiste en 0');
+    }
+
+    public function test_editar_pedido_invitado_rehidrata_estado_del_trait(): void
+    {
+        // Fase 4: al editar un pedido con cortesia persistida, los items del
+        // carrito deben re-cargar las columnas de invitacion para que la UI
+        // pueda renderizar el badge y permitir des-invitar.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+        $service = app(PedidoMostradorService::class);
+
+        $pedido = $service->crearPedido(
+            data: [
+                'sucursal_id' => $this->sucursalId,
+                'usuario_id' => auth()->id() ?? 1,
+                'fecha' => now(),
+                'subtotal' => 0,
+                'iva' => 0,
+                'descuento' => 0,
+                'total' => 0,
+                'ajuste_forma_pago' => 0,
+                'total_final' => 0,
+                'es_invitacion_total' => true,
+                'invitacion_motivo' => 'Cortesía gerencia',
+                'invitado_por_usuario_id' => auth()->id() ?? 1,
+                'invitado_at' => now(),
+                'total_invitado' => 500.0,
+            ],
+            detalles: [
+                [
+                    'articulo_id' => $articulo->id,
+                    'tipo_iva_id' => $articulo->tipo_iva_id,
+                    'cantidad' => 1,
+                    'precio_unitario' => 0,
+                    'precio_sin_iva' => 0,
+                    'precio_lista' => 500,
+                    'subtotal' => 0,
+                    'iva_porcentaje' => 21,
+                    'iva_monto' => 0,
+                    'total' => 0,
+                    'es_invitacion' => true,
+                    'invitacion_motivo' => 'Cortesía gerencia',
+                    'invitado_por_usuario_id' => auth()->id() ?? 1,
+                    'invitado_at' => now(),
+                    'monto_invitado' => 500.0,
+                    'precio_unitario_original' => 500.0,
+                ],
+            ],
+            esBorrador: false,
+        );
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class, ['pedidoId' => $pedido->id]);
+
+        $items = $componente->get('items');
+        $this->assertNotEmpty($items, 'Debe haber al menos un item rehidratado');
+        $this->assertTrue((bool) $items[0]['es_invitacion'],
+            'Item rehidratado debe mantener flag es_invitacion');
+        $this->assertSame('Cortesía gerencia', $items[0]['invitacion_motivo']);
+        $this->assertEqualsWithDelta(500.0, (float) $items[0]['monto_invitado'], 0.01);
+        $this->assertEqualsWithDelta(500.0, (float) $items[0]['precio_unitario_original'], 0.01);
+
+        $this->assertSame('Cortesía gerencia', $componente->get('motivoInvitacionTotal'),
+            'motivoInvitacionTotal debe rehidratarse desde la cabecera persistida');
+        $this->assertEqualsWithDelta(500.0, (float) $componente->get('totalInvitado'), 0.01,
+            'totalInvitado del trait debe reflejar lo persistido');
+    }
+
     public function test_guardar_borrador_crea_pedido_sin_numero_ni_stock(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);

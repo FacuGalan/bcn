@@ -366,7 +366,7 @@ Claves nuevas en `lang/{es,en,pt}.json`:
    - Cupón monto mínimo: validar contra subtotal sin invitados (CA-14).
    - Descuento general %: aplica solo sobre items no invitados (CA-15).
 
-### Fase 4: Integración en `NuevoPedidoMostrador` [PENDIENTE]
+### Fase 4: Integración en `NuevoPedidoMostrador` [COMPLETO]
 
 1. Componer el trait `WithInvitaciones` en el componente.
 2. Override `getPermisoInvitacionPrefix()` → `'func.pedidos_mostrador'`.
