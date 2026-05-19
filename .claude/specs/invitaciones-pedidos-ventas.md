@@ -356,7 +356,7 @@ Claves nuevas en `lang/{es,en,pt}.json`:
 4. Test de reset: invitar un item que ya tenía promo aplicada deja todos sus campos de descuento en 0.
 5. Smoke test: trait no rompe los componentes que lo componen aún sin usarlo.
 
-### Fase 3: Motor de promociones/cupones/descuentos excluye invitados [PENDIENTE]
+### Fase 3: Motor de promociones/cupones/descuentos excluye invitados [COMPLETO]
 
 1. Explorar exhaustivamente `WithCalculoVenta`, `WithCupones`, `WithDescuentos` y los métodos auxiliares en `NuevaVenta` que aplican promos comunes/especiales. Identificar TODOS los puntos donde se itera `$this->items` para beneficios.
 2. Crear helper `getItemsParaMotorBeneficios()` (en `WithCalculoVenta` o trait dedicado) que retorna solo items con `es_invitacion=false`.

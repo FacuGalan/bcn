@@ -236,6 +236,60 @@ class WithInvitacionesTest extends TestCase
         $errores = array_filter($host->eventos, fn ($e) => $e['event'] === 'toast-error');
         $this->assertNotEmpty($errores);
     }
+
+    /**
+     * Helper `getItemsParaMotorBeneficios()` del trait WithCalculoVenta:
+     * cubre el contrato del que dependen WithCalculoVenta / WithCupones /
+     * WithDescuentos para excluir items invitados del motor de beneficios
+     * (RF-11 del spec). Tests integrados con datos reales de promos/cupones
+     * quedan para Fase 10 (verificacion end-to-end con UI).
+     */
+    public function test_get_items_para_motor_beneficios_excluye_invitados_preservando_indice_original(): void
+    {
+        $host = new _HostFiltroMotorStub;
+        $host->items = [
+            0 => ['articulo_id' => 100, 'precio' => 50.0, 'es_invitacion' => false],
+            1 => ['articulo_id' => 101, 'precio' => 30.0, 'es_invitacion' => true],
+            2 => ['articulo_id' => 102, 'precio' => 20.0, 'es_invitacion' => false],
+            3 => ['articulo_id' => 103, 'precio' => 80.0, 'es_invitacion' => true],
+        ];
+
+        $filtrado = $host->callGetItemsParaMotorBeneficios();
+
+        $this->assertCount(2, $filtrado, 'Debe quedar solo el 2 no-invitados');
+        $this->assertArrayHasKey(0, $filtrado, 'Preserva el indice 0 original');
+        $this->assertArrayHasKey(2, $filtrado, 'Preserva el indice 2 original');
+        $this->assertArrayNotHasKey(1, $filtrado);
+        $this->assertArrayNotHasKey(3, $filtrado);
+    }
+
+    public function test_get_items_para_motor_beneficios_trata_es_invitacion_ausente_como_no_invitado(): void
+    {
+        $host = new _HostFiltroMotorStub;
+        $host->items = [
+            ['articulo_id' => 100, 'precio' => 50.0], // sin clave es_invitacion
+        ];
+
+        $filtrado = $host->callGetItemsParaMotorBeneficios();
+
+        $this->assertCount(1, $filtrado, 'Item sin clave es_invitacion debe considerarse NO invitado');
+    }
+}
+
+/**
+ * Stub para testear el helper protected `getItemsParaMotorBeneficios()`.
+ * Expone el metodo via wrapper publico.
+ */
+class _HostFiltroMotorStub
+{
+    use \App\Livewire\Concerns\Carrito\WithCalculoVenta;
+
+    public array $items = [];
+
+    public function callGetItemsParaMotorBeneficios(): array
+    {
+        return $this->getItemsParaMotorBeneficios();
+    }
 }
 
 /**

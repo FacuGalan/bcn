@@ -411,7 +411,9 @@ trait WithDescuentos
             ? array_flip($this->cuponArticulosBonificados ?? [])
             : [];
 
-        foreach ($this->items as $index => $item) {
+        // Items invitados quedan intactos (precio=0 ya, todos descuentos en 0).
+        // El descuento general no se aplica sobre cortesias (RF-11).
+        foreach ($this->getItemsParaMotorBeneficios() as $index => $item) {
             $articuloId = $item['articulo_id'] ?? null;
             if ($articuloId && isset($bonificadosPorCupon[$articuloId])) {
                 continue;
