@@ -640,6 +640,8 @@
     @include('livewire.carrito._modal-articulo-rapido')
     @include('livewire.carrito._modal-busqueda-articulos')
     @include('livewire.carrito._modal-pesable')
+    @include('livewire.carrito._modal-invitar-item')
+    @include('livewire.carrito._modal-desinvitar-item')
     @include('livewire.ventas._wizard-opcionales')
     @include('livewire.ventas._modal-descuentos')
 

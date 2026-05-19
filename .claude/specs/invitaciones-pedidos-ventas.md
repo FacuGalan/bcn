@@ -375,7 +375,7 @@ Claves nuevas en `lang/{es,en,pt}.json`:
 5. Test de integración: crear pedido con item invitado, verificar persistencia.
 6. Test: pedido completamente invitado se procesa sin formas de pago.
 
-### Fase 5: UI inline (botón en cada item) [PENDIENTE]
+### Fase 5: UI inline (botón en cada item) [COMPLETO]
 
 1. Modificar `_detalle-items.blade.php`: agregar botón "🎁" en la línea de controles.
 2. Crear `_modal-invitar-item.blade.php` (mini-modal de motivo).

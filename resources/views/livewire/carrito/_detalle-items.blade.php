@@ -43,16 +43,40 @@
                             $tieneAjuste = $item['tiene_ajuste'] ?? false;
                             $esDescuento = $tieneAjuste && $item['precio'] < $item['precio_base'];
                             $esRecargo = $tieneAjuste && $item['precio'] > $item['precio_base'];
+                            $esInvitacion = !empty($item['es_invitacion']);
+                            $precioInvitacionOriginal = (float) ($item['precio_unitario_original'] ?? $item['precio_base'] ?? 0);
+                            $tooltipInvitacion = $esInvitacion
+                                ? __('Invitado') . ($item['invitacion_motivo'] ?? '' ? ' — ' . $item['invitacion_motivo'] : '')
+                                : '';
                         @endphp
                         <tr data-item-index="{{ $index }}"
-                            class="transition-colors duration-300 {{ $tienePromo ? 'bg-green-50 dark:bg-green-900/30' : ($excluido ? 'bg-yellow-50 dark:bg-yellow-900/30' : '') }} {{ $itemResaltado === $index ? 'bg-yellow-200 dark:bg-yellow-700 animate-pulse' : '' }}">
-                            {{-- Eliminar --}}
-                            <td class="px-2 py-1.5 text-center">
-                                <button wire:click="eliminarItem({{ $index }})" class="text-red-600 hover:text-red-800">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                                    </svg>
-                                </button>
+                            class="transition-colors duration-300 {{ $esInvitacion ? 'bg-emerald-50 dark:bg-emerald-900/30' : ($tienePromo ? 'bg-green-50 dark:bg-green-900/30' : ($excluido ? 'bg-yellow-50 dark:bg-yellow-900/30' : '')) }} {{ $itemResaltado === $index ? 'bg-yellow-200 dark:bg-yellow-700 animate-pulse' : '' }}">
+                            {{-- Acciones: Eliminar + Invitar/Desinvitar --}}
+                            <td class="px-2 py-1.5">
+                                <div class="flex flex-col items-center gap-0.5">
+                                    <button wire:click="eliminarItem({{ $index }})" class="text-red-600 hover:text-red-800" title="{{ __('Eliminar') }}">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                        </svg>
+                                    </button>
+                                    @if($esInvitacion)
+                                        <button wire:click="abrirDesinvitarItem({{ $index }})"
+                                                class="text-emerald-600 hover:text-emerald-800"
+                                                title="{{ __('Quitar invitación') }}">
+                                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M20 12v8H4v-8M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+                                            </svg>
+                                        </button>
+                                    @else
+                                        <button wire:click="abrirInvitarItem({{ $index }})"
+                                                class="text-emerald-500 hover:text-emerald-700"
+                                                title="{{ __('Invitar renglón') }}">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M20 12v8H4v-8M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+                                            </svg>
+                                        </button>
+                                    @endif
+                                </div>
                             </td>
                             {{-- Artículo --}}
                             <td class="px-2 py-1.5 relative">
@@ -126,8 +150,24 @@
                                 @if($tienePromoComun && !empty($itemResultado['promociones_comunes']))
                                     <div class="text-[10px] text-blue-600">{{ implode(', ', array_map(fn($p) => is_array($p) ? ($p['nombre'] ?? '') : $p, $itemResultado['promociones_comunes'])) }}</div>
                                 @endif
-                                @if($excluido)
+                                @if($excluido && !$esInvitacion)
                                     <div class="text-[10px] text-yellow-600">{{ __('Sin promos') }}</div>
+                                @endif
+                                @if($esInvitacion)
+                                    <div class="mt-0.5 inline-flex items-center gap-1">
+                                        <span class="inline-flex items-center gap-0.5 px-1.5 py-0 rounded text-[10px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700"
+                                              title="{{ $tooltipInvitacion }}">
+                                            <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M20 12v8H4v-8M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+                                            </svg>
+                                            {{ __('Invitado') }}
+                                        </span>
+                                    </div>
+                                    @if(!empty($item['invitacion_motivo']))
+                                        <div class="text-[10px] text-emerald-700 dark:text-emerald-400 italic truncate max-w-[180px]" title="{{ $item['invitacion_motivo'] }}">
+                                            {{ $item['invitacion_motivo'] }}
+                                        </div>
+                                    @endif
                                 @endif
                             </td>
                             {{-- Cantidad --}}
@@ -146,7 +186,10 @@
                                         ? ($item['precio_sin_ajuste_manual'] ?? $item['precio_base'])
                                         : $item['precio_base'];
                                 @endphp
-                                @if($tieneAjuste || $tieneAjusteManual)
+                                @if($esInvitacion)
+                                    <div class="text-xs font-medium text-emerald-600">$0.00</div>
+                                    <div class="text-[10px] text-gray-400 line-through">$@precio($precioInvitacionOriginal)</div>
+                                @elseif($tieneAjuste || $tieneAjusteManual)
                                     <div class="text-xs font-medium {{ $item['precio'] < $precioMostrarTachado ? 'text-green-600' : 'text-red-600' }}">
                                         $@precio($item['precio'])
                                     </div>
@@ -157,7 +200,10 @@
                             </td>
                             {{-- Ajuste Manual / Canje Puntos --}}
                             <td class="px-1 py-1.5 relative">
-                                @if($item['pagado_con_puntos'] ?? false)
+                                @if($esInvitacion)
+                                    {{-- Item invitado: no aplica ajuste/canje/promo. --}}
+                                    <span class="text-gray-300 dark:text-gray-600 text-xs">—</span>
+                                @elseif($item['pagado_con_puntos'] ?? false)
                                     {{-- Badge canjeado con puntos --}}
                                     @php
                                         $vpc = $this->valorPuntoCanje;
@@ -259,7 +305,16 @@
                                 @endif
                             </td>
                             {{-- Subtotal --}}
-                            <td class="px-2 py-1.5 text-right text-xs font-medium text-gray-900 dark:text-white">$@precio($item['precio'] * $item['cantidad'])</td>
+                            <td class="px-2 py-1.5 text-right text-xs font-medium">
+                                @if($esInvitacion)
+                                    <span class="text-emerald-600">$0.00</span>
+                                    <div class="text-[10px] text-gray-400 line-through">
+                                        $@precio($precioInvitacionOriginal * $item['cantidad'])
+                                    </div>
+                                @else
+                                    <span class="text-gray-900 dark:text-white">$@precio($item['precio'] * $item['cantidad'])</span>
+                                @endif
+                            </td>
                             {{-- Promo --}}
                             <td class="px-2 py-1.5 text-center">
                                 @php
@@ -268,23 +323,31 @@
                                     $totalItem = $subtotalItem - $descuentoComun;
                                 @endphp
                                 <div class="flex flex-col items-center gap-0.5">
-                                    @if($tienePromoEspecial)
-                                        <span class="inline-flex items-center px-1 py-0 rounded text-[10px] font-medium bg-green-100 text-green-800">{{ $itemResultado['unidades_consumidas'] }}/{{ $item['cantidad'] }}</span>
-                                    @endif
-                                    @if($tienePromoComun && $descuentoComun > 0)
-                                        <span class="inline-flex items-center px-1 py-0 rounded text-[10px] font-medium bg-blue-100 text-blue-800">-$@precio($descuentoComun)</span>
-                                    @endif
-                                    @if($excluido)
-                                        <span class="text-[10px] font-medium text-yellow-600">N/A</span>
-                                    @endif
-                                    @if(!$tienePromoEspecial && !$tienePromoComun && !$excluido)
-                                        <span class="text-gray-400 text-[10px]">-</span>
+                                    @if($esInvitacion)
+                                        <span class="text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                                            {{ __('Cortesía') }}
+                                        </span>
+                                    @else
+                                        @if($tienePromoEspecial)
+                                            <span class="inline-flex items-center px-1 py-0 rounded text-[10px] font-medium bg-green-100 text-green-800">{{ $itemResultado['unidades_consumidas'] }}/{{ $item['cantidad'] }}</span>
+                                        @endif
+                                        @if($tienePromoComun && $descuentoComun > 0)
+                                            <span class="inline-flex items-center px-1 py-0 rounded text-[10px] font-medium bg-blue-100 text-blue-800">-$@precio($descuentoComun)</span>
+                                        @endif
+                                        @if($excluido)
+                                            <span class="text-[10px] font-medium text-yellow-600">N/A</span>
+                                        @endif
+                                        @if(!$tienePromoEspecial && !$tienePromoComun && !$excluido)
+                                            <span class="text-gray-400 text-[10px]">-</span>
+                                        @endif
                                     @endif
                                 </div>
                             </td>
                             {{-- Total --}}
                             <td class="px-2 py-1.5 text-right text-xs font-medium">
-                                @if($tienePromoComun && $descuentoComun > 0)
+                                @if($esInvitacion)
+                                    <span class="text-emerald-600">$0.00</span>
+                                @elseif($tienePromoComun && $descuentoComun > 0)
                                     <span class="text-green-600">$@precio($totalItem)</span>
                                 @else
                                     <span class="text-gray-900 dark:text-white">$@precio($subtotalItem)</span>

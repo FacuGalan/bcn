@@ -84,6 +84,73 @@ class SmokePedidosTest extends TestCase
             ->assertSet('pedidoIdEnEdicion', null);
     }
 
+    public function test_render_item_invitado_muestra_badge_y_precio_tachado(): void
+    {
+        // Fase 5 (UI inline): tras invitar un item, la vista del carrito debe
+        // mostrar el badge "Invitado" y el motivo en la columna del articulo.
+        // Smoke visual: detecta regresiones del partial _detalle-items.blade.php.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirInvitarItem', 0)
+            ->set('invitarItemMotivo', 'Cortesía VIP')
+            ->call('confirmarInvitarItem');
+
+        $componente->assertSee('Invitado')
+            ->assertSee('Cortesía VIP')
+            ->assertSee('Cortesía'); // Columna Promo cambia a "Cortesía" para invitados
+
+        // El item del carrito debe tener es_invitacion=true tras confirmar.
+        $items = $componente->get('items');
+        $this->assertTrue((bool) $items[0]['es_invitacion']);
+        $this->assertEqualsWithDelta(0.0, (float) $items[0]['precio'], 0.01);
+    }
+
+    public function test_abrir_invitar_item_setea_estado_del_modal(): void
+    {
+        // Fase 5: smoke del flujo del mini-modal. abrirInvitarItem deja
+        // mostrarModalInvitarItem=true e invitarItemIndex apuntando al item.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirInvitarItem', 0)
+            ->assertSet('mostrarModalInvitarItem', true)
+            ->assertSet('invitarItemIndex', 0)
+            ->assertSet('invitarItemMotivo', '')
+            ->call('cerrarModalInvitarItem')
+            ->assertSet('mostrarModalInvitarItem', false)
+            ->assertSet('invitarItemIndex', null);
+    }
+
+    public function test_desinvitar_item_restaura_precio_y_recalcula(): void
+    {
+        // Fase 5: invitar y luego desinvitar via los modales debe restaurar
+        // el precio original e ir limpiando el flag es_invitacion.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirInvitarItem', 0)
+            ->set('invitarItemMotivo', 'Test')
+            ->call('confirmarInvitarItem');
+
+        $precioOriginal = (float) $componente->get('items')[0]['precio_unitario_original'];
+        $this->assertGreaterThan(0, $precioOriginal, 'Snapshot del precio original debe estar guardado');
+
+        $componente->call('abrirDesinvitarItem', 0)
+            ->assertSet('mostrarModalDesinvitarItem', true)
+            ->assertSet('desinvitarItemIndex', 0)
+            ->call('confirmarDesinvitarItem');
+
+        $items = $componente->get('items');
+        $this->assertFalse((bool) $items[0]['es_invitacion']);
+        $this->assertEqualsWithDelta($precioOriginal, (float) $items[0]['precio'], 0.01,
+            'Precio debe restaurarse al snapshot precio_unitario_original');
+        $this->assertNull($items[0]['precio_unitario_original']);
+    }
+
     public function test_guardar_borrador_con_item_invitado_persiste_columnas_de_cortesia(): void
     {
         // Fase 4 (invitaciones): el trait WithInvitaciones esta compuesto en
