@@ -348,7 +348,7 @@ Claves nuevas en `lang/{es,en,pt}.json`:
 7. Agregar traducciones (es/en/pt) usando `/traducir`.
 8. Correr migración local. Tests existentes deben seguir pasando.
 
-### Fase 2: Trait `WithInvitaciones` [PENDIENTE]
+### Fase 2: Trait `WithInvitaciones` [COMPLETO]
 
 1. Crear `app/Livewire/Concerns/Carrito/WithInvitaciones.php` con props y métodos.
 2. En `marcarItemComoInvitado()` y `desmarcarItem()`: aplicar el reset de descuentos y la limpieza de `_promociones_item` / `tiene_promocion` (RF-11).
