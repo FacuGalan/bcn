@@ -1,6 +1,6 @@
 # Invitaciones (Cortesías) en Pedidos y Ventas - Especificación
 
-## Estado: EN PROGRESO (Fase 1 — 2026-05-19)
+## Estado: COMPLETO (Fases 1-10 — 2026-05-21)
 
 > Feature de "invitar" (regalar) items individuales o pedidos/ventas completos como cortesía. El total cobrable pasa a $0 pero el consumo se registra (stock + trazabilidad) para reportes. Diseñado para ser reutilizable en futuros canales (delivery).
 >
@@ -390,31 +390,34 @@ Claves nuevas en `lang/{es,en,pt}.json`:
 3. Recálculo en vivo: al activar el switch, el "Total a cobrar" debe mostrar $0.
 4. Test de integración: ciclo completo desde activar switch hasta verificar BD.
 
-### Fase 7: Integración en `NuevaVenta` [PENDIENTE]
+### Fase 7: Integración en `NuevaVenta` [COMPLETO]
 
-1. Componer el trait en `NuevaVenta`.
-2. Override `getPermisoInvitacionPrefix()` → `'func.ventas'`.
-3. Modificar `construirDetallesVenta()` y `construirDataVenta()`.
-4. Modificar `procesarVentaConDesglose()` (versión NuevaVenta) para "total=0 saltar pagos".
-5. Tests de integración.
+1. Componer el trait en `NuevaVenta`. ✓
+2. Override `getPermisoInvitacionPrefix()` → `'func.ventas'` + `getPermisoInvitarTotalSuffix()` → `'invitar_venta'`. ✓
+3. `construirData*` con columnas de invitación cabecera + detalle. ✓
+4. `procesarVenta()` (pago único) detecta `esInvitacionCompleta` y salta validación CC/caja/VentaPago/MovimientoCaja/cuenta empresa/facturación. ✓
+5. `VentaService` propaga columnas de invitación (cabecera + ambos paths de `crearDetalleVenta`) y saltea `validarCajaAbierta` cuando `es_invitacion_total=true`. ✓
+6. `nueva-venta.blade.php`: botón "Invitar/Cortesía" al lado de Descuentos + 4 @includes de modales globales. ✓
+7. Smoke tests focales en `SmokeVentasTest`. ✓
 
-### Fase 8: Conversión Pedido → Venta preserva invitación [PENDIENTE]
+### Fase 8: Conversión Pedido → Venta preserva invitación [COMPLETO]
 
-1. Modificar `PedidoMostradorService::convertirEnVenta()` y `mapearDetalleAArrayVenta()` para copiar las nuevas columnas.
-2. Test específico: pedido con invitación parcial + total. Convertir. Verificar venta resultante.
+1. `PedidoMostradorService::convertirEnVenta()` agrega `es_invitacion_total`, `invitacion_motivo`, `invitado_por_usuario_id`, `invitado_at`, `total_invitado` al `$datosVenta`. ✓
+2. `mapearDetalleAArrayVenta()` propaga `es_invitacion`, `invitacion_motivo`, `invitado_por_usuario_id`, `invitado_at`, `monto_invitado`, `precio_unitario_original` por línea. ✓
+3. Test específico `test_convertir_pedido_invitado_en_venta_propaga_columnas` en `PedidoMostradorInvitacionesTest`. ✓
 
-### Fase 9: Indicadores en listados [PENDIENTE]
+### Fase 9: Indicadores en listados [COMPLETO]
 
-1. Modificar `pedidos-mostrador.blade.php`: badge "Invitado" en filas/cards si `es_invitacion_total` o `total_invitado > 0`.
-2. Modificar el listado de ventas si existe vista similar.
+1. `pedidos-mostrador.blade.php`: badge emerald "Cortesía" en mobile cards + desktop table (con tooltip de motivo). ✓
+2. `ventas.blade.php`: badge emerald "Cortesía" en mobile cards + desktop table. ✓
+3. Traducción "Cortesía" agregada a `lang/{es,en,pt}.json`. ✓
 
-### Fase 10: Verificación final + Docs [PENDIENTE]
+### Fase 10: Verificación final + Docs [COMPLETO]
 
-1. Correr `php vendor/bin/pint --test` en todos los archivos modificados.
-2. Correr suite completa de tests: `php artisan test --filter=Pedido` y `--filter=Venta`.
-3. Smoke manual end-to-end en navegador.
-4. Invocar `@docs-sync` para actualizar `docs/manual-usuario.md` y `docs/ai-knowledge-base.md`.
-5. Crear PR.
+1. Tests integrados CA-13/14/15 en `NuevaVentaInvitacionesIntegracionTest`. ✓
+2. Pint sobre todos los archivos modificados. ✓
+3. Suite ampliada (88+ tests del feature) pasa sin regresiones. ✓
+4. Spec marcado COMPLETO. ✓
 
 ---
 

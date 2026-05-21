@@ -5,6 +5,7 @@ namespace Tests\Integration\Services\Pedidos;
 use App\Models\PedidoMostrador;
 use App\Services\Pedidos\PedidoMostradorService;
 use Tests\TestCase;
+use Tests\Traits\WithCaja;
 use Tests\Traits\WithPedidoMostradorHelpers;
 use Tests\Traits\WithSucursal;
 use Tests\Traits\WithTenant;
@@ -19,7 +20,7 @@ use Tests\Traits\WithVentaHelpers;
  */
 class PedidoMostradorInvitacionesTest extends TestCase
 {
-    use WithPedidoMostradorHelpers, WithSucursal, WithTenant, WithVentaHelpers;
+    use WithCaja, WithPedidoMostradorHelpers, WithSucursal, WithTenant, WithVentaHelpers;
 
     protected PedidoMostradorService $service;
 
@@ -239,5 +240,72 @@ class PedidoMostradorInvitacionesTest extends TestCase
             $pedido->estado_pago,
             'Tras pasar a invitación total, el pedido debe quedar en estado_pago=pagado'
         );
+    }
+
+    public function test_convertir_pedido_invitado_en_venta_propaga_columnas(): void
+    {
+        // Fase 8: PedidoMostradorService::convertirEnVenta + mapearDetalleAArrayVenta
+        // deben copiar las columnas de invitación de la cabecera y los detalles
+        // del pedido a la venta resultante, para mantener trazabilidad post-conversión.
+        $this->setUpCaja();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $pedido = $this->service->crearPedido(
+            data: array_merge(
+                $this->datosBaseDelPedido(total: 0, cajaId: $this->cajaId),
+                [
+                    'es_invitacion_total' => true,
+                    'invitacion_motivo' => 'Evento gerencia',
+                    'invitado_por_usuario_id' => 1,
+                    'invitado_at' => now(),
+                    'total_invitado' => 1500.00,
+                ],
+            ),
+            detalles: [
+                array_merge(
+                    $this->detalleDe($articulo, cantidad: 3, precioUnitario: 0),
+                    [
+                        'es_invitacion' => true,
+                        'invitacion_motivo' => 'Evento gerencia',
+                        'invitado_por_usuario_id' => 1,
+                        'invitado_at' => now(),
+                        'monto_invitado' => 1500.00,
+                        'precio_unitario_original' => 500.00,
+                        'subtotal' => 0,
+                        'total' => 0,
+                    ],
+                ),
+            ],
+            esBorrador: false,
+        );
+
+        $pedido->refresh();
+        $venta = $this->service->convertirEnVenta($pedido);
+
+        $venta->refresh()->load('detalles');
+
+        // Cabecera de la venta debe heredar las columnas de invitación.
+        $this->assertTrue((bool) $venta->es_invitacion_total,
+            'La venta resultante debe heredar es_invitacion_total del pedido');
+        $this->assertSame('Evento gerencia', $venta->invitacion_motivo);
+        $this->assertSame(1, (int) $venta->invitado_por_usuario_id);
+        $this->assertNotNull($venta->invitado_at);
+        $this->assertEqualsWithDelta(1500.00, (float) $venta->total_invitado, 0.01);
+        $this->assertEqualsWithDelta(0.0, (float) $venta->total_final, 0.01);
+
+        // Detalle de la venta debe heredar las columnas de invitación.
+        $detalle = $venta->detalles->first();
+        $this->assertNotNull($detalle);
+        $this->assertTrue((bool) $detalle->es_invitacion);
+        $this->assertSame('Evento gerencia', $detalle->invitacion_motivo);
+        $this->assertSame(1, (int) $detalle->invitado_por_usuario_id);
+        $this->assertEqualsWithDelta(1500.00, (float) $detalle->monto_invitado, 0.01);
+        $this->assertEqualsWithDelta(500.00, (float) $detalle->precio_unitario_original, 0.01);
+        $this->assertEqualsWithDelta(0.0, (float) $detalle->precio_unitario, 0.01);
+
+        // El pedido queda marcado como facturado y apuntando a la venta nueva.
+        $pedido->refresh();
+        $this->assertSame(PedidoMostrador::ESTADO_FACTURADO, $pedido->estado_pedido);
+        $this->assertSame($venta->id, $pedido->venta_id);
     }
 }

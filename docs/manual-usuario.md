@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-05-18
+> Version: 0.1.x | Ultima actualizacion: 2026-05-21
 
 ---
 
@@ -252,6 +252,41 @@ El sistema aplica automaticamente las promociones configuradas. Al agregar artic
 
 Las promociones aplicadas se resumen en un panel debajo del carrito, mostrando el nombre de cada promocion y su descuento.
 
+#### Invitar / Cortesia
+
+El sistema permite marcar items o la venta completa como **cortesia** (regalo al cliente). El consumo se registra con trazabilidad completa (stock, motivo, usuario), pero el total cobrable pasa a $0.
+
+**Permisos requeridos:**
+- `func.ventas.invitar_renglon` -- para invitar items individuales.
+- `func.ventas.invitar_venta` -- para invitar la venta completa.
+
+**Invitar un item individual:**
+
+Junto a los botones de ajuste de precio de cada articulo en el carrito aparece un boton de regalo (icono regalo). Al hacer clic:
+- Si el item **no esta invitado**: se abre un mini-modal con un campo de motivo (obligatorio, texto libre, maximo 500 caracteres). Al confirmar, el item queda con precio $0, se muestra un badge verde "Cortesia" en la fila, y el precio original aparece tachado al lado.
+- Si el item **ya esta invitado**: se abre un mini-modal de confirmacion "Quitar invitacion". Al confirmar, el item recupera su precio original y vuelve al motor de promociones.
+- Sin permiso: el boton aparece deshabilitado.
+
+**Invitar la venta completa:**
+
+En la columna derecha, junto al boton "Descuentos", aparece el boton **"Invitar / Cortesia"**:
+- Si **ningun item** esta invitado: al hacer clic se abre un modal con campo de motivo obligatorio. Al confirmar, todos los items quedan invitados con ese mismo motivo.
+- Si **todos los items** estan invitados: al hacer clic se abre un modal de confirmacion para quitar la cortesia a todos de una vez.
+
+**Indicadores visuales:**
+
+- Cada item invitado muestra badge verde "Cortesia", precio original tachado y "$0" en la columna de precio.
+- El panel de totales muestra la linea adicional "Total invitado: $X" con el monto monetario regalado.
+- Una venta donde todos los items estan invitados se procesa sin requerir forma de pago (total cobrable = $0).
+
+**Comportamiento:**
+
+- El motivo de la invitacion es obligatorio. No se puede confirmar sin ingresar texto.
+- Los items invitados quedan **excluidos del motor de beneficios**: no participan en promociones NxM, combos, calculos de monto minimo de cupon ni en el descuento general.
+- El stock se descuenta normalmente (el bien fue consumido aunque no se cobro).
+- Una venta totalmente invitada (`es_invitacion_total=true`) se procesa sin afectar el saldo de caja (no genera movimiento de caja ni se requiere caja abierta para el cobro). El registro de la venta queda en estado "completada" para trazabilidad.
+- Las ventas con cortesia aparecen con badge verde "Cortesia" en el listado de ventas.
+
 #### Selector de cliente
 
 En la columna derecha, el campo **"Cliente"** le permite buscar y seleccionar un cliente:
@@ -409,6 +444,7 @@ La tabla muestra para cada venta:
 - Forma de pago utilizada.
 - Total de la venta.
 - Estado (completada, pendiente, cancelada) con un badge de color.
+- **Badge "Cortesia"** (verde emerald): se muestra cuando la venta es una invitacion total (`es_invitacion_total=true`). Permite identificar rapidamente las ventas de cortesia sin necesidad de abrir el detalle.
 - Si tiene comprobante fiscal, se indica el tipo y numero.
 - Botones de accion.
 
@@ -648,7 +684,7 @@ Para quitar el resaltado de un pedido puntual, **haga click sobre la fila o la c
 
 #### Columnas de la tabla
 
-Cada fila muestra: numero de pedido, identificador/beeper, cliente, fecha/hora, estado del pedido (badge de color), estado del pago (badge de color) y acciones.
+Cada fila muestra: numero de pedido, identificador/beeper, cliente, fecha/hora, estado del pedido (badge de color), estado del pago (badge de color), badge verde "Cortesia" si el pedido es una invitacion total, y acciones.
 
 #### Acciones por fila
 
@@ -665,6 +701,8 @@ Las acciones disponibles dependen del estado del pedido y los permisos del usuar
 | Reimprimir comanda | Siempre disponible | Ninguno adicional |
 | Reimprimir precuenta | Siempre disponible | Ninguno adicional |
 | Cancelar | Pedido no cancelado ni facturado | `func.pedidos_mostrador.cancelar` |
+| Invitar item | Pedido editable (desde el editor) | `func.pedidos_mostrador.invitar_renglon` |
+| Invitar pedido completo | Pedido editable (desde el editor o modal cobro) | `func.pedidos_mostrador.invitar_pedido` |
 
 > Si el usuario no tiene el permiso correspondiente, al intentar la accion vera un mensaje de error y el modal no se abrira.
 
@@ -809,6 +847,7 @@ Cada card muestra:
 - Nombre del cliente (o indicador de cliente temporal)
 - Total del pedido
 - Estado de pago con color: **Pagado** (verde), **Parcial** (ambar), **Pendiente** (rojo)
+- Badge verde "Cortesia" si el pedido es una invitacion total
 
 Botones disponibles directamente en la card:
 - **Ver**: abre el modal de detalle.
@@ -864,6 +903,48 @@ Identico al carrito de Nueva Venta. Incluye:
 - Concepto libre (item sin articulo del catalogo, con descripcion manual).
 - Ajuste manual de precio por item.
 - Descuento individual por item.
+- Boton de regalo (icono regalo) por item para marcar como cortesia (ver seccion Invitar / Cortesia mas abajo).
+
+##### Invitar / Cortesia
+
+El editor de pedidos soporta invitaciones (cortesias) identico a Nueva Venta, con los mismos dos flujos: por item individual y para el pedido completo.
+
+**Permisos requeridos:**
+- `func.pedidos_mostrador.invitar_renglon` -- para invitar items individuales.
+- `func.pedidos_mostrador.invitar_pedido` -- para invitar el pedido completo.
+
+**Invitar un item individual:**
+
+Cada item del carrito tiene un boton de regalo (icono regalo) en la fila de controles. Al hacer clic:
+- Si el item **no esta invitado**: se abre un mini-modal con campo de motivo obligatorio. Al confirmar, el item queda con precio $0, badge verde "Cortesia", precio original tachado.
+- Si el item **ya esta invitado**: se abre un mini-modal de confirmacion "Quitar invitacion". Al confirmar, el precio original se restaura y el item vuelve al motor de promociones.
+- Sin permiso: el boton aparece deshabilitado.
+
+**Invitar el pedido completo:**
+
+En la columna lateral del editor, junto al boton "Descuentos", aparece el boton **"Invitar / Cortesia"**:
+- Si **ningun item** esta invitado: se abre un modal con campo de motivo obligatorio para invitar todos a la vez con el mismo motivo.
+- Si **todos los items** estan invitados: se abre un modal de confirmacion para quitar la cortesia a todos.
+
+Ademas, en el **modal de cobro** (al hacer clic en "Cobrar"), aparece un switch **"Invitar pedido completo"** en la parte superior del desglose de pagos. Al activarlo aparece el campo de motivo. Al confirmar, todos los items quedan invitados y el pedido se procesa sin requerir formas de pago.
+
+**Indicadores visuales:**
+
+- Items invitados: badge verde "Cortesia" + precio original tachado + "$0".
+- Panel de totales: linea "Total invitado: $X".
+- En el listado de pedidos: badge verde "Cortesia" en la fila (lista) y en la card (kanban) para pedidos con `es_invitacion_total=true`.
+
+**Reversibilidad:**
+
+El operario puede quitar la invitacion (por item o total) mientras el pedido este en estado **borrador** o **confirmado con estado de pago pendiente**. Una vez cobrado o convertido en venta, la invitacion queda fija.
+
+**Comportamiento:**
+
+- El motivo es obligatorio. Sin texto no se puede confirmar.
+- Los items invitados se excluyen del motor de beneficios (promos NxM, cupones, descuento general).
+- El stock se descuenta normalmente.
+- Un pedido totalmente invitado se procesa sin requerir formas de pago (total cobrable = $0). Pasa directamente a `estado_pago=pagado`.
+- Al convertir el pedido en venta, la informacion de invitacion se propaga a la venta resultante.
 
 ##### Configuracion del pedido
 

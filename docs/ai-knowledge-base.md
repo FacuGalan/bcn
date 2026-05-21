@@ -128,8 +128,13 @@ Registra cada venta realizada en el sistema.
 | `created_at` | timestamp | Fecha de creacion del registro |
 | `updated_at` | timestamp | Fecha de ultima modificacion |
 | `deleted_at` | timestamp nullable | Soft delete |
+| `es_invitacion_total` | boolean default false | Si todos los items de la venta son cortesia (invitados) |
+| `invitacion_motivo` | varchar(500) nullable | Motivo de la invitacion total (texto libre) |
+| `invitado_por_usuario_id` | bigint FK nullable | FK logico a `config.users.id` — usuario que registro la cortesia |
+| `invitado_at` | timestamp nullable | Timestamp cuando se registro la invitacion |
+| `total_invitado` | decimal(15,2) default 0 | Cache: suma de `monto_invitado` de las lineas invitadas |
 
-**Indices**: `sucursal_id`, `fecha`, `estado`, `cliente_id`, `caja_id`.
+**Indices**: `sucursal_id`, `fecha`, `estado`, `cliente_id`, `caja_id`, `(es_invitacion_total, fecha)`.
 
 **Estados posibles**:
 - `completada` -- Venta pagada completamente o venta contado.
@@ -164,7 +169,15 @@ Cada linea/item de una venta. Puede representar un articulo del catalogo o un co
 | `ajuste_manual_tipo` | varchar nullable | Tipo de ajuste manual (porcentaje, monto) |
 | `ajuste_manual_valor` | decimal(12,2) nullable | Valor del ajuste manual |
 | `precio_sin_ajuste_manual` | decimal(12,2) nullable | Precio antes del ajuste manual |
+| `es_invitacion` | boolean default false | Si este item es cortesia (invitado) |
+| `invitacion_motivo` | varchar(500) nullable | Motivo de la invitacion del item |
+| `invitado_por_usuario_id` | bigint FK nullable | FK logico a `config.users.id` — usuario que invito el item |
+| `invitado_at` | timestamp nullable | Timestamp de la invitacion del item |
+| `monto_invitado` | decimal(15,2) default 0 | Cache: cantidad * precio_unitario_original. Monto monetario regalado por este item |
+| `precio_unitario_original` | decimal(15,2) nullable | Snapshot del precio unitario antes de invitar. Permite revertir la cortesia |
 | `created_at`, `updated_at` | timestamp | Timestamps |
+
+**Indice**: `(es_invitacion)` para reportes de items invitados.
 
 **Helper `obtenerNombre(): string`**: Devuelve `concepto_descripcion` si `es_concepto=true`, de lo contrario `articulo->nombre`. Usar siempre este metodo en vistas de impresion y listados para mostrar el nombre del item independientemente de su tipo.
 
@@ -1356,10 +1369,15 @@ Documento operativo principal del modulo.
 | `venta_id` | bigint FK nullable | FK a `ventas.id` tras conversion (ON DELETE SET NULL) |
 | `convertido_at` | timestamp nullable | Timestamp de conversion a venta |
 | `orden_kanban` | bigint unsigned NOT NULL default 0 | Posicion dentro de la columna del Kanban. Inicializado con `id` en pedidos existentes y en `booted::created`. Renumerado al reordenar dentro de la columna. Reseteado a `id` al cambiar de columna. |
+| `es_invitacion_total` | boolean default false | Si todos los items del pedido son cortesia (invitados) |
+| `invitacion_motivo` | varchar(500) nullable | Motivo de la invitacion total (texto libre) |
+| `invitado_por_usuario_id` | bigint nullable | FK logico a `config.users.id` — usuario que registro la cortesia |
+| `invitado_at` | timestamp nullable | Timestamp cuando se registro la invitacion |
+| `total_invitado` | decimal(15,2) default 0 | Cache: suma de `monto_invitado` de las lineas invitadas |
 | `created_at`, `updated_at` | timestamp | Timestamps |
 | `deleted_at` | timestamp nullable | Soft delete |
 
-**Indices**: `sucursal_id`, `estado_pedido`, `estado_pago`, `fecha`, `cliente_id`, `caja_id`, `venta_id`, `telefono_cliente_temporal`, `(estado_pedido, orden_kanban)`.
+**Indices**: `sucursal_id`, `estado_pedido`, `estado_pago`, `fecha`, `cliente_id`, `caja_id`, `venta_id`, `telefono_cliente_temporal`, `(estado_pedido, orden_kanban)`, `(es_invitacion_total, fecha)`.
 
 **Estados `estado_pedido`**:
 - `borrador` -- Pedido en edicion, sin numero asignado, sin descuento de stock.
@@ -1405,7 +1423,15 @@ Items del pedido. Espejo de `ventas_detalle`.
 | `descuento_promocion` | decimal(12,2) | Descuento por promociones |
 | `subtotal` | decimal(12,2) | Subtotal del item |
 | `total` | decimal(12,2) | Total del item tras descuentos |
+| `es_invitacion` | boolean default false | Si este item es cortesia (invitado) |
+| `invitacion_motivo` | varchar(500) nullable | Motivo de la invitacion del item |
+| `invitado_por_usuario_id` | bigint nullable | FK logico a `config.users.id` — usuario que invito el item |
+| `invitado_at` | timestamp nullable | Timestamp de la invitacion del item |
+| `monto_invitado` | decimal(15,2) default 0 | Cache: cantidad * precio_unitario_original. Monto monetario regalado |
+| `precio_unitario_original` | decimal(15,2) nullable | Snapshot del precio unitario antes de invitar |
 | `created_at`, `updated_at` | timestamp | Timestamps |
+
+**Indice**: `(es_invitacion)` para reportes de items invitados.
 
 #### Tabla: `pedido_mostrador_detalle_opcionales`
 Opcionales seleccionados por item de pedido. Snapshot del opcional al momento del pedido.
@@ -1506,12 +1532,164 @@ Los permisos se crean en la migracion `add_pedidos_mostrador_permissions_to_admi
 | `func.pedidos_mostrador.anular_pago` | Anular un pago activo del pedido |
 | `func.pedidos_mostrador.modificar_pago` | Modificar un pago existente |
 | `func.pedidos_mostrador.reordenar_kanban` | Reordenar cards dentro de una columna Kanban |
+| `func.pedidos_mostrador.invitar_renglon` | Invitar (cortesia) un item individual del pedido |
+| `func.pedidos_mostrador.invitar_pedido` | Invitar (cortesia) el pedido completo |
 
 Los roles Administrador y Super Administrador reciben todos estos permisos automaticamente. Los roles operativos (cajero, vendedor, etc.) los reciben segun configuracion manual del comercio.
 
 #### Campos agregados a tablas existentes
 
 - **`sucursales`**: `pedido_mostrador_activo` (boolean, habilita el modulo por sucursal), `pedido_mostrador_imprime_comanda_auto` (boolean, imprime comanda al confirmar), `pedido_mostrador_ultimo_numero` (int unsigned, contador atomico del numero correlativo).
+
+#### Feature: Invitaciones / Cortesias
+
+Permite registrar items o documentos completos como cortesia (precio cobrable = $0) preservando trazabilidad completa. Implementado en Pedidos por Mostrador y Ventas. Disenado como trait reutilizable para futuros canales (delivery).
+
+**Principios de diseno:**
+
+- Item invitado = `precio_unitario = 0` + `es_invitacion = true` + snapshot en `precio_unitario_original`. No se crea un tipo de item nuevo.
+- `monto_invitado` en cada linea = `cantidad * precio_unitario_original`. Cache para reportes sin recomputar precios.
+- `total_invitado` en cabecera = suma de `monto_invitado` de lineas. Util para listados sin joinear detalles.
+- Items invitados se excluyen totalmente del motor de beneficios comerciales (RF-11): promos NxM, combos, menus, cupones (monto minimo), descuento general. Una cortesia y una promo son canales distintos y no se acumulan.
+- El stock se descuenta normalmente (el bien fue consumido).
+- Conversion pedido → venta: las columnas de invitacion se propagan 1:1 al crear la venta; `invitado_por_usuario_id` original se preserva (no se reemplaza por quien convierte).
+- Reversibilidad solo mientras el documento es editable (borrador o confirmado con pago pendiente).
+
+**Trait `WithInvitaciones`** (`app/Livewire/Concerns/Carrito/WithInvitaciones.php`):
+
+Trait reutilizable que encapsula toda la mecanica de invitaciones en el carrito. Es compuesto por `NuevoPedidoMostrador` y `NuevaVenta`.
+
+Props publicas del trait:
+- `$invitarTodo` (bool) -- estado del switch "Invitar pedido completo" en el modal de cobro.
+- `$motivoInvitacionTotal` (string) -- motivo cuando se invita todo el pedido/venta.
+- `$mostrarModalInvitarTodo` (bool) -- visibilidad del modal global "Invitar pedido completo" (boton al lado de Descuentos en la vista principal).
+- `$mostrarModalDesinvitarTodo` (bool) -- visibilidad del modal de confirmacion para quitar cortesia a todo.
+- `$mostrarModalInvitarItem` (bool) -- visibilidad del mini-modal por item.
+- `$invitarItemIndex` (?int) -- indice del item en `$this->items` que se esta invitando.
+- `$invitarItemMotivo` (string) -- motivo ingresado en el mini-modal.
+- `$mostrarModalDesinvitarItem` (bool) -- visibilidad del modal de des-invitacion.
+- `$desinvitarItemIndex` (?int) -- indice del item que se va a des-invitar.
+- `$totalInvitado` (float) -- cache calculado: suma de `monto_invitado` de los items.
+
+Computed properties:
+- `$puedeInvitarPedido` -- si el usuario autenticado tiene permiso para invitar el documento completo.
+- `$puedeInvitarRenglon` -- si el usuario tiene permiso para invitar items individuales.
+- `$esInvitacionTotal` -- `true` si hay al menos un item y todos tienen `es_invitacion=true`.
+
+Metodos publicos:
+- `abrirInvitarItem(int $index)` -- valida permiso, abre el mini-modal para el item.
+- `confirmarInvitarItem()` -- aplica invitacion al item, cierra modal, recalcula totales.
+- `cerrarModalInvitarItem()` -- cierra mini-modal sin modificar.
+- `abrirDesinvitarItem(int $index)` -- valida permiso, abre confirmacion de des-invitacion.
+- `confirmarDesinvitarItem()` -- quita invitacion del item, restaura precio, recalcula.
+- `cerrarModalDesinvitarItem()` -- cierra sin modificar.
+- `toggleInvitarTodo()` -- activa/desactiva el switch en el modal de cobro.
+- `abrirModalInvitarTodo()` -- valida permiso y que haya items; abre el modal global.
+- `cerrarModalInvitarTodo()` -- cierra sin confirmar.
+- `confirmarInvitarTodo()` -- marca todos los items como invitados con el mismo motivo.
+- `abrirModalDesinvitarTodo()` -- valida permiso y que sea invitacion total; abre confirmacion.
+- `cerrarModalDesinvitarTodo()` -- cierra sin confirmar.
+- `desinvitarTodos()` -- quita cortesia a todos los items, restaura precios, recalcula.
+
+Hooks configurables (el componente host puede override):
+- `getPermisoInvitacionPrefix(): string` -- prefijo del permiso. Default `'func.pedidos_mostrador'`. `NuevaVenta` lo override a `'func.ventas'`.
+- `getPermisoInvitarTotalSuffix(): string` -- sufijo del permiso de invitacion total. Default `'invitar_pedido'`. `NuevaVenta` lo override a `'invitar_venta'`.
+
+Logica interna de `marcarItemComoInvitado(int $index, string $motivo)`:
+1. Guarda snapshot `precio_unitario_original = precio_actual` (solo si no estaba invitado ya).
+2. Setea `precio = 0`.
+3. Setea `es_invitacion = true`, `invitacion_motivo`, `invitado_por_usuario_id`, `invitado_at`, `monto_invitado = cantidad * precio_unitario_original`.
+4. Reset de todos los descuentos: `descuento`, `descuento_porcentaje`, `descuento_monto`, `descuento_promocion`, `descuento_promocion_especial`, `descuento_cupon`, `descuento_lista`, `tiene_promocion = false`, `_promociones_item = []`.
+5. Reset del ajuste manual: `ajuste_manual_tipo`, `ajuste_manual_valor`, `ajuste_manual_origen`, `ajuste_manual_aplicado_por`, `precio_sin_ajuste_manual`, `tiene_ajuste = false`.
+
+Logica interna de `desmarcarItem(int $index)`:
+1. Restaura `precio = precio_unitario_original` (o el precio actual si no habia snapshot).
+2. Limpia `es_invitacion = false`, `invitacion_motivo = null`, `invitado_por_usuario_id = null`, `invitado_at = null`, `monto_invitado = 0`, `precio_unitario_original = null`.
+3. El caller llama `calcularVenta()` para que el motor re-evalue promos sobre el item.
+
+**Helper `getItemsParaMotorBeneficios(): array`** (en `WithCalculoVenta`):
+
+Retorna un array asociativo `[indice_original => item]` con solo los items que tienen `es_invitacion = false`. Preserva los indices originales de `$this->items` para que las modificaciones posteriores (aplicar descuentos, promos) afecten al item correcto.
+
+Puntos de uso del helper (todos los lugares donde antes se iteraba `$this->items` para beneficios comerciales):
+- Armar pool de items para promociones comunes.
+- Armar pool para promociones especiales NxM/Combo/Menu (thresholds).
+- Calcular base del descuento general porcentual.
+- Calcular subtotal para validar monto minimo de cupon.
+- Aplicar descuento de cupon por articulo especifico.
+- Aplicar descuento general.
+
+Los items invitados pasan por el calculo solo para totalizar su `monto_invitado` (que se suma en `$totalInvitado`); no contribuyen a los calculos de beneficios ni reciben descuentos.
+
+**Permisos del feature (aplican en ambos canales):**
+
+| Permiso | Canal | Accion protegida |
+|---------|-------|-----------------|
+| `func.pedidos_mostrador.invitar_renglon` | Pedidos Mostrador | Invitar item individual |
+| `func.pedidos_mostrador.invitar_pedido` | Pedidos Mostrador | Invitar pedido completo |
+| `func.ventas.invitar_renglon` | Ventas (POS) | Invitar item individual |
+| `func.ventas.invitar_venta` | Ventas (POS) | Invitar venta completa |
+
+Los permisos se crean via migracion. `ProvisionComercioCommand::seedRolesYPermisos()` los asigna automaticamente a Administrador y Super Administrador al provisionar comercios nuevos (itera todos los `func.*`).
+
+**Integracion en `PedidoMostradorService::convertirEnVenta()`:**
+
+Al crear la venta resultante, el service copia las columnas de invitacion:
+- Cabecera: `es_invitacion_total`, `invitacion_motivo`, `invitado_por_usuario_id`, `invitado_at`, `total_invitado`.
+- Por linea (en `mapearDetalleAArrayVenta()`): `es_invitacion`, `invitacion_motivo`, `invitado_por_usuario_id`, `invitado_at`, `monto_invitado`, `precio_unitario_original`.
+- El `invitado_por_usuario_id` original se preserva: no se reemplaza por el usuario que ejecuta la conversion.
+
+**Integracion en `VentaService`:**
+
+- `crearVenta()` persiste las columnas de invitacion de cabecera si estan en `$data`.
+- `crearDetalleVenta()` persiste las columnas de invitacion de linea si estan en el array de detalle.
+- `validarCajaAbierta()` se omite cuando `es_invitacion_total = true`: la venta cortesia no impacta caja, pero igualmente requiere `caja_id` para generar el numero de venta.
+
+**Procesamiento de venta/pedido totalmente invitado:**
+
+Cuando `es_invitacion_total = true` y `total_final = 0`:
+- Se omite la validacion de caja abierta y de desglose de pagos.
+- El documento pasa directamente a `estado_pago = pagado` sin crear registros de pago.
+- `NuevaVenta` detecta `esInvitacionCompleta` antes de `procesarVenta()` y saltea la creacion de `VentaPago`, `MovimientoCaja`, movimiento en cuenta empresa y facturacion fiscal.
+
+**Indicadores visuales (listados):**
+
+- `pedidos-mostrador.blade.php`: badge emerald "Cortesia" en la fila de la Vista Lista y en la card del Kanban cuando `es_invitacion_total = true`.
+- `ventas.blade.php`: badge emerald "Cortesia" en la fila cuando `es_invitacion_total = true`.
+
+**Queries SQL utiles para reportes (out-of-scope en este PR, disponibles para el futuro):**
+
+Total invitado por sucursal en un periodo:
+```sql
+SELECT SUM(total_invitado) FROM {PREFIX}ventas
+WHERE sucursal_id = ? AND fecha BETWEEN ? AND ? AND es_invitacion_total = 1;
+```
+
+Top usuarios que invitan:
+```sql
+SELECT invitado_por_usuario_id, COUNT(*) AS cant, SUM(total_invitado) AS total
+FROM {PREFIX}ventas
+WHERE es_invitacion_total = 1
+GROUP BY invitado_por_usuario_id
+ORDER BY total DESC;
+```
+
+Items mas invitados:
+```sql
+SELECT articulo_id, SUM(monto_invitado) AS total_invitado, SUM(cantidad) AS unidades
+FROM {PREFIX}ventas_detalle
+WHERE es_invitacion = 1
+GROUP BY articulo_id
+ORDER BY total_invitado DESC;
+```
+
+Stock consumido por cortesia (con join para distinguir de stock comercial):
+```sql
+SELECT ms.*, vd.es_invitacion
+FROM {PREFIX}movimientos_stock ms
+JOIN {PREFIX}ventas_detalle vd ON vd.id = ms.origen_id AND ms.origen_tipo = 'venta_detalle'
+WHERE vd.es_invitacion = 1;
+```
 
 #### Service: `PedidoMostradorService`
 
@@ -1877,18 +2055,18 @@ Paso a paso completo desde que el usuario abre la pantalla de Nueva Venta hasta 
 7. **Confirmacion de venta** (via `VentaService::crearVenta`):
    - Se valida stock disponible (segun modo: `bloquea`, `advierte`, `no_controla`). Los conceptos libres (`es_concepto=true`) no afectan stock.
    - Se valida credito del cliente (si es CC)
-   - Se valida que la caja este abierta
+   - Se valida que la caja este abierta -- **excepcion: si `es_invitacion_total = true`, esta validacion se omite** (la venta cortesia no impacta caja pero igualmente necesita `caja_id` para generar el numero).
    - Se genera numero de venta (formato: CCCC-NNNNNNNN, donde CCCC es la caja)
-   - Se crea el registro en `ventas`
-   - Se crean los detalles en `ventas_detalle`. Los items de tipo concepto libre tienen `articulo_id=NULL`, `es_concepto=true`, `concepto_descripcion` y opcionalmente `concepto_categoria_id`.
+   - Se crea el registro en `ventas` (con columnas de invitacion si aplica)
+   - Se crean los detalles en `ventas_detalle`. Los items de tipo concepto libre tienen `articulo_id=NULL`, `es_concepto=true`, `concepto_descripcion` y opcionalmente `concepto_categoria_id`. Los items invitados tienen `es_invitacion=true`, `precio_unitario=0`, `monto_invitado` y `precio_unitario_original`.
    - Se guardan promociones aplicadas
    - Se guardan opcionales seleccionados
-   - Se descuenta stock (tabla `stock` cache + movimiento en `movimientos_stock`)
-   - Se registran pagos en `venta_pagos`
-   - Se crean movimientos de caja (solo para pagos en efectivo)
-   - Se registran movimientos en cuenta empresa (si la forma de pago tiene cuenta vinculada)
+   - Se descuenta stock (tabla `stock` cache + movimiento en `movimientos_stock`) -- **los items invitados descuentan stock normalmente** (el bien fue consumido).
+   - Se registran pagos en `venta_pagos` -- **omitido si `es_invitacion_total = true`** (no hay pagos que registrar).
+   - Se crean movimientos de caja -- **omitido si `es_invitacion_total = true`**.
+   - Se registran movimientos en cuenta empresa (si la forma de pago tiene cuenta vinculada) -- **omitido si `es_invitacion_total = true`**.
    - Si es CC: se crea movimiento en `movimientos_cuenta_corriente` y se actualiza cache del cliente
-   - Si la sucursal tiene facturacion automatica y la forma de pago lo requiere: se emite comprobante fiscal via AFIP
+   - Si la sucursal tiene facturacion automatica y la forma de pago lo requiere: se emite comprobante fiscal via AFIP -- **omitido si `es_invitacion_total = true`** (cortesia no genera factura fiscal).
 
 8. **Resultado**: Se muestra el resumen de la venta con opcion de imprimir ticket.
 
