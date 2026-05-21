@@ -562,6 +562,7 @@ class Ventas extends Component
                 'promociones',
                 'comprobantesFiscales',
                 'usuario',
+                'invitadoPor',
                 'cupon',
             ])->find($this->ventaDetalleId) : null,
             'ajustesPagos' => $this->ventaDetalleId ? VentaPagoAjuste::with([

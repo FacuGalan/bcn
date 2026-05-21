@@ -183,10 +183,39 @@ class SmokeVentasTest extends TestCase
         $this->assertGreaterThan(0, (float) $venta->total_invitado);
         $this->assertSame(0, $venta->pagos()->count(),
             'Venta invitada no debe tener VentaPago');
+        $this->assertNull($venta->forma_pago_id,
+            'Venta cortesia no debe tener forma_pago_id (queda como N/A o "Cortesia" en el detalle)');
 
         $detalle = $venta->detalles->first();
         $this->assertTrue((bool) $detalle->es_invitacion);
         $this->assertSame('Evento corporativo', $detalle->invitacion_motivo);
         $this->assertGreaterThan(0, (float) $detalle->monto_invitado);
+    }
+
+    public function test_iniciar_cobro_con_invitacion_total_persiste_sin_modal_de_vuelto(): void
+    {
+        // El boton "Cobrar" de la columna lateral (que dispara iniciarCobro)
+        // debe detectar invitacion total + total=0 y atajarlo directo via
+        // confirmarInvitacionTotal, SIN abrir el modal de vuelto aunque la FP
+        // por defecto sea Efectivo (permite_vuelto=true).
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevaVenta::class)
+            ->set('cajaSeleccionada', $this->cajaId)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirModalInvitarTodo')
+            ->set('motivoInvitacionTotal', 'Cortesia operador')
+            ->call('confirmarInvitarTodo')
+            ->call('iniciarCobro');
+
+        // El modal de vuelto NO debe haberse abierto.
+        $componente->assertSet('mostrarModalVuelto', false);
+        $componente->assertSet('mostrarModalPago', false);
+
+        $venta = Venta::first();
+        $this->assertNotNull($venta, 'La venta debe persistir directo sin pasar por modal');
+        $this->assertTrue((bool) $venta->es_invitacion_total);
+        $this->assertNull($venta->forma_pago_id);
+        $this->assertEqualsWithDelta(0.0, (float) $venta->total_final, 0.01);
     }
 }

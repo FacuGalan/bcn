@@ -777,7 +777,15 @@
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Forma de Pago') }}</label>
-                                <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">{{ $ventaDetalle->formaPago->nombre ?? 'N/A' }}</p>
+                                <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">
+                                    @if($ventaDetalle->es_invitacion_total)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
+                                            {{ __('Cortesía') }}
+                                        </span>
+                                    @else
+                                        {{ $ventaDetalle->formaPago->nombre ?? 'N/A' }}
+                                    @endif
+                                </p>
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Estado') }}</label>
@@ -789,6 +797,35 @@
                                 </span>
                             </div>
                         </div>
+
+                        {{-- Info de cortesía: motivo + usuario que invitó + fecha. Solo cuando la venta
+                            completa es cortesía. Para invitaciones parciales el badge va por línea. --}}
+                        @if($ventaDetalle->es_invitacion_total)
+                            <div class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3">
+                                <div class="flex items-start gap-2">
+                                    <svg class="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M20 12v8H4v-8M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+                                    </svg>
+                                    <div class="flex-1">
+                                        <div class="text-sm font-semibold text-emerald-800 dark:text-emerald-200">{{ __('Venta de cortesía') }}</div>
+                                        @if($ventaDetalle->invitacion_motivo)
+                                            <div class="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
+                                                <span class="font-medium">{{ __('Motivo') }}:</span> {{ $ventaDetalle->invitacion_motivo }}
+                                            </div>
+                                        @endif
+                                        <div class="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                                            @if($ventaDetalle->invitadoPor)
+                                                {{ __('Autorizado por') }} <span class="font-medium">{{ $ventaDetalle->invitadoPor->name }}</span>
+                                            @endif
+                                            @if($ventaDetalle->invitado_at)
+                                                · {{ $ventaDetalle->invitado_at->format('d/m/Y H:i') }}
+                                            @endif
+                                            · {{ __('Total regalado') }}: <span class="font-semibold">$@precio($ventaDetalle->total_invitado)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
 
                         {{-- Detalles de items --}}
                         <div>
@@ -820,6 +857,15 @@
                                                     @if($detalle->descuento_cupon > 0)
                                                         <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                                                             {{ __('Cupón') }} -$@precio($detalle->descuento_cupon)
+                                                        </span>
+                                                    @endif
+                                                    @if($detalle->es_invitacion)
+                                                        <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+                                                              @if($detalle->invitacion_motivo) title="{{ $detalle->invitacion_motivo }}" @endif>
+                                                            {{ __('Cortesía') }}
+                                                            @if($detalle->monto_invitado > 0)
+                                                                <span class="ml-0.5">-$@precio($detalle->monto_invitado)</span>
+                                                            @endif
                                                         </span>
                                                     @endif
                                                 </td>
