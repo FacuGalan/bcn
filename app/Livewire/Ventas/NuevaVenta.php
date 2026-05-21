@@ -10,6 +10,7 @@ use App\Livewire\Concerns\Carrito\WithCarritoItems;
 use App\Livewire\Concerns\Carrito\WithConsultaPrecios;
 use App\Livewire\Concerns\Carrito\WithCupones;
 use App\Livewire\Concerns\Carrito\WithDescuentos;
+use App\Livewire\Concerns\Carrito\WithInvitaciones;
 use App\Livewire\Concerns\Carrito\WithOpcionales;
 use App\Livewire\Concerns\Carrito\WithPagosDesglose;
 use App\Livewire\Concerns\Carrito\WithPuntos;
@@ -70,6 +71,7 @@ class NuevaVenta extends Component
     use WithConsultaPrecios;
     use WithCupones;
     use WithDescuentos;
+    use WithInvitaciones;
     use WithOpcionales;
     use WithPagosDesglose;
     use WithPuntos;
@@ -1225,8 +1227,13 @@ class NuevaVenta extends Component
             $esCuentaCorriente = $formaPago && strtoupper($formaPago->codigo) === 'CTA_CTE';
             $totalVenta = $this->resultado['total_final'] ?? 0;
 
-            // Validar cliente si es cuenta corriente
-            if ($esCuentaCorriente) {
+            // Venta totalmente invitada (cortesia): no requiere cliente CC, caja ni pagos.
+            // El detalle persiste con es_invitacion=true y monto_invitado>0; la cabecera
+            // arranca con total_final=0 y estado_pago=pagado.
+            $esInvitacionCompleta = $this->esInvitacionTotal && $totalVenta <= 0.005;
+
+            // Validar cliente si es cuenta corriente (no aplica si todo es invitacion).
+            if ($esCuentaCorriente && ! $esInvitacionCompleta) {
                 if (! $this->clienteSeleccionado) {
                     $this->dispatch('toast-error', message: 'Debe seleccionar un cliente para ventas a cuenta corriente');
 
@@ -1250,7 +1257,7 @@ class NuevaVenta extends Component
             }
 
             $cajaId = $this->cajaSeleccionada ?? caja_activa();
-            if (! $esCuentaCorriente) {
+            if (! $esCuentaCorriente && ! $esInvitacionCompleta) {
                 if (! $cajaId) {
                     $this->dispatch('toast-error', message: 'Debe seleccionar una caja');
 
@@ -1276,7 +1283,8 @@ class NuevaVenta extends Component
             ]];
             $debeFacturarAutomatico = $comprobanteFiscalService->debeGenerarFacturaFiscal($sucursal, $pagosParaValidar);
             $debeFacturarManual = $this->emitirFacturaFiscal;
-            $debeFacturar = $debeFacturarAutomatico || $debeFacturarManual;
+            // Una venta totalmente invitada nunca se factura: no hay base imponible (total=0).
+            $debeFacturar = ! $esInvitacionCompleta && ($debeFacturarAutomatico || $debeFacturarManual);
 
             DB::connection('pymes_tenant')->beginTransaction();
 
@@ -1310,6 +1318,16 @@ class NuevaVenta extends Component
                     'monto_cupon' => $this->cuponMontoDescuento,
                     // Puntos (RF-09)
                     'puntos_usados' => $this->canjePuntosActivo ? $this->canjePuntosUnidades : 0,
+                    // Invitacion (cortesia). Cabecera: solo se llena cuando la venta
+                    // completa es cortesia. total_invitado se persiste siempre como
+                    // cache del SUM(detalle.monto_invitado) para reportes.
+                    'es_invitacion_total' => $this->esInvitacionTotal,
+                    'invitacion_motivo' => $this->esInvitacionTotal
+                        ? (trim($this->motivoInvitacionTotal) ?: null)
+                        : null,
+                    'invitado_por_usuario_id' => $this->esInvitacionTotal ? Auth::id() : null,
+                    'invitado_at' => $this->esInvitacionTotal ? now() : null,
+                    'total_invitado' => (float) $this->totalInvitado,
                 ];
 
                 $descuentoCuponPorItem = $this->calcularDescuentoCuponPorItem();
@@ -1338,47 +1356,63 @@ class NuevaVenta extends Component
                         'es_concepto' => $esConcepto,
                         'concepto_descripcion' => $esConcepto ? ($item['nombre'] ?? null) : null,
                         'concepto_categoria_id' => $esConcepto ? ($item['categoria_id'] ?? null) : null,
+                        // Invitacion (cortesia) por linea. El trait WithInvitaciones
+                        // mantiene estas claves en memoria; aca solo las propagamos.
+                        'es_invitacion' => (bool) ($item['es_invitacion'] ?? false),
+                        'invitacion_motivo' => $item['invitacion_motivo'] ?? null,
+                        'invitado_por_usuario_id' => $item['invitado_por_usuario_id'] ?? null,
+                        'invitado_at' => $item['invitado_at'] ?? null,
+                        'monto_invitado' => (float) ($item['monto_invitado'] ?? 0),
+                        'precio_unitario_original' => isset($item['precio_unitario_original'])
+                            ? (float) $item['precio_unitario_original']
+                            : null,
                     ];
                 }
 
                 $venta = $this->ventaService->crearVenta($datosVenta, $detalles);
 
-                // Crear VentaPago para el pago único
-                $afectaCaja = ! $esCuentaCorriente && $cajaId;
-                $movimientoCajaId = null;
+                // Si la venta es totalmente invitada, no hay pago: no se crea VentaPago,
+                // no afecta caja ni cuenta empresa. Sigue el flow para cupon/puntos/CC
+                // (que ya validan sus propias precondiciones).
+                $ventaPagoSimple = null;
+                if (! $esInvitacionCompleta) {
+                    // Crear VentaPago para el pago único
+                    $afectaCaja = ! $esCuentaCorriente && $cajaId;
+                    $movimientoCajaId = null;
 
-                if ($afectaCaja) {
-                    $movimiento = MovimientoCaja::crearIngresoVenta(
-                        Caja::find($cajaId),
-                        $venta,
-                        $totalVenta,
-                        Auth::id()
-                    );
-                    $movimientoCajaId = $movimiento->id;
+                    if ($afectaCaja) {
+                        $movimiento = MovimientoCaja::crearIngresoVenta(
+                            Caja::find($cajaId),
+                            $venta,
+                            $totalVenta,
+                            Auth::id()
+                        );
+                        $movimientoCajaId = $movimiento->id;
 
-                    $caja = Caja::find($cajaId);
-                    $caja->aumentarSaldo($totalVenta);
+                        $caja = Caja::find($cajaId);
+                        $caja->aumentarSaldo($totalVenta);
+                    }
+
+                    $ventaPagoSimple = VentaPago::create([
+                        'venta_id' => $venta->id,
+                        'forma_pago_id' => $this->formaPagoId,
+                        'concepto_pago_id' => $formaPago?->concepto_pago_id,
+                        'monto_base' => $totalVenta,
+                        'ajuste_porcentaje' => 0,
+                        'monto_ajuste' => 0,
+                        'monto_final' => $totalVenta,
+                        'monto_recibido' => $totalVenta,
+                        'vuelto' => 0,
+                        'es_cuenta_corriente' => $esCuentaCorriente,
+                        'afecta_caja' => $afectaCaja,
+                        'estado' => 'activo',
+                        'movimiento_caja_id' => $movimientoCajaId,
+                        'moneda_id' => $formaPago?->moneda_id ?? Moneda::obtenerPrincipal()?->id,
+                    ]);
                 }
 
-                $ventaPagoSimple = VentaPago::create([
-                    'venta_id' => $venta->id,
-                    'forma_pago_id' => $this->formaPagoId,
-                    'concepto_pago_id' => $formaPago?->concepto_pago_id,
-                    'monto_base' => $totalVenta,
-                    'ajuste_porcentaje' => 0,
-                    'monto_ajuste' => 0,
-                    'monto_final' => $totalVenta,
-                    'monto_recibido' => $totalVenta,
-                    'vuelto' => 0,
-                    'es_cuenta_corriente' => $esCuentaCorriente,
-                    'afecta_caja' => $afectaCaja,
-                    'estado' => 'activo',
-                    'movimiento_caja_id' => $movimientoCajaId,
-                    'moneda_id' => $formaPago?->moneda_id ?? Moneda::obtenerPrincipal()?->id,
-                ]);
-
                 // Si la forma de pago tiene cuenta empresa vinculada, registrar movimiento
-                if (! $esCuentaCorriente && $formaPago && $formaPago->cuenta_empresa_id) {
+                if (! $esInvitacionCompleta && ! $esCuentaCorriente && $formaPago && $formaPago->cuenta_empresa_id) {
                     try {
                         $movCuenta = CuentaEmpresaService::registrarMovimientoAutomatico(
                             CuentaEmpresa::find($formaPago->cuenta_empresa_id),
@@ -1693,6 +1727,18 @@ class NuevaVenta extends Component
         // Resetear cliente rápido
         $this->resetClienteRapido();
 
+        // Resetear estado de invitaciones (trait WithInvitaciones)
+        $this->invitarTodo = false;
+        $this->motivoInvitacionTotal = '';
+        $this->totalInvitado = 0.0;
+        $this->mostrarModalInvitarTodo = false;
+        $this->mostrarModalDesinvitarTodo = false;
+        $this->mostrarModalInvitarItem = false;
+        $this->mostrarModalDesinvitarItem = false;
+        $this->invitarItemIndex = null;
+        $this->invitarItemMotivo = '';
+        $this->desinvitarItemIndex = null;
+
         // Volver a valores por defecto de selectores (primera forma de pago según orden)
         $this->formaPagoId = $this->formasPago[0]['id'] ?? 1;
 
@@ -1744,5 +1790,46 @@ class NuevaVenta extends Component
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    // =========================================
+    // OVERRIDES PARA TRAIT WithInvitaciones
+    // =========================================
+
+    /**
+     * En NuevaVenta los permisos viven bajo `func.ventas.*` (Pedidos usa
+     * `func.pedidos_mostrador.*`). Los nombres concretos:
+     *   - func.ventas.invitar_venta     → invitar la venta completa
+     *   - func.ventas.invitar_renglon   → invitar un item individual
+     */
+    protected function getPermisoInvitacionPrefix(): string
+    {
+        return 'func.ventas';
+    }
+
+    protected function getPermisoInvitarTotalSuffix(): string
+    {
+        return 'invitar_venta';
+    }
+
+    /**
+     * Confirma la venta como cortesía total en un solo click desde el modal
+     * de cobro o el botón "Invitar/Cortesía" de la columna lateral.
+     *
+     * Llama al trait para marcar todos los items y luego ejecuta el flujo
+     * normal de cobro. `procesarVenta()` detecta `esInvitacionCompleta`
+     * (`esInvitacionTotal && total_final≤0.005`) y persiste sin VentaPago,
+     * sin movimiento de caja, sin cuenta empresa y sin factura fiscal.
+     */
+    public function confirmarInvitacionTotal(): void
+    {
+        $this->confirmarInvitarTodo();
+
+        // Si el trait no pudo marcar (sin permiso, motivo vacío), abortamos.
+        if (! $this->esInvitacionTotal) {
+            return;
+        }
+
+        $this->procesarVenta();
     }
 }

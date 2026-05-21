@@ -83,8 +83,12 @@ class VentaService
                 $this->validarCreditoCliente($data['cliente_id'], $data['sucursal_id'], $data['total'] ?? 0);
             }
 
-            // Validar que la caja esté abierta si hay caja asignada
-            if (isset($data['caja_id']) && $data['caja_id']) {
+            // Validar que la caja esté abierta si hay caja asignada.
+            // Excepcion: ventas totalmente invitadas (cortesia) no requieren caja
+            // abierta porque no generan movimiento de caja ni VentaPago. Se sigue
+            // usando la caja_id para generar el numero de venta (numerator por caja).
+            $esInvitacionTotal = (bool) ($data['es_invitacion_total'] ?? false);
+            if (isset($data['caja_id']) && $data['caja_id'] && ! $esInvitacionTotal) {
                 $this->validarCajaAbierta($data['caja_id']);
             }
 
@@ -157,6 +161,14 @@ class VentaService
                 'cliente_condicion_iva_snapshot' => $snapshots['cliente_condicion_iva'],
                 'cupon_codigo_snapshot' => $snapshots['cupon_codigo'],
                 'cupon_descripcion_snapshot' => $snapshots['cupon_descripcion'],
+                // Invitacion (cortesia). Cabecera: solo se llena cuando la venta
+                // completa es cortesia. total_invitado es cache del SUM de los
+                // monto_invitado de detalle, para evitar joinear en reportes.
+                'es_invitacion_total' => (bool) ($data['es_invitacion_total'] ?? false),
+                'invitacion_motivo' => $data['invitacion_motivo'] ?? null,
+                'invitado_por_usuario_id' => $data['invitado_por_usuario_id'] ?? null,
+                'invitado_at' => $data['invitado_at'] ?? null,
+                'total_invitado' => (float) ($data['total_invitado'] ?? 0),
             ]);
 
             // Guardar promociones aplicadas si vienen en los datos
@@ -378,6 +390,17 @@ class VentaService
                 'es_concepto' => $esConcepto,
                 'concepto_descripcion' => $esConcepto ? ($detalle['concepto_descripcion'] ?? null) : null,
                 'concepto_categoria_id' => $esConcepto ? ($detalle['concepto_categoria_id'] ?? null) : null,
+                // Invitacion (cortesia) por linea. El componente Livewire pasa
+                // estas claves al construir $detalles; aca las propagamos sin
+                // tocarlas (defense in depth: si no vienen, queda all=false/null).
+                'es_invitacion' => (bool) ($detalle['es_invitacion'] ?? false),
+                'invitacion_motivo' => $detalle['invitacion_motivo'] ?? null,
+                'invitado_por_usuario_id' => $detalle['invitado_por_usuario_id'] ?? null,
+                'invitado_at' => $detalle['invitado_at'] ?? null,
+                'monto_invitado' => (float) ($detalle['monto_invitado'] ?? 0),
+                'precio_unitario_original' => isset($detalle['precio_unitario_original'])
+                    ? (float) $detalle['precio_unitario_original']
+                    : null,
             ]);
 
             // Guardar promociones aplicadas al detalle (solo para artículos)
@@ -425,6 +448,17 @@ class VentaService
             'iva_monto' => $ivaMonto,
             'subtotal' => $subtotal,
             'total' => $subtotal, // En modo legacy, total = subtotal (sin promociones)
+            // Invitacion (cortesia) por linea. Se persiste tambien en modo legacy
+            // para no perder trazabilidad si NuevaVenta sigue por el path sin
+            // _usar_totales_proporcionados (caso de venta de pago unico).
+            'es_invitacion' => (bool) ($detalle['es_invitacion'] ?? false),
+            'invitacion_motivo' => $detalle['invitacion_motivo'] ?? null,
+            'invitado_por_usuario_id' => $detalle['invitado_por_usuario_id'] ?? null,
+            'invitado_at' => $detalle['invitado_at'] ?? null,
+            'monto_invitado' => (float) ($detalle['monto_invitado'] ?? 0),
+            'precio_unitario_original' => isset($detalle['precio_unitario_original'])
+                ? (float) $detalle['precio_unitario_original']
+                : null,
         ]);
     }
 
