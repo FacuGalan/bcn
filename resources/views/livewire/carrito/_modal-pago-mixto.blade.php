@@ -106,11 +106,13 @@
                         @endif
                     </div>
 
-                    {{-- Switch "Invitar pedido completo" — solo visible si el usuario
-                        tiene el permiso del canal correspondiente (computed en el trait
-                        WithInvitaciones). Cuando se activa, ocultamos el selector de FPs
-                        y mostramos un textarea de motivo. --}}
-                    @if($this->puedeInvitarPedido && $modalPagoEnModoCobro && !empty($items))
+                    {{-- Switch "Invitar pedido completo" — visible siempre que el
+                        usuario tenga el permiso del canal correspondiente (computed en
+                        el trait WithInvitaciones) y haya items. Al activarse oculta el
+                        selector de FPs y muestra un textarea de motivo. El botón
+                        "Confirmar invitación" persiste el pedido sea cual sea el modo
+                        en que se abrió el modal (cobro o preview de FP mixta). --}}
+                    @if($this->puedeInvitarPedido && !empty($items))
                         <div class="border border-emerald-200 dark:border-emerald-800 rounded-lg overflow-hidden">
                             <label class="flex items-center justify-between gap-3 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/30 cursor-pointer">
                                 <div class="flex items-center gap-2">

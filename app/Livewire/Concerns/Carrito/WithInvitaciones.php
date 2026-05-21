@@ -43,6 +43,19 @@ trait WithInvitaciones
     /** @var string Motivo cuando se invita el pedido entero. */
     public string $motivoInvitacionTotal = '';
 
+    /**
+     * @var bool Visibility del mini-modal global "Invitar pedido completo"
+     *           que se abre desde el botón al lado de "Descuentos" en la vista principal
+     *           (independiente del modal de cobro).
+     */
+    public bool $mostrarModalInvitarTodo = false;
+
+    /**
+     * @var bool Visibility del mini-modal de confirmación para desinvitar
+     *           todos los items del pedido a la vez.
+     */
+    public bool $mostrarModalDesinvitarTodo = false;
+
     // =========================================
     // PROPIEDADES — MINI-MODAL POR ITEM
     // =========================================
@@ -256,9 +269,41 @@ trait WithInvitaciones
     }
 
     /**
+     * Abre el mini-modal global de "Invitar pedido completo" (botón en la vista
+     * principal, al lado de Descuentos). Resetea el motivo cada vez que se abre
+     * para evitar arrastrar texto de un intento previo cancelado.
+     */
+    public function abrirModalInvitarTodo(): void
+    {
+        if (! $this->puedeInvitarPedido()) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para invitar el pedido'));
+
+            return;
+        }
+
+        if (empty($this->items)) {
+            $this->dispatch('toast-error', message: __('El pedido debe tener al menos un artículo'));
+
+            return;
+        }
+
+        $this->motivoInvitacionTotal = '';
+        $this->mostrarModalInvitarTodo = true;
+    }
+
+    public function cerrarModalInvitarTodo(): void
+    {
+        $this->mostrarModalInvitarTodo = false;
+        // No reseteamos motivo acá: si el usuario abre/cierra varias veces sin
+        // confirmar, el motivo se borra solo al abrir (ver abrirModalInvitarTodo).
+    }
+
+    /**
      * Marca todos los items del carrito como invitados con el mismo motivo.
      * No persiste — solo prepara el estado en memoria. El service persiste al
      * llamar a `confirmarPago()` / `procesarVenta()`.
+     *
+     * Si se invocó con el mini-modal global abierto, lo cierra al terminar OK.
      */
     public function confirmarInvitarTodo(): void
     {
@@ -281,6 +326,61 @@ trait WithInvitaciones
 
         $this->recalcularTotalInvitado();
         $this->calcularVenta();
+
+        // Cerrar el mini-modal global si fue el camino de entrada.
+        if ($this->mostrarModalInvitarTodo) {
+            $this->mostrarModalInvitarTodo = false;
+        }
+    }
+
+    /**
+     * Abre el mini-modal de confirmación para quitar la cortesía a todo el
+     * pedido a la vez (botón visible cuando ya está todo invitado).
+     */
+    public function abrirModalDesinvitarTodo(): void
+    {
+        if (! $this->puedeInvitarPedido()) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para invitar el pedido'));
+
+            return;
+        }
+
+        if (! $this->esInvitacionTotal) {
+            return;
+        }
+
+        $this->mostrarModalDesinvitarTodo = true;
+    }
+
+    public function cerrarModalDesinvitarTodo(): void
+    {
+        $this->mostrarModalDesinvitarTodo = false;
+    }
+
+    /**
+     * Quita la cortesía a TODOS los items del carrito de una vez. Restaura los
+     * precios originales (snapshot guardado al invitar) y limpia los metadatos.
+     */
+    public function desinvitarTodos(): void
+    {
+        if (! $this->puedeInvitarPedido()) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para invitar el pedido'));
+
+            return;
+        }
+
+        foreach ($this->items as $index => $item) {
+            if (! empty($item['es_invitacion'])) {
+                $this->desmarcarItem($index);
+            }
+        }
+
+        $this->motivoInvitacionTotal = '';
+        $this->invitarTodo = false;
+        $this->recalcularTotalInvitado();
+        $this->calcularVenta();
+
+        $this->mostrarModalDesinvitarTodo = false;
     }
 
     // =========================================

@@ -548,35 +548,71 @@
                     @endif
                 </div>
 
-                {{-- Botón compacto de Descuentos y Beneficios (estilo NuevaVenta) --}}
+                {{-- Fila de acciones rápidas del pedido: Descuentos + Invitar
+                    (botones 50/50 estilo NuevaVenta). El botón "Invitar" solo
+                    aparece si el usuario tiene el permiso; si no lo tiene, el
+                    de Descuentos toma el ancho completo. --}}
                 @if(!empty($items))
-                    <button
-                        wire:click="abrirModalDescuentos"
-                        type="button"
-                        class="w-full inline-flex justify-center items-center px-2 py-1.5 border rounded-md shadow-sm text-xs font-medium
-                            {{ ($descuentoGeneralActivo || $cuponAplicado || $canjePuntosActivo)
-                                ? 'border-purple-400 dark:border-purple-500 text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50'
-                                : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600' }}">
-                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-                        </svg>
-                        {{ __('Descuentos') }}
-                        @if($descuentoGeneralActivo)
-                            <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-purple-200 dark:bg-purple-700 text-purple-800 dark:text-purple-200 rounded">
-                                {{ $descuentoGeneralTipo === 'porcentaje' ? $descuentoGeneralValor . '%' : '$' . number_format($descuentoGeneralValor, 2, ',', '.') }}
-                            </span>
+                    <div class="flex gap-1.5">
+                        <button
+                            wire:click="abrirModalDescuentos"
+                            type="button"
+                            class="flex-1 inline-flex justify-center items-center px-2 py-1.5 border rounded-md shadow-sm text-xs font-medium
+                                {{ ($descuentoGeneralActivo || $cuponAplicado || $canjePuntosActivo)
+                                    ? 'border-purple-400 dark:border-purple-500 text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50'
+                                    : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600' }}">
+                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                            </svg>
+                            {{ __('Descuentos') }}
+                            @if($descuentoGeneralActivo)
+                                <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-purple-200 dark:bg-purple-700 text-purple-800 dark:text-purple-200 rounded">
+                                    {{ $descuentoGeneralTipo === 'porcentaje' ? $descuentoGeneralValor . '%' : '$' . number_format($descuentoGeneralValor, 2, ',', '.') }}
+                                </span>
+                            @endif
+                            @if($cuponAplicado && $cuponInfo)
+                                <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-200 dark:bg-amber-700 text-amber-800 dark:text-amber-200 rounded">
+                                    {{ $cuponInfo['codigo'] }}
+                                </span>
+                            @endif
+                            @if($canjePuntosActivo)
+                                <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-yellow-200 dark:bg-yellow-700 text-yellow-800 dark:text-yellow-200 rounded">
+                                    {{ $canjePuntosUnidades }}pts
+                                </span>
+                            @endif
+                        </button>
+
+                        @if($this->puedeInvitarPedido)
+                            @if($this->esInvitacionTotal)
+                                {{-- Pedido completo en cortesía: el botón abre el modal de
+                                    confirmación para quitar la invitación de todos los items. --}}
+                                <button
+                                    wire:click="abrirModalDesinvitarTodo"
+                                    type="button"
+                                    class="flex-1 inline-flex justify-center items-center px-2 py-1.5 border rounded-md shadow-sm text-xs font-medium border-emerald-400 dark:border-emerald-500 text-emerald-700 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-900/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60">
+                                    <svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M20 12v8H4v-8M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+                                    </svg>
+                                    {{ __('Cortesía') }}
+                                    <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-emerald-200 dark:bg-emerald-700 text-emerald-800 dark:text-emerald-100 rounded">
+                                        {{ __('Activa') }}
+                                    </span>
+                                </button>
+                            @else
+                                {{-- Pedido sin invitación: el botón abre el modal global de
+                                    invitar pedido completo (textarea de motivo + confirmar). --}}
+                                <button
+                                    wire:click="abrirModalInvitarTodo"
+                                    type="button"
+                                    class="flex-1 inline-flex justify-center items-center px-2 py-1.5 border rounded-md shadow-sm text-xs font-medium border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:border-emerald-300 dark:hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-300">
+                                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M20 12v8H4v-8M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+                                    </svg>
+                                    {{ __('Invitar') }}
+                                </button>
+                            @endif
                         @endif
-                        @if($cuponAplicado && $cuponInfo)
-                            <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-200 dark:bg-amber-700 text-amber-800 dark:text-amber-200 rounded">
-                                {{ $cuponInfo['codigo'] }}
-                            </span>
-                        @endif
-                        @if($canjePuntosActivo)
-                            <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-yellow-200 dark:bg-yellow-700 text-yellow-800 dark:text-yellow-200 rounded">
-                                {{ $canjePuntosUnidades }}pts
-                            </span>
-                        @endif
-                    </button>
+                    </div>
                 @endif
 
                 {{-- Resumen de Totales (reusado 1:1 de NuevaVenta: subtotal, descuentos, ajuste FP, recargo cuotas, total, desglose IVA colapsable) --}}
@@ -642,6 +678,8 @@
     @include('livewire.carrito._modal-pesable')
     @include('livewire.carrito._modal-invitar-item')
     @include('livewire.carrito._modal-desinvitar-item')
+    @include('livewire.carrito._modal-invitar-todo')
+    @include('livewire.carrito._modal-desinvitar-todo')
     @include('livewire.ventas._wizard-opcionales')
     @include('livewire.ventas._modal-descuentos')
 
@@ -700,24 +738,9 @@
         </x-bcn-modal>
     @endif
 
-    {{-- Popover edición de nombre de item --}}
-    @if($editarNombreIndex !== null)
-        <x-bcn-modal :title="__('Editar nombre')" color="bg-blue-600" maxWidth="md" onClose="cerrarEditarNombre" submit="aplicarEditarNombre">
-            <x-slot:body>
-                <input type="text" wire:model="editarNombreValor"
-                    x-init="$nextTick(() => $el.focus())"
-                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 text-sm" />
-            </x-slot:body>
-            <x-slot:footer>
-                <button type="button" @click="close()" class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                    {{ __('Cancelar') }}
-                </button>
-                <button type="submit" class="inline-flex items-center px-3 py-2 border border-transparent rounded-md text-sm text-white bg-blue-600 hover:bg-blue-700">
-                    {{ __('Aplicar') }}
-                </button>
-            </x-slot:footer>
-        </x-bcn-modal>
-    @endif
+    {{-- (La edición de nombre del item se hace inline en _detalle-items.blade.php
+        con un input que aparece debajo del nombre cuando $editarNombreIndex
+        coincide. No usamos modal — es mucho más rápido y touch-friendly.) --}}
 
     {{-- Modal de Pago / Desglose Mixto (reusado de NuevaVenta) --}}
     @include("livewire.carrito._modal-pago-mixto")
