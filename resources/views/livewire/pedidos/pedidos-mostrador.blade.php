@@ -311,6 +311,12 @@
                                         🔔 {{ $pedido->numero_beeper }}
                                     </span>
                                 @endif
+                                @if($pedido->es_invitacion_total)
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+                                          @if($pedido->invitacion_motivo) title="{{ $pedido->invitacion_motivo }}" @endif>
+                                        {{ __('Cortesía') }}
+                                    </span>
+                                @endif
                             </div>
                             <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 {{ $pedido->nombre_cliente_final ?? __('Sin cliente') }}
@@ -430,6 +436,12 @@
                                     @if($pedido->numero_beeper)
                                         <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 mt-1">
                                             🔔 {{ $pedido->numero_beeper }}
+                                        </span>
+                                    @endif
+                                    @if($pedido->es_invitacion_total)
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 mt-1"
+                                              @if($pedido->invitacion_motivo) title="{{ $pedido->invitacion_motivo }}" @endif>
+                                            {{ __('Cortesía') }}
                                         </span>
                                     @endif
                                 </td>

@@ -684,6 +684,13 @@ class PedidoMostradorService
                 'articulos_canjeados_monto' => (float) $pedido->articulos_canjeados_monto,
                 'es_cuenta_corriente' => $this->pedidoTieneSaldoEnCC($pedido),
                 'observaciones' => $pedido->observaciones,
+                // Invitacion (cortesia). Si el pedido era cortesia total, la venta
+                // resultante hereda los campos para mantener trazabilidad en reportes.
+                'es_invitacion_total' => (bool) $pedido->es_invitacion_total,
+                'invitacion_motivo' => $pedido->invitacion_motivo,
+                'invitado_por_usuario_id' => $pedido->invitado_por_usuario_id,
+                'invitado_at' => $pedido->invitado_at,
+                'total_invitado' => (float) $pedido->total_invitado,
             ];
 
             $detalles = $pedido->detalles->map(fn ($d) => $this->mapearDetalleAArrayVenta($d))->all();
@@ -1338,6 +1345,16 @@ class PedidoMostradorService
                 'promociones_comunes' => $promocionesComunes,
                 'promociones_especiales' => $promocionesEspeciales,
             ],
+            // Invitacion (cortesia) por linea. Si el detalle del pedido era
+            // cortesia, propagamos al detalle de la venta resultante (Fase 8).
+            'es_invitacion' => (bool) $d->es_invitacion,
+            'invitacion_motivo' => $d->invitacion_motivo,
+            'invitado_por_usuario_id' => $d->invitado_por_usuario_id,
+            'invitado_at' => $d->invitado_at,
+            'monto_invitado' => (float) $d->monto_invitado,
+            'precio_unitario_original' => $d->precio_unitario_original !== null
+                ? (float) $d->precio_unitario_original
+                : null,
             // Mapeo back-pointer: el caller puede aprovecharlo para re-asociar
             // movimientos de stock por detalle si quisiera.
             '_pedido_detalle_id' => $d->id,

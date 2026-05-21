@@ -239,7 +239,15 @@
                 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
                     <div class="flex items-start justify-between mb-3">
                         <div class="flex-1">
-                            <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $venta->numero }}</div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $venta->numero }}</span>
+                                @if($venta->es_invitacion_total)
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+                                          @if($venta->invitacion_motivo) title="{{ $venta->invitacion_motivo }}" @endif>
+                                        {{ __('Cortesía') }}
+                                    </span>
+                                @endif
+                            </div>
                             <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $venta->cliente->nombre ?? __('Consumidor Final') }}</div>
                             @if($venta->comprobantesFiscales->count() > 0)
                                 <div class="flex flex-wrap gap-1 mt-1">
@@ -368,7 +376,15 @@
                             @endphp
                             <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $venta->id }}</span>
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $venta->id }}</span>
+                                        @if($venta->es_invitacion_total)
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+                                                  @if($venta->invitacion_motivo) title="{{ $venta->invitacion_motivo }}" @endif>
+                                                {{ __('Cortesía') }}
+                                            </span>
+                                        @endif
+                                    </div>
                                 </td>
                                 <td class="px-6 py-4">
                                     {{-- Ticket de venta - solo mostrar si NO hay comprobante fiscal por el total --}}
