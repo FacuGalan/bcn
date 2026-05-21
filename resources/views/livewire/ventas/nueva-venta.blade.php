@@ -267,36 +267,75 @@
                                 </div>
                             @endif
 
-                            {{-- Botón de Descuentos y Beneficios (si tiene items) --}}
+                            {{-- Fila de acciones rápidas de la venta: Descuentos + Invitar
+                                (botones 50/50 cuando hay permiso de invitar venta). Si el
+                                usuario NO tiene el permiso, Descuentos toma el ancho completo
+                                como antes (paridad visual con NuevoPedidoMostrador). --}}
                             @if(!empty($items))
-                                <button
-                                    wire:click="abrirModalDescuentos"
-                                    type="button"
-                                    class="w-full inline-flex justify-center items-center px-2 py-1.5 border rounded-md shadow-sm text-xs font-medium
-                                        {{ ($descuentoGeneralActivo || $cuponAplicado || $canjePuntosActivo)
-                                            ? 'border-purple-400 dark:border-purple-500 text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50'
-                                            : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600' }}">
-                                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-                                    </svg>
-                                    {{ __('Descuentos') }}
-                                    @if($descuentoGeneralActivo)
-                                        <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-purple-200 dark:bg-purple-700 text-purple-800 dark:text-purple-200 rounded">
-                                            {{ $descuentoGeneralTipo === 'porcentaje' ? $descuentoGeneralValor . '%' : '$' . number_format($descuentoGeneralValor, 2, ',', '.') }}
-                                        </span>
+                                <div class="{{ $this->puedeInvitarPedido ? 'flex gap-1.5' : '' }}">
+                                    <button
+                                        wire:click="abrirModalDescuentos"
+                                        type="button"
+                                        class="{{ $this->puedeInvitarPedido ? 'flex-1' : 'w-full' }} inline-flex justify-center items-center px-2 py-1.5 border rounded-md shadow-sm text-xs font-medium
+                                            {{ ($descuentoGeneralActivo || $cuponAplicado || $canjePuntosActivo)
+                                                ? 'border-purple-400 dark:border-purple-500 text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50'
+                                                : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600' }}">
+                                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                                        </svg>
+                                        {{ __('Descuentos') }}
+                                        @if($descuentoGeneralActivo)
+                                            <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-purple-200 dark:bg-purple-700 text-purple-800 dark:text-purple-200 rounded">
+                                                {{ $descuentoGeneralTipo === 'porcentaje' ? $descuentoGeneralValor . '%' : '$' . number_format($descuentoGeneralValor, 2, ',', '.') }}
+                                            </span>
+                                        @endif
+                                        @if($cuponAplicado && $cuponInfo)
+                                            <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-200 dark:bg-amber-700 text-amber-800 dark:text-amber-200 rounded">
+                                                {{ $cuponInfo['codigo'] }}
+                                            </span>
+                                        @endif
+                                        @if($canjePuntosActivo)
+                                            <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-yellow-200 dark:bg-yellow-700 text-yellow-800 dark:text-yellow-200 rounded">
+                                                {{ $canjePuntosUnidades }}pts
+                                            </span>
+                                        @endif
+                                        @unless($this->puedeInvitarPedido)
+                                            <kbd class="ml-auto px-1 py-0.5 text-[9px] bg-gray-200 dark:bg-gray-600 rounded">F4</kbd>
+                                        @endunless
+                                    </button>
+
+                                    @if($this->puedeInvitarPedido)
+                                        @if($this->esInvitacionTotal)
+                                            {{-- Venta completa en cortesía: abre el modal de
+                                                confirmación para quitar la invitación de todos
+                                                los items. --}}
+                                            <button
+                                                wire:click="abrirModalDesinvitarTodo"
+                                                type="button"
+                                                class="flex-1 inline-flex justify-center items-center px-2 py-1.5 border rounded-md shadow-sm text-xs font-medium border-emerald-400 dark:border-emerald-500 text-emerald-700 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-900/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60">
+                                                <svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                                                    <path d="M20 12v8H4v-8M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+                                                </svg>
+                                                {{ __('Cortesía') }}
+                                                <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-emerald-200 dark:bg-emerald-700 text-emerald-800 dark:text-emerald-100 rounded">
+                                                    {{ __('Activa') }}
+                                                </span>
+                                            </button>
+                                        @else
+                                            {{-- Venta sin invitación: abre el modal global
+                                                de invitar venta completa (textarea de motivo). --}}
+                                            <button
+                                                wire:click="abrirModalInvitarTodo"
+                                                type="button"
+                                                class="flex-1 inline-flex justify-center items-center px-2 py-1.5 border rounded-md shadow-sm text-xs font-medium border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:border-emerald-300 dark:hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-300">
+                                                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M20 12v8H4v-8M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+                                                </svg>
+                                                {{ __('Invitar') }}
+                                            </button>
+                                        @endif
                                     @endif
-                                    @if($cuponAplicado && $cuponInfo)
-                                        <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-200 dark:bg-amber-700 text-amber-800 dark:text-amber-200 rounded">
-                                            {{ $cuponInfo['codigo'] }}
-                                        </span>
-                                    @endif
-                                    @if($canjePuntosActivo)
-                                        <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-yellow-200 dark:bg-yellow-700 text-yellow-800 dark:text-yellow-200 rounded">
-                                            {{ $canjePuntosUnidades }}pts
-                                        </span>
-                                    @endif
-                                    <kbd class="ml-auto px-1 py-0.5 text-[9px] bg-gray-200 dark:bg-gray-600 rounded">F4</kbd>
-                                </button>
+                                </div>
                             @endif
 
                             <div class="flex gap-2 w-full">
@@ -716,6 +755,12 @@
 
     {{-- Wizard de Opcionales --}}
     @include('livewire.ventas._wizard-opcionales')
+
+    {{-- Modales de invitacion (cortesia) - compartidos con NuevoPedidoMostrador --}}
+    @include('livewire.carrito._modal-invitar-item')
+    @include('livewire.carrito._modal-desinvitar-item')
+    @include('livewire.carrito._modal-invitar-todo')
+    @include('livewire.carrito._modal-desinvitar-todo')
 
     {{-- Modal de Descuentos y Beneficios --}}
     @include('livewire.ventas._modal-descuentos')
