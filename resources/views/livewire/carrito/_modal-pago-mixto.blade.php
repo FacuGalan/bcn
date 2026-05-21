@@ -74,11 +74,22 @@
                     <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 flex justify-between items-center">
                         <div>
                             <span class="text-sm text-gray-600 dark:text-gray-400">{{ __('Total a cobrar') }}:</span>
-                            <div class="text-2xl font-bold text-gray-900 dark:text-white">
-                                $@precio($resultado['total_final'] ?? 0)
+                            <div class="text-2xl font-bold {{ $invitarTodo ? 'text-emerald-600 line-through' : 'text-gray-900 dark:text-white' }}">
+                                @if($invitarTodo)
+                                    $0,00
+                                @else
+                                    $@precio($resultado['total_final'] ?? 0)
+                                @endif
                             </div>
                         </div>
-                        @if($montoPendienteDesglose > 0.01)
+                        @if($invitarTodo)
+                            <div class="text-right">
+                                <span class="text-sm text-emerald-700 dark:text-emerald-300">{{ __('Total invitado') }}:</span>
+                                <div class="text-xl font-bold text-emerald-600">
+                                    $@precio($resultado['total_final'] ?? 0)
+                                </div>
+                            </div>
+                        @elseif($montoPendienteDesglose > 0.01)
                             <div class="text-right">
                                 <span class="text-sm text-orange-600">{{ __('Pendiente') }}:</span>
                                 <div class="text-xl font-bold text-orange-600">
@@ -95,6 +106,59 @@
                         @endif
                     </div>
 
+                    {{-- Switch "Invitar pedido completo" — visible siempre que el
+                        usuario tenga el permiso del canal correspondiente (computed en
+                        el trait WithInvitaciones) y haya items. Al activarse oculta el
+                        selector de FPs y muestra un textarea de motivo. El botón
+                        "Confirmar invitación" persiste el pedido sea cual sea el modo
+                        en que se abrió el modal (cobro o preview de FP mixta). --}}
+                    @if($this->puedeInvitarPedido && !empty($items))
+                        <div class="border border-emerald-200 dark:border-emerald-800 rounded-lg overflow-hidden">
+                            <label class="flex items-center justify-between gap-3 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/30 cursor-pointer">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M20 12v8H4v-8M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+                                    </svg>
+                                    <div>
+                                        <div class="text-sm font-medium text-emerald-900 dark:text-emerald-200">
+                                            {{ __('Invitar pedido completo') }}
+                                        </div>
+                                        <div class="text-xs text-emerald-700 dark:text-emerald-400">
+                                            {{ __('Marca todos los items como cortesía. No se cobra al cliente.') }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <button type="button"
+                                        wire:click="toggleInvitarTodo"
+                                        role="switch"
+                                        aria-checked="{{ $invitarTodo ? 'true' : 'false' }}"
+                                        class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 {{ $invitarTodo ? 'bg-emerald-600' : 'bg-gray-300 dark:bg-gray-600' }}">
+                                    <span aria-hidden="true"
+                                          class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $invitarTodo ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                                </button>
+                            </label>
+                            @if($invitarTodo)
+                                <div class="px-3 py-2 bg-white dark:bg-gray-800 border-t border-emerald-200 dark:border-emerald-800">
+                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        {{ __('Motivo de la invitación') }} <span class="text-red-500">*</span>
+                                    </label>
+                                    <textarea
+                                        wire:model.live.debounce.250ms="motivoInvitacionTotal"
+                                        rows="2"
+                                        maxlength="500"
+                                        placeholder="{{ __('Ej: Cortesía gerencia, evento especial, etc.') }}"
+                                        class="block w-full text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-emerald-500 focus:ring focus:ring-emerald-500 focus:ring-opacity-50"
+                                    ></textarea>
+                                    <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
+                                        {{ __('Quedará registrado para reportes y auditoría.') }}
+                                    </p>
+                                </div>
+                            @endif
+                        </div>
+                    @endif
+
+                    {{-- Contenido normal de cobro (oculto cuando se invita todo) --}}
+                    @if(!$invitarTodo)
                     {{-- Pagos agregados --}}
                     @if(count($desglosePagos) > 0)
                         <div class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
@@ -624,38 +688,61 @@
                             </div>
                         </div>
                     @endif
+                    @endif {{-- fin !$invitarTodo --}}
                 </div>
 
                 {{-- Footer --}}
                 <div class="bg-gray-50 dark:bg-gray-700 px-3 py-2 flex flex-row-reverse gap-2">
-                    <button
-                        wire:click="confirmarPago"
-                        wire:loading.attr="disabled"
-                        wire:loading.class="opacity-50 cursor-not-allowed"
-                        @if(!$this->desgloseCompleto()) disabled @endif
-                        type="button"
-                        class="inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-sm font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <svg wire:loading.remove class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                        </svg>
-                        <svg wire:loading class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span wire:loading.remove>{{ __('Confirmar') }}</span>
-                        <span wire:loading>{{ __('Procesando...') }}</span>
-                    </button>
-                    {{-- Botón "Confirmar sin cobrar" — solo aparece si el host lo habilita
-                        (NuevoPedidoMostrador setea $puedeConfirmarSinCobrar = true). En
-                        NuevaVenta queda invisible porque la prop no existe. --}}
-                    @if($puedeConfirmarSinCobrar ?? false)
+                    @if($invitarTodo)
+                        {{-- Confirmar invitación: marca todos los items como cortesía
+                            y persiste el pedido sin pagos (total_final=0). --}}
                         <button
-                            wire:click="confirmarSinCobrar"
+                            wire:click="confirmarInvitacionTotal"
                             wire:loading.attr="disabled"
+                            wire:loading.class="opacity-50 cursor-not-allowed"
+                            @disabled(trim($motivoInvitacionTotal) === '')
                             type="button"
-                            class="inline-flex justify-center items-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary">
-                            {{ __('Confirmar sin cobrar') }}
+                            class="inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-emerald-600 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <svg wire:loading.remove class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M20 12v8H4v-8M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+                            </svg>
+                            <svg wire:loading class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span wire:loading.remove>{{ __('Confirmar invitación') }}</span>
+                            <span wire:loading>{{ __('Procesando...') }}</span>
                         </button>
+                    @else
+                        <button
+                            wire:click="confirmarPago"
+                            wire:loading.attr="disabled"
+                            wire:loading.class="opacity-50 cursor-not-allowed"
+                            @if(!$this->desgloseCompleto()) disabled @endif
+                            type="button"
+                            class="inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-sm font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <svg wire:loading.remove class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            <svg wire:loading class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span wire:loading.remove>{{ __('Confirmar') }}</span>
+                            <span wire:loading>{{ __('Procesando...') }}</span>
+                        </button>
+                        {{-- Botón "Confirmar sin cobrar" — solo aparece si el host lo habilita
+                            (NuevoPedidoMostrador setea $puedeConfirmarSinCobrar = true). En
+                            NuevaVenta queda invisible porque la prop no existe. --}}
+                        @if($puedeConfirmarSinCobrar ?? false)
+                            <button
+                                wire:click="confirmarSinCobrar"
+                                wire:loading.attr="disabled"
+                                type="button"
+                                class="inline-flex justify-center items-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary">
+                                {{ __('Confirmar sin cobrar') }}
+                            </button>
+                        @endif
                     @endif
                     <button
                         wire:click="cerrarModalPago"

@@ -10,6 +10,7 @@ use App\Livewire\Concerns\Carrito\WithCarritoItems;
 use App\Livewire\Concerns\Carrito\WithConsultaPrecios;
 use App\Livewire\Concerns\Carrito\WithCupones;
 use App\Livewire\Concerns\Carrito\WithDescuentos;
+use App\Livewire\Concerns\Carrito\WithInvitaciones;
 use App\Livewire\Concerns\Carrito\WithOpcionales;
 use App\Livewire\Concerns\Carrito\WithPagosDesglose;
 use App\Livewire\Concerns\Carrito\WithPuntos;
@@ -75,6 +76,7 @@ class NuevoPedidoMostrador extends Component
     use WithConsultaPrecios;
     use WithCupones;
     use WithDescuentos;
+    use WithInvitaciones;
     use WithOpcionales;
     use WithPagosDesglose;
     use WithPuntos;
@@ -929,8 +931,15 @@ class NuevoPedidoMostrador extends Component
         // (estado_pago = parcial/pagado). Esos se gestionan desde la lista
         // ("Cobrar pendiente") para no romper la trazabilidad de caja.
         // Borradores siempre se pueden continuar.
+        // Excepción: pedido completamente invitado (cortesía) tiene
+        // estado_pago=pagado sin cobros materializados — sigue siendo editable
+        // mientras el operario quiera ajustar items/cliente.
+        $tieneCobrosMaterializados = $pedido->pagos()
+            ->where('estado', \App\Models\PedidoMostradorPago::ESTADO_ACTIVO)
+            ->exists();
         if ($pedido->estado_pedido !== PedidoMostrador::ESTADO_BORRADOR
-            && $pedido->estado_pago !== PedidoMostrador::ESTADO_PAGO_PENDIENTE) {
+            && $pedido->estado_pago !== PedidoMostrador::ESTADO_PAGO_PENDIENTE
+            && $tieneCobrosMaterializados) {
             $this->dispatch('toast-error', message: __('No se puede editar un pedido con cobros registrados. Gestioná los pagos desde la lista.'));
             $this->dispatch('cerrar-modal-pedido');
 
@@ -960,6 +969,14 @@ class NuevoPedidoMostrador extends Component
             ->map(fn ($d) => $this->detalleAItemCarrito($d))
             ->values()
             ->toArray();
+
+        // Rehidratar el estado del trait WithInvitaciones desde la cabecera
+        // persistida. `motivoInvitacionTotal` permite re-confirmar el motivo
+        // si el operario edita el pedido invitado (raro pero defensible).
+        $this->motivoInvitacionTotal = $pedido->es_invitacion_total
+            ? ($pedido->invitacion_motivo ?? '')
+            : '';
+        $this->totalInvitado = (float) $pedido->total_invitado;
 
         $this->cargarConfiguracionSucursal();
         $this->cargarListasPrecios();
@@ -1120,6 +1137,17 @@ class NuevoPedidoMostrador extends Component
             'es_concepto' => (bool) $detalle->es_concepto,
             'concepto_descripcion' => $detalle->concepto_descripcion,
             'concepto_categoria_id' => $detalle->concepto_categoria_id,
+            // Invitacion (cortesia): rehidratamos para que el trait pueda
+            // re-renderizar el badge / strike-through y permita des-invitar
+            // si el pedido sigue editable.
+            'es_invitacion' => (bool) $detalle->es_invitacion,
+            'invitacion_motivo' => $detalle->invitacion_motivo,
+            'invitado_por_usuario_id' => $detalle->invitado_por_usuario_id,
+            'invitado_at' => $detalle->invitado_at?->toDateTimeString(),
+            'monto_invitado' => (float) $detalle->monto_invitado,
+            'precio_unitario_original' => $detalle->precio_unitario_original !== null
+                ? (float) $detalle->precio_unitario_original
+                : null,
         ];
     }
 
@@ -1304,12 +1332,18 @@ class NuevoPedidoMostrador extends Component
             return;
         }
 
+        // Pedido totalmente invitado (total_final<=0): no hay nada que cobrar,
+        // el service marca estado_pago=pagado automáticamente. Saltamos la
+        // validación del desglose porque no aplica.
+        $totalFinal = (float) ($this->resultado['total_final'] ?? 0);
+        $esInvitacionCompleta = $this->esInvitacionTotal && $totalFinal <= 0.005;
+
         // Si hay desglose cargado, debe estar COMPLETO (cubrir el total). Un
         // desglose parcial guardado como planificado da información incorrecta
         // (el pedido quedaría con total = monto del desglose). El usuario debe
         // completar el desglose o quitar todos los pagos si solo quiere
         // confirmar sin cobrar.
-        if (! empty($this->desglosePagos) && ! $this->desgloseCompleto()) {
+        if (! $esInvitacionCompleta && ! empty($this->desglosePagos) && ! $this->desgloseCompleto()) {
             $this->dispatch('toast-error', message: __('El desglose de pagos es parcial. Completá el desglose hasta cubrir el total o quitá los pagos para confirmar sin cobrar.'));
 
             return;
@@ -1555,6 +1589,17 @@ class NuevoPedidoMostrador extends Component
             '_promociones_comunes' => $r['promociones_comunes_aplicadas'] ?? [],
             '_promociones_especiales' => $r['promociones_especiales_aplicadas'] ?? [],
             'observaciones' => trim($this->observaciones ?? '') ?: null,
+            // Invitacion (cortesia). Cabecera: solo se llena cuando el pedido
+            // completo es cortesia. total_invitado se persiste siempre como
+            // cache del SUM(detalle.monto_invitado) para evitar joinear en
+            // listados y reportes.
+            'es_invitacion_total' => $this->esInvitacionTotal,
+            'invitacion_motivo' => $this->esInvitacionTotal
+                ? (trim($this->motivoInvitacionTotal) ?: null)
+                : null,
+            'invitado_por_usuario_id' => $this->esInvitacionTotal ? Auth::id() : null,
+            'invitado_at' => $this->esInvitacionTotal ? now() : null,
+            'total_invitado' => (float) $this->totalInvitado,
         ];
     }
 
@@ -1636,6 +1681,16 @@ class NuevoPedidoMostrador extends Component
                     'promociones_comunes' => $promocionesComunes,
                     'promociones_especiales' => $promocionesEspeciales,
                 ],
+                // Invitacion (cortesia) por linea. El trait WithInvitaciones
+                // mantiene estas claves en memoria; aca solo las propagamos.
+                'es_invitacion' => (bool) ($item['es_invitacion'] ?? false),
+                'invitacion_motivo' => $item['invitacion_motivo'] ?? null,
+                'invitado_por_usuario_id' => $item['invitado_por_usuario_id'] ?? null,
+                'invitado_at' => $item['invitado_at'] ?? null,
+                'monto_invitado' => (float) ($item['monto_invitado'] ?? 0),
+                'precio_unitario_original' => isset($item['precio_unitario_original'])
+                    ? (float) $item['precio_unitario_original']
+                    : null,
             ];
         }
 
@@ -1974,6 +2029,26 @@ class NuevoPedidoMostrador extends Component
         $this->dispatch('toast-success', message: __('Desglose guardado. Revisá los totales y confirmá el pedido.'));
     }
 
+    /**
+     * Confirma el pedido como invitación total en un solo click desde el modal
+     * de cobro. Invita todos los items (vía trait WithInvitaciones) y persiste.
+     *
+     * El motivo y el permiso los valida `confirmarInvitarTodo()` del trait;
+     * si falla, abortamos antes de tocar la persistencia. `procesarVentaConDesglose()`
+     * detecta `total_final=0` (todo invitado) y persiste sin desglose ni caja.
+     */
+    public function confirmarInvitacionTotal(): void
+    {
+        $this->confirmarInvitarTodo();
+
+        // Si el trait no pudo marcar (sin permiso, motivo vacío), abortamos.
+        if (! $this->esInvitacionTotal) {
+            return;
+        }
+
+        $this->procesarVentaConDesglose();
+    }
+
     // ==================== OVERRIDE: PROCESAMIENTO TERMINAL ====================
     // WithPagosDesglose::procesarVentaConDesglose crea Venta + VentaPago vía
     // VentaService. Acá lo reemplazamos para crear PedidoMostrador +
@@ -1997,7 +2072,18 @@ class NuevoPedidoMostrador extends Component
         }
 
         try {
-            if (empty($this->items) || empty($this->desglosePagos)) {
+            if (empty($this->items)) {
+                $this->dispatch('toast-error', message: __('El pedido debe tener al menos un artículo'));
+
+                return;
+            }
+
+            // Pedido totalmente invitado: persistimos sin pagos. total_final=0
+            // hace que el service marque estado_pago=pagado.
+            $totalFinalActual = (float) ($this->resultado['total_final'] ?? 0);
+            $esInvitacionCompleta = $this->esInvitacionTotal && $totalFinalActual <= 0.005;
+
+            if (! $esInvitacionCompleta && empty($this->desglosePagos)) {
                 $this->dispatch('toast-error', message: __('No hay pagos en el desglose'));
 
                 return;
@@ -2022,7 +2108,7 @@ class NuevoPedidoMostrador extends Component
 
             // Validar caja abierta si algún pago la requiere (no CC).
             $cajaId = $this->cajaSeleccionada ?? caja_activa();
-            $requiereCaja = collect($this->desglosePagos)->contains(function ($pago) {
+            $requiereCaja = ! $esInvitacionCompleta && collect($this->desglosePagos)->contains(function ($pago) {
                 $esCC = $pago['es_cuenta_corriente'] ?? false;
                 if (! $esCC && isset($pago['codigo'])) {
                     $esCC = strtoupper($pago['codigo']) === 'CTA_CTE';
@@ -2066,7 +2152,8 @@ class NuevoPedidoMostrador extends Component
             // Agregar cada pago del desglose, honrando el flag planificado.
             // En edición con pagos preexistentes NO duplicamos: esos pagos se
             // gestionan desde la lista (acción "Cobrar pendiente").
-            if (! ($this->modoEdicion && $this->cuentaPagosOriginales > 0)) {
+            // Si es invitación total: no hay pagos para agregar.
+            if (! $esInvitacionCompleta && ! ($this->modoEdicion && $this->cuentaPagosOriginales > 0)) {
                 foreach ($this->desglosePagos as $pago) {
                     $this->pedidoService->agregarPago($pedido, $this->normalizarPagoDelDesglose($pago));
                 }

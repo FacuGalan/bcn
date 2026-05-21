@@ -78,6 +78,12 @@ class Venta extends Model
         'total',
         'ajuste_forma_pago',      // Suma de ajustes (recargos/descuentos) de formas de pago
         'total_final',
+        // Invitaciones (cortesias)
+        'es_invitacion_total',
+        'invitacion_motivo',
+        'invitado_por_usuario_id',
+        'invitado_at',
+        'total_invitado',
         'estado',
         'es_cuenta_corriente',
         'saldo_pendiente_cache',
@@ -121,6 +127,9 @@ class Venta extends Model
         'total' => 'decimal:2',
         'ajuste_forma_pago' => 'decimal:2',
         'total_final' => 'decimal:2',
+        'es_invitacion_total' => 'boolean',
+        'invitado_at' => 'datetime',
+        'total_invitado' => 'decimal:2',
         'saldo_pendiente_cache' => 'decimal:2',
         'monto_fiscal_cache' => 'decimal:2',
         'monto_no_fiscal_cache' => 'decimal:2',

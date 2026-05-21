@@ -72,9 +72,13 @@ trait WithCupones
 
         $cupon = $resultado['cupon'];
 
-        // Calcular descuento preview
+        // Calcular descuento preview. Items invitados no son elegibles para cupon (RF-11).
         $totalParaCupon = $this->resultado['total_final'] ?? 0;
-        $articuloIdsEnCarrito = collect($this->items)->pluck('articulo_id')->filter()->values()->toArray();
+        $articuloIdsEnCarrito = collect($this->getItemsParaMotorBeneficios())
+            ->pluck('articulo_id')
+            ->filter()
+            ->values()
+            ->toArray();
         $descuento = $this->cuponService->calcularDescuento($cupon, $totalParaCupon, $articuloIdsEnCarrito);
 
         // Guardar info para mostrar en UI
@@ -127,12 +131,13 @@ trait WithCupones
 
         $this->cuponAplicado = true;
 
-        // Recalcular descuento con artículos bonificados (respetando cantidad del pivot)
+        // Recalcular descuento con artículos bonificados (respetando cantidad del pivot).
+        // Items invitados NO entran como elegibles para cupon (RF-11).
         if ($cupon->aplicaAArticulos()) {
             $articulosCupon = $cupon->articulos()->get()->keyBy('id');
             $bonificados = [];
 
-            foreach ($this->items as $item) {
+            foreach ($this->getItemsParaMotorBeneficios() as $item) {
                 $articuloId = $item['articulo_id'] ?? null;
                 if ($articuloId && $articulosCupon->has($articuloId)) {
                     $bonificados[] = $articuloId;
@@ -146,7 +151,7 @@ trait WithCupones
             $this->liberarItemsBonificadosDelDescuentoGeneral();
 
             $itemsParaCalculo = [];
-            foreach ($this->items as $item) {
+            foreach ($this->getItemsParaMotorBeneficios() as $item) {
                 $articuloId = $item['articulo_id'] ?? null;
                 if ($articuloId && $articulosCupon->has($articuloId)) {
                     $itemsParaCalculo[] = $item;
@@ -297,9 +302,10 @@ trait WithCupones
             $montoElegibleTotal = 0;
             $elegiblesPorItem = [];
 
-            // Agrupar índices por articulo_id para respetar cantidad global
+            // Agrupar índices por articulo_id para respetar cantidad global.
+            // Items invitados no participan (RF-11).
             $indicesPorArticulo = [];
-            foreach ($this->items as $index => $item) {
+            foreach ($this->getItemsParaMotorBeneficios() as $index => $item) {
                 $articuloId = (int) ($item['articulo_id'] ?? 0);
                 if (! $articulosCupon->has($articuloId)) {
                     continue;

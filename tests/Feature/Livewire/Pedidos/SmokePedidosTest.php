@@ -84,6 +84,358 @@ class SmokePedidosTest extends TestCase
             ->assertSet('pedidoIdEnEdicion', null);
     }
 
+    public function test_render_item_invitado_muestra_badge_y_precio_tachado(): void
+    {
+        // Fase 5 (UI inline): tras invitar un item, la vista del carrito debe
+        // mostrar el badge "Invitado" y el motivo en la columna del articulo.
+        // Smoke visual: detecta regresiones del partial _detalle-items.blade.php.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirInvitarItem', 0)
+            ->set('invitarItemMotivo', 'Cortesía VIP')
+            ->call('confirmarInvitarItem');
+
+        $componente->assertSee('Invitado')
+            ->assertSee('Cortesía VIP')
+            ->assertSee('Cortesía'); // Columna Promo cambia a "Cortesía" para invitados
+
+        // El item del carrito debe tener es_invitacion=true tras confirmar.
+        $items = $componente->get('items');
+        $this->assertTrue((bool) $items[0]['es_invitacion']);
+        $this->assertEqualsWithDelta(0.0, (float) $items[0]['precio'], 0.01);
+    }
+
+    public function test_abrir_invitar_item_setea_estado_del_modal(): void
+    {
+        // Fase 5: smoke del flujo del mini-modal. abrirInvitarItem deja
+        // mostrarModalInvitarItem=true e invitarItemIndex apuntando al item.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirInvitarItem', 0)
+            ->assertSet('mostrarModalInvitarItem', true)
+            ->assertSet('invitarItemIndex', 0)
+            ->assertSet('invitarItemMotivo', '')
+            ->call('cerrarModalInvitarItem')
+            ->assertSet('mostrarModalInvitarItem', false)
+            ->assertSet('invitarItemIndex', null);
+    }
+
+    public function test_confirmar_invitacion_total_persiste_pedido_sin_pagos(): void
+    {
+        // Fase 6: ciclo completo desde el modal de cobro. Activar switch +
+        // ingresar motivo + click "Confirmar invitación" debe persistir el
+        // pedido con todos los items invitados y estado_pago=pagado.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->set('nombreClienteTemporal', 'Juan Test')
+            ->set('telefonoClienteTemporal', '12345')
+            ->call('confirmarPedido') // Abre el modal en modo cobro
+            ->assertSet('mostrarModalPago', true)
+            ->assertSet('modalPagoEnModoCobro', true)
+            ->call('toggleInvitarTodo')
+            ->assertSet('invitarTodo', true)
+            ->set('motivoInvitacionTotal', 'Cliente VIP — evento')
+            ->call('confirmarInvitacionTotal');
+
+        $componente->assertDispatched('pedido-guardado');
+
+        $pedido = PedidoMostrador::with('detalles')->first();
+        $this->assertNotNull($pedido);
+        $this->assertTrue((bool) $pedido->es_invitacion_total);
+        $this->assertSame('Cliente VIP — evento', $pedido->invitacion_motivo);
+        $this->assertNotNull($pedido->invitado_por_usuario_id);
+        $this->assertNotNull($pedido->invitado_at);
+        $this->assertEqualsWithDelta(0.0, (float) $pedido->total_final, 0.01);
+        $this->assertGreaterThan(0, (float) $pedido->total_invitado);
+        $this->assertSame(PedidoMostrador::ESTADO_PAGO_PAGADO, $pedido->estado_pago);
+        $this->assertSame(0, $pedido->pagos()->count(), 'No debe haber pagos');
+
+        $detalle = $pedido->detalles->first();
+        $this->assertTrue((bool) $detalle->es_invitacion);
+        $this->assertSame('Cliente VIP — evento', $detalle->invitacion_motivo);
+    }
+
+    public function test_confirmar_invitacion_total_rechaza_sin_motivo(): void
+    {
+        // Fase 6: el motivo es obligatorio. Sin motivo, el botón está disabled
+        // en la UI pero defendemos también en backend (vía trait).
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->set('nombreClienteTemporal', 'Juan Test')
+            ->set('telefonoClienteTemporal', '12345')
+            ->call('confirmarPedido')
+            ->call('toggleInvitarTodo')
+            ->set('motivoInvitacionTotal', '   ') // solo whitespace
+            ->call('confirmarInvitacionTotal')
+            ->assertDispatched('toast-error');
+
+        $this->assertSame(0, PedidoMostrador::count(),
+            'No debe persistirse pedido si el motivo está vacío');
+    }
+
+    public function test_toggle_invitar_todo_apaga_resetea_motivo(): void
+    {
+        // Fase 6: apagar el switch borra el motivo (evita persistir basura si
+        // el usuario decide finalmente no invitar).
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->set('nombreClienteTemporal', 'Juan Test')
+            ->set('telefonoClienteTemporal', '12345')
+            ->call('confirmarPedido')
+            ->call('toggleInvitarTodo')
+            ->set('motivoInvitacionTotal', 'Algo')
+            ->call('toggleInvitarTodo')
+            ->assertSet('invitarTodo', false)
+            ->assertSet('motivoInvitacionTotal', '');
+    }
+
+    public function test_modal_global_invitar_todo_marca_items_sin_persistir(): void
+    {
+        // Botón "Invitar" en la vista principal (al lado de Descuentos): abre
+        // un mini-modal con textarea de motivo. Confirmar marca todos los items
+        // como cortesía pero NO persiste — la persistencia llega cuando el
+        // usuario aprieta cualquiera de los botones de confirmar el pedido.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirModalInvitarTodo')
+            ->assertSet('mostrarModalInvitarTodo', true)
+            ->assertSet('motivoInvitacionTotal', '') // se resetea al abrir
+            ->set('motivoInvitacionTotal', 'Cortesía gerencia')
+            ->call('confirmarInvitarTodo')
+            ->assertSet('mostrarModalInvitarTodo', false); // se cierra al OK
+
+        // Items marcados pero NADA persistido aún.
+        $items = $componente->get('items');
+        $this->assertTrue((bool) $items[0]['es_invitacion']);
+        $this->assertSame('Cortesía gerencia', $items[0]['invitacion_motivo']);
+        $this->assertEqualsWithDelta(0.0, (float) $items[0]['precio'], 0.01);
+        $this->assertSame(0, PedidoMostrador::count(),
+            'El mini-modal global solo marca en memoria, no persiste');
+    }
+
+    public function test_modal_global_invitar_todo_rechaza_sin_motivo(): void
+    {
+        // El motivo es obligatorio (defensa en backend además del @disabled UI).
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirModalInvitarTodo')
+            ->set('motivoInvitacionTotal', '   ') // solo whitespace
+            ->call('confirmarInvitarTodo')
+            ->assertDispatched('toast-error')
+            ->assertSet('mostrarModalInvitarTodo', true); // no se cierra si falló
+
+        $items = $componente->get('items');
+        $this->assertFalse((bool) ($items[0]['es_invitacion'] ?? false));
+    }
+
+    public function test_desinvitar_todos_revierte_pedido_completo(): void
+    {
+        // Cuando el pedido está totalmente invitado, el botón "Cortesía" abre
+        // un modal de confirmación que llama a desinvitarTodos() y restaura
+        // los precios originales de todos los items.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('seleccionarArticulo', $articulo->id) // 2do item (mismo articulo, otra linea)
+            ->call('abrirModalInvitarTodo')
+            ->set('motivoInvitacionTotal', 'Evento VIP')
+            ->call('confirmarInvitarTodo');
+
+        // Sanity check: ambos items invitados antes de revertir.
+        $items = $componente->get('items');
+        $this->assertGreaterThanOrEqual(1, count($items));
+        foreach ($items as $item) {
+            $this->assertTrue((bool) $item['es_invitacion']);
+        }
+
+        $precioOriginal = (float) $items[0]['precio_unitario_original'];
+
+        $componente->call('abrirModalDesinvitarTodo')
+            ->assertSet('mostrarModalDesinvitarTodo', true)
+            ->call('desinvitarTodos')
+            ->assertSet('mostrarModalDesinvitarTodo', false)
+            ->assertSet('motivoInvitacionTotal', '')
+            ->assertSet('invitarTodo', false);
+
+        $items = $componente->get('items');
+        foreach ($items as $item) {
+            $this->assertFalse((bool) $item['es_invitacion']);
+            $this->assertNull($item['precio_unitario_original']);
+        }
+        $this->assertEqualsWithDelta($precioOriginal, (float) $items[0]['precio'], 0.01);
+    }
+
+    public function test_confirmar_sin_cobrar_persiste_pedido_invitado_via_modal_global(): void
+    {
+        // Flow end-to-end: invitar todo desde el mini-modal global y después
+        // apretar "Confirmar sin cobrar" en la vista principal. El pedido se
+        // persiste con total_final=0 y estado_pago=pagado.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->set('nombreClienteTemporal', 'Juan Test')
+            ->set('telefonoClienteTemporal', '12345')
+            ->call('abrirModalInvitarTodo')
+            ->set('motivoInvitacionTotal', 'Evento')
+            ->call('confirmarInvitarTodo')
+            ->call('confirmarSinCobrar')
+            ->assertDispatched('pedido-guardado');
+
+        $pedido = PedidoMostrador::with('detalles')->first();
+        $this->assertNotNull($pedido);
+        $this->assertTrue((bool) $pedido->es_invitacion_total);
+        $this->assertSame('Evento', $pedido->invitacion_motivo);
+        $this->assertEqualsWithDelta(0.0, (float) $pedido->total_final, 0.01);
+        $this->assertSame(PedidoMostrador::ESTADO_PAGO_PAGADO, $pedido->estado_pago);
+        $this->assertSame(0, $pedido->pagos()->count());
+    }
+
+    public function test_desinvitar_item_restaura_precio_y_recalcula(): void
+    {
+        // Fase 5: invitar y luego desinvitar via los modales debe restaurar
+        // el precio original e ir limpiando el flag es_invitacion.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirInvitarItem', 0)
+            ->set('invitarItemMotivo', 'Test')
+            ->call('confirmarInvitarItem');
+
+        $precioOriginal = (float) $componente->get('items')[0]['precio_unitario_original'];
+        $this->assertGreaterThan(0, $precioOriginal, 'Snapshot del precio original debe estar guardado');
+
+        $componente->call('abrirDesinvitarItem', 0)
+            ->assertSet('mostrarModalDesinvitarItem', true)
+            ->assertSet('desinvitarItemIndex', 0)
+            ->call('confirmarDesinvitarItem');
+
+        $items = $componente->get('items');
+        $this->assertFalse((bool) $items[0]['es_invitacion']);
+        $this->assertEqualsWithDelta($precioOriginal, (float) $items[0]['precio'], 0.01,
+            'Precio debe restaurarse al snapshot precio_unitario_original');
+        $this->assertNull($items[0]['precio_unitario_original']);
+    }
+
+    public function test_guardar_borrador_con_item_invitado_persiste_columnas_de_cortesia(): void
+    {
+        // Fase 4 (invitaciones): el trait WithInvitaciones esta compuesto en
+        // NuevoPedidoMostrador. Cubre que el flujo Livewire → construirDataPedido
+        // / construirDetallesPedido propaga las columnas de invitacion al
+        // service, y que el pedido persistido refleja la cortesia.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirInvitarItem', 0)
+            ->set('invitarItemMotivo', 'Cliente VIP')
+            ->call('confirmarInvitarItem')
+            ->call('guardarBorrador');
+
+        $pedido = PedidoMostrador::with('detalles')->first();
+        $this->assertNotNull($pedido, 'Debe haberse creado un pedido borrador');
+
+        // Como es el unico item del carrito y esta invitado, el pedido entero
+        // queda marcado como invitacion total (computed esInvitacionTotal=true
+        // del trait).
+        $this->assertTrue((bool) $pedido->es_invitacion_total,
+            'Pedido con todos los items invitados debe tener es_invitacion_total=true');
+        $this->assertGreaterThan(0, (float) $pedido->total_invitado,
+            'total_invitado debe reflejar la suma de monto_invitado de items');
+        $this->assertEqualsWithDelta(0.0, (float) $pedido->total_final, 0.01,
+            'total_final del pedido cortesia debe ser 0');
+
+        $detalle = $pedido->detalles->first();
+        $this->assertTrue((bool) $detalle->es_invitacion);
+        $this->assertSame('Cliente VIP', $detalle->invitacion_motivo);
+        $this->assertNotNull($detalle->invitado_por_usuario_id);
+        $this->assertNotNull($detalle->invitado_at);
+        $this->assertGreaterThan(0, (float) $detalle->monto_invitado);
+        $this->assertNotNull($detalle->precio_unitario_original);
+        $this->assertEqualsWithDelta(0.0, (float) $detalle->precio_unitario, 0.01,
+            'precio_unitario del item invitado se persiste en 0');
+    }
+
+    public function test_editar_pedido_invitado_rehidrata_estado_del_trait(): void
+    {
+        // Fase 4: al editar un pedido con cortesia persistida, los items del
+        // carrito deben re-cargar las columnas de invitacion para que la UI
+        // pueda renderizar el badge y permitir des-invitar.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+        $service = app(PedidoMostradorService::class);
+
+        $pedido = $service->crearPedido(
+            data: [
+                'sucursal_id' => $this->sucursalId,
+                'usuario_id' => auth()->id() ?? 1,
+                'fecha' => now(),
+                'subtotal' => 0,
+                'iva' => 0,
+                'descuento' => 0,
+                'total' => 0,
+                'ajuste_forma_pago' => 0,
+                'total_final' => 0,
+                'es_invitacion_total' => true,
+                'invitacion_motivo' => 'Cortesía gerencia',
+                'invitado_por_usuario_id' => auth()->id() ?? 1,
+                'invitado_at' => now(),
+                'total_invitado' => 500.0,
+            ],
+            detalles: [
+                [
+                    'articulo_id' => $articulo->id,
+                    'tipo_iva_id' => $articulo->tipo_iva_id,
+                    'cantidad' => 1,
+                    'precio_unitario' => 0,
+                    'precio_sin_iva' => 0,
+                    'precio_lista' => 500,
+                    'subtotal' => 0,
+                    'iva_porcentaje' => 21,
+                    'iva_monto' => 0,
+                    'total' => 0,
+                    'es_invitacion' => true,
+                    'invitacion_motivo' => 'Cortesía gerencia',
+                    'invitado_por_usuario_id' => auth()->id() ?? 1,
+                    'invitado_at' => now(),
+                    'monto_invitado' => 500.0,
+                    'precio_unitario_original' => 500.0,
+                ],
+            ],
+            esBorrador: false,
+        );
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class, ['pedidoId' => $pedido->id]);
+
+        $items = $componente->get('items');
+        $this->assertNotEmpty($items, 'Debe haber al menos un item rehidratado');
+        $this->assertTrue((bool) $items[0]['es_invitacion'],
+            'Item rehidratado debe mantener flag es_invitacion');
+        $this->assertSame('Cortesía gerencia', $items[0]['invitacion_motivo']);
+        $this->assertEqualsWithDelta(500.0, (float) $items[0]['monto_invitado'], 0.01);
+        $this->assertEqualsWithDelta(500.0, (float) $items[0]['precio_unitario_original'], 0.01);
+
+        $this->assertSame('Cortesía gerencia', $componente->get('motivoInvitacionTotal'),
+            'motivoInvitacionTotal debe rehidratarse desde la cabecera persistida');
+        $this->assertEqualsWithDelta(500.0, (float) $componente->get('totalInvitado'), 0.01,
+            'totalInvitado del trait debe reflejar lo persistido');
+    }
+
     public function test_guardar_borrador_crea_pedido_sin_numero_ni_stock(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);

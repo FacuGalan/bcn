@@ -233,9 +233,11 @@ trait WithCalculoVenta
             'hora' => now()->format('H:i:s'),
         ];
 
-        // Preparar items para promociones comunes (con info de exclusión)
+        // Preparar items para promociones comunes (con info de exclusión).
+        // Excluir items con es_invitacion=true: no participan del motor de
+        // beneficios (RF-11 spec invitaciones).
         $itemsParaPromos = [];
-        foreach ($this->items as $index => $item) {
+        foreach ($this->getItemsParaMotorBeneficios() as $index => $item) {
             $articuloId = $item['articulo_id'] ?? null;
             $itemsParaPromos[$index] = [
                 'articulo_id' => $articuloId,
@@ -386,9 +388,10 @@ trait WithCalculoVenta
                 $resultado['descuento_general_monto'] = round($montoFijo, 2);
                 $resultado['total_final'] = max(0, $resultado['total_final'] - $montoFijo);
             } elseif ($this->descuentoGeneralTipo === 'porcentaje') {
-                // Para %: el monto es la suma de los descuentos aplicados por renglón (ya está en los precios)
+                // Para %: el monto es la suma de los descuentos aplicados por renglón (ya está en los precios).
+                // Excluir items invitados — no reciben descuento general (RF-11).
                 $montoTotal = 0;
-                foreach ($this->items as $item) {
+                foreach ($this->getItemsParaMotorBeneficios() as $item) {
                     if ($item['ajuste_manual_tipo'] === 'porcentaje' && $item['precio_sin_ajuste_manual'] !== null) {
                         $precioOriginal = (float) $item['precio_sin_ajuste_manual'];
                         $precioActual = (float) $item['precio'];
@@ -410,11 +413,12 @@ trait WithCalculoVenta
                     $descuento = $this->cuponService->calcularDescuento($cupon, $resultado['total_final']);
                     $this->cuponMontoDescuento = $descuento['monto_descuento'];
                 } elseif ($cupon->aplicaAArticulos()) {
-                    // Recalcular con límite de cantidad por artículo
+                    // Recalcular con límite de cantidad por artículo.
+                    // Items invitados NO son elegibles para cupon (RF-11).
                     $articulosCupon = $cupon->articulos()->get()->keyBy('id');
                     $bonificados = [];
                     $itemsParaCalculo = [];
-                    foreach ($this->items as $item) {
+                    foreach ($this->getItemsParaMotorBeneficios() as $item) {
                         $articuloId = $item['articulo_id'] ?? null;
                         if ($articuloId && $articulosCupon->has($articuloId)) {
                             $bonificados[] = $articuloId;
@@ -647,7 +651,9 @@ trait WithCalculoVenta
         $pool = [];
         $idCounter = 0;
 
-        foreach ($this->items as $itemIndex => $item) {
+        // Items invitados no entran al pool: no cuentan para thresholds de
+        // promos especiales NxM/Combo/Menu (RF-11 spec invitaciones).
+        foreach ($this->getItemsParaMotorBeneficios() as $itemIndex => $item) {
             $cantidad = max(1, (float) ($item['cantidad'] ?? 1));
 
             for ($i = 0; $i < $cantidad; $i++) {
@@ -1719,7 +1725,29 @@ trait WithCalculoVenta
     }
 
     // =========================================
-    // SISTEMA DE PAGOS CON DESGLOSE
+    // FILTRO PARA MOTOR DE BENEFICIOS (INVITACIONES)
     // =========================================
 
+    /**
+     * Items elegibles para el motor de beneficios comerciales (promociones
+     * comunes y especiales, cupones, descuento general). Excluye los items
+     * con `es_invitacion=true`: una cortesia no cuenta para thresholds NxM,
+     * monto minimo de cupon, base del descuento general, ni recibe descuentos
+     * propios. Ver RF-11 del spec `.claude/specs/invitaciones-pedidos-ventas.md`.
+     *
+     * Devuelve un array asociativo `[indice_original => item]` para que las
+     * iteraciones existentes `foreach (... as $index => $item)` mantengan el
+     * indice del carrito real (ej: aplicar precios al item en `$this->items`).
+     */
+    protected function getItemsParaMotorBeneficios(): array
+    {
+        $resultado = [];
+        foreach ($this->items as $index => $item) {
+            if (empty($item['es_invitacion'])) {
+                $resultado[$index] = $item;
+            }
+        }
+
+        return $resultado;
+    }
 }

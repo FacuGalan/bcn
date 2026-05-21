@@ -36,6 +36,13 @@ trait WithDescuentos
     /** @var float|null Valor ingresado en el popover de ajuste */
     public $ajusteManualValor = null;
 
+    /**
+     * @var int|null Índice del item con el SELECTOR de tipo de ajuste abierto.
+     *               Popover previo al ajuste manual: muestra 3 botones ($/% / Pts) y al elegir
+     *               uno encadena con abrirAjusteManual o canjearArticuloConPuntos.
+     */
+    public $selectorAjusteIndex = null;
+
     // =========================================
     // PROPIEDADES DE DESCUENTO GENERAL
     // =========================================
@@ -76,9 +83,48 @@ trait WithDescuentos
      */
     public function abrirAjusteManual(int $index, string $tipo): void
     {
+        $this->selectorAjusteIndex = null; // cerrar selector si vino encadenado
         $this->ajusteManualPopoverIndex = $index;
         $this->ajusteManualTipo = $tipo; // 'monto' o 'porcentaje'
         $this->ajusteManualValor = null;
+    }
+
+    /**
+     * Abre el SELECTOR de tipo de ajuste (3 botones: $ / % / Pts) sobre el item.
+     */
+    public function abrirSelectorAjuste(int $index): void
+    {
+        $this->ajusteManualPopoverIndex = null;
+        $this->selectorAjusteIndex = $index;
+    }
+
+    public function cerrarSelectorAjuste(): void
+    {
+        $this->selectorAjusteIndex = null;
+    }
+
+    /**
+     * Cierra ambas fases del popup de descuentos (selector de tipo + input de
+     * ajuste). Usado por el `@click.outside` del popup unificado para que sin
+     * importar en qué fase esté, el click afuera limpie todo.
+     */
+    public function cerrarPopupDescuentos(): void
+    {
+        $this->selectorAjusteIndex = null;
+        $this->cerrarAjusteManual();
+    }
+
+    /**
+     * Wrapper para el botón "Pts" del selector: cierra el selector y delega a
+     * canjearArticuloConPuntos (vive en WithPuntos). Permite un único wire:click
+     * por botón sin partir el flow entre dos traits.
+     */
+    public function seleccionarCanjePuntos(int $index): void
+    {
+        $this->selectorAjusteIndex = null;
+        if (method_exists($this, 'canjearArticuloConPuntos')) {
+            $this->canjearArticuloConPuntos($index);
+        }
     }
 
     /**
@@ -411,7 +457,9 @@ trait WithDescuentos
             ? array_flip($this->cuponArticulosBonificados ?? [])
             : [];
 
-        foreach ($this->items as $index => $item) {
+        // Items invitados quedan intactos (precio=0 ya, todos descuentos en 0).
+        // El descuento general no se aplica sobre cortesias (RF-11).
+        foreach ($this->getItemsParaMotorBeneficios() as $index => $item) {
             $articuloId = $item['articulo_id'] ?? null;
             if ($articuloId && isset($bonificadosPorCupon[$articuloId])) {
                 continue;
