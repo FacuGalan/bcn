@@ -688,6 +688,23 @@ trait WithPagosDesglose
             return;
         }
 
+        // Venta/pedido totalmente invitado (cortesia): no hay nada que cobrar,
+        // saltamos validacion de FP, modal de vuelto, modal de desglose y modal
+        // de moneda extranjera. El host (NuevaVenta o NuevoPedidoMostrador) sabe
+        // como persistir sin pagos a través de `confirmarInvitacionTotal`.
+        // `esInvitacionTotal` es un computed property (getter) del trait
+        // WithInvitaciones — no se puede verificar con property_exists, se chequea
+        // con method_exists sobre getEsInvitacionTotalProperty.
+        $totalFinalActual = (float) ($this->resultado['total_final'] ?? 0);
+        if (method_exists($this, 'getEsInvitacionTotalProperty')
+            && $this->esInvitacionTotal
+            && $totalFinalActual <= 0.005
+            && method_exists($this, 'confirmarInvitacionTotal')) {
+            $this->confirmarInvitacionTotal();
+
+            return;
+        }
+
         if (! $this->formaPagoId) {
             $this->dispatch('toast-error', message: 'Seleccione una forma de pago');
 

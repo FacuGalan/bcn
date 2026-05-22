@@ -241,6 +241,15 @@ class PedidoMostrador extends Model
         return $this->belongsTo(User::class, 'cancelado_por_usuario_id');
     }
 
+    /**
+     * Usuario que autorizó la cortesía total del pedido (es_invitacion_total=true).
+     * Para invitaciones parciales, ver la relación equivalente en PedidoMostradorDetalle.
+     */
+    public function invitadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'invitado_por_usuario_id');
+    }
+
     public function detalles(): HasMany
     {
         return $this->hasMany(PedidoMostradorDetalle::class, 'pedido_mostrador_id');

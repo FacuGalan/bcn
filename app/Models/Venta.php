@@ -196,6 +196,15 @@ class Venta extends Model
         return $this->belongsTo(User::class, 'anulado_por_usuario_id');
     }
 
+    /**
+     * Usuario que autorizó la cortesía total (cuando es_invitacion_total=true).
+     * Para invitaciones parciales, ver la relación equivalente en VentaDetalle.
+     */
+    public function invitadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'invitado_por_usuario_id');
+    }
+
     public function cierreTurno(): BelongsTo
     {
         return $this->belongsTo(CierreTurno::class, 'cierre_turno_id');

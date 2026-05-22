@@ -1295,7 +1295,11 @@ class NuevaVenta extends Component
                     'cliente_id' => $this->clienteSeleccionado,
                     'caja_id' => $cajaId,
                     'usuario_id' => Auth::id(),
-                    'forma_pago_id' => $this->formaPagoId,
+                    // Cortesia total: no hay forma de pago real. Si pasamos el id
+                    // del selector (default Efectivo), el listado y el detalle
+                    // muestran "Efectivo $0" lo cual confunde al operador. Mejor
+                    // dejar en null y que la vista muestre "Cortesia".
+                    'forma_pago_id' => $esInvitacionCompleta ? null : $this->formaPagoId,
                     'forma_venta_id' => $this->formaVentaId,
                     'canal_venta_id' => $this->canalVentaId,
                     'lista_precio_id' => $this->listaPrecioId,
