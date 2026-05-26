@@ -119,6 +119,21 @@ class PedidosMostrador extends Component
     /** Counter para forzar remount al re-abrir el cobro rapido. */
     public int $cobroRapidoKey = 0;
 
+    // ==================== ACCIÓN PENDIENTE DE COBRO ====================
+
+    /**
+     * Cuando se intercepta una acción que requiere pedido cobrado (entregar,
+     * convertir en venta, drag a entregado, cambio manual a entregado), se
+     * guarda acá qué acción reanudar después de que el modal de cobro rápido
+     * complete. Valores: 'entregar' | 'convertir' | null.
+     */
+    #[\Livewire\Attributes\Locked]
+    public ?string $accionPendiente = null;
+
+    /** ID del pedido sobre el que se interceptó la acción pendiente. */
+    #[\Livewire\Attributes\Locked]
+    public ?int $accionPendientePedidoId = null;
+
     // ==================== TIEMPO REAL ====================
 
     /**
@@ -321,14 +336,18 @@ class PedidosMostrador extends Component
             return;
         }
 
-        if (! in_array($pedido->estado_pedido, [PedidoMostrador::ESTADO_BORRADOR, PedidoMostrador::ESTADO_CONFIRMADO], true)) {
+        // Estados terminales (cancelado/facturado): no se editan nunca.
+        if (in_array($pedido->estado_pedido, [PedidoMostrador::ESTADO_CANCELADO, PedidoMostrador::ESTADO_FACTURADO], true)) {
             $this->dispatch('toast-error', message: __("El pedido en estado ':estado' no se puede editar", ['estado' => $pedido->estado_pedido]));
 
             return;
         }
 
-        // Pedidos con cobros materializados se gestionan desde "Cobrar pendiente".
-        // Borradores siempre se pueden continuar.
+        // Mientras el cliente no haya pagado, el operario puede ajustar el
+        // carrito en cualquier punto del flujo (en_preparacion, listo, etc).
+        // Solo bloqueamos si ya hay cobros materializados: esos pedidos se
+        // gestionan desde "Cobrar pendiente" para no romper la trazabilidad
+        // de caja. Borradores siempre se pueden continuar.
         if ($pedido->estado_pedido !== PedidoMostrador::ESTADO_BORRADOR
             && $pedido->estado_pago !== PedidoMostrador::ESTADO_PAGO_PENDIENTE) {
             $this->dispatch('toast-error', message: __('No se puede editar un pedido con cobros registrados. Gestioná los pagos desde la lista.'));
@@ -407,24 +426,95 @@ class PedidosMostrador extends Component
 
     /**
      * Listener para `cobro-rapido-completado` despachado por
-     * NuevoPedidoMostrador al confirmar el desglose. Cierra el sub-componente
-     * y refresca la lista para que se vea el cambio de estado_pago.
+     * NuevoPedidoMostrador al confirmar el desglose. Cierra el sub-componente,
+     * refresca la lista, y si había una acción pendiente (entregar / convertir)
+     * y el pedido quedó 100% cobrado, la reanuda. Cobros parciales NO disparan
+     * la acción — el usuario tiene que reintentar cuando termine de cobrar.
      */
     #[\Livewire\Attributes\On('cobro-rapido-completado')]
     public function trasCobroRapidoCompletado(): void
     {
         $this->pedidoCobroRapidoId = null;
+        $this->reanudarAccionPendienteSiCobrado();
         $this->resetPage();
     }
 
     /**
      * Listener para `cerrar-cobro-rapido` despachado por NuevoPedidoMostrador
-     * cuando el usuario cierra el modal sin confirmar.
+     * cuando el usuario cierra el modal sin confirmar. Descarta cualquier
+     * acción pendiente acumulada.
      */
     #[\Livewire\Attributes\On('cerrar-cobro-rapido')]
     public function trasCerrarCobroRapido(): void
     {
         $this->pedidoCobroRapidoId = null;
+        $this->accionPendiente = null;
+        $this->accionPendientePedidoId = null;
+    }
+
+    /**
+     * Devuelve true si el pedido tiene cobertura completa: cobrado + planificado
+     * cubre el total. Total cero (pedidos invitación) se considera cubierto.
+     * Pedidos con planificados al 100% se consideran cubiertos porque la
+     * conversión a venta los materializa — no tiene sentido pedir al operario
+     * que vuelva a desglosar lo que ya armó al alta.
+     */
+    protected function pedidoEstaCobrado(PedidoMostrador $pedido): bool
+    {
+        $total = (float) $pedido->total_final;
+        if ($total <= 0.005) {
+            return true;
+        }
+
+        $cubierto = (float) $pedido->total_cobrado + (float) $pedido->total_planificado;
+
+        return $cubierto + 0.005 >= $total;
+    }
+
+    /**
+     * Si el pedido tiene saldo pendiente, guarda la acción solicitada y abre
+     * el modal de cobro rápido. Cuando el cobro termine y el pedido quede 100%
+     * cobrado, `trasCobroRapidoCompletado` reanuda la acción automáticamente.
+     * Retorna true cuando interceptó (el caller debe abortar su flujo).
+     */
+    protected function gatearPorCobro(PedidoMostrador $pedido, string $accion): bool
+    {
+        if ($this->pedidoEstaCobrado($pedido)) {
+            return false;
+        }
+
+        $this->accionPendiente = $accion;
+        $this->accionPendientePedidoId = $pedido->id;
+        $this->abrirCobroRapido($pedido->id);
+
+        return true;
+    }
+
+    /**
+     * Si hay una acción pendiente y el pedido quedó 100% cobrado, la ejecuta.
+     * Si quedó parcial o cancelado el cobro, descarta la acción silenciosamente.
+     */
+    protected function reanudarAccionPendienteSiCobrado(): void
+    {
+        if (! $this->accionPendiente || ! $this->accionPendientePedidoId) {
+            return;
+        }
+
+        $accion = $this->accionPendiente;
+        $pedidoId = $this->accionPendientePedidoId;
+        $this->accionPendiente = null;
+        $this->accionPendientePedidoId = null;
+
+        $pedido = PedidoMostrador::find($pedidoId);
+        if (! $pedido || ! $this->pedidoEstaCobrado($pedido)) {
+            return;
+        }
+
+        match ($accion) {
+            'entregar' => $this->entregarRapido($pedidoId),
+            'convertir' => $this->abrirConvertir($pedidoId),
+            default => null,
+        };
     }
 
     // ==================== FILTROS / QUERY ====================
@@ -678,6 +768,16 @@ class PedidosMostrador extends Component
             return;
         }
 
+        if ($nuevoEstado === PedidoMostrador::ESTADO_ENTREGADO && ! $this->pedidoEstaCobrado($pedido)) {
+            // Revertir el drag visual y disparar el flujo de cobro. Al cobrar
+            // 100%, el listener reanuda con entregarRapido() (que vuelve a
+            // validar transición + permisos).
+            $this->dispatch('kanban-revertir');
+            $this->gatearPorCobro($pedido, 'entregar');
+
+            return;
+        }
+
         try {
             $this->service->cambiarEstado($pedido, $nuevoEstado);
             $this->dispatch('toast-success', message: __('Estado actualizado'));
@@ -781,6 +881,14 @@ class PedidosMostrador extends Component
             return;
         }
 
+        if ($this->nuevoEstado === PedidoMostrador::ESTADO_ENTREGADO && ! $this->pedidoEstaCobrado($pedido)) {
+            $this->showCambiarEstadoModal = false;
+            $this->resetCambiarEstadoState();
+            $this->gatearPorCobro($pedido, 'entregar');
+
+            return;
+        }
+
         try {
             $this->service->cambiarEstado($pedido, $this->nuevoEstado, $this->observacionEstado ?: null);
             $this->dispatch('toast-success', message: __('Estado actualizado'));
@@ -829,6 +937,10 @@ class PedidosMostrador extends Component
             return;
         }
 
+        if ($this->gatearPorCobro($pedido, 'entregar')) {
+            return;
+        }
+
         try {
             $this->service->cambiarEstado($pedido, PedidoMostrador::ESTADO_ENTREGADO);
             $this->dispatch('toast-success', message: __('Pedido entregado'));
@@ -872,23 +984,12 @@ class PedidosMostrador extends Component
         $planificados = $pedido->pagos->where('estado', PedidoMostradorPago::ESTADO_PLANIFICADO);
 
         if ($planificados->isEmpty()) {
-            // Sin pagos planificados: si el pedido es editable (BORRADOR o
-            // CONFIRMADO con estado_pago=pendiente), abrimos el MODAL de
-            // cobro rapido — el sub-componente NuevoPedidoMostrador se monta
-            // en modoCobroRapido=true y muestra solo el modal de desglose
-            // sobre el listado (sin entrar al editor full-screen). Asi el
-            // operador define las formas de pago con toda la logica de
-            // WithPagosDesglose (IVA, cuotas, recargo FP, vuelto). Para
-            // pedidos con parcial cobrado (no editables), caemos al modal
-            // estandar que muestra los planificados existentes; desde ese
-            // modal el boton "Definir pagos" tambien abre el cobro rapido.
-            if ($this->pedidoEsEditable($pedido)) {
-                $this->abrirCobroRapido($pedidoId);
-
-                return;
-            }
-
-            $this->abrirCobrar($pedidoId);
+            // Sin pagos planificados: abrir directo el modal de desglose
+            // (NuevoPedidoMostrador en modoCobroRapido=true). El cobro rápido
+            // ahora acepta cualquier estado activo del pedido, asi que no
+            // bifurcamos por "es editable" — siempre se puede cobrar saldo
+            // pendiente independiente del estado_pedido.
+            $this->abrirCobroRapido($pedidoId);
 
             return;
         }
@@ -908,18 +1009,17 @@ class PedidosMostrador extends Component
     }
 
     /**
-     * Encapsula la regla de edicion: borrador siempre se puede editar; un
-     * pedido confirmado solo si no tiene pagos materializados todavia. Se usa
-     * desde la UI (mostrar el boton Editar) y desde el flujo de cobro rapido
-     * para decidir entre abrir el editor o el modal limitado.
+     * Encapsula la regla de edición: cualquier estado activo (no cancelado ni
+     * facturado) y sin cobros materializados (estado_pago=pendiente) se puede
+     * editar. La edición es independiente del avance del flujo: mientras el
+     * cliente no haya pagado, el operario puede ajustar el carrito.
      */
     public function pedidoEsEditable(PedidoMostrador $pedido): bool
     {
-        if ($pedido->estado_pedido === PedidoMostrador::ESTADO_BORRADOR) {
-            return true;
-        }
-
-        if ($pedido->estado_pedido !== PedidoMostrador::ESTADO_CONFIRMADO) {
+        if (in_array($pedido->estado_pedido, [
+            PedidoMostrador::ESTADO_CANCELADO,
+            PedidoMostrador::ESTADO_FACTURADO,
+        ], true)) {
             return false;
         }
 
@@ -1132,6 +1232,10 @@ class PedidosMostrador extends Component
             return;
         }
 
+        if ($this->gatearPorCobro($pedido, 'convertir')) {
+            return;
+        }
+
         $this->pedidoConvertirId = $pedido->id;
         $this->convertirPedidoInfo = [
             'numero' => $pedido->numero,
@@ -1194,6 +1298,8 @@ class PedidosMostrador extends Component
             $payload = $this->service->imprimirComanda($pedido);
             $this->dispatch('imprimir-comanda', payload: $payload);
             $this->dispatch('toast-info', message: __('Enviando comanda a impresión...'));
+
+            $this->service->avanzarAEnPreparacionSiCorresponde($pedido->fresh());
         } catch (Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
         }

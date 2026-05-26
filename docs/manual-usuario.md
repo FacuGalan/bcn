@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-05-21
+> Version: 0.1.x | Ultima actualizacion: 2026-05-26
 
 ---
 
@@ -693,10 +693,10 @@ Las acciones disponibles dependen del estado del pedido y los permisos del usuar
 | Accion | Condicion | Permiso requerido |
 |--------|-----------|-------------------|
 | Ver detalle | Siempre disponible | Ninguno adicional |
-| Editar (rapido) | Pedido en estado borrador, o confirmado con estado de pago pendiente | Ninguno adicional |
+| Editar (rapido) | Estado activo no terminal con estado de pago pendiente (sin cobros materializados) | Ninguno adicional |
 | Entregar (rapido) | Pedido en estado confirmado, en preparacion o listo | Ninguno adicional |
 | Cambiar estado | Pedido no cancelado ni facturado | Ninguno adicional |
-| Cobrar (rapido) | Pedido no cancelado ni facturado con monto pendiente o planificado | `func.pedidos_mostrador.cobrar` |
+| Cobrar (badge de estado de pago clickeable) | Pedido activo con saldo pendiente o pagos planificados | `func.pedidos_mostrador.cobrar` |
 | Convertir en venta | Pedido confirmado, en preparacion, listo o entregado | `func.pedidos_mostrador.convertir_venta` |
 | Reimprimir comanda | Siempre disponible | Ninguno adicional |
 | Reimprimir precuenta | Siempre disponible | Ninguno adicional |
@@ -708,27 +708,36 @@ Las acciones disponibles dependen del estado del pedido y los permisos del usuar
 
 #### Accion rapida: Editar
 
-El boton **"Editar"** (icono lapiz, color ambar) aparece en la fila cuando el pedido es editable: estado borrador, o estado confirmado con estado de pago pendiente (sin cobros materializados). Al hacer click abre el editor full-screen con todos los datos del pedido precargados para modificar items, cliente, descuentos y demas campos.
+El boton **"Editar"** (icono lapiz, color ambar) aparece en la fila cuando el pedido es editable: cualquier estado activo no terminal (borrador, confirmado, en preparacion, listo, entregado) con estado de pago `pendiente` (sin cobros materializados). Una vez que el pedido tiene pagos activos, la edicion ya no esta disponible.
 
-En moviles el boton muestra solo el icono; en escritorio muestra el texto "Editar".
+Al hacer click abre el editor full-screen con todos los datos del pedido precargados para modificar items, cliente, descuentos y demas campos.
+
+En moviles el boton aparece a la izquierda del boton "Ver detalle"; en escritorio figura en primer lugar del grupo de acciones secundarias (izquierda de "Ver detalle").
 
 #### Accion rapida: Entregar
 
 El boton **"Entregar"** (icono check verde, color emerald) aparece en cada fila cuando el estado actual del pedido admite la transicion a `entregado` (es decir: confirmado, en preparacion o listo). Al hacer click, aparece una confirmacion rapida. Si se acepta, el pedido pasa directamente a estado entregado sin necesidad de abrir el modal de cambio de estado.
 
+**Gate de cobro**: si el pedido tiene saldo sin cubrir (ni pagos activos ni planificados que alcancen el total), el sistema NO avanza el estado. En cambio, abre directamente el **desglose de cobro rapido** para que el operario complete el pago. Una vez cobrado al 100%, el sistema reanuda automaticamente la accion de entregar sin que el operario tenga que volver a hacer click.
+
+Si el operario cierra el desglose de cobro sin completarlo, la accion de entregar se descarta y el pedido permanece en su estado actual.
+
 Si la sucursal tiene activada la opcion de conversion automatica al entregar (`pedido_conversion_automatica_al_entregar = true`), el sistema convierte el pedido en venta automaticamente como efecto secundario del cambio de estado.
 
 En moviles el boton muestra solo el icono; en escritorio muestra icono y texto.
 
-#### Accion rapida: Cobrar
+#### Badge de estado de pago clickeable (cobro rapido)
 
-El boton **"Cobrar"** (icono $ verde) tiene tres comportamientos posibles segun el estado del pedido:
+El badge de **estado de pago** (Pendiente / Parcial / Pagado) que se muestra en la columna de estado funciona como boton de cobro cuando el pedido tiene saldo pendiente y el usuario tiene el permiso `func.pedidos_mostrador.cobrar`. Al pasar el cursor sobre el badge, aparece un icono de signo $ a su derecha. Al hacer click sobre el badge (o el icono), se lanza el flujo de cobro rapido. Cuando el pedido ya esta pagado, el badge es solo informativo (no clickeable).
+
+Este patron reemplaza al boton "Cobrar" suelto que existia anteriormente en la fila de acciones.
+
+**Comportamiento del cobro rapido segun el estado del pedido:**
 
 - **Si el pedido tiene pagos planificados**: confirma todos los pagos planificados de una vez sin abrir ningun modal. Cada pago genera su movimiento en la caja activa. Al terminar aparece un mensaje de confirmacion indicando cuantos pagos se confirmaron.
-- **Si el pedido es editable (borrador o confirmado con pago pendiente) y no tiene planificados**: abre directamente el **desglose de formas de pago** superpuesto sobre el listado, sin entrar al editor full-screen. El operario define el desglose (incluyendo pago mixto, cuotas, recargos, multi-moneda y vuelto) y al confirmar el saldo queda cobrado con los pagos activos resultantes.
-- **Si el pedido no es editable (tiene cobro parcial materializado) y no tiene planificados**: abre el modal "Cobrar pendiente" que muestra el resumen del cobro. Desde ese modal, el boton **"Definir pagos"** permite abrir el desglose de formas de pago para el saldo restante.
+- **Si no tiene planificados**: abre directamente el **desglose de formas de pago** superpuesto sobre el listado, sin entrar al editor full-screen. El operario define el desglose (incluyendo pago mixto, cuotas, recargos, multi-moneda y vuelto) y al confirmar el saldo queda cobrado con los pagos activos resultantes.
 
-> El desglose de formas de pago se abre directamente sobre el listado: el operario no necesita entrar al editor full-screen para cobrar un pedido ya confirmado.
+> El desglose de formas de pago se puede abrir desde cualquier estado activo del pedido (confirmado, en preparacion, listo, entregado), no solo desde el estado borrador o confirmado con pago pendiente. Siempre que haya saldo pendiente, el badge es clickeable.
 
 #### Modal: Ver detalle
 
@@ -742,6 +751,8 @@ Muestra la informacion completa del pedido:
 - **Observaciones**: si el pedido tiene notas.
 - **Venta asociada**: si el pedido ya fue convertido, muestra el numero de la venta resultante con enlace.
 - **Botones de reimpresion**: Reimprimir comanda / Reimprimir precuenta.
+
+> **Reimprimir comanda y avance de estado**: si la sucursal tiene `imprime_comanda_automatico=true`, al hacer click en "Reimprimir comanda" el pedido avanza automaticamente a **En preparacion** si todavia esta en estado confirmado. Para los demas estados, la reimpresion no cambia el estado del pedido.
 
 #### Modal: Cambiar estado
 
@@ -758,6 +769,8 @@ Permite avanzar el pedido en su ciclo de vida. Las transiciones posibles desde c
 > Los estados Cancelado y Facturado no aparecen en este modal. Cancelado tiene su propio modal con motivo obligatorio. Facturado solo se alcanza al convertir el pedido en venta.
 
 El modal incluye un campo de **observacion opcional** para dejar una nota sobre el cambio de estado.
+
+**Gate de cobro**: si el nuevo estado seleccionado es **Entregado** y el pedido tiene saldo sin cubrir, al confirmar el modal se cierra y se abre el desglose de cobro rapido en su lugar. Una vez cobrado al 100%, el estado avanza a entregado automaticamente.
 
 #### Modal: Cobrar pendiente
 
@@ -780,7 +793,7 @@ Si el saldo pendiente es mayor a cero, el modal muestra ademas el boton **"Defin
 
 #### Desglose de formas de pago (cobro rapido)
 
-Se abre superpuesto sobre el listado (sin entrar al editor full-screen) cuando el pedido es editable y el operario hace click en "Cobrar" desde la fila, la card del Kanban, o desde el boton "Definir pagos" del modal "Cobrar pendiente".
+Se abre superpuesto sobre el listado (sin entrar al editor full-screen) cuando el operario hace click en el badge de estado de pago de la fila o la card del Kanban (cuando es clickeable), o desde el boton "Definir pagos" del modal "Cobrar pendiente".
 
 El desglose funciona identico al que se usa dentro del editor:
 - Se puede elegir una sola forma de pago o varias (pago mixto).
@@ -797,11 +810,14 @@ Al confirmar, cada fila del desglose se agrega como pago activo (estado `activo`
 
 Convierte el pedido en una venta definitiva del sistema. Requiere permiso `func.pedidos_mostrador.convertir_venta`.
 
+**Gate de cobro previo al modal**: antes de mostrar el modal de confirmacion, el sistema verifica que el pedido tenga cobertura completa (pagos activos + planificados cubren el total). Si hay saldo sin cubrir, en vez de abrir el modal se abre directamente el **desglose de cobro rapido**. Una vez completado el cobro al 100%, el modal de conversion se abre automaticamente. Si el operario cierra el cobro sin completarlo, la accion de conversion se descarta.
+
+Los pedidos con pagos planificados que cubran el total se consideran cubiertos: la conversion los materializa todos automaticamente.
+
 El modal muestra un **resumen** con el numero de pedido, identificador, cliente, total y estado de pago actual.
 
 **Restricciones**:
 
-- Si el monto pendiente (total - cobrado - planificado) es mayor a cero, el boton de confirmar esta bloqueado y se muestra un mensaje indicando el monto que falta cubrir. El usuario debe ir al modal "Cobrar pendiente" primero para cargar los pagos necesarios.
 - Si hay pagos planificados pero no hay monto pendiente libre (el total esta cubierto entre cobrados y planificados), el modal muestra un aviso de que esos pagos planificados se materializaran automaticamente al convertir.
 
 Al confirmar, `PedidoMostradorService::convertirEnVenta()` ejecuta las siguientes acciones en una transaccion:
@@ -851,13 +867,15 @@ Cada card muestra:
 
 Botones disponibles directamente en la card:
 - **Ver**: abre el modal de detalle.
-- **Editar** (icono lapiz, ambar): aparece solo si el pedido es editable (borrador o confirmado con pago pendiente). Abre el editor full-screen.
-- **Cobrar** (icono $, verde): comportamiento identico al de la Vista Lista (planificados, cobro rapido con desglose o modal cobrar pendiente).
+- **Editar** (icono lapiz, ambar): aparece solo si el pedido es editable (estado activo no terminal con pago pendiente). Abre el editor full-screen.
+- **Badge de estado de pago (clickeable)**: cuando el pedido tiene saldo pendiente, el badge funciona como boton de cobro rapido (igual que en la Vista Lista). Al pasar el cursor aparece el icono $.
 - **Cancelar**: abre el modal de cancelacion con motivo obligatorio.
 
 #### Drag and drop entre columnas
 
 Las cards se pueden arrastrar de una columna a otra para cambiar el estado del pedido. El sistema solo permite soltar la card en una columna cuyo estado sea una transicion legal desde el estado actual (las mismas reglas que el modal "Cambiar estado"). Si el destino no es una transicion valida, el drag se bloquea visualmente y la card no se puede soltar ahi.
+
+**Gate de cobro en drag**: si se arrastra una card a la columna **Entregado** y el pedido tiene saldo sin cubrir, el drag se revierte visualmente y en su lugar se abre el desglose de cobro rapido. Al completar el cobro al 100%, el estado avanza a entregado automaticamente.
 
 Al soltar una card en una columna valida, el estado del pedido se actualiza de inmediato. Si el servidor rechaza el cambio (por ejemplo, una condicion de carrera), la card vuelve a su columna original automaticamente.
 
@@ -873,7 +891,7 @@ Al mover una card a otra columna, el sistema la ubica al final de la columna de 
 
 El boton **"Nuevo Pedido"** en la barra de acciones abre el formulario de alta como un **modal de pantalla completa** superpuesto sobre la lista. No hay una ruta dedicada para el alta ni la edicion.
 
-Para editar un pedido existente en estado borrador o confirmado con pago pendiente, hay tres caminos equivalentes:
+Para editar un pedido existente (cualquier estado activo no terminal con pago pendiente), hay tres caminos equivalentes:
 - El boton **"Editar"** (icono lapiz, ambar) directo en la fila de la Vista Lista o en la card del Kanban.
 - El boton **"Editar pedido"** dentro del modal de detalle.
 - Cualquiera de los dos abre el mismo formulario full-screen precargado con los datos del pedido.
@@ -964,7 +982,7 @@ El panel derecho muestra subtotal, IVA, descuentos aplicados y total final, actu
 |-------|----------------|
 | Cancelar | Cierra el modal sin guardar. Equivalente a presionar Esc. |
 | Guardar borrador | Guarda sin asignar numero ni descontar stock. El pedido queda en estado borrador. No valida beeper. |
-| Confirmar pedido | Asigna numero correlativo, descuenta stock, imprime comanda si la sucursal esta configurada para ello. Valida beeper si la sucursal lo requiere. |
+| Confirmar pedido | Asigna numero correlativo, descuenta stock, imprime comanda si la sucursal esta configurada para ello. Valida beeper si la sucursal lo requiere. Si la sucursal tiene `imprime_comanda_automatico=true`, el pedido avanza automaticamente a **En preparacion** al confirmar (se asume que cocina ya recibio el ticket). |
 | Guardar cambios (edicion) | En modo edicion, persiste los cambios sobre el pedido existente. |
 
 > Al guardar o confirmar exitosamente, el modal se cierra y la lista se refresca automaticamente.

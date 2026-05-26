@@ -334,8 +334,24 @@
                     </div>
                     <div class="flex gap-2 flex-wrap mb-2 items-center">
                         <x-pedidos.badge-estado-pedido :estado="$pedido->estado_pedido" />
-                        <x-pedidos.badge-estado-pago :estado="$pedido->estado_pago" />
-                        @if($pedido->total_cobrado > 0)
+                        @if(($pedido->total_planificado > 0 || $pedido->total_cobrado < $pedido->total_final - 0.005) && auth()->user()?->hasPermissionTo('func.pedidos_mostrador.cobrar'))
+                            <button type="button"
+                                    wire:click="cobrarRapido({{ $pedido->id }})"
+                                    class="inline-flex items-center gap-1 group cursor-pointer"
+                                    title="{{ $pedido->total_planificado > 0 ? __('Confirmar pagos planificados') : __('Abrir desglose de cobro') }}">
+                                <x-pedidos.badge-estado-pago :estado="$pedido->estado_pago" class="select-none" />
+                                <span class="opacity-0 group-hover:opacity-100 text-gray-400 group-hover:text-green-600 dark:group-hover:text-green-400 transition-opacity flex-shrink-0"
+                                      aria-hidden="true">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </span>
+                            </button>
+                        @else
+                            <x-pedidos.badge-estado-pago :estado="$pedido->estado_pago" class="cursor-default select-none" />
+                        @endif
+                        @if($pedido->total_cobrado > 0 && $pedido->estado_pago !== 'pagado')
                             <span class="text-[10px] text-green-700 dark:text-green-400">
                                 {{ __('Cob.') }}: ${{ number_format($pedido->total_cobrado, 2, ',', '.') }}
                             </span>
@@ -347,18 +363,18 @@
                         @endif
                     </div>
                     <div class="flex gap-2 flex-wrap">
+                        @php $puedeEditar = ! in_array($pedido->estado_pedido, ['cancelado', 'facturado']) && $pedido->estado_pago === 'pendiente'; @endphp
+                        @if($puedeEditar)
+                            <button wire:click="abrirModalEditarPedido({{ $pedido->id }})"
+                                class="inline-flex items-center px-2.5 py-1.5 border border-amber-300 dark:border-amber-600 rounded text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30">
+                                {{ __('Editar') }}
+                            </button>
+                        @endif
                         <button wire:click="verDetalle({{ $pedido->id }})"
                             class="inline-flex items-center px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
                             {{ __('Ver') }}
                         </button>
                         @if(!in_array($pedido->estado_pedido, ['cancelado','facturado']))
-                            @php $puedeEditar = $pedido->estado_pedido === 'borrador' || ($pedido->estado_pedido === 'confirmado' && $pedido->estado_pago === 'pendiente'); @endphp
-                            @if($puedeEditar)
-                                <button wire:click="abrirModalEditarPedido({{ $pedido->id }})"
-                                    class="inline-flex items-center px-2.5 py-1.5 border border-amber-300 dark:border-amber-600 rounded text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30">
-                                    {{ __('Editar') }}
-                                </button>
-                            @endif
                             @if(in_array('entregado', \App\Models\PedidoMostrador::TRANSICIONES_PERMITIDAS[$pedido->estado_pedido] ?? []))
                                 <button wire:click="entregarRapido({{ $pedido->id }})"
                                     wire:confirm="{{ __('¿Marcar este pedido como entregado?') }}"
@@ -370,13 +386,6 @@
                                 class="inline-flex items-center px-2.5 py-1.5 border border-blue-300 dark:border-blue-600 rounded text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30">
                                 {{ __('Estado') }}
                             </button>
-                            @if(($pedido->total_planificado > 0 || $pedido->total_cobrado < $pedido->total_final - 0.005) && auth()->user()?->hasPermissionTo('func.pedidos_mostrador.cobrar'))
-                                <button wire:click="cobrarRapido({{ $pedido->id }})"
-                                    class="inline-flex items-center px-2.5 py-1.5 border border-green-300 dark:border-green-600 rounded text-xs text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30"
-                                    title="{{ $pedido->total_planificado > 0 ? __('Confirmar pagos planificados') : __('Abrir desglose de cobro') }}">
-                                    {{ __('Cobrar') }}
-                                </button>
-                            @endif
                             @if($pedido->estado_pedido !== 'borrador' && auth()->user()?->hasPermissionTo('func.pedidos_mostrador.convertir_venta'))
                                 <button wire:click="abrirConvertir({{ $pedido->id }})"
                                     class="inline-flex items-center px-2.5 py-1.5 border border-bcn-primary rounded text-xs text-bcn-primary hover:bg-bcn-primary hover:text-white">
@@ -465,20 +474,46 @@
                                     <x-pedidos.badge-estado-pedido :estado="$pedido->estado_pedido" />
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
-                                    <x-pedidos.badge-estado-pago :estado="$pedido->estado_pago" />
-                                    @if($pedido->total_cobrado > 0)
+                                    @if(($pedido->total_planificado > 0 || $pedido->total_cobrado < $pedido->total_final - 0.005) && auth()->user()?->hasPermissionTo('func.pedidos_mostrador.cobrar'))
+                                        <button type="button"
+                                                wire:click="cobrarRapido({{ $pedido->id }})"
+                                                class="inline-flex items-center gap-1 group cursor-pointer"
+                                                title="{{ $pedido->total_planificado > 0 ? __('Confirmar pagos planificados') : __('Abrir desglose de cobro') }}">
+                                            <x-pedidos.badge-estado-pago :estado="$pedido->estado_pago" class="select-none" />
+                                            <span class="opacity-0 group-hover:opacity-100 text-gray-400 group-hover:text-green-600 dark:group-hover:text-green-400 transition-opacity flex-shrink-0"
+                                                  aria-hidden="true">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                            </span>
+                                        </button>
+                                    @else
+                                        <x-pedidos.badge-estado-pago :estado="$pedido->estado_pago" class="cursor-default select-none" />
+                                    @endif
+                                    @if($pedido->total_cobrado > 0 && $pedido->estado_pago !== 'pagado')
                                         <div class="text-[10px] text-green-700 dark:text-green-400 mt-0.5">
                                             {{ __('Cob.') }}: ${{ number_format($pedido->total_cobrado, 2, ',', '.') }}
                                         </div>
                                     @endif
                                     @if($pedido->total_planificado > 0)
-                                        <div class="text-[10px] text-blue-700 dark:text-blue-400 {{ $pedido->total_cobrado > 0 ? '' : 'mt-0.5' }}">
+                                        <div class="text-[10px] text-blue-700 dark:text-blue-400 {{ $pedido->total_cobrado > 0 && $pedido->estado_pago !== 'pagado' ? '' : 'mt-0.5' }}">
                                             {{ __('Plan.') }}: ${{ number_format($pedido->total_planificado, 2, ',', '.') }}
                                         </div>
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                                     <div class="flex justify-end gap-1 flex-wrap">
+                                        @php $puedeEditar = ! in_array($pedido->estado_pedido, ['cancelado', 'facturado']) && $pedido->estado_pago === 'pendiente'; @endphp
+                                        @if($puedeEditar)
+                                            <button wire:click="abrirModalEditarPedido({{ $pedido->id }})"
+                                                class="inline-flex items-center px-2 py-1 border border-amber-300 dark:border-amber-600 rounded text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30"
+                                                title="{{ __('Editar pedido') }}">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                </svg>
+                                            </button>
+                                        @endif
                                         <button wire:click="verDetalle({{ $pedido->id }})"
                                             class="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
                                             title="{{ __('Ver detalle') }}">
@@ -488,16 +523,6 @@
                                             </svg>
                                         </button>
                                         @if(!in_array($pedido->estado_pedido, ['cancelado','facturado']))
-                                            @php $puedeEditar = $pedido->estado_pedido === 'borrador' || ($pedido->estado_pedido === 'confirmado' && $pedido->estado_pago === 'pendiente'); @endphp
-                                            @if($puedeEditar)
-                                                <button wire:click="abrirModalEditarPedido({{ $pedido->id }})"
-                                                    class="inline-flex items-center px-2 py-1 border border-amber-300 dark:border-amber-600 rounded text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30"
-                                                    title="{{ __('Editar pedido') }}">
-                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                    </svg>
-                                                </button>
-                                            @endif
                                             @if(in_array('entregado', \App\Models\PedidoMostrador::TRANSICIONES_PERMITIDAS[$pedido->estado_pedido] ?? []))
                                                 <button wire:click="entregarRapido({{ $pedido->id }})"
                                                     wire:confirm="{{ __('¿Marcar este pedido como entregado?') }}"
@@ -515,16 +540,6 @@
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                                                 </svg>
                                             </button>
-                                            @if(($pedido->total_planificado > 0 || $pedido->total_cobrado < $pedido->total_final - 0.005) && auth()->user()?->hasPermissionTo('func.pedidos_mostrador.cobrar'))
-                                                <button wire:click="cobrarRapido({{ $pedido->id }})"
-                                                    class="inline-flex items-center px-2 py-1 border border-green-300 dark:border-green-600 rounded text-xs text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30"
-                                                    title="{{ $pedido->total_planificado > 0 ? __('Confirmar pagos planificados') : __('Abrir desglose de cobro') }}">
-                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                    </svg>
-                                                </button>
-                                            @endif
                                             @if($pedido->estado_pedido !== 'borrador' && auth()->user()?->hasPermissionTo('func.pedidos_mostrador.convertir_venta'))
                                                 <button wire:click="abrirConvertir({{ $pedido->id }})"
                                                     class="inline-flex items-center px-2 py-1 border border-bcn-primary rounded text-xs text-bcn-primary hover:bg-bcn-primary hover:text-white"
@@ -642,15 +657,7 @@
                                     <div class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2"
                                         @mousedown.stop @touchstart.stop>
                                         <div class="flex gap-1 flex-wrap">
-                                        <button type="button" wire:click="verDetalle({{ $pedido->id }})"
-                                            class="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
-                                            title="{{ __('Ver detalle') }}">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                            </svg>
-                                        </button>
-                                        @php $puedeEditar = $pedido->estado_pedido === 'borrador' || ($pedido->estado_pedido === 'confirmado' && $pedido->estado_pago === 'pendiente'); @endphp
+                                        @php $puedeEditar = ! in_array($pedido->estado_pedido, ['cancelado', 'facturado']) && $pedido->estado_pago === 'pendiente'; @endphp
                                         @if($puedeEditar)
                                             <button type="button" wire:click="abrirModalEditarPedido({{ $pedido->id }})"
                                                 class="inline-flex items-center px-2 py-1 border border-amber-300 dark:border-amber-600 rounded text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30"
@@ -660,6 +667,14 @@
                                                 </svg>
                                             </button>
                                         @endif
+                                        <button type="button" wire:click="verDetalle({{ $pedido->id }})"
+                                            class="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                            title="{{ __('Ver detalle') }}">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                            </svg>
+                                        </button>
                                         @if(($pedido->total_planificado > 0 || $pedido->total_cobrado < $pedido->total_final - 0.005) && auth()->user()?->hasPermissionTo('func.pedidos_mostrador.cobrar'))
                                             <button type="button" wire:click="cobrarRapido({{ $pedido->id }})"
                                                 class="inline-flex items-center px-2 py-1 border border-green-300 dark:border-green-600 rounded text-xs text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30"
@@ -1188,13 +1203,14 @@
             </x-slot:body>
 
             <x-slot:footer>
-                {{-- "Editar pedido" disponible solo si:
-                     - El pedido es BORRADOR (continuar) o
-                     - El pedido es CONFIRMADO y no tiene cobros materializados
-                       (estado_pago pendiente). Los pedidos con pagos activos se
-                       editan solo via "Cobrar pendiente" desde la lista. --}}
-                @if($pedidoDetalle->estado_pedido === 'borrador'
-                    || ($pedidoDetalle->estado_pedido === 'confirmado' && $pedidoDetalle->estado_pago === 'pendiente'))
+                {{-- "Editar pedido" disponible mientras el pedido siga activo
+                     (no cancelado ni facturado) y no tenga cobros materializados.
+                     Mientras el cliente no haya pagado, el operario puede ajustar
+                     el carrito en cualquier punto del flujo (en preparación, listo,
+                     etc). Los pedidos con cobros activos se editan via "Cobrar
+                     pendiente" desde la lista. --}}
+                @if(! in_array($pedidoDetalle->estado_pedido, ['cancelado', 'facturado'])
+                    && ($pedidoDetalle->estado_pedido === 'borrador' || $pedidoDetalle->estado_pago === 'pendiente'))
                     <button type="button" wire:click="abrirModalEditarPedido({{ $pedidoDetalle->id }})"
                         class="w-full inline-flex justify-center rounded-md border border-bcn-primary shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-bcn-primary hover:bg-bcn-primary hover:text-white sm:w-auto sm:text-sm">
                         {{ $pedidoDetalle->estado_pedido === 'borrador' ? __('Continuar borrador') : __('Editar pedido') }}

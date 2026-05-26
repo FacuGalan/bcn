@@ -503,11 +503,60 @@ class SmokePedidosTest extends TestCase
     public function test_entregar_rapido_cambia_estado_a_entregado(): void
     {
         $pedido = $this->crearPedidoConfirmado();
+        // El gate de cobro exige pedido 100% cubierto para entregar: simulamos
+        // el cobro completo agregando un pago activo por el total.
+        $efectivo = $this->crearFormaPagoEfectivo();
+        app(PedidoMostradorService::class)->agregarPago($pedido, [
+            'forma_pago_id' => $efectivo['formaPago']->id,
+            'monto_base' => (float) $pedido->total_final,
+            'monto_final' => (float) $pedido->total_final,
+            'cuotas' => 1,
+        ]);
 
         Livewire::test(PedidosMostrador::class)
             ->call('entregarRapido', $pedido->id);
 
         $this->assertSame(PedidoMostrador::ESTADO_ENTREGADO, $pedido->fresh()->estado_pedido);
+    }
+
+    public function test_entregar_rapido_no_intercepta_si_planificados_cubren_total(): void
+    {
+        // Pedido con planificados al 100% pero cobrado=0: el gate no debe
+        // intervenir porque convertirEnVenta materializa los planificados.
+        // Caso real: operario armó el pedido con desglose pero el cliente
+        // todavía no pagó; cuando entrega, la materialización los confirma.
+        $pedido = $this->crearPedidoConfirmado();
+        $efectivo = $this->crearFormaPagoEfectivo();
+
+        app(PedidoMostradorService::class)->agregarPago($pedido, [
+            'forma_pago_id' => $efectivo['formaPago']->id,
+            'monto_base' => (float) $pedido->total_final,
+            'monto_final' => (float) $pedido->total_final,
+            'cuotas' => 1,
+            'planificado' => true,
+        ]);
+
+        Livewire::test(PedidosMostrador::class)
+            ->call('entregarRapido', $pedido->id);
+
+        // Transitó sin abrir cobro rapido — los planificados cubren el saldo.
+        $this->assertSame(PedidoMostrador::ESTADO_ENTREGADO, $pedido->fresh()->estado_pedido);
+    }
+
+    public function test_entregar_rapido_intercepta_y_abre_cobro_si_pedido_no_cobrado(): void
+    {
+        $pedido = $this->crearPedidoConfirmado();
+        // estado_pago = pendiente por default → el gate debe interceptar.
+
+        $componente = Livewire::test(PedidosMostrador::class)
+            ->call('entregarRapido', $pedido->id);
+
+        // No transicionó.
+        $this->assertSame(PedidoMostrador::ESTADO_CONFIRMADO, $pedido->fresh()->estado_pedido);
+        // Acción quedó pendiente y modal de cobro rápido se abrió.
+        $componente->assertSet('accionPendiente', 'entregar')
+            ->assertSet('accionPendientePedidoId', $pedido->id)
+            ->assertSet('pedidoCobroRapidoId', $pedido->id);
     }
 
     public function test_entregar_rapido_rechaza_si_la_transicion_no_es_legal(): void
@@ -533,6 +582,57 @@ class SmokePedidosTest extends TestCase
             ->call('cobrarRapido', $pedido->id)
             ->assertSet('pedidoCobroRapidoId', $pedido->id)
             ->assertSet('modalNuevoPedidoAbierto', false);
+    }
+
+    public function test_cobrar_rapido_funciona_en_pedido_en_preparacion_sin_planificados(): void
+    {
+        // Regresión: con comanda automática los pedidos pasan a EN_PREPARACION
+        // apenas confirmados. El botón "Cobrar" debe abrir directo el modal
+        // de cobro rápido — no caer al flujo viejo que rechazaba con dos toasts.
+        $pedido = $this->crearPedidoConfirmado();
+        $pedido->update(['estado_pedido' => PedidoMostrador::ESTADO_EN_PREPARACION]);
+
+        Livewire::test(PedidosMostrador::class)
+            ->call('cobrarRapido', $pedido->id)
+            ->assertSet('pedidoCobroRapidoId', $pedido->id)
+            ->assertNotDispatched('toast-error');
+    }
+
+    public function test_abrir_modal_editar_acepta_estados_en_preparacion_y_listo_sin_cobros(): void
+    {
+        // Regresion: la lista permitia abrir el editor solo si el pedido
+        // estaba en borrador/confirmado. Pero la regla real es "editable
+        // mientras no haya cobros materializados": en preparacion o listo
+        // el operario debe poder agregar items hasta que el cliente pague.
+        foreach ([PedidoMostrador::ESTADO_EN_PREPARACION, PedidoMostrador::ESTADO_LISTO] as $estado) {
+            $pedido = $this->crearPedidoConfirmado();
+            $pedido->update(['estado_pedido' => $estado]);
+
+            Livewire::test(PedidosMostrador::class)
+                ->call('abrirModalEditarPedido', $pedido->id)
+                ->assertSet('pedidoIdEnEdicion', $pedido->id)
+                ->assertSet('modalNuevoPedidoAbierto', true)
+                ->assertNotDispatched('toast-error');
+        }
+    }
+
+    public function test_nuevo_pedido_mostrador_cobro_rapido_acepta_estado_en_preparacion(): void
+    {
+        // El sub-componente en modoCobroRapido debe hidratarse sin error sobre
+        // pedidos en EN_PREPARACION / LISTO. Antes rechazaba con "no se puede
+        // editar" porque reusaba el guard de edición del carrito.
+        $pedido = $this->crearPedidoConfirmado();
+        $pedido->update(['estado_pedido' => PedidoMostrador::ESTADO_LISTO]);
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class, [
+            'pedidoId' => $pedido->id,
+            'modoCobroRapido' => true,
+        ])->assertOk();
+
+        $componente->assertSet('modoCobroRapido', true)
+            ->assertSet('mostrarModalPago', true)
+            ->assertNotDispatched('toast-error')
+            ->assertNotDispatched('cerrar-cobro-rapido');
     }
 
     public function test_nuevo_pedido_mostrador_modo_cobro_rapido_monta_sobre_pedido_confirmado(): void
@@ -612,17 +712,19 @@ class SmokePedidosTest extends TestCase
             ->assertSet('showCobrarModal', false);
     }
 
-    public function test_cobrar_rapido_sin_planificados_abre_modal_para_pedido_no_editable(): void
+    public function test_cobrar_rapido_sin_planificados_abre_cobro_rapido_aunque_haya_parcial(): void
     {
-        // Pedido con estado_pago=parcial (no editable): cobrarRapido cae al
-        // modal estandar showCobrarModal con la info de planificados/info.
+        // Pedido con cobro parcial previo: cobrarRapido sigue abriendo el
+        // modal de desglose (NuevoPedidoMostrador en modoCobroRapido) para
+        // cobrar lo que falta. Antes caía al modal estándar; ahora el cobro
+        // rápido tolera cobros materializados previos.
         $pedido = $this->crearPedidoConfirmado();
         $pedido->update(['estado_pago' => PedidoMostrador::ESTADO_PAGO_PARCIAL]);
 
         Livewire::test(PedidosMostrador::class)
             ->call('cobrarRapido', $pedido->id)
-            ->assertSet('showCobrarModal', true)
-            ->assertSet('pedidoCobrarId', $pedido->id)
+            ->assertSet('pedidoCobroRapidoId', $pedido->id)
+            ->assertSet('showCobrarModal', false)
             ->assertSet('modalNuevoPedidoAbierto', false);
     }
 
@@ -717,11 +819,33 @@ class SmokePedidosTest extends TestCase
     public function test_cambiar_estado_drag_con_transicion_legal_funciona(): void
     {
         $pedido = $this->crearPedidoConfirmado();
+        // El drag a ENTREGADO también pasa por el gate de cobro: cobrar primero.
+        $efectivo = $this->crearFormaPagoEfectivo();
+        app(PedidoMostradorService::class)->agregarPago($pedido, [
+            'forma_pago_id' => $efectivo['formaPago']->id,
+            'monto_base' => (float) $pedido->total_final,
+            'monto_final' => (float) $pedido->total_final,
+            'cuotas' => 1,
+        ]);
 
         Livewire::test(PedidosMostrador::class)
             ->call('cambiarEstadoDrag', $pedido->id, PedidoMostrador::ESTADO_ENTREGADO);
 
         $this->assertSame(PedidoMostrador::ESTADO_ENTREGADO, $pedido->fresh()->estado_pedido);
+    }
+
+    public function test_cambiar_estado_drag_a_entregado_intercepta_si_no_cobrado(): void
+    {
+        $pedido = $this->crearPedidoConfirmado();
+
+        $componente = Livewire::test(PedidosMostrador::class)
+            ->call('cambiarEstadoDrag', $pedido->id, PedidoMostrador::ESTADO_ENTREGADO);
+
+        // No transicionó, se revirtió el drag y se abrió el cobro.
+        $this->assertSame(PedidoMostrador::ESTADO_CONFIRMADO, $pedido->fresh()->estado_pedido);
+        $componente->assertDispatched('kanban-revertir')
+            ->assertSet('accionPendiente', 'entregar')
+            ->assertSet('pedidoCobroRapidoId', $pedido->id);
     }
 
     public function test_cambiar_estado_drag_rechaza_estado_fuera_de_kanban(): void
@@ -748,6 +872,29 @@ class SmokePedidosTest extends TestCase
             ->assertDispatched('kanban-revertir');
 
         $this->assertSame(PedidoMostrador::ESTADO_ENTREGADO, $pedido->fresh()->estado_pedido);
+    }
+
+    public function test_reimprimir_comanda_avanza_a_en_preparacion_si_confirmado(): void
+    {
+        $pedido = $this->crearPedidoConfirmado();
+        $this->assertSame(PedidoMostrador::ESTADO_CONFIRMADO, $pedido->fresh()->estado_pedido);
+
+        Livewire::test(PedidosMostrador::class)
+            ->call('reimprimirComanda', $pedido->id);
+
+        $this->assertSame(PedidoMostrador::ESTADO_EN_PREPARACION, $pedido->fresh()->estado_pedido);
+    }
+
+    public function test_confirmar_pedido_con_comanda_automatica_avanza_a_en_preparacion(): void
+    {
+        // Opt-in al modo de impresión automática (default productivo).
+        \DB::connection('pymes_tenant')->table('sucursales')
+            ->where('id', $this->sucursalId)
+            ->update(['imprime_comanda_automatico' => true]);
+
+        $pedido = $this->crearPedidoConfirmado();
+
+        $this->assertSame(PedidoMostrador::ESTADO_EN_PREPARACION, $pedido->fresh()->estado_pedido);
     }
 
     /**

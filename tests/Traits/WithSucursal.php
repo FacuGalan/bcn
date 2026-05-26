@@ -21,6 +21,11 @@ trait WithSucursal
 
     /**
      * Crea una sucursal de prueba y la setea como activa.
+     *
+     * La sucursal arranca con `imprime_comanda_automatico=false` (opt-out del
+     * default productivo) para que los tests no se vean afectados por la
+     * transición automática a EN_PREPARACION al confirmar pedidos. Tests que
+     * necesiten probar ese flujo deben hacer opt-in modificando el flag.
      */
     protected function setUpSucursal(string $nombre = 'Sucursal Test'): void
     {
@@ -30,6 +35,7 @@ trait WithSucursal
             'codigo' => 'SUC-TEST-'.uniqid(),
             'direccion' => 'Dirección Test 123',
             'activa' => true,
+            'imprime_comanda_automatico' => false,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -48,6 +54,7 @@ trait WithSucursal
             'codigo' => 'SUC-EXTRA-'.uniqid(),
             'direccion' => 'Dirección Extra',
             'activa' => true,
+            'imprime_comanda_automatico' => false,
             'created_at' => now(),
             'updated_at' => now(),
         ]);

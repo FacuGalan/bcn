@@ -91,6 +91,7 @@
 | Crear service PHP | `/service` | Transacciones tenant, logging, excepciones |
 | Crear módulo completo | `/nuevo-modulo` | Menu + permisos + modelo + service + componente + ruta + traducciones |
 | Combobox con búsqueda + alta rápida | `/combobox-alta-rapida` | Input+botón unidos, búsqueda inteligente, teclado, alta inline |
+| Botón inline con icono que aparece en hover | `/boton-inline-hover` | Contenido visible, icono `opacity-0 group-hover:opacity-100`, todo el botón es clickeable |
 | Agregar traducciones | `/traducir` | 3 archivos (es/en/pt), orden alfabético |
 | Generar tests | `/test` | PHPUnit + multi-tenant + traits |
 | Suite de tests completa | `/test-suite` | Unit + feature + integration para módulo entero |

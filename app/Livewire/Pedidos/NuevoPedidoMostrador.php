@@ -59,7 +59,8 @@ use Livewire\Component;
  *     y "Confirmar pedido". El segundo asigna número, descuenta stock y
  *     dispara `PedidoCreado`.
  *   - **Edición** (`$pedidoId` provisto): hidrata items/cliente/etc desde el
- *     pedido. Solo editable si estado en {borrador, confirmado}. El guardado
+ *     pedido. Editable mientras el pedido no esté cancelado/facturado y no
+ *     tenga cobros materializados (estado_pago = pendiente). El guardado
  *     dispara `actualizarPedido` (revierte/redescuenta stock si era confirmado).
  *
  * Validación de beeper: si `sucursal.usa_beepers = true` y no se ingresó
@@ -920,9 +921,25 @@ class NuevoPedidoMostrador extends Component
             return;
         }
 
-        if (! in_array($pedido->estado_pedido, [PedidoMostrador::ESTADO_BORRADOR, PedidoMostrador::ESTADO_CONFIRMADO], true)) {
-            $this->dispatch('toast-error', message: __("El pedido en estado ':estado' no se puede editar", ['estado' => $pedido->estado_pedido]));
-            $this->dispatch('cerrar-modal-pedido');
+        // Tanto en cobro rápido como en edición normal aceptamos cualquier
+        // estado activo. La restricción real de edición vive en el guard de
+        // cobros materializados más abajo: si el pedido tiene estado_pago !=
+        // pendiente, no se edita. Mientras el cliente no haya pagado, el
+        // operario puede ajustar el carrito en cualquier punto del flujo.
+        $estadosPermitidos = [
+            PedidoMostrador::ESTADO_BORRADOR,
+            PedidoMostrador::ESTADO_CONFIRMADO,
+            PedidoMostrador::ESTADO_EN_PREPARACION,
+            PedidoMostrador::ESTADO_LISTO,
+            PedidoMostrador::ESTADO_ENTREGADO,
+        ];
+
+        if (! in_array($pedido->estado_pedido, $estadosPermitidos, true)) {
+            $msg = $this->modoCobroRapido
+                ? __("El pedido en estado ':estado' no acepta cobros", ['estado' => $pedido->estado_pedido])
+                : __("El pedido en estado ':estado' no se puede editar", ['estado' => $pedido->estado_pedido]);
+            $this->dispatch('toast-error', message: $msg);
+            $this->dispatch($this->modoCobroRapido ? 'cerrar-cobro-rapido' : 'cerrar-modal-pedido');
 
             return;
         }
@@ -934,16 +951,20 @@ class NuevoPedidoMostrador extends Component
         // Excepción: pedido completamente invitado (cortesía) tiene
         // estado_pago=pagado sin cobros materializados — sigue siendo editable
         // mientras el operario quiera ajustar items/cliente.
-        $tieneCobrosMaterializados = $pedido->pagos()
-            ->where('estado', \App\Models\PedidoMostradorPago::ESTADO_ACTIVO)
-            ->exists();
-        if ($pedido->estado_pedido !== PedidoMostrador::ESTADO_BORRADOR
-            && $pedido->estado_pago !== PedidoMostrador::ESTADO_PAGO_PENDIENTE
-            && $tieneCobrosMaterializados) {
-            $this->dispatch('toast-error', message: __('No se puede editar un pedido con cobros registrados. Gestioná los pagos desde la lista.'));
-            $this->dispatch('cerrar-modal-pedido');
+        // En modoCobroRapido este guard NO aplica: cobrar lo que falta es
+        // justamente el caso de uso, sin importar pagos materializados previos.
+        if (! $this->modoCobroRapido) {
+            $tieneCobrosMaterializados = $pedido->pagos()
+                ->where('estado', \App\Models\PedidoMostradorPago::ESTADO_ACTIVO)
+                ->exists();
+            if ($pedido->estado_pedido !== PedidoMostrador::ESTADO_BORRADOR
+                && $pedido->estado_pago !== PedidoMostrador::ESTADO_PAGO_PENDIENTE
+                && $tieneCobrosMaterializados) {
+                $this->dispatch('toast-error', message: __('No se puede editar un pedido con cobros registrados. Gestioná los pagos desde la lista.'));
+                $this->dispatch('cerrar-modal-pedido');
 
-            return;
+                return;
+            }
         }
 
         $this->pedidoId = $pedido->id;

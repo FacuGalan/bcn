@@ -150,19 +150,32 @@ class PedidoMostradorService
     }
 
     /**
-     * Actualiza un pedido existente (sólo permitido en borrador/confirmado).
+     * Actualiza un pedido existente.
      *
-     * Estrategia: revierte stock previo si lo había, borra detalles, recrea
-     * y vuelve a descontar stock si corresponde. Mantiene número, pagos y
-     * estado del pedido.
+     * Regla de edición: cualquier estado no terminal (no cancelado ni
+     * facturado) y sin cobros materializados activos. La cortesía total
+     * (estado_pago=pagado sin pagos activos) sigue siendo editable.
+     *
+     * Estrategia: revierte stock previo si ya estaba descontado (cualquier
+     * estado != borrador), borra detalles, recrea y vuelve a descontar stock
+     * si corresponde. Mantiene número, pagos y estado del pedido.
      */
     public function actualizarPedido(PedidoMostrador $pedido, array $data, array $detalles): PedidoMostrador
     {
-        if (! in_array($pedido->estado_pedido, [
-            PedidoMostrador::ESTADO_BORRADOR,
-            PedidoMostrador::ESTADO_CONFIRMADO,
+        if (in_array($pedido->estado_pedido, [
+            PedidoMostrador::ESTADO_CANCELADO,
+            PedidoMostrador::ESTADO_FACTURADO,
         ], true)) {
             throw new Exception("No se puede editar un pedido en estado '{$pedido->estado_pedido}'");
+        }
+
+        // Bloquear si hay cobros materializados activos. Borradores nunca los
+        // tienen. Cortesía total queda como estado_pago=pagado sin pagos
+        // activos — sigue editable.
+        if ($pedido->estado_pedido !== PedidoMostrador::ESTADO_BORRADOR
+            && $pedido->estado_pago !== PedidoMostrador::ESTADO_PAGO_PENDIENTE
+            && $pedido->pagos()->where('estado', PedidoMostradorPago::ESTADO_ACTIVO)->exists()) {
+            throw new Exception('No se puede editar un pedido con cobros registrados');
         }
 
         if (empty($detalles)) {
@@ -170,9 +183,12 @@ class PedidoMostradorService
         }
 
         return DB::connection('pymes_tenant')->transaction(function () use ($pedido, $data, $detalles) {
-            $estabaConfirmado = $pedido->estado_pedido === PedidoMostrador::ESTADO_CONFIRMADO;
+            // Stock queda descontado desde que el pedido se confirma; sigue
+            // descontado en en_preparacion/listo/entregado. Solo borradores
+            // no tienen stock comprometido.
+            $stockEstaDescontado = $pedido->estado_pedido !== PedidoMostrador::ESTADO_BORRADOR;
 
-            if ($estabaConfirmado) {
+            if ($stockEstaDescontado) {
                 $this->revertirStockPorPedido($pedido, motivo: 'Edición del pedido');
             }
 
@@ -223,7 +239,10 @@ class PedidoMostradorService
                 $this->crearDetalle($pedido, $detalle);
             }
 
-            if ($estabaConfirmado) {
+            if ($stockEstaDescontado) {
+                // Recargar relación: tras delete + crearDetalle la propiedad
+                // cacheada en el modelo quedó stale (vacía).
+                $pedido->load('detalles');
                 $this->descontarStockPorPedido($pedido);
             }
 
@@ -1223,20 +1242,42 @@ class PedidoMostradorService
     }
 
     /**
-     * Devuelve true si la sucursal tiene impresión automática activada. El
-     * caller (Livewire) consume `imprimirComanda($pedido)` y despacha al
-     * cliente QZ. Acá sólo dejamos rastro y publicamos el payload por evento
-     * para listeners que quieran reaccionar.
+     * Si la sucursal tiene impresión automática activada, el caller (Livewire)
+     * consume `imprimirComanda($pedido)` y despacha al cliente QZ. Acá dejamos
+     * rastro y avanzamos el estado del pedido a EN_PREPARACION, porque la
+     * emisión automática implica que cocina ya recibió el ticket.
      */
     protected function maybeImprimirComandaAutomatica(PedidoMostrador $pedido): void
     {
         $sucursal = Sucursal::find($pedido->sucursal_id);
-        if ($sucursal && $sucursal->imprime_comanda_automatico) {
-            Log::info('Pedido marcado para comanda automática', [
-                'pedido_id' => $pedido->id,
-                'sucursal_id' => $pedido->sucursal_id,
-            ]);
+        if (! $sucursal || ! $sucursal->imprime_comanda_automatico) {
+            return;
         }
+
+        Log::info('Pedido marcado para comanda automática', [
+            'pedido_id' => $pedido->id,
+            'sucursal_id' => $pedido->sucursal_id,
+        ]);
+
+        $this->avanzarAEnPreparacionSiCorresponde($pedido);
+    }
+
+    /**
+     * Avanza un pedido CONFIRMADO a EN_PREPARACION. Idempotente: si el pedido
+     * ya está en un estado posterior (LISTO, ENTREGADO, FACTURADO, CANCELADO)
+     * o aún en BORRADOR, no hace nada.
+     *
+     * Se invoca cuando se emite una comanda (sea automática al confirmar o
+     * manual desde el listado): la emisión implica que cocina ya empezó a
+     * preparar y el estado debe reflejarlo.
+     */
+    public function avanzarAEnPreparacionSiCorresponde(PedidoMostrador $pedido): void
+    {
+        if ($pedido->estado_pedido !== PedidoMostrador::ESTADO_CONFIRMADO) {
+            return;
+        }
+
+        $this->cambiarEstado($pedido, PedidoMostrador::ESTADO_EN_PREPARACION);
     }
 
     protected function pedidoTieneSaldoEnCC(PedidoMostrador $pedido): bool

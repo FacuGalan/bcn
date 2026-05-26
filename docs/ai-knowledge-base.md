@@ -1539,7 +1539,7 @@ Los roles Administrador y Super Administrador reciben todos estos permisos autom
 
 #### Campos agregados a tablas existentes
 
-- **`sucursales`**: `pedido_mostrador_activo` (boolean, habilita el modulo por sucursal), `pedido_mostrador_imprime_comanda_auto` (boolean, imprime comanda al confirmar), `pedido_mostrador_ultimo_numero` (int unsigned, contador atomico del numero correlativo).
+- **`sucursales`**: `pedido_mostrador_activo` (boolean, habilita el modulo por sucursal), `imprime_comanda_automatico` (boolean default 1, si es true al confirmar un pedido se avanza automaticamente a `en_preparacion` y se imprime comanda; tambien aplica en `reimprimirComanda()`), `pedido_mostrador_ultimo_numero` (int unsigned, contador atomico del numero correlativo).
 
 #### Feature: Invitaciones / Cortesias
 
@@ -1697,6 +1697,7 @@ WHERE vd.es_invitacion = 1;
 
 Metodos principales:
 - `crearPedido(array $data, array $detalles, bool $esBorrador): PedidoMostrador` -- Alta. Si no es borrador: asigna numero, descuenta stock, emite evento `PedidoCreado`, imprime comanda si esta configurado. Dispatcha broadcast `TIPO_CREADO` con `toOthers()`.
+- `actualizarPedido(PedidoMostrador $pedido, array $data, array $detalles): PedidoMostrador` -- Edicion de pedido existente. **Regla de edicion ampliada**: cualquier estado no terminal (`borrador`, `confirmado`, `en_preparacion`, `listo`, `entregado`) con `estado_pago = pendiente` (sin cobros activos) es editable. Lanza excepcion si el pedido tiene cobros materializados activos. Estrategia: revierte stock previo si `estado_pedido != borrador` (stock comprometido desde `confirmado`), borra detalles, recrea y vuelve a descontar stock. Recalcula totales y `estado_pago` al final.
 - `confirmarBorrador(PedidoMostrador $pedido): void` -- Convierte borrador en pedido confirmado. Asigna numero, descuenta stock. Dispatcha broadcast `TIPO_CREADO` con `toOthers()`.
 - `cambiarEstado(PedidoMostrador $pedido, string $nuevoEstado, ?string $observacion): void` -- Valida transicion contra `TRANSICIONES_PERMITIDAS`, actualiza timestamps, emite `PedidoEstadoCambiado`. Resetea `orden_kanban = id` (el pedido entra en la nueva columna segun orden natural). Dispatcha broadcast `TIPO_ESTADO_CAMBIADO` con `toOthers()`.
 - `confirmarPagoPlanificado(PedidoMostradorPago $pago): void` -- Materializa pago: crea `MovimientoCaja`, cambia estado a `activo`, recalcula `estado_pago`. Dispatcha broadcast `TIPO_PAGO_CAMBIADO` con `toOthers()` via `recalcularEstadoPago()`.
@@ -1707,6 +1708,11 @@ Metodos principales:
 - `reordenarColumna(int $sucursalId, ?int $cajaId, string $estado, array $idsOrdenados): void` -- Persiste el orden intra-columna del Kanban. Valida que `$estado` sea un estado de `ESTADOS_KANBAN`. Descarta IDs cuyo `estado_pedido` no coincida con `$estado` o cuya `caja_id` difiera de la activa (cuando hay caja activa). Renumera los IDs validos asignando valores decrecientes partiendo de `MAX(orden_kanban)` del estado + N, de modo que el primer ID del array quede con el valor mas alto (posicion 0 del DOM = top de la columna). Solo afecta drops dentro de la misma columna; los cross-column pasan por `cambiarEstado` sin tocar el orden.
 - `imprimirComanda(PedidoMostrador $pedido): array` -- Retorna payload para el evento `imprimir-comanda`.
 - `imprimirPrecuenta(PedidoMostrador $pedido): array` -- Retorna payload para el evento `imprimir-precuenta`.
+- `avanzarAEnPreparacionSiCorresponde(PedidoMostrador $pedido): void` -- **Nuevo**. Avanza el pedido de `confirmado` a `en_preparacion` si y solo si su `estado_pedido` actual es `ESTADO_CONFIRMADO`. Idempotente: en cualquier otro estado (listo, entregado, cancelado, etc.) no hace nada. Se invoca desde `maybeImprimirComandaAutomatica()` y desde `PedidosMostrador::reimprimirComanda()`.
+
+Metodos protegidos relevantes:
+- `maybeImprimirComandaAutomatica(PedidoMostrador $pedido): void` -- Si `sucursal.imprime_comanda_automatico = true`, llama a `avanzarAEnPreparacionSiCorresponde()` y loggea info. No retorna payload de impresion: la impresion en si la despacha el Livewire caller via el evento `imprimir-comanda`.
+- `guardConversionConPagosSuficientes(PedidoMostrador $pedido): void` -- Lanza excepcion si `total_cobrado + total_planificado < total_final`. Permite la conversion cuando los planificados cubren el resto (se materializan durante la conversion).
 
 Todas las operaciones con escrituras usan `DB::connection('pymes_tenant')->transaction()`.
 
@@ -1747,7 +1753,8 @@ Punto de entrada del drag and drop. Validaciones en orden:
 1. Verifica que el pedido pertenezca a la sucursal activa del usuario.
 2. Verifica que `$nuevoEstado` este dentro de `ESTADOS_KANBAN` (rechaza `cancelado` y `facturado`).
 3. Verifica que la transicion desde el estado actual del pedido sea legal segun `TRANSICIONES_PERMITIDAS`.
-4. Llama a `PedidoMostradorService::cambiarEstado()`.
+4. Si `$nuevoEstado === ESTADO_ENTREGADO`: llama `gatearPorCobro($pedido, 'entregar')`. Si el pedido tiene saldo, dispatcha `kanban-revertir` para revertir el drag visual y abre el cobro rapido; retorna sin cambiar el estado. Al completar el cobro, `reanudarAccionPendienteSiCobrado()` llama `entregarRapido()` que re-valida y ejecuta.
+5. Llama a `PedidoMostradorService::cambiarEstado()`.
 Ante cualquier rechazo (incluyendo excepciones del service), dispatcha `kanban-revertir` con `['pedidoId' => $pedidoId]` para que el frontend deshaga el cambio visual, y dispatcha un toast de error. No lanza excepciones al caller.
 
 **Propiedades de tiempo real**:
@@ -1761,10 +1768,15 @@ Ante cualquier rechazo (incluyendo excepciones del service), dispatcha `kanban-r
 - `marcarTodosVistos(): void` -- resetea `$nuevosCount` a 0, actualiza el snapshot con `snapshotIdsVistos()` y llama `resetPage()` para refrescar la lista.
 
 **Metodos de acciones rapidas**:
-- `entregarRapido(int $pedidoId): void` -- valida acceso a sucursal y que la transicion a `ESTADO_ENTREGADO` sea legal via `TRANSICIONES_PERMITIDAS`. Llama `PedidoMostradorService::cambiarEstado()`. Si la sucursal tiene conversion automatica configurada, la conversion ocurre como efecto del service. Dispatcha toast.
-- `cobrarRapido(int $pedidoId): void` -- requiere permiso `func.pedidos_mostrador.cobrar`. Flujo condicional en tres ramas: (1) si el pedido tiene pagos `planificados`, los confirma todos via `confirmarPagoPlanificado()` en loop; (2) si no hay planificados y `pedidoEsEditable()` retorna `true`, llama `abrirCobroRapido($pedidoId)` — monta `NuevoPedidoMostrador` con `modoCobroRapido=true`; (3) si no es editable, delega a `abrirCobrar($pedidoId)` (flujo modal estandar "Cobrar pendiente"). Dispatcha toast de resultado.
-- `pedidoEsEditable(PedidoMostrador $pedido): bool` -- helper publico. Retorna `true` si `estado_pedido === ESTADO_BORRADOR`, o si `estado_pedido === ESTADO_CONFIRMADO && estado_pago === ESTADO_PAGO_PENDIENTE`. Usado en la vista para mostrar/ocultar el boton Editar y en `cobrarRapido()` para decidir el flujo.
+- `entregarRapido(int $pedidoId): void` -- valida acceso a sucursal y que la transicion a `ESTADO_ENTREGADO` sea legal via `TRANSICIONES_PERMITIDAS`. Llama `gatearPorCobro($pedido, 'entregar')` antes de ejecutar: si el pedido tiene saldo pendiente, se intercepta el flujo y se abre el cobro rapido en su lugar (retorna `true` y `entregarRapido` aborta). Si el pedido esta cubierto, llama `PedidoMostradorService::cambiarEstado()`. Si la sucursal tiene conversion automatica configurada, la conversion ocurre como efecto del service. Dispatcha toast.
+- `cobrarRapido(int $pedidoId): void` -- requiere permiso `func.pedidos_mostrador.cobrar`. Flujo condicional: (1) si el pedido tiene pagos `planificados`, los confirma todos via `confirmarPagoPlanificado()` en loop; (2) si no hay planificados, llama siempre `abrirCobroRapido($pedidoId)` independientemente del estado del pedido. Dispatcha toast de resultado.
+- `pedidoEsEditable(PedidoMostrador $pedido): bool` -- helper publico. Retorna `true` si `estado_pedido` no es `cancelado` ni `facturado` Y `estado_pago === ESTADO_PAGO_PENDIENTE`. Cubre borrador, confirmado, en_preparacion, listo y entregado (mientras no haya cobros materializados). Usado en la vista para mostrar/ocultar el boton Editar.
+- `pedidoEstaCobrado(PedidoMostrador $pedido): bool` -- helper protegido. Retorna `true` si `total_cobrado + total_planificado >= total_final` o si `total_final <= 0.005`. Los planificados cuentan como cubiertos porque la conversion los materializa.
+- `gatearPorCobro(PedidoMostrador $pedido, string $accion): bool` -- interceptor de acciones que requieren pedido cobrado. Si `pedidoEstaCobrado()` es `true`, retorna `false` (el caller continua normal). Si hay saldo pendiente: almacena `$accionPendiente = $accion` y `$accionPendientePedidoId = $pedido->id`, llama `abrirCobroRapido()` y retorna `true` (el caller debe abortar). Los valores de `$accion` soportados: `'entregar'` y `'convertir'`.
+- `reanudarAccionPendienteSiCobrado(): void` -- ejecuta la accion almacenada en `$accionPendiente` si el pedido quedo cubierto tras el cobro. Limpia ambas propiedades antes de ejecutar. Si el pedido no quedo al 100%, descarta silenciosamente. Mapeado: `'entregar'` → `entregarRapido()`, `'convertir'` → `abrirConvertir()`.
+- `abrirConvertir(int $pedidoId): void` -- requiere permiso `func.pedidos_mostrador.convertir_venta`. Verifica que el pedido no sea terminal/borrador. Llama `gatearPorCobro($pedido, 'convertir')`: si el pedido tiene saldo sin cubrir, se intercepta y se abre el cobro rapido en lugar del modal de conversion; retorna sin abrir el modal. Si el pedido esta cubierto, abre el modal de confirmacion de conversion.
 - `abrirCobroRapido(int $pedidoId): void` -- verifica permiso `func.pedidos_mostrador.cobrar`, acceso a sucursal y que el pedido no este cancelado/facturado. Incrementa `$cobroRapidoKey`, asigna `$pedidoCobroRapidoId = $pedidoId`, cierra `$showCobrarModal` y `$showDetalleModal` si estaban abiertos.
+- `reimprimirComanda(int $pedidoId): void` -- obtiene el payload via `PedidoMostradorService::imprimirComanda()`, dispatcha el evento `imprimir-comanda` al frontend y luego llama `PedidoMostradorService::avanzarAEnPreparacionSiCorresponde($pedido->fresh())`. Si la sucursal tiene `imprime_comanda_automatico=true`, esto avanza el estado a `en_preparacion` automaticamente al reimprimir.
 - `reordenarColumna(string $estado, array $idsOrdenados): void` -- persiste el orden intra-columna del Kanban. Delega a `PedidoMostradorService::reordenarColumna()`. Ante error, dispatcha toast pero no lanza excepcion al caller. Al cambiar caja activa, los snapshots y `$nuevosCount` se resetean.
 
 **Metodo `render()` -- datos adicionales para Kanban**:
@@ -1784,6 +1796,11 @@ La raiz del componente usa `x-data` con las siguientes propiedades Alpine locale
 - `esInputActivo()` -- funcion Alpine que retorna `true` si el elemento con foco activo es un `INPUT`, `TEXTAREA` o `SELECT`. Usada como guard en los listeners de atajos de teclado para evitar disparos accidentales.
 
 La vista Lista esta envuelta en `x-show="vista === 'lista'"` y la vista Kanban en `x-show="vista === 'kanban'"`.
+
+**Badge de estado de pago clickeable (patron boton-inline-hover)**:
+Cuando el pedido tiene saldo pendiente (`total_cobrado < total_final - 0.005` o hay planificados) y el usuario tiene permiso `func.pedidos_mostrador.cobrar`, el badge de `estado_pago` se envuelve en un `<button>` con `wire:click="cobrarRapido({{ $pedido->id }})"`. El boton usa el patron `group` de Tailwind: un icono SVG de signo $ a la derecha del badge tiene clase `opacity-0 group-hover:opacity-100 transition-opacity`, haciendolo invisible por defecto y visible al pasar el cursor. Cuando el pedido esta pagado, el badge es un `<span>` normal sin accion (clase `cursor-default`). Este patron aplica tanto en la Vista Lista (columna de estado de pago) como en las cards del Kanban.
+
+Los badges de `estado_pedido` y `estado_pago` usan tamano `text-sm` (antes `text-xs`) para mayor legibilidad.
 
 **Header compacto (una sola fila, h-9)**:
 El header ya no contiene titulo ni descripcion del modulo. Contiene en una sola fila: contador de pedidos, badge de nuevos, boton de borradores (condicional), chips removibles de filtros activos, search inline (md+), boton filtros, boton refrescar con estado loading (`wire:loading.remove` / `wire:loading`), toggle lista/kanban y boton nuevo.
@@ -1856,19 +1873,23 @@ Props de control en `PedidosMostrador` -- cobro rapido:
 - `$pedidoCobroRapidoId` (?int) -- ID del pedido sobre el que se abrio el cobro rapido. `null` cuando no esta activo.
 - `$cobroRapidoKey` (int) -- counter para forzar remount al re-abrir.
 
+Props de control en `PedidosMostrador` -- accion pendiente de cobro (`#[Locked]`):
+- `$accionPendiente` (?string) -- accion interceptada que espera cobro completo: `'entregar'`, `'convertir'` o `null`. Marcada `#[Locked]` para prevenir manipulacion desde el cliente.
+- `$accionPendientePedidoId` (?int) -- ID del pedido sobre el que se intercepto la accion. Marcado `#[Locked]`.
+
 Metodos de apertura (editor full-screen):
 - `abrirModalNuevoPedido()` -- modo alta: `$pedidoIdEnEdicion = null`, incrementa key.
-- `abrirModalEditarPedido($id)` -- modo edicion: `$pedidoIdEnEdicion = $id`, incrementa key.
+- `abrirModalEditarPedido($id)` -- modo edicion: verifica que el pedido no sea terminal (cancelado/facturado) y que `estado_pago === pendiente` (o sea borrador). Si no cumple, dispatcha toast de error. Si cumple, asigna `$pedidoIdEnEdicion = $id`, incrementa key.
 
 Eventos escuchados (via `#[On]`) -- editor full-screen:
 - `cerrar-modal-pedido` -- despacha el sub-componente al cancelar. Cierra el modal sin refrescar.
 - `pedido-guardado` -- despacha el sub-componente tras alta o edicion exitosa. Cierra el modal y llama `$this->resetPage()` para refrescar la lista.
 
 Eventos escuchados (via `#[On]`) -- cobro rapido:
-- `cobro-rapido-completado` -- handler `trasCobroRapidoCompletado()`. Resetea `$pedidoCobroRapidoId = null` y llama `resetPage()`.
-- `cerrar-cobro-rapido` -- handler `trasCerrarCobroRapido()`. Resetea `$pedidoCobroRapidoId = null` sin refrescar.
+- `cobro-rapido-completado` -- handler `trasCobroRapidoCompletado()`. Resetea `$pedidoCobroRapidoId = null`, llama `reanudarAccionPendienteSiCobrado()` y luego `resetPage()`.
+- `cerrar-cobro-rapido` -- handler `trasCerrarCobroRapido()`. Resetea `$pedidoCobroRapidoId = null`, `$accionPendiente = null` y `$accionPendientePedidoId = null` sin refrescar.
 
-El modal de detalle agrega el boton **"Editar pedido"** cuando `$pedido->estado_pedido` esta en `{borrador, confirmado}`. El boton **"Editar"** rapido tambien aparece directamente en cada fila de la lista y en cada card del Kanban cuando `pedidoEsEditable()` es `true`.
+El modal de detalle agrega el boton **"Editar pedido"** cuando el pedido no es terminal y `estado_pago === pendiente` (o es borrador). El boton **"Editar"** rapido tambien aparece directamente en cada fila de la lista y en cada card del Kanban cuando `pedidoEsEditable()` es `true`.
 
 #### Componente Livewire: `NuevoPedidoMostrador` (Modal Full-Screen / Cobro Rapido)
 
@@ -1895,8 +1916,8 @@ El archivo tiene un wrapper raiz `<div data-livewire-root="nuevo-pedido-mostrado
 
 **Modos de operacion**:
 - Alta (`$pedidoId === null`): sin numero, sin descuento de stock al guardar borrador.
-- Edicion (`$pedidoId` provisto, `$modoCobroRapido = false`): precarga datos del pedido. Solo disponible para estados borrador y confirmado.
-- Cobro rapido (`$pedidoId` provisto, `$modoCobroRapido = true`): llama `iniciarCobroRapido()` al final de `mount()`. No carga catalogo tactil.
+- Edicion (`$pedidoId` provisto, `$modoCobroRapido = false`): precarga datos del pedido. Disponible para estados `borrador`, `confirmado`, `en_preparacion`, `listo` y `entregado`, siempre que `estado_pago === pendiente` (sin cobros materializados activos). En `cargarPedidoParaEditar()` se valida que el estado este en esta lista y que no haya pagos activos; si la condicion no se cumple, se dispatcha error y el componente no carga el pedido.
+- Cobro rapido (`$pedidoId` provisto, `$modoCobroRapido = true`): llama `iniciarCobroRapido()` al final de `mount()`. Aplica la misma validacion de estados que el modo edicion. No carga catalogo tactil.
 
 **Logica de beeper**: el campo `numero_beeper` es obligatorio al confirmar si `sucursal.usa_beepers = true`. No se valida al guardar como borrador.
 
