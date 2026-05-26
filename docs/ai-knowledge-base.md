@@ -1401,10 +1401,16 @@ Documento operativo principal del modulo.
 
 **Hook `booted::created`**: al crear un registro nuevo, setea `orden_kanban = id` via `static::created(fn($p) => $p->update(['orden_kanban' => $p->id]))`. Garantiza que los pedidos nuevos entren al Kanban con un orden natural consistente sin requerir logica extra en el service.
 
+**Constantes de estado de comanda** (no persisten en BD, se derivan de `detalles.comandado_at`):
+- `ESTADO_COMANDA_NO = 'no_comandado'` -- todos los detalles tienen `comandado_at = null`.
+- `ESTADO_COMANDA_PARCIAL = 'parcial'` -- hay mezcla: algunos `comandado_at != null` y otros `null`.
+- `ESTADO_COMANDA_TOTAL = 'comandado'` -- todos los detalles tienen `comandado_at != null`.
+
 **Accessors utiles**:
 - `nombre_cliente_final`: devuelve `cliente.nombre` si hay cliente asociado, sino `nombre_cliente_temporal`.
 - `total_cobrado`: suma de `monto_final` de pagos con `estado = activo`.
 - `total_planificado`: suma de `monto_final` de pagos con `estado = planificado`.
+- `estado_comanda`: calcula el estado de comanda derivado de la coleccion `detalles`. Si la relacion ya esta cargada la usa; si no, la consulta. Fallback `no_comandado` si el pedido no tiene detalles. Implementado como accessor PHP: `getEstadoComandaAttribute(): string`.
 
 #### Tabla: `pedidos_mostrador_detalle`
 Items del pedido. Espejo de `ventas_detalle`.
@@ -1423,6 +1429,7 @@ Items del pedido. Espejo de `ventas_detalle`.
 | `descuento_promocion` | decimal(12,2) | Descuento por promociones |
 | `subtotal` | decimal(12,2) | Subtotal del item |
 | `total` | decimal(12,2) | Total del item tras descuentos |
+| `comandado_at` | timestamp NULL | Momento en que este item fue enviado a cocina. NULL = no comandado todavia. Agregado en migracion `2026_05_26_..._add_comandado_at_to_pedidos_mostrador_detalle`. |
 | `es_invitacion` | boolean default false | Si este item es cortesia (invitado) |
 | `invitacion_motivo` | varchar(500) nullable | Motivo de la invitacion del item |
 | `invitado_por_usuario_id` | bigint nullable | FK logico a `config.users.id` — usuario que invito el item |
@@ -1539,7 +1546,7 @@ Los roles Administrador y Super Administrador reciben todos estos permisos autom
 
 #### Campos agregados a tablas existentes
 
-- **`sucursales`**: `pedido_mostrador_activo` (boolean, habilita el modulo por sucursal), `imprime_comanda_automatico` (boolean default 1, si es true al confirmar un pedido se avanza automaticamente a `en_preparacion` y se imprime comanda; tambien aplica en `reimprimirComanda()`), `pedido_mostrador_ultimo_numero` (int unsigned, contador atomico del numero correlativo).
+- **`sucursales`**: `pedido_mostrador_activo` (boolean, habilita el modulo por sucursal), `imprime_comanda_automatico` (boolean default 1, si es true al confirmar un pedido se llama `comandarPedido($pedido, 'todos')` automaticamente -- marca todos los detalles con `comandado_at = now()` y avanza el estado a `en_preparacion`), `pedido_mostrador_ultimo_numero` (int unsigned, contador atomico del numero correlativo).
 
 #### Feature: Invitaciones / Cortesias
 
@@ -1706,12 +1713,17 @@ Metodos principales:
 - `convertirEnVenta(PedidoMostrador $pedido): Venta` -- Materializa planificados, crea `Venta` con todos sus detalles y pagos, marca pedido como `facturado`. Dispatcha broadcast `TIPO_CONVERTIDO_VENTA` con `toOthers()`.
 - `agregarPago(PedidoMostrador $pedido, array $datosPago): PedidoMostradorPago` -- Agrega un pago al pedido. Si `$datosPago['planificado']` es `false`, crea `MovimientoCaja` inmediatamente (pago `activo`). Si es `true`, solo persiste el registro `planificado` sin movimiento de caja. Llama `recalcularEstadoPago()` al final. Dispatcha broadcast `TIPO_PAGO_CAMBIADO` con `toOthers()`.
 - `reordenarColumna(int $sucursalId, ?int $cajaId, string $estado, array $idsOrdenados): void` -- Persiste el orden intra-columna del Kanban. Valida que `$estado` sea un estado de `ESTADOS_KANBAN`. Descarta IDs cuyo `estado_pedido` no coincida con `$estado` o cuya `caja_id` difiera de la activa (cuando hay caja activa). Renumera los IDs validos asignando valores decrecientes partiendo de `MAX(orden_kanban)` del estado + N, de modo que el primer ID del array quede con el valor mas alto (posicion 0 del DOM = top de la columna). Solo afecta drops dentro de la misma columna; los cross-column pasan por `cambiarEstado` sin tocar el orden.
-- `imprimirComanda(PedidoMostrador $pedido): array` -- Retorna payload para el evento `imprimir-comanda`.
+- `comandarPedido(PedidoMostrador $pedido, string $alcance = 'todos'): array` -- **Metodo principal de comanda**. Orquesta: (1) marca `comandado_at = now()` en los detalles del alcance via `marcarDetallesComoComandados()`; (2) transiciona el pedido via `transicionarTrasComanda()`: CONFIRMADO → EN_PREPARACION (legal), LISTO/ENTREGADO → EN_PREPARACION (bypass con `forzarEstado()`), EN_PREPARACION/otros → sin cambio; (3) genera y retorna el payload `['escpos', 'html', 'tipo_documento' => 'comanda', 'pedido_id']` via `PlantillasComanda`. Constantes: `ALCANCE_COMANDA_TODOS = 'todos'`, `ALCANCE_COMANDA_NUEVOS = 'nuevos'`. Cuando `alcance='nuevos'`, solo procesa detalles con `comandado_at=null` y el ticket lleva header "AGREGADO". Lanza `Exception` si no hay detalles del alcance solicitado.
+- `imprimirComanda(PedidoMostrador $pedido): array` -- Wrapper de `comandarPedido($pedido, 'todos')`. Mantiene el contrato publico para callers externos. Retorna payload para el evento `imprimir-comanda`.
 - `imprimirPrecuenta(PedidoMostrador $pedido): array` -- Retorna payload para el evento `imprimir-precuenta`.
-- `avanzarAEnPreparacionSiCorresponde(PedidoMostrador $pedido): void` -- **Nuevo**. Avanza el pedido de `confirmado` a `en_preparacion` si y solo si su `estado_pedido` actual es `ESTADO_CONFIRMADO`. Idempotente: en cualquier otro estado (listo, entregado, cancelado, etc.) no hace nada. Se invoca desde `maybeImprimirComandaAutomatica()` y desde `PedidosMostrador::reimprimirComanda()`.
+- `avanzarAEnPreparacionSiCorresponde(PedidoMostrador $pedido): void` -- **Deprecado**. Wrapper de compat mantenido para callers externos. La logica real fue absorbida por `transicionarTrasComanda()` dentro de `comandarPedido()`. No usar internamente.
 
 Metodos protegidos relevantes:
-- `maybeImprimirComandaAutomatica(PedidoMostrador $pedido): void` -- Si `sucursal.imprime_comanda_automatico = true`, llama a `avanzarAEnPreparacionSiCorresponde()` y loggea info. No retorna payload de impresion: la impresion en si la despacha el Livewire caller via el evento `imprimir-comanda`.
+- `comandarPedido` usa tres helpers protegidos:
+  - `marcarDetallesComoComandados(PedidoMostrador $pedido, array $detalleIds): int` -- UPDATE masivo con `comandado_at = now()`. Refresca el timestamp aunque el detalle ya estuviera comandado (D5: reimpresion actualiza la fecha). Retorna count de filas afectadas.
+  - `transicionarTrasComanda(PedidoMostrador $pedido): void` -- CONFIRMADO → `cambiarEstado(EN_PREPARACION)` (transicion legal); LISTO/ENTREGADO → `forzarEstado(EN_PREPARACION, 're-comandado')` (bypass); cualquier otro estado no transiciona.
+  - `forzarEstado(PedidoMostrador $pedido, string $nuevoEstado, ?string $motivo): void` -- UPDATE directo sin validar `TRANSICIONES_PERMITIDAS`. Setea timestamp del estado destino. Registra `Log::info('Pedido estado forzado (bypass de transiciones)', ...)` con pedidoId, anterior, nuevo, motivo. Dispatcha broadcast `TIPO_ESTADO_CAMBIADO`. Solo uso interno.
+- `maybeImprimirComandaAutomatica(PedidoMostrador $pedido): void` -- Si `sucursal.imprime_comanda_automatico = true`, delega en `comandarPedido($pedido, 'todos')`. El payload retornado se descarta; la impresion fisica la dispara el Livewire caller via el evento `imprimir-comanda` al recargar la lista.
 - `guardConversionConPagosSuficientes(PedidoMostrador $pedido): void` -- Lanza excepcion si `total_cobrado + total_planificado < total_final`. Permite la conversion cuando los planificados cubren el resto (se materializan durante la conversion).
 
 Todas las operaciones con escrituras usan `DB::connection('pymes_tenant')->transaction()`.
@@ -1728,6 +1740,27 @@ Todas las operaciones con escrituras usan `DB::connection('pymes_tenant')->trans
 | `cancelarPedido()` | `TIPO_CANCELADO` |
 | `convertirEnVenta()` | `TIPO_CONVERTIDO_VENTA` |
 | `recalcularEstadoPago()` (siempre) | `TIPO_PAGO_CAMBIADO` |
+
+#### Service: `PlantillasComanda`
+
+`app/Services/Impresion/PlantillasComanda.php`
+
+Genera los payloads de impresion para documentos de cocina (comanda) y precuenta. Usada exclusivamente por `PedidoMostradorService::comandarPedido()` e `imprimirPrecuenta()`.
+
+Metodos:
+
+- `generarComandaESCPOS(PedidoMostrador $pedido, ?array $detalleIds = null, bool $esParcial = false): string`
+  - Si `$detalleIds` provisto: itera solo los detalles cuyo ID este en el array. Si `null`: itera todos los detalles.
+  - Si `$esParcial = true`: agrega un header destacado antes de la lista de items con el texto `*** AGREGADO ***`, centrado y en doble alto (secuencias ESC/POS: `\x1B\x61\x01` centrado + `\x1D\x21\x11` doble alto).
+  - Retorna string binario ESC/POS.
+- `generarComandaHTML(PedidoMostrador $pedido, ?array $detalleIds = null, bool $esParcial = false): string`
+  - Mismos parametros que la version ESC/POS.
+  - Si `$esParcial = true`: incluye `<div class="text-center text-2xl font-bold">*** AGREGADO ***</div>` antes de los items.
+  - Retorna string HTML para preview en pantalla o impresion via navegador.
+- `generarPrecuentaESCPOS(PedidoMostrador $pedido): string` -- precuenta completa en ESC/POS.
+- `generarPrecuentaHTML(PedidoMostrador $pedido): string` -- precuenta completa en HTML.
+
+**Nota de migracion de firma**: antes de este feature, `generarComandaESCPOS` y `generarComandaHTML` no aceptaban parametros adicionales. Los nuevos parametros son opcionales con defaults `null` y `false` respectivamente, manteniendo compat con callers existentes.
 
 #### Componente Livewire: `PedidosMostrador` (Lista + Kanban)
 
@@ -1753,8 +1786,7 @@ Punto de entrada del drag and drop. Validaciones en orden:
 1. Verifica que el pedido pertenezca a la sucursal activa del usuario.
 2. Verifica que `$nuevoEstado` este dentro de `ESTADOS_KANBAN` (rechaza `cancelado` y `facturado`).
 3. Verifica que la transicion desde el estado actual del pedido sea legal segun `TRANSICIONES_PERMITIDAS`.
-4. Si `$nuevoEstado === ESTADO_ENTREGADO`: llama `gatearPorCobro($pedido, 'entregar')`. Si el pedido tiene saldo, dispatcha `kanban-revertir` para revertir el drag visual y abre el cobro rapido; retorna sin cambiar el estado. Al completar el cobro, `reanudarAccionPendienteSiCobrado()` llama `entregarRapido()` que re-valida y ejecuta.
-5. Llama a `PedidoMostradorService::cambiarEstado()`.
+4. Llama a `PedidoMostradorService::cambiarEstado()`. No hay gate de cobro para la columna Entregado (RF-08): el drag a Entregado siempre procede si la transicion es legal.
 Ante cualquier rechazo (incluyendo excepciones del service), dispatcha `kanban-revertir` con `['pedidoId' => $pedidoId]` para que el frontend deshaga el cambio visual, y dispatcha un toast de error. No lanza excepciones al caller.
 
 **Propiedades de tiempo real**:
@@ -1768,15 +1800,18 @@ Ante cualquier rechazo (incluyendo excepciones del service), dispatcha `kanban-r
 - `marcarTodosVistos(): void` -- resetea `$nuevosCount` a 0, actualiza el snapshot con `snapshotIdsVistos()` y llama `resetPage()` para refrescar la lista.
 
 **Metodos de acciones rapidas**:
-- `entregarRapido(int $pedidoId): void` -- valida acceso a sucursal y que la transicion a `ESTADO_ENTREGADO` sea legal via `TRANSICIONES_PERMITIDAS`. Llama `gatearPorCobro($pedido, 'entregar')` antes de ejecutar: si el pedido tiene saldo pendiente, se intercepta el flujo y se abre el cobro rapido en su lugar (retorna `true` y `entregarRapido` aborta). Si el pedido esta cubierto, llama `PedidoMostradorService::cambiarEstado()`. Si la sucursal tiene conversion automatica configurada, la conversion ocurre como efecto del service. Dispatcha toast.
+- `entregarRapido(int $pedidoId): void` -- valida acceso a sucursal y que la transicion a `ESTADO_ENTREGADO` sea legal via `TRANSICIONES_PERMITIDAS`. NO llama `gatearPorCobro` (RF-08: entregar no requiere cobro). Llama directamente `PedidoMostradorService::cambiarEstado()`. Si la sucursal tiene conversion automatica configurada, la conversion ocurre como efecto del service. Dispatcha toast.
 - `cobrarRapido(int $pedidoId): void` -- requiere permiso `func.pedidos_mostrador.cobrar`. Flujo condicional: (1) si el pedido tiene pagos `planificados`, los confirma todos via `confirmarPagoPlanificado()` en loop; (2) si no hay planificados, llama siempre `abrirCobroRapido($pedidoId)` independientemente del estado del pedido. Dispatcha toast de resultado.
 - `pedidoEsEditable(PedidoMostrador $pedido): bool` -- helper publico. Retorna `true` si `estado_pedido` no es `cancelado` ni `facturado` Y `estado_pago === ESTADO_PAGO_PENDIENTE`. Cubre borrador, confirmado, en_preparacion, listo y entregado (mientras no haya cobros materializados). Usado en la vista para mostrar/ocultar el boton Editar.
 - `pedidoEstaCobrado(PedidoMostrador $pedido): bool` -- helper protegido. Retorna `true` si `total_cobrado + total_planificado >= total_final` o si `total_final <= 0.005`. Los planificados cuentan como cubiertos porque la conversion los materializa.
-- `gatearPorCobro(PedidoMostrador $pedido, string $accion): bool` -- interceptor de acciones que requieren pedido cobrado. Si `pedidoEstaCobrado()` es `true`, retorna `false` (el caller continua normal). Si hay saldo pendiente: almacena `$accionPendiente = $accion` y `$accionPendientePedidoId = $pedido->id`, llama `abrirCobroRapido()` y retorna `true` (el caller debe abortar). Los valores de `$accion` soportados: `'entregar'` y `'convertir'`.
-- `reanudarAccionPendienteSiCobrado(): void` -- ejecuta la accion almacenada en `$accionPendiente` si el pedido quedo cubierto tras el cobro. Limpia ambas propiedades antes de ejecutar. Si el pedido no quedo al 100%, descarta silenciosamente. Mapeado: `'entregar'` → `entregarRapido()`, `'convertir'` → `abrirConvertir()`.
+- `gatearPorCobro(PedidoMostrador $pedido, string $accion): bool` -- interceptor de acciones que requieren pedido cobrado. Unico caller activo: `abrirConvertir()` con `$accion = 'convertir'`. El arm `'entregar'` fue eliminado (RF-08). Si `pedidoEstaCobrado()` es `true`, retorna `false` (el caller continua normal). Si hay saldo pendiente: almacena `$accionPendiente = $accion` y `$accionPendientePedidoId = $pedido->id`, llama `abrirCobroRapido()` y retorna `true` (el caller debe abortar).
+- `reanudarAccionPendienteSiCobrado(): void` -- ejecuta la accion almacenada en `$accionPendiente` si el pedido quedo cubierto tras el cobro. Limpia ambas propiedades antes de ejecutar. Si el pedido no quedo al 100%, descarta silenciosamente. Unico caso mapeado activo: `'convertir'` → `abrirConvertir()`.
 - `abrirConvertir(int $pedidoId): void` -- requiere permiso `func.pedidos_mostrador.convertir_venta`. Verifica que el pedido no sea terminal/borrador. Llama `gatearPorCobro($pedido, 'convertir')`: si el pedido tiene saldo sin cubrir, se intercepta y se abre el cobro rapido en lugar del modal de conversion; retorna sin abrir el modal. Si el pedido esta cubierto, abre el modal de confirmacion de conversion.
 - `abrirCobroRapido(int $pedidoId): void` -- verifica permiso `func.pedidos_mostrador.cobrar`, acceso a sucursal y que el pedido no este cancelado/facturado. Incrementa `$cobroRapidoKey`, asigna `$pedidoCobroRapidoId = $pedidoId`, cierra `$showCobrarModal` y `$showDetalleModal` si estaban abiertos.
-- `reimprimirComanda(int $pedidoId): void` -- obtiene el payload via `PedidoMostradorService::imprimirComanda()`, dispatcha el evento `imprimir-comanda` al frontend y luego llama `PedidoMostradorService::avanzarAEnPreparacionSiCorresponde($pedido->fresh())`. Si la sucursal tiene `imprime_comanda_automatico=true`, esto avanza el estado a `en_preparacion` automaticamente al reimprimir.
+- `comandarPedido(int $pedidoId): void` -- flujo decisor de comanda. Lee el pedido con `detalles`. Calcula `$nuevos` (count de `comandado_at = null`) y `$comandados`. Si hay mezcla (`$nuevos > 0 && $comandados > 0`), abre el modal Comandar seteando las props de conteo. Si todos estan en el mismo estado (todos nuevos o todos comandados), llama directamente `ejecutarComandarPedido($pedido, 'todos')`.
+- `confirmarComandar(string $alcance): void` -- ejecuta tras la eleccion del operario en el modal. Valida alcance, lee `$pedidoComandarId`, llama `cerrarComandarModal()` y luego `ejecutarComandarPedido($pedido, $alcance)`.
+- `cerrarComandarModal(): void` -- resetea `$showComandarModal = false`, `$pedidoComandarId = null`, `$comandarNuevosCount = 0`, `$comandarComandadosCount = 0`.
+- `ejecutarComandarPedido(PedidoMostrador $pedido, string $alcance): void` -- metodo protegido. Llama `PedidoMostradorService::comandarPedido($pedido, $alcance)`, dispatcha el evento `imprimir-comanda` con el payload retornado, dispatcha toast informativo y llama `resetPage()`.
 - `reordenarColumna(string $estado, array $idsOrdenados): void` -- persiste el orden intra-columna del Kanban. Delega a `PedidoMostradorService::reordenarColumna()`. Ante error, dispatcha toast pero no lanza excepcion al caller. Al cambiar caja activa, los snapshots y `$nuevosCount` se resetean.
 
 **Metodo `render()` -- datos adicionales para Kanban**:
@@ -1874,8 +1909,14 @@ Props de control en `PedidosMostrador` -- cobro rapido:
 - `$cobroRapidoKey` (int) -- counter para forzar remount al re-abrir.
 
 Props de control en `PedidosMostrador` -- accion pendiente de cobro (`#[Locked]`):
-- `$accionPendiente` (?string) -- accion interceptada que espera cobro completo: `'entregar'`, `'convertir'` o `null`. Marcada `#[Locked]` para prevenir manipulacion desde el cliente.
+- `$accionPendiente` (?string) -- unico valor activo: `'convertir'`. El arm `'entregar'` fue eliminado (RF-08): entregar no requiere cobro previo. Marcada `#[Locked]` para prevenir manipulacion desde el cliente.
 - `$accionPendientePedidoId` (?int) -- ID del pedido sobre el que se intercepto la accion. Marcado `#[Locked]`.
+
+Props de control en `PedidosMostrador` -- modal Comandar:
+- `$showComandarModal` (bool) -- visibilidad del modal de eleccion de alcance de comanda.
+- `$pedidoComandarId` (?int) -- ID del pedido sobre el que se abrio el modal. NULL cuando el modal esta cerrado.
+- `$comandarNuevosCount` (int) -- cantidad de items con `comandado_at = null` en el pedido. Se muestra en el boton "Comandar solo los nuevos (N)".
+- `$comandarComandadosCount` (int) -- cantidad de items ya comandados. Se muestra en el boton "Comandar todo el pedido (N+M)".
 
 Metodos de apertura (editor full-screen):
 - `abrirModalNuevoPedido()` -- modo alta: `$pedidoIdEnEdicion = null`, incrementa key.
@@ -1950,6 +1991,8 @@ En modo cobro rapido delega a `procesarCobroRapido()` antes de la logica estanda
 
 **Atajo de teclado**: Esc cierra el modal (manejado en Alpine con `@keydown.escape.window`). Solo aplica en modo editor.
 
+**Badge "Nuevo" por item en edicion**: el partial compartido `resources/views/livewire/carrito/_detalle-items.blade.php` renderiza un badge ambar "Nuevo" al lado del nombre del articulo cuando se cumplen dos condiciones simultaneamente: (1) el array del item tiene la clave `comandado_at` (presente cuando se rehidrata un pedido existente via `detalleAItemCarrito()`; ausente en NuevaVenta que no tiene este campo); (2) `$item['comandado_at'] === null`. No se muestra si el pedido esta en estado borrador (la vista del editor lo suprimir pasando el `$pedidoId` como null o verificando el estado). Este mecanismo de guarda por `array_key_exists` asegura que NuevaVenta (que no rehidrata `comandado_at`) no vea el badge.
+
 #### Evento Broadcast: `PedidoMostradorBroadcast`
 
 `app/Events/Broadcasting/PedidoMostradorBroadcast.php` -- extiende `TenantBroadcastEvent`.
@@ -2022,6 +2065,30 @@ FROM {PREFIX}pedidos_mostrador p
 LEFT JOIN {PREFIX}pedidos_mostrador_pagos pp ON pp.pedido_mostrador_id = p.id
 WHERE p.id = ?
 GROUP BY p.id;
+```
+
+**Items no comandados de un pedido (pendientes de envio a cocina):**
+```sql
+SELECT *
+FROM {PREFIX}pedidos_mostrador_detalle
+WHERE pedido_mostrador_id = ?
+  AND comandado_at IS NULL;
+```
+
+**Estado de comanda derivado para un pedido (equivalente al accessor PHP):**
+```sql
+SELECT
+    pedido_mostrador_id,
+    COUNT(*) AS total_items,
+    SUM(CASE WHEN comandado_at IS NOT NULL THEN 1 ELSE 0 END) AS comandados,
+    CASE
+        WHEN SUM(CASE WHEN comandado_at IS NOT NULL THEN 1 ELSE 0 END) = 0 THEN 'no_comandado'
+        WHEN SUM(CASE WHEN comandado_at IS NOT NULL THEN 1 ELSE 0 END) = COUNT(*) THEN 'comandado'
+        ELSE 'parcial'
+    END AS estado_comanda
+FROM {PREFIX}pedidos_mostrador_detalle
+WHERE pedido_mostrador_id = ?
+GROUP BY pedido_mostrador_id;
 ```
 
 ---

@@ -1169,6 +1169,10 @@ class NuevoPedidoMostrador extends Component
             'precio_unitario_original' => $detalle->precio_unitario_original !== null
                 ? (float) $detalle->precio_unitario_original
                 : null,
+            // Comanda por detalle: si null, el item es "nuevo" (no enviado
+            // a cocina aún). Lo usa el partial del carrito para mostrar el
+            // badge "Nuevo" amber al lado del nombre.
+            'comandado_at' => $detalle->comandado_at?->toDateTimeString(),
         ];
     }
 

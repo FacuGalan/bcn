@@ -2386,6 +2386,7 @@ CREATE TABLE `{{PREFIX}}pedidos_mostrador_detalle` (
   `ajuste_manual_aplicado_por` bigint(20) unsigned DEFAULT NULL,
   `precio_sin_ajuste_manual` decimal(12,2) DEFAULT NULL,
   `pagado_con_puntos` tinyint(1) NOT NULL DEFAULT '0',
+  `comandado_at` timestamp NULL DEFAULT NULL COMMENT 'Momento en que el detalle fue enviado a cocina (null = no comandado)',
   `puntos_usados` int(10) unsigned NOT NULL DEFAULT '0',
   `iva_porcentaje` decimal(5,2) DEFAULT '0.00',
   `iva_monto` decimal(12,2) DEFAULT '0.00',

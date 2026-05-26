@@ -42,7 +42,7 @@ class PlantillasComanda
 
     // ==================== COMANDA ====================
 
-    public function generarComandaESCPOS(PedidoMostrador $pedido): string
+    public function generarComandaESCPOS(PedidoMostrador $pedido, ?array $detalleIds = null, bool $esParcial = false): string
     {
         $pedido->loadMissing(['detalles.articulo', 'detalles.opcionales', 'sucursal']);
         $sucursal = $pedido->sucursal ?? Sucursal::find($pedido->sucursal_id);
@@ -54,6 +54,16 @@ class PlantillasComanda
         $out .= 'Pedido #'.($pedido->numero ?? '-').self::LF;
         $out .= optional($pedido->fecha)->format('d/m/Y H:i').self::LF;
         $out .= str_repeat('-', 32).self::LF;
+
+        // Header parcial: comanda solo de items nuevos agregados a un pedido
+        // ya en preparacion. Doble alto + centrado para que cocina lo capte
+        // de inmediato y no produzca el ticket completo.
+        if ($esParcial) {
+            $out .= self::ALIGN_CENTER.self::BOLD_ON.self::SIZE_DOUBLE;
+            $out .= '*** AGREGADO ***'.self::LF;
+            $out .= self::SIZE_NORMAL.self::BOLD_OFF;
+            $out .= str_repeat('-', 32).self::LF;
+        }
 
         if (! empty($sucursal?->usa_beepers) && ! empty($pedido->numero_beeper)) {
             $out .= self::ALIGN_CENTER.self::BOLD_ON.self::SIZE_DOUBLE;
@@ -73,7 +83,11 @@ class PlantillasComanda
         }
         $out .= str_repeat('-', 32).self::LF;
 
-        foreach ($pedido->detalles as $detalle) {
+        $detallesAImprimir = $detalleIds !== null
+            ? $pedido->detalles->whereIn('id', $detalleIds)
+            : $pedido->detalles;
+
+        foreach ($detallesAImprimir as $detalle) {
             $nombre = $detalle->es_concepto
                 ? ($detalle->concepto_descripcion ?? 'Concepto')
                 : ($detalle->articulo?->nombre ?? "Artículo #{$detalle->articulo_id}");
@@ -98,7 +112,7 @@ class PlantillasComanda
         return $out;
     }
 
-    public function generarComandaHTML(PedidoMostrador $pedido): string
+    public function generarComandaHTML(PedidoMostrador $pedido, ?array $detalleIds = null, bool $esParcial = false): string
     {
         $pedido->loadMissing(['detalles.articulo', 'detalles.opcionales', 'sucursal']);
         $sucursal = $pedido->sucursal ?? Sucursal::find($pedido->sucursal_id);
@@ -121,8 +135,16 @@ class PlantillasComanda
             $identRow = '<div>Identificador: '.e($pedido->identificador).'</div>';
         }
 
+        $parcialBlock = $esParcial
+            ? '<div style="text-align:center;font-weight:bold;font-size:1.5em;border-top:2px solid #000;border-bottom:2px solid #000;padding:4px 0;margin:4px 0">*** AGREGADO ***</div>'
+            : '';
+
+        $detallesAImprimir = $detalleIds !== null
+            ? $pedido->detalles->whereIn('id', $detalleIds)
+            : $pedido->detalles;
+
         $items = '';
-        foreach ($pedido->detalles as $detalle) {
+        foreach ($detallesAImprimir as $detalle) {
             $nombre = $detalle->es_concepto
                 ? ($detalle->concepto_descripcion ?? 'Concepto')
                 : ($detalle->articulo?->nombre ?? "Artículo #{$detalle->articulo_id}");
@@ -144,6 +166,7 @@ class PlantillasComanda
   <div style="text-align:center;font-weight:bold;font-size:1.2em">{$titulo}</div>
   <div style="text-align:center">Pedido #{$numero}</div>
   <div style="text-align:center">{$fecha}</div>
+  {$parcialBlock}
   {$beeperBlock}
   <hr>
   {$clienteRow}

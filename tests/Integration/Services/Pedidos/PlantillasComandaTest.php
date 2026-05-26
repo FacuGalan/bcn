@@ -106,6 +106,92 @@ class PlantillasComandaTest extends TestCase
         $this->assertStringContainsString('1.234,50', $html);
     }
 
+    /** CA-21 — filtrado por detalleIds en ESC/POS */
+    public function test_comanda_escpos_filtra_por_detalle_ids(): void
+    {
+        $pedido = $this->pedidoConDosItems('Hamburguesa', 'Bebida');
+        [$d1, $d2] = [$pedido->detalles[0]->id, $pedido->detalles[1]->id];
+
+        $contenido = $this->plantillas->generarComandaESCPOS($pedido, detalleIds: [$d1]);
+
+        $this->assertStringContainsString('Hamburguesa', $contenido);
+        $this->assertStringNotContainsString('Bebida', $contenido);
+    }
+
+    /** CA-22 — header AGREGADO cuando esParcial=true (ESC/POS y HTML) */
+    public function test_comanda_parcial_incluye_header_agregado(): void
+    {
+        $pedido = $this->pedidoConItem('Hamburguesa', 1);
+
+        $escpos = $this->plantillas->generarComandaESCPOS($pedido, esParcial: true);
+        $html = $this->plantillas->generarComandaHTML($pedido, esParcial: true);
+
+        $this->assertStringContainsString('*** AGREGADO ***', $escpos);
+        $this->assertStringContainsString('*** AGREGADO ***', $html);
+    }
+
+    /** CA-23 — sin header AGREGADO cuando esParcial=false (default) */
+    public function test_comanda_no_parcial_no_incluye_header_agregado(): void
+    {
+        $pedido = $this->pedidoConItem('Hamburguesa', 1);
+
+        $escpos = $this->plantillas->generarComandaESCPOS($pedido);
+        $html = $this->plantillas->generarComandaHTML($pedido);
+
+        $this->assertStringNotContainsString('AGREGADO', $escpos);
+        $this->assertStringNotContainsString('AGREGADO', $html);
+    }
+
+    public function test_comanda_html_filtra_por_detalle_ids(): void
+    {
+        $pedido = $this->pedidoConDosItems('Pizza', 'Vino');
+        [$d1, $d2] = [$pedido->detalles[0]->id, $pedido->detalles[1]->id];
+
+        $html = $this->plantillas->generarComandaHTML($pedido, detalleIds: [$d2]);
+
+        $this->assertStringNotContainsString('Pizza', $html);
+        $this->assertStringContainsString('Vino', $html);
+    }
+
+    private function pedidoConDosItems(string $item1, string $item2): PedidoMostrador
+    {
+        $pedido = PedidoMostrador::create([
+            'numero' => 99,
+            'sucursal_id' => $this->sucursalId,
+            'usuario_id' => 1,
+            'fecha' => now(),
+            'estado_pedido' => PedidoMostrador::ESTADO_CONFIRMADO,
+            'estado_pago' => PedidoMostrador::ESTADO_PAGO_PENDIENTE,
+            'subtotal' => 1000,
+            'iva' => 0,
+            'descuento' => 0,
+            'total' => 1000,
+            'total_final' => 1000,
+            'ajuste_forma_pago' => 0,
+        ]);
+
+        PedidoMostradorDetalle::create([
+            'pedido_mostrador_id' => $pedido->id,
+            'es_concepto' => true,
+            'concepto_descripcion' => $item1,
+            'cantidad' => 1,
+            'precio_unitario' => 500,
+            'subtotal' => 500,
+            'total' => 500,
+        ]);
+        PedidoMostradorDetalle::create([
+            'pedido_mostrador_id' => $pedido->id,
+            'es_concepto' => true,
+            'concepto_descripcion' => $item2,
+            'cantidad' => 1,
+            'precio_unitario' => 500,
+            'subtotal' => 500,
+            'total' => 500,
+        ]);
+
+        return $pedido->fresh(['detalles', 'sucursal']);
+    }
+
     private function pedidoConItem(string $nombreItem, float $cantidad, float $totalFinal = 1000): PedidoMostrador
     {
         $pedido = PedidoMostrador::create([
