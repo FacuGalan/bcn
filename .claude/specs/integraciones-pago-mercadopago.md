@@ -784,16 +784,20 @@ Claves nuevas (en `lang/es.json`, `lang/en.json`, `lang/pt.json`, orden alfabét
 
 > Cada fase produce código funcional y testeable. NO se mergea fase siguiente hasta que la anterior esté verde.
 
-### Fase 1: Esqueleto BD + Modelos + Catálogo [PENDIENTE]
+### Fase 1: Esqueleto BD + Modelos + Catálogo [COMPLETO — 2026-05-26]
 
-1. Migraciones 1-5 + 6 + 7 (todas menos las de `ventas` y `pedido_mostrador`).
-2. Modelos PHP: `IntegracionPago`, `IntegracionPagoSucursal` (con encriptación), `IntegracionPagoTransaccion`, `IntegracionPagoEvento`, `MercadoPagoCollectorIndex`.
-3. Permisos + menu_item.
-4. Semilla en `ProvisionComercioCommand`: fila MP, conceptos actualizados, permisos.
-5. Test unitarios de modelos (encriptación, scopes, relaciones).
-6. Regenerar `database/sql/tenant_tables.sql`.
+1. ✅ Migración bundle tenant (4 tablas + columna `permite_integracion` en `conceptos_pago`) consolidada en un solo archivo siguiendo patrón `2026_05_11_170438_create_pedidos_mostrador_tables.php` por interdependencia de FKs.
+2. ✅ Migración config para `mercadopago_collector_index`.
+3. ✅ Migración de 4 permisos funcionales (`integraciones_pago.administrar`, `.ver_transacciones`, `.confirmar_manual`, `.cancelar`) asignados a Administrador y Super Administrador.
+4. ✅ 5 modelos: `IntegracionPago`, `IntegracionPagoSucursal` (con cast `encrypted` para credenciales + hooks que sincronizan índice global ante create/update/delete/cambio de user_id), `IntegracionPagoTransaccion` (polimórfica), `IntegracionPagoEvento` (append-only, sin updated_at), `MercadoPagoCollectorIndex` (config DB).
+5. ✅ Contrato `IntegracionPagoGatewayContract` definido (implementación en Fase 3).
+6. ✅ `ProvisionComercioCommand` actualizado: nuevo paso `seedIntegracionesPago` (siembra MP en catálogo) + array de conceptos actualizado con `permite_integracion` (true para `wallet` y `transferencia`).
+7. ✅ `database/sql/tenant_tables.sql` regenerado (4 tablas insertadas en posición alfabética, verificado provisioning OK contra BD limpia con 116 tablas).
+8. ✅ 16 tests en `IntegracionPagoTest` (42 assertions) — encriptación, scopes, hooks de sincronización del índice, polimorfismo, helpers de estado, integridad timestamps.
+9. ✅ Lint Pint OK en 12 archivos modificados.
+10. ✅ `tests/Traits/WithTenant.php` actualizado con las 4 tablas nuevas en `$testTables` para limpieza selectiva entre tests.
 
-**Entregable**: tablas creadas, modelos funcionando, NO hay UI todavía.
+**Entregable**: tablas creadas, modelos funcionando con encriptación at-rest y sincronización multi-tenant del índice, semillas listas para comercios nuevos, permisos asignados, todo verificado por tests.
 
 ### Fase 2: UI de Configuración + Service Sucursal [PENDIENTE]
 

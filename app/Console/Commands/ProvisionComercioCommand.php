@@ -139,11 +139,15 @@ class ProvisionComercioCommand extends Command
             $this->seedMonedas();
 
             // ── Paso 13: Seed — Conceptos Movimiento Cuenta ──
-            $this->info('[12/13] Creando conceptos de movimiento de cuenta...');
+            $this->info('[12/14] Creando conceptos de movimiento de cuenta...');
             $this->seedConceptosMovimientoCuenta();
 
-            // ── Paso 14: Seed — Roles, Permisos y Asignación ──
-            $this->info('[13/13] Creando roles, permisos y asignando rol admin...');
+            // ── Paso 14: Seed — Catálogo de Integraciones de Pago ──
+            $this->info('[13/14] Sembrando catálogo de integraciones de pago...');
+            $this->seedIntegracionesPago();
+
+            // ── Paso 15: Seed — Roles, Permisos y Asignación ──
+            $this->info('[14/14] Creando roles, permisos y asignando rol admin...');
             $this->seedRolesYPermisos($user);
 
             // ── Marcar migraciones como ejecutadas ──
@@ -350,18 +354,18 @@ class ProvisionComercioCommand extends Command
 
         // ── Conceptos de Pago (7) ──
         $conceptos = [
-            ['codigo' => 'efectivo',         'nombre' => 'Efectivo',          'permite_cuotas' => false, 'permite_vuelto' => true,  'orden' => 1],
-            ['codigo' => 'tarjeta_debito',   'nombre' => 'Tarjeta de Débito', 'permite_cuotas' => false, 'permite_vuelto' => false, 'orden' => 2],
-            ['codigo' => 'tarjeta_credito',  'nombre' => 'Tarjeta de Crédito', 'permite_cuotas' => true,  'permite_vuelto' => false, 'orden' => 3],
-            ['codigo' => 'transferencia',    'nombre' => 'Transferencia',     'permite_cuotas' => false, 'permite_vuelto' => false, 'orden' => 4],
-            ['codigo' => 'wallet',           'nombre' => 'Billetera Virtual', 'permite_cuotas' => false, 'permite_vuelto' => false, 'orden' => 5],
-            ['codigo' => 'cheque',           'nombre' => 'Cheque',            'permite_cuotas' => false, 'permite_vuelto' => false, 'orden' => 6],
-            ['codigo' => 'credito_cliente',  'nombre' => 'Crédito Cliente',   'permite_cuotas' => false, 'permite_vuelto' => false, 'orden' => 7],
+            ['codigo' => 'efectivo',         'nombre' => 'Efectivo',          'permite_cuotas' => false, 'permite_vuelto' => true,  'permite_integracion' => false, 'orden' => 1],
+            ['codigo' => 'tarjeta_debito',   'nombre' => 'Tarjeta de Débito', 'permite_cuotas' => false, 'permite_vuelto' => false, 'permite_integracion' => false, 'orden' => 2],
+            ['codigo' => 'tarjeta_credito',  'nombre' => 'Tarjeta de Crédito', 'permite_cuotas' => true,  'permite_vuelto' => false, 'permite_integracion' => false, 'orden' => 3],
+            ['codigo' => 'transferencia',    'nombre' => 'Transferencia',     'permite_cuotas' => false, 'permite_vuelto' => false, 'permite_integracion' => true,  'orden' => 4],
+            ['codigo' => 'wallet',           'nombre' => 'Billetera Virtual', 'permite_cuotas' => false, 'permite_vuelto' => false, 'permite_integracion' => true,  'orden' => 5],
+            ['codigo' => 'cheque',           'nombre' => 'Cheque',            'permite_cuotas' => false, 'permite_vuelto' => false, 'permite_integracion' => false, 'orden' => 6],
+            ['codigo' => 'credito_cliente',  'nombre' => 'Crédito Cliente',   'permite_cuotas' => false, 'permite_vuelto' => false, 'permite_integracion' => false, 'orden' => 7],
             // Concepto interno (no visible en selector de cobro): pagos hechos canjeando
             // puntos del programa de fidelización. Se usa con la FormaPago "CANJE_PUNTOS"
             // (solo_sistema=true) creada abajo. Mantener sincronizado con la migración
             // 2026_05_07_140000 si se cambia.
-            ['codigo' => 'canje_puntos',     'nombre' => 'Canje de Puntos',   'permite_cuotas' => false, 'permite_vuelto' => false, 'orden' => 8],
+            ['codigo' => 'canje_puntos',     'nombre' => 'Canje de Puntos',   'permite_cuotas' => false, 'permite_vuelto' => false, 'permite_integracion' => false, 'orden' => 8],
         ];
 
         foreach ($conceptos as $c) {
@@ -730,5 +734,37 @@ class ProvisionComercioCommand extends Command
         }
 
         $this->info("    Migraciones marcadas: {$migrationFiles->count()}");
+    }
+
+    /**
+     * Siembra el catálogo de integraciones de pago disponibles para el comercio.
+     * Por ahora solo MercadoPago. Futuros proveedores (MODO, Cuenta DNI, PayPal)
+     * se agregan acá + en migración + en el Gateway PHP.
+     */
+    protected function seedIntegracionesPago(): void
+    {
+        $now = now();
+        $db = DB::connection('pymes_tenant');
+
+        $integraciones = [
+            [
+                'codigo' => 'mercadopago',
+                'nombre' => 'Mercado Pago',
+                'descripcion' => 'Cobros con Mercado Pago: QR dinámico (monto fijo) y QR estático (monto libre).',
+                'modos_disponibles' => json_encode(['qr_dinamico', 'qr_estatico']),
+                'gateway_class' => \App\Services\IntegracionesPago\MercadoPagoGateway::class,
+                'activo' => true,
+                'orden' => 1,
+            ],
+        ];
+
+        foreach ($integraciones as $integ) {
+            $db->table('integraciones_pago')->insert(array_merge($integ, [
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]));
+        }
+
+        $this->info('    Integraciones cargadas: '.count($integraciones));
     }
 }

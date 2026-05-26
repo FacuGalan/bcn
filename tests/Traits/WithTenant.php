@@ -81,6 +81,10 @@ trait WithTenant
         'movimientos_puntos',
         'configuracion_puntos',
         'configuracion_puntos_sucursales',
+        'integraciones_pago_eventos',
+        'integraciones_pago_transacciones',
+        'integraciones_pago_sucursales',
+        'integraciones_pago',
     ];
 
     protected function setUpTenant(): void

@@ -1083,6 +1083,108 @@ CREATE TABLE `{{PREFIX}}impresora_tipo_documento` (
   KEY `idx_itd_asignacion` (`impresora_sucursal_caja_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}listas_precios`;
+DROP TABLE IF EXISTS `{{PREFIX}}integraciones_pago`;
+CREATE TABLE `{{PREFIX}}integraciones_pago` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `codigo` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Slug único: mercadopago, modo, paypal, ...',
+  `nombre` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `descripcion` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `modos_disponibles` json NOT NULL COMMENT 'Lista de modos soportados: qr_dinamico, qr_estatico, link, point, ...',
+  `gateway_class` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'FQCN del Gateway PHP que implementa IntegracionPagoGatewayContract',
+  `activo` tinyint(1) NOT NULL DEFAULT '1',
+  `orden` int NOT NULL DEFAULT '0',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_intp_codigo` (`codigo`),
+  KEY `idx_intp_activo` (`activo`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `{{PREFIX}}integraciones_pago_sucursales`;
+CREATE TABLE `{{PREFIX}}integraciones_pago_sucursales` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `integracion_pago_id` bigint unsigned NOT NULL,
+  `sucursal_id` bigint unsigned NOT NULL,
+  `modo` enum('test','produccion') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'test' COMMENT 'Cuál set de credenciales usar',
+  `access_token_produccion` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Encriptado con Crypt::encryptString',
+  `access_token_test` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Encriptado con Crypt::encryptString',
+  `public_key_produccion` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `public_key_test` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_id_externo` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ID de usuario en el proveedor (user_id MP). Clave para resolver webhooks.',
+  `webhook_secret` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Encriptado. Para verificar firma x-signature del webhook.',
+  `config_adicional` json DEFAULT NULL COMMENT 'Campos específicos del proveedor (qr_estatico_url, store_id, etc.)',
+  `timeout_segundos` int unsigned NOT NULL DEFAULT '300' COMMENT 'Timeout cobro sincrónico (default 5 min)',
+  `activo` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_ips_integracion_sucursal` (`integracion_pago_id`,`sucursal_id`),
+  KEY `idx_ips_sucursal` (`sucursal_id`),
+  KEY `idx_ips_user_id_externo` (`user_id_externo`),
+  KEY `idx_ips_activo` (`activo`),
+  CONSTRAINT `{{PREFIX}}fk_ips_integracion` FOREIGN KEY (`integracion_pago_id`) REFERENCES `{{PREFIX}}integraciones_pago` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_ips_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `{{PREFIX}}integraciones_pago_transacciones`;
+CREATE TABLE `{{PREFIX}}integraciones_pago_transacciones` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `integracion_pago_sucursal_id` bigint unsigned NOT NULL,
+  `forma_pago_id` bigint unsigned NOT NULL,
+  `sucursal_id` bigint unsigned NOT NULL COMMENT 'Denormalizado: facilita queries de matching QR estático',
+  `caja_id` bigint unsigned DEFAULT NULL COMMENT 'Denormalizado para reportes',
+  `usuario_iniciador_id` bigint unsigned NOT NULL COMMENT 'FK lógico cross-DB a config.users.id',
+  `modo_usado` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'qr_dinamico, qr_estatico, link, point, ...',
+  `monto` decimal(15,2) NOT NULL,
+  `moneda_id` bigint unsigned DEFAULT NULL,
+  `external_reference` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Ref que enviamos al gateway (para matching QR dinámico)',
+  `external_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'payment_id del proveedor al confirmar',
+  `qr_data` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Base64 PNG o string del QR',
+  `link_pago` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'URL si modo link (futuro)',
+  `estado` enum('pendiente','confirmado','confirmado_manual','fallido','expirado','cancelado','sin_match') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pendiente',
+  `expira_en` timestamp NULL DEFAULT NULL COMMENT 'created_at + timeout_segundos. NULL para QR estático sin expiración estricta.',
+  `confirmado_en` timestamp NULL DEFAULT NULL,
+  `payload_respuesta` json DEFAULT NULL COMMENT 'Respuesta del gateway al iniciar el cobro',
+  `metadata` json DEFAULT NULL COMMENT 'Datos extra (motivo confirmación manual, etc.)',
+  `cobrable_type` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'FQCN del cobrable: App\\Models\\Venta, App\\Models\\PedidoMostrador, ...',
+  `cobrable_id` bigint unsigned NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_ipt_external_reference` (`external_reference`),
+  KEY `idx_ipt_estado_expira` (`estado`,`expira_en`),
+  KEY `idx_ipt_matching_qr_estatico` (`integracion_pago_sucursal_id`,`estado`,`monto`,`created_at`),
+  KEY `idx_ipt_cobrable` (`cobrable_type`,`cobrable_id`),
+  KEY `idx_ipt_sucursal` (`sucursal_id`),
+  KEY `idx_ipt_caja` (`caja_id`),
+  KEY `idx_ipt_external_id` (`external_id`),
+  KEY `idx_ipt_forma_pago` (`forma_pago_id`),
+  KEY `{{PREFIX}}fk_ipt_moneda` (`moneda_id`),
+  CONSTRAINT `{{PREFIX}}fk_ipt_caja` FOREIGN KEY (`caja_id`) REFERENCES `{{PREFIX}}cajas` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_ipt_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`),
+  CONSTRAINT `{{PREFIX}}fk_ipt_integracion_sucursal` FOREIGN KEY (`integracion_pago_sucursal_id`) REFERENCES `{{PREFIX}}integraciones_pago_sucursales` (`id`),
+  CONSTRAINT `{{PREFIX}}fk_ipt_moneda` FOREIGN KEY (`moneda_id`) REFERENCES `{{PREFIX}}monedas` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_ipt_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `{{PREFIX}}integraciones_pago_eventos`;
+CREATE TABLE `{{PREFIX}}integraciones_pago_eventos` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `transaccion_id` bigint unsigned DEFAULT NULL COMMENT 'NULL si webhook llegó sin match a ninguna transacción',
+  `integracion_pago_sucursal_id` bigint unsigned DEFAULT NULL,
+  `evento` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'creado, iniciado_en_gateway, webhook_recibido, confirmado, confirmado_manual, fallido, expirado, cancelado, sin_match, error',
+  `payload_externo` json DEFAULT NULL COMMENT 'Payload del proveedor (webhook, respuesta API)',
+  `metadata` json DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_ipe_transaccion` (`transaccion_id`),
+  KEY `idx_ipe_integracion_sucursal` (`integracion_pago_sucursal_id`),
+  KEY `idx_ipe_evento` (`evento`),
+  KEY `idx_ipe_created` (`created_at`),
+  CONSTRAINT `{{PREFIX}}fk_ipe_integracion_sucursal` FOREIGN KEY (`integracion_pago_sucursal_id`) REFERENCES `{{PREFIX}}integraciones_pago_sucursales` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_ipe_transaccion` FOREIGN KEY (`transaccion_id`) REFERENCES `{{PREFIX}}integraciones_pago_transacciones` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `{{PREFIX}}listas_precios` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `sucursal_id` bigint(20) unsigned NOT NULL COMMENT 'Sucursal a la que pertenece',
