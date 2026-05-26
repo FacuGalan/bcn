@@ -1059,6 +1059,7 @@
     "El número no puede superar 99999.": "The number cannot exceed 99999.",
     "El operador ingresa manualmente el monto inicial al abrir el turno": "The operator manually enters the initial amount when opening the shift",
     "El pago quedará marcado como error y no podrá reintentarse automáticamente. Ingresá el motivo.": "The payment will be marked as error and cannot be retried automatically. Enter the reason.",
+    "El pedido en estado ':estado' no acepta cobros": "Order in status ':estado' does not accept payments",
     "El porcentaje de descuento debe estar entre 1 y 100": "The discount percentage must be between 1 and 100",
     "El porcentaje no puede ser mayor a 100%": "The percentage cannot be greater than 100%",
     "El porcentaje no puede superar 100%": "Percentage cannot exceed 100%",

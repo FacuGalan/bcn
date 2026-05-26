@@ -1059,6 +1059,7 @@
     "El número no puede superar 99999.": "El número no puede superar 99999.",
     "El operador ingresa manualmente el monto inicial al abrir el turno": "El operador ingresa manualmente el monto inicial al abrir el turno",
     "El pago quedará marcado como error y no podrá reintentarse automáticamente. Ingresá el motivo.": "El pago quedará marcado como error y no podrá reintentarse automáticamente. Ingresá el motivo.",
+    "El pedido en estado ':estado' no acepta cobros": "El pedido en estado ':estado' no acepta cobros",
     "El porcentaje de descuento debe estar entre 1 y 100": "El porcentaje de descuento debe estar entre 1 y 100",
     "El porcentaje no puede ser mayor a 100%": "El porcentaje no puede ser mayor a 100%",
     "El porcentaje no puede superar 100%": "El porcentaje no puede superar 100%",

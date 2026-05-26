@@ -165,6 +165,76 @@ class PedidoMostradorParidadVentaTest extends TestCase
     }
 
     /**
+     * Regresión: editar un pedido EN_PREPARACION debe revertir el stock
+     * previo (descontado al confirmar) y volver a descontar la nueva
+     * cantidad. Antes el redescuento estaba gobernado por "estabaConfirmado",
+     * que dejaba fuera los estados intermedios.
+     */
+    public function test_actualizar_pedido_en_preparacion_ajusta_stock_correctamente(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+        $stock = \App\Models\Stock::where('articulo_id', $articulo->id)
+            ->where('sucursal_id', $this->sucursalId)
+            ->first();
+
+        $pedido = $this->service->crearPedido(
+            data: $this->datosBaseDelPedido(total: 1000),
+            detalles: [$this->detalleDe($articulo, cantidad: 2, precioUnitario: 500)],
+            esBorrador: false,
+        );
+
+        $this->assertEquals(48.0, (float) $stock->fresh()->cantidad, 'Confirmar descontó 2 unidades');
+
+        $pedido->update(['estado_pedido' => PedidoMostrador::ESTADO_EN_PREPARACION]);
+
+        // Editar duplicando la cantidad: debe revertir 2 y descontar 5 ⇒ 50 - 5 = 45.
+        $this->service->actualizarPedido(
+            $pedido,
+            data: $this->datosBaseDelPedido(total: 2500),
+            detalles: [$this->detalleDe($articulo, cantidad: 5, precioUnitario: 500)],
+        );
+
+        $this->assertEquals(45.0, (float) $stock->fresh()->cantidad, 'Stock final = 50 - 5 (no acumulación)');
+    }
+
+    /**
+     * Regresión: actualizarPedido debe aceptar pedidos en estados
+     * intermedios (en_preparacion, listo, entregado) mientras no tengan
+     * cobros materializados. Antes lanzaba excepción "no se puede editar"
+     * para todo lo que no fuera borrador/confirmado.
+     */
+    public function test_actualizar_pedido_acepta_estados_intermedios_sin_cobros(): void
+    {
+        foreach ([
+            PedidoMostrador::ESTADO_EN_PREPARACION,
+            PedidoMostrador::ESTADO_LISTO,
+            PedidoMostrador::ESTADO_ENTREGADO,
+        ] as $estado) {
+            $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+            $pedido = $this->service->crearPedido(
+                data: $this->datosBaseDelPedido(total: 1000),
+                detalles: [$this->detalleDe($articulo, cantidad: 1, precioUnitario: 1000)],
+                esBorrador: false,
+            );
+
+            // Forzar el estado bypaseando la máquina de transiciones del service.
+            $pedido->update(['estado_pedido' => $estado]);
+
+            $this->service->actualizarPedido(
+                $pedido,
+                data: $this->datosBaseDelPedido(total: 2000),
+                detalles: [$this->detalleDe($articulo, cantidad: 2, precioUnitario: 1000)],
+            );
+
+            $pedido->refresh();
+            $this->assertSame($estado, $pedido->estado_pedido, "Estado debe mantenerse tras editar ({$estado})");
+            $this->assertCount(1, $pedido->detalles, "Detalle único persistido tras edición ({$estado})");
+            $this->assertEqualsWithDelta(2.0, (float) $pedido->detalles->first()->cantidad, 0.001, "Cantidad actualizada ({$estado})");
+        }
+    }
+
+    /**
      * CA-03 — Persistencia de descuentos de promo en líneas.
      *
      * `pedido_mostrador_detalle.descuento_promocion`,
