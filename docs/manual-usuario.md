@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-05-26
+> Version: 0.1.x | Ultima actualizacion: 2026-05-27
 
 ---
 
@@ -698,7 +698,7 @@ Las acciones disponibles dependen del estado del pedido y los permisos del usuar
 | Cambiar estado | Pedido no cancelado ni facturado | Ninguno adicional |
 | Cobrar (badge de estado de pago clickeable) | Pedido activo con saldo pendiente o pagos planificados | `func.pedidos_mostrador.cobrar` |
 | Convertir en venta | Pedido confirmado, en preparacion, listo o entregado | `func.pedidos_mostrador.convertir_venta` |
-| Reimprimir comanda | Siempre disponible | Ninguno adicional |
+| Comandar | Siempre disponible en pedidos no cancelados ni facturados | Ninguno adicional |
 | Reimprimir precuenta | Siempre disponible | Ninguno adicional |
 | Cancelar | Pedido no cancelado ni facturado | `func.pedidos_mostrador.cancelar` |
 | Invitar item | Pedido editable (desde el editor) | `func.pedidos_mostrador.invitar_renglon` |
@@ -718,11 +718,9 @@ En moviles el boton aparece a la izquierda del boton "Ver detalle"; en escritori
 
 El boton **"Entregar"** (icono check verde, color emerald) aparece en cada fila cuando el estado actual del pedido admite la transicion a `entregado` (es decir: confirmado, en preparacion o listo). Al hacer click, aparece una confirmacion rapida. Si se acepta, el pedido pasa directamente a estado entregado sin necesidad de abrir el modal de cambio de estado.
 
-**Gate de cobro**: si el pedido tiene saldo sin cubrir (ni pagos activos ni planificados que alcancen el total), el sistema NO avanza el estado. En cambio, abre directamente el **desglose de cobro rapido** para que el operario complete el pago. Una vez cobrado al 100%, el sistema reanuda automaticamente la accion de entregar sin que el operario tenga que volver a hacer click.
+No se requiere que el pedido este cobrado para entregarlo. El cobro y la entrega son independientes: el operario puede entregar el pedido aunque tenga saldo pendiente. El gate de cobro solo aplica al convertir el pedido en venta.
 
-Si el operario cierra el desglose de cobro sin completarlo, la accion de entregar se descarta y el pedido permanece en su estado actual.
-
-Si la sucursal tiene activada la opcion de conversion automatica al entregar (`pedido_conversion_automatica_al_entregar = true`), el sistema convierte el pedido en venta automaticamente como efecto secundario del cambio de estado.
+Si la sucursal tiene activada la opcion de conversion automatica al entregar (`pedido_conversion_automatica_al_entregar = true`), el sistema convierte el pedido en venta automaticamente como efecto secundario del cambio de estado (la conversion si requiere cobertura completa).
 
 En moviles el boton muestra solo el icono; en escritorio muestra icono y texto.
 
@@ -745,14 +743,41 @@ Muestra la informacion completa del pedido:
 
 - **Encabezado**: numero, identificador, beeper, sucursal, caja, fecha, usuario que lo creo.
 - **Cliente**: nombre (del catalogo o temporal), telefono.
-- **Items**: tabla con nombre del articulo/concepto, opcionales seleccionados, cantidad, precio unitario y subtotal.
+- **Items**: tabla con nombre del articulo/concepto, opcionales seleccionados, cantidad, precio unitario y subtotal. Cada item con `comandado_at = null` muestra un **badge ambar "Nuevo"** a la derecha del nombre, excepto cuando el pedido esta en estado borrador (en borrador todos los items son nuevos y el badge seria redundante).
 - **Pagos cobrados**: lista de pagos en estado activo con forma de pago y monto.
 - **Pagos planificados**: lista de pagos configurados pero aun no cobrados, con forma de pago y monto.
 - **Observaciones**: si el pedido tiene notas.
 - **Venta asociada**: si el pedido ya fue convertido, muestra el numero de la venta resultante con enlace.
-- **Botones de reimpresion**: Reimprimir comanda / Reimprimir precuenta.
+- **Boton "Comandar"** (color azul): envia el pedido a cocina. El comportamiento depende del estado de comanda:
+  - Si todos los items ya estan comandados: reimprime la comanda completa directamente (sin modal).
+  - Si ningun item fue comandado antes: envia la comanda completa directamente (sin modal).
+  - Si hay mezcla (algunos comandados y algunos nuevos): abre el modal "Comandar pedido" para elegir entre enviar solo los nuevos o todo el pedido.
+- **Boton "Reimprimir precuenta"**.
 
-> **Reimprimir comanda y avance de estado**: si la sucursal tiene `imprime_comanda_automatico=true`, al hacer click en "Reimprimir comanda" el pedido avanza automaticamente a **En preparacion** si todavia esta en estado confirmado. Para los demas estados, la reimpresion no cambia el estado del pedido.
+> Al comandar, si el pedido estaba en estado **Confirmado**, avanza automaticamente a **En preparacion**. Si estaba en **Listo** o **Entregado**, regresa a **En preparacion** (el service fuerza el estado con log de auditoria).
+
+#### Modal: Comandar pedido
+
+Se abre cuando el pedido tiene **mezcla de items**: algunos ya fueron comandados previamente (tienen timestamp de envio) y otros son nuevos (agregados despues de la ultima comanda). En este caso el sistema no puede decidir automaticamente y pregunta al operario.
+
+El modal muestra dos opciones grandes:
+
+- **Comandar solo los nuevos (N)**: imprime un ticket de cocina parcial con solo los items nuevos. El ticket incluye el header destacado "AGREGADO" para que cocina sepa que es un complemento del pedido original. Solo marca como comandados los items nuevos.
+- **Comandar todo el pedido (N+M)**: imprime el ticket completo con todos los items (nuevos y ya comandados). Util cuando el operario quiere asegurarse que cocina tenga el pedido completo visible.
+
+Ambas opciones hacen avanzar o regresar el pedido a estado **En preparacion** si corresponde. Un boton **"Cancelar"** cierra el modal sin ejecutar ninguna accion.
+
+> Si todos los items ya estan comandados (reimpresion) o ningun item fue comandado antes (primera comanda), el modal no aparece. El sistema ejecuta directamente la comanda completa.
+
+#### Accion "Comandar" en la lista
+
+El boton **"Comandar"** (color azul) aparece en cada fila de la lista, en las cards del Kanban y en el modal "Ver detalle". El tooltip del boton cambia segun el estado de comanda del pedido:
+
+| Estado de comanda | Tooltip | Comportamiento |
+|-------------------|---------|----------------|
+| Sin comandar (ningun item enviado) | "Comandar pedido" | Ejecuta comanda completa directamente |
+| Parcial (algunos enviados, otros nuevos) | "Comandar (hay items nuevos)" | Abre el modal de eleccion |
+| Comandado (todos enviados) | "Reimprimir comanda" | Reimprime la comanda completa directamente |
 
 #### Modal: Cambiar estado
 
@@ -769,8 +794,6 @@ Permite avanzar el pedido en su ciclo de vida. Las transiciones posibles desde c
 > Los estados Cancelado y Facturado no aparecen en este modal. Cancelado tiene su propio modal con motivo obligatorio. Facturado solo se alcanza al convertir el pedido en venta.
 
 El modal incluye un campo de **observacion opcional** para dejar una nota sobre el cambio de estado.
-
-**Gate de cobro**: si el nuevo estado seleccionado es **Entregado** y el pedido tiene saldo sin cubrir, al confirmar el modal se cierra y se abre el desglose de cobro rapido en su lugar. Una vez cobrado al 100%, el estado avanza a entregado automaticamente.
 
 #### Modal: Cobrar pendiente
 
@@ -875,8 +898,6 @@ Botones disponibles directamente en la card:
 
 Las cards se pueden arrastrar de una columna a otra para cambiar el estado del pedido. El sistema solo permite soltar la card en una columna cuyo estado sea una transicion legal desde el estado actual (las mismas reglas que el modal "Cambiar estado"). Si el destino no es una transicion valida, el drag se bloquea visualmente y la card no se puede soltar ahi.
 
-**Gate de cobro en drag**: si se arrastra una card a la columna **Entregado** y el pedido tiene saldo sin cubrir, el drag se revierte visualmente y en su lugar se abre el desglose de cobro rapido. Al completar el cobro al 100%, el estado avanza a entregado automaticamente.
-
 Al soltar una card en una columna valida, el estado del pedido se actualiza de inmediato. Si el servidor rechaza el cambio (por ejemplo, una condicion de carrera), la card vuelve a su columna original automaticamente.
 
 > El drag and drop **no puede cancelar** pedidos. La cancelacion requiere siempre ingresar un motivo y se hace exclusivamente desde el boton "Cancelar" en la card.
@@ -922,6 +943,8 @@ Identico al carrito de Nueva Venta. Incluye:
 - Ajuste manual de precio por item.
 - Descuento individual por item.
 - Boton de regalo (icono regalo) por item para marcar como cortesia (ver seccion Invitar / Cortesia mas abajo).
+
+Al editar un pedido existente (que ya fue confirmado o esta en un estado posterior), los items que todavia no fueron enviados a cocina muestran un **badge ambar "Nuevo"** a la derecha del nombre. Esto ayuda al operario a identificar rapidamente que items son nuevos respecto a la ultima comanda enviada. Los pedidos en borrador no muestran el badge (todos los items son nuevos por definicion).
 
 ##### Invitar / Cortesia
 
@@ -982,7 +1005,7 @@ El panel derecho muestra subtotal, IVA, descuentos aplicados y total final, actu
 |-------|----------------|
 | Cancelar | Cierra el modal sin guardar. Equivalente a presionar Esc. |
 | Guardar borrador | Guarda sin asignar numero ni descontar stock. El pedido queda en estado borrador. No valida beeper. |
-| Confirmar pedido | Asigna numero correlativo, descuenta stock, imprime comanda si la sucursal esta configurada para ello. Valida beeper si la sucursal lo requiere. Si la sucursal tiene `imprime_comanda_automatico=true`, el pedido avanza automaticamente a **En preparacion** al confirmar (se asume que cocina ya recibio el ticket). |
+| Confirmar pedido | Asigna numero correlativo, descuenta stock, imprime comanda si la sucursal esta configurada para ello. Valida beeper si la sucursal lo requiere. Si la sucursal tiene `imprime_comanda_automatico=true`, el pedido avanza automaticamente a **En preparacion** al confirmar y todos los items quedan marcados como comandados. |
 | Guardar cambios (edicion) | En modo edicion, persiste los cambios sobre el pedido existente. |
 
 > Al guardar o confirmar exitosamente, el modal se cierra y la lista se refresca automaticamente.

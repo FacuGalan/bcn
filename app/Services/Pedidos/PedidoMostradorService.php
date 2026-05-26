@@ -797,25 +797,166 @@ class PedidoMostradorService
         ]);
     }
 
+    // ==================== COMANDA ====================
+
+    public const ALCANCE_COMANDA_TODOS = 'todos';
+
+    public const ALCANCE_COMANDA_NUEVOS = 'nuevos';
+
+    /**
+     * Envía un pedido (o solo sus items nuevos) a cocina. Es la única forma
+     * canónica de "comandar":
+     *
+     * 1. Marca `comandado_at = now()` en los detalles del alcance.
+     * 2. Transiciona el pedido a EN_PREPARACION (CONFIRMADO via cambio legal;
+     *    LISTO/ENTREGADO via bypass de la máquina, ver `forzarEstado()`).
+     * 3. Genera el payload de impresión (ESC/POS + HTML).
+     *
+     * Cuando `$alcance='nuevos'`, solo procesa detalles con `comandado_at=null`
+     * y el ticket lleva el header "AGREGADO". Si no hay detalles nuevos,
+     * lanza Exception (no tiene sentido invocar 'nuevos' en pedido todo
+     * comandado — el caller debe haber resuelto el alcance antes).
+     *
+     * @param  string  $alcance  'todos' | 'nuevos'
+     * @return array{escpos: string, html: string, tipo_documento: 'comanda', pedido_id: int}
+     */
+    public function comandarPedido(PedidoMostrador $pedido, string $alcance = self::ALCANCE_COMANDA_TODOS): array
+    {
+        if (! in_array($alcance, [self::ALCANCE_COMANDA_TODOS, self::ALCANCE_COMANDA_NUEVOS], true)) {
+            throw new Exception("Alcance de comanda inválido: {$alcance}");
+        }
+
+        return DB::connection('pymes_tenant')->transaction(function () use ($pedido, $alcance) {
+            $pedido->loadMissing('detalles');
+
+            $detalles = $alcance === self::ALCANCE_COMANDA_NUEVOS
+                ? $pedido->detalles->whereNull('comandado_at')
+                : $pedido->detalles;
+
+            if ($detalles->isEmpty()) {
+                throw new Exception($alcance === self::ALCANCE_COMANDA_NUEVOS
+                    ? 'No hay items nuevos para comandar'
+                    : 'El pedido no tiene detalles');
+            }
+
+            $detalleIds = $detalles->pluck('id')->all();
+            $this->marcarDetallesComoComandados($pedido, $detalleIds);
+            $this->transicionarTrasComanda($pedido);
+
+            // Recargar para que la plantilla vea timestamps + estado actualizados.
+            $pedido->load('detalles');
+
+            $esParcial = $alcance === self::ALCANCE_COMANDA_NUEVOS;
+            $plantillas = app(\App\Services\Impresion\PlantillasComanda::class);
+
+            Log::info('Pedido comandado', [
+                'pedido_id' => $pedido->id,
+                'alcance' => $alcance,
+                'detalle_ids' => $detalleIds,
+            ]);
+
+            return [
+                'tipo_documento' => 'comanda',
+                'pedido_id' => $pedido->id,
+                'escpos' => $plantillas->generarComandaESCPOS($pedido, $detalleIds, $esParcial),
+                'html' => $plantillas->generarComandaHTML($pedido, $detalleIds, $esParcial),
+            ];
+        });
+    }
+
+    /**
+     * UPDATE masivo de `comandado_at` en los detalles indicados. Si la lista
+     * está vacía no hace nada. Refresca el timestamp aunque el detalle ya
+     * estuviera comandado (D5: reimpresión total actualiza la fecha).
+     */
+    protected function marcarDetallesComoComandados(PedidoMostrador $pedido, array $detalleIds): int
+    {
+        if (empty($detalleIds)) {
+            return 0;
+        }
+
+        return PedidoMostradorDetalle::query()
+            ->where('pedido_mostrador_id', $pedido->id)
+            ->whereIn('id', $detalleIds)
+            ->update(['comandado_at' => now()]);
+    }
+
+    /**
+     * Transiciona el estado del pedido tras una comanda.
+     *
+     * - CONFIRMADO → EN_PREPARACION via `cambiarEstado` (transición legal).
+     * - LISTO / ENTREGADO → EN_PREPARACION via `forzarEstado` (bypass; la
+     *   máquina marca esa transición como ilegal a propósito — solo
+     *   `comandarPedido` puede hacerla, no el operario directo).
+     * - EN_PREPARACION, BORRADOR, FACTURADO, CANCELADO → no transiciona.
+     */
+    protected function transicionarTrasComanda(PedidoMostrador $pedido): void
+    {
+        $estado = $pedido->estado_pedido;
+
+        if ($estado === PedidoMostrador::ESTADO_CONFIRMADO) {
+            $this->cambiarEstado($pedido, PedidoMostrador::ESTADO_EN_PREPARACION);
+
+            return;
+        }
+
+        if (in_array($estado, [PedidoMostrador::ESTADO_LISTO, PedidoMostrador::ESTADO_ENTREGADO], true)) {
+            $this->forzarEstado($pedido, PedidoMostrador::ESTADO_EN_PREPARACION, 're-comandado');
+        }
+    }
+
+    /**
+     * Cambia el estado del pedido SIN validar `TRANSICIONES_PERMITIDAS`. Uso
+     * restringido: solo internamente para reverts semánticos (re-comandar
+     * desde LISTO/ENTREGADO). Setea el timestamp del estado destino, loggea
+     * el cambio y dispara broadcast.
+     */
+    protected function forzarEstado(PedidoMostrador $pedido, string $nuevoEstado, ?string $motivo = null): void
+    {
+        $anterior = $pedido->estado_pedido;
+
+        if ($anterior === $nuevoEstado) {
+            return;
+        }
+
+        $timestampField = match ($nuevoEstado) {
+            PedidoMostrador::ESTADO_CONFIRMADO => 'confirmado_at',
+            PedidoMostrador::ESTADO_EN_PREPARACION => 'en_preparacion_at',
+            PedidoMostrador::ESTADO_LISTO => 'listo_at',
+            PedidoMostrador::ESTADO_ENTREGADO => 'entregado_at',
+            PedidoMostrador::ESTADO_CANCELADO => 'cancelado_at',
+            default => null,
+        };
+
+        $update = ['estado_pedido' => $nuevoEstado];
+        if ($timestampField) {
+            $update[$timestampField] = now();
+        }
+
+        $pedido->update($update);
+
+        Log::info('Pedido estado forzado (bypass de transiciones)', [
+            'pedido_id' => $pedido->id,
+            'anterior' => $anterior,
+            'nuevo' => $nuevoEstado,
+            'motivo' => $motivo,
+        ]);
+
+        $this->dispatchBroadcast($pedido, PedidoMostradorBroadcast::TIPO_ESTADO_CAMBIADO);
+    }
+
     // ==================== IMPRESION ====================
 
     /**
-     * Genera el payload de impresión de la comanda y lo devuelve para que el
-     * caller (Livewire) lo despache al cliente QZ. Si la sucursal tiene
-     * `usa_beepers=true`, el encabezado incluye el número de beeper grande.
+     * Wrapper de `comandarPedido($pedido, 'todos')` mantenido por compat con
+     * callers que esperan solo el payload de impresión. Marca timestamps y
+     * transiciona estado igual que comandarPedido.
      *
      * @return array{escpos: string, html: string, tipo_documento: 'comanda', pedido_id: int}
      */
     public function imprimirComanda(PedidoMostrador $pedido): array
     {
-        $plantillas = app(\App\Services\Impresion\PlantillasComanda::class);
-
-        return [
-            'tipo_documento' => 'comanda',
-            'pedido_id' => $pedido->id,
-            'escpos' => $plantillas->generarComandaESCPOS($pedido),
-            'html' => $plantillas->generarComandaHTML($pedido),
-        ];
+        return $this->comandarPedido($pedido, self::ALCANCE_COMANDA_TODOS);
     }
 
     /**
@@ -1242,10 +1383,11 @@ class PedidoMostradorService
     }
 
     /**
-     * Si la sucursal tiene impresión automática activada, el caller (Livewire)
-     * consume `imprimirComanda($pedido)` y despacha al cliente QZ. Acá dejamos
-     * rastro y avanzamos el estado del pedido a EN_PREPARACION, porque la
-     * emisión automática implica que cocina ya recibió el ticket.
+     * Si la sucursal tiene impresión automática activada, despacha la comanda
+     * completa: marca todos los detalles con `comandado_at=now()` y avanza
+     * el estado a EN_PREPARACION. El payload retornado se descarta acá; la
+     * impresión física la dispara el Livewire caller (vía evento
+     * `imprimir-comanda` cuando recarga la lista).
      */
     protected function maybeImprimirComandaAutomatica(PedidoMostrador $pedido): void
     {
@@ -1254,22 +1396,13 @@ class PedidoMostradorService
             return;
         }
 
-        Log::info('Pedido marcado para comanda automática', [
-            'pedido_id' => $pedido->id,
-            'sucursal_id' => $pedido->sucursal_id,
-        ]);
-
-        $this->avanzarAEnPreparacionSiCorresponde($pedido);
+        $this->comandarPedido($pedido, self::ALCANCE_COMANDA_TODOS);
     }
 
     /**
-     * Avanza un pedido CONFIRMADO a EN_PREPARACION. Idempotente: si el pedido
-     * ya está en un estado posterior (LISTO, ENTREGADO, FACTURADO, CANCELADO)
-     * o aún en BORRADOR, no hace nada.
-     *
-     * Se invoca cuando se emite una comanda (sea automática al confirmar o
-     * manual desde el listado): la emisión implica que cocina ya empezó a
-     * preparar y el estado debe reflejarlo.
+     * @deprecated Reemplazado por `comandarPedido($pedido, 'todos')` que
+     * además marca detalles. Se mantiene como facade para callers externos
+     * (Livewire `reimprimirComanda`) hasta que se migren. No usar internamente.
      */
     public function avanzarAEnPreparacionSiCorresponde(PedidoMostrador $pedido): void
     {

@@ -88,6 +88,16 @@ class PedidoMostrador extends Model
     ];
 
     /**
+     * Estado de comanda derivado de los detalles. No se persiste en BD: se
+     * calcula desde `detalles.comandado_at`. Ver accessor `estado_comanda`.
+     */
+    public const ESTADO_COMANDA_NO = 'no_comandado';
+
+    public const ESTADO_COMANDA_PARCIAL = 'parcial';
+
+    public const ESTADO_COMANDA_TOTAL = 'comandado';
+
+    /**
      * Transiciones de estado_pedido permitidas. Servicio valida contra este mapa.
      */
     public const TRANSICIONES_PERMITIDAS = [
@@ -307,6 +317,34 @@ class PedidoMostrador extends Model
     public function getEstaCanceladoAttribute(): bool
     {
         return $this->estado_pedido === self::ESTADO_CANCELADO;
+    }
+
+    /**
+     * Estado de comanda derivado de `detalles.comandado_at`. Retorna:
+     * - `no_comandado` si todos los detalles están sin comandar.
+     * - `parcial` si hay mezcla (algunos comandados, otros no).
+     * - `comandado` si todos los detalles están comandados.
+     * - `no_comandado` si el pedido no tiene detalles (fallback seguro).
+     */
+    public function getEstadoComandaAttribute(): string
+    {
+        $detalles = $this->relationLoaded('detalles') ? $this->detalles : $this->detalles()->get();
+
+        if ($detalles->isEmpty()) {
+            return self::ESTADO_COMANDA_NO;
+        }
+
+        $comandados = $detalles->whereNotNull('comandado_at')->count();
+
+        if ($comandados === 0) {
+            return self::ESTADO_COMANDA_NO;
+        }
+
+        if ($comandados === $detalles->count()) {
+            return self::ESTADO_COMANDA_TOTAL;
+        }
+
+        return self::ESTADO_COMANDA_PARCIAL;
     }
 
     public function getEsClienteTemporalAttribute(): bool

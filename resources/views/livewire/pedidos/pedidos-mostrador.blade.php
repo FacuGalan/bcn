@@ -549,9 +549,15 @@
                                                     </svg>
                                                 </button>
                                             @endif
-                                            <button wire:click="reimprimirComanda({{ $pedido->id }})"
-                                                class="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
-                                                title="{{ __('Imprimir comanda') }}">
+                                            @php
+                                                $estadoComanda = $pedido->estado_comanda;
+                                                $comandarTooltip = $estadoComanda === 'comandado'
+                                                    ? __('Reimprimir comanda')
+                                                    : ($estadoComanda === 'parcial' ? __('Comandar (hay items nuevos)') : __('Comandar pedido'));
+                                            @endphp
+                                            <button wire:click="comandarPedido({{ $pedido->id }})"
+                                                class="inline-flex items-center px-2 py-1 border border-blue-300 dark:border-blue-600 rounded text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                                                title="{{ $comandarTooltip }}">
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                                                 </svg>
@@ -694,9 +700,15 @@
                                                 </svg>
                                             </button>
                                         @endif
-                                        <button type="button" wire:click="reimprimirComanda({{ $pedido->id }})"
-                                            class="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
-                                            title="{{ __('Imprimir comanda') }}">
+                                        @php
+                                            $estadoComandaK = $pedido->estado_comanda;
+                                            $comandarTooltipK = $estadoComandaK === 'comandado'
+                                                ? __('Reimprimir comanda')
+                                                : ($estadoComandaK === 'parcial' ? __('Comandar (hay items nuevos)') : __('Comandar pedido'));
+                                        @endphp
+                                        <button type="button" wire:click="comandarPedido({{ $pedido->id }})"
+                                            class="inline-flex items-center px-2 py-1 border border-blue-300 dark:border-blue-600 rounded text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                                            title="{{ $comandarTooltipK }}">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                                             </svg>
@@ -925,6 +937,12 @@
                                                 @if($detalle->tiene_promocion)
                                                     <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">
                                                         🏷️ {{ __('Promo') }}
+                                                    </span>
+                                                @endif
+                                                @if($detalle->comandado_at === null && $pedidoDetalle->estado_pedido !== 'borrador')
+                                                    <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                                                          title="{{ __('Este item aún no se envió a cocina') }}">
+                                                        {{ __('Nuevo') }}
                                                     </span>
                                                 @endif
                                                 @if($detalle->opcionales->isNotEmpty())
@@ -1220,9 +1238,9 @@
                     class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
                     {{ __('Imprimir precuenta') }}
                 </button>
-                <button type="button" wire:click="reimprimirComanda({{ $pedidoDetalle->id }})"
-                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
-                    {{ __('Imprimir comanda') }}
+                <button type="button" wire:click="comandarPedido({{ $pedidoDetalle->id }})"
+                    class="w-full inline-flex justify-center rounded-md border border-blue-300 dark:border-blue-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 sm:w-auto sm:text-sm">
+                    {{ __('Comandar') }}
                 </button>
                 <button type="button" @click="close()"
                     class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-secondary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
@@ -1268,6 +1286,48 @@
                 <button type="submit"
                     class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 sm:w-auto sm:text-sm">
                     {{ __('Aplicar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
+    {{-- ==================== MODAL COMANDAR ==================== --}}
+    @if($showComandarModal)
+        <x-bcn-modal
+            :title="__('Comandar pedido')"
+            color="bg-blue-600"
+            maxWidth="md"
+            onClose="cerrarComandarModal"
+        >
+            <x-slot:body>
+                <p class="text-sm text-gray-700 dark:text-gray-300 mb-4">
+                    {{ __('Este pedido tiene items nuevos sin enviar a cocina. ¿Qué querés mandar?') }}
+                </p>
+                <div class="space-y-2">
+                    <button type="button"
+                        wire:click="confirmarComandar('nuevos')"
+                        class="w-full inline-flex items-center justify-between px-4 py-3 border-2 border-amber-300 dark:border-amber-600 rounded-md bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-left transition-colors">
+                        <div class="flex flex-col">
+                            <span class="font-semibold text-amber-900 dark:text-amber-200">{{ __('Comandar solo los nuevos') }}</span>
+                            <span class="text-xs text-amber-700 dark:text-amber-300">{{ __('Cocina recibirá solo lo agregado, con etiqueta AGREGADO') }}</span>
+                        </div>
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-amber-200 dark:bg-amber-700 text-amber-900 dark:text-amber-100 font-bold text-sm">{{ $comandarNuevosCount }}</span>
+                    </button>
+                    <button type="button"
+                        wire:click="confirmarComandar('todos')"
+                        class="w-full inline-flex items-center justify-between px-4 py-3 border-2 border-blue-300 dark:border-blue-600 rounded-md bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-left transition-colors">
+                        <div class="flex flex-col">
+                            <span class="font-semibold text-blue-900 dark:text-blue-200">{{ __('Comandar todo el pedido') }}</span>
+                            <span class="text-xs text-blue-700 dark:text-blue-300">{{ __('Cocina recibirá el ticket completo (reimpresión)') }}</span>
+                        </div>
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-200 dark:bg-blue-700 text-blue-900 dark:text-blue-100 font-bold text-sm">{{ $comandarNuevosCount + $comandarComandadosCount }}</span>
+                    </button>
+                </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button type="button" @click="close()"
+                    class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
                 </button>
             </x-slot:footer>
         </x-bcn-modal>

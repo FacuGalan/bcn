@@ -503,15 +503,6 @@ class SmokePedidosTest extends TestCase
     public function test_entregar_rapido_cambia_estado_a_entregado(): void
     {
         $pedido = $this->crearPedidoConfirmado();
-        // El gate de cobro exige pedido 100% cubierto para entregar: simulamos
-        // el cobro completo agregando un pago activo por el total.
-        $efectivo = $this->crearFormaPagoEfectivo();
-        app(PedidoMostradorService::class)->agregarPago($pedido, [
-            'forma_pago_id' => $efectivo['formaPago']->id,
-            'monto_base' => (float) $pedido->total_final,
-            'monto_final' => (float) $pedido->total_final,
-            'cuotas' => 1,
-        ]);
 
         Livewire::test(PedidosMostrador::class)
             ->call('entregarRapido', $pedido->id);
@@ -519,44 +510,23 @@ class SmokePedidosTest extends TestCase
         $this->assertSame(PedidoMostrador::ESTADO_ENTREGADO, $pedido->fresh()->estado_pedido);
     }
 
-    public function test_entregar_rapido_no_intercepta_si_planificados_cubren_total(): void
-    {
-        // Pedido con planificados al 100% pero cobrado=0: el gate no debe
-        // intervenir porque convertirEnVenta materializa los planificados.
-        // Caso real: operario armó el pedido con desglose pero el cliente
-        // todavía no pagó; cuando entrega, la materialización los confirma.
-        $pedido = $this->crearPedidoConfirmado();
-        $efectivo = $this->crearFormaPagoEfectivo();
-
-        app(PedidoMostradorService::class)->agregarPago($pedido, [
-            'forma_pago_id' => $efectivo['formaPago']->id,
-            'monto_base' => (float) $pedido->total_final,
-            'monto_final' => (float) $pedido->total_final,
-            'cuotas' => 1,
-            'planificado' => true,
-        ]);
-
-        Livewire::test(PedidosMostrador::class)
-            ->call('entregarRapido', $pedido->id);
-
-        // Transitó sin abrir cobro rapido — los planificados cubren el saldo.
-        $this->assertSame(PedidoMostrador::ESTADO_ENTREGADO, $pedido->fresh()->estado_pedido);
-    }
-
-    public function test_entregar_rapido_intercepta_y_abre_cobro_si_pedido_no_cobrado(): void
+    /**
+     * RF-08 (spec comanda-por-detalle): el gate de cobro se quitó de entregar.
+     * Un pedido no cobrado se puede entregar — el cobro se hace después.
+     * Solo convertir en venta sigue exigiendo pago completo.
+     */
+    public function test_entregar_rapido_no_intercepta_si_pedido_no_cobrado(): void
     {
         $pedido = $this->crearPedidoConfirmado();
-        // estado_pago = pendiente por default → el gate debe interceptar.
+        // estado_pago = pendiente por default → ya NO debe interceptar.
 
         $componente = Livewire::test(PedidosMostrador::class)
             ->call('entregarRapido', $pedido->id);
 
-        // No transicionó.
-        $this->assertSame(PedidoMostrador::ESTADO_CONFIRMADO, $pedido->fresh()->estado_pedido);
-        // Acción quedó pendiente y modal de cobro rápido se abrió.
-        $componente->assertSet('accionPendiente', 'entregar')
-            ->assertSet('accionPendientePedidoId', $pedido->id)
-            ->assertSet('pedidoCobroRapidoId', $pedido->id);
+        $this->assertSame(PedidoMostrador::ESTADO_ENTREGADO, $pedido->fresh()->estado_pedido);
+        $componente->assertSet('accionPendiente', null)
+            ->assertSet('accionPendientePedidoId', null)
+            ->assertSet('pedidoCobroRapidoId', null);
     }
 
     public function test_entregar_rapido_rechaza_si_la_transicion_no_es_legal(): void
@@ -819,14 +789,6 @@ class SmokePedidosTest extends TestCase
     public function test_cambiar_estado_drag_con_transicion_legal_funciona(): void
     {
         $pedido = $this->crearPedidoConfirmado();
-        // El drag a ENTREGADO también pasa por el gate de cobro: cobrar primero.
-        $efectivo = $this->crearFormaPagoEfectivo();
-        app(PedidoMostradorService::class)->agregarPago($pedido, [
-            'forma_pago_id' => $efectivo['formaPago']->id,
-            'monto_base' => (float) $pedido->total_final,
-            'monto_final' => (float) $pedido->total_final,
-            'cuotas' => 1,
-        ]);
 
         Livewire::test(PedidosMostrador::class)
             ->call('cambiarEstadoDrag', $pedido->id, PedidoMostrador::ESTADO_ENTREGADO);
@@ -834,18 +796,18 @@ class SmokePedidosTest extends TestCase
         $this->assertSame(PedidoMostrador::ESTADO_ENTREGADO, $pedido->fresh()->estado_pedido);
     }
 
-    public function test_cambiar_estado_drag_a_entregado_intercepta_si_no_cobrado(): void
+    /**
+     * RF-08: drag a entregado tampoco intercepta cobro. Antes (PR #105) sí
+     * lo hacía. Ahora transiciona directo.
+     */
+    public function test_cambiar_estado_drag_a_entregado_no_intercepta_si_no_cobrado(): void
     {
         $pedido = $this->crearPedidoConfirmado();
 
-        $componente = Livewire::test(PedidosMostrador::class)
+        Livewire::test(PedidosMostrador::class)
             ->call('cambiarEstadoDrag', $pedido->id, PedidoMostrador::ESTADO_ENTREGADO);
 
-        // No transicionó, se revirtió el drag y se abrió el cobro.
-        $this->assertSame(PedidoMostrador::ESTADO_CONFIRMADO, $pedido->fresh()->estado_pedido);
-        $componente->assertDispatched('kanban-revertir')
-            ->assertSet('accionPendiente', 'entregar')
-            ->assertSet('pedidoCobroRapidoId', $pedido->id);
+        $this->assertSame(PedidoMostrador::ESTADO_ENTREGADO, $pedido->fresh()->estado_pedido);
     }
 
     public function test_cambiar_estado_drag_rechaza_estado_fuera_de_kanban(): void
@@ -874,13 +836,13 @@ class SmokePedidosTest extends TestCase
         $this->assertSame(PedidoMostrador::ESTADO_ENTREGADO, $pedido->fresh()->estado_pedido);
     }
 
-    public function test_reimprimir_comanda_avanza_a_en_preparacion_si_confirmado(): void
+    public function test_comandar_pedido_avanza_a_en_preparacion_si_confirmado(): void
     {
         $pedido = $this->crearPedidoConfirmado();
         $this->assertSame(PedidoMostrador::ESTADO_CONFIRMADO, $pedido->fresh()->estado_pedido);
 
         Livewire::test(PedidosMostrador::class)
-            ->call('reimprimirComanda', $pedido->id);
+            ->call('comandarPedido', $pedido->id);
 
         $this->assertSame(PedidoMostrador::ESTADO_EN_PREPARACION, $pedido->fresh()->estado_pedido);
     }
@@ -1166,5 +1128,175 @@ class SmokePedidosTest extends TestCase
             $kanban[PedidoMostrador::ESTADO_CONFIRMADO]->pluck('id')->contains($pedido2->id),
             'pedido2 NO debe aparecer en confirmado tras el update'
         );
+    }
+
+    // ==================== COMANDA POR DETALLE ====================
+
+    /** CA-10 — todos nuevos -> ejecuta directo, sin modal */
+    public function test_comandar_sin_items_comandados_ejecuta_directo_sin_modal(): void
+    {
+        $pedido = $this->crearPedidoConfirmado();
+        // Todos sus detalles tienen comandado_at=null por default.
+
+        $componente = Livewire::test(PedidosMostrador::class)
+            ->call('comandarPedido', $pedido->id);
+
+        $componente->assertSet('showComandarModal', false);
+        // El service marcó timestamps + transicionó a EN_PREPARACION.
+        $pedidoFresh = $pedido->fresh()->load('detalles');
+        $this->assertSame(PedidoMostrador::ESTADO_EN_PREPARACION, $pedidoFresh->estado_pedido);
+        foreach ($pedidoFresh->detalles as $d) {
+            $this->assertNotNull($d->comandado_at);
+        }
+    }
+
+    /** CA-11 — todos comandados -> ejecuta directo (reimpresion) */
+    public function test_comandar_con_todos_comandados_ejecuta_directo_sin_modal(): void
+    {
+        $pedido = $this->crearPedidoConfirmado();
+        \DB::connection('pymes_tenant')->table('pedidos_mostrador_detalle')
+            ->where('pedido_mostrador_id', $pedido->id)
+            ->update(['comandado_at' => now()->subHour()]);
+
+        $componente = Livewire::test(PedidosMostrador::class)
+            ->call('comandarPedido', $pedido->id);
+
+        $componente->assertSet('showComandarModal', false);
+    }
+
+    /** CA-12 — mezcla -> abre modal */
+    public function test_comandar_con_mezcla_abre_modal(): void
+    {
+        $pedido = $this->crearPedidoConfirmadoConDosDetalles();
+        // Marco solo el primero como comandado.
+        \DB::connection('pymes_tenant')->table('pedidos_mostrador_detalle')
+            ->where('id', $pedido->detalles->first()->id)
+            ->update(['comandado_at' => now()->subHour()]);
+
+        $componente = Livewire::test(PedidosMostrador::class)
+            ->call('comandarPedido', $pedido->id);
+
+        $componente->assertSet('showComandarModal', true)
+            ->assertSet('pedidoComandarId', $pedido->id)
+            ->assertSet('comandarNuevosCount', 1)
+            ->assertSet('comandarComandadosCount', 1);
+    }
+
+    /** CA-13 — cerrar modal no marca nada */
+    public function test_cerrar_comandar_modal_no_modifica_pedido(): void
+    {
+        $pedido = $this->crearPedidoConfirmadoConDosDetalles();
+        \DB::connection('pymes_tenant')->table('pedidos_mostrador_detalle')
+            ->where('id', $pedido->detalles->first()->id)
+            ->update(['comandado_at' => now()->subHour()]);
+        $estadoAntes = $pedido->fresh()->estado_pedido;
+
+        Livewire::test(PedidosMostrador::class)
+            ->call('comandarPedido', $pedido->id)
+            ->call('cerrarComandarModal')
+            ->assertSet('showComandarModal', false)
+            ->assertSet('pedidoComandarId', null);
+
+        $this->assertSame($estadoAntes, $pedido->fresh()->estado_pedido);
+    }
+
+    /** CA-14 — confirmar 'nuevos' marca solo los no comandados */
+    public function test_confirmar_comandar_nuevos_marca_solo_los_nuevos(): void
+    {
+        $pedido = $this->crearPedidoConfirmadoConDosDetalles();
+        $comandadoPrevio = $pedido->detalles->first();
+        $nuevo = $pedido->detalles->last();
+        $hace1Hora = now()->subHour();
+        \DB::connection('pymes_tenant')->table('pedidos_mostrador_detalle')
+            ->where('id', $comandadoPrevio->id)
+            ->update(['comandado_at' => $hace1Hora]);
+
+        Livewire::test(PedidosMostrador::class)
+            ->call('comandarPedido', $pedido->id)
+            ->call('confirmarComandar', PedidoMostradorService::ALCANCE_COMANDA_NUEVOS);
+
+        // El previamente comandado conserva su timestamp viejo.
+        $this->assertEqualsWithDelta(
+            $hace1Hora->timestamp,
+            $comandadoPrevio->fresh()->comandado_at->timestamp,
+            1.0
+        );
+        // El nuevo quedó con timestamp fresco.
+        $this->assertGreaterThan(
+            now()->subMinute()->timestamp,
+            $nuevo->fresh()->comandado_at->timestamp
+        );
+    }
+
+    /** CA-15 — confirmar 'todos' actualiza timestamps de TODOS los detalles */
+    public function test_confirmar_comandar_todos_refresca_todos_los_timestamps(): void
+    {
+        $pedido = $this->crearPedidoConfirmadoConDosDetalles();
+        $hace1Hora = now()->subHour();
+        \DB::connection('pymes_tenant')->table('pedidos_mostrador_detalle')
+            ->where('id', $pedido->detalles->first()->id)
+            ->update(['comandado_at' => $hace1Hora]);
+
+        Livewire::test(PedidosMostrador::class)
+            ->call('comandarPedido', $pedido->id)
+            ->call('confirmarComandar', PedidoMostradorService::ALCANCE_COMANDA_TODOS);
+
+        // Ambos detalles deben tener timestamp fresco (within last minute).
+        foreach ($pedido->fresh()->load('detalles')->detalles as $d) {
+            $this->assertGreaterThan(
+                $hace1Hora->timestamp,
+                $d->comandado_at->timestamp,
+                'Timestamp debe haberse refrescado'
+            );
+        }
+    }
+
+    protected function crearPedidoConfirmadoConDosDetalles(): PedidoMostrador
+    {
+        $a1 = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+        $a2 = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+        $service = app(PedidoMostradorService::class);
+
+        return $service->crearPedido([
+            'sucursal_id' => $this->sucursalId,
+            'caja_id' => $caja->id,
+            'usuario_id' => auth()->id() ?? 1,
+            'fecha' => now(),
+            'es_borrador' => false,
+            'subtotal' => 1000,
+            'descuento' => 0,
+            'ajuste_forma_pago' => 0,
+            'total_final' => 1000,
+            'total_cobrado' => 0,
+            'estado_pago' => PedidoMostrador::ESTADO_PAGO_PENDIENTE,
+        ], [
+            [
+                'articulo_id' => $a1->id,
+                'tipo' => 'articulo',
+                'cantidad' => 1,
+                'precio_unitario' => 500,
+                'precio_sin_iva' => 413,
+                'tipo_iva_id' => $a1->tipo_iva_id,
+                'iva_porcentaje' => 21,
+                'iva_monto' => 87,
+                'descuento' => 0,
+                'subtotal' => 500,
+                'total' => 500,
+            ],
+            [
+                'articulo_id' => $a2->id,
+                'tipo' => 'articulo',
+                'cantidad' => 1,
+                'precio_unitario' => 500,
+                'precio_sin_iva' => 413,
+                'tipo_iva_id' => $a2->tipo_iva_id,
+                'iva_porcentaje' => 21,
+                'iva_monto' => 87,
+                'descuento' => 0,
+                'subtotal' => 500,
+                'total' => 500,
+            ],
+        ])->load('detalles');
     }
 }

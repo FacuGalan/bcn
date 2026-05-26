@@ -80,6 +80,17 @@
                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                                     </span>
                                 </button>
+                                {{-- Badge "Nuevo": detalle aún no enviado a cocina. Solo aplica
+                                    al carrito de Pedidos cuando se está editando un pedido
+                                    existente (no en alta) y el detalle persistido tiene
+                                    comandado_at=null. NuevaVenta no rehidrata `comandado_at`,
+                                    asi que la key no existe → no se renderiza. --}}
+                                @if(array_key_exists('comandado_at', $item) && $item['comandado_at'] === null && ($pedidoId ?? null) !== null)
+                                    <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 align-middle"
+                                          title="{{ __('Este item aún no se envió a cocina') }}">
+                                        {{ __('Nuevo') }}
+                                    </span>
+                                @endif
                                 {{-- Popover de editar nombre — mismo formato que el
                                     selector de descuentos: caja fixed, pico tipo
                                     tooltip alineado a la izquierda (porque la columna

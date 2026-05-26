@@ -122,10 +122,10 @@ class PedidosMostrador extends Component
     // ==================== ACCIÓN PENDIENTE DE COBRO ====================
 
     /**
-     * Cuando se intercepta una acción que requiere pedido cobrado (entregar,
-     * convertir en venta, drag a entregado, cambio manual a entregado), se
-     * guarda acá qué acción reanudar después de que el modal de cobro rápido
-     * complete. Valores: 'entregar' | 'convertir' | null.
+     * Cuando se intercepta convertir en venta sobre un pedido no cobrado, se
+     * guarda acá la acción para reanudarla después de que el modal de cobro
+     * rápido complete. Único valor activo: 'convertir' (entregar dejó de
+     * gatearse al pasar a comanda-por-detalle).
      */
     #[\Livewire\Attributes\Locked]
     public ?string $accionPendiente = null;
@@ -133,6 +133,22 @@ class PedidosMostrador extends Component
     /** ID del pedido sobre el que se interceptó la acción pendiente. */
     #[\Livewire\Attributes\Locked]
     public ?int $accionPendientePedidoId = null;
+
+    // ==================== MODAL COMANDAR ====================
+
+    /**
+     * Modal "comandar" que pregunta al operario si quiere mandar a cocina
+     * solo los items nuevos o todo el pedido. Solo se abre cuando hay mezcla
+     * (items con `comandado_at=null` Y items ya comandados). En otros casos
+     * `comandarPedido()` ejecuta directo.
+     */
+    public bool $showComandarModal = false;
+
+    public ?int $pedidoComandarId = null;
+
+    public int $comandarNuevosCount = 0;
+
+    public int $comandarComandadosCount = 0;
 
     // ==================== TIEMPO REAL ====================
 
@@ -511,7 +527,6 @@ class PedidosMostrador extends Component
         }
 
         match ($accion) {
-            'entregar' => $this->entregarRapido($pedidoId),
             'convertir' => $this->abrirConvertir($pedidoId),
             default => null,
         };
@@ -768,16 +783,6 @@ class PedidosMostrador extends Component
             return;
         }
 
-        if ($nuevoEstado === PedidoMostrador::ESTADO_ENTREGADO && ! $this->pedidoEstaCobrado($pedido)) {
-            // Revertir el drag visual y disparar el flujo de cobro. Al cobrar
-            // 100%, el listener reanuda con entregarRapido() (que vuelve a
-            // validar transición + permisos).
-            $this->dispatch('kanban-revertir');
-            $this->gatearPorCobro($pedido, 'entregar');
-
-            return;
-        }
-
         try {
             $this->service->cambiarEstado($pedido, $nuevoEstado);
             $this->dispatch('toast-success', message: __('Estado actualizado'));
@@ -881,14 +886,6 @@ class PedidosMostrador extends Component
             return;
         }
 
-        if ($this->nuevoEstado === PedidoMostrador::ESTADO_ENTREGADO && ! $this->pedidoEstaCobrado($pedido)) {
-            $this->showCambiarEstadoModal = false;
-            $this->resetCambiarEstadoState();
-            $this->gatearPorCobro($pedido, 'entregar');
-
-            return;
-        }
-
         try {
             $this->service->cambiarEstado($pedido, $this->nuevoEstado, $this->observacionEstado ?: null);
             $this->dispatch('toast-success', message: __('Estado actualizado'));
@@ -934,10 +931,6 @@ class PedidosMostrador extends Component
         if (! in_array(PedidoMostrador::ESTADO_ENTREGADO, $transiciones, true)) {
             $this->dispatch('toast-error', message: __("No se puede marcar como entregado desde el estado ':estado'", ['estado' => $pedido->estado_pedido]));
 
-            return;
-        }
-
-        if ($this->gatearPorCobro($pedido, 'entregar')) {
             return;
         }
 
@@ -1285,7 +1278,15 @@ class PedidosMostrador extends Component
 
     // ==================== IMPRESIÓN ====================
 
-    public function reimprimirComanda(int $pedidoId): void
+    /**
+     * Envía un pedido a cocina con flujo decisor:
+     * - Si todos los detalles ya están comandados o ninguno lo está, ejecuta
+     *   directo `comandarPedido($pedido, 'todos')` sin preguntar (reimpresión
+     *   completa o primera comanda).
+     * - Si hay mezcla (algunos comandados + algunos nuevos), abre el modal
+     *   para que el operario elija "solo nuevos" o "todo el pedido".
+     */
+    public function comandarPedido(int $pedidoId): void
     {
         $pedido = PedidoMostrador::find($pedidoId);
         if (! $pedido || ! $this->tieneAccesoASucursal($pedido->sucursal_id)) {
@@ -1294,12 +1295,66 @@ class PedidosMostrador extends Component
             return;
         }
 
+        $pedido->loadMissing('detalles');
+        $nuevos = $pedido->detalles->whereNull('comandado_at')->count();
+        $comandados = $pedido->detalles->whereNotNull('comandado_at')->count();
+
+        // Mezcla -> preguntar.
+        if ($nuevos > 0 && $comandados > 0) {
+            $this->pedidoComandarId = $pedido->id;
+            $this->comandarNuevosCount = $nuevos;
+            $this->comandarComandadosCount = $comandados;
+            $this->showComandarModal = true;
+
+            return;
+        }
+
+        // Sin mezcla -> ejecuta directo todos los detalles.
+        $this->ejecutarComandarPedido($pedido, PedidoMostradorService::ALCANCE_COMANDA_TODOS);
+    }
+
+    /**
+     * Despacha la acción tras la elección del operario en el modal.
+     */
+    public function confirmarComandar(string $alcance): void
+    {
+        if (! in_array($alcance, [PedidoMostradorService::ALCANCE_COMANDA_TODOS, PedidoMostradorService::ALCANCE_COMANDA_NUEVOS], true)) {
+            $this->dispatch('toast-error', message: __('Alcance inválido'));
+
+            return;
+        }
+
+        $pedidoId = $this->pedidoComandarId;
+        $this->cerrarComandarModal();
+
+        if (! $pedidoId) {
+            return;
+        }
+
+        $pedido = PedidoMostrador::find($pedidoId);
+        if (! $pedido || ! $this->tieneAccesoASucursal($pedido->sucursal_id)) {
+            $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+
+            return;
+        }
+
+        $this->ejecutarComandarPedido($pedido, $alcance);
+    }
+
+    public function cerrarComandarModal(): void
+    {
+        $this->showComandarModal = false;
+        $this->pedidoComandarId = null;
+        $this->comandarNuevosCount = 0;
+        $this->comandarComandadosCount = 0;
+    }
+
+    protected function ejecutarComandarPedido(PedidoMostrador $pedido, string $alcance): void
+    {
         try {
-            $payload = $this->service->imprimirComanda($pedido);
+            $payload = $this->service->comandarPedido($pedido, $alcance);
             $this->dispatch('imprimir-comanda', payload: $payload);
             $this->dispatch('toast-info', message: __('Enviando comanda a impresión...'));
-
-            $this->service->avanzarAEnPreparacionSiCorresponde($pedido->fresh());
         } catch (Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
         }
