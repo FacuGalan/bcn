@@ -910,6 +910,15 @@
                                         <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Subtotal') }}</th>
                                     </tr>
                                 </thead>
+                                @php
+                                    // Solo mostrar el indicador "no comandado" cuando hay
+                                    // mezcla (algunos items comandados + otros no). Si todos
+                                    // están sin comandar o todos comandados, el indicador es
+                                    // ruido.
+                                    $sinComandarVer = $pedidoDetalle->detalles->whereNull('comandado_at')->count();
+                                    $comandadosVer = $pedidoDetalle->detalles->whereNotNull('comandado_at')->count();
+                                    $hayMezclaComandaVer = $sinComandarVer > 0 && $comandadosVer > 0;
+                                @endphp
                                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                     @foreach($pedidoDetalle->detalles as $detalle)
                                         <tr>
@@ -939,11 +948,10 @@
                                                         🏷️ {{ __('Promo') }}
                                                     </span>
                                                 @endif
-                                                @if($detalle->comandado_at === null && $pedidoDetalle->estado_pedido !== 'borrador')
-                                                    <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
-                                                          title="{{ __('Este item aún no se envió a cocina') }}">
-                                                        {{ __('Nuevo') }}
-                                                    </span>
+                                                @if($hayMezclaComandaVer && $detalle->comandado_at === null)
+                                                    <span class="inline-block w-1.5 h-1.5 ml-1 rounded-full bg-amber-500 dark:bg-amber-400 align-middle"
+                                                          title="{{ __('Este item aún no se envió a cocina') }}"
+                                                          aria-label="{{ __('No comandado') }}"></span>
                                                 @endif
                                                 @if($detalle->opcionales->isNotEmpty())
                                                     <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
