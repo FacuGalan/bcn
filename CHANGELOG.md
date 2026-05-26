@@ -1,5 +1,99 @@
 # Changelog
 
+## [0.1.6](https://github.com/FacuGalan/bcn/compare/v0.1.5...v0.1.6) (2026-05-26)
+
+
+### Funcionalidades
+
+* **articulos:** imagen del articulo con upload seguro y render en panel tactil ([#94](https://github.com/FacuGalan/bcn/issues/94)) ([c338212](https://github.com/FacuGalan/bcn/commit/c3382122d297842a4a463105e7a4c8dffece3ed5))
+* **articulos:** import/export con lógica de precio y historial ([#42](https://github.com/FacuGalan/bcn/issues/42)) ([98cb8ef](https://github.com/FacuGalan/bcn/commit/98cb8ef37996f92d1eb9ae58be465b6a3cea809f))
+* **broadcasting:** infra Reverb con aislamiento multi-tenant ([#83](https://github.com/FacuGalan/bcn/issues/83)) ([3aad3f3](https://github.com/FacuGalan/bcn/commit/3aad3f3a4ac153b28132cbb59bfb8b22651559e5))
+* **cajas:** cierre de turno separa canje de puntos sin contaminar el cobrado real (PR E) ([#63](https://github.com/FacuGalan/bcn/issues/63)) ([cf4de76](https://github.com/FacuGalan/bcn/commit/cf4de76513d6e105e8168a3d80130c64a66ff511))
+* **cajas:** patron append-only en MovimientoCaja + factory crearContraasiento (PR H+I) ([#66](https://github.com/FacuGalan/bcn/issues/66)) ([190eff0](https://github.com/FacuGalan/bcn/commit/190eff0faf6483352eb63e5b8cecbbedea0e3adc))
+* **categorias:** import/export con plantilla Excel ([#41](https://github.com/FacuGalan/bcn/issues/41)) ([83516c6](https://github.com/FacuGalan/bcn/commit/83516c68110529966c85152e4ce31b2b130ac43a))
+* **cc:** snapshot id+tasa de moneda en MovimientoCuentaCorriente (PR L Repaso 3) ([#69](https://github.com/FacuGalan/bcn/issues/69)) ([0152a93](https://github.com/FacuGalan/bcn/commit/0152a9352a470f7b949012aad5bc8d4a9f19a6bd))
+* **invitaciones:** cortesia en pedidos mostrador + refactor touch-friendly del carrito ([#101](https://github.com/FacuGalan/bcn/issues/101)) ([6a435b8](https://github.com/FacuGalan/bcn/commit/6a435b83f8b23009cd86296a8205b7e201e8912b))
+* **invitaciones:** fase 7 - cortesia en NuevaVenta (POS) ([#102](https://github.com/FacuGalan/bcn/issues/102)) ([732e634](https://github.com/FacuGalan/bcn/commit/732e6342a3a77d1f812bc3e442726c9d6f0cb2b6))
+* **invitaciones:** fases 8-10 - conversion pedido→venta + badges + tests CA-13/14/15 ([#103](https://github.com/FacuGalan/bcn/issues/103)) ([73af664](https://github.com/FacuGalan/bcn/commit/73af6640c295407d0de9238a887e3c628edfc048))
+* listas de precios estáticas + fix bug categorías paso 5 ([#37](https://github.com/FacuGalan/bcn/issues/37)) ([f5e3798](https://github.com/FacuGalan/bcn/commit/f5e37982e9ec4875ffe6372c7cb11299d4a7d0e9))
+* **moneda:** cierre Repaso 3 — cobranzas + cobertura transferencias y cambio FP (PR N) ([#71](https://github.com/FacuGalan/bcn/issues/71)) ([85f4a64](https://github.com/FacuGalan/bcn/commit/85f4a64036741b68a73b8aeddf343ea7ae0d3c29))
+* **moneda:** completar snapshot id+tasa en CobroPago, MovimientoTesoreria, ProvisionFondo (PR M) ([#70](https://github.com/FacuGalan/bcn/issues/70)) ([53eb430](https://github.com/FacuGalan/bcn/commit/53eb43035fe7c41e4de7088405d24a13ad811ac4))
+* **navbar:** menú scrolleable horizontal con indicadores y auto-scroll ([#43](https://github.com/FacuGalan/bcn/issues/43)) ([46fc6f3](https://github.com/FacuGalan/bcn/commit/46fc6f305f923541ce2c74631763ebf90ffd42fe))
+* **pedidos-mostrador:** alta/edicion como modal full-screen (PR2.C.2.A v2) ([#79](https://github.com/FacuGalan/bcn/issues/79)) ([228e8ab](https://github.com/FacuGalan/bcn/commit/228e8abff9da4f51e61e442e0e8a817437a6ff93))
+* **pedidos-mostrador:** base de datos + modelos (PR2.A) ([#72](https://github.com/FacuGalan/bcn/issues/72)) ([b0e1a5e](https://github.com/FacuGalan/bcn/commit/b0e1a5e09745c610e377a3bac09ee8037e6daf00))
+* **pedidos-mostrador:** bloquear conversion sin pagos suficientes (PR2.B.2) ([#75](https://github.com/FacuGalan/bcn/issues/75)) ([ee07cba](https://github.com/FacuGalan/bcn/commit/ee07cbae6b6ca9da95cb0adef1395c0503d828f7))
+* **pedidos-mostrador:** comanda por detalle + desacople de cobro y entrega ([#106](https://github.com/FacuGalan/bcn/issues/106)) ([e406731](https://github.com/FacuGalan/bcn/commit/e406731d0a5357275c5ee2a6fb290cb9737075f5))
+* **pedidos-mostrador:** flujo cobro + comanda automatica + edicion ampliada ([#105](https://github.com/FacuGalan/bcn/issues/105)) ([7535b02](https://github.com/FacuGalan/bcn/commit/7535b02d4e43f0308ad7b776858ee7f9a8a9c59a))
+* **pedidos-mostrador:** hidratar desglose mixto al editar y modal Ver completo ([#91](https://github.com/FacuGalan/bcn/issues/91)) ([7de1f9f](https://github.com/FacuGalan/bcn/commit/7de1f9fc85d0e92f936f9417f6161bb1bedd34f5))
+* **pedidos-mostrador:** highlight en vivo + toOthers + CajaAware + orden Kanban ([#98](https://github.com/FacuGalan/bcn/issues/98)) ([215b2cf](https://github.com/FacuGalan/bcn/commit/215b2cfcc3ee676408955a26000e5e7e159250f6))
+* **pedidos-mostrador:** layout compacto + cobro rapido con desglose ([#100](https://github.com/FacuGalan/bcn/issues/100)) ([9100286](https://github.com/FacuGalan/bcn/commit/9100286a0e3aac8d4c8073edac4bec1f1deda661))
+* **pedidos-mostrador:** lista Livewire con acciones (PR2.C.1) ([#76](https://github.com/FacuGalan/bcn/issues/76)) ([e573f54](https://github.com/FacuGalan/bcn/commit/e573f54c80973e5d967b2c4e80efd7a690e08cf2))
+* **pedidos-mostrador:** logica autoritativa de paridad con venta ([#90](https://github.com/FacuGalan/bcn/issues/90)) ([06d131b](https://github.com/FacuGalan/bcn/commit/06d131bdeacbce700fde3dca9fd674ab7f901240))
+* **pedidos-mostrador:** modal de pago 1:1 con NuevaVenta + Confirmar sin cobrar ([#81](https://github.com/FacuGalan/bcn/issues/81)) ([97916a8](https://github.com/FacuGalan/bcn/commit/97916a81c36db1cd33354a7f3d7d7f8cd6bcd208))
+* **pedidos-mostrador:** modal de pagos con desglose mixto (PR2.C.2.B.1) ([#80](https://github.com/FacuGalan/bcn/issues/80)) ([e7a843b](https://github.com/FacuGalan/bcn/commit/e7a843be76a31826d58ba1f644099031ebd04d6f))
+* **pedidos-mostrador:** pagos planificados sin cobrar (PR2.B.1) ([#74](https://github.com/FacuGalan/bcn/issues/74)) ([1741a68](https://github.com/FacuGalan/bcn/commit/1741a68051edd6917c5d6a77130064381f58cbd5))
+* **pedidos-mostrador:** panel tactil RF-11 + promociones aplicadas en detalle ([#82](https://github.com/FacuGalan/bcn/issues/82)) ([85381cd](https://github.com/FacuGalan/bcn/commit/85381cd125a998b005427103d36f195dff40cc11))
+* **pedidos-mostrador:** rediseno panel tactil + scroll auto + body lock ([#93](https://github.com/FacuGalan/bcn/issues/93)) ([ed75bd1](https://github.com/FacuGalan/bcn/commit/ed75bd17dbe9e91aa486de5a2b85899294863a24))
+* **pedidos-mostrador:** service + eventos + plantillas (PR2.B) ([#73](https://github.com/FacuGalan/bcn/issues/73)) ([62a9a9f](https://github.com/FacuGalan/bcn/commit/62a9a9f61507abe456e28a74ca5737778d386bfd))
+* **pedidos-mostrador:** tiempo real + acciones rapidas en la lista ([#84](https://github.com/FacuGalan/bcn/issues/84)) ([984f95e](https://github.com/FacuGalan/bcn/commit/984f95e0ea4b53a1aaa56913636709742f26a961))
+* **pedidos-mostrador:** UI config conversion auto + canje puntos en convertirEnVenta ([#92](https://github.com/FacuGalan/bcn/issues/92)) ([17877b3](https://github.com/FacuGalan/bcn/commit/17877b37e28a617bccb61f068834e98cc5b0002c))
+* **pedidos-mostrador:** vista Kanban con drag&drop ([#85](https://github.com/FacuGalan/bcn/issues/85)) ([bfcb342](https://github.com/FacuGalan/bcn/commit/bfcb3425928626ebf96210b77a17b40fef24de62))
+* pesables, decimales stock, multi-select promos y scanner buffer ([#34](https://github.com/FacuGalan/bcn/issues/34)) ([68aa9bd](https://github.com/FacuGalan/bcn/commit/68aa9bd281f3129f42d41a24b518e5d8f5012db2))
+* promociones especiales óptimas + mejoras UI ([#36](https://github.com/FacuGalan/bcn/issues/36)) ([e580c31](https://github.com/FacuGalan/bcn/commit/e580c311cc0e57b5bf67352b5ac1e6a856a21f3e))
+* **testing:** smoke tests para 45 componentes Livewire + fix bug usuarios ([#50](https://github.com/FacuGalan/bcn/issues/50)) ([331b75f](https://github.com/FacuGalan/bcn/commit/331b75fbdd12f0f4da8e7e69842dcd4a667a0621))
+* **ventas:** auditoria usuario_id en descuentos manuales y generales (PR G) ([#65](https://github.com/FacuGalan/bcn/issues/65)) ([fffb913](https://github.com/FacuGalan/bcn/commit/fffb9133fb460a43d3ba8777d6e139e1e4d447de))
+* **ventas:** cambio de forma de pago registrada + fiscal automático ([#38](https://github.com/FacuGalan/bcn/issues/38)) ([de5660a](https://github.com/FacuGalan/bcn/commit/de5660ad6adaad82917b23fd702db28b0b04a725))
+* **ventas:** persistencia completa para reconstruir cualquier venta sin ambiguedad ([#58](https://github.com/FacuGalan/bcn/issues/58)) ([e148875](https://github.com/FacuGalan/bcn/commit/e1488754ba616cfc76ea22b8351545abcd3cafed))
+* **ventas:** popular descuento_lista con aporte de la lista por linea (PR F) ([#64](https://github.com/FacuGalan/bcn/issues/64)) ([fe3689f](https://github.com/FacuGalan/bcn/commit/fe3689f25cff2817f94448ded6ccb0965414e690))
+* **ventas:** snapshots completos de cliente/cupon + origen de ajuste manual ([#54](https://github.com/FacuGalan/bcn/issues/54)) ([27b9406](https://github.com/FacuGalan/bcn/commit/27b9406b66887f4d7a910749405959607b262fc3))
+* **ventas:** trazabilidad completa de canje de puntos via FP/concepto solo_sistema (PR C) ([#61](https://github.com/FacuGalan/bcn/issues/61)) ([f251352](https://github.com/FacuGalan/bcn/commit/f25135259dd642b17d81fc165e293f0719740cef))
+* **ventas:** trazabilidad completa de cotizacion en pagos ME (PR D — repaso 1) ([#62](https://github.com/FacuGalan/bcn/issues/62)) ([82bab0d](https://github.com/FacuGalan/bcn/commit/82bab0daa41df7ad551f38441ed82a153ba600a5))
+
+
+### Correcciones
+
+* 3 bugs reportados + soporte completo de concepto libre en ventas ([#39](https://github.com/FacuGalan/bcn/issues/39)) ([2060150](https://github.com/FacuGalan/bcn/commit/206015037470ca53f80911e08dc94e2f1da4e593))
+* **awareness:** evitar race condition en primer load del SPA ([#48](https://github.com/FacuGalan/bcn/issues/48)) ([2944293](https://github.com/FacuGalan/bcn/commit/294429346c9e55127d60cb7f80abe0b1e187ed05))
+* **cajas:** pagos pendientes de facturar - modales y filtro default ([#40](https://github.com/FacuGalan/bcn/issues/40)) ([b438bf1](https://github.com/FacuGalan/bcn/commit/b438bf12a6bd747a649958ddd8d1b44e1397cc34))
+* **invitaciones:** venta cortesía sin modal vuelto + sin forma_pago + info en detalle ([#104](https://github.com/FacuGalan/bcn/issues/104)) ([36d371c](https://github.com/FacuGalan/bcn/commit/36d371ccd92097b3aacdd52415ad1055bc008afa))
+* **pedidos-mostrador:** aislar scope Alpine del x-data raíz ([#88](https://github.com/FacuGalan/bcn/issues/88)) ([f3066c6](https://github.com/FacuGalan/bcn/commit/f3066c6469de3b5b5a6982d04552f13589ce5aa9))
+* **pedidos-mostrador:** broadcast inmediato + Alpine kanban registrado correctamente ([#86](https://github.com/FacuGalan/bcn/issues/86)) ([3c337e0](https://github.com/FacuGalan/bcn/commit/3c337e0aed6ac40e6ff741d029dc67c600e09802))
+* **pedidos-mostrador:** hot-fix total_final con FP simple + base de paridad con venta ([#89](https://github.com/FacuGalan/bcn/issues/89)) ([814c9c3](https://github.com/FacuGalan/bcn/commit/814c9c3ada107d7e9eb4b5fc0de0c3269c4f6181))
+* **pedidos-mostrador:** repaso completo — guard turno cerrado + promos por linea ([#95](https://github.com/FacuGalan/bcn/issues/95)) ([45df9f3](https://github.com/FacuGalan/bcn/commit/45df9f31d679e9c2a88cae50207686de11bd48c1))
+* **provision:** corregir errores que impedían crear nuevos comercios ([#33](https://github.com/FacuGalan/bcn/issues/33)) ([241ab50](https://github.com/FacuGalan/bcn/commit/241ab509f3f06d182021cfc1f8c185212110be23))
+* **testing:** aislar tests de BDs reales con cuatro defensas redundantes ([#47](https://github.com/FacuGalan/bcn/issues/47)) ([5d0308a](https://github.com/FacuGalan/bcn/commit/5d0308a729c45543b9d9af7ed9eed6e865607cf0))
+* **testing:** cleanup automatico de users factory en TestCase ([#52](https://github.com/FacuGalan/bcn/issues/52)) ([7fbd8bc](https://github.com/FacuGalan/bcn/commit/7fbd8bcb8fc8b9953447035da622983ca528a005))
+* **testing:** eliminar RefreshDatabase y endurecer guarda anti-BD-real ([#49](https://github.com/FacuGalan/bcn/issues/49)) ([680e59e](https://github.com/FacuGalan/bcn/commit/680e59ef4ea95b46a600b7397ecce318e43682f5))
+* **testing:** prefijar FK constraints y unificar conexión de cleanTestData ([#45](https://github.com/FacuGalan/bcn/issues/45)) ([d0abed2](https://github.com/FacuGalan/bcn/commit/d0abed231db42094c6210cce40d5349584807881))
+* **ui:** mejoras UX selectores, artículos, ventas y tesorería ([#31](https://github.com/FacuGalan/bcn/issues/31)) ([169756c](https://github.com/FacuGalan/bcn/commit/169756cc07c531608ace5c58d8e784435ead991a))
+* **ventas:** cupon excluye promos comunes y especiales del item bonificado + warning si rinde menos ([#57](https://github.com/FacuGalan/bcn/issues/57)) ([cb819f5](https://github.com/FacuGalan/bcn/commit/cb819f5e970f74700834c7c09145bb094cddc02e))
+* **ventas:** cupon tiene prioridad sobre descuento general % en items bonificados ([#56](https://github.com/FacuGalan/bcn/issues/56)) ([c5c4aff](https://github.com/FacuGalan/bcn/commit/c5c4affeffc4bb474dfaa74caf362bee0f95f5bd))
+* **ventas:** guard contra doble emision de NC al anular fiscalmente (PR K) ([#68](https://github.com/FacuGalan/bcn/issues/68)) ([cce3c7f](https://github.com/FacuGalan/bcn/commit/cce3c7f7071bc264c06777963724d3a690b1910a))
+* **ventas:** mostrar precio efectivo de sucursal en busqueda y consulta ([#51](https://github.com/FacuGalan/bcn/issues/51)) ([77bc466](https://github.com/FacuGalan/bcn/commit/77bc4664bb4a5453ffe55b1f6846c2da1628f1df))
+* **ventas:** repaso 1 — validaciones defensivas, revalidaciones al cobrar y criterios documentados ([#59](https://github.com/FacuGalan/bcn/issues/59)) ([9f399cf](https://github.com/FacuGalan/bcn/commit/9f399cf26085c45d5832ee83f42b674ef5c9eb78))
+* **ventas:** venta_detalle_promociones replicaba descuento total en cada unidad ([#55](https://github.com/FacuGalan/bcn/issues/55)) ([8bdfeb7](https://github.com/FacuGalan/bcn/commit/8bdfeb7d8dd0e36835bf225a30dbf9fc8f85e984))
+
+
+### Refactoring
+
+* **carrito:** extraer bloques compartidos de NuevaVenta a parciales ([#78](https://github.com/FacuGalan/bcn/issues/78)) ([3b69bad](https://github.com/FacuGalan/bcn/commit/3b69bad2290fc55ee57c43b61bfd10894cba1914))
+* **pedidos-mostrador:** layout fullscreen + header compacto + atajos teclado ([#99](https://github.com/FacuGalan/bcn/issues/99)) ([13b7e36](https://github.com/FacuGalan/bcn/commit/13b7e361559100defb4592de2a1d2701578091de))
+* **ventas,cobros:** eliminar SoftDeletes muerto, patron unico estado-enum (PR J) ([#67](https://github.com/FacuGalan/bcn/issues/67)) ([29b791f](https://github.com/FacuGalan/bcn/commit/29b791fa47577960ede940104eb443402acacb47))
+* **ventas:** extraer 11 traits de NuevaVenta (PR1 — cero cambios funcionales) ([#53](https://github.com/FacuGalan/bcn/issues/53)) ([015d737](https://github.com/FacuGalan/bcn/commit/015d7370deb838a131cf197739f23dd42352a291))
+
+
+### Documentación
+
+* agente docs-sync + actualización de manuales ([#35](https://github.com/FacuGalan/bcn/issues/35)) ([a08444a](https://github.com/FacuGalan/bcn/commit/a08444a822194896f46d121efd539664c1ef0dcf))
+* **reverb:** playbook de deploy con ruta real del server ([#87](https://github.com/FacuGalan/bcn/issues/87)) ([24c6bb5](https://github.com/FacuGalan/bcn/commit/24c6bb5f91c9aadc2567da718c4ab8d4a0974f62))
+* **specs:** rescatar diseño historico de recetas/opcionales ([#97](https://github.com/FacuGalan/bcn/issues/97)) ([b22e498](https://github.com/FacuGalan/bcn/commit/b22e498782039acfedd35b66e4582009bf5178ab))
+
+
+### Mantenimiento
+
+* **pedidos-mostrador:** cleanup post-repaso de code quality ([#96](https://github.com/FacuGalan/bcn/issues/96)) ([f146f7b](https://github.com/FacuGalan/bcn/commit/f146f7b13eadfa8e31659d9c959b79447fb3b685))
+* spec pedidos-mostrador + fix de helpers de tests para baseline limpio ([#46](https://github.com/FacuGalan/bcn/issues/46)) ([d263ca3](https://github.com/FacuGalan/bcn/commit/d263ca30fa4aaff011757af368a9ddf2096b6096))
+
 ## [0.1.5](https://github.com/FacuGalan/bcn/compare/v0.1.4...v0.1.5) (2026-04-08)
 
 
