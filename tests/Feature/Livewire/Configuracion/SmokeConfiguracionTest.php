@@ -7,6 +7,7 @@ use App\Livewire\Configuracion\FormasPagoSucursal;
 use App\Livewire\Configuracion\GestionarFormasPago;
 use App\Livewire\Configuracion\GestionMonedas;
 use App\Livewire\Configuracion\Impresoras;
+use App\Livewire\Configuracion\IntegracionesPago;
 use App\Livewire\Configuracion\Precios\ListarPrecios;
 use App\Livewire\Configuracion\Precios\WizardListaPrecio;
 use App\Livewire\Configuracion\Precios\WizardPrecio;
@@ -36,7 +37,8 @@ class SmokeConfiguracionTest extends TestCase
         $this->setUpTenant();
         $this->setUpSucursal();
 
-        $user = User::factory()->create();
+        // is_system_admin=true bypasa el check de permisos sin requerir asignar roles/permisos
+        $user = User::factory()->create(['is_system_admin' => true]);
         $this->actingAs($user);
         session(['comercio_activo_id' => $this->comercio->id, 'sucursal_id' => $this->sucursalId]);
 
@@ -72,6 +74,33 @@ class SmokeConfiguracionTest extends TestCase
     public function test_impresoras_monta(): void
     {
         Livewire::test(Impresoras::class)->assertOk();
+    }
+
+    public function test_integraciones_pago_monta(): void
+    {
+        Livewire::test(IntegracionesPago::class)->assertOk();
+    }
+
+    public function test_integraciones_pago_abrir_config_para_integracion_existente(): void
+    {
+        // Asegurar catálogo MP sembrado (puede o no estarlo según el contexto).
+        $mp = \App\Models\IntegracionPago::porCodigo('mercadopago')->first();
+        if (! $mp) {
+            $mp = \App\Models\IntegracionPago::create([
+                'codigo' => 'mercadopago',
+                'nombre' => 'Mercado Pago',
+                'modos_disponibles' => ['qr_dinamico', 'qr_estatico'],
+                'gateway_class' => 'App\\Services\\IntegracionesPago\\MercadoPagoGateway',
+                'activo' => true,
+                'orden' => 1,
+            ]);
+        }
+
+        Livewire::test(IntegracionesPago::class)
+            ->call('abrirConfig', $mp->id)
+            ->assertSet('mostrarModal', true)
+            ->assertSet('integracionPagoId', $mp->id)
+            ->assertSet('editMode', false);
     }
 
     public function test_listar_precios_monta(): void

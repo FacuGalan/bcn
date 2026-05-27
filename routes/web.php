@@ -26,6 +26,7 @@ use App\Livewire\Configuracion\FormasPagoSucursal;
 use App\Livewire\Configuracion\GestionarFormasPago;
 use App\Livewire\Configuracion\GestionMonedas;
 use App\Livewire\Configuracion\Impresoras;
+use App\Livewire\Configuracion\IntegracionesPago;
 use App\Livewire\Configuracion\Precios\ListarPrecios;
 use App\Livewire\Configuracion\Precios\WizardListaPrecio;
 use App\Livewire\Configuracion\Promociones\ListarPromociones;
@@ -302,6 +303,12 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
          * Configuración de impresoras por sucursal/caja
          */
         Route::get('impresoras', Impresoras::class)->name('impresoras');
+
+        /**
+         * Integraciones de Pago
+         * Configuración de credenciales de proveedores (MercadoPago, etc.) por sucursal
+         */
+        Route::get('integraciones-pago', IntegracionesPago::class)->name('integraciones-pago');
     });
 });
 
