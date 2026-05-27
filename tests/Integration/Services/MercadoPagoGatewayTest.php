@@ -234,6 +234,8 @@ class MercadoPagoGatewayTest extends TestCase
         $sucursal = \App\Models\Sucursal::find($this->sucursalId);
         $sucursal->update([
             'direccion' => 'Av. Corrientes 1234',
+            'localidad' => 'CABA',
+            'provincia' => 'AR-B', // ISO 3166-2 — al armar payload de MP se traduce a "Buenos Aires"
             'latitud' => -34.6037,
             'longitud' => -58.3816,
         ]);
@@ -263,7 +265,11 @@ class MercadoPagoGatewayTest extends TestCase
             return str_contains($request->url(), '/stores')
                 && $body['external_id'] === 'BCN-'.$this->comercio->id.'-'.$this->sucursalId
                 && $body['location']['latitude'] === -34.6037
-                && $body['location']['longitude'] === -58.3816;
+                && $body['location']['longitude'] === -58.3816
+                && $body['location']['city_name'] === 'CABA'
+                && $body['location']['state_name'] === 'Buenos Aires' // 'AR-B' traducido al nombre oficial
+                && $body['location']['street_name'] === 'Av. Corrientes'
+                && $body['location']['street_number'] === '1234';
         });
     }
 
@@ -276,6 +282,72 @@ class MercadoPagoGatewayTest extends TestCase
         $this->expectExceptionMessageMatches('/coordenadas/i');
 
         $this->gateway->crearStore($config, $sucursal, $this->comercio->id);
+    }
+
+    public function test_crear_store_sin_localidad_lanza_excepcion_explicita(): void
+    {
+        $config = $this->crearConfig();
+        $sucursal = \App\Models\Sucursal::find($this->sucursalId);
+        $sucursal->update([
+            'direccion' => 'Av. Corrientes 1234',
+            'latitud' => -34.6,
+            'longitud' => -58.4,
+            'localidad' => null,
+            'provincia' => null,
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/localidad/i');
+
+        $this->gateway->crearStore($config, $sucursal->refresh(), $this->comercio->id);
+    }
+
+    public function test_payload_store_traduce_codigo_iso_de_provincia_a_nombre_oficial(): void
+    {
+        Http::fake([
+            'api.mercadopago.com/users/*/stores' => Http::response(['id' => 1], 201),
+        ]);
+
+        $config = $this->crearConfig();
+        $sucursal = \App\Models\Sucursal::find($this->sucursalId);
+        $sucursal->update([
+            'direccion' => 'Calle X 100',
+            'localidad' => 'Córdoba',
+            'provincia' => 'AR-X', // Córdoba
+            'latitud' => -31.4,
+            'longitud' => -64.2,
+        ]);
+
+        $this->gateway->crearStore($config, $sucursal->refresh(), $this->comercio->id);
+
+        Http::assertSent(fn ($req) => $req->data()['location']['state_name'] === 'Córdoba');
+    }
+
+    public function test_guard_response_extrae_cause_array_de_mp(): void
+    {
+        Http::fake([
+            'api.mercadopago.com/users/*/stores' => Http::response([
+                'message' => 'Validation Error',
+                'error' => 'validation_error',
+                'cause' => [
+                    ['code' => 4001, 'description' => 'city_name no puede ser vacío'],
+                    ['code' => 4002, 'description' => 'state_name es requerido'],
+                ],
+            ], 400),
+        ]);
+
+        $config = $this->crearConfig();
+        $sucursal = $this->crearSucursalConCoordenadas();
+
+        try {
+            $this->gateway->crearStore($config, $sucursal, $this->comercio->id);
+            $this->fail('Debió lanzar excepción');
+        } catch (\RuntimeException $e) {
+            $msg = $e->getMessage();
+            $this->assertStringContainsString('400', $msg);
+            $this->assertStringContainsString('city_name no puede ser vacío', $msg);
+            $this->assertStringContainsString('state_name es requerido', $msg);
+        }
     }
 
     public function test_actualizar_store_requiere_mp_store_id(): void

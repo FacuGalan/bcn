@@ -143,6 +143,8 @@ class SmokeConfiguracionTest extends TestCase
         $sucursal = \App\Models\Sucursal::find($this->sucursalId);
         $sucursal->update([
             'direccion' => 'Test 123',
+            'localidad' => 'CABA',
+            'provincia' => 'AR-B',
             'latitud' => -34.6,
             'longitud' => -58.4,
         ]);

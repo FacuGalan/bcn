@@ -67,6 +67,8 @@ class SincronizacionMercadoPagoServiceTest extends TestCase
         $sucursal = Sucursal::find($this->sucursalId);
         $sucursal->update([
             'direccion' => 'Calle Test 123',
+            'localidad' => 'CABA',
+            'provincia' => 'AR-B',
             'latitud' => -34.6,
             'longitud' => -58.4,
         ]);

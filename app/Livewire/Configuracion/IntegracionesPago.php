@@ -67,6 +67,10 @@ class IntegracionesPago extends Component
 
     public ?string $direccion = null;
 
+    public ?string $localidad = null;
+
+    public ?string $provincia = null;
+
     public ?string $latitud = null;
 
     public ?string $longitud = null;
@@ -260,6 +264,8 @@ class IntegracionesPago extends Component
 
         $this->resetValidation();
         $this->direccion = $sucursal->direccion;
+        $this->localidad = $sucursal->localidad;
+        $this->provincia = $sucursal->provincia;
         $this->latitud = $sucursal->latitud !== null ? (string) $sucursal->latitud : null;
         $this->longitud = $sucursal->longitud !== null ? (string) $sucursal->longitud : null;
         $this->mostrarModalDireccion = true;
@@ -275,10 +281,14 @@ class IntegracionesPago extends Component
 
         $this->validate([
             'direccion' => 'required|string|max:255',
+            'localidad' => 'required|string|max:100',
+            'provincia' => 'required|string|max:100',
             'latitud' => 'required|numeric|between:-90,90',
             'longitud' => 'required|numeric|between:-180,180',
         ], [
             'direccion.required' => __('Ingrese la dirección de la sucursal'),
+            'localidad.required' => __('Ingrese la localidad'),
+            'provincia.required' => __('Ingrese la provincia'),
             'latitud.required' => __('Ingrese la latitud'),
             'latitud.between' => __('La latitud debe estar entre -90 y 90'),
             'longitud.required' => __('Ingrese la longitud'),
@@ -292,6 +302,8 @@ class IntegracionesPago extends Component
 
         $sucursal->update([
             'direccion' => $this->direccion,
+            'localidad' => $this->localidad,
+            'provincia' => $this->provincia,
             'latitud' => $this->latitud,
             'longitud' => $this->longitud,
         ]);
@@ -303,6 +315,11 @@ class IntegracionesPago extends Component
     public function cerrarModalDireccion(): void
     {
         $this->mostrarModalDireccion = false;
+        $this->direccion = null;
+        $this->localidad = null;
+        $this->provincia = null;
+        $this->latitud = null;
+        $this->longitud = null;
         $this->resetValidation();
     }
 

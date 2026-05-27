@@ -289,6 +289,12 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         if (empty($sucursal->direccion)) {
             throw new \RuntimeException(__('La sucursal no tiene dirección configurada'));
         }
+        if (empty($sucursal->localidad)) {
+            throw new \RuntimeException(__('La sucursal no tiene localidad configurada (Mercado Pago la requiere)'));
+        }
+        if (empty($sucursal->provincia)) {
+            throw new \RuntimeException(__('La sucursal no tiene provincia configurada (Mercado Pago la requiere)'));
+        }
     }
 
     private function guardResponse(\Illuminate\Http\Client\Response $response, string $contexto): void
@@ -297,35 +303,84 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
             return;
         }
 
-        $msg = $response->json('message') ?? $response->body() ?? __('Error desconocido');
+        // MP suele devolver el detalle en distintas claves segun el endpoint:
+        // `message` (texto), `error` (codigo), `cause` (array con descripciones).
+        $json = $response->json() ?? [];
+        $partes = [];
+
+        if (! empty($json['message'])) {
+            $partes[] = $json['message'];
+        }
+        if (! empty($json['error']) && $json['error'] !== ($json['message'] ?? null)) {
+            $partes[] = '['.$json['error'].']';
+        }
+        if (! empty($json['cause']) && is_array($json['cause'])) {
+            foreach ($json['cause'] as $c) {
+                if (is_array($c)) {
+                    $causeDesc = $c['description'] ?? $c['message'] ?? json_encode($c);
+                    $causeCode = isset($c['code']) ? " (code {$c['code']})" : '';
+                    $partes[] = $causeDesc.$causeCode;
+                } elseif (is_string($c)) {
+                    $partes[] = $c;
+                }
+            }
+        }
+
+        $detalle = ! empty($partes) ? implode(' — ', $partes) : ($response->body() ?: __('Error desconocido'));
+
         Log::warning("MercadoPagoGateway::{$contexto} error", [
             'status' => $response->status(),
             'body' => $response->body(),
         ]);
 
-        throw new \RuntimeException(__('Mercado Pago respondió error HTTP ').$response->status().': '.$msg);
+        throw new \RuntimeException(__('Mercado Pago respondió error HTTP ').$response->status().': '.$detalle);
     }
 
     /**
      * Construye el payload para crear/actualizar una Store.
-     * Parsea `direccion` como string libre — el usuario debe asegurar que
-     * sea descriptiva (no la parseamos en piezas porque sería frágil).
+     *
+     * `direccion` se intenta separar en street_name + street_number (regex
+     * simple: lo último que parezca un número se considera altura). Si no
+     * se detecta número, se manda 'S/N' como fallback.
      */
     private function buildStorePayload(Sucursal $sucursal, string $externalId): array
     {
+        [$streetName, $streetNumber] = $this->splitDireccion((string) $sucursal->direccion);
+
         return [
             'name' => $sucursal->nombre_publico ?: $sucursal->nombre,
             'external_id' => $externalId,
             'location' => [
-                'street_name' => (string) ($sucursal->direccion ?? ''),
-                'street_number' => '0',
-                'city_name' => '',
-                'state_name' => '',
+                'street_name' => $streetName,
+                'street_number' => $streetNumber,
+                'city_name' => (string) $sucursal->localidad,
+                'state_name' => (string) ($sucursal->provinciaNombre() ?? $sucursal->provincia),
                 'latitude' => (float) $sucursal->latitud,
                 'longitude' => (float) $sucursal->longitud,
                 'reference' => $sucursal->direccion ?? '',
             ],
         ];
+    }
+
+    /**
+     * Separa "Av. Corrientes 1234" en ["Av. Corrientes", "1234"].
+     * Si no detecta número al final, devuelve ["dirección completa", "S/N"].
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function splitDireccion(string $direccion): array
+    {
+        $direccion = trim($direccion);
+
+        if ($direccion === '') {
+            return ['', 'S/N'];
+        }
+
+        if (preg_match('/^(.+?)\s+(\d[\d\-\/]*)\s*$/u', $direccion, $m)) {
+            return [trim($m[1]), trim($m[2])];
+        }
+
+        return [$direccion, 'S/N'];
     }
 
     /**

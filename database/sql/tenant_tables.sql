@@ -1915,6 +1915,8 @@ CREATE TABLE `{{PREFIX}}sucursales` (
   `direccion` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Dirección física',
   `latitud` decimal(10,7) DEFAULT NULL COMMENT 'Latitud para geolocalización (Mercado Pago + tienda online)',
   `longitud` decimal(10,7) DEFAULT NULL COMMENT 'Longitud para geolocalización',
+  `localidad` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Localidad/ciudad (city_name en MP)',
+  `provincia` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Código ISO 3166-2 de la provincia (ej: AR-B). Se traduce al nombre al armar payloads externos',
   `telefono` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Teléfono de contacto',
   `email` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Email de contacto',
   `logo_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,

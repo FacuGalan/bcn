@@ -147,13 +147,19 @@
                                             {{ __('No sincronizada') }}
                                         </span>
                                     @endif
-                                    @if ($sucursalActiva->tieneCoordenadas())
+                                    @php
+                                        $datosCompletos = $sucursalActiva->tieneCoordenadas()
+                                            && ! empty($sucursalActiva->direccion)
+                                            && ! empty($sucursalActiva->localidad)
+                                            && ! empty($sucursalActiva->provincia);
+                                    @endphp
+                                    @if ($datosCompletos)
                                         <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                                            ({{ __('Coordenadas') }}: {{ $sucursalActiva->latitud }}, {{ $sucursalActiva->longitud }})
+                                            ({{ $sucursalActiva->localidad }}, {{ $sucursalActiva->provinciaNombre() }} · {{ $sucursalActiva->latitud }}, {{ $sucursalActiva->longitud }})
                                         </span>
                                     @else
                                         <span class="ml-2 text-xs text-amber-700 dark:text-amber-400">
-                                            ⚠ {{ __('Falta cargar coordenadas') }}
+                                            ⚠ {{ __('Faltan datos (dirección, localidad, provincia o coordenadas)') }}
                                         </span>
                                     @endif
                                 </div>
@@ -171,7 +177,7 @@
                                     <button wire:click="sincronizarSucursal({{ $config->id }})"
                                             wire:loading.attr="disabled"
                                             wire:target="sincronizarSucursal({{ $config->id }})"
-                                            @disabled(! $sucursalActiva->tieneCoordenadas() || empty($sucursalActiva->direccion))
+                                            @disabled(! $datosCompletos)
                                             class="inline-flex items-center px-3 py-1.5 border border-bcn-primary text-xs sm:text-sm font-medium rounded-md text-white bg-bcn-primary hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                                         <svg wire:loading.remove wire:target="sincronizarSucursal({{ $config->id }})" class="w-4 h-4 sm:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -508,9 +514,29 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Dirección') }} *</label>
                         <input type="text" wire:model="direccion"
-                               placeholder="Ej: Av. Corrientes 1234, CABA"
+                               placeholder="Ej: Av. Corrientes 1234"
                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
                         @error('direccion') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Localidad') }} *</label>
+                            <input type="text" wire:model="localidad" placeholder="Ej: CABA"
+                                   class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                            @error('localidad') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Provincia') }} *</label>
+                            <select wire:model="provincia"
+                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                <option value="">{{ __('Seleccione una provincia') }}</option>
+                                @foreach (\App\Models\Sucursal::PROVINCIAS_AR as $codigo => $nombre)
+                                    <option value="{{ $codigo }}">{{ $nombre }}</option>
+                                @endforeach
+                            </select>
+                            @error('provincia') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
