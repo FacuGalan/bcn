@@ -168,25 +168,51 @@
                     {{-- Tutorial colapsable --}}
                     <div x-show="mostrarAyuda" x-collapse x-cloak
                          class="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4">
-                        <div class="space-y-4 text-sm">
+                        <div class="space-y-5 text-sm">
+                            {{-- Nota inicial sobre las credenciales por producto --}}
+                            <div class="flex items-start gap-2 p-3 rounded-md bg-blue-100/60 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800">
+                                <svg class="w-5 h-5 mt-0.5 text-blue-700 dark:text-blue-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <p class="text-xs text-blue-800 dark:text-blue-200">
+                                    {{ __('Las credenciales de Mercado Pago se generan por producto. Esta integración cubre QR (dinámico y estático). Si en el futuro desea usar Point u otro medio, deberá crear una aplicación adicional en Mercado Pago y configurarla como una integración separada.') }}
+                                </p>
+                            </div>
+
+                            {{-- Paso 1: Crear aplicación en MP --}}
                             <div>
                                 <h4 class="font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center">
                                     <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100 text-xs font-bold mr-2">1</span>
-                                    {{ __('Credenciales de Producción') }}
+                                    {{ __('Crear una aplicación en Mercado Pago') }}
                                 </h4>
                                 <ol class="list-decimal list-inside space-y-1 text-blue-800 dark:text-blue-200 ml-8">
-                                    <li>{{ __('Ingrese a') }} <a href="https://www.mercadopago.com.ar/developers/panel" target="_blank" rel="noopener" class="underline font-medium">www.mercadopago.com.ar/developers/panel</a></li>
-                                    <li>{{ __('Inicie sesión con la cuenta de Mercado Pago de la sucursal') }}</li>
-                                    <li>{{ __('Vaya a "Tus integraciones" y cree una nueva (o seleccione una existente)') }}</li>
-                                    <li>{{ __('En el menú lateral elija "Credenciales de producción"') }}</li>
-                                    <li>{{ __('Copie el Access Token y la Public Key y péguelos en los campos correspondientes') }}</li>
+                                    <li>{{ __('Ingrese a') }} <a href="https://www.mercadopago.com.ar/developers/panel" target="_blank" rel="noopener" class="underline font-medium">www.mercadopago.com.ar/developers/panel</a> {{ __('con la cuenta de Mercado Pago de la sucursal') }}</li>
+                                    <li>{{ __('Vaya a "Tus integraciones" y haga clic en "Crear aplicación"') }}</li>
+                                    <li>{!! __('Tipo de integración: seleccione <strong>"Pagos presenciales"</strong>') !!}</li>
+                                    <li>{!! __('Modelo de integración: <strong>"Plataforma"</strong> (si está usando BCN Pymes como plataforma de cobro). Solo elija "Desarrollo propio" si es desarrollador de Mercado Pago.') !!}</li>
+                                    <li>{!! __('Producto a integrar: seleccione <strong>"QR"</strong>') !!}</li>
+                                    <li>{{ __('Acepte los términos y confirme la creación de la aplicación') }}</li>
                                 </ol>
                             </div>
 
+                            {{-- Paso 2: Credenciales de producción --}}
                             <div>
                                 <h4 class="font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center">
                                     <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100 text-xs font-bold mr-2">2</span>
-                                    {{ __('Credenciales de Test') }}
+                                    {{ __('Copiar credenciales de Producción') }}
+                                </h4>
+                                <ol class="list-decimal list-inside space-y-1 text-blue-800 dark:text-blue-200 ml-8">
+                                    <li>{{ __('Dentro de la aplicación recién creada, en el menú lateral elija "Credenciales de producción"') }}</li>
+                                    <li>{{ __('Es posible que Mercado Pago le pida activar el modo producción (verificar identidad, aceptar condiciones, etc.)') }}</li>
+                                    <li>{{ __('Copie el Access Token y la Public Key y péguelos en los campos correspondientes de este formulario') }}</li>
+                                </ol>
+                            </div>
+
+                            {{-- Paso 3: Credenciales de test --}}
+                            <div>
+                                <h4 class="font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center">
+                                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100 text-xs font-bold mr-2">3</span>
+                                    {{ __('Copiar credenciales de Test') }}
                                 </h4>
                                 <ol class="list-decimal list-inside space-y-1 text-blue-800 dark:text-blue-200 ml-8">
                                     <li>{{ __('En el mismo panel, elija "Credenciales de prueba"') }}</li>
@@ -195,9 +221,10 @@
                                 </ol>
                             </div>
 
+                            {{-- Paso 4: User ID --}}
                             <div>
                                 <h4 class="font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center">
-                                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100 text-xs font-bold mr-2">3</span>
+                                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100 text-xs font-bold mr-2">4</span>
                                     {{ __('User ID Mercado Pago') }}
                                 </h4>
                                 <ol class="list-decimal list-inside space-y-1 text-blue-800 dark:text-blue-200 ml-8">
@@ -207,13 +234,14 @@
                                 </ol>
                             </div>
 
+                            {{-- Paso 5: Webhook Secret --}}
                             <div>
                                 <h4 class="font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center">
-                                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100 text-xs font-bold mr-2">4</span>
+                                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100 text-xs font-bold mr-2">5</span>
                                     {{ __('Webhook Secret') }} <span class="ml-1 text-xs font-normal">({{ __('opcional pero recomendado') }})</span>
                                 </h4>
                                 <ol class="list-decimal list-inside space-y-1 text-blue-800 dark:text-blue-200 ml-8">
-                                    <li>{{ __('En el panel, vaya a "Webhooks" → "Configurar notificaciones"') }}</li>
+                                    <li>{{ __('Dentro de la aplicación, vaya a "Webhooks" → "Configurar notificaciones"') }}</li>
                                     <li>{{ __('Genere una clave secreta y péguela en este campo') }}</li>
                                     <li>{{ __('Permite verificar que las notificaciones provienen de Mercado Pago') }}</li>
                                 </ol>
