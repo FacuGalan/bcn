@@ -62,6 +62,8 @@ class Sucursal extends Model
         // Pedidos por Mostrador
         'pedido_mostrador_ultimo_numero', 'imprime_comanda_automatico',
         'pedido_conversion_automatica_al_entregar', 'usa_beepers',
+        // Geolocalización + Mercado Pago Stores
+        'latitud', 'longitud', 'mp_store_id', 'mp_store_external_id',
     ];
 
     protected $casts = [
@@ -80,7 +82,19 @@ class Sucursal extends Model
         'imprime_comanda_automatico' => 'boolean',
         'pedido_conversion_automatica_al_entregar' => 'boolean',
         'usa_beepers' => 'boolean',
+        'latitud' => 'decimal:7',
+        'longitud' => 'decimal:7',
     ];
+
+    public function tieneCoordenadas(): bool
+    {
+        return $this->latitud !== null && $this->longitud !== null;
+    }
+
+    public function estaSincronizadaEnMp(): bool
+    {
+        return ! empty($this->mp_store_id);
+    }
 
     // Relaciones
     public function stocks(): HasMany

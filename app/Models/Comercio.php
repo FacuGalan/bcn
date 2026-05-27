@@ -55,6 +55,19 @@ class Comercio extends Model
         'database_name',
         'prefijo',
         'max_usuarios',
+        'rubro',
+    ];
+
+    public const RUBRO_GASTRONOMIA = 'gastronomia';
+
+    public const RUBRO_ESTACION_SERVICIO = 'estacion_servicio';
+
+    public const RUBRO_OTRO = 'otro';
+
+    public const RUBROS = [
+        self::RUBRO_GASTRONOMIA => 'Gastronomía',
+        self::RUBRO_ESTACION_SERVICIO => 'Estación de Servicio',
+        self::RUBRO_OTRO => 'Otro',
     ];
 
     /**

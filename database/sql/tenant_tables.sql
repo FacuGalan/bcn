@@ -153,10 +153,16 @@ CREATE TABLE `{{PREFIX}}cajas` (
   `estado` enum('abierta','cerrada') COLLATE utf8mb4_unicode_ci DEFAULT 'cerrada',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
+  `mp_pos_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ID numérico del POS en Mercado Pago',
+  `mp_pos_external_id` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'external_id del POS en MP, formato BCN-{c}-POS-{caja}',
+  `mp_pos_qr_url` text COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'URL del PNG del QR estático asociado al POS',
+  `mp_pos_qr_pdf_url` text COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'URL del PDF imprimible del QR del POS',
   PRIMARY KEY (`id`),
   UNIQUE KEY `cajas_sucursal_numero_unique` (`sucursal_id`,`numero`),
+  UNIQUE KEY `uniq_cajas_mp_pos_external_id` (`mp_pos_external_id`),
   KEY `idx_estado` (`estado`),
   KEY `idx_sucursal` (`sucursal_id`),
+  KEY `idx_cajas_mp_pos_id` (`mp_pos_id`),
   KEY `{{PREFIX}}cajas_grupo_cierre_id_foreign` (`grupo_cierre_id`),
   CONSTRAINT `{{PREFIX}}cajas_grupo_cierre_id_foreign` FOREIGN KEY (`grupo_cierre_id`) REFERENCES `{{PREFIX}}grupos_cierre` (`id`) ON DELETE SET NULL,
   CONSTRAINT `{{PREFIX}}cajas_sucursal_id_foreign` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
@@ -1907,6 +1913,8 @@ CREATE TABLE `{{PREFIX}}sucursales` (
   `nombre_publico` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Nombre comercial visible al público',
   `codigo` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Código único de la sucursal',
   `direccion` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Dirección física',
+  `latitud` decimal(10,7) DEFAULT NULL COMMENT 'Latitud para geolocalización (Mercado Pago + tienda online)',
+  `longitud` decimal(10,7) DEFAULT NULL COMMENT 'Longitud para geolocalización',
   `telefono` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Teléfono de contacto',
   `email` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Email de contacto',
   `logo_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -1934,9 +1942,13 @@ CREATE TABLE `{{PREFIX}}sucursales` (
   `mensaje_whatsapp_comanda` text COLLATE utf8mb4_unicode_ci COMMENT 'Mensaje adicional para WhatsApp al comandar',
   `envia_whatsapp_listo` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si envía WhatsApp cuando pedido está listo/en camino',
   `mensaje_whatsapp_listo` text COLLATE utf8mb4_unicode_ci COMMENT 'Mensaje adicional para WhatsApp pedido listo',
+  `mp_store_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ID numérico de la store en Mercado Pago (sincronización QR)',
+  `mp_store_external_id` varchar(60) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'external_id de la store en MP, formato BCN-{c}-{s}',
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_codigo` (`codigo`),
-  KEY `idx_activa` (`activa`)
+  UNIQUE KEY `uniq_sucursales_mp_store_external_id` (`mp_store_external_id`),
+  KEY `idx_activa` (`activa`),
+  KEY `idx_sucursales_mp_store_id` (`mp_store_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}tesorerias`;
 CREATE TABLE `{{PREFIX}}tesorerias` (

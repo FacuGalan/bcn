@@ -2,9 +2,13 @@
 
 namespace App\Livewire\Configuracion;
 
+use App\Models\Caja;
+use App\Models\Comercio;
 use App\Models\IntegracionPago;
 use App\Models\IntegracionPagoSucursal;
+use App\Models\Sucursal;
 use App\Services\IntegracionesPago\IntegracionPagoSucursalService;
+use App\Services\IntegracionesPago\SincronizacionMercadoPagoService;
 use App\Traits\SucursalAware;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
@@ -56,6 +60,16 @@ class IntegracionesPago extends Component
     public int $timeout_segundos = 300;
 
     public bool $activo = true;
+
+    // ==================== Modal: dirección de sucursal ====================
+
+    public bool $mostrarModalDireccion = false;
+
+    public ?string $direccion = null;
+
+    public ?string $latitud = null;
+
+    public ?string $longitud = null;
 
     // ==================== Lifecycle ====================
 
@@ -235,6 +249,121 @@ class IntegracionesPago extends Component
         $this->resetValidation();
     }
 
+    // ==================== Dirección + coordenadas de la sucursal ====================
+
+    public function abrirModalDireccion(): void
+    {
+        $sucursal = $this->sucursalActivaModel();
+        if (! $sucursal) {
+            return;
+        }
+
+        $this->resetValidation();
+        $this->direccion = $sucursal->direccion;
+        $this->latitud = $sucursal->latitud !== null ? (string) $sucursal->latitud : null;
+        $this->longitud = $sucursal->longitud !== null ? (string) $sucursal->longitud : null;
+        $this->mostrarModalDireccion = true;
+    }
+
+    public function guardarDireccion(): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.integraciones_pago.administrar')) {
+            $this->dispatch('notify', message: __('No tiene permiso para administrar integraciones de pago'), type: 'error');
+
+            return;
+        }
+
+        $this->validate([
+            'direccion' => 'required|string|max:255',
+            'latitud' => 'required|numeric|between:-90,90',
+            'longitud' => 'required|numeric|between:-180,180',
+        ], [
+            'direccion.required' => __('Ingrese la dirección de la sucursal'),
+            'latitud.required' => __('Ingrese la latitud'),
+            'latitud.between' => __('La latitud debe estar entre -90 y 90'),
+            'longitud.required' => __('Ingrese la longitud'),
+            'longitud.between' => __('La longitud debe estar entre -180 y 180'),
+        ]);
+
+        $sucursal = $this->sucursalActivaModel();
+        if (! $sucursal) {
+            return;
+        }
+
+        $sucursal->update([
+            'direccion' => $this->direccion,
+            'latitud' => $this->latitud,
+            'longitud' => $this->longitud,
+        ]);
+
+        $this->mostrarModalDireccion = false;
+        $this->dispatch('notify', message: __('Dirección y coordenadas guardadas'), type: 'success');
+    }
+
+    public function cerrarModalDireccion(): void
+    {
+        $this->mostrarModalDireccion = false;
+        $this->resetValidation();
+    }
+
+    // ==================== Sincronización con Mercado Pago ====================
+
+    public function sincronizarSucursal(int $configId): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.integraciones_pago.administrar')) {
+            $this->dispatch('notify', message: __('No tiene permiso para administrar integraciones de pago'), type: 'error');
+
+            return;
+        }
+
+        try {
+            $config = IntegracionPagoSucursal::with('integracion')->findOrFail($configId);
+            $sucursal = $this->sucursalActivaModel();
+            $comercioId = (int) session('comercio_activo_id');
+
+            if (! $sucursal) {
+                $this->dispatch('notify', message: __('No hay sucursal activa'), type: 'error');
+
+                return;
+            }
+
+            SincronizacionMercadoPagoService::sincronizarSucursal($config, $sucursal, $comercioId);
+
+            $this->dispatch('notify', message: __('Sucursal sincronizada con Mercado Pago'), type: 'success');
+        } catch (\Throwable $e) {
+            $this->dispatch('notify', message: $e->getMessage(), type: 'error');
+        }
+    }
+
+    public function sincronizarCaja(int $configId, int $cajaId): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.integraciones_pago.administrar')) {
+            $this->dispatch('notify', message: __('No tiene permiso para administrar integraciones de pago'), type: 'error');
+
+            return;
+        }
+
+        try {
+            $config = IntegracionPagoSucursal::with('integracion')->findOrFail($configId);
+            $sucursal = $this->sucursalActivaModel();
+            $caja = Caja::where('sucursal_id', $sucursal?->id)->findOrFail($cajaId);
+            $comercioId = (int) session('comercio_activo_id');
+            $comercio = Comercio::find($comercioId);
+
+            SincronizacionMercadoPagoService::sincronizarCaja(
+                $config,
+                $caja,
+                $sucursal,
+                $comercio?->rubro,
+                $comercioId
+            );
+
+            $this->dispatch('notify', message: __('Caja sincronizada con Mercado Pago'), type: 'success');
+        } catch (\Throwable $e) {
+            $this->dispatch('notify', message: $e->getMessage(), type: 'error');
+        }
+    }
+
     private function resetForm(): void
     {
         $this->editMode = false;
@@ -264,10 +393,18 @@ class IntegracionesPago extends Component
             ? IntegracionPagoSucursal::where('sucursal_id', $sucursalActiva->id)->get()->keyBy('integracion_pago_id')
             : collect();
 
+        $cajas = $sucursalActiva
+            ? Caja::where('sucursal_id', $sucursalActiva->id)->where('activo', true)->orderBy('numero')->get()
+            : collect();
+
+        $comercio = Comercio::find(session('comercio_activo_id'));
+
         return view('livewire.configuracion.integraciones-pago', [
             'integraciones' => $integraciones,
             'sucursalActiva' => $sucursalActiva,
             'configs' => $configs,
+            'cajas' => $cajas,
+            'comercio' => $comercio,
         ]);
     }
 }
