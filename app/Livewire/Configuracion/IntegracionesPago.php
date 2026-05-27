@@ -111,7 +111,7 @@ class IntegracionesPago extends Component
         $this->sucursalId = $this->sucursalActual();
 
         $existente = IntegracionPagoSucursal::where('integracion_pago_id', $integracionPagoId)
-            ->where('sucursal_id', $sucursalId)
+            ->where('sucursal_id', $this->sucursalId)
             ->first();
 
         if ($existente) {

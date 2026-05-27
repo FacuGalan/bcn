@@ -81,6 +81,28 @@ class SmokeConfiguracionTest extends TestCase
         Livewire::test(IntegracionesPago::class)->assertOk();
     }
 
+    public function test_integraciones_pago_abrir_config_para_integracion_existente(): void
+    {
+        // Asegurar catálogo MP sembrado (puede o no estarlo según el contexto).
+        $mp = \App\Models\IntegracionPago::porCodigo('mercadopago')->first();
+        if (! $mp) {
+            $mp = \App\Models\IntegracionPago::create([
+                'codigo' => 'mercadopago',
+                'nombre' => 'Mercado Pago',
+                'modos_disponibles' => ['qr_dinamico', 'qr_estatico'],
+                'gateway_class' => 'App\\Services\\IntegracionesPago\\MercadoPagoGateway',
+                'activo' => true,
+                'orden' => 1,
+            ]);
+        }
+
+        Livewire::test(IntegracionesPago::class)
+            ->call('abrirConfig', $mp->id)
+            ->assertSet('mostrarModal', true)
+            ->assertSet('integracionPagoId', $mp->id)
+            ->assertSet('editMode', false);
+    }
+
     public function test_listar_precios_monta(): void
     {
         Livewire::test(ListarPrecios::class)->assertOk();
