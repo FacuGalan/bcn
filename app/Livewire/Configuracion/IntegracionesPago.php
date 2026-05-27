@@ -4,17 +4,18 @@ namespace App\Livewire\Configuracion;
 
 use App\Models\IntegracionPago;
 use App\Models\IntegracionPagoSucursal;
-use App\Models\Sucursal;
 use App\Services\IntegracionesPago\IntegracionPagoSucursalService;
+use App\Traits\SucursalAware;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
 use Livewire\Component;
 
 /**
- * Pantalla de gestión de configuraciones de integraciones de pago por sucursal.
+ * Pantalla de gestión de integraciones de pago para la sucursal activa.
  *
- * NO es SucursalAware: gestiona TODAS las sucursales desde un solo lugar
- * (es un módulo de configuración general del comercio).
+ * Es SucursalAware: cada cajero/encargado configura su propia sucursal.
+ * La gestión multi-sucursal (todas las sucursales en un solo lugar) se hará
+ * desde un componente futuro en el panel de Manager.
  *
  * Permiso requerido: `func.integraciones_pago.administrar`.
  */
@@ -22,6 +23,8 @@ use Livewire\Component;
 #[Layout('layouts.app')]
 class IntegracionesPago extends Component
 {
+    use SucursalAware;
+
     // ==================== Modal ====================
 
     public bool $mostrarModal = false;
@@ -99,13 +102,13 @@ class IntegracionesPago extends Component
 
     // ==================== Acciones ====================
 
-    public function abrirConfig(int $integracionPagoId, int $sucursalId): void
+    public function abrirConfig(int $integracionPagoId): void
     {
         $this->resetForm();
         $this->resetValidation();
 
         $this->integracionPagoId = $integracionPagoId;
-        $this->sucursalId = $sucursalId;
+        $this->sucursalId = $this->sucursalActual();
 
         $existente = IntegracionPagoSucursal::where('integracion_pago_id', $integracionPagoId)
             ->where('sucursal_id', $sucursalId)
@@ -230,15 +233,16 @@ class IntegracionesPago extends Component
     public function render()
     {
         $integraciones = IntegracionPago::activas()->orderBy('orden')->get();
-        $sucursales = Sucursal::orderBy('nombre')->get();
+        $sucursalActiva = $this->sucursalActivaModel();
 
-        // Mapa de configs existentes indexado por "integracion_id:sucursal_id"
-        $configs = IntegracionPagoSucursal::all()
-            ->keyBy(fn ($c) => $c->integracion_pago_id.':'.$c->sucursal_id);
+        // Mapa de configs de la sucursal activa indexado por integracion_id.
+        $configs = $sucursalActiva
+            ? IntegracionPagoSucursal::where('sucursal_id', $sucursalActiva->id)->get()->keyBy('integracion_pago_id')
+            : collect();
 
         return view('livewire.configuracion.integraciones-pago', [
             'integraciones' => $integraciones,
-            'sucursales' => $sucursales,
+            'sucursalActiva' => $sucursalActiva,
             'configs' => $configs,
         ]);
     }
