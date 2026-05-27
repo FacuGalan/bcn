@@ -90,7 +90,7 @@ class SmokeConfiguracionTest extends TestCase
                 'codigo' => 'mercadopago',
                 'nombre' => 'Mercado Pago',
                 'modos_disponibles' => ['qr_dinamico', 'qr_estatico'],
-                'gateway_class' => 'App\\Services\\IntegracionesPago\\MercadoPagoGateway',
+                'gateway_class' => \App\Services\IntegracionesPago\MercadoPagoGateway::class,
                 'activo' => true,
                 'orden' => 1,
             ]);
@@ -101,6 +101,43 @@ class SmokeConfiguracionTest extends TestCase
             ->assertSet('mostrarModal', true)
             ->assertSet('integracionPagoId', $mp->id)
             ->assertSet('editMode', false);
+    }
+
+    public function test_integraciones_pago_probar_conexion_dispara_notify_success_con_credenciales_ok(): void
+    {
+        $mp = \App\Models\IntegracionPago::porCodigo('mercadopago')->first();
+        if (! $mp) {
+            $mp = \App\Models\IntegracionPago::create([
+                'codigo' => 'mercadopago',
+                'nombre' => 'Mercado Pago',
+                'modos_disponibles' => ['qr_dinamico', 'qr_estatico'],
+                'gateway_class' => \App\Services\IntegracionesPago\MercadoPagoGateway::class,
+                'activo' => true,
+                'orden' => 1,
+            ]);
+        }
+
+        $config = \App\Models\IntegracionPagoSucursal::create([
+            'integracion_pago_id' => $mp->id,
+            'sucursal_id' => $this->sucursalId,
+            'modo' => 'test',
+            'access_token_test' => 'TEST-LIVEWIRE-OK',
+            'user_id_externo' => '123456',
+        ]);
+
+        \Illuminate\Support\Facades\Http::fake([
+            'api.mercadopago.com/users/me' => \Illuminate\Support\Facades\Http::response([
+                'id' => 123456,
+                'nickname' => 'LIVEWIRETEST',
+            ], 200),
+        ]);
+
+        Livewire::test(IntegracionesPago::class)
+            ->call('probarConexion', $config->id)
+            ->assertDispatched('notify', function ($name, $params) {
+                return ($params['type'] ?? null) === 'success'
+                    && str_contains($params['message'] ?? '', 'LIVEWIRETEST');
+            });
     }
 
     public function test_listar_precios_monta(): void

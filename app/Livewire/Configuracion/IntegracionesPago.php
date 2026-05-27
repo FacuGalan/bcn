@@ -186,6 +186,30 @@ class IntegracionesPago extends Component
         }
     }
 
+    public function probarConexion(int $configId): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.integraciones_pago.administrar')) {
+            $this->dispatch('notify', message: __('No tiene permiso para administrar integraciones de pago'), type: 'error');
+
+            return;
+        }
+
+        try {
+            $config = IntegracionPagoSucursal::with('integracion')->findOrFail($configId);
+            $gateway = $config->integracion->getGatewayInstance();
+            $info = $gateway->probarConexion($config);
+
+            $nickname = $info['nickname'] ?? $info['id'] ?? __('cuenta');
+            $this->dispatch(
+                'notify',
+                message: __('Conexión OK con Mercado Pago').' — '.$nickname.' ('.ucfirst($config->modo).')',
+                type: 'success'
+            );
+        } catch (\Throwable $e) {
+            $this->dispatch('notify', message: $e->getMessage(), type: 'error');
+        }
+    }
+
     public function eliminar(int $configId): void
     {
         if (! auth()->user()?->hasPermissionTo('func.integraciones_pago.administrar')) {
