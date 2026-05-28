@@ -10,6 +10,8 @@ use App\Models\Cupon;
 use App\Models\FormaPago;
 use App\Models\FormaPagoCuotaSucursal;
 use App\Models\FormaPagoSucursal;
+use App\Models\IntegracionPagoSucursal;
+use App\Models\IntegracionPagoTransaccion;
 use App\Models\Moneda;
 use App\Models\MovimientoCaja;
 use App\Models\PuntoVenta;
@@ -18,6 +20,7 @@ use App\Models\TipoCambio;
 use App\Models\VentaPago;
 use App\Services\ARCA\ComprobanteFiscalService;
 use App\Services\CuentaEmpresaService;
+use App\Services\IntegracionesPago\CobroIntegracionService;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -67,6 +70,31 @@ trait WithPagosDesglose
 
     /** @var float Total con ajustes aplicados */
     public $totalConAjustes = 0;
+
+    // =========================================
+    // COBRO CON INTEGRACIÓN (QR presencial — Fase 5)
+    // =========================================
+
+    /** @var bool Modal "esperando pago" visible (QR mostrado, polling activo) */
+    public bool $mostrarModalEsperandoPago = false;
+
+    /** @var int|null Transacción de cobro en curso (IntegracionPagoTransaccion) */
+    public ?int $cobroIntegracionTransaccionId = null;
+
+    /** @var string|null Trama EMVCo del QR a renderizar en el front */
+    public ?string $cobroIntegracionQrData = null;
+
+    /** @var float Monto del cobro por integración en curso */
+    public float $cobroIntegracionMonto = 0;
+
+    /** @var int|null Epoch (segundos) en que expira el cobro, para el countdown */
+    public ?int $cobroIntegracionExpiraTs = null;
+
+    /**
+     * @var bool Pago por integración ya confirmado. Lo lee el enganche del flujo
+     *           de cobro para proceder a materializar la venta/pedido.
+     */
+    public bool $cobroIntegracionConfirmado = false;
 
     /** @var array Forma de pago temporal para agregar al desglose */
     public $nuevoPago = [
@@ -794,6 +822,157 @@ trait WithPagosDesglose
 
         // Crear desglose con un solo pago (incluyendo info de cuotas)
         $this->crearDesglosePagoSimple($fp, $totalBase, $ajuste, $montoAjuste, $montoFinal, $cantidadCuotas, $recargoCuotas, $esCuentaCorriente);
+    }
+
+    // =========================================
+    // COBRO CON INTEGRACIÓN (QR presencial — Fase 5)
+    // =========================================
+
+    /**
+     * Devuelve el primer pago del desglose cuya forma de pago tiene una
+     * integración configurada (QR), o null si ninguno la tiene.
+     *
+     * Es el disparador del flujo de cobro QR: lo consulta el enganche del
+     * procesamiento (verificarPuntoVentaYProcesar) — pendiente de conectar —
+     * para decidir si hay que esperar un pago externo antes de materializar.
+     */
+    protected function desglosePagoConIntegracion(): ?array
+    {
+        foreach ($this->desglosePagos as $pago) {
+            $formaPago = FormaPago::find($pago['forma_pago_id'] ?? null);
+            if ($formaPago && $formaPago->tieneIntegracion()) {
+                return $pago;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Inicia el cobro QR de un pago del desglose: resuelve la config de la
+     * sucursal, pide el QR al gateway vía CobroIntegracionService y abre el
+     * modal de espera. La transacción nace sin cobrable (se asocia al confirmar).
+     */
+    public function iniciarCobroIntegracion(array $pago): void
+    {
+        $formaPago = FormaPago::find($pago['forma_pago_id'] ?? null);
+        $integracion = $formaPago?->integracionPrincipal();
+
+        if (! $integracion) {
+            $this->dispatch('toast-error', message: __('La forma de pago no tiene una integración asignada'));
+
+            return;
+        }
+
+        $config = IntegracionPagoSucursal::query()
+            ->where('integracion_pago_id', $integracion->id)
+            ->where('sucursal_id', $this->sucursalId)
+            ->where('activo', true)
+            ->first();
+
+        if (! $config || ! $config->estaConfigurada()) {
+            $this->dispatch('toast-error', message: __('La integración de pago no está configurada en esta sucursal'));
+
+            return;
+        }
+
+        try {
+            $transaccion = app(CobroIntegracionService::class)->iniciarCobro($config, [
+                'forma_pago_id' => $formaPago->id,
+                'sucursal_id' => $this->sucursalId,
+                'caja_id' => $this->cajaSeleccionada ?? caja_activa(),
+                'usuario_iniciador_id' => Auth::id(),
+                'modo_usado' => $integracion->pivot->modo_default ?? 'qr_dinamico',
+                'monto' => (float) ($pago['monto_final'] ?? 0),
+                'moneda_id' => $pago['moneda_id'] ?? null,
+            ]);
+        } catch (\Throwable $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+
+            return;
+        }
+
+        $this->cobroIntegracionTransaccionId = $transaccion->id;
+        $this->cobroIntegracionQrData = $transaccion->qr_data;
+        $this->cobroIntegracionMonto = (float) $transaccion->monto;
+        $this->cobroIntegracionExpiraTs = $transaccion->expira_en?->timestamp;
+        $this->cobroIntegracionConfirmado = false;
+        $this->mostrarModalEsperandoPago = true;
+    }
+
+    /**
+     * Polling del estado del cobro (wire:poll desde el modal de espera).
+     * Consulta al proveedor; al aprobar marca la transacción y avisa al
+     * componente para que materialice la venta/pedido (vía evento). Reverb
+     * reemplazará este polling en Fase 6.
+     */
+    public function pollearCobroIntegracion(): void
+    {
+        if (! $this->cobroIntegracionTransaccionId) {
+            return;
+        }
+
+        $transaccion = IntegracionPagoTransaccion::find($this->cobroIntegracionTransaccionId);
+        if (! $transaccion) {
+            $this->resetCobroIntegracion();
+
+            return;
+        }
+
+        $service = app(CobroIntegracionService::class);
+
+        try {
+            $estado = $service->consultarEstado($transaccion);
+        } catch (\Throwable $e) {
+            // Error transitorio de red: seguir esperando, no abortar el cobro.
+            return;
+        }
+
+        if ($estado === 'aprobado') {
+            $service->confirmarCobro($transaccion);
+            $this->cobroIntegracionConfirmado = true;
+            $this->mostrarModalEsperandoPago = false;
+            $this->dispatch('cobro-integracion-confirmado', transaccionId: $transaccion->id);
+
+            return;
+        }
+
+        if (in_array($estado, ['cancelado', 'expirado', 'fallido'], true)) {
+            $this->dispatch('toast-error', message: __('El pago no se completó (:estado)', ['estado' => $estado]));
+            $this->resetCobroIntegracion();
+            $this->dispatch('cobro-integracion-no-confirmado');
+        }
+        // 'pendiente' → seguir esperando (no-op).
+    }
+
+    /**
+     * Cancela el cobro en curso (botón del modal): avisa al proveedor, marca
+     * la transacción y cierra el modal. No se crea venta.
+     */
+    public function cancelarCobroIntegracion(): void
+    {
+        if ($this->cobroIntegracionTransaccionId) {
+            $transaccion = IntegracionPagoTransaccion::find($this->cobroIntegracionTransaccionId);
+            if ($transaccion) {
+                app(CobroIntegracionService::class)->cancelarCobro($transaccion);
+            }
+        }
+
+        $this->resetCobroIntegracion();
+        $this->dispatch('cobro-integracion-no-confirmado');
+    }
+
+    /**
+     * Limpia el estado del cobro por integración.
+     */
+    protected function resetCobroIntegracion(): void
+    {
+        $this->mostrarModalEsperandoPago = false;
+        $this->cobroIntegracionTransaccionId = null;
+        $this->cobroIntegracionQrData = null;
+        $this->cobroIntegracionMonto = 0;
+        $this->cobroIntegracionExpiraTs = null;
+        $this->cobroIntegracionConfirmado = false;
     }
 
     /**
