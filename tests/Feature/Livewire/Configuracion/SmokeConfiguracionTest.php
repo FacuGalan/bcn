@@ -93,10 +93,10 @@ class SmokeConfiguracionTest extends TestCase
     public function test_integraciones_pago_abrir_config_para_integracion_existente(): void
     {
         // Asegurar catálogo MP sembrado (puede o no estarlo según el contexto).
-        $mp = \App\Models\IntegracionPago::porCodigo('mercadopago')->first();
+        $mp = \App\Models\IntegracionPago::porCodigo('mercadopago_qr')->first();
         if (! $mp) {
             $mp = \App\Models\IntegracionPago::create([
-                'codigo' => 'mercadopago',
+                'codigo' => 'mercadopago_qr',
                 'nombre' => 'Mercado Pago',
                 'modos_disponibles' => ['qr_dinamico', 'qr_estatico'],
                 'gateway_class' => \App\Services\IntegracionesPago\MercadoPagoGateway::class,
@@ -114,10 +114,10 @@ class SmokeConfiguracionTest extends TestCase
 
     public function test_integraciones_pago_sincronizar_sucursal_persiste_mp_store_id(): void
     {
-        $mp = \App\Models\IntegracionPago::porCodigo('mercadopago')->first();
+        $mp = \App\Models\IntegracionPago::porCodigo('mercadopago_qr')->first();
         if (! $mp) {
             $mp = \App\Models\IntegracionPago::create([
-                'codigo' => 'mercadopago',
+                'codigo' => 'mercadopago_qr',
                 'nombre' => 'Mercado Pago',
                 'modos_disponibles' => ['qr_dinamico', 'qr_estatico'],
                 'gateway_class' => \App\Services\IntegracionesPago\MercadoPagoGateway::class,
@@ -165,10 +165,10 @@ class SmokeConfiguracionTest extends TestCase
 
     public function test_integraciones_pago_probar_conexion_dispara_notify_success_con_credenciales_ok(): void
     {
-        $mp = \App\Models\IntegracionPago::porCodigo('mercadopago')->first();
+        $mp = \App\Models\IntegracionPago::porCodigo('mercadopago_qr')->first();
         if (! $mp) {
             $mp = \App\Models\IntegracionPago::create([
-                'codigo' => 'mercadopago',
+                'codigo' => 'mercadopago_qr',
                 'nombre' => 'Mercado Pago',
                 'modos_disponibles' => ['qr_dinamico', 'qr_estatico'],
                 'gateway_class' => \App\Services\IntegracionesPago\MercadoPagoGateway::class,

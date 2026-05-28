@@ -121,7 +121,7 @@
                 </div>
 
                 {{-- Sección Stores/POS (solo si es MercadoPago y hay config) --}}
-                @if ($config && $integracion->codigo === \App\Models\IntegracionPago::CODIGO_MERCADOPAGO && $sucursalActiva)
+                @if ($config && $integracion->codigo === \App\Models\IntegracionPago::CODIGO_MERCADOPAGO_QR && $sucursalActiva)
                     <div class="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 px-4 sm:px-6 py-4 space-y-4">
                         {{-- Estado de la sucursal en MP --}}
                         <div>

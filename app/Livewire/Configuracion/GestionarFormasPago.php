@@ -7,6 +7,7 @@ use App\Models\CuentaEmpresa;
 use App\Models\FormaPago;
 use App\Models\FormaPagoCuota;
 use App\Models\FormaPagoSucursal;
+use App\Models\IntegracionPago;
 use App\Models\Moneda;
 use App\Models\Sucursal;
 use App\Services\CatalogoCache;
@@ -45,6 +46,10 @@ class GestionarFormasPago extends Component
     public $es_mixta = false;
 
     public array $conceptos_permitidos = []; // IDs de conceptos permitidos para mixtas
+
+    // Integraciones de pago (N:M) — solo FP simple cuyo concepto permite_integracion.
+    // Cada fila: ['integracion_pago_id'=>, 'modo_default'=>, 'modos_permitidos'=>[], 'es_principal'=>bool]
+    public array $integraciones_fp = [];
 
     // Cuenta empresa y moneda
     public $cuenta_empresa_id = null;
@@ -107,6 +112,14 @@ class GestionarFormasPago extends Component
             $rules['ajuste_porcentaje'] = 'nullable|numeric|min:-100|max:100';
             $rules['multiplicador_puntos'] = 'nullable|numeric|min:0|max:99.99';
             $rules['factura_fiscal'] = 'boolean';
+
+            // Integraciones de pago: solo si el concepto las permite.
+            if ($this->conceptoPermiteIntegracion()) {
+                $rules['integraciones_fp'] = 'array';
+                $rules['integraciones_fp.*.integracion_pago_id'] = 'required|exists:pymes_tenant.integraciones_pago,id';
+                $rules['integraciones_fp.*.modo_default'] = 'required|string';
+                $rules['integraciones_fp.*.modos_permitidos'] = 'required|array|min:1';
+            }
         }
 
         return $rules;
@@ -123,6 +136,11 @@ class GestionarFormasPago extends Component
             'ajuste_porcentaje.max' => __('El ajuste no puede exceder 100%'),
             'conceptos_permitidos.required' => __('Debe seleccionar los conceptos permitidos'),
             'conceptos_permitidos.min' => __('Una forma de pago mixta debe permitir al menos 2 conceptos'),
+            'integraciones_fp.*.integracion_pago_id.required' => __('Debe seleccionar una integración'),
+            'integraciones_fp.*.integracion_pago_id.exists' => __('La integración seleccionada no es válida'),
+            'integraciones_fp.*.modo_default.required' => __('Debe seleccionar un modo default'),
+            'integraciones_fp.*.modos_permitidos.required' => __('Debe seleccionar al menos un modo permitido'),
+            'integraciones_fp.*.modos_permitidos.min' => __('Debe seleccionar al menos un modo permitido'),
         ];
     }
 
@@ -145,10 +163,101 @@ class GestionarFormasPago extends Component
             $this->ajuste_porcentaje = 0;
             $this->multiplicador_puntos = 1;
             $this->factura_fiscal = false;
+            $this->integraciones_fp = []; // las mixtas no usan integraciones
         } else {
             // No es mixta: limpiar conceptos permitidos
             $this->conceptos_permitidos = [];
         }
+    }
+
+    /**
+     * Si cambia el concepto y el nuevo no permite integración, limpiar las filas.
+     */
+    public function updatedConceptoPagoId()
+    {
+        if (! $this->conceptoPermiteIntegracion()) {
+            $this->integraciones_fp = [];
+        }
+    }
+
+    /**
+     * Al elegir una integración en una fila, precargar modo default y modos
+     * permitidos con los modos disponibles de esa integración.
+     */
+    public function updatedIntegracionesFp($value, $key)
+    {
+        [$index, $field] = array_pad(explode('.', $key, 2), 2, null);
+
+        if ($field !== 'integracion_pago_id') {
+            return;
+        }
+
+        $integracion = $this->integracionesActivas()->firstWhere('id', (int) $value);
+        $modos = $integracion?->modos_disponibles ?? [];
+
+        $this->integraciones_fp[$index]['modo_default'] = $modos[0] ?? null;
+        $this->integraciones_fp[$index]['modos_permitidos'] = $modos;
+    }
+
+    public function agregarIntegracion()
+    {
+        $this->integraciones_fp[] = [
+            'integracion_pago_id' => null,
+            'modo_default' => null,
+            'modos_permitidos' => [],
+            'es_principal' => count($this->integraciones_fp) === 0,
+        ];
+    }
+
+    public function quitarIntegracion($index)
+    {
+        unset($this->integraciones_fp[$index]);
+        $this->integraciones_fp = array_values($this->integraciones_fp);
+
+        // Garantizar que siempre haya una principal si quedan filas.
+        if (! empty($this->integraciones_fp)
+            && ! collect($this->integraciones_fp)->contains(fn ($r) => ! empty($r['es_principal']))) {
+            $this->integraciones_fp[0]['es_principal'] = true;
+        }
+    }
+
+    public function marcarPrincipal($index)
+    {
+        foreach (array_keys($this->integraciones_fp) as $i) {
+            $this->integraciones_fp[$i]['es_principal'] = ($i == $index);
+        }
+    }
+
+    /**
+     * El concepto simple seleccionado permite tener integración de pago.
+     */
+    public function conceptoPermiteIntegracion(): bool
+    {
+        if ($this->es_mixta || ! $this->concepto_pago_id) {
+            return false;
+        }
+
+        return (bool) optional(ConceptoPago::find($this->concepto_pago_id))->permite_integracion;
+    }
+
+    /**
+     * Integraciones de pago activas del comercio (catálogo).
+     */
+    private function integracionesActivas()
+    {
+        return IntegracionPago::activas()->orderBy('orden')->get();
+    }
+
+    /**
+     * Etiqueta legible para un modo de integración.
+     */
+    public function labelModo(string $modo): string
+    {
+        return match ($modo) {
+            'qr_dinamico' => __('QR dinámico'),
+            'qr_estatico' => __('QR estático'),
+            default => $modo,
+        };
     }
 
     public function crear()
@@ -164,7 +273,7 @@ class GestionarFormasPago extends Component
 
     public function edit($id)
     {
-        $formaPago = FormaPago::with(['sucursales', 'conceptoPago', 'conceptosPermitidos'])->findOrFail($id);
+        $formaPago = FormaPago::with(['sucursales', 'conceptoPago', 'conceptosPermitidos', 'integraciones'])->findOrFail($id);
 
         $this->formaPagoId = $formaPago->id;
         $this->nombre = $formaPago->nombre;
@@ -184,6 +293,7 @@ class GestionarFormasPago extends Component
             $this->multiplicador_puntos = 1;
             $this->factura_fiscal = false;
             $this->conceptos_permitidos = $formaPago->conceptosPermitidos->pluck('id')->toArray();
+            $this->integraciones_fp = [];
         } else {
             // Forma de pago simple
             $this->concepto_pago_id = $formaPago->concepto_pago_id;
@@ -192,6 +302,14 @@ class GestionarFormasPago extends Component
             $this->multiplicador_puntos = $formaPago->multiplicador_puntos ?? 1;
             $this->factura_fiscal = $formaPago->factura_fiscal ?? false;
             $this->conceptos_permitidos = [];
+
+            // Cargar integraciones de pago asociadas (pivote).
+            $this->integraciones_fp = $formaPago->integraciones->map(fn ($int) => [
+                'integracion_pago_id' => $int->id,
+                'modo_default' => $int->pivot->modo_default,
+                'modos_permitidos' => json_decode($int->pivot->modos_permitidos ?? '[]', true) ?: [],
+                'es_principal' => (bool) $int->pivot->es_principal,
+            ])->toArray();
         }
 
         // Cargar sucursales donde está activa
@@ -212,6 +330,30 @@ class GestionarFormasPago extends Component
     public function guardar()
     {
         $this->validate();
+
+        // Validaciones de integridad de integraciones (no duplicar, default ∈ permitidos).
+        if (! $this->es_mixta && $this->conceptoPermiteIntegracion()) {
+            $vistos = [];
+            foreach ($this->integraciones_fp as $i => $row) {
+                $intId = $row['integracion_pago_id'] ?? null;
+                if ($intId && in_array($intId, $vistos, true)) {
+                    $this->addError("integraciones_fp.$i.integracion_pago_id", __('Esta integración ya está agregada'));
+
+                    return;
+                }
+                if ($intId) {
+                    $vistos[] = $intId;
+                }
+
+                $modoDefault = $row['modo_default'] ?? null;
+                $modosPermitidos = $row['modos_permitidos'] ?? [];
+                if ($modoDefault && ! in_array($modoDefault, $modosPermitidos, true)) {
+                    $this->addError("integraciones_fp.$i.modo_default", __('El modo default debe estar entre los modos permitidos'));
+
+                    return;
+                }
+            }
+        }
 
         try {
             // Obtener el concepto para el campo legacy 'concepto'
@@ -253,6 +395,25 @@ class GestionarFormasPago extends Component
             } else {
                 // Si no es mixta, limpiar conceptos permitidos
                 $formaPago->conceptosPermitidos()->detach();
+            }
+
+            // Sincronizar integraciones de pago (solo FP simple cuyo concepto las permite)
+            if (! $this->es_mixta && $this->conceptoPermiteIntegracion()) {
+                $syncIntegraciones = [];
+                foreach ($this->integraciones_fp as $row) {
+                    if (empty($row['integracion_pago_id'])) {
+                        continue;
+                    }
+                    $syncIntegraciones[$row['integracion_pago_id']] = [
+                        'modo_default' => $row['modo_default'] ?? null,
+                        'modos_permitidos' => json_encode(array_values($row['modos_permitidos'] ?? [])),
+                        'es_principal' => ! empty($row['es_principal']),
+                    ];
+                }
+                $formaPago->integraciones()->sync($syncIntegraciones);
+            } else {
+                // FP mixta o concepto que no permite integración: limpiar.
+                $formaPago->integraciones()->detach();
             }
 
             // Sincronizar sucursales
@@ -408,6 +569,7 @@ class GestionarFormasPago extends Component
         $this->activo = true;
         $this->es_mixta = false;
         $this->conceptos_permitidos = [];
+        $this->integraciones_fp = [];
         $this->sucursales_seleccionadas = [];
         $this->cuenta_empresa_id = null;
         $this->moneda_id = null;
@@ -484,6 +646,8 @@ class GestionarFormasPago extends Component
             'cuentasEmpresa' => $cuentasEmpresa,
             'monedas' => $monedas,
             'puntosActivo' => app(PuntosService::class)->isProgramaActivo(),
+            'integracionesDisponibles' => $this->integracionesActivas(),
+            'conceptoPermiteIntegracionSel' => $this->conceptoPermiteIntegracion(),
         ]);
     }
 }

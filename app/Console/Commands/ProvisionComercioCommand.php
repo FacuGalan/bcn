@@ -748,8 +748,8 @@ class ProvisionComercioCommand extends Command
 
         $integraciones = [
             [
-                'codigo' => 'mercadopago',
-                'nombre' => 'Mercado Pago',
+                'codigo' => 'mercadopago_qr',
+                'nombre' => 'Mercado Pago - QR',
                 'descripcion' => 'Cobros con Mercado Pago: QR dinámico (monto fijo) y QR estático (monto libre).',
                 'modos_disponibles' => json_encode(['qr_dinamico', 'qr_estatico']),
                 'gateway_class' => \App\Services\IntegracionesPago\MercadoPagoGateway::class,

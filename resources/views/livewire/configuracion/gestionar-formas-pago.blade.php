@@ -441,7 +441,7 @@
                                                 {{ __('Concepto de pago') }} *
                                             </label>
                                             <select
-                                                wire:model="concepto_pago_id"
+                                                wire:model.live="concepto_pago_id"
                                                 class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
                                             >
                                                 <option value="">{{ __('Seleccionar concepto...') }}</option>
@@ -513,6 +513,116 @@
                                                     {{ __('0 = no suma puntos, 1 = normal, 2 = doble') }}
                                                 </p>
                                                 @error('multiplicador_puntos') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                            </div>
+                                        @endif
+
+                                        <!-- Integraciones de pago (solo si el concepto las permite) -->
+                                        @if($conceptoPermiteIntegracionSel)
+                                            <div class="sm:col-span-2">
+                                                <div class="flex items-center justify-between mb-2">
+                                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                        {{ __('Integraciones de pago') }}
+                                                    </label>
+                                                    <button
+                                                        type="button"
+                                                        wire:click="agregarIntegracion"
+                                                        class="inline-flex items-center gap-1 text-sm text-bcn-primary hover:text-bcn-dark"
+                                                    >
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                                        </svg>
+                                                        {{ __('Agregar integración') }}
+                                                    </button>
+                                                </div>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                                                    {{ __('Conectá esta forma de pago a una pasarela (ej. Mercado Pago). Cada producto es una integración con su propio modo de cobro.') }}
+                                                </p>
+
+                                                @forelse($integraciones_fp as $index => $fila)
+                                                    @php $integracionSel = $integracionesDisponibles->firstWhere('id', (int) ($fila['integracion_pago_id'] ?? 0)); @endphp
+                                                    <div class="mb-3 p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/40">
+                                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                            <!-- Integración -->
+                                                            <div>
+                                                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Integración') }}</label>
+                                                                <select
+                                                                    wire:model.live="integraciones_fp.{{ $index }}.integracion_pago_id"
+                                                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
+                                                                >
+                                                                    <option value="">{{ __('Seleccionar...') }}</option>
+                                                                    @foreach($integracionesDisponibles as $integracion)
+                                                                        <option value="{{ $integracion->id }}">{{ __($integracion->nombre) }}</option>
+                                                                    @endforeach
+                                                                </select>
+                                                                @error("integraciones_fp.{$index}.integracion_pago_id") <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                                            </div>
+                                                            <!-- Modo default -->
+                                                            <div>
+                                                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Modo default') }}</label>
+                                                                <select
+                                                                    wire:model="integraciones_fp.{{ $index }}.modo_default"
+                                                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
+                                                                    @disabled(! $integracionSel)
+                                                                >
+                                                                    <option value="">{{ __('Seleccionar...') }}</option>
+                                                                    @foreach(($integracionSel->modos_disponibles ?? []) as $modo)
+                                                                        <option value="{{ $modo }}">{{ $this->labelModo($modo) }}</option>
+                                                                    @endforeach
+                                                                </select>
+                                                                @error("integraciones_fp.{$index}.modo_default") <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- Modos permitidos -->
+                                                        @if($integracionSel)
+                                                            <div class="mt-3">
+                                                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Modos permitidos') }}</label>
+                                                                <div class="flex flex-wrap gap-x-4 gap-y-2">
+                                                                    @foreach(($integracionSel->modos_disponibles ?? []) as $modo)
+                                                                        <label class="flex items-center text-sm text-gray-700 dark:text-gray-300">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                value="{{ $modo }}"
+                                                                                wire:model="integraciones_fp.{{ $index }}.modos_permitidos"
+                                                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
+                                                                            />
+                                                                            <span class="ml-1.5">{{ $this->labelModo($modo) }}</span>
+                                                                        </label>
+                                                                    @endforeach
+                                                                </div>
+                                                                @error("integraciones_fp.{$index}.modos_permitidos") <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                                            </div>
+                                                        @endif
+
+                                                        <!-- Principal + quitar -->
+                                                        <div class="mt-3 flex items-center justify-between">
+                                                            <label class="flex items-center text-sm text-gray-700 dark:text-gray-300">
+                                                                <input
+                                                                    type="radio"
+                                                                    name="integracion_principal"
+                                                                    @checked(! empty($fila['es_principal']))
+                                                                    wire:click="marcarPrincipal({{ $index }})"
+                                                                    class="border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
+                                                                />
+                                                                <span class="ml-1.5">{{ __('Principal') }}</span>
+                                                            </label>
+                                                            <button
+                                                                type="button"
+                                                                wire:click="quitarIntegracion({{ $index }})"
+                                                                class="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700"
+                                                            >
+                                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                                                </svg>
+                                                                {{ __('Quitar') }}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                @empty
+                                                    <p class="text-xs text-gray-400 dark:text-gray-500 italic">
+                                                        {{ __('Sin integraciones. Esta forma de pago se cobra de forma manual.') }}
+                                                    </p>
+                                                @endforelse
                                             </div>
                                         @endif
                                     @else
