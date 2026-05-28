@@ -220,8 +220,9 @@ class CobroServiceTest extends TestCase
             ],
         );
 
-        // Formato: RC-XX-NNNNNNNN
-        $this->assertMatchesRegularExpression('/^RC-\d{2}-\d{8}$/', $cobro->numero_recibo);
+        // Formato: RC-{sucursal}-NNNNNNNN. La sucursal usa str_pad mínimo 2,
+        // pero no está topeada: con id ≥100 son 3+ dígitos (válido).
+        $this->assertMatchesRegularExpression('/^RC-\d{2,}-\d{8}$/', $cobro->numero_recibo);
     }
 
     public function test_cobro_excedente_como_saldo_favor(): void
