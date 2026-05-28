@@ -163,4 +163,45 @@ class SincronizacionMercadoPagoServiceTest extends TestCase
         $this->assertStringContainsString('.png', $resultado->mp_pos_qr_url);
         $this->assertStringContainsString('.pdf', $resultado->mp_pos_qr_pdf_url);
     }
+
+    public function test_sincronizar_caja_segunda_vez_llama_a_actualizar(): void
+    {
+        Http::fake([
+            'api.mercadopago.com/pos/111222' => Http::response(['id' => 111222], 200),
+            'api.mercadopago.com/pos' => Http::response(['id' => 99], 201),
+        ]);
+
+        $config = $this->crearConfig();
+        $sucursal = $this->crearSucursalConCoordenadas();
+        $sucursal->update([
+            'mp_store_id' => '8888888',
+            'mp_store_external_id' => 'BCN-'.$this->comercio->id.'-'.$this->sucursalId,
+        ]);
+
+        $caja = Caja::create([
+            'sucursal_id' => $this->sucursalId,
+            'nombre' => 'Caja Test',
+            'codigo' => 'CT',
+            'tipo' => 'efectivo',
+            'saldo_actual' => 0,
+            'saldo_inicial' => 0,
+            'estado' => 'cerrada',
+            'activo' => true,
+            'mp_pos_id' => '111222',
+            'mp_pos_external_id' => 'BCN'.$this->comercio->id.'POS1',
+        ]);
+
+        $resultado = SincronizacionMercadoPagoService::sincronizarCaja(
+            $config,
+            $caja->refresh(),
+            $sucursal->refresh(),
+            null,
+            $this->comercio->id
+        );
+
+        $this->assertSame('111222', $resultado->mp_pos_id);
+
+        Http::assertSent(fn ($req) => $req->method() === 'PUT' && str_contains($req->url(), '/pos/111222'));
+        Http::assertNotSent(fn ($req) => $req->method() === 'POST');
+    }
 }

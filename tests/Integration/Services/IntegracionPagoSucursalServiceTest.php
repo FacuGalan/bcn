@@ -2,9 +2,11 @@
 
 namespace Tests\Integration\Services;
 
+use App\Models\Caja;
 use App\Models\IntegracionPago;
 use App\Models\IntegracionPagoSucursal;
 use App\Models\MercadoPagoCollectorIndex;
+use App\Models\Sucursal;
 use App\Services\IntegracionesPago\IntegracionPagoSucursalService;
 use Tests\TestCase;
 use Tests\Traits\WithSucursal;
@@ -99,6 +101,75 @@ class IntegracionPagoSucursalServiceTest extends TestCase
 
         $this->assertSame(0, MercadoPagoCollectorIndex::porUserId('mp-user-cambio-001', 'test')->count());
         $this->assertSame(1, MercadoPagoCollectorIndex::porUserId('mp-user-cambio-002', 'test')->count());
+    }
+
+    public function test_cambiar_modo_limpia_ids_de_mp_de_sucursal_y_cajas(): void
+    {
+        $config = IntegracionPagoSucursalService::crear([
+            'integracion_pago_id' => $this->mpId(),
+            'sucursal_id' => $this->sucursalId,
+            'modo' => 'test',
+            'access_token_test' => 'TEST-TOKEN',
+            'user_id_externo' => 'mp-user-test',
+        ]);
+
+        Sucursal::where('id', $this->sucursalId)->update([
+            'mp_store_id' => '77385601',
+            'mp_store_external_id' => 'BCN-1-1',
+        ]);
+        $caja = Caja::create([
+            'sucursal_id' => $this->sucursalId,
+            'nombre' => 'Caja 1',
+            'codigo' => 'C1',
+            'tipo' => 'efectivo',
+            'saldo_actual' => 0,
+            'saldo_inicial' => 0,
+            'estado' => 'cerrada',
+            'activo' => true,
+            'mp_pos_id' => '132636361',
+            'mp_pos_external_id' => 'BCN1POS1',
+            'mp_pos_qr_url' => 'https://mp.com/qr.png',
+            'mp_pos_qr_pdf_url' => 'https://mp.com/qr.pdf',
+        ]);
+
+        IntegracionPagoSucursalService::actualizar($config, [
+            'modo' => 'produccion',
+            'access_token_produccion' => 'PROD-TOKEN',
+        ]);
+
+        $suc = Sucursal::find($this->sucursalId);
+        $this->assertNull($suc->mp_store_id);
+        $this->assertNull($suc->mp_store_external_id);
+
+        $caja->refresh();
+        $this->assertNull($caja->mp_pos_id);
+        $this->assertNull($caja->mp_pos_external_id);
+        $this->assertNull($caja->mp_pos_qr_url);
+        $this->assertNull($caja->mp_pos_qr_pdf_url);
+    }
+
+    public function test_actualizar_campo_no_cuenta_no_limpia_ids_de_mp(): void
+    {
+        $config = IntegracionPagoSucursalService::crear([
+            'integracion_pago_id' => $this->mpId(),
+            'sucursal_id' => $this->sucursalId,
+            'modo' => 'test',
+            'access_token_test' => 'TEST-TOKEN',
+            'user_id_externo' => 'mp-user-test',
+        ]);
+
+        Sucursal::where('id', $this->sucursalId)->update([
+            'mp_store_id' => '77385601',
+            'mp_store_external_id' => 'BCN-1-1',
+        ]);
+
+        IntegracionPagoSucursalService::actualizar($config, [
+            'timeout_segundos' => 600,
+        ]);
+
+        $suc = Sucursal::find($this->sucursalId);
+        $this->assertSame('77385601', $suc->mp_store_id);
+        $this->assertSame('BCN-1-1', $suc->mp_store_external_id);
     }
 
     public function test_eliminar_borra_config_y_limpia_indice(): void

@@ -2,7 +2,9 @@
 
 namespace App\Services\IntegracionesPago;
 
+use App\Models\Caja;
 use App\Models\IntegracionPagoSucursal;
+use App\Models\Sucursal;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -43,15 +45,49 @@ class IntegracionPagoSucursalService
     public static function actualizar(IntegracionPagoSucursal $config, array $data): IntegracionPagoSucursal
     {
         return DB::connection('pymes_tenant')->transaction(function () use ($config, $data) {
-            $config->update($data);
+            $config->fill($data);
+
+            // Si cambia el modo (test↔producción) o la cuenta MP (user_id_externo),
+            // los Store/POS creados en la cuenta anterior dejan de existir en la
+            // nueva. Se limpian los IDs/QR locales para que la próxima
+            // sincronización los CREE de nuevo en lugar de intentar actualizarlos.
+            $cuentaMpCambio = $config->isDirty('modo') || $config->isDirty('user_id_externo');
+
+            $config->save();
+
+            if ($cuentaMpCambio) {
+                self::limpiarSincronizacionMp($config->sucursal_id);
+            }
 
             Log::info('IntegracionPagoSucursal actualizada', [
                 'id' => $config->id,
                 'cambios' => array_keys($config->getChanges()),
+                'cuenta_mp_cambio' => $cuentaMpCambio,
             ]);
 
             return $config->refresh();
         });
+    }
+
+    /**
+     * Borra los IDs de Store/POS y URLs de QR de una sucursal y todas sus cajas.
+     *
+     * Se invoca al cambiar de cuenta MP (modo o user_id_externo): los recursos
+     * de la cuenta vieja no existen en la nueva, así que el sync debe recrearlos.
+     */
+    private static function limpiarSincronizacionMp(int $sucursalId): void
+    {
+        Sucursal::where('id', $sucursalId)->update([
+            'mp_store_id' => null,
+            'mp_store_external_id' => null,
+        ]);
+
+        Caja::where('sucursal_id', $sucursalId)->update([
+            'mp_pos_id' => null,
+            'mp_pos_external_id' => null,
+            'mp_pos_qr_url' => null,
+            'mp_pos_qr_pdf_url' => null,
+        ]);
     }
 
     /**

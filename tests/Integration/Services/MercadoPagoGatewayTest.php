@@ -361,6 +361,48 @@ class MercadoPagoGatewayTest extends TestCase
         $this->gateway->actualizarStore($config, $sucursal, $this->comercio->id);
     }
 
+    public function test_actualizar_store_no_envia_external_id(): void
+    {
+        // MP rechaza el external_id en el PUT por colisión consigo mismo
+        // ("already assigned to this user"). El update debe omitirlo.
+        Http::fake([
+            'api.mercadopago.com/users/*/stores/*' => Http::response(['id' => 7777777], 200),
+        ]);
+
+        $config = $this->crearConfig();
+        $sucursal = $this->sucursalSincronizada();
+
+        $this->gateway->actualizarStore($config, $sucursal, $this->comercio->id);
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'PUT'
+                && str_contains($request->url(), '/stores/7777777')
+                && ! array_key_exists('external_id', $request->data())
+                && $request->data()['location']['city_name'] === 'CABA';
+        });
+    }
+
+    public function test_actualizar_pos_no_envia_external_id(): void
+    {
+        Http::fake([
+            'api.mercadopago.com/pos/*' => Http::response(['id' => 999111], 200),
+        ]);
+
+        $config = $this->crearConfig();
+        $sucursal = $this->sucursalSincronizada();
+        $caja = $this->crearCaja();
+        $caja->update(['mp_pos_id' => '999111', 'mp_pos_external_id' => 'BCN1POS1']);
+
+        $this->gateway->actualizarPos($config, $caja->refresh(), $sucursal, null, $this->comercio->id);
+
+        Http::assertSent(function ($request) {
+            return $request->method() === 'PUT'
+                && str_contains($request->url(), '/pos/999111')
+                && ! array_key_exists('external_id', $request->data())
+                && $request->data()['store_id'] === 7777777;
+        });
+    }
+
     public function test_eliminar_store_404_se_considera_ok(): void
     {
         Http::fake([
@@ -407,7 +449,7 @@ class MercadoPagoGatewayTest extends TestCase
                     'image' => 'https://mp.com/qr/999111/abc.png',
                     'template_document' => 'https://mp.com/qr/999111/abc.pdf',
                 ],
-                'external_id' => 'BCN-1-POS-1',
+                'external_id' => 'BCN1POS1',
             ], 201),
         ]);
 
@@ -469,8 +511,10 @@ class MercadoPagoGatewayTest extends TestCase
         $posExt = \App\Services\IntegracionesPago\MercadoPagoGateway::externalIdPos(1, 999);
 
         $this->assertSame('BCN-1-999', $storeExt);
-        $this->assertSame('BCN-1-POS-999', $posExt);
+        $this->assertSame('BCN1POS999', $posExt);
         $this->assertLessThanOrEqual(60, strlen($storeExt));
         $this->assertLessThanOrEqual(40, strlen($posExt));
+        // El POS exige external_id estrictamente alfanumérico (sin guiones).
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9]+$/', $posExt);
     }
 }

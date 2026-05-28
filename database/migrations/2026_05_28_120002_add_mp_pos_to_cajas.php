@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
  * agregadas a la tabla `cajas` tenant.
  *
  * - mp_pos_id: ID numérico devuelto por MP al crear el POS.
- * - mp_pos_external_id: external_id alfanumérico (formato BCN-{c}-{caja_id}).
+ * - mp_pos_external_id: external_id alfanumérico SIN guiones (formato BCN{c}POS{caja_id}; MP lo exige así).
  * - mp_pos_qr_url: URL del PNG del QR estático (campo `qr.image` de MP).
  * - mp_pos_qr_pdf_url: URL del PDF imprimible (campo `qr.template_document`).
  */

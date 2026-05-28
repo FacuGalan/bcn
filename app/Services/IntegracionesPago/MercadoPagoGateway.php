@@ -126,11 +126,16 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
 
     /**
      * Genera el external_id usado para identificar un POS de BCN en MP.
-     * Formato: BCN-{comercio_id}-POS-{caja_id}. Máximo 40 chars (límite MP).
+     * Formato: BCN{comercio_id}POS{caja_id}. Máximo 40 chars (límite MP).
+     *
+     * SIN guiones: el endpoint de POS exige `external_id` estrictamente
+     * alfanumérico (HTTP 400 `invalid_external_id` si no). La palabra "POS"
+     * actúa de separador, así que el id sigue siendo único e inequívoco.
+     * (El endpoint de Store sí acepta guiones — por eso `externalIdStore` los usa.)
      */
     public static function externalIdPos(int $comercioId, int $cajaId): string
     {
-        return "BCN-{$comercioId}-POS-{$cajaId}";
+        return "BCN{$comercioId}POS{$cajaId}";
     }
 
     /**
@@ -163,6 +168,10 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
 
     /**
      * PUT /users/{user_id}/stores/{store_id} — actualiza datos de una store.
+     *
+     * NO se envía `external_id`: MP valida su unicidad incluso en el update y
+     * lo rechaza por estar "ya asignado" a la propia store que se actualiza
+     * (HTTP 400). La store ya queda identificada por el `store_id` de la URL.
      */
     public function actualizarStore(IntegracionPagoSucursal $config, Sucursal $sucursal, int $comercioId): array
     {
@@ -172,8 +181,7 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
             throw new \RuntimeException(__('La sucursal no tiene un Store creado en Mercado Pago'));
         }
 
-        $externalId = $sucursal->mp_store_external_id ?: self::externalIdStore($comercioId, $sucursal->id);
-        $payload = $this->buildStorePayload($sucursal, $externalId);
+        $payload = $this->buildStorePayload($sucursal, null);
 
         $response = $this->client($config)
             ->put(self::API_BASE.'/users/'.$config->user_id_externo.'/stores/'.$sucursal->mp_store_id, $payload);
@@ -232,6 +240,9 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
 
     /**
      * PUT /pos/{pos_id} — actualiza datos del POS.
+     *
+     * NO se envía `external_id` (mismo motivo que `actualizarStore`): MP lo
+     * rechaza por estar "ya asignado" al propio POS. Se identifica por la URL.
      */
     public function actualizarPos(IntegracionPagoSucursal $config, Caja $caja, Sucursal $sucursal, ?string $rubro, int $comercioId): array
     {
@@ -239,8 +250,7 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
             throw new \RuntimeException(__('La caja no tiene un POS creado en Mercado Pago'));
         }
 
-        $externalId = $caja->mp_pos_external_id ?: self::externalIdPos($comercioId, $caja->id);
-        $payload = $this->buildPosPayload($caja, $sucursal, $externalId, $rubro);
+        $payload = $this->buildPosPayload($caja, $sucursal, null, $rubro);
 
         $response = $this->client($config)->put(self::API_BASE.'/pos/'.$caja->mp_pos_id, $payload);
 
@@ -339,17 +349,19 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
     /**
      * Construye el payload para crear/actualizar una Store.
      *
+     * `external_id` solo se incluye al crear (se pasa el valor); en updates se
+     * pasa null y se omite, porque MP lo rechaza por colisión consigo mismo.
+     *
      * `direccion` se intenta separar en street_name + street_number (regex
      * simple: lo último que parezca un número se considera altura). Si no
      * se detecta número, se manda 'S/N' como fallback.
      */
-    private function buildStorePayload(Sucursal $sucursal, string $externalId): array
+    private function buildStorePayload(Sucursal $sucursal, ?string $externalId): array
     {
         [$streetName, $streetNumber] = $this->splitDireccion((string) $sucursal->direccion);
 
-        return [
+        $payload = [
             'name' => $sucursal->nombre_publico ?: $sucursal->nombre,
-            'external_id' => $externalId,
             'location' => [
                 'street_name' => $streetName,
                 'street_number' => $streetNumber,
@@ -360,6 +372,12 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
                 'reference' => $sucursal->direccion ?? '',
             ],
         ];
+
+        if ($externalId !== null) {
+            $payload['external_id'] = $externalId;
+        }
+
+        return $payload;
     }
 
     /**
@@ -385,18 +403,25 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
 
     /**
      * Construye el payload para crear/actualizar un POS.
+     *
+     * `external_id` solo se incluye al crear; en updates se pasa null y se
+     * omite (MP lo rechaza por colisión consigo mismo, igual que en Store).
+     *
      * `category` solo se incluye si el comercio es gastronomía o estación
      * de servicio (los únicos rubros que MP acepta para QR Code).
      */
-    private function buildPosPayload(Caja $caja, Sucursal $sucursal, string $externalId, ?string $rubro): array
+    private function buildPosPayload(Caja $caja, Sucursal $sucursal, ?string $externalId, ?string $rubro): array
     {
         $payload = [
             'name' => $caja->nombre,
             'fixed_amount' => true,
             'store_id' => (int) $sucursal->mp_store_id,
             'external_store_id' => $sucursal->mp_store_external_id,
-            'external_id' => $externalId,
         ];
+
+        if ($externalId !== null) {
+            $payload['external_id'] = $externalId;
+        }
 
         $category = $this->resolverCategory($rubro);
         if ($category !== null) {
