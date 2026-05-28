@@ -1112,6 +1112,27 @@ Planes de cuotas configurables por forma de pago.
 | `descripcion` | varchar(200) nullable | Descripcion del plan |
 | `activo` | boolean | Si esta activo |
 
+#### Tabla: `{PREFIX}forma_pago_integraciones` (tenant)
+Pivote N:M entre `formas_pago` e `integraciones_pago`. Define que integraciones tiene asignadas una forma de pago simple y como debe usarlas al cobrar.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `forma_pago_id` | bigint FK | Forma de pago (ON DELETE CASCADE) |
+| `integracion_pago_id` | bigint FK | Integracion de pago (ON DELETE CASCADE) |
+| `modo_default` | varchar(50) nullable | Modo preseleccionado al cobrar (ej: `qr_dinamico`, `qr_estatico`) |
+| `modos_permitidos` | json nullable | Array de modos que el cajero puede elegir al cobrar |
+| `es_principal` | boolean | Si es la integracion preseleccionada cuando la FP tiene varias |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+**Indices**: UNIQUE `(forma_pago_id, integracion_pago_id)`.
+
+**Relacion en FormaPago**: `integraciones()` — `BelongsToMany` con `withPivot(['modo_default','modos_permitidos','es_principal'])`.
+
+**Helpers en FormaPago**:
+- `tieneIntegracion()` — devuelve true si la FP tiene al menos una integracion vinculada.
+- `integracionPrincipal()` — devuelve la `IntegracionPago` marcada `es_principal`, o la primera si ninguna esta marcada, o NULL si no hay ninguna.
+
 #### Tabla: `conceptos_pago`
 Conceptos de pago disponibles (tipos reales de medio de pago).
 
@@ -1123,6 +1144,7 @@ Conceptos de pago disponibles (tipos reales de medio de pago).
 | `descripcion` | text nullable | Descripcion |
 | `permite_cuotas` | boolean | Si permite cuotas |
 | `permite_vuelto` | boolean | Si permite dar vuelto |
+| `permite_integracion` | boolean | Si conceptos de este tipo pueden vincularse a una integracion de pago externa (wallet, transferencia = true; efectivo, tarjeta = false) |
 | `activo` | boolean | Si esta activo |
 | `orden` | int | Orden |
 
@@ -2115,7 +2137,7 @@ Catalogo de pasarelas disponibles en el sistema. Se provisiona una vez por insta
 |---|---|---|
 | `id` | bigint PK | ID unico |
 | `nombre` | varchar(100) | Nombre legible (ej: "Mercado Pago") |
-| `codigo` | varchar(50) UNIQUE | Identificador tecnico (ej: `mercadopago`) |
+| `codigo` | varchar(50) UNIQUE | Identificador tecnico (ej: `mercadopago_qr`). Cada producto del proveedor es una fila separada |
 | `gateway_class` | varchar(255) | FQCN de la clase gateway (ej: `App\Services\IntegracionesPago\MercadoPagoGateway`) |
 | `activo` | boolean | Si esta habilitado para ser configurado |
 | `created_at`, `updated_at` | timestamp | Timestamps |
@@ -2170,6 +2192,28 @@ Campo `rubro varchar(50) nullable` agregado a la tabla `comercios` de la conexio
 - **`MercadoPagoGateway`**: Clase concreta que implementa `IntegracionPagoGatewayContract`. Gestiona toda la comunicacion HTTP con la API de MP. Metodos de Fase 3.5: `crearStore`, `actualizarStore`, `eliminarStore`, `crearPos`, `actualizarPos`, `eliminarPos`. Metodos de Fase 5 (stubs que lanzan excepcion): `iniciarCobro`, `consultarEstado`, `cancelarCobro`.
 - **`SincronizacionMercadoPagoService`**: Orquesta crear-vs-actualizar. Decide segun `mp_store_id` / `mp_pos_id`. Persiste IDs y URLs devueltos en una transaccion tenant.
 - **`IntegracionPagoSucursalService`**: CRUD de configuraciones. Al cambiar `modo` o `user_id_externo` limpia los IDs de MP locales (Store + todos sus POS) via `limpiarSincronizacionMp()`.
+
+#### Catalogo de integraciones — codigos vigentes
+
+| Codigo | Nombre | Descripcion |
+|---|---|---|
+| `mercadopago_qr` | Mercado Pago - QR | Cobro via QR estatico o dinamico. Renombrado desde `mercadopago` en Fase 4 para dar lugar a futuros productos MP (Point, Checkout, etc.) como filas separadas del catalogo |
+
+**Constante PHP**: `IntegracionPago::CODIGO_MERCADOPAGO_QR = 'mercadopago_qr'`.
+
+#### Reglas de negocio — asignacion de integraciones a formas de pago (Fase 4)
+
+1. **Solo FP simples con concepto compatible**: Solo las formas de pago simples cuyo `ConceptoPago.permite_integracion = true` pueden tener integraciones vinculadas. Las FP mixtas no admiten integraciones (se limpian al cambiar a mixta).
+
+2. **N integraciones por FP**: Una forma de pago puede tener N integraciones. Cada producto del proveedor (ej. Mercado Pago QR, Mercado Pago Point) es una integracion distinta con su propio access token aunque compartan el mismo `user_id_externo` (misma cuenta MP).
+
+3. **Una sola fila por par (FP, integracion)**: El UNIQUE sobre `(forma_pago_id, integracion_pago_id)` impide duplicar la misma integracion en la misma FP. La validacion en Livewire lo verifica antes de llamar a `sync()`.
+
+4. **Principal para cobro sin pregunta**: Al cobrar, si la FP tiene una unica integracion se usa automaticamente. Si tiene varias, se usa la marcada `es_principal`. Si ninguna esta marcada, se toma la primera. El helper `integracionPrincipal()` implementa esta logica.
+
+5. **Modos de cobro**: Los modos (`qr_dinamico`, `qr_estatico`) son variantes de una misma credencial/integracion, no integraciones separadas. El pivot `modo_default` es el preseleccionado al cobrar; `modos_permitidos` (json array) son los que el cajero puede elegir. Validacion: `modo_default` debe estar incluido en `modos_permitidos`.
+
+6. **Sincronizacion via sync()**: Al guardar, el componente llama a `$formaPago->integraciones()->sync($syncIntegraciones)` con el mapa `[integracion_pago_id => [modo_default, modos_permitidos, es_principal]]`. Si la FP no admite integraciones se llama a `detach()` para limpiar registros huerfanos.
 
 #### Reglas de negocio criticas (Mercado Pago)
 
