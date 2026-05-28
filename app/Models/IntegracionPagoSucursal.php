@@ -200,7 +200,7 @@ class IntegracionPagoSucursal extends Model
         }
 
         $integracion = $this->integracion()->first();
-        if (! $integracion || $integracion->codigo !== IntegracionPago::CODIGO_MERCADOPAGO) {
+        if (! $integracion || $integracion->codigo !== IntegracionPago::CODIGO_MERCADOPAGO_QR) {
             return;
         }
 

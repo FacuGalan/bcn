@@ -46,7 +46,7 @@ class IntegracionPago extends Model
         'orden' => 'integer',
     ];
 
-    public const CODIGO_MERCADOPAGO = 'mercadopago';
+    public const CODIGO_MERCADOPAGO_QR = 'mercadopago_qr';
 
     // ==================== Relaciones ====================
 

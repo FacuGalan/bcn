@@ -32,9 +32,9 @@ class IntegracionPagoTest extends TestCase
         $this->setUpSucursal();
 
         // Sembrar catálogo MP si no está (depende de si el tenant ya fue provisionado).
-        if (! IntegracionPago::porCodigo('mercadopago')->exists()) {
+        if (! IntegracionPago::porCodigo('mercadopago_qr')->exists()) {
             IntegracionPago::create([
-                'codigo' => 'mercadopago',
+                'codigo' => 'mercadopago_qr',
                 'nombre' => 'Mercado Pago',
                 'modos_disponibles' => ['qr_dinamico', 'qr_estatico'],
                 'gateway_class' => 'App\\Services\\IntegracionesPago\\MercadoPagoGateway',
@@ -61,7 +61,7 @@ class IntegracionPagoTest extends TestCase
 
     public function test_integracion_pago_scope_activas_filtra_inactivas(): void
     {
-        $activa = IntegracionPago::porCodigo('mercadopago')->first();
+        $activa = IntegracionPago::porCodigo('mercadopago_qr')->first();
         $inactiva = IntegracionPago::create([
             'codigo' => 'fake_provider',
             'nombre' => 'Fake Provider',
@@ -78,7 +78,7 @@ class IntegracionPagoTest extends TestCase
 
     public function test_integracion_pago_cast_modos_disponibles_es_array(): void
     {
-        $mp = IntegracionPago::porCodigo('mercadopago')->first();
+        $mp = IntegracionPago::porCodigo('mercadopago_qr')->first();
 
         $this->assertIsArray($mp->modos_disponibles);
         $this->assertContains('qr_dinamico', $mp->modos_disponibles);
@@ -87,7 +87,7 @@ class IntegracionPagoTest extends TestCase
 
     public function test_soporta_modo_devuelve_true_para_modos_listados(): void
     {
-        $mp = IntegracionPago::porCodigo('mercadopago')->first();
+        $mp = IntegracionPago::porCodigo('mercadopago_qr')->first();
 
         $this->assertTrue($mp->soportaModo('qr_dinamico'));
         $this->assertTrue($mp->soportaModo('qr_estatico'));
@@ -101,7 +101,7 @@ class IntegracionPagoTest extends TestCase
 
     public function test_credenciales_se_guardan_encriptadas_en_db(): void
     {
-        $mp = IntegracionPago::porCodigo('mercadopago')->first();
+        $mp = IntegracionPago::porCodigo('mercadopago_qr')->first();
         $tokenPlano = 'TEST-1234567890-abcdef-secreto';
 
         $config = IntegracionPagoSucursal::create([
@@ -126,7 +126,7 @@ class IntegracionPagoTest extends TestCase
 
     public function test_get_access_token_activo_devuelve_segun_modo(): void
     {
-        $mp = IntegracionPago::porCodigo('mercadopago')->first();
+        $mp = IntegracionPago::porCodigo('mercadopago_qr')->first();
 
         $config = IntegracionPagoSucursal::create([
             'integracion_pago_id' => $mp->id,
@@ -144,7 +144,7 @@ class IntegracionPagoTest extends TestCase
 
     public function test_crear_config_mp_sincroniza_indice_global(): void
     {
-        $mp = IntegracionPago::porCodigo('mercadopago')->first();
+        $mp = IntegracionPago::porCodigo('mercadopago_qr')->first();
 
         $config = IntegracionPagoSucursal::create([
             'integracion_pago_id' => $mp->id,
@@ -164,7 +164,7 @@ class IntegracionPagoTest extends TestCase
 
     public function test_cambio_de_user_id_borra_entrada_vieja_del_indice(): void
     {
-        $mp = IntegracionPago::porCodigo('mercadopago')->first();
+        $mp = IntegracionPago::porCodigo('mercadopago_qr')->first();
 
         $config = IntegracionPagoSucursal::create([
             'integracion_pago_id' => $mp->id,
@@ -182,7 +182,7 @@ class IntegracionPagoTest extends TestCase
 
     public function test_borrar_config_borra_entrada_del_indice(): void
     {
-        $mp = IntegracionPago::porCodigo('mercadopago')->first();
+        $mp = IntegracionPago::porCodigo('mercadopago_qr')->first();
 
         $config = IntegracionPagoSucursal::create([
             'integracion_pago_id' => $mp->id,
@@ -199,7 +199,7 @@ class IntegracionPagoTest extends TestCase
 
     public function test_config_sin_user_id_externo_no_sincroniza_indice(): void
     {
-        $mp = IntegracionPago::porCodigo('mercadopago')->first();
+        $mp = IntegracionPago::porCodigo('mercadopago_qr')->first();
         $countAntes = MercadoPagoCollectorIndex::count();
 
         IntegracionPagoSucursal::create([
@@ -215,7 +215,7 @@ class IntegracionPagoTest extends TestCase
 
     public function test_defaults_aplican_al_crear_sin_pasar_modo_ni_activo(): void
     {
-        $mp = IntegracionPago::porCodigo('mercadopago')->first();
+        $mp = IntegracionPago::porCodigo('mercadopago_qr')->first();
 
         $config = IntegracionPagoSucursal::create([
             'integracion_pago_id' => $mp->id,
@@ -233,7 +233,7 @@ class IntegracionPagoTest extends TestCase
 
     private function crearTransaccion(array $overrides = []): IntegracionPagoTransaccion
     {
-        $mp = IntegracionPago::porCodigo('mercadopago')->first();
+        $mp = IntegracionPago::porCodigo('mercadopago_qr')->first();
         // Reusar config si ya existe (UNIQUE constraint integracion_pago_id+sucursal_id).
         $config = IntegracionPagoSucursal::firstOrCreate(
             ['integracion_pago_id' => $mp->id, 'sucursal_id' => $this->sucursalId],

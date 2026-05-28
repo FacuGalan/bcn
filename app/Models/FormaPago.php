@@ -42,6 +42,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property \Carbon\Carbon $updated_at
  * @property-read ConceptoPago|null $conceptoPago
  * @property-read \Illuminate\Database\Eloquent\Collection|ConceptoPago[] $conceptosPermitidos
+ * @property-read \Illuminate\Database\Eloquent\Collection|IntegracionPago[] $integraciones
  * @property-read \Illuminate\Database\Eloquent\Collection|Sucursal[] $sucursales
  * @property-read \Illuminate\Database\Eloquent\Collection|FormaPagoSucursal[] $formaPagoSucursales
  * @property-read \Illuminate\Database\Eloquent\Collection|FormaPagoCuota[] $cuotas
@@ -105,6 +106,42 @@ class FormaPago extends Model
             'forma_pago_id',
             'concepto_pago_id'
         )->withTimestamps();
+    }
+
+    /**
+     * Integraciones de pago asociadas (N:M). Cada producto del proveedor
+     * (ej. QR, Point, Checkout de Mercado Pago) es una integración distinta con
+     * su propio token, por eso una FP puede apuntar a varias. El pivote guarda
+     * el modo default y los modos que el cajero puede elegir al cobrar.
+     */
+    public function integraciones(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            IntegracionPago::class,
+            'forma_pago_integraciones',
+            'forma_pago_id',
+            'integracion_pago_id'
+        )->withPivot(['modo_default', 'modos_permitidos', 'es_principal'])->withTimestamps();
+    }
+
+    /**
+     * Si la FP tiene al menos una integración de pago configurada.
+     */
+    public function tieneIntegracion(): bool
+    {
+        return $this->integraciones()->exists();
+    }
+
+    /**
+     * Integración preseleccionada al cobrar: la marcada es_principal o, en su
+     * defecto, la primera asociada. NULL si no tiene ninguna.
+     */
+    public function integracionPrincipal(): ?IntegracionPago
+    {
+        $integraciones = $this->integraciones()->get();
+
+        return $integraciones->first(fn ($i) => (bool) $i->pivot->es_principal)
+            ?? $integraciones->first();
     }
 
     /**

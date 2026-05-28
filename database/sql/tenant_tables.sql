@@ -608,6 +608,7 @@ CREATE TABLE `{{PREFIX}}conceptos_pago` (
   `descripcion` text COLLATE utf8mb4_unicode_ci,
   `permite_cuotas` tinyint(1) NOT NULL DEFAULT '0',
   `permite_vuelto` tinyint(1) NOT NULL DEFAULT '0',
+  `permite_integracion` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si conceptos de este tipo pueden conectarse a una integración de pago externa',
   `activo` tinyint(1) NOT NULL DEFAULT '1',
   `orden` int(11) NOT NULL DEFAULT '0',
   `created_at` timestamp NULL DEFAULT NULL,
@@ -977,6 +978,22 @@ CREATE TABLE `{{PREFIX}}forma_pago_conceptos` (
   CONSTRAINT `{{PREFIX}}forma_pago_conceptos_concepto_pago_id_foreign` FOREIGN KEY (`concepto_pago_id`) REFERENCES `{{PREFIX}}conceptos_pago` (`id`) ON DELETE CASCADE,
   CONSTRAINT `{{PREFIX}}forma_pago_conceptos_forma_pago_id_foreign` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}forma_pago_integraciones`;
+CREATE TABLE `{{PREFIX}}forma_pago_integraciones` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `forma_pago_id` bigint(20) unsigned NOT NULL,
+  `integracion_pago_id` bigint(20) unsigned NOT NULL,
+  `modo_default` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Modo preseleccionado al cobrar: qr_dinamico, qr_estatico, ...',
+  `modos_permitidos` json DEFAULT NULL COMMENT 'Modos que el cajero puede elegir al cobrar (incluye el default)',
+  `es_principal` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Integracion preseleccionada si la FP tiene varias',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_fpi_forma_integracion` (`forma_pago_id`,`integracion_pago_id`),
+  KEY `idx_fpi_integracion` (`integracion_pago_id`),
+  CONSTRAINT `{{PREFIX}}fk_fpi_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_fpi_integracion` FOREIGN KEY (`integracion_pago_id`) REFERENCES `{{PREFIX}}integraciones_pago` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}grupos_cierre`;
 CREATE TABLE `{{PREFIX}}grupos_cierre` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,

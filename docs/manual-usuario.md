@@ -2270,8 +2270,8 @@ Configura las formas de pago aceptadas por el comercio.
 Haga clic en **"Nueva Forma de Pago"** y complete:
 
 **Para formas de pago simples:**
-- **Nombre** (ej: "Efectivo", "Visa Debito", "Mercado Pago").
-- **Concepto de pago**: Clasifica como entra el dinero (Efectivo, Tarjeta Debito, Tarjeta Credito, Transferencia, etc.).
+- **Nombre** (ej: "Efectivo", "Visa Debito", "Mercado Pago QR").
+- **Concepto de pago**: Clasifica como entra el dinero (Efectivo, Tarjeta Debito, Tarjeta Credito, Transferencia, Billetera Digital, etc.).
 - **Descripcion** (opcional).
 - **Ajuste porcentual**: Recargo (+) o descuento (-) que se aplica al total. Por ejemplo, "+3%" para tarjeta de credito o "-5%" para efectivo.
 - **Permite cuotas**: Si esta forma de pago ofrece pagos en cuotas.
@@ -2279,6 +2279,24 @@ Haga clic en **"Nueva Forma de Pago"** y complete:
 - **Cuenta empresa**: Cuenta bancaria o billetera asociada (opcional).
 - **Moneda**: Moneda de la forma de pago (util para pagos en moneda extranjera).
 - **Sucursales**: En que sucursales esta disponible.
+
+#### Integraciones de pago
+
+Si el concepto seleccionado lo permite (por ejemplo: Billetera Digital, Transferencia), aparece el bloque **"Integraciones de pago"** debajo de los campos principales.
+
+Este bloque permite vincular la forma de pago con una o mas integraciones configuradas en el comercio (por ejemplo, Mercado Pago - QR). Al cobrar, el punto de venta usara esa vinculacion para procesar el pago digitalmente.
+
+**Agregar una integracion:**
+
+1. Haga clic en **"+ Agregar integracion"**.
+2. En la fila nueva seleccione la **integracion** del desplegable (muestra las integraciones activas del comercio).
+3. Elija el **modo default**: el modo que se preselecciona al cobrar (ej: "QR dinamico", "QR estatico").
+4. Marque los **modos permitidos** con los checkboxes: son los modos que el cajero podra elegir al cobrar. Debe marcar al menos uno. El modo default debe estar entre los marcados.
+5. Si la forma de pago tiene mas de una integracion, marque **"Principal"** en la que desea que se use por defecto cuando el punto de venta no pregunta al cajero.
+
+**Quitar una integracion:** haga clic en el icono de eliminar a la derecha de la fila.
+
+> Las formas de pago mixtas no admiten integraciones de pago. El bloque solo aparece en formas de pago simples con concepto compatible.
 
 **Para formas de pago mixtas:**
 Active el switch "Es mixta" para crear una forma de pago que permite combinar multiples conceptos (por ejemplo, parte en efectivo y parte con tarjeta). Seleccione los conceptos de pago permitidos (minimo 2).

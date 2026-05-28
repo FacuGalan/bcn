@@ -34,9 +34,9 @@ class MercadoPagoGatewayTest extends TestCase
         $this->setUpTenant();
         $this->setUpSucursal();
 
-        if (! IntegracionPago::porCodigo('mercadopago')->exists()) {
+        if (! IntegracionPago::porCodigo('mercadopago_qr')->exists()) {
             IntegracionPago::create([
-                'codigo' => 'mercadopago',
+                'codigo' => 'mercadopago_qr',
                 'nombre' => 'Mercado Pago',
                 'modos_disponibles' => ['qr_dinamico', 'qr_estatico'],
                 'gateway_class' => MercadoPagoGateway::class,
@@ -59,7 +59,7 @@ class MercadoPagoGatewayTest extends TestCase
 
     private function crearConfig(array $overrides = []): IntegracionPagoSucursal
     {
-        $mpId = IntegracionPago::porCodigo('mercadopago')->value('id');
+        $mpId = IntegracionPago::porCodigo('mercadopago_qr')->value('id');
 
         return IntegracionPagoSucursal::create(array_merge([
             'integracion_pago_id' => $mpId,

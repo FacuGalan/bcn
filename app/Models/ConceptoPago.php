@@ -47,6 +47,7 @@ class ConceptoPago extends Model
         'descripcion',
         'permite_cuotas',
         'permite_vuelto',
+        'permite_integracion',
         'activo',
         'orden',
     ];
@@ -54,6 +55,7 @@ class ConceptoPago extends Model
     protected $casts = [
         'permite_cuotas' => 'boolean',
         'permite_vuelto' => 'boolean',
+        'permite_integracion' => 'boolean',
         'activo' => 'boolean',
         'orden' => 'integer',
     ];

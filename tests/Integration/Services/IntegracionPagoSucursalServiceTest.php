@@ -32,9 +32,9 @@ class IntegracionPagoSucursalServiceTest extends TestCase
         $this->setUpTenant();
         $this->setUpSucursal();
 
-        if (! IntegracionPago::porCodigo('mercadopago')->exists()) {
+        if (! IntegracionPago::porCodigo('mercadopago_qr')->exists()) {
             IntegracionPago::create([
-                'codigo' => 'mercadopago',
+                'codigo' => 'mercadopago_qr',
                 'nombre' => 'Mercado Pago',
                 'modos_disponibles' => ['qr_dinamico', 'qr_estatico'],
                 'gateway_class' => 'App\\Services\\IntegracionesPago\\MercadoPagoGateway',
@@ -55,7 +55,7 @@ class IntegracionPagoSucursalServiceTest extends TestCase
 
     private function mpId(): int
     {
-        return IntegracionPago::porCodigo('mercadopago')->value('id');
+        return IntegracionPago::porCodigo('mercadopago_qr')->value('id');
     }
 
     public function test_crear_persiste_config_y_sincroniza_indice_global(): void
