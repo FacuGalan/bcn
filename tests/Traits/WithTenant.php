@@ -150,6 +150,11 @@ trait WithTenant
 
     /**
      * DELETE rápido de solo las tablas que los tests usan.
+     *
+     * NO se resetea AUTO_INCREMENT: el ALTER TABLE es DDL (commit implícito por
+     * statement) y duplicaba los round-trips a MySQL (~33k ALTERs por corrida).
+     * Ningún test depende de IDs predecibles desde 1 — los tests usan los IDs que
+     * devuelven los modelos creados, no literales. Quitarlo ~mitad el tiempo de la suite.
      */
     private function cleanTestData(): void
     {
@@ -160,7 +165,6 @@ trait WithTenant
         foreach (static::$testTables as $table) {
             try {
                 DB::connection('pymes_tenant')->statement("DELETE FROM `{$prefix}{$table}`");
-                DB::connection('pymes_tenant')->statement("ALTER TABLE `{$prefix}{$table}` AUTO_INCREMENT = 1");
             } catch (\Exception $e) {
                 // Tabla podría no existir si es nueva
             }
