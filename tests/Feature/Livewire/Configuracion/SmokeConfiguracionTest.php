@@ -42,6 +42,15 @@ class SmokeConfiguracionTest extends TestCase
         $this->actingAs($user);
         session(['comercio_activo_id' => $this->comercio->id, 'sucursal_id' => $this->sucursalId]);
 
+        // Reset cache estático de SucursalService — el modelo cacheado entre tests
+        // queda con valores viejos y rompe asserts (ver memoria bypass-sucursal-service-cache-en-tests-livewire).
+        $ref = new \ReflectionClass(\App\Services\SucursalService::class);
+        foreach (['sucursalesCache', 'sucursalActivaCache', 'esMultiSucursalCache'] as $prop) {
+            $p = $ref->getProperty($prop);
+            $p->setAccessible(true);
+            $p->setValue(null, null);
+        }
+
         Livewire::withoutLazyLoading();
     }
 
@@ -103,6 +112,57 @@ class SmokeConfiguracionTest extends TestCase
             ->assertSet('editMode', false);
     }
 
+    public function test_integraciones_pago_sincronizar_sucursal_persiste_mp_store_id(): void
+    {
+        $mp = \App\Models\IntegracionPago::porCodigo('mercadopago')->first();
+        if (! $mp) {
+            $mp = \App\Models\IntegracionPago::create([
+                'codigo' => 'mercadopago',
+                'nombre' => 'Mercado Pago',
+                'modos_disponibles' => ['qr_dinamico', 'qr_estatico'],
+                'gateway_class' => \App\Services\IntegracionesPago\MercadoPagoGateway::class,
+                'activo' => true,
+                'orden' => 1,
+            ]);
+        }
+
+        // updateOrCreate por si tests previos en la misma corrida ya crearon un config
+        // (UNIQUE constraint sobre integracion_pago_id + sucursal_id)
+        $config = \App\Models\IntegracionPagoSucursal::updateOrCreate(
+            [
+                'integracion_pago_id' => $mp->id,
+                'sucursal_id' => $this->sucursalId,
+            ],
+            [
+                'modo' => 'test',
+                'access_token_test' => 'TEST',
+                'user_id_externo' => '12345',
+            ]
+        );
+
+        $sucursal = \App\Models\Sucursal::find($this->sucursalId);
+        $sucursal->update([
+            'direccion' => 'Test 123',
+            'localidad' => 'CABA',
+            'provincia' => 'AR-B',
+            'latitud' => -34.6,
+            'longitud' => -58.4,
+        ]);
+
+        \Illuminate\Support\Facades\Http::fake([
+            'api.mercadopago.com/users/*/stores' => \Illuminate\Support\Facades\Http::response([
+                'id' => 7654321,
+                'external_id' => 'BCN-'.$this->comercio->id.'-'.$this->sucursalId,
+            ], 201),
+        ]);
+
+        Livewire::test(IntegracionesPago::class)
+            ->call('sincronizarSucursal', $config->id)
+            ->assertDispatched('notify', fn ($name, $params) => ($params['type'] ?? null) === 'success');
+
+        $this->assertSame('7654321', \App\Models\Sucursal::find($this->sucursalId)->mp_store_id);
+    }
+
     public function test_integraciones_pago_probar_conexion_dispara_notify_success_con_credenciales_ok(): void
     {
         $mp = \App\Models\IntegracionPago::porCodigo('mercadopago')->first();
@@ -117,13 +177,17 @@ class SmokeConfiguracionTest extends TestCase
             ]);
         }
 
-        $config = \App\Models\IntegracionPagoSucursal::create([
-            'integracion_pago_id' => $mp->id,
-            'sucursal_id' => $this->sucursalId,
-            'modo' => 'test',
-            'access_token_test' => 'TEST-LIVEWIRE-OK',
-            'user_id_externo' => '123456',
-        ]);
+        $config = \App\Models\IntegracionPagoSucursal::updateOrCreate(
+            [
+                'integracion_pago_id' => $mp->id,
+                'sucursal_id' => $this->sucursalId,
+            ],
+            [
+                'modo' => 'test',
+                'access_token_test' => 'TEST-LIVEWIRE-OK',
+                'user_id_externo' => '123456',
+            ]
+        );
 
         \Illuminate\Support\Facades\Http::fake([
             'api.mercadopago.com/users/me' => \Illuminate\Support\Facades\Http::response([

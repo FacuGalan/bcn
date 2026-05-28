@@ -2,9 +2,13 @@
 
 namespace App\Services\IntegracionesPago;
 
+use App\Models\Caja;
+use App\Models\Comercio;
 use App\Models\IntegracionPagoSucursal;
 use App\Models\IntegracionPagoTransaccion;
+use App\Models\Sucursal;
 use App\Services\IntegracionesPago\Contracts\IntegracionPagoGatewayContract;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -107,6 +111,337 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
             'site_id' => $data['site_id'] ?? null,
             'modo' => $config->modo,
         ];
+    }
+
+    // ==================== Stores ====================
+
+    /**
+     * Genera el external_id usado para identificar una Store de BCN en MP.
+     * Formato: BCN-{comercio_id}-{sucursal_id}. Máximo 60 chars (límite MP).
+     */
+    public static function externalIdStore(int $comercioId, int $sucursalId): string
+    {
+        return "BCN-{$comercioId}-{$sucursalId}";
+    }
+
+    /**
+     * Genera el external_id usado para identificar un POS de BCN en MP.
+     * Formato: BCN{comercio_id}POS{caja_id}. Máximo 40 chars (límite MP).
+     *
+     * SIN guiones: el endpoint de POS exige `external_id` estrictamente
+     * alfanumérico (HTTP 400 `invalid_external_id` si no). La palabra "POS"
+     * actúa de separador, así que el id sigue siendo único e inequívoco.
+     * (El endpoint de Store sí acepta guiones — por eso `externalIdStore` los usa.)
+     */
+    public static function externalIdPos(int $comercioId, int $cajaId): string
+    {
+        return "BCN{$comercioId}POS{$cajaId}";
+    }
+
+    /**
+     * POST /users/{user_id}/stores — crea una sucursal en MP.
+     *
+     * @return array Response completa de MP (incluye `id` de la store creada)
+     *
+     * @throws \RuntimeException si la respuesta no es 200/201
+     */
+    public function crearStore(IntegracionPagoSucursal $config, Sucursal $sucursal, int $comercioId): array
+    {
+        $this->guardCoordenadas($sucursal);
+
+        $externalId = self::externalIdStore($comercioId, $sucursal->id);
+
+        $payload = $this->buildStorePayload($sucursal, $externalId);
+
+        $response = $this->client($config)
+            ->post(self::API_BASE.'/users/'.$config->user_id_externo.'/stores', $payload);
+
+        $this->guardResponse($response, 'crearStore');
+
+        Log::info('MercadoPagoGateway::crearStore OK', [
+            'sucursal_id' => $sucursal->id,
+            'mp_store_id' => $response->json('id'),
+        ]);
+
+        return $response->json();
+    }
+
+    /**
+     * PUT /users/{user_id}/stores/{store_id} — actualiza datos de una store.
+     *
+     * NO se envía `external_id`: MP valida su unicidad incluso en el update y
+     * lo rechaza por estar "ya asignado" a la propia store que se actualiza
+     * (HTTP 400). La store ya queda identificada por el `store_id` de la URL.
+     */
+    public function actualizarStore(IntegracionPagoSucursal $config, Sucursal $sucursal, int $comercioId): array
+    {
+        $this->guardCoordenadas($sucursal);
+
+        if (empty($sucursal->mp_store_id)) {
+            throw new \RuntimeException(__('La sucursal no tiene un Store creado en Mercado Pago'));
+        }
+
+        $payload = $this->buildStorePayload($sucursal, null);
+
+        $response = $this->client($config)
+            ->put(self::API_BASE.'/users/'.$config->user_id_externo.'/stores/'.$sucursal->mp_store_id, $payload);
+
+        $this->guardResponse($response, 'actualizarStore');
+
+        return $response->json();
+    }
+
+    /**
+     * DELETE /users/{user_id}/stores/{store_id}
+     */
+    public function eliminarStore(IntegracionPagoSucursal $config, string $storeId): bool
+    {
+        $response = $this->client($config)
+            ->delete(self::API_BASE.'/users/'.$config->user_id_externo.'/stores/'.$storeId);
+
+        if ($response->status() === 404) {
+            // Ya no existía: lo damos por borrado.
+            return true;
+        }
+
+        $this->guardResponse($response, 'eliminarStore');
+
+        return true;
+    }
+
+    // ==================== POS ====================
+
+    /**
+     * POST /pos — crea una caja (POS) en MP, asociada a una store.
+     *
+     * @return array Response completa de MP (incluye `id`, `qr.image`, etc.)
+     */
+    public function crearPos(IntegracionPagoSucursal $config, Caja $caja, Sucursal $sucursal, ?string $rubro, int $comercioId): array
+    {
+        if (empty($sucursal->mp_store_id) || empty($sucursal->mp_store_external_id)) {
+            throw new \RuntimeException(__('La sucursal debe sincronizarse primero en Mercado Pago antes de crear cajas'));
+        }
+
+        $externalId = self::externalIdPos($comercioId, $caja->id);
+
+        $payload = $this->buildPosPayload($caja, $sucursal, $externalId, $rubro);
+
+        $response = $this->client($config)->post(self::API_BASE.'/pos', $payload);
+
+        $this->guardResponse($response, 'crearPos');
+
+        Log::info('MercadoPagoGateway::crearPos OK', [
+            'caja_id' => $caja->id,
+            'mp_pos_id' => $response->json('id'),
+        ]);
+
+        return $response->json();
+    }
+
+    /**
+     * PUT /pos/{pos_id} — actualiza datos del POS.
+     *
+     * NO se envía `external_id` (mismo motivo que `actualizarStore`): MP lo
+     * rechaza por estar "ya asignado" al propio POS. Se identifica por la URL.
+     */
+    public function actualizarPos(IntegracionPagoSucursal $config, Caja $caja, Sucursal $sucursal, ?string $rubro, int $comercioId): array
+    {
+        if (empty($caja->mp_pos_id)) {
+            throw new \RuntimeException(__('La caja no tiene un POS creado en Mercado Pago'));
+        }
+
+        $payload = $this->buildPosPayload($caja, $sucursal, null, $rubro);
+
+        $response = $this->client($config)->put(self::API_BASE.'/pos/'.$caja->mp_pos_id, $payload);
+
+        $this->guardResponse($response, 'actualizarPos');
+
+        return $response->json();
+    }
+
+    /**
+     * DELETE /pos/{pos_id}
+     */
+    public function eliminarPos(IntegracionPagoSucursal $config, string $posId): bool
+    {
+        $response = $this->client($config)->delete(self::API_BASE.'/pos/'.$posId);
+
+        if ($response->status() === 404) {
+            return true;
+        }
+
+        $this->guardResponse($response, 'eliminarPos');
+
+        return true;
+    }
+
+    // ==================== Helpers internos ====================
+
+    private function client(IntegracionPagoSucursal $config): PendingRequest
+    {
+        $token = $config->getAccessTokenActivo();
+
+        if (empty($token)) {
+            throw new \RuntimeException(__('No hay Access Token cargado para el modo actual'));
+        }
+
+        return Http::withToken($token)
+            ->acceptJson()
+            ->asJson()
+            ->timeout(self::TIMEOUT_DEFAULT);
+    }
+
+    private function guardCoordenadas(Sucursal $sucursal): void
+    {
+        if (! $sucursal->tieneCoordenadas()) {
+            throw new \RuntimeException(__('La sucursal no tiene coordenadas (latitud/longitud) configuradas. Mercado Pago requiere coordenadas para crear la sucursal.'));
+        }
+        if (empty($sucursal->direccion)) {
+            throw new \RuntimeException(__('La sucursal no tiene dirección configurada'));
+        }
+        if (empty($sucursal->localidad)) {
+            throw new \RuntimeException(__('La sucursal no tiene localidad configurada (Mercado Pago la requiere)'));
+        }
+        if (empty($sucursal->provincia)) {
+            throw new \RuntimeException(__('La sucursal no tiene provincia configurada (Mercado Pago la requiere)'));
+        }
+    }
+
+    private function guardResponse(\Illuminate\Http\Client\Response $response, string $contexto): void
+    {
+        if ($response->successful()) {
+            return;
+        }
+
+        // MP suele devolver el detalle en distintas claves segun el endpoint:
+        // `message` (texto), `error` (codigo), `cause` (array con descripciones).
+        $json = $response->json() ?? [];
+        $partes = [];
+
+        if (! empty($json['message'])) {
+            $partes[] = $json['message'];
+        }
+        if (! empty($json['error']) && $json['error'] !== ($json['message'] ?? null)) {
+            $partes[] = '['.$json['error'].']';
+        }
+        if (! empty($json['cause']) && is_array($json['cause'])) {
+            foreach ($json['cause'] as $c) {
+                if (is_array($c)) {
+                    $causeDesc = $c['description'] ?? $c['message'] ?? json_encode($c);
+                    $causeCode = isset($c['code']) ? " (code {$c['code']})" : '';
+                    $partes[] = $causeDesc.$causeCode;
+                } elseif (is_string($c)) {
+                    $partes[] = $c;
+                }
+            }
+        }
+
+        $detalle = ! empty($partes) ? implode(' — ', $partes) : ($response->body() ?: __('Error desconocido'));
+
+        Log::warning("MercadoPagoGateway::{$contexto} error", [
+            'status' => $response->status(),
+            'body' => $response->body(),
+        ]);
+
+        throw new \RuntimeException(__('Mercado Pago respondió error HTTP ').$response->status().': '.$detalle);
+    }
+
+    /**
+     * Construye el payload para crear/actualizar una Store.
+     *
+     * `external_id` solo se incluye al crear (se pasa el valor); en updates se
+     * pasa null y se omite, porque MP lo rechaza por colisión consigo mismo.
+     *
+     * `direccion` se intenta separar en street_name + street_number (regex
+     * simple: lo último que parezca un número se considera altura). Si no
+     * se detecta número, se manda 'S/N' como fallback.
+     */
+    private function buildStorePayload(Sucursal $sucursal, ?string $externalId): array
+    {
+        [$streetName, $streetNumber] = $this->splitDireccion((string) $sucursal->direccion);
+
+        $payload = [
+            'name' => $sucursal->nombre_publico ?: $sucursal->nombre,
+            'location' => [
+                'street_name' => $streetName,
+                'street_number' => $streetNumber,
+                'city_name' => (string) $sucursal->localidad,
+                'state_name' => (string) ($sucursal->provinciaNombre() ?? $sucursal->provincia),
+                'latitude' => (float) $sucursal->latitud,
+                'longitude' => (float) $sucursal->longitud,
+                'reference' => $sucursal->direccion ?? '',
+            ],
+        ];
+
+        if ($externalId !== null) {
+            $payload['external_id'] = $externalId;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Separa "Av. Corrientes 1234" en ["Av. Corrientes", "1234"].
+     * Si no detecta número al final, devuelve ["dirección completa", "S/N"].
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function splitDireccion(string $direccion): array
+    {
+        $direccion = trim($direccion);
+
+        if ($direccion === '') {
+            return ['', 'S/N'];
+        }
+
+        if (preg_match('/^(.+?)\s+(\d[\d\-\/]*)\s*$/u', $direccion, $m)) {
+            return [trim($m[1]), trim($m[2])];
+        }
+
+        return [$direccion, 'S/N'];
+    }
+
+    /**
+     * Construye el payload para crear/actualizar un POS.
+     *
+     * `external_id` solo se incluye al crear; en updates se pasa null y se
+     * omite (MP lo rechaza por colisión consigo mismo, igual que en Store).
+     *
+     * `category` solo se incluye si el comercio es gastronomía o estación
+     * de servicio (los únicos rubros que MP acepta para QR Code).
+     */
+    private function buildPosPayload(Caja $caja, Sucursal $sucursal, ?string $externalId, ?string $rubro): array
+    {
+        $payload = [
+            'name' => $caja->nombre,
+            'fixed_amount' => true,
+            'store_id' => (int) $sucursal->mp_store_id,
+            'external_store_id' => $sucursal->mp_store_external_id,
+        ];
+
+        if ($externalId !== null) {
+            $payload['external_id'] = $externalId;
+        }
+
+        $category = $this->resolverCategory($rubro);
+        if ($category !== null) {
+            $payload['category'] = $category;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Mapea el rubro del comercio al código MCC de MP.
+     * Códigos según doc oficial — solo se aceptan estos dos para QR Code.
+     */
+    private function resolverCategory(?string $rubro): ?int
+    {
+        return match ($rubro) {
+            Comercio::RUBRO_GASTRONOMIA => 621102,
+            Comercio::RUBRO_ESTACION_SERVICIO => 443001,
+            default => null,
+        };
     }
 
     // ==================== Stubs Fase 5 ====================

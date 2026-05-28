@@ -119,6 +119,154 @@
                         </div>
                     </div>
                 </div>
+
+                {{-- Sección Stores/POS (solo si es MercadoPago y hay config) --}}
+                @if ($config && $integracion->codigo === \App\Models\IntegracionPago::CODIGO_MERCADOPAGO && $sucursalActiva)
+                    <div class="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 px-4 sm:px-6 py-4 space-y-4">
+                        {{-- Estado de la sucursal en MP --}}
+                        <div>
+                            <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center">
+                                <svg class="w-4 h-4 mr-1.5 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                                {{ __('Sincronización de la sucursal con Mercado Pago') }}
+                            </h4>
+
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                                <div class="text-xs sm:text-sm">
+                                    @if ($sucursalActiva->estaSincronizadaEnMp())
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                            <span class="w-1.5 h-1.5 mr-1.5 bg-green-500 rounded-full"></span>
+                                            {{ __('Sincronizada') }}
+                                        </span>
+                                        <span class="ml-2 text-gray-500 dark:text-gray-400">Store ID: {{ $sucursalActiva->mp_store_id }}</span>
+                                    @else
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                            <span class="w-1.5 h-1.5 mr-1.5 bg-gray-400 rounded-full"></span>
+                                            {{ __('No sincronizada') }}
+                                        </span>
+                                    @endif
+                                    @php
+                                        $datosCompletos = $sucursalActiva->tieneCoordenadas()
+                                            && ! empty($sucursalActiva->direccion)
+                                            && ! empty($sucursalActiva->localidad)
+                                            && ! empty($sucursalActiva->provincia);
+                                    @endphp
+                                    @if ($datosCompletos)
+                                        <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                                            ({{ $sucursalActiva->localidad }}, {{ $sucursalActiva->provinciaNombre() }} · {{ $sucursalActiva->latitud }}, {{ $sucursalActiva->longitud }})
+                                        </span>
+                                    @else
+                                        <span class="ml-2 text-xs text-amber-700 dark:text-amber-400">
+                                            ⚠ {{ __('Faltan datos (dirección, localidad, provincia o coordenadas)') }}
+                                        </span>
+                                    @endif
+                                </div>
+
+                                <div class="flex items-center gap-2">
+                                    <button wire:click="abrirModalDireccion"
+                                            class="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-xs sm:text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                        <svg class="w-4 h-4 sm:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                                        </svg>
+                                        <span class="hidden sm:inline">{{ __('Dirección y coordenadas') }}</span>
+                                    </button>
+
+                                    <button wire:click="sincronizarSucursal({{ $config->id }})"
+                                            wire:loading.attr="disabled"
+                                            wire:target="sincronizarSucursal({{ $config->id }})"
+                                            @disabled(! $datosCompletos)
+                                            class="inline-flex items-center px-3 py-1.5 border border-bcn-primary text-xs sm:text-sm font-medium rounded-md text-white bg-bcn-primary hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                                        <svg wire:loading.remove wire:target="sincronizarSucursal({{ $config->id }})" class="w-4 h-4 sm:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                        <svg wire:loading wire:target="sincronizarSucursal({{ $config->id }})" class="animate-spin w-4 h-4 sm:mr-1.5" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                        </svg>
+                                        <span class="hidden sm:inline">{{ $sucursalActiva->estaSincronizadaEnMp() ? __('Actualizar en MP') : __('Sincronizar con MP') }}</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Cajas y POS --}}
+                        <div>
+                            <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center">
+                                <svg class="w-4 h-4 mr-1.5 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                                {{ __('Cajas (POS) de esta sucursal') }}
+                            </h4>
+
+                            @if ($cajas->isEmpty())
+                                <p class="text-xs text-gray-500 dark:text-gray-400 italic">{{ __('No hay cajas activas en esta sucursal') }}</p>
+                            @else
+                                <div class="space-y-2">
+                                    @foreach ($cajas as $caja)
+                                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                                            <div class="text-xs sm:text-sm">
+                                                <span class="font-medium text-gray-900 dark:text-white">{{ $caja->nombre }}</span>
+                                                <span class="text-gray-500 dark:text-gray-400 ml-1">#{{ $caja->numero }}</span>
+                                                @if ($caja->estaSincronizadaEnMp())
+                                                    <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                                        <span class="w-1.5 h-1.5 mr-1.5 bg-green-500 rounded-full"></span>
+                                                        {{ __('POS Sincronizado') }}
+                                                    </span>
+                                                @else
+                                                    <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                                        <span class="w-1.5 h-1.5 mr-1.5 bg-gray-400 rounded-full"></span>
+                                                        {{ __('Sin POS') }}
+                                                    </span>
+                                                @endif
+                                            </div>
+
+                                            <div class="flex items-center gap-2">
+                                                @if ($caja->mp_pos_qr_url)
+                                                    <a href="{{ $caja->mp_pos_qr_url }}" target="_blank" rel="noopener"
+                                                       title="{{ __('Ver QR') }}"
+                                                       class="inline-flex items-center px-2 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m0 14v1M4 12h1m14 0h1m-2.05-7.05l-.707.707M5.757 18.243l-.707.707m12.142 0l-.707-.707M5.757 5.757l-.707-.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                                                        </svg>
+                                                    </a>
+                                                @endif
+                                                @if ($caja->mp_pos_qr_pdf_url)
+                                                    <a href="{{ $caja->mp_pos_qr_pdf_url }}" target="_blank" rel="noopener"
+                                                       title="{{ __('Imprimir QR') }}"
+                                                       class="inline-flex items-center px-2 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                                        </svg>
+                                                    </a>
+                                                @endif
+
+                                                <button wire:click="sincronizarCaja({{ $config->id }}, {{ $caja->id }})"
+                                                        wire:loading.attr="disabled"
+                                                        wire:target="sincronizarCaja({{ $config->id }}, {{ $caja->id }})"
+                                                        @disabled(! $sucursalActiva->estaSincronizadaEnMp())
+                                                        title="{{ ! $sucursalActiva->estaSincronizadaEnMp() ? __('Sincronizá primero la sucursal') : '' }}"
+                                                        class="inline-flex items-center px-3 py-1.5 border border-bcn-primary text-xs font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                                                    <svg wire:loading.remove wire:target="sincronizarCaja({{ $config->id }}, {{ $caja->id }})" class="w-4 h-4 sm:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                    </svg>
+                                                    <svg wire:loading wire:target="sincronizarCaja({{ $config->id }}, {{ $caja->id }})" class="animate-spin w-4 h-4 sm:mr-1.5" fill="none" viewBox="0 0 24 24">
+                                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                                    </svg>
+                                                    <span class="hidden sm:inline">{{ $caja->estaSincronizadaEnMp() ? __('Actualizar') : __('Crear POS') }}</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                @endif
             </div>
         @empty
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-12 text-center">
@@ -343,6 +491,79 @@
                 <button type="submit"
                         class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
                     {{ $editMode ? __('Actualizar') : __('Guardar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
+    {{-- Modal de dirección y coordenadas --}}
+    @if ($mostrarModalDireccion)
+        <x-bcn-modal
+            title="{{ __('Dirección y coordenadas de la sucursal') }}"
+            color="bg-bcn-primary"
+            maxWidth="lg"
+            onClose="cerrarModalDireccion"
+            submit="guardarDireccion"
+        >
+            <x-slot:body>
+                <div class="space-y-4">
+                    <div class="p-3 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-xs text-blue-800 dark:text-blue-200">
+                        {{ __('Por ahora las coordenadas se cargan manualmente. Para obtenerlas: abrí Google Maps, buscá la dirección, hacé click derecho sobre el punto exacto y copiá las coordenadas que aparecen primero (formato: -34.123456, -58.654321).') }}
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Dirección') }} *</label>
+                        <input type="text" wire:model="direccion"
+                               placeholder="Ej: Av. Corrientes 1234"
+                               class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                        @error('direccion') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Localidad') }} *</label>
+                            <input type="text" wire:model="localidad" placeholder="Ej: CABA"
+                                   class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                            @error('localidad') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Provincia') }} *</label>
+                            <select wire:model="provincia"
+                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                <option value="">{{ __('Seleccione una provincia') }}</option>
+                                @foreach (\App\Models\Sucursal::PROVINCIAS_AR as $codigo => $nombre)
+                                    <option value="{{ $codigo }}">{{ $nombre }}</option>
+                                @endforeach
+                            </select>
+                            @error('provincia') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Latitud') }} *</label>
+                            <input type="text" wire:model="latitud" placeholder="-34.6037"
+                                   class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                            @error('latitud') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Longitud') }} *</label>
+                            <input type="text" wire:model="longitud" placeholder="-58.3816"
+                                   class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                            @error('longitud') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                </div>
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button" @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="submit"
+                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 sm:w-auto sm:text-sm">
+                    {{ __('Guardar') }}
                 </button>
             </x-slot:footer>
         </x-bcn-modal>

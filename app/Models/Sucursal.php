@@ -50,6 +50,53 @@ class Sucursal extends Model
         'ambos' => 'Logo y datos fiscales',
     ];
 
+    /**
+     * Provincias de Argentina con código ISO 3166-2 → nombre oficial.
+     *
+     * Se guarda el código en `sucursales.provincia` (ej. 'AR-B') y se traduce
+     * a nombre al armar payloads para servicios externos (Mercado Pago, AFIP).
+     * Permite homologar datos entre integraciones sin depender de typos.
+     */
+    public const PROVINCIAS_AR = [
+        'AR-C' => 'Ciudad Autónoma de Buenos Aires',
+        'AR-B' => 'Buenos Aires',
+        'AR-K' => 'Catamarca',
+        'AR-H' => 'Chaco',
+        'AR-U' => 'Chubut',
+        'AR-X' => 'Córdoba',
+        'AR-W' => 'Corrientes',
+        'AR-E' => 'Entre Ríos',
+        'AR-P' => 'Formosa',
+        'AR-Y' => 'Jujuy',
+        'AR-L' => 'La Pampa',
+        'AR-F' => 'La Rioja',
+        'AR-M' => 'Mendoza',
+        'AR-N' => 'Misiones',
+        'AR-Q' => 'Neuquén',
+        'AR-R' => 'Río Negro',
+        'AR-A' => 'Salta',
+        'AR-J' => 'San Juan',
+        'AR-D' => 'San Luis',
+        'AR-Z' => 'Santa Cruz',
+        'AR-S' => 'Santa Fe',
+        'AR-G' => 'Santiago del Estero',
+        'AR-V' => 'Tierra del Fuego',
+        'AR-T' => 'Tucumán',
+    ];
+
+    /**
+     * Devuelve el nombre oficial de la provincia ISO guardada en este modelo.
+     * Retorna null si el código no está en el catálogo o el campo está vacío.
+     */
+    public function provinciaNombre(): ?string
+    {
+        if (empty($this->provincia)) {
+            return null;
+        }
+
+        return self::PROVINCIAS_AR[$this->provincia] ?? $this->provincia;
+    }
+
     protected $fillable = [
         'nombre', 'nombre_publico', 'codigo', 'direccion', 'telefono', 'email', 'logo_path',
         'es_principal', 'datos_fiscales_id', 'activa', 'configuracion',
@@ -62,6 +109,9 @@ class Sucursal extends Model
         // Pedidos por Mostrador
         'pedido_mostrador_ultimo_numero', 'imprime_comanda_automatico',
         'pedido_conversion_automatica_al_entregar', 'usa_beepers',
+        // Geolocalización + Mercado Pago Stores
+        'latitud', 'longitud', 'localidad', 'provincia',
+        'mp_store_id', 'mp_store_external_id',
     ];
 
     protected $casts = [
@@ -80,7 +130,19 @@ class Sucursal extends Model
         'imprime_comanda_automatico' => 'boolean',
         'pedido_conversion_automatica_al_entregar' => 'boolean',
         'usa_beepers' => 'boolean',
+        'latitud' => 'decimal:7',
+        'longitud' => 'decimal:7',
     ];
+
+    public function tieneCoordenadas(): bool
+    {
+        return $this->latitud !== null && $this->longitud !== null;
+    }
+
+    public function estaSincronizadaEnMp(): bool
+    {
+        return ! empty($this->mp_store_id);
+    }
 
     // Relaciones
     public function stocks(): HasMany

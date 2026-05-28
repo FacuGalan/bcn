@@ -52,6 +52,8 @@ class Caja extends Model
         'modo_carga_inicial',
         'monto_fijo_inicial',
         'grupo_cierre_id',
+        // Mercado Pago POS
+        'mp_pos_id', 'mp_pos_external_id', 'mp_pos_qr_url', 'mp_pos_qr_pdf_url',
     ];
 
     protected $casts = [
@@ -64,6 +66,11 @@ class Caja extends Model
         'monto_fijo_inicial' => 'decimal:2',
         'numero' => 'integer',
     ];
+
+    public function estaSincronizadaEnMp(): bool
+    {
+        return ! empty($this->mp_pos_id);
+    }
 
     /**
      * Boot del modelo - Auto asigna número si no viene
