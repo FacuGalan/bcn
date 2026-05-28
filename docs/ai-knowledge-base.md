@@ -704,6 +704,10 @@ Cajas registradoras del sistema.
 | `modo_carga_inicial` | enum | `manual`, `ultimo_cierre`, `monto_fijo` |
 | `monto_fijo_inicial` | decimal(12,2) nullable | Monto fijo si el modo es `monto_fijo` |
 | `grupo_cierre_id` | bigint FK nullable | Grupo de cierre compartido |
+| `mp_pos_id` | varchar(50) nullable | ID numerico devuelto por MP al crear el POS. Indexado. |
+| `mp_pos_external_id` | varchar(40) nullable | Identificador externo en MP. Formato: `BCN{comercio_id}POS{caja_id}` (alfanumerico SIN guiones — MP exige este formato para POS). Unico (UNIQUE INDEX). Solo se envia al crear; en updates MP lo rechaza. |
+| `mp_pos_qr_url` | text nullable | URL del PNG del QR estatico (`qr.image` en respuesta MP). |
+| `mp_pos_qr_pdf_url` | text nullable | URL del PDF imprimible del QR (`qr.template_document` en respuesta MP). |
 | `created_at`, `updated_at` | timestamp | Timestamps |
 
 #### Tabla: `movimientos_caja`
@@ -1056,6 +1060,12 @@ Ya descrita en seccion 1.2. Campos adicionales relevantes:
 - `facturacion_fiscal_automatica` -- Si emite factura automaticamente
 - `agrupa_articulos_venta` -- Si agrupa articulos repetidos en pantalla de venta
 - `agrupa_articulos_impresion` -- Si agrupa en impresion
+- `latitud` -- `decimal(10,7)` nullable. Coordenada geografica. Requerida por MP para crear Store.
+- `longitud` -- `decimal(10,7)` nullable. Coordenada geografica. Requerida por MP para crear Store.
+- `localidad` -- `varchar(100)` nullable. Localidad de la sucursal. Requerida por MP (`city_name`).
+- `provincia` -- `varchar(100)` nullable. Codigo ISO 3166-2 de provincia argentina (ej: `AR-B`, `AR-C`). Se traduce a nombre oficial al armar payloads externos. Ver `Sucursal::PROVINCIAS_AR[]` y `Sucursal::provinciaNombre()`.
+- `mp_store_id` -- `varchar(50)` nullable. ID numerico devuelto por MP al crear la Store. Se usa para actualizar/eliminar. Indexado.
+- `mp_store_external_id` -- `varchar(60)` nullable. Identificador externo en MP. Formato: `BCN-{comercio_id}-{sucursal_id}`. Unico (UNIQUE INDEX). Solo se envia al **crear** la store; en updates MP lo rechaza por colision consigo mismo.
 
 #### Tabla: `formas_pago`
 Formas de pago disponibles. Pueden ser simples (un concepto) o mixtas (multiples conceptos).
@@ -2090,6 +2100,101 @@ FROM {PREFIX}pedidos_mostrador_detalle
 WHERE pedido_mostrador_id = ?
 GROUP BY pedido_mostrador_id;
 ```
+
+---
+
+### 2.13 Integraciones de Pago
+
+Modulo extensible para conectar sucursales y cajas con pasarelas de pago externas. Actualmente implementado: Mercado Pago (MVP). El framework esta disenado para agregar otros gateways (Oca, Prisma, etc.) en el futuro via el catalogo `integraciones_pago` y la interface `IntegracionPagoGatewayContract`.
+
+#### Tabla: `integraciones_pago` (conexion `config`, sin prefijo)
+
+Catalogo de pasarelas disponibles en el sistema. Se provisiona una vez por instalacion.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `nombre` | varchar(100) | Nombre legible (ej: "Mercado Pago") |
+| `codigo` | varchar(50) UNIQUE | Identificador tecnico (ej: `mercadopago`) |
+| `gateway_class` | varchar(255) | FQCN de la clase gateway (ej: `App\Services\IntegracionesPago\MercadoPagoGateway`) |
+| `activo` | boolean | Si esta habilitado para ser configurado |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+#### Tabla: `{PREFIX}integraciones_pago_sucursales` (tenant)
+
+Configuracion de una integracion para una sucursal especifica. Una sucursal puede tener a lo sumo una configuracion por proveedor.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `sucursal_id` | bigint FK | Sucursal configurada |
+| `integracion_pago_id` | bigint (FK logico cross-DB) | ID en `config.integraciones_pago` |
+| `modo` | enum | `test` o `produccion` |
+| `user_id_externo` | varchar(100) nullable | User ID de la cuenta MP del comercio |
+| `access_token_produccion` | text nullable | Access token de produccion (encriptado) |
+| `access_token_test` | text nullable | Access token de test (encriptado) |
+| `activo` | boolean | Si la integracion esta activa |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+**Notas de modelo**:
+- Los campos `access_token_produccion` y `access_token_test` usan cast `encrypted` de Laravel.
+- El metodo `getAccessTokenActivo()` devuelve el token correspondiente al `modo` actual.
+- UNIQUE INDEX en `(sucursal_id, integracion_pago_id)`.
+
+#### Tabla: `{PREFIX}integraciones_pago_transacciones` (tenant)
+
+Registro de transacciones de cobro procesadas por cada pasarela. Los registros se crean al iniciar un cobro (Fase 5, pendiente).
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `integracion_pago_sucursal_id` | bigint FK | Configuracion usada |
+| `venta_id` | bigint FK nullable | Venta asociada |
+| `referencia_externa` | varchar(255) nullable | ID de la transaccion en el proveedor externo |
+| `estado` | varchar(50) | Estado de la transaccion |
+| `monto` | decimal(12,2) | Monto de la transaccion |
+| `moneda` | varchar(10) | Codigo de moneda |
+| `payload_request` | json nullable | Payload enviado al proveedor |
+| `payload_response` | json nullable | Respuesta del proveedor |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+#### Tabla: `comercios.rubro` (campo en `config.comercios`)
+
+Campo `rubro varchar(50) nullable` agregado a la tabla `comercios` de la conexion `config`. Valores posibles definidos como constantes en `Comercio::RUBRO_*`:
+- `gastronomia` -- MCC 621102 en MP
+- `estacion_servicio` -- MCC 443001 en MP
+- `otro` (o NULL) -- No se envia `category` al crear POS en MP
+
+#### Services
+
+- **`MercadoPagoGateway`**: Clase concreta que implementa `IntegracionPagoGatewayContract`. Gestiona toda la comunicacion HTTP con la API de MP. Metodos de Fase 3.5: `crearStore`, `actualizarStore`, `eliminarStore`, `crearPos`, `actualizarPos`, `eliminarPos`. Metodos de Fase 5 (stubs que lanzan excepcion): `iniciarCobro`, `consultarEstado`, `cancelarCobro`.
+- **`SincronizacionMercadoPagoService`**: Orquesta crear-vs-actualizar. Decide segun `mp_store_id` / `mp_pos_id`. Persiste IDs y URLs devueltos en una transaccion tenant.
+- **`IntegracionPagoSucursalService`**: CRUD de configuraciones. Al cambiar `modo` o `user_id_externo` limpia los IDs de MP locales (Store + todos sus POS) via `limpiarSincronizacionMp()`.
+
+#### Reglas de negocio criticas (Mercado Pago)
+
+1. **external_id NO en updates**: MP rechaza el campo `external_id` en las solicitudes PUT (Store y POS) con HTTP 400, porque valida unicidad incluso contra el propio recurso. Solo se envia al crear.
+
+2. **external_id de POS estrictamente alfanumerico**: El endpoint `POST /pos` exige `external_id` sin caracteres especiales. Formato: `BCN{comercioId}POS{cajaId}` (sin guiones). El endpoint de Store si acepta guiones; por eso Store usa `BCN-{c}-{s}`.
+
+3. **Limpieza al cambiar cuenta MP**: Al cambiar `modo` (test <-> produccion) o `user_id_externo`, los recursos de Store/POS de la cuenta anterior no existen en la nueva. El service limpia `mp_store_id`, `mp_store_external_id`, `mp_pos_id`, `mp_pos_external_id`, `mp_pos_qr_url`, `mp_pos_qr_pdf_url` para que la proxima sincronizacion los cree en lugar de intentar actualizarlos.
+
+4. **Provincias como codigos ISO 3166-2**: El campo `sucursales.provincia` guarda el codigo ISO (ej: `AR-B`). Al armar el payload para MP (`state_name`), se traduce al nombre oficial usando `Sucursal::PROVINCIAS_AR[]` / `provinciaNombre()`. Esto garantiza consistencia entre integraciones sin depender de texto libre.
+
+5. **Prerrequisito de Store para POS**: No se puede crear un POS si la sucursal no tiene `mp_store_id` y `mp_store_external_id`. El gateway lanza excepcion explicita.
+
+6. **Coordenadas obligatorias**: La API de MP rechaza la creacion de Store sin `latitude`/`longitude`. El gateway valida que `sucursal->tieneCoordenadas()` antes de llamar a la API.
+
+7. **Categoria MCC**: Solo se envia el campo `category` al crear un POS si el comercio tiene rubro `gastronomia` (MCC 621102) o `estacion_servicio` (MCC 443001). Para el resto se omite el campo.
+
+8. **Eliminacion idempotente**: Si MP responde 404 al eliminar un Store o POS, se trata como exito (el recurso ya no existia).
+
+#### Formatos de external_id
+
+| Recurso | Formato | Ejemplo | Limite MP |
+|---|---|---|---|
+| Store | `BCN-{comercio_id}-{sucursal_id}` | `BCN-1-5` | 60 chars |
+| POS | `BCN{comercio_id}POS{caja_id}` | `BCN1POS3` | 40 chars |
 
 ---
 

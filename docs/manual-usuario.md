@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-05-27
+> Version: 0.1.x | Ultima actualizacion: 2026-05-28
 
 ---
 
@@ -2528,6 +2528,61 @@ Cada sucursal puede tener su propia configuracion de impresion:
 - Corte automatico de papel.
 - Texto de pie del ticket.
 - Texto legal para facturas.
+
+---
+
+### 12.11 Integraciones de Pago
+
+Permite conectar las sucursales y cajas del comercio con pasarelas de pago externas. En esta version, el unico proveedor disponible es **Mercado Pago**.
+
+#### Que ve al entrar
+
+- Pestana de la sucursal activa con las integraciones disponibles.
+- Para cada integracion: estado de conexion (conectada / no conectada), modo (Test o Produccion) y acciones.
+- Si hay una integracion configurada: boton **"Sincronizar Sucursal"** y lista de cajas activas con boton **"Sincronizar Caja"** para cada una.
+
+#### Configurar una integracion (Mercado Pago)
+
+Haga clic en **"Configurar"** junto a Mercado Pago:
+
+1. **Modo**: Seleccione "Test" para pruebas o "Produccion" para operar con dinero real.
+2. **User ID Externo**: ID numerico de la cuenta de Mercado Pago del comercio.
+3. **Access Token (Produccion)**: Token de produccion de MP.
+4. **Access Token (Test)**: Token de pruebas de MP.
+5. Haga clic en **"Probar Conexion"** para verificar que las credenciales son validas antes de guardar.
+6. Haga clic en **"Guardar"**.
+
+> **Atencion**: Si cambia el modo (Test a Produccion o viceversa) o el User ID, el sistema borra automaticamente los IDs de Store y POS guardados localmente, ya que las cuentas de test y produccion son cuentas de MP distintas y sus recursos no se comparten. Debera volver a sincronizar sucursal y cajas.
+
+#### Configurar la direccion de la sucursal
+
+Mercado Pago requiere coordenadas geograficas, localidad y provincia para registrar la sucursal como "Store". Si la sucursal aun no tiene estos datos, vera un aviso y el boton **"Editar Direccion"**.
+
+En el modal de direccion complete:
+- Direccion (calle y numero).
+- Localidad.
+- Provincia (seleccione de la lista de provincias argentinas).
+- Latitud y Longitud (coordenadas decimales).
+
+#### Sincronizar la sucursal con Mercado Pago
+
+1. Asegurese de que la sucursal tenga direccion, localidad, provincia y coordenadas configuradas.
+2. Haga clic en **"Sincronizar Sucursal"**.
+3. El sistema crea (o actualiza si ya existia) la sucursal como "Store" en la cuenta de MP.
+4. Al completarse, vera el mensaje "Sucursal sincronizada con Mercado Pago".
+
+#### Sincronizar una caja con Mercado Pago
+
+1. La sucursal debe estar sincronizada primero.
+2. En la lista de cajas de la integracion, haga clic en **"Sincronizar"** junto a la caja deseada.
+3. El sistema crea (o actualiza) la caja como "POS" en MP y guarda la URL del codigo QR estatico.
+4. Al completarse, vera el mensaje "Caja sincronizada con Mercado Pago".
+
+> El codigo QR estatico queda vinculado a esa caja. En una fase futura podra imprimirse directamente desde el sistema para que los clientes escaneen y paguen.
+
+#### Permisos requeridos
+
+Solo usuarios con el permiso **"func.integraciones_pago.administrar"** pueden configurar y sincronizar integraciones.
 
 ---
 
