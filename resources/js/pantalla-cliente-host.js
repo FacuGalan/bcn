@@ -40,29 +40,28 @@ const host = {
             return true;
         }
 
-        // Abrir la ventana YA, dentro del gesto del usuario (antes de cualquier
-        // await), para conservar la activación: así la propia ventana puede
-        // intentar entrar en pantalla completa al cargar.
-        const features = `popup=yes,width=${Math.min(900, window.screen.availWidth)},height=${Math.min(700, window.screen.availHeight)}`;
-        this.win = window.open(URL_PANTALLA, NOMBRE_VENTANA, features);
-
-        // Luego, si se puede, reposicionar/agrandar en el segundo monitor.
+        // Calcular las coordenadas del SEGUNDO monitor ANTES de abrir, y abrir
+        // la ventana ya posicionada ahí (más fiable que moveTo posterior).
+        // getScreenDetails() pide el permiso "window-management" (una vez).
+        let features = `popup=yes,width=${Math.min(900, window.screen.availWidth)},height=${Math.min(700, window.screen.availHeight)}`;
         try {
-            if (this.win && 'getScreenDetails' in window) {
-                const details = await window.getScreenDetails(); // pide permiso "window-management"
-                const actual = details.currentScreen;
+            if ('getScreenDetails' in window) {
+                const details = await window.getScreenDetails();
                 const otra =
-                    details.screens.find((s) => s !== actual && !s.isInternal) ||
-                    details.screens.find((s) => s !== actual);
+                    details.screens.find((s) => s !== details.currentScreen) || details.currentScreen;
                 if (otra) {
-                    this.win.moveTo(otra.availLeft, otra.availTop);
-                    this.win.resizeTo(otra.availWidth, otra.availHeight);
+                    features = `popup=yes,left=${otra.availLeft},top=${otra.availTop},width=${otra.availWidth},height=${otra.availHeight}`;
                 }
             }
         } catch (e) {
-            // Permiso denegado o API no disponible: queda en la pantalla actual;
-            // el cajero puede arrastrar la ventana al monitor del cliente.
+            // Permiso denegado o API no disponible: se abre en la pantalla actual
+            // y el cajero la arrastra al monitor del cliente.
             console.warn('[pantalla-cliente] sin Window Management API:', e?.message || e);
+        }
+
+        this.win = window.open(URL_PANTALLA, NOMBRE_VENTANA, features);
+        if (this.win) {
+            this.win.focus();
         }
 
         return this.estaConectada();
