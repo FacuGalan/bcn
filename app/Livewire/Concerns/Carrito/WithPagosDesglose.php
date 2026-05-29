@@ -2350,61 +2350,62 @@ trait WithPagosDesglose
                     ];
                 }
 
-                // Generar comprobante fiscal si corresponde
+                // Generar comprobante fiscal si corresponde.
                 $comprobanteFiscal = null;
+                $facturacionPendiente = false;
+                $emitirFiscalPostCommit = false;
+                $opcionesFiscal = [];
                 if ($debeFacturar) {
-                    try {
-                        // Filtrar pagos creados que tienen factura_fiscal = true
-                        // Ahora usamos los IDs reales de VentaPago
-                        $pagosConFactura = array_filter($pagosCreados, fn ($p) => $p['factura_fiscal'] ?? false);
-                        $opcionesFiscal = [];
+                    // Construir opciones de facturación (válidas tanto para emisión
+                    // dentro de la transacción como post-commit).
+                    $pagosConFactura = array_filter($pagosCreados, fn ($p) => $p['factura_fiscal'] ?? false);
+                    if (! empty($pagosConFactura)) {
+                        $opcionesFiscal['pagos_facturar'] = array_values($pagosConFactura);
+                    }
+                    if (! empty($this->desgloseIvaFiscal)) {
+                        $opcionesFiscal['desglose_iva'] = $this->desgloseIvaFiscal;
+                        $opcionesFiscal['total_a_facturar'] = $this->montoFacturaFiscal;
+                    }
+                    if ($this->puntoVentaSeleccionadoId) {
+                        $puntoVentaSeleccionado = PuntoVenta::with('cuit')->find($this->puntoVentaSeleccionadoId);
+                        if ($puntoVentaSeleccionado) {
+                            $opcionesFiscal['punto_venta'] = $puntoVentaSeleccionado;
+                        }
+                    }
 
-                        // Si hay pagos específicos con factura fiscal, pasar para facturación parcial
-                        if (! empty($pagosConFactura)) {
-                            $opcionesFiscal['pagos_facturar'] = array_values($pagosConFactura);
-
-                            Log::info('Facturación parcial - pagos con factura fiscal', [
+                    if ($this->cobroIntegracionConfirmado) {
+                        // El cobro QR ya entró: la venta NO puede revertirse. Se difiere la
+                        // emisión de la FC a DESPUÉS del commit (mismo patrón que
+                        // CambioFormaPagoService, evita la transacción anidada de
+                        // crearComprobanteFiscal). Se pre-marcan los pagos como
+                        // pendiente_de_facturar; si la emisión post-commit anda, el service
+                        // los marca facturados; si no, quedan pendientes (reintentables
+                        // desde Cajas → Pagos Pendientes de Facturación).
+                        $idsPendientes = ! empty($pagosConFactura)
+                            ? array_column($pagosConFactura, 'id')
+                            : array_column($pagosCreados, 'id');
+                        VentaPago::whereIn('id', $idsPendientes)
+                            ->update(['estado_facturacion' => VentaPago::ESTADO_FACT_PENDIENTE]);
+                        $emitirFiscalPostCommit = true;
+                    } else {
+                        // Venta sin cobro irreversible: emitir dentro de la transacción;
+                        // si la FC falla, NO grabar la venta (rollback).
+                        try {
+                            $comprobanteFiscal = $comprobanteFiscalService->crearComprobanteFiscal($venta, $opcionesFiscal);
+                            Log::info('Comprobante fiscal emitido', [
                                 'venta_id' => $venta->id,
-                                'total_pagos_creados' => count($pagosCreados),
-                                'pagos_con_factura' => count($pagosConFactura),
-                                'pagos_facturar' => $opcionesFiscal['pagos_facturar'],
+                                'comprobante_id' => $comprobanteFiscal->id,
+                                'cae' => $comprobanteFiscal->cae,
                             ]);
+                        } catch (Exception $e) {
+                            Log::error('Error al emitir comprobante fiscal - cancelando venta', [
+                                'error' => $e->getMessage(),
+                            ]);
+                            DB::connection('pymes_tenant')->rollBack();
+                            $this->dispatch('toast-error', message: 'Error al emitir factura fiscal: '.$e->getMessage());
+
+                            return;
                         }
-
-                        // Pasar el desglose de IVA ya calculado (con proporciones correctas)
-                        if (! empty($this->desgloseIvaFiscal)) {
-                            $opcionesFiscal['desglose_iva'] = $this->desgloseIvaFiscal;
-                            $opcionesFiscal['total_a_facturar'] = $this->montoFacturaFiscal;
-                        }
-
-                        // Pasar el punto de venta seleccionado si el usuario eligió uno
-                        if ($this->puntoVentaSeleccionadoId) {
-                            $puntoVentaSeleccionado = PuntoVenta::with('cuit')->find($this->puntoVentaSeleccionadoId);
-                            if ($puntoVentaSeleccionado) {
-                                $opcionesFiscal['punto_venta'] = $puntoVentaSeleccionado;
-                            }
-                        }
-
-                        $comprobanteFiscal = $comprobanteFiscalService->crearComprobanteFiscal($venta, $opcionesFiscal);
-
-                        Log::info('Comprobante fiscal emitido', [
-                            'venta_id' => $venta->id,
-                            'comprobante_id' => $comprobanteFiscal->id,
-                            'cae' => $comprobanteFiscal->cae,
-                        ]);
-                    } catch (Exception $e) {
-                        // Si el usuario pidió factura fiscal y falla, NO grabar la venta
-                        Log::error('Error al emitir comprobante fiscal - cancelando venta', [
-                            'error' => $e->getMessage(),
-                        ]);
-
-                        // Hacer rollback de toda la transacción
-                        DB::connection('pymes_tenant')->rollBack();
-
-                        // Notificar al usuario del error (sin limpiar carrito para que pueda reintentar)
-                        $this->dispatch('toast-error', message: 'Error al emitir factura fiscal: '.$e->getMessage());
-
-                        return;
                     }
                 }
 
@@ -2516,6 +2517,24 @@ trait WithPagosDesglose
 
                 DB::connection('pymes_tenant')->commit();
 
+                // Emisión fiscal diferida (caso cobro QR confirmado): la venta ya está
+                // grabada. Si la FC falla, los pagos quedan en pendiente_de_facturar.
+                if ($emitirFiscalPostCommit) {
+                    try {
+                        $comprobanteFiscal = $comprobanteFiscalService->crearComprobanteFiscal($venta, $opcionesFiscal);
+                        Log::info('Comprobante fiscal emitido (post-commit)', [
+                            'venta_id' => $venta->id,
+                            'comprobante_id' => $comprobanteFiscal->id,
+                        ]);
+                    } catch (Exception $e) {
+                        $facturacionPendiente = true;
+                        Log::warning('FC post-commit falló (cobro confirmado) - pagos quedan pendiente_de_facturar', [
+                            'venta_id' => $venta->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+
                 // Mensaje de éxito
                 $mensaje = "Venta #{$venta->numero} creada exitosamente";
                 if ($comprobanteFiscal && $comprobanteFiscal->cae) {
@@ -2523,6 +2542,12 @@ trait WithPagosDesglose
                 }
 
                 $this->dispatch('toast-success', message: $mensaje);
+
+                // El cobro entró pero la factura no se pudo emitir: avisar que quedó
+                // pendiente (reintentable desde Cajas → Pagos Pendientes de Facturación).
+                if ($facturacionPendiente) {
+                    $this->dispatch('toast-warning', message: __('El cobro se registró, pero la facturación quedó pendiente. Reintentala desde Cajas → Pagos Pendientes de Facturación.'));
+                }
 
                 // Acumular puntos de fidelización (post-commit, no crítico)
                 $this->acumularPuntosPostVenta($venta);

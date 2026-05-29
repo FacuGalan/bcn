@@ -10,6 +10,7 @@
     "Debe seleccionar al menos un modo permitido": "You must select at least one allowed mode",
     "Debe seleccionar un modo default": "You must select a default mode",
     "Debe seleccionar una integración": "You must select an integration",
+    "El cobro se registró, pero la facturación quedó pendiente. Reintentala desde Cajas → Pagos Pendientes de Facturación.": "The payment was recorded, but invoicing is pending. Retry it from Registers → Pending Invoicing Payments.",
     "El modo default debe estar entre los modos permitidos": "The default mode must be among the allowed modes",
     "El pago no se completó (:estado)": "The payment was not completed (:estado)",
     "Escaneá el código con la app para pagar": "Scan the code with the app to pay",
