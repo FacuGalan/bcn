@@ -157,6 +157,7 @@ CREATE TABLE `{{PREFIX}}cajas` (
   `mp_pos_external_id` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'external_id del POS en MP, formato BCN-{c}-POS-{caja}',
   `mp_pos_qr_url` text COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'URL del PNG del QR estático asociado al POS',
   `mp_pos_qr_pdf_url` text COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'URL del PDF imprimible del QR del POS',
+  `usa_pantalla_cliente` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'Si el puesto/caja tiene un segundo monitor orientado al cliente para mostrar el QR de cobro',
   PRIMARY KEY (`id`),
   UNIQUE KEY `cajas_sucursal_numero_unique` (`sucursal_id`,`numero`),
   UNIQUE KEY `uniq_cajas_mp_pos_external_id` (`mp_pos_external_id`),

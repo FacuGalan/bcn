@@ -549,6 +549,9 @@
     {{-- Modal "Esperando pago" — cobro por QR con integración (Fase 5) --}}
     @include('livewire.carrito._modal-esperando-pago-integracion')
 
+    {{-- Botón flotante: conectar pantalla orientada al cliente (Fase 5) --}}
+    @include('livewire.carrito._boton-pantalla-cliente')
+
     {{-- Modal de Alta de Cliente (extraído a parcial reusable) --}}
     @include('livewire.carrito._modal-cliente-rapido')
 

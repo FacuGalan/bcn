@@ -12,6 +12,7 @@
     @include("livewire.carrito._modal-moneda-extranjera")
     @include("livewire.carrito._modal-vuelto")
     @include("livewire.carrito._modal-esperando-pago-integracion")
+    @include("livewire.carrito._boton-pantalla-cliente")
 @else
 <div class="fixed inset-0 z-40 bg-black/40 flex items-stretch justify-center p-2 sm:p-3"
     x-data="{
@@ -748,6 +749,7 @@
     @include("livewire.carrito._modal-moneda-extranjera")
     @include("livewire.carrito._modal-vuelto")
     @include("livewire.carrito._modal-esperando-pago-integracion")
+    @include("livewire.carrito._boton-pantalla-cliente")
     </div>{{-- /modal contenedor con margen --}}
 </div>
 @endif

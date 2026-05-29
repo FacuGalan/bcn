@@ -2,10 +2,12 @@
 @if($mostrarModalEsperandoPago)
     <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-esperando-pago" role="dialog" aria-modal="true"
         wire:poll.3s="pollearCobroIntegracion"
+        data-usa-pantalla-cliente="{{ $this->usaPantallaClienteActiva ? '1' : '0' }}"
         x-data="{
             expira: {{ (int) ($cobroIntegracionExpiraTs ?? 0) }},
             ahora: Math.floor(Date.now() / 1000),
             timer: null,
+            enPantallaCliente: false,
             get restante() {
                 return Math.max(0, this.expira - this.ahora);
             },
@@ -20,9 +22,24 @@
             },
             init() {
                 this.timer = setInterval(() => { this.ahora = Math.floor(Date.now() / 1000); }, 1000);
+
+                // Si la caja usa pantalla cliente y hay una ventana conectada,
+                // mandamos el QR a ese monitor y mostramos el modal compacto.
+                const usa = this.$el.dataset.usaPantallaCliente === '1';
+                const host = window.bcnPantallaClienteHost;
+                if (usa && host && host.estaConectada()) {
+                    this.$nextTick(() => {
+                        const svg = this.$refs.qrLocal ? this.$refs.qrLocal.innerHTML : '';
+                        host.enviarQr(svg, {{ (float) $cobroIntegracionMonto }}, '{{ __('Escaneá para pagar') }}');
+                        this.enPantallaCliente = true;
+                    });
+                }
             },
             destroy() {
                 if (this.timer) clearInterval(this.timer);
+                if (this.enPantallaCliente && window.bcnPantallaClienteHost) {
+                    window.bcnPantallaClienteHost.limpiar();
+                }
             }
         }"
         @keydown.escape.window="$wire.cancelarCobroIntegracion()">
@@ -50,12 +67,25 @@
                     {{-- QR --}}
                     <div class="flex flex-col items-center">
                         @if($cobroIntegracionQrSvg)
-                            <div class="bg-white p-3 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm" wire:ignore>
-                                {!! $cobroIntegracionQrSvg !!}
+                            {{-- QR en la pantalla del cajero (se oculta si va al monitor del cliente) --}}
+                            <div x-show="!enPantallaCliente" class="flex flex-col items-center">
+                                <div class="bg-white p-3 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm" wire:ignore x-ref="qrLocal">
+                                    {!! $cobroIntegracionQrSvg !!}
+                                </div>
+                                <p class="mt-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                                    {{ __('Escaneá el código con la app para pagar') }}
+                                </p>
                             </div>
-                            <p class="mt-3 text-sm text-gray-500 dark:text-gray-400 text-center">
-                                {{ __('Escaneá el código con la app para pagar') }}
-                            </p>
+                            {{-- Modo compacto: el QR se está mostrando en el monitor del cliente --}}
+                            <div x-show="enPantallaCliente" x-cloak class="flex flex-col items-center text-center py-2">
+                                <div class="flex items-center justify-center w-20 h-20 rounded-full bg-sky-100 dark:bg-sky-900/30 mb-3">
+                                    <svg class="w-10 h-10 text-sky-600 dark:text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                    </svg>
+                                </div>
+                                <p class="text-base font-medium text-gray-700 dark:text-gray-200">{{ __('Mostrando el QR en la pantalla del cliente') }}</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('Pedile al cliente que escanee con su app') }}</p>
+                            </div>
                         @else
                             <div class="flex items-center justify-center w-[240px] h-[240px] bg-gray-100 dark:bg-gray-700 rounded-xl">
                                 <svg class="animate-spin h-8 w-8 text-sky-600" fill="none" viewBox="0 0 24 24">

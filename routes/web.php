@@ -82,6 +82,11 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
      */
     Route::get('ventas', Ventas::class)->name('ventas.index');
     Route::get('ventas/nueva', NuevaVenta::class)->name('ventas.create');
+
+    // Pantalla orientada al cliente (segundo monitor del puesto). Página
+    // liviana sin shell de la app; recibe el QR de cobro vía BroadcastChannel
+    // desde la pestaña del cajero (mismo origen). Ver Fase 5 integraciones-pago.
+    Route::view('pantalla-cliente', 'pantalla-cliente')->name('pantalla-cliente');
     Route::get('configuracion/puntos', ProgramaPuntos::class)->name('configuracion.puntos');
     Route::get('ventas/cupones', GestionCupones::class)->name('ventas.cupones');
 

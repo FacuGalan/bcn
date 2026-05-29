@@ -26,6 +26,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Computed;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 /**
@@ -832,6 +833,19 @@ trait WithPagosDesglose
     // =========================================
     // COBRO CON INTEGRACIÓN (QR presencial — Fase 5)
     // =========================================
+
+    /**
+     * Si la caja activa del puesto tiene habilitada la pantalla orientada al
+     * cliente (segundo monitor). Lo consumen el botón de conexión y el modal
+     * de cobro para decidir si mandar el QR al monitor del cliente.
+     */
+    #[Computed]
+    public function usaPantallaClienteActiva(): bool
+    {
+        $cajaId = $this->cajaSeleccionada ?? caja_activa();
+
+        return (bool) (Caja::find($cajaId)?->usa_pantalla_cliente ?? false);
+    }
 
     /**
      * Devuelve el primer pago del desglose cuya forma de pago tiene una

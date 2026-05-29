@@ -15,3 +15,6 @@ import './kanban.js';
 
 // Modulo de impresion QZ Tray
 import './qz-integration.js';
+
+// Host de la pantalla orientada al cliente (segundo monitor en el cobro QR)
+import './pantalla-cliente-host.js';
