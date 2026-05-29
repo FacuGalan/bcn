@@ -11,8 +11,8 @@
 
         {{-- Estado de espera (sin cobro en curso) --}}
         <div id="pc-idle" class="flex flex-col items-center justify-center text-center px-8">
-            @if(!empty($logoUrl))
-                <img src="{{ $logoUrl }}" alt="{{ $empresaNombre }}" class="max-h-48 max-w-[70vw] object-contain mb-8">
+            @if(!empty($logoPath))
+                <img src="{{ asset('storage/' . $logoPath) }}" alt="{{ $empresaNombre }}" class="max-h-48 max-w-[70vw] object-contain mb-8">
             @elseif(!empty($empresaNombre))
                 <p class="text-4xl font-bold text-gray-200 mb-8">{{ $empresaNombre }}</p>
             @endif

@@ -40,44 +40,29 @@ const host = {
             return true;
         }
 
-        let left = 0;
-        let top = 0;
-        let width = Math.min(900, window.screen.availWidth);
-        let height = Math.min(700, window.screen.availHeight);
-        let pantallaSecundaria = false;
+        // Abrir la ventana YA, dentro del gesto del usuario (antes de cualquier
+        // await), para conservar la activación: así la propia ventana puede
+        // intentar entrar en pantalla completa al cargar.
+        const features = `popup=yes,width=${Math.min(900, window.screen.availWidth)},height=${Math.min(700, window.screen.availHeight)}`;
+        this.win = window.open(URL_PANTALLA, NOMBRE_VENTANA, features);
 
+        // Luego, si se puede, reposicionar/agrandar en el segundo monitor.
         try {
-            if ('getScreenDetails' in window) {
+            if (this.win && 'getScreenDetails' in window) {
                 const details = await window.getScreenDetails(); // pide permiso "window-management"
                 const actual = details.currentScreen;
                 const otra =
                     details.screens.find((s) => s !== actual && !s.isInternal) ||
                     details.screens.find((s) => s !== actual);
                 if (otra) {
-                    left = otra.availLeft;
-                    top = otra.availTop;
-                    width = otra.availWidth;
-                    height = otra.availHeight;
-                    pantallaSecundaria = true;
+                    this.win.moveTo(otra.availLeft, otra.availTop);
+                    this.win.resizeTo(otra.availWidth, otra.availHeight);
                 }
             }
         } catch (e) {
-            // Permiso denegado o API no disponible: abrimos igual en la pantalla
-            // actual; el cajero puede arrastrar la ventana al monitor del cliente.
+            // Permiso denegado o API no disponible: queda en la pantalla actual;
+            // el cajero puede arrastrar la ventana al monitor del cliente.
             console.warn('[pantalla-cliente] sin Window Management API:', e?.message || e);
-        }
-
-        const features = `popup=yes,left=${left},top=${top},width=${width},height=${height}`;
-        this.win = window.open(URL_PANTALLA, NOMBRE_VENTANA, features);
-
-        if (this.win && pantallaSecundaria) {
-            // Reforzar posición/tamaño (algunos navegadores ignoran las features).
-            try {
-                this.win.moveTo(left, top);
-                this.win.resizeTo(width, height);
-            } catch (e) {
-                /* no-op */
-            }
         }
 
         return this.estaConectada();

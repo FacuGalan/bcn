@@ -90,7 +90,10 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
         $empresa = \App\Models\EmpresaConfig::getConfig();
 
         return view('pantalla-cliente', [
-            'logoUrl' => $empresa?->logo_url,
+            // logo_path crudo: la URL se arma con asset() en la vista (host del
+            // request), no con Storage::url() que usa el host fijo de la config
+            // y rompe si la app no corre en el puerto de APP_URL.
+            'logoPath' => $empresa?->logo_path,
             'empresaNombre' => $empresa?->nombre,
         ]);
     })->name('pantalla-cliente');
