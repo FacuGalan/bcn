@@ -136,6 +136,28 @@ class CobroIntegracionService
     }
 
     /**
+     * Asocia el cobrable (venta/pedido recién creado) a una transacción que ya
+     * se confirmó. Necesario en el modelo "cobro primero, venta después": el
+     * pago se confirma cuando el cliente paga el QR, pero el comprobante se crea
+     * después; recién ahí existe el cobrable para asociar.
+     *
+     * Idempotente: si la transacción ya tiene cobrable, no hace nada.
+     */
+    public function asociarCobrable(IntegracionPagoTransaccion $transaccion, Model $cobrable): void
+    {
+        if ($transaccion->cobrable_id !== null) {
+            return;
+        }
+
+        DB::connection('pymes_tenant')->transaction(function () use ($transaccion, $cobrable) {
+            $transaccion->cobrable()->associate($cobrable);
+            $transaccion->save();
+
+            $this->registrarEvento($transaccion, IntegracionPagoEvento::EVENTO_COBRABLE_ASOCIADO);
+        });
+    }
+
+    /**
      * Cancela un cobro pendiente: avisa al proveedor y marca la transacción.
      * Idempotente: si ya está en estado terminal, devuelve true sin hacer nada.
      */

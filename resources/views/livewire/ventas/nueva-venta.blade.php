@@ -546,6 +546,9 @@
     {{-- Modal de Cobro con Vuelto (extraído a parcial reusable) --}}
     @include('livewire.carrito._modal-vuelto')
 
+    {{-- Modal "Esperando pago" — cobro por QR con integración (Fase 5) --}}
+    @include('livewire.carrito._modal-esperando-pago-integracion')
+
     {{-- Modal de Alta de Cliente (extraído a parcial reusable) --}}
     @include('livewire.carrito._modal-cliente-rapido')
 

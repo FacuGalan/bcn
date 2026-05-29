@@ -22,9 +22,11 @@ use App\Services\ARCA\ComprobanteFiscalService;
 use App\Services\CuentaEmpresaService;
 use App\Services\IntegracionesPago\CobroIntegracionService;
 use Exception;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 /**
  * Sistema de pagos con desglose, cuotas, ajustes por forma de pago, fiscal,
@@ -83,6 +85,9 @@ trait WithPagosDesglose
 
     /** @var string|null Trama EMVCo del QR a renderizar en el front */
     public ?string $cobroIntegracionQrData = null;
+
+    /** @var string|null SVG del QR ya renderizado (se genera una vez al iniciar el cobro) */
+    public ?string $cobroIntegracionQrSvg = null;
 
     /** @var float Monto del cobro por integración en curso */
     public float $cobroIntegracionMonto = 0;
@@ -894,10 +899,33 @@ trait WithPagosDesglose
 
         $this->cobroIntegracionTransaccionId = $transaccion->id;
         $this->cobroIntegracionQrData = $transaccion->qr_data;
+        $this->cobroIntegracionQrSvg = $this->renderizarQrSvg($transaccion->qr_data);
         $this->cobroIntegracionMonto = (float) $transaccion->monto;
         $this->cobroIntegracionExpiraTs = $transaccion->expira_en?->timestamp;
         $this->cobroIntegracionConfirmado = false;
         $this->mostrarModalEsperandoPago = true;
+    }
+
+    /**
+     * Renderiza la trama EMVCo del QR como SVG (PHP puro, sin imagick/gd).
+     * Se genera una vez al iniciar el cobro y se guarda en una prop para
+     * sobrevivir a los morphs de Livewire del wire:poll sin reconstruirse.
+     */
+    protected function renderizarQrSvg(?string $qrData): ?string
+    {
+        if (empty($qrData)) {
+            return null;
+        }
+
+        $svg = QrCode::format('svg')
+            ->size(240)
+            ->margin(1)
+            ->errorCorrection('M')
+            ->generate($qrData);
+
+        // Quitar el prólogo XML (la declaración inicial de tipo xml): al embeber
+        // el SVG inline en HTML puede provocar quirks de render en algunos navegadores.
+        return trim(preg_replace('/^<\?xml.*?\?>\s*/s', '', (string) $svg));
     }
 
     /**
@@ -929,10 +957,17 @@ trait WithPagosDesglose
         }
 
         if ($estado === 'aprobado') {
+            // Registrar la confirmación en el momento del pago (aún sin cobrable:
+            // la venta/pedido se crea a continuación y se asocia ahí).
             $service->confirmarCobro($transaccion);
             $this->cobroIntegracionConfirmado = true;
             $this->mostrarModalEsperandoPago = false;
-            $this->dispatch('cobro-integracion-confirmado', transaccionId: $transaccion->id);
+
+            // Continuar el flujo normal de cobro: con cobroIntegracionConfirmado=true
+            // el guard de verificarPuntoVentaYProcesar deja pasar y se materializa
+            // la venta/pedido. El terminal (polimórfico) asocia esta transacción al
+            // cobrable recién creado vía asociarCobroIntegracionAlCobrable().
+            $this->verificarPuntoVentaYProcesar();
 
             return;
         }
@@ -970,9 +1005,27 @@ trait WithPagosDesglose
         $this->mostrarModalEsperandoPago = false;
         $this->cobroIntegracionTransaccionId = null;
         $this->cobroIntegracionQrData = null;
+        $this->cobroIntegracionQrSvg = null;
         $this->cobroIntegracionMonto = 0;
         $this->cobroIntegracionExpiraTs = null;
         $this->cobroIntegracionConfirmado = false;
+    }
+
+    /**
+     * Asocia la transacción de cobro QR confirmada al cobrable recién creado
+     * (Venta o PedidoMostrador). Lo llaman los métodos terminales de cada host
+     * después de persistir el comprobante. No-op si no hubo cobro por integración.
+     */
+    protected function asociarCobroIntegracionAlCobrable(Model $cobrable): void
+    {
+        if (! $this->cobroIntegracionConfirmado || ! $this->cobroIntegracionTransaccionId) {
+            return;
+        }
+
+        $transaccion = IntegracionPagoTransaccion::find($this->cobroIntegracionTransaccionId);
+        if ($transaccion) {
+            app(CobroIntegracionService::class)->asociarCobrable($transaccion, $cobrable);
+        }
     }
 
     /**
@@ -981,6 +1034,18 @@ trait WithPagosDesglose
      */
     protected function verificarPuntoVentaYProcesar(): void
     {
+        // Enganche cobro QR (Fase 5): si algún pago del desglose usa una forma
+        // de pago con integración y todavía no se confirmó, disparamos el cobro
+        // por QR y esperamos (modelo "cobro primero, venta después"). Cuando el
+        // polling confirma, vuelve a entrar acá con cobroIntegracionConfirmado=true
+        // y este guard ya no aplica → se materializa la venta/pedido normalmente.
+        if (! $this->cobroIntegracionConfirmado
+            && ($pagoIntegracion = $this->desglosePagoConIntegracion()) !== null) {
+            $this->iniciarCobroIntegracion($pagoIntegracion);
+
+            return;
+        }
+
         // Determinar si se va a generar factura fiscal
         $sucursal = Sucursal::find($this->sucursalId);
         if (! $sucursal) {
@@ -2123,6 +2188,12 @@ trait WithPagosDesglose
                 // Crear la venta
                 $venta = $this->ventaService->crearVenta($datosVenta, $detalles);
 
+                // Asociar el cobro QR confirmado (Fase 5) a la venta recién creada.
+                // No-op si la venta no se cobró por integración. Va dentro de la
+                // transacción: si algo falla después (ej. fiscal) y se hace rollback,
+                // la asociación se revierte junto con la venta.
+                $this->asociarCobroIntegracionAlCobrable($venta);
+
                 // Guardar desglose de pagos con nuevos campos
                 $pagosCreados = []; // Mapeo de índice => VentaPago ID para facturación parcial
                 foreach ($this->desglosePagos as $index => $pago) {
@@ -2451,6 +2522,9 @@ trait WithPagosDesglose
 
                 // Disparar evento para impresion automatica
                 $this->dispararEventoImpresion($venta, $comprobanteFiscal);
+
+                // Limpiar el estado del cobro QR para no arrastrarlo a la próxima venta.
+                $this->resetCobroIntegracion();
 
                 $this->limpiarCarrito(false); // Sin mensaje, ya mostramos toast-success
 
