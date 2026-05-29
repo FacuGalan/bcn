@@ -15,8 +15,8 @@ use Tests\Traits\WithTenant;
 /**
  * Tests Fase 3 — MercadoPagoGateway.
  *
- * Cubre `probarConexion` (camino feliz + errores) y `modosSoportados`.
- * Resto de métodos del contrato son stubs hasta Fase 5.
+ * Cubre `probarConexion` (camino feliz + errores), `modosSoportados` y
+ * Stores/POS. `procesarWebhook` sigue siendo stub hasta Fase 6.
  *
  * Usa Http::fake() para no pegarle a MP real.
  *
@@ -210,16 +210,7 @@ class MercadoPagoGatewayTest extends TestCase
         $this->gateway->probarConexion($config);
     }
 
-    // ==================== Stubs Fase 5 ====================
-
-    public function test_iniciar_cobro_lanza_bad_method_call(): void
-    {
-        $this->expectException(\BadMethodCallException::class);
-        $this->gateway->iniciarCobro(
-            $this->crearConfig(),
-            new \App\Models\IntegracionPagoTransaccion
-        );
-    }
+    // ==================== Stub Fase 6 ====================
 
     public function test_procesar_webhook_lanza_bad_method_call(): void
     {

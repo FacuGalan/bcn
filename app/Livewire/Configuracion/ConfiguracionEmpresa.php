@@ -180,6 +180,8 @@ class ConfiguracionEmpresa extends Component
 
     public $configCajaMontoFijoInicial = null;
 
+    public $configCajaUsaPantallaCliente = false;
+
     // ==================== TAB CAJAS - GRUPOS DE CIERRE ====================
     public $mostrarModalGrupoCierre = false;
 
@@ -863,6 +865,7 @@ class ConfiguracionEmpresa extends Component
         $this->configCajaLimiteEfectivo = $caja->limite_efectivo;
         $this->configCajaModoCargaInicial = $caja->modo_carga_inicial ?? 'manual';
         $this->configCajaMontoFijoInicial = $caja->monto_fijo_inicial;
+        $this->configCajaUsaPantallaCliente = (bool) $caja->usa_pantalla_cliente;
 
         $this->mostrarModalConfigCaja = true;
     }
@@ -894,6 +897,7 @@ class ConfiguracionEmpresa extends Component
             $caja->monto_fijo_inicial = $this->configCajaModoCargaInicial === 'monto_fijo'
                 ? $this->configCajaMontoFijoInicial
                 : null;
+            $caja->usa_pantalla_cliente = (bool) $this->configCajaUsaPantallaCliente;
 
             $caja->save();
 
@@ -913,6 +917,7 @@ class ConfiguracionEmpresa extends Component
         $this->configCajaLimiteEfectivo = null;
         $this->configCajaModoCargaInicial = 'manual';
         $this->configCajaMontoFijoInicial = null;
+        $this->configCajaUsaPantallaCliente = false;
         $this->resetErrorBag();
     }
 

@@ -55,6 +55,8 @@ class IntegracionPagoEvento extends Model
 
     public const EVENTO_CONFIRMADO_MANUAL = 'confirmado_manual';
 
+    public const EVENTO_COBRABLE_ASOCIADO = 'cobrable_asociado';
+
     public const EVENTO_FALLIDO = 'fallido';
 
     public const EVENTO_EXPIRADO = 'expirado';

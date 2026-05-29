@@ -708,6 +708,7 @@ Cajas registradoras del sistema.
 | `mp_pos_external_id` | varchar(40) nullable | Identificador externo en MP. Formato: `BCN{comercio_id}POS{caja_id}` (alfanumerico SIN guiones — MP exige este formato para POS). Unico (UNIQUE INDEX). Solo se envia al crear; en updates MP lo rechaza. |
 | `mp_pos_qr_url` | text nullable | URL del PNG del QR estatico (`qr.image` en respuesta MP). |
 | `mp_pos_qr_pdf_url` | text nullable | URL del PDF imprimible del QR (`qr.template_document` en respuesta MP). |
+| `usa_pantalla_cliente` | tinyint(1) default 0 | Si el puesto tiene un segundo monitor orientado al cliente para mostrar el QR de cobro. Habilita el boton "Conectar pantalla cliente" en NuevaVenta y Pedidos Mostrador. |
 | `created_at`, `updated_at` | timestamp | Timestamps |
 
 #### Tabla: `movimientos_caja`
@@ -2165,20 +2166,59 @@ Configuracion de una integracion para una sucursal especifica. Una sucursal pued
 
 #### Tabla: `{PREFIX}integraciones_pago_transacciones` (tenant)
 
-Registro de transacciones de cobro procesadas por cada pasarela. Los registros se crean al iniciar un cobro (Fase 5, pendiente).
+Registro append-only de transacciones de cobro. Una transaccion nace en estado `pendiente` al generar el QR y avanza por estados hasta confirmarse o cancelarse. La asociacion al cobrable (venta o pedido) es nullable: en el modelo "cobro primero, venta despues" el cobrable se asocia recien cuando la venta se crea tras la confirmacion del pago.
 
 | Columna | Tipo | Descripcion |
 |---|---|---|
 | `id` | bigint PK | ID unico |
-| `integracion_pago_sucursal_id` | bigint FK | Configuracion usada |
-| `venta_id` | bigint FK nullable | Venta asociada |
-| `referencia_externa` | varchar(255) nullable | ID de la transaccion en el proveedor externo |
-| `estado` | varchar(50) | Estado de la transaccion |
-| `monto` | decimal(12,2) | Monto de la transaccion |
-| `moneda` | varchar(10) | Codigo de moneda |
-| `payload_request` | json nullable | Payload enviado al proveedor |
-| `payload_response` | json nullable | Respuesta del proveedor |
+| `integracion_pago_sucursal_id` | bigint FK | Configuracion de integracion usada |
+| `forma_pago_id` | bigint FK | Forma de pago usada |
+| `sucursal_id` | bigint FK | Sucursal donde se realizo el cobro |
+| `caja_id` | bigint FK nullable | Caja del cajero |
+| `usuario_iniciador_id` | bigint FK | Usuario que inicio el cobro |
+| `cobrable_type` | varchar(255) nullable | FQCN del cobrable (`App\Models\Venta`, `App\Models\PedidoMostrador`). NULL hasta que se asocia. |
+| `cobrable_id` | bigint unsigned nullable | ID del cobrable. NULL hasta que se asocia. |
+| `modo_usado` | varchar(50) | Modo de cobro (`qr_dinamico`, `qr_estatico`) |
+| `estado` | varchar(50) | Estado: `pendiente`, `confirmado`, `cancelado`, `fallido`, `expirado` |
+| `monto` | decimal(12,2) | Monto del cobro |
+| `moneda_id` | bigint FK nullable | Moneda del cobro |
+| `qr_data` | text nullable | Trama EMVCo del QR dinamico |
+| `link_pago` | text nullable | URL de pago alternativa |
+| `external_reference` | varchar(255) nullable | Referencia interna enviada al proveedor |
+| `external_id` | varchar(255) nullable | ID del recurso en el proveedor (ej: `order_id` de MP) |
+| `payload_respuesta` | json nullable | Ultima respuesta del proveedor |
+| `expira_en` | timestamp nullable | Momento en que expira el QR |
+| `confirmado_en` | timestamp nullable | Momento en que se confirmo el pago |
 | `created_at`, `updated_at` | timestamp | Timestamps |
+
+**Notas de modelo**:
+- `cobrable_type` y `cobrable_id` son nullable desde Fase 5 (migracion `make_cobrable_nullable_integraciones_pago_transacciones`).
+- Relacion `cobrable()` es `morphTo`: el cobrable puede ser `Venta` o `PedidoMostrador`.
+- `estaEnEstadoTerminal()`: devuelve true si `estado` es `confirmado`, `cancelado`, `fallido` o `expirado`.
+
+#### Tabla: `{PREFIX}integraciones_pago_eventos` (tenant)
+
+Ledger de auditoria append-only de cada transaccion. Cada cambio de estado o evento significativo genera una fila. Nunca se borran ni modifican registros existentes.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `transaccion_id` | bigint FK | Transaccion auditada |
+| `integracion_pago_sucursal_id` | bigint FK | Configuracion usada (denormalizado para queries) |
+| `evento` | varchar(100) | Tipo de evento (ver constantes) |
+| `payload_externo` | json nullable | Payload del proveedor externo si aplica |
+| `metadata` | json nullable | Datos adicionales (ej: `{motivo: '...'}` para errores) |
+| `created_at` | timestamp | Momento del evento |
+
+**Constantes de evento** en `IntegracionPagoEvento`:
+- `EVENTO_CREADO` = `'creado'`
+- `EVENTO_INICIADO_EN_GATEWAY` = `'iniciado_en_gateway'`
+- `EVENTO_CONFIRMADO` = `'confirmado'`
+- `EVENTO_CONFIRMADO_MANUAL` = `'confirmado_manual'`
+- `EVENTO_COBRABLE_ASOCIADO` = `'cobrable_asociado'`
+- `EVENTO_CANCELADO` = `'cancelado'`
+- `EVENTO_ERROR` = `'error'`
+- `EVENTO_EXPIRADO` = `'expirado'`
 
 #### Tabla: `comercios.rubro` (campo en `config.comercios`)
 
@@ -2189,7 +2229,13 @@ Campo `rubro varchar(50) nullable` agregado a la tabla `comercios` de la conexio
 
 #### Services
 
-- **`MercadoPagoGateway`**: Clase concreta que implementa `IntegracionPagoGatewayContract`. Gestiona toda la comunicacion HTTP con la API de MP. Metodos de Fase 3.5: `crearStore`, `actualizarStore`, `eliminarStore`, `crearPos`, `actualizarPos`, `eliminarPos`. Metodos de Fase 5 (stubs que lanzan excepcion): `iniciarCobro`, `consultarEstado`, `cancelarCobro`.
+- **`CobroIntegracionService`** (Fase 5): Orquesta el ciclo de vida de un cobro por integracion. API unica consumida por `NuevaVenta`, `NuevoPedidoMostrador` y futuros modulos via el trait `WithPagosDesglose`. Metodos publicos:
+  - `iniciarCobro(IntegracionPagoSucursal $config, array $datos, ?Model $cobrable = null): IntegracionPagoTransaccion` — Crea la transaccion en `pendiente`, llama al gateway para obtener el QR (FUERA de la transaccion DB para no mantener locks durante la latencia de red) y persiste `qr_data`, `external_id`, etc.
+  - `consultarEstado(IntegracionPagoTransaccion $transaccion): string` — Consulta el estado en el proveedor. Devuelve `'pendiente'|'aprobado'|'cancelado'|'expirado'` sin mutar la transaccion.
+  - `confirmarCobro(IntegracionPagoTransaccion $transaccion, ?Model $cobrable = null, array $payload = []): void` — Marca como `confirmado`, registra `confirmado_en`, asocia el cobrable si se provee. Idempotente.
+  - `asociarCobrable(IntegracionPagoTransaccion $transaccion, Model $cobrable): void` — Asocia el cobrable a una transaccion ya confirmada. Necesario en el modelo "cobro primero, venta despues": el pago se confirma cuando el cliente escanea el QR, pero el comprobante se crea despues. Idempotente.
+  - `cancelarCobro(IntegracionPagoTransaccion $transaccion): bool` — Avisa al proveedor y marca como `cancelado`. Si el gateway falla al cancelar, la transaccion se cancela localmente igual y se loguea el error. Idempotente.
+- **`MercadoPagoGateway`** (actualizado Fase 5): Implementa `IntegracionPagoGatewayContract`. Metodos de sincronizacion: `crearStore`, `actualizarStore`, `eliminarStore`, `crearPos`, `actualizarPos`, `eliminarPos`. Metodos de cobro QR (Fase 5, implementados): `iniciarCobro` (usa Orders API `POST /v1/orders`, modo `dynamic`), `consultarEstado` (polling del order), `cancelarCobro`.
 - **`SincronizacionMercadoPagoService`**: Orquesta crear-vs-actualizar. Decide segun `mp_store_id` / `mp_pos_id`. Persiste IDs y URLs devueltos en una transaccion tenant.
 - **`IntegracionPagoSucursalService`**: CRUD de configuraciones. Al cambiar `modo` o `user_id_externo` limpia los IDs de MP locales (Store + todos sus POS) via `limpiarSincronizacionMp()`.
 
@@ -2693,6 +2739,71 @@ El pago anulado tiene `datos_snapshot_json` con sus datos completos al momento d
 
 ---
 
+### 3.12 Cobro QR Dinamico con Integracion de Pago (Fase 5)
+
+#### Modelo "cobro primero, venta despues"
+
+A diferencia del flujo tradicional (donde la venta se crea y luego se registra el pago), el cobro QR dinamico sigue el modelo inverso:
+
+1. El cajero inicia el cobro desde NuevaVenta o Pedidos Mostrador (al confirmar con una forma de pago que tiene integracion activa).
+2. Se crea una `IntegracionPagoTransaccion` en estado `pendiente` con `cobrable_type/id = NULL`.
+3. Se llama al gateway (MercadoPago Orders API `POST /v1/orders`, modo `dynamic`) para generar el QR. Esta llamada HTTP ocurre **FUERA de la transaccion DB** para no mantener locks tenant durante la latencia de red.
+4. El `qr_data` (trama EMVCo) se persiste en la transaccion. El front renderiza el SVG del QR una sola vez al iniciar y lo guarda en una prop Livewire (`cobroIntegracionQrSvg`) para evitar re-renders durante el polling.
+5. Se muestra el modal "Esperando pago" con el QR y un countdown hasta `expira_en`.
+6. Livewire hace polling cada 3 segundos (`wire:poll.3s="pollearCobroIntegracion"`). Cada tick llama a `CobroIntegracionService::consultarEstado()`.
+7. Cuando el gateway reporta `aprobado`:
+   - `confirmarCobro()` marca la transaccion como `confirmado` y registra `confirmado_en`. El cobrable NO se asocia aun.
+   - Se setea `cobroIntegracionConfirmado = true` en el componente Livewire.
+   - Se llama a `verificarPuntoVentaYProcesar()` que ahora, al ver `cobroIntegracionConfirmado = true`, omite el guard y avanza al flujo normal de creacion de venta/pedido.
+8. El metodo terminal (`procesarVentaConDesglose` en NuevaVenta, o su equivalente en Pedidos) crea el comprobante normalmente y llama a `asociarCobroIntegracionAlCobrable($cobrable)`.
+9. `asociarCobrable()` asocia el cobrable a la transaccion ya confirmada y registra el evento `cobrable_asociado`.
+10. Si el cliente no paga o el cajero cancela: `cancelarCobro()` avisa al proveedor (silencia errores de red), marca la transaccion como `cancelado` y no se crea ningun comprobante.
+
+#### Enganche en el trait `WithPagosDesglose`
+
+El trait es compartido entre `NuevaVenta` y `NuevoPedidoMostrador`. Implementa el flujo QR completo con estos metodos clave:
+
+- `desglosePagoConIntegracion(): ?array` — Detecta si algun pago del desglose usa una FP con integracion.
+- `iniciarCobroIntegracion(array $pago): void` — Resuelve la `IntegracionPagoSucursal` activa para la sucursal, llama a `CobroIntegracionService::iniciarCobro()` y abre el modal.
+- `pollearCobroIntegracion(): void` — Polling del estado. Al aprobar: confirma, setea flag y llama a `verificarPuntoVentaYProcesar()`.
+- `cancelarCobroIntegracion(): void` — Cancela via service y cierra modal.
+- `asociarCobroIntegracionAlCobrable(Model $cobrable): void` — Lo llaman los terminales de cada host tras persistir el comprobante. No-op si no hubo cobro por integracion.
+- `usaPantallaClienteActiva: bool` (#[Computed]) — Lee `cajas.usa_pantalla_cliente` de la caja activa.
+
+**Guard en `verificarPuntoVentaYProcesar()`**: si `!cobroIntegracionConfirmado && desglosePagoConIntegracion() !== null`, inicia el cobro QR y retorna. La segunda vez que entra (con `cobroIntegracionConfirmado = true`), el guard no aplica y el flujo continua normalmente.
+
+#### Auditoria append-only
+
+Cada paso relevante genera una fila en `{PREFIX}integraciones_pago_eventos`:
+- `creado` → al crear la transaccion en DB
+- `iniciado_en_gateway` → al recibir el QR del proveedor
+- `confirmado` → al detectar el pago aprobado
+- `cobrable_asociado` → al vincular la venta/pedido a la transaccion
+- `cancelado` → al cancelar
+- `error` → si el gateway falla al iniciar (con `metadata.motivo`)
+
+#### Pantalla orientada al cliente (segundo monitor)
+
+Arquitectura client-side para mostrar el QR al cliente en un segundo monitor, sin backend adicional.
+
+**Componentes**:
+- `resources/js/pantalla-cliente-host.js`: Objeto `window.bcnPantallaClienteHost` que vive en la pestana del POS (cajero). Abre la ventana del cliente via `window.open()` y la posiciona en el segundo monitor usando la **Window Management API** (`window.getScreenDetails()`). Comunica mensajes via **BroadcastChannel** (canal `bcn-pantalla-cliente`).
+- `resources/js/pantalla-cliente.js`: Script de la ventana del cliente (`/pantalla-cliente`). Escucha mensajes del BroadcastChannel y actualiza la UI: muestra QR en fullscreen o vuelve al estado idle.
+- `resources/views/pantalla-cliente.blade.php`: Vista liviana sin Livewire/Alpine. Muestra logo de empresa en idle y el QR durante el cobro. Tiene boton de pantalla completa.
+- `resources/views/livewire/carrito/_boton-pantalla-cliente.blade.php`: Boton flotante (Alpine, client-side) que se renderiza solo si `usaPantallaClienteActiva` es true. Refresca el estado de conexion cada 2 segundos.
+- `resources/views/livewire/carrito/_modal-esperando-pago-integracion.blade.php`: Modal con logica Alpine que, al abrirse, detecta si hay pantalla cliente conectada y envia el QR via `host.enviarQr()`. Si va al cliente, el cajero ve un panel compacto en lugar del QR.
+
+**Mensajes BroadcastChannel**:
+- `{ type: 'qr', svg, monto, leyenda }` → muestra el QR en la pantalla cliente
+- `{ type: 'idle' }` → vuelve al estado de espera
+- `{ type: 'ping' }` / `{ type: 'pong' }` → heartbeat
+
+**Ruta**: `GET /pantalla-cliente` (autenticada, sin Livewire). Carga `empresaConfig` para mostrar logo y nombre.
+
+**Requisitos del navegador**: Chrome o Edge, contexto seguro (https o localhost), monitores en modo "Extender". El permiso `window-management` se solicita la primera vez que se usa `getScreenDetails()`. Si la API no esta disponible o el permiso se deniega, la ventana se abre de todas formas y el cajero la arrastra manualmente.
+
+---
+
 ## 4. Patrones de Consulta
 
 ### 4.1 Consultas Comunes
@@ -2947,6 +3058,26 @@ WHERE pesable = 1 AND activo = 1
 ORDER BY nombre;
 ```
 
+#### Transacciones de cobro por integracion (pendientes o recientes)
+
+```sql
+SELECT t.id, t.estado, t.monto, t.cobrable_type, t.cobrable_id,
+       t.external_id, t.expira_en, t.confirmado_en, t.created_at
+FROM {PREFIX}integraciones_pago_transacciones t
+WHERE t.sucursal_id = ?
+  AND t.created_at >= NOW() - INTERVAL 24 HOUR
+ORDER BY t.created_at DESC;
+```
+
+#### Auditoria de eventos de una transaccion de cobro
+
+```sql
+SELECT e.evento, e.payload_externo, e.metadata, e.created_at
+FROM {PREFIX}integraciones_pago_eventos e
+WHERE e.transaccion_id = ?
+ORDER BY e.created_at ASC;
+```
+
 ### 4.2 Convenciones de Datos
 
 **Estados posibles de cada entidad:**
@@ -2967,6 +3098,7 @@ ORDER BY nombre;
 | Produccion | `confirmado`, `anulado` | |
 | ProvisionFondo | `pendiente`, `confirmado`, `cancelado` | |
 | DepositoBancario | `pendiente`, `confirmado`, `cancelado` | |
+| IntegracionPagoTransaccion | `pendiente`, `confirmado`, `cancelado`, `fallido`, `expirado` | `estaEnEstadoTerminal()` = true para todos menos `pendiente` |
 
 **Formatos de fecha:**
 - Fechas se almacenan como `timestamp` o `date` en MySQL.
@@ -2998,7 +3130,7 @@ Las siguientes tablas usan soft delete (`deleted_at` no nulo = eliminado):
 Al consultar estas tablas, siempre agregar `AND deleted_at IS NULL` a menos que se quieran incluir registros eliminados.
 
 **Patron append-only (ledger):**
-Las tablas `movimientos_stock`, `movimientos_cuenta_corriente`, `movimientos_cuenta_empresa` y `venta_pagos` (para cambios de pago) siguen el patron append-only:
+Las tablas `movimientos_stock`, `movimientos_cuenta_corriente`, `movimientos_cuenta_empresa`, `venta_pagos` (para cambios de pago) e `integraciones_pago_eventos` siguen el patron append-only:
 - Los registros nunca se modifican ni eliminan.
 - Las anulaciones se hacen creando un **contraasiento** que invierte los montos (movimientos) o marcando el registro como `estado = 'anulado'` y creando uno nuevo (venta_pagos).
 - El original se vincula al contraasiento via `anulado_por_movimiento_id` (movimientos) o via `venta_pago_reemplazado_id` (venta_pagos).

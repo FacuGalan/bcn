@@ -247,6 +247,25 @@
                                             @enderror
                                         </div>
                                     @endif
+
+                                    {{-- Pantalla orientada al cliente (segundo monitor del puesto) --}}
+                                    <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
+                                        <label class="flex items-start gap-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                wire:model="configCajaUsaPantallaCliente"
+                                                class="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700"
+                                            >
+                                            <span class="text-sm">
+                                                <span class="block font-medium text-gray-700 dark:text-gray-300">
+                                                    {{ __('Usa pantalla orientada al cliente') }}
+                                                </span>
+                                                <span class="block text-xs text-gray-500 dark:text-gray-400">
+                                                    {{ __('Si este puesto tiene un segundo monitor apuntando al cliente, el QR de cobro se mostrará ahí en lugar de en tu pantalla. Requiere monitores en modo "Extender" y navegador Chrome o Edge.') }}
+                                                </span>
+                                            </span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
 

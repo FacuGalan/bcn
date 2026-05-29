@@ -444,28 +444,154 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         };
     }
 
-    // ==================== Stubs Fase 5 ====================
+    // ==================== Cobro QR dinámico (Orders API) ====================
 
+    /**
+     * Inicia un cobro QR dinámico creando una Order en MP (POST /v1/orders).
+     *
+     * Orders API nueva con `config.qr.mode = dynamic`: genera un QR único por
+     * transacción (`type_response.qr_data`) asociado al POS de la caja
+     * (`config.qr.external_pos_id`, sincronizado en Fase 3.5). El pago se
+     * confirma por webhook con tópico "Order" (Fase 6); acá solo se crea.
+     *
+     * @return array{qr_data: string, external_reference: string, external_id: string, payload: array}
+     */
     public function iniciarCobro(
         IntegracionPagoSucursal $config,
         IntegracionPagoTransaccion $transaccion
     ): array {
-        throw new \BadMethodCallException('iniciarCobro será implementado en Fase 5');
+        $caja = $transaccion->caja;
+
+        if (! $caja || ! $caja->estaSincronizadaEnMp() || empty($caja->mp_pos_external_id)) {
+            throw new \RuntimeException(__('La caja no tiene un punto de venta (POS) sincronizado en Mercado Pago. Sincronícela antes de cobrar con QR.'));
+        }
+
+        $externalReference = 'BCN-TX-'.$transaccion->id;
+        $monto = number_format((float) $transaccion->monto, 2, '.', '');
+
+        $payload = [
+            'type' => 'qr',
+            'external_reference' => $externalReference,
+            'total_amount' => $monto,
+            'config' => [
+                'qr' => [
+                    'external_pos_id' => $caja->mp_pos_external_id,
+                    'mode' => 'dynamic',
+                ],
+            ],
+            'transactions' => [
+                'payments' => [
+                    ['amount' => $monto],
+                ],
+            ],
+        ];
+
+        // Idempotencia: misma transacción ⇒ mismo body ⇒ MP devuelve la order
+        // original sin recrearla. Un reintento (RF-11) usa otra transacción.
+        $response = $this->client($config)
+            ->withHeaders(['X-Idempotency-Key' => 'order-'.$externalReference])
+            ->post(self::API_BASE.'/v1/orders', $payload);
+
+        $this->guardResponse($response, 'iniciarCobro');
+
+        $data = $response->json();
+        $qrData = $data['type_response']['qr_data'] ?? null;
+
+        if (empty($qrData)) {
+            Log::warning('MercadoPagoGateway::iniciarCobro - respuesta sin qr_data', [
+                'transaccion_id' => $transaccion->id,
+                'order_id' => $data['id'] ?? null,
+            ]);
+
+            throw new \RuntimeException(__('Mercado Pago no devolvió el código QR de la orden'));
+        }
+
+        Log::info('MercadoPagoGateway::iniciarCobro OK', [
+            'transaccion_id' => $transaccion->id,
+            'order_id' => $data['id'] ?? null,
+        ]);
+
+        return [
+            'qr_data' => $qrData,
+            'external_reference' => $externalReference,
+            'external_id' => (string) ($data['id'] ?? ''),
+            'payload' => $data,
+        ];
     }
 
+    /**
+     * Consulta el estado de la order en MP (GET /v1/orders/{id}).
+     * Fallback de polling; la confirmación primaria llega por webhook.
+     *
+     * @return array{estado: string, payload: array} estado normalizado
+     */
     public function consultarEstado(
         IntegracionPagoSucursal $config,
         IntegracionPagoTransaccion $transaccion
     ): array {
-        throw new \BadMethodCallException('consultarEstado será implementado en Fase 5');
+        if (empty($transaccion->external_id)) {
+            throw new \RuntimeException(__('La transacción no tiene un identificador de orden de Mercado Pago'));
+        }
+
+        $response = $this->client($config)
+            ->get(self::API_BASE.'/v1/orders/'.$transaccion->external_id);
+
+        $this->guardResponse($response, 'consultarEstado');
+
+        $data = $response->json();
+
+        return [
+            'estado' => $this->normalizarEstadoOrder($data['status'] ?? ''),
+            'payload' => $data,
+        ];
     }
 
+    /**
+     * Cancela la order pendiente en MP (POST /v1/orders/{id}/cancel).
+     * Devuelve true si MP confirma la cancelación.
+     */
     public function cancelarCobro(
         IntegracionPagoSucursal $config,
         IntegracionPagoTransaccion $transaccion
     ): bool {
-        throw new \BadMethodCallException('cancelarCobro será implementado en Fase 5');
+        if (empty($transaccion->external_id)) {
+            return false;
+        }
+
+        $response = $this->client($config)
+            ->withHeaders(['X-Idempotency-Key' => 'cancel-'.$transaccion->external_id])
+            ->post(self::API_BASE.'/v1/orders/'.$transaccion->external_id.'/cancel');
+
+        if ($response->successful()) {
+            return true;
+        }
+
+        Log::warning('MercadoPagoGateway::cancelarCobro - MP no canceló la orden', [
+            'transaccion_id' => $transaccion->id,
+            'order_id' => $transaccion->external_id,
+            'status' => $response->status(),
+            'body' => $response->body(),
+        ]);
+
+        return false;
     }
+
+    /**
+     * Normaliza el `status` de una Order de MP al vocabulario interno.
+     * Estados MP: created | processed | canceled | expired | refunded.
+     * Los pagos rechazados NO se exponen (la order permanece en 'created').
+     */
+    private function normalizarEstadoOrder(string $status): string
+    {
+        return match ($status) {
+            'processed' => 'aprobado',
+            'canceled' => 'cancelado',
+            'expired' => 'expirado',
+            default => 'pendiente', // created, refunded, vacío, etc.
+        };
+    }
+
+    // ==================== Stub Fase 6 ====================
 
     public function procesarWebhook(array $payload, array $headers): array
     {

@@ -2184,6 +2184,11 @@ class NuevoPedidoMostrador extends Component
                 }
             }
 
+            // Asociar el cobro QR confirmado (Fase 5) al pedido recién persistido.
+            // No-op si el pedido no se cobró por integración.
+            $this->asociarCobroIntegracionAlCobrable($pedido);
+            $this->resetCobroIntegracion();
+
             $msg = $this->modoEdicion
                 ? __('Pedido actualizado')
                 : __('Pedido confirmado #:numero', ['numero' => $pedido->numero]);
@@ -2263,6 +2268,10 @@ class NuevoPedidoMostrador extends Component
                     $this->normalizarPagoDelDesglose($pago, planificadoForzado: false),
                 );
             }
+
+            // Asociar el cobro QR confirmado (Fase 5) al pedido cobrado.
+            $this->asociarCobroIntegracionAlCobrable($pedido);
+            $this->resetCobroIntegracion();
 
             $this->dispatch('toast-success', message: __('Pedido cobrado'));
             $this->mostrarModalPago = false;

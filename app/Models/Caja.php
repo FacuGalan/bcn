@@ -54,6 +54,8 @@ class Caja extends Model
         'grupo_cierre_id',
         // Mercado Pago POS
         'mp_pos_id', 'mp_pos_external_id', 'mp_pos_qr_url', 'mp_pos_qr_pdf_url',
+        // Pantalla orientada al cliente (segundo monitor del puesto)
+        'usa_pantalla_cliente',
     ];
 
     protected $casts = [
@@ -65,6 +67,7 @@ class Caja extends Model
         'limite_efectivo' => 'decimal:2',
         'monto_fijo_inicial' => 'decimal:2',
         'numero' => 'integer',
+        'usa_pantalla_cliente' => 'boolean',
     ];
 
     public function estaSincronizadaEnMp(): bool

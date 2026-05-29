@@ -82,6 +82,21 @@ Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
      */
     Route::get('ventas', Ventas::class)->name('ventas.index');
     Route::get('ventas/nueva', NuevaVenta::class)->name('ventas.create');
+
+    // Pantalla orientada al cliente (segundo monitor del puesto). Página
+    // liviana sin shell de la app; recibe el QR de cobro vía BroadcastChannel
+    // desde la pestaña del cajero (mismo origen). Ver Fase 5 integraciones-pago.
+    Route::get('pantalla-cliente', function () {
+        $empresa = \App\Models\EmpresaConfig::getConfig();
+
+        return view('pantalla-cliente', [
+            // logo_path crudo: la URL se arma con asset() en la vista (host del
+            // request), no con Storage::url() que usa el host fijo de la config
+            // y rompe si la app no corre en el puerto de APP_URL.
+            'logoPath' => $empresa?->logo_path,
+            'empresaNombre' => $empresa?->nombre,
+        ]);
+    })->name('pantalla-cliente');
     Route::get('configuracion/puntos', ProgramaPuntos::class)->name('configuracion.puntos');
     Route::get('ventas/cupones', GestionCupones::class)->name('ventas.cupones');
 
