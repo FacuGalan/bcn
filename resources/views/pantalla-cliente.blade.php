@@ -11,9 +11,11 @@
 
         {{-- Estado de espera (sin cobro en curso) --}}
         <div id="pc-idle" class="flex flex-col items-center justify-center text-center px-8">
-            <svg class="w-20 h-20 text-gray-600 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7"/>
-            </svg>
+            @if(!empty($logoUrl))
+                <img src="{{ $logoUrl }}" alt="{{ $empresaNombre }}" class="max-h-48 max-w-[70vw] object-contain mb-8">
+            @elseif(!empty($empresaNombre))
+                <p class="text-4xl font-bold text-gray-200 mb-8">{{ $empresaNombre }}</p>
+            @endif
             <p class="text-2xl font-light text-gray-400">{{ __('Listo para cobrar') }}</p>
         </div>
 
@@ -31,5 +33,14 @@
         </div>
 
     </div>
+
+    {{-- Hint de pantalla completa (se oculta al entrar en fullscreen) --}}
+    <button id="pc-fullscreen-hint"
+        class="fixed bottom-4 right-4 z-50 inline-flex items-center gap-2 rounded-full bg-gray-800/80 hover:bg-gray-700 text-gray-200 text-sm px-4 py-2 shadow-lg transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+        </svg>
+        {{ __('Pantalla completa') }}
+    </button>
 </body>
 </html>

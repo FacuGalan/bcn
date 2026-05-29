@@ -3,7 +3,7 @@
      Toda la lógica es client-side (Alpine + window.bcnPantallaClienteHost). --}}
 @if($this->usaPantallaClienteActiva)
     <div
-        class="fixed bottom-4 left-4 z-40 print:hidden"
+        class="fixed top-3 left-1/2 -translate-x-1/2 z-40 print:hidden"
         x-data="{
             conectada: false,
             soportada: ('open' in window),

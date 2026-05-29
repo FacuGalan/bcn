@@ -66,4 +66,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Avisar a la pestaña del cajero que esta pantalla ya está lista.
     channel.postMessage({ type: 'pong' });
+
+    // --- Pantalla completa (estilo F11) ---
+    const hint = document.getElementById('pc-fullscreen-hint');
+
+    const entrarFullscreen = () => {
+        const el = document.documentElement;
+        if (!document.fullscreenElement && el.requestFullscreen) {
+            el.requestFullscreen().catch(() => {
+                /* sin gesto/activación: queda el hint para que el cajero haga clic */
+            });
+        }
+    };
+
+    const actualizarHint = () => {
+        if (hint) hint.classList.toggle('hidden', !!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', actualizarHint);
+
+    // Intento automático al abrir (puede ser bloqueado si no hay activación).
+    entrarFullscreen();
+
+    // Fallback: cualquier clic/tecla en la pantalla entra en pantalla completa.
+    if (hint) hint.addEventListener('click', entrarFullscreen);
+    document.addEventListener('click', entrarFullscreen);
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') entrarFullscreen();
+    });
+
+    actualizarHint();
 });
