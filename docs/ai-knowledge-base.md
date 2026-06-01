@@ -2757,8 +2757,10 @@ A diferencia del flujo tradicional (donde el comprobante se crea y luego se regi
 3. Se llama al gateway (MercadoPago Orders API `POST /v1/orders`, modo `dynamic`) para generar el QR. Esta llamada HTTP ocurre **FUERA de la transaccion DB** para no mantener locks tenant durante la latencia de red.
 4. El `qr_data` (trama EMVCo) se persiste en la transaccion. El front renderiza el SVG del QR una sola vez al iniciar y lo guarda en la prop `cobroIntegracionQrSvg` para evitar re-renders durante el polling.
 5. Se muestra el modal "Esperando pago" con el QR y un countdown hasta `expira_en`.
-6. Livewire hace polling cada 3 segundos (`wire:poll.3s="pollearCobroIntegracion"`). Cada tick llama a `CobroIntegracionService::consultarEstado()`.
-7. Cuando el gateway reporta `aprobado`:
+6. La confirmacion puede llegar por dos vias (la primera que llegue gana):
+   - **Webhook (camino principal)**: MP llama a `POST /api/integraciones/mercadopago/webhook`. El servidor confirma la transaccion y broadcastea el evento `IntegracionPagoActualizado`. El frontend escucha via Echo/Reverb en el canal privado `comercios.{id}.integraciones-pago.transaccion.{txId}`, re-consulta el estado y detecta `confirmado` de forma instantanea.
+   - **Polling (respaldo)**: Livewire hace polling cada 3 segundos (`wire:poll.3s="pollearCobroIntegracion"`). Cada tick llama a `CobroIntegracionService::consultarEstado()`. Actua como red de seguridad si el webhook no llego (webhook no configurado, fallo de red, etc.).
+7. Cuando el estado es `aprobado` (detectado por cualquiera de las dos vias):
    - `confirmarCobro()` marca la transaccion como `confirmado` y registra `confirmado_en`. El cobrable NO se asocia aun.
    - Se setea `cobroIntegracionConfirmado = true`.
    - Se invoca el hook `alConfirmarCobroIntegracion()` para que el host materialice su cobrable.
@@ -2788,7 +2790,8 @@ Cualquier cambio a la logica de cobro QR debe hacerse en este concern para que i
 
 **Metodos publicos**: 
 - `iniciarCobroIntegracion(array $datos): void` — Recibe `forma_pago_id`, `monto`, `sucursal_id`, `caja_id`, `moneda_id` como array explicito (el concern no depende de props del host). Resuelve `integracionPrincipal()`, verifica `IntegracionPagoSucursal` activa, llama a `CobroIntegracionService::iniciarCobro()`, genera el SVG del QR y abre el modal.
-- `pollearCobroIntegracion(): void` — Polling via `wire:poll`. Al estado `aprobado`: llama `confirmarCobro()`, setea `cobroIntegracionConfirmado = true`, cierra modal e invoca el hook `alConfirmarCobroIntegracion()`. Al estado `cancelado/expirado/fallido`: dispatcha toast, resetea estado, dispatcha evento `cobro-integracion-no-confirmado` e invoca el hook `alCancelarCobroIntegracion()`.
+- `pollearCobroIntegracion(): void` — Respaldo via `wire:poll.3s`. Al estado `aprobado`: llama `confirmarCobro()`, setea `cobroIntegracionConfirmado = true`, cierra modal e invoca el hook `alConfirmarCobroIntegracion()`. Al estado `cancelado/expirado/fallido`: dispatcha toast, resetea estado, dispatcha evento `cobro-integracion-no-confirmado` e invoca el hook `alCancelarCobroIntegracion()`. Idempotente: si el webhook ya confirmo antes, `confirmarCobro()` es no-op.
+> El camino rápido por webhook NO es un método PHP: la suscripción al broadcast vive en el Blade del modal de espera (`_modal-esperando-pago-integracion.blade.php`) — Alpine se suscribe por Echo al canal de la transacción en `init()` y, al recibir `.IntegracionPagoActualizado`, llama a `$wire.pollearCobroIntegracion()` (el mismo método de respaldo). No hay listener Livewire/`getListeners()` por transacción.
 - `cancelarCobroIntegracion(): void` — Llama `cancelarCobro()` en el service, resetea estado, dispatcha `cobro-integracion-no-confirmado` e invoca `alCancelarCobroIntegracion()`.
 
 **Metodos protegidos**:
@@ -2821,7 +2824,8 @@ El trait es compartido entre `NuevaVenta` y `NuevoPedidoMostrador`. Usa `WithCob
 Cada paso relevante genera una fila en `{PREFIX}integraciones_pago_eventos`:
 - `creado` → al crear la transaccion en DB
 - `iniciado_en_gateway` → al recibir el QR del proveedor
-- `confirmado` → al detectar el pago aprobado
+- `webhook_recibido` → al recibir la notificacion de MP en el endpoint webhook (con `metadata.payload` del body recibido)
+- `confirmado` → al detectar el pago aprobado (por webhook o por polling)
 - `cobrable_asociado` → al vincular la venta/pedido a la transaccion
 - `cancelado` → al cancelar
 - `error` → si el gateway falla al iniciar (con `metadata.motivo`)
@@ -2845,6 +2849,63 @@ Arquitectura client-side para mostrar el QR al cliente en un segundo monitor, si
 **Ruta**: `GET /pantalla-cliente` (autenticada, sin Livewire). Carga `empresaConfig` para mostrar logo y nombre.
 
 **Requisitos del navegador**: Chrome o Edge, contexto seguro (https o localhost), monitores en modo "Extender". El permiso `window-management` se solicita la primera vez que se usa `getScreenDetails()`. Si la API no esta disponible o el permiso se deniega, la ventana se abre de todas formas y el cajero la arrastra manualmente.
+
+#### Webhook de Mercado Pago y confirmacion en tiempo real
+
+**Endpoint**: `POST /api/integraciones/mercadopago/webhook`
+- Ruta publica (sin autenticacion Sanctum ni CSRF).
+- MP la llama cuando confirma un pago QR.
+
+**Flujo del webhook**:
+
+1. MP envia un `POST` con cabecera `x-signature` (HMAC-SHA256) y body JSON con el `id` de la order.
+2. El sistema resuelve a que comercio/sucursal pertenece la notificacion usando la tabla `mercadopago_collector_index` (conexion `config`): busca el `user_id` de MP que esta en la notificacion, obtiene el `comercio_id` y el `sucursal_id`.
+3. Configura la conexion tenant sin sesion HTTP via `TenantService::usarComercioParaProceso(int $comercioId)` (metodo nuevo de Fase 6, disenado para procesos sin request HTTP como webhooks y comandos artisan).
+4. Verifica la firma `x-signature` con el `webhook_secret` encriptado de la `IntegracionPagoSucursal`. Si la firma es invalida retorna HTTP 401. Si no hay `webhook_secret` configurado, omite la verificacion de firma pero igual re-consulta el estado real de la order a la API de MP con el access token de la sucursal para asegurarse de que la notificacion es legitima.
+5. Llama a `CobroIntegracionService::confirmarCobro()` para marcar la transaccion como `confirmado`. Idempotente: si ya estaba confirmada, no hace nada.
+6. Broadcastea el evento `IntegracionPagoActualizado` (ver abajo).
+7. Retorna HTTP 200. El cobrable **no se materializa** en el webhook (no tiene el carrito ni el contexto de la sesion del cajero); solo confirma la transaccion server-side.
+
+**Resolucion multi-tenant**: el webhook es un endpoint global unico para todos los comercios. La tabla `mercadopago_collector_index` (conexion `config`, sin prefijo) actua como indice de routing: mapea `user_id_externo` (ID de cuenta MP) al `comercio_id` y `sucursal_id` tenant. Este indice se sincroniza automaticamente al guardar o actualizar una `IntegracionPagoSucursal`.
+
+**Robustez**: si el cajero cierra el navegador despues de iniciar el cobro QR y antes de que el cliente pague, el pago queda confirmado server-side igualmente cuando MP llama al webhook. La transaccion queda en estado `confirmado` sin cobrable asociado, disponible para reconciliacion futura.
+
+#### Evento broadcast `IntegracionPagoActualizado`
+
+`app/Events/Broadcasting/IntegracionPagoActualizado.php` — implementa `ShouldBroadcastNow` (dispatch sincrono, sin cola).
+
+**Canal**: canal privado `comercios.{comercioId}.integraciones-pago.transaccion.{transaccionId}`.
+
+**Payload** (`broadcastWith()`):
+```json
+{
+  "transaccion_id": 123,
+  "estado": "confirmado"
+}
+```
+
+**Suscripcion (frontend, no PHP)**: el modal de espera `_modal-esperando-pago-integracion.blade.php` (compartido por NuevaVenta, NuevoPedidoMostrador y PedidosMostrador) renderiza el nombre del canal en un `data-cobro-canal` y, vía Alpine `init()`, se suscribe con `window.Echo.private(canal).listen('.IntegracionPagoActualizado', () => $wire.pollearCobroIntegracion())`; en `destroy()` hace `Echo.leave()`. La via que llegue primero (webhook→broadcast o polling) toma el control; la segunda es no-op por idempotencia de `confirmarCobro()`. No hay listener Livewire por transaccion (evita pelear con `getListeners()` de cada host).
+
+#### Tabla: `mercadopago_collector_index` (conexion `config`, sin prefijo)
+
+Indice de routing para el webhook global. Permite resolver a que comercio/sucursal pertenece una notificacion de MP sin iterar todos los tenants.
+
+| columna | tipo | descripcion |
+|---|---|---|
+| `id` | bigint PK | - |
+| `comercio_id` | bigint | ID del comercio en `config.comercios` |
+| `sucursal_id` | bigint | ID de la sucursal en el tenant |
+| `user_id_externo` | varchar(50) | User ID de la cuenta de Mercado Pago |
+| `modo` | enum | `test` o `produccion` |
+| `created_at` / `updated_at` | timestamps | - |
+
+Indice UNIQUE en `(user_id_externo, modo)`. Se sincroniza via `IntegracionPagoSucursalService` al guardar la configuracion.
+
+#### `TenantService::usarComercioParaProceso(int $comercioId)`
+
+Metodo nuevo (Fase 6). Configura la conexion tenant (`pymes_tenant`) para un proceso que corre fuera de una sesion HTTP (webhook, comando artisan, job de cola). A diferencia del flujo normal (que resuelve el comercio desde la sesion del usuario autenticado), este metodo acepta el `comercioId` directamente y establece el prefijo de tablas en el `TenantService` sin requerir `Auth::user()`.
+
+Uso tipico: el webhook lo llama tras resolver el `comercio_id` desde `mercadopago_collector_index`, antes de cualquier consulta a tablas tenant.
 
 ---
 

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\ImpresionController;
+use App\Http\Controllers\IntegracionesPago\MercadoPagoWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -21,3 +22,9 @@ Route::middleware(['web', 'auth'])->prefix('impresion')->group(function () {
 
 // Firma QZ Tray (público pero con CSRF)
 Route::middleware(['web'])->post('/qz/sign', [ImpresionController::class, 'firmarMensaje']);
+
+// Webhook global de Mercado Pago (integraciones de pago — Fase 6). Público,
+// sin sesión ni CSRF: resuelve el tenant por el user_id MP del payload. La
+// seguridad la dan la firma x-signature + el re-chequeo autenticado a la API.
+Route::post('/integraciones/mercadopago/webhook', [MercadoPagoWebhookController::class, 'handle'])
+    ->name('integraciones.mercadopago.webhook');

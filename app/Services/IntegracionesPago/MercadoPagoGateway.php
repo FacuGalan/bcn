@@ -591,10 +591,85 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         };
     }
 
-    // ==================== Stub Fase 6 ====================
+    // ==================== Webhook (Fase 6) ====================
 
+    /**
+     * Parsea una notificación entrante de Mercado Pago (Orders API) a un formato
+     * normalizado. NO consulta la API ni verifica firma (no tiene credenciales
+     * acá): solo extrae lo necesario para resolver el tenant y la transacción.
+     * El orquestador (MercadoPagoWebhookService) hace la resolución, la
+     * verificación de firma y el re-chequeo del estado real.
+     *
+     * MP combina query string y body; el caller suele pasar el merge de ambos.
+     * Tópico de interés: "order" (Orders API). El id de la order viene en
+     * `data.id` (o en `resource` como URL/id).
+     *
+     * @return array{tipo: ?string, order_id: ?string, user_id_externo: ?string}
+     */
     public function procesarWebhook(array $payload, array $headers): array
     {
-        throw new \BadMethodCallException('procesarWebhook será implementado en Fase 6');
+        $tipo = $payload['type'] ?? $payload['topic'] ?? null;
+
+        // id de la order: data.id (preferido), o el final de `resource` (URL/id).
+        // OJO: PHP convierte `data.id` del query string en `data_id`.
+        $orderId = $payload['data']['id'] ?? $payload['data.id'] ?? $payload['data_id'] ?? null;
+        if (empty($orderId) && ! empty($payload['resource'])) {
+            $resource = (string) $payload['resource'];
+            $orderId = str_contains($resource, '/') ? substr($resource, strrpos($resource, '/') + 1) : $resource;
+        }
+
+        // collector (cuenta MP): puede venir como user_id (top-level) o anidado.
+        $userId = $payload['user_id']
+            ?? $payload['data']['collector_id']
+            ?? $payload['collector_id']
+            ?? null;
+
+        return [
+            'tipo' => $tipo !== null ? (string) $tipo : null,
+            'order_id' => $orderId !== null ? (string) $orderId : null,
+            'user_id_externo' => $userId !== null ? (string) $userId : null,
+        ];
+    }
+
+    /**
+     * Verifica la firma `x-signature` de una notificación de Mercado Pago.
+     *
+     * MP firma con HMAC-SHA256 sobre el manifest
+     * `id:{dataId};request-id:{xRequestId};ts:{ts};` usando el secret del webhook
+     * configurado en el panel de MP. El header `x-signature` trae `ts=...,v1=...`.
+     *
+     * @param  array<string, string>  $headers  headers normalizados a string
+     */
+    public function verificarFirma(string $secret, array $headers, string $dataId): bool
+    {
+        $xSignature = $headers['x-signature'] ?? null;
+        $xRequestId = $headers['x-request-id'] ?? '';
+
+        if (empty($xSignature)) {
+            return false;
+        }
+
+        $ts = null;
+        $v1 = null;
+        foreach (explode(',', $xSignature) as $parte) {
+            $kv = array_pad(explode('=', trim($parte), 2), 2, null);
+            $clave = trim((string) $kv[0]);
+            $valor = $kv[1] !== null ? trim((string) $kv[1]) : null;
+            if ($clave === 'ts') {
+                $ts = $valor;
+            } elseif ($clave === 'v1') {
+                $v1 = $valor;
+            }
+        }
+
+        if (empty($ts) || empty($v1)) {
+            return false;
+        }
+
+        // MP exige el data.id en minúsculas en el manifest.
+        $manifest = 'id:'.strtolower($dataId).';request-id:'.$xRequestId.';ts:'.$ts.';';
+        $calculado = hash_hmac('sha256', $manifest, $secret);
+
+        return hash_equals($calculado, $v1);
     }
 }

@@ -1,12 +1,17 @@
 {{-- Modal "Esperando pago" — cobro por QR con integración (Fase 5, compartido NuevaVenta + Pedidos) --}}
 @if($mostrarModalEsperandoPago)
+    @php($__cobroComercioId = app(\App\Services\TenantService::class)->getComercioId())
     <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-esperando-pago" role="dialog" aria-modal="true"
         wire:poll.3s="pollearCobroIntegracion"
         data-usa-pantalla-cliente="{{ $this->usaPantallaClienteActiva ? '1' : '0' }}"
+        @if($__cobroComercioId && $cobroIntegracionTransaccionId)
+            data-cobro-canal="comercios.{{ $__cobroComercioId }}.integraciones-pago.transaccion.{{ $cobroIntegracionTransaccionId }}"
+        @endif
         x-data="{
             expira: {{ (int) ($cobroIntegracionExpiraTs ?? 0) }},
             ahora: Math.floor(Date.now() / 1000),
             timer: null,
+            cobroCanal: null,
             enPantallaCliente: false,
             get restante() {
                 return Math.max(0, this.expira - this.ahora);
@@ -34,11 +39,26 @@
                         this.enPantallaCliente = true;
                     });
                 }
+
+                // Reverb (Fase 6): cuando MP confirma por webhook, el server
+                // broadcastea y reaccionamos al instante re-consultando el estado
+                // (que confirma y materializa). El wire:poll queda de respaldo
+                // por si el websocket no está disponible.
+                const canal = this.$el.dataset.cobroCanal;
+                if (canal && window.Echo) {
+                    this.cobroCanal = canal;
+                    window.Echo.private(canal).listen('.IntegracionPagoActualizado', () => {
+                        this.$wire.pollearCobroIntegracion();
+                    });
+                }
             },
             destroy() {
                 if (this.timer) clearInterval(this.timer);
                 if (this.enPantallaCliente && window.bcnPantallaClienteHost) {
                     window.bcnPantallaClienteHost.limpiar();
+                }
+                if (this.cobroCanal && window.Echo) {
+                    window.Echo.leave(this.cobroCanal);
                 }
             }
         }"

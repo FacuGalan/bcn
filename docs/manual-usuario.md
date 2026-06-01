@@ -377,10 +377,13 @@ Cuando la forma de pago seleccionada tiene una integracion de cobro activa (por 
    - El codigo QR para que el cliente escanee con su billetera digital.
    - Un countdown de expiracion del QR.
 4. El cliente escanea el QR con su app (Mercado Pago u otra billetera compatible) y confirma el pago.
-5. El sistema detecta automaticamente la confirmacion (polling cada 3 segundos) y:
+5. El sistema detecta automaticamente la confirmacion y:
    - Cierra el modal.
    - Registra la venta con todos sus datos.
    - Asocia la transaccion de cobro a la venta.
+
+   Cuando el comercio tiene el **webhook de Mercado Pago configurado**, la confirmacion es **instantanea**: MP avisa al sistema en tiempo real y el modal se cierra al instante sin esperar ningun ciclo de consulta. Si el webhook no esta configurado, el sistema consulta el estado del pago cada 3 segundos como respaldo.
+
 6. Si el cajero presiona **"Cancelar cobro"** o el QR expira sin pago, el modal se cierra y no se crea ninguna venta.
 
 **Si la facturacion fiscal falla con el cobro ya confirmado**: el pago queda registrado igual (el cobro ya entro) pero la factura queda pendiente de emision. Aparece un aviso indicando que el cobro fue exitoso y que la facturacion puede reintentarse desde **Cajas → Pagos Pendientes de Facturacion**.
@@ -2652,6 +2655,14 @@ En el modal de direccion complete:
 Una vez que la sucursal y la caja estan sincronizadas y la forma de pago tiene la integracion asignada (ver seccion 12.4), el cobro por QR dinamico esta disponible en todos los puntos de cobro del sistema: Nueva Venta, Pedidos por Mostrador (desglose desde el editor, cobro rapido desde el listado y confirmacion de pagos planificados).
 
 El QR dinamico se genera por cada cobro individual con el monto exacto de la operacion. A diferencia del QR estatico (impreso), el QR dinamico expira y es de un solo uso. Ver el flujo completo en la seccion **3.1 — Cobro con QR dinamico**.
+
+#### Confirmacion en tiempo real (webhook)
+
+Cuando Mercado Pago esta configurado con un **Webhook Secret**, las confirmaciones de cobro QR llegan al sistema de forma instantanea: MP envia una notificacion al servidor en el momento en que el cliente aprueba el pago, y el modal de espera del cajero se cierra al instante sin necesidad de esperar ciclos de consulta.
+
+Para activar esta funcionalidad, en el modal de configuracion de Mercado Pago complete el campo **"Webhook Secret"** con el valor que Mercado Pago le asigna al registrar la URL de notificaciones en el panel de desarrolladores de MP. La URL de webhook del sistema es: `https://{su-dominio}/api/integraciones/mercadopago/webhook`.
+
+> Si el Webhook Secret no esta configurado, el sistema igual funciona correctamente: consulta el estado del pago cada 3 segundos como respaldo. La diferencia es solo en la velocidad de deteccion de la confirmacion.
 
 #### Permisos requeridos
 

@@ -99,6 +99,31 @@ class TenantService
     }
 
     /**
+     * Configura la conexión tenant para un proceso SIN sesión HTTP (webhook
+     * público, jobs, CLI). A diferencia de setComercio(), NO escribe en Session
+     * ni toca Auth: solo resuelve el comercio y reconfigura la conexión
+     * 'pymes_tenant' con su prefijo/base. Pensado para el webhook de pagos, que
+     * corre en una ruta `api` sin middleware de sesión.
+     *
+     * @param  int|Comercio  $comercio  ID o instancia del comercio
+     *
+     * @throws \Exception Si el comercio no existe
+     */
+    public function usarComercioParaProceso($comercio): Comercio
+    {
+        $comercioModel = $comercio instanceof Comercio ? $comercio : Comercio::find($comercio);
+
+        if (! $comercioModel) {
+            throw new \Exception('Comercio con ID '.(is_object($comercio) ? '?' : $comercio).' no encontrado');
+        }
+
+        $this->comercioCache = $comercioModel;
+        $this->configureConnection($comercioModel);
+
+        return $comercioModel;
+    }
+
+    /**
      * Restaura la conexión tenant desde datos de sesión (sin query a BD)
      *
      * Se usa en el middleware de cada request. Lee prefix y database

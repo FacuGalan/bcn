@@ -15,8 +15,8 @@ use Tests\Traits\WithTenant;
 /**
  * Tests Fase 3 — MercadoPagoGateway.
  *
- * Cubre `probarConexion` (camino feliz + errores), `modosSoportados` y
- * Stores/POS. `procesarWebhook` sigue siendo stub hasta Fase 6.
+ * Cubre `probarConexion` (camino feliz + errores), `modosSoportados`,
+ * Stores/POS y el parseo/firma del webhook (`procesarWebhook`/`verificarFirma`).
  *
  * Usa Http::fake() para no pegarle a MP real.
  *
@@ -210,12 +210,47 @@ class MercadoPagoGatewayTest extends TestCase
         $this->gateway->probarConexion($config);
     }
 
-    // ==================== Stub Fase 6 ====================
+    // ==================== Webhook (Fase 6) ====================
 
-    public function test_procesar_webhook_lanza_bad_method_call(): void
+    public function test_procesar_webhook_parsea_order_y_collector(): void
     {
-        $this->expectException(\BadMethodCallException::class);
-        $this->gateway->procesarWebhook([], []);
+        $parsed = $this->gateway->procesarWebhook([
+            'type' => 'order',
+            'user_id' => '555444333',
+            'data' => ['id' => 'ORD-123'],
+        ], []);
+
+        $this->assertSame('order', $parsed['tipo']);
+        $this->assertSame('ORD-123', $parsed['order_id']);
+        $this->assertSame('555444333', $parsed['user_id_externo']);
+    }
+
+    public function test_procesar_webhook_toma_order_id_del_query_con_punto_convertido(): void
+    {
+        // PHP convierte `data.id` del query string en `data_id`.
+        $parsed = $this->gateway->procesarWebhook([
+            'topic' => 'order',
+            'user_id' => '1',
+            'data_id' => 'ORD-FROM-QUERY',
+        ], []);
+
+        $this->assertSame('ORD-FROM-QUERY', $parsed['order_id']);
+    }
+
+    public function test_verificar_firma_valida_el_hmac(): void
+    {
+        $secret = 'mi-secreto';
+        $dataId = 'ORD-XYZ';
+        $ts = '1717000000';
+        $requestId = 'req-1';
+        $manifest = 'id:'.strtolower($dataId).';request-id:'.$requestId.';ts:'.$ts.';';
+        $v1 = hash_hmac('sha256', $manifest, $secret);
+
+        $headers = ['x-signature' => "ts={$ts},v1={$v1}", 'x-request-id' => $requestId];
+
+        $this->assertTrue($this->gateway->verificarFirma($secret, $headers, $dataId));
+        $this->assertFalse($this->gateway->verificarFirma('otro-secreto', $headers, $dataId));
+        $this->assertFalse($this->gateway->verificarFirma($secret, ['x-signature' => ''], $dataId));
     }
 
     // ==================== Stores ====================
