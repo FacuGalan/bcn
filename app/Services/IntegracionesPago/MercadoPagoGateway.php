@@ -374,12 +374,24 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
     // ==================== Helpers internos ====================
 
     /**
-     * Detecta el error de MP "external id ya asignado a este usuario" (HTTP 400),
-     * que ocurre al intentar crear una Store/POS cuyo external_id ya existe en la
-     * cuenta. Disparador de la recuperación idempotente (adoptar el existente).
+     * Detecta que MP rechazó la creación porque el recurso ya existe en la
+     * cuenta — disparador de la recuperación idempotente (adoptar el existente).
+     *
+     * MP no es consistente entre endpoints:
+     *  - Store: HTTP 400 "external id '...' is already assigned to this user".
+     *  - POS:   HTTP 409 "Point of sale with corresponding user and id exists"
+     *           (error code `point_of_sale_exists`).
+     *
+     * Un 409 Conflict en una creación siempre significa "ya existe", así que lo
+     * tratamos como duplicado directamente; para el 400 exigimos el texto
+     * conocido para no confundirlo con un error de validación.
      */
     private function esErrorExternalIdDuplicado(\Illuminate\Http\Client\Response $response): bool
     {
+        if ($response->status() === 409) {
+            return true;
+        }
+
         if ($response->status() !== 400) {
             return false;
         }

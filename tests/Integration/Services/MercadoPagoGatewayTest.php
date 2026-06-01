@@ -588,11 +588,11 @@ class MercadoPagoGatewayTest extends TestCase
             ], 200),
             // El PUT de actualización no devuelve el QR (caso real de MP).
             'api.mercadopago.com/pos/6660002' => Http::response(['id' => 6660002], 200),
-            // El POST de creación falla con el 400 de external_id duplicado.
+            // El POST de creación falla con el 409 de POS ya existente (caso real de MP).
             'api.mercadopago.com/pos' => Http::response([
-                'message' => "external id '{$externalId}' is already assigned to this user",
-                'error' => 'bad_request',
-            ], 400),
+                'message' => 'Point of sale with corresponding user and id exists',
+                'error' => 'point_of_sale_exists',
+            ], 409),
         ]);
 
         $resp = $this->gateway->crearPos($config, $caja, $sucursal, null, $this->comercio->id);
