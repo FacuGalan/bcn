@@ -573,8 +573,9 @@ class MercadoPagoGatewayTest extends TestCase
         $externalId = \App\Services\IntegracionesPago\MercadoPagoGateway::externalIdPos($this->comercio->id, $caja->id);
 
         Http::fake([
-            // La búsqueda devuelve el POS existente (con su QR).
-            'api.mercadopago.com/pos/search*' => Http::response([
+            // La búsqueda (GET /pos?external_id=...) devuelve el POS existente con su QR.
+            'api.mercadopago.com/pos?*' => Http::response([
+                'paging' => ['total' => 1],
                 'results' => [
                     [
                         'id' => 6660002,
@@ -601,7 +602,7 @@ class MercadoPagoGatewayTest extends TestCase
         // Conservó el QR del POS existente aunque el PUT no lo devolvió.
         $this->assertSame('https://mp.com/qr/existente.png', $resp['qr']['image']);
         Http::assertSent(fn ($r) => $r->method() === 'POST' && str_ends_with($r->url(), '/pos'));
-        Http::assertSent(fn ($r) => $r->method() === 'GET' && str_contains($r->url(), '/pos/search'));
+        Http::assertSent(fn ($r) => $r->method() === 'GET' && str_contains($r->url(), 'external_id='));
         Http::assertSent(fn ($r) => $r->method() === 'PUT' && str_contains($r->url(), '/pos/6660002'));
     }
 

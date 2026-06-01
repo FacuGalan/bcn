@@ -348,14 +348,15 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
 
     /**
      * Busca un POS de la cuenta por su external_id.
-     * GET /pos/search?external_id=...
+     * GET /pos?external_id=... (el endpoint de POS NO tiene /search; el listado
+     * filtra por query params y devuelve `results`).
      *
      * @return array|null El POS encontrado (con `id`, `qr`, etc.) o null.
      */
     public function buscarPosPorExternalId(IntegracionPagoSucursal $config, string $externalId): ?array
     {
         $response = $this->client($config)
-            ->get(self::API_BASE.'/pos/search', [
+            ->get(self::API_BASE.'/pos', [
                 'external_id' => $externalId,
             ]);
 
