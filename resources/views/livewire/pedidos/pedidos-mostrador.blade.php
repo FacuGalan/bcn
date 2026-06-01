@@ -1553,5 +1553,9 @@
             :key="'cobro-rapido-' . $pedidoCobroRapidoId . '-' . $cobroRapidoKey"
         />
     @endif
+
+    {{-- Modal "Esperando pago" (QR) para materializar pagos planificados con
+         forma de pago integrada desde "Cobrar pendiente". --}}
+    @include('livewire.carrito._modal-esperando-pago-integracion')
 </div>
 </div>

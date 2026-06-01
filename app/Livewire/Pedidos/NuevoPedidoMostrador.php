@@ -514,6 +514,20 @@ class NuevoPedidoMostrador extends Component
         $this->cajaSeleccionada = $cajaId;
     }
 
+    /**
+     * Hook del concern de cobro QR: el pago se canceló o expiró. El trait cerró
+     * el modal de espera; reabrimos el de desglose para que el operario reintente
+     * o cambie la forma de pago sin perder lo que ya armó. (En NuevaVenta no se
+     * reabre nada porque el carrito queda intacto y se reintenta con el botón
+     * "Cobrar"; en el pedido el desglose ES el punto de entrada del cobro.)
+     */
+    protected function alCancelarCobroIntegracion(): void
+    {
+        if ($this->modalPagoEnModoCobro) {
+            $this->mostrarModalPago = true;
+        }
+    }
+
     // ==================== CARGA DE CONTEXTO ====================
 
     protected function cargarConfiguracionSucursal(): void
@@ -2038,6 +2052,16 @@ class NuevoPedidoMostrador extends Component
         }
 
         if ($this->modalPagoEnModoCobro) {
+            // Enganche compartido del cobro por integración (QR). Este modal
+            // procesa directo (no pasa por iniciarCobro/verificarPuntoVentaYProcesar
+            // como NuevaVenta), así que invocamos el MISMO punto único del trait
+            // para que cualquier lógica de cobro por integración —presente o
+            // futura— aplique también acá. Si dispara el QR, esperamos al polling
+            // (pollearCobroIntegracion reanuda el flujo al aprobarse).
+            if ($this->interceptarCobroPorIntegracion()) {
+                return;
+            }
+
             $this->procesarVentaConDesglose();
 
             return;

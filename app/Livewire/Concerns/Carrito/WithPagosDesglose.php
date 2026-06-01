@@ -10,8 +10,6 @@ use App\Models\Cupon;
 use App\Models\FormaPago;
 use App\Models\FormaPagoCuotaSucursal;
 use App\Models\FormaPagoSucursal;
-use App\Models\IntegracionPagoSucursal;
-use App\Models\IntegracionPagoTransaccion;
 use App\Models\Moneda;
 use App\Models\MovimientoCaja;
 use App\Models\PuntoVenta;
@@ -20,14 +18,11 @@ use App\Models\TipoCambio;
 use App\Models\VentaPago;
 use App\Services\ARCA\ComprobanteFiscalService;
 use App\Services\CuentaEmpresaService;
-use App\Services\IntegracionesPago\CobroIntegracionService;
 use Exception;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Computed;
-use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 /**
  * Sistema de pagos con desglose, cuotas, ajustes por forma de pago, fiscal,
@@ -58,6 +53,11 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
  */
 trait WithPagosDesglose
 {
+    // Maquinaria de cobro por QR (props, iniciar/pollear/cancelar/asociar,
+    // pantalla cliente). Única fuente de verdad del cobro por integración,
+    // compartida con el listado de Pedidos Mostrador.
+    use WithCobroIntegracion;
+
     // =========================================
     // PROPIEDADES DEL SISTEMA DE PAGOS
     // =========================================
@@ -73,34 +73,6 @@ trait WithPagosDesglose
 
     /** @var float Total con ajustes aplicados */
     public $totalConAjustes = 0;
-
-    // =========================================
-    // COBRO CON INTEGRACIÓN (QR presencial — Fase 5)
-    // =========================================
-
-    /** @var bool Modal "esperando pago" visible (QR mostrado, polling activo) */
-    public bool $mostrarModalEsperandoPago = false;
-
-    /** @var int|null Transacción de cobro en curso (IntegracionPagoTransaccion) */
-    public ?int $cobroIntegracionTransaccionId = null;
-
-    /** @var string|null Trama EMVCo del QR a renderizar en el front */
-    public ?string $cobroIntegracionQrData = null;
-
-    /** @var string|null SVG del QR ya renderizado (se genera una vez al iniciar el cobro) */
-    public ?string $cobroIntegracionQrSvg = null;
-
-    /** @var float Monto del cobro por integración en curso */
-    public float $cobroIntegracionMonto = 0;
-
-    /** @var int|null Epoch (segundos) en que expira el cobro, para el countdown */
-    public ?int $cobroIntegracionExpiraTs = null;
-
-    /**
-     * @var bool Pago por integración ya confirmado. Lo lee el enganche del flujo
-     *           de cobro para proceder a materializar la venta/pedido.
-     */
-    public bool $cobroIntegracionConfirmado = false;
 
     /** @var array Forma de pago temporal para agregar al desglose */
     public $nuevoPago = [
@@ -832,19 +804,28 @@ trait WithPagosDesglose
 
     // =========================================
     // COBRO CON INTEGRACIÓN (QR presencial — Fase 5)
+    // La maquinaria del QR vive en WithCobroIntegracion. Acá quedan solo las
+    // piezas específicas del desglose: detección del pago integrado, enganche y
+    // los hooks que el concern delega en el host.
     // =========================================
 
     /**
-     * Si la caja activa del puesto tiene habilitada la pantalla orientada al
-     * cliente (segundo monitor). Lo consumen el botón de conexión y el modal
-     * de cobro para decidir si mandar el QR al monitor del cliente.
+     * La pantalla cliente usa la caja del puesto. En los flujos con desglose la
+     * caja puede estar seleccionada explícitamente (NuevaVenta / pedido).
      */
-    #[Computed]
-    public function usaPantallaClienteActiva(): bool
+    protected function cajaIdParaPantallaCliente(): ?int
     {
-        $cajaId = $this->cajaSeleccionada ?? caja_activa();
+        return $this->cajaSeleccionada ?? caja_activa();
+    }
 
-        return (bool) (Caja::find($cajaId)?->usa_pantalla_cliente ?? false);
+    /**
+     * Hook del concern: al aprobarse el cobro QR, retomamos el flujo común de
+     * procesamiento. Con cobroIntegracionConfirmado=true el guard ya deja pasar
+     * y se materializa la venta/pedido.
+     */
+    protected function alConfirmarCobroIntegracion(): void
+    {
+        $this->verificarPuntoVentaYProcesar();
     }
 
     /**
@@ -868,178 +849,44 @@ trait WithPagosDesglose
     }
 
     /**
-     * Inicia el cobro QR de un pago del desglose: resuelve la config de la
-     * sucursal, pide el QR al gateway vía CobroIntegracionService y abre el
-     * modal de espera. La transacción nace sin cobrable (se asocia al confirmar).
+     * Punto ÚNICO del enganche de cobro por integración (QR), compartido por
+     * todos los flujos de cobro con desglose. Si algún pago usa una FP con
+     * integración y todavía no se confirmó, dispara el cobro por QR y devuelve
+     * true para que el caller aborte su flujo y espere al polling.
+     *
+     * Lo invocan:
+     * - verificarPuntoVentaYProcesar() → NuevaVenta y la reanudación post-pago.
+     * - NuevoPedidoMostrador::confirmarPago() → cobro del pedido y cobro rápido
+     *   desde el listado (su modal procesa directo, sin pasar por iniciarCobro).
+     *
+     * Cualquier cambio a la lógica de cobro por integración debe vivir acá para
+     * que impacte en TODOS los puntos de cobro por igual.
      */
-    public function iniciarCobroIntegracion(array $pago): void
+    protected function interceptarCobroPorIntegracion(): bool
     {
-        $formaPago = FormaPago::find($pago['forma_pago_id'] ?? null);
-        $integracion = $formaPago?->integracionPrincipal();
-
-        if (! $integracion) {
-            $this->dispatch('toast-error', message: __('La forma de pago no tiene una integración asignada'));
-
-            return;
+        if ($this->cobroIntegracionConfirmado) {
+            return false;
         }
 
-        $config = IntegracionPagoSucursal::query()
-            ->where('integracion_pago_id', $integracion->id)
-            ->where('sucursal_id', $this->sucursalId)
-            ->where('activo', true)
-            ->first();
-
-        if (! $config || ! $config->estaConfigurada()) {
-            $this->dispatch('toast-error', message: __('La integración de pago no está configurada en esta sucursal'));
-
-            return;
+        $pagoIntegracion = $this->desglosePagoConIntegracion();
+        if ($pagoIntegracion === null) {
+            return false;
         }
 
-        try {
-            $transaccion = app(CobroIntegracionService::class)->iniciarCobro($config, [
-                'forma_pago_id' => $formaPago->id,
-                'sucursal_id' => $this->sucursalId,
-                'caja_id' => $this->cajaSeleccionada ?? caja_activa(),
-                'usuario_iniciador_id' => Auth::id(),
-                'modo_usado' => $integracion->pivot->modo_default ?? 'qr_dinamico',
-                'monto' => (float) ($pago['monto_final'] ?? 0),
-                'moneda_id' => $pago['moneda_id'] ?? null,
-            ]);
-        } catch (\Throwable $e) {
-            $this->dispatch('toast-error', message: $e->getMessage());
+        // Cerrar el modal de desglose para que no quede detrás del de espera.
+        // En NuevaVenta ya está cerrado (se confirma antes de Cobrar); en el
+        // cobro rápido de pedidos el desglose es el punto de entrada y sigue
+        // abierto, así que lo cerramos acá para no superponer dos modales.
+        $this->mostrarModalPago = false;
 
-            return;
-        }
+        // El concern resuelve la integración por sucursal; le pasamos el contexto
+        // (sucursal/caja) explícito porque el cobro nace acá, en el desglose.
+        $this->iniciarCobroIntegracion(array_merge($pagoIntegracion, [
+            'sucursal_id' => $this->sucursalId,
+            'caja_id' => $this->cajaSeleccionada ?? caja_activa(),
+        ]));
 
-        $this->cobroIntegracionTransaccionId = $transaccion->id;
-        $this->cobroIntegracionQrData = $transaccion->qr_data;
-        $this->cobroIntegracionQrSvg = $this->renderizarQrSvg($transaccion->qr_data);
-        $this->cobroIntegracionMonto = (float) $transaccion->monto;
-        $this->cobroIntegracionExpiraTs = $transaccion->expira_en?->timestamp;
-        $this->cobroIntegracionConfirmado = false;
-        $this->mostrarModalEsperandoPago = true;
-    }
-
-    /**
-     * Renderiza la trama EMVCo del QR como SVG (PHP puro, sin imagick/gd).
-     * Se genera una vez al iniciar el cobro y se guarda en una prop para
-     * sobrevivir a los morphs de Livewire del wire:poll sin reconstruirse.
-     */
-    protected function renderizarQrSvg(?string $qrData): ?string
-    {
-        if (empty($qrData)) {
-            return null;
-        }
-
-        $svg = QrCode::format('svg')
-            ->size(240)
-            ->margin(1)
-            ->errorCorrection('M')
-            ->generate($qrData);
-
-        // Quitar el prólogo XML (la declaración inicial de tipo xml): al embeber
-        // el SVG inline en HTML puede provocar quirks de render en algunos navegadores.
-        return trim(preg_replace('/^<\?xml.*?\?>\s*/s', '', (string) $svg));
-    }
-
-    /**
-     * Polling del estado del cobro (wire:poll desde el modal de espera).
-     * Consulta al proveedor; al aprobar marca la transacción y avisa al
-     * componente para que materialice la venta/pedido (vía evento). Reverb
-     * reemplazará este polling en Fase 6.
-     */
-    public function pollearCobroIntegracion(): void
-    {
-        if (! $this->cobroIntegracionTransaccionId) {
-            return;
-        }
-
-        $transaccion = IntegracionPagoTransaccion::find($this->cobroIntegracionTransaccionId);
-        if (! $transaccion) {
-            $this->resetCobroIntegracion();
-
-            return;
-        }
-
-        $service = app(CobroIntegracionService::class);
-
-        try {
-            $estado = $service->consultarEstado($transaccion);
-        } catch (\Throwable $e) {
-            // Error transitorio de red: seguir esperando, no abortar el cobro.
-            return;
-        }
-
-        if ($estado === 'aprobado') {
-            // Registrar la confirmación en el momento del pago (aún sin cobrable:
-            // la venta/pedido se crea a continuación y se asocia ahí).
-            $service->confirmarCobro($transaccion);
-            $this->cobroIntegracionConfirmado = true;
-            $this->mostrarModalEsperandoPago = false;
-
-            // Continuar el flujo normal de cobro: con cobroIntegracionConfirmado=true
-            // el guard de verificarPuntoVentaYProcesar deja pasar y se materializa
-            // la venta/pedido. El terminal (polimórfico) asocia esta transacción al
-            // cobrable recién creado vía asociarCobroIntegracionAlCobrable().
-            $this->verificarPuntoVentaYProcesar();
-
-            return;
-        }
-
-        if (in_array($estado, ['cancelado', 'expirado', 'fallido'], true)) {
-            $this->dispatch('toast-error', message: __('El pago no se completó (:estado)', ['estado' => $estado]));
-            $this->resetCobroIntegracion();
-            $this->dispatch('cobro-integracion-no-confirmado');
-        }
-        // 'pendiente' → seguir esperando (no-op).
-    }
-
-    /**
-     * Cancela el cobro en curso (botón del modal): avisa al proveedor, marca
-     * la transacción y cierra el modal. No se crea venta.
-     */
-    public function cancelarCobroIntegracion(): void
-    {
-        if ($this->cobroIntegracionTransaccionId) {
-            $transaccion = IntegracionPagoTransaccion::find($this->cobroIntegracionTransaccionId);
-            if ($transaccion) {
-                app(CobroIntegracionService::class)->cancelarCobro($transaccion);
-            }
-        }
-
-        $this->resetCobroIntegracion();
-        $this->dispatch('cobro-integracion-no-confirmado');
-    }
-
-    /**
-     * Limpia el estado del cobro por integración.
-     */
-    protected function resetCobroIntegracion(): void
-    {
-        $this->mostrarModalEsperandoPago = false;
-        $this->cobroIntegracionTransaccionId = null;
-        $this->cobroIntegracionQrData = null;
-        $this->cobroIntegracionQrSvg = null;
-        $this->cobroIntegracionMonto = 0;
-        $this->cobroIntegracionExpiraTs = null;
-        $this->cobroIntegracionConfirmado = false;
-    }
-
-    /**
-     * Asocia la transacción de cobro QR confirmada al cobrable recién creado
-     * (Venta o PedidoMostrador). Lo llaman los métodos terminales de cada host
-     * después de persistir el comprobante. No-op si no hubo cobro por integración.
-     */
-    protected function asociarCobroIntegracionAlCobrable(Model $cobrable): void
-    {
-        if (! $this->cobroIntegracionConfirmado || ! $this->cobroIntegracionTransaccionId) {
-            return;
-        }
-
-        $transaccion = IntegracionPagoTransaccion::find($this->cobroIntegracionTransaccionId);
-        if ($transaccion) {
-            app(CobroIntegracionService::class)->asociarCobrable($transaccion, $cobrable);
-        }
+        return true;
     }
 
     /**
@@ -1053,10 +900,7 @@ trait WithPagosDesglose
         // por QR y esperamos (modelo "cobro primero, venta después"). Cuando el
         // polling confirma, vuelve a entrar acá con cobroIntegracionConfirmado=true
         // y este guard ya no aplica → se materializa la venta/pedido normalmente.
-        if (! $this->cobroIntegracionConfirmado
-            && ($pagoIntegracion = $this->desglosePagoConIntegracion()) !== null) {
-            $this->iniciarCobroIntegracion($pagoIntegracion);
-
+        if ($this->interceptarCobroPorIntegracion()) {
             return;
         }
 
