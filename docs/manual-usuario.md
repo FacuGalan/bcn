@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-05-29
+> Version: 0.1.x | Ultima actualizacion: 2026-06-01
 
 ---
 
@@ -366,9 +366,9 @@ En la parte inferior de la columna derecha se muestra el resumen:
 
 #### Cobro con QR dinamico (integracion de pago)
 
-Cuando la forma de pago seleccionada tiene una integracion de cobro activa (por ejemplo, Mercado Pago QR dinamico), el flujo es diferente al cobro tradicional: **el pago se confirma primero y la venta se crea despues**.
+Cuando la forma de pago seleccionada tiene una integracion de cobro activa (por ejemplo, Mercado Pago QR dinamico), el flujo es diferente al cobro tradicional: **el pago se confirma primero y el comprobante se crea despues**. Este mecanismo aplica en todos los puntos de cobro del sistema: Nueva Venta, Pedidos por Mostrador (desglose desde el editor o cobro rapido) y confirmacion de pagos planificados.
 
-**Flujo paso a paso:**
+**Flujo paso a paso (Nueva Venta):**
 
 1. Seleccione la forma de pago con integracion (identificada visualmente en la lista) y presione **"Cobrar"** (F2).
 2. El sistema genera un QR unico para esa venta y abre el **modal "Esperando pago"**.
@@ -382,6 +382,8 @@ Cuando la forma de pago seleccionada tiene una integracion de cobro activa (por 
    - Registra la venta con todos sus datos.
    - Asocia la transaccion de cobro a la venta.
 6. Si el cajero presiona **"Cancelar cobro"** o el QR expira sin pago, el modal se cierra y no se crea ninguna venta.
+
+**Si la facturacion fiscal falla con el cobro ya confirmado**: el pago queda registrado igual (el cobro ya entro) pero la factura queda pendiente de emision. Aparece un aviso indicando que el cobro fue exitoso y que la facturacion puede reintentarse desde **Cajas → Pagos Pendientes de Facturacion**.
 
 > **Si la caja usa pantalla cliente**: el QR se muestra automaticamente en el segundo monitor orientado al cliente (ver seccion "Pantalla orientada al cliente" mas abajo). El cajero ve un modal compacto indicando que el QR esta en la pantalla del cliente.
 
@@ -774,7 +776,8 @@ Este patron reemplaza al boton "Cobrar" suelto que existia anteriormente en la f
 
 **Comportamiento del cobro rapido segun el estado del pedido:**
 
-- **Si el pedido tiene pagos planificados**: confirma todos los pagos planificados de una vez sin abrir ningun modal. Cada pago genera su movimiento en la caja activa. Al terminar aparece un mensaje de confirmacion indicando cuantos pagos se confirmaron.
+- **Si el pedido tiene pagos planificados sin integración**: confirma todos los pagos planificados de una vez sin abrir ningun modal. Cada pago genera su movimiento en la caja activa. Al terminar aparece un mensaje de confirmacion indicando cuantos pagos se confirmaron.
+- **Si el pedido tiene pagos planificados con forma de pago integrada (QR)**: en lugar de confirmar en lote, abre el **modal "Cobrar pendiente"** para que el operario los confirme de a uno. Cada pago con QR dispara su propio flujo de espera antes de materializarse (ver abajo). Esto es necesario porque cada cobro QR requiere que el cliente escanee el codigo y confirme.
 - **Si no tiene planificados**: abre directamente el **desglose de formas de pago** superpuesto sobre el listado, sin entrar al editor full-screen. El operario define el desglose (incluyendo pago mixto, cuotas, recargos, multi-moneda y vuelto) y al confirmar el saldo queda cobrado con los pagos activos resultantes.
 
 > El desglose de formas de pago se puede abrir desde cualquier estado activo del pedido (confirmado, en preparacion, listo, entregado), no solo desde el estado borrador o confirmado con pago pendiente. Siempre que haya saldo pendiente, el badge es clickeable.
@@ -849,7 +852,9 @@ El modal muestra un **panel de resumen** con cuatro valores:
 
 Debajo del resumen aparece la **lista de pagos planificados** (si los hay), con forma de pago, monto, cuotas y referencia si las tiene. Por cada pago planificado hay dos botones:
 
-- **Cobrar**: materializa el pago. Crea un `MovimientoCaja` en la caja activa del usuario, cambia el estado del pago a `activo` y recalcula el `estado_pago` del pedido. Si el pedido queda totalmente cobrado, su `estado_pago` pasa a `pagado`.
+- **Cobrar**: materializa el pago. El comportamiento depende de si la forma de pago tiene integracion:
+  - **Sin integracion**: crea un `MovimientoCaja` en la caja activa, cambia el estado del pago a `activo` y recalcula el `estado_pago` del pedido.
+  - **Con integracion (QR)**: cierra el modal "Cobrar pendiente" y abre el **modal "Esperando pago"** con el QR por el monto exacto del pago planificado. El pago se materializa (caja, estado_pago) solo si el cliente confirma el cobro escaneando el QR. Si el QR se cancela o expira, el pago queda planificado y editable; el modal "Cobrar pendiente" se reabre para reintentar o modificar. Una vez confirmado el cobro, el modal "Cobrar pendiente" se reabre con el estado actualizado para continuar con los pagos planificados restantes.
 - **Eliminar**: borra el pago planificado sin generar movimiento de caja.
 
 Si el saldo pendiente es mayor a cero, el modal muestra ademas el boton **"Definir pagos"** que abre el desglose de formas de pago directamente sobre el listado (igual que el cobro rapido desde la fila).
@@ -866,7 +871,7 @@ El desglose funciona identico al que se usa dentro del editor:
 - Permite cargar pagos en moneda extranjera con tipo de cambio.
 - Muestra el vuelto si el monto entregado supera el total.
 - El total base del desglose es el **saldo pendiente** del pedido (total - cobrado - planificado), no el total original.
-- Si la forma de pago seleccionada tiene una integracion de cobro (QR dinamico), al confirmar el desglose se abre el **modal "Esperando pago"** con el QR. El pedido se cobra y asocia a la transaccion solo cuando el cliente confirma el pago. Si el cobro se cancela o expira, el pedido no se modifica.
+- Si la forma de pago seleccionada tiene una integracion de cobro (QR dinamico), al confirmar el desglose se abre el **modal "Esperando pago"** con el QR. El pedido se cobra y asocia a la transaccion solo cuando el cliente confirma el pago. Si el cobro se cancela o expira, el pedido no se modifica y el desglose se reabre automaticamente para reintentar o cambiar la forma de pago.
 
 Al confirmar, cada fila del desglose se agrega como pago activo (estado `activo`) directamente al pedido. Si el desglose tiene una sola forma de pago, el pago queda registrado con esa FP individual. Si tiene varias, cada pago queda con su FP especifica (no se usa una FP "mixta" artificial).
 
@@ -2644,7 +2649,7 @@ En el modal de direccion complete:
 
 #### Cobro con QR dinamico (Mercado Pago)
 
-Una vez que la sucursal y la caja estan sincronizadas y la forma de pago tiene la integracion asignada (ver seccion 12.4), el cobro por QR dinamico esta disponible en Nueva Venta y en Pedidos por Mostrador.
+Una vez que la sucursal y la caja estan sincronizadas y la forma de pago tiene la integracion asignada (ver seccion 12.4), el cobro por QR dinamico esta disponible en todos los puntos de cobro del sistema: Nueva Venta, Pedidos por Mostrador (desglose desde el editor, cobro rapido desde el listado y confirmacion de pagos planificados).
 
 El QR dinamico se genera por cada cobro individual con el monto exacto de la operacion. A diferencia del QR estatico (impreso), el QR dinamico expira y es de un solo uso. Ver el flujo completo en la seccion **3.1 — Cobro con QR dinamico**.
 

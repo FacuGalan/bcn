@@ -1834,13 +1834,17 @@ Ante cualquier rechazo (incluyendo excepciones del service), dispatcha `kanban-r
 
 **Metodos de acciones rapidas**:
 - `entregarRapido(int $pedidoId): void` -- valida acceso a sucursal y que la transicion a `ESTADO_ENTREGADO` sea legal via `TRANSICIONES_PERMITIDAS`. NO llama `gatearPorCobro` (RF-08: entregar no requiere cobro). Llama directamente `PedidoMostradorService::cambiarEstado()`. Si la sucursal tiene conversion automatica configurada, la conversion ocurre como efecto del service. Dispatcha toast.
-- `cobrarRapido(int $pedidoId): void` -- requiere permiso `func.pedidos_mostrador.cobrar`. Flujo condicional: (1) si el pedido tiene pagos `planificados`, los confirma todos via `confirmarPagoPlanificado()` en loop; (2) si no hay planificados, llama siempre `abrirCobroRapido($pedidoId)` independientemente del estado del pedido. Dispatcha toast de resultado.
+- `cobrarRapido(int $pedidoId): void` -- requiere permiso `func.pedidos_mostrador.cobrar`. Flujo condicional: (1) si el pedido tiene pagos `planificados` Y alguno de ellos usa una `FormaPago` con integracion (`tieneIntegracion()`), llama `abrirCobrar($pedidoId)` para confirmarlos de a uno via el modal "Cobrar pendiente" (cada QR necesita su propia espera); (2) si hay planificados pero ninguno tiene integracion, los confirma todos via `confirmarPagoPlanificado()` en loop y dispatcha toast; (3) si no hay planificados, llama `abrirCobroRapido($pedidoId)` independientemente del estado del pedido.
 - `pedidoEsEditable(PedidoMostrador $pedido): bool` -- helper publico. Retorna `true` si `estado_pedido` no es `cancelado` ni `facturado` Y `estado_pago === ESTADO_PAGO_PENDIENTE`. Cubre borrador, confirmado, en_preparacion, listo y entregado (mientras no haya cobros materializados). Usado en la vista para mostrar/ocultar el boton Editar.
 - `pedidoEstaCobrado(PedidoMostrador $pedido): bool` -- helper protegido. Retorna `true` si `total_cobrado + total_planificado >= total_final` o si `total_final <= 0.005`. Los planificados cuentan como cubiertos porque la conversion los materializa.
 - `gatearPorCobro(PedidoMostrador $pedido, string $accion): bool` -- interceptor de acciones que requieren pedido cobrado. Unico caller activo: `abrirConvertir()` con `$accion = 'convertir'`. El arm `'entregar'` fue eliminado (RF-08). Si `pedidoEstaCobrado()` es `true`, retorna `false` (el caller continua normal). Si hay saldo pendiente: almacena `$accionPendiente = $accion` y `$accionPendientePedidoId = $pedido->id`, llama `abrirCobroRapido()` y retorna `true` (el caller debe abortar).
 - `reanudarAccionPendienteSiCobrado(): void` -- ejecuta la accion almacenada en `$accionPendiente` si el pedido quedo cubierto tras el cobro. Limpia ambas propiedades antes de ejecutar. Si el pedido no quedo al 100%, descarta silenciosamente. Unico caso mapeado activo: `'convertir'` → `abrirConvertir()`.
 - `abrirConvertir(int $pedidoId): void` -- requiere permiso `func.pedidos_mostrador.convertir_venta`. Verifica que el pedido no sea terminal/borrador. Llama `gatearPorCobro($pedido, 'convertir')`: si el pedido tiene saldo sin cubrir, se intercepta y se abre el cobro rapido en lugar del modal de conversion; retorna sin abrir el modal. Si el pedido esta cubierto, abre el modal de confirmacion de conversion.
 - `abrirCobroRapido(int $pedidoId): void` -- verifica permiso `func.pedidos_mostrador.cobrar`, acceso a sucursal y que el pedido no este cancelado/facturado. Incrementa `$cobroRapidoKey`, asigna `$pedidoCobroRapidoId = $pedidoId`, cierra `$showCobrarModal` y `$showDetalleModal` si estaban abiertos.
+- `confirmarPagoPlanificado(int $pagoId): void` -- materializa un pago planificado individual desde el modal "Cobrar pendiente". Si la `FormaPago` del pago tiene integracion, delega en `iniciarCobroIntegracionPagoPlanificado()` (inicia el QR y retorna sin tocar caja). Si no tiene integracion, llama directamente a `PedidoMostradorService::confirmarPagoPlanificado()` y reabre el modal con el estado actualizado.
+- `iniciarCobroIntegracionPagoPlanificado(PedidoMostradorPago $pago): void` -- metodo protegido. Guarda `$cobroIntegracionPagoPlanificadoId`, cierra el modal "Cobrar pendiente" y llama a `iniciarCobroIntegracion()` del concern con los datos del pago y pedido. Si `iniciarCobroIntegracion` no abre el modal de espera (configuracion faltante), reabre el modal "Cobrar pendiente".
+- `alConfirmarCobroIntegracion(): void` (hook del concern `WithCobroIntegracion`) -- materializa el pago planificado guardado en `$cobroIntegracionPagoPlanificadoId` via `PedidoMostradorService::confirmarPagoPlanificado()`, asocia la transaccion QR al `PedidoMostrador` via `asociarCobroIntegracionAlCobrable()`, limpia `$cobroIntegracionPagoPlanificadoId` y reabre el modal "Cobrar pendiente" con el estado fresco.
+- `alCancelarCobroIntegracion(): void` (hook del concern `WithCobroIntegracion`) -- si habia un pago planificado en cobro, lo reabre en el modal "Cobrar pendiente" para reintentar o editar. No toca caja (el pago queda planificado intacto).
 - `comandarPedido(int $pedidoId): void` -- flujo decisor de comanda. Lee el pedido con `detalles`. Calcula `$nuevos` (count de `comandado_at = null`) y `$comandados`. Si hay mezcla (`$nuevos > 0 && $comandados > 0`), abre el modal Comandar seteando las props de conteo. Si todos estan en el mismo estado (todos nuevos o todos comandados), llama directamente `ejecutarComandarPedido($pedido, 'todos')`.
 - `confirmarComandar(string $alcance): void` -- ejecuta tras la eleccion del operario en el modal. Valida alcance, lee `$pedidoComandarId`, llama `cerrarComandarModal()` y luego `ejecutarComandarPedido($pedido, $alcance)`.
 - `cerrarComandarModal(): void` -- resetea `$showComandarModal = false`, `$pedidoComandarId = null`, `$comandarNuevosCount = 0`, `$comandarComandadosCount = 0`.
@@ -2194,6 +2198,7 @@ Registro append-only de transacciones de cobro. Una transaccion nace en estado `
 **Notas de modelo**:
 - `cobrable_type` y `cobrable_id` son nullable desde Fase 5 (migracion `make_cobrable_nullable_integraciones_pago_transacciones`).
 - Relacion `cobrable()` es `morphTo`: el cobrable puede ser `Venta` o `PedidoMostrador`.
+- Modelo "cobro primero, cobrable despues": la transaccion nace sin cobrable (`cobrable_type/id = null`). El cobrable se asocia recien cuando se materializa el comprobante (venta nueva, pedido cobrado, pago planificado confirmado). Aplica en todos los flujos: Nueva Venta, NuevoPedidoMostrador y confirmacion de pagos planificados desde PedidosMostrador.
 - `estaEnEstadoTerminal()`: devuelve true si `estado` es `confirmado`, `cancelado`, `fallido` o `expirado`.
 
 #### Tabla: `{PREFIX}integraciones_pago_eventos` (tenant)
@@ -2229,7 +2234,7 @@ Campo `rubro varchar(50) nullable` agregado a la tabla `comercios` de la conexio
 
 #### Services
 
-- **`CobroIntegracionService`** (Fase 5): Orquesta el ciclo de vida de un cobro por integracion. API unica consumida por `NuevaVenta`, `NuevoPedidoMostrador` y futuros modulos via el trait `WithPagosDesglose`. Metodos publicos:
+- **`CobroIntegracionService`** (Fase 5): Orquesta el ciclo de vida de un cobro por integracion. API unica consumida por todos los flujos de cobro via el concern `WithCobroIntegracion` (usado por `WithPagosDesglose` en `NuevaVenta`/`NuevoPedidoMostrador` y directamente por `PedidosMostrador` para pagos planificados). Metodos publicos:
   - `iniciarCobro(IntegracionPagoSucursal $config, array $datos, ?Model $cobrable = null): IntegracionPagoTransaccion` — Crea la transaccion en `pendiente`, llama al gateway para obtener el QR (FUERA de la transaccion DB para no mantener locks durante la latencia de red) y persiste `qr_data`, `external_id`, etc.
   - `consultarEstado(IntegracionPagoTransaccion $transaccion): string` — Consulta el estado en el proveedor. Devuelve `'pendiente'|'aprobado'|'cancelado'|'expirado'` sin mutar la transaccion.
   - `confirmarCobro(IntegracionPagoTransaccion $transaccion, ?Model $cobrable = null, array $payload = []): void` — Marca como `confirmado`, registra `confirmado_en`, asocia el cobrable si se provee. Idempotente.
@@ -2741,36 +2746,75 @@ El pago anulado tiene `datos_snapshot_json` con sus datos completos al momento d
 
 ### 3.12 Cobro QR Dinamico con Integracion de Pago (Fase 5)
 
-#### Modelo "cobro primero, venta despues"
+#### Modelo "cobro primero, cobrable despues"
 
-A diferencia del flujo tradicional (donde la venta se crea y luego se registra el pago), el cobro QR dinamico sigue el modelo inverso:
+A diferencia del flujo tradicional (donde el comprobante se crea y luego se registra el pago), el cobro QR dinamico sigue el modelo inverso. Este modelo aplica en todos los flujos de cobro: Nueva Venta, NuevoPedidoMostrador (via `WithPagosDesglose`) y confirmacion de pagos planificados desde `PedidosMostrador`.
 
-1. El cajero inicia el cobro desde NuevaVenta o Pedidos Mostrador (al confirmar con una forma de pago que tiene integracion activa).
+**Flujo comun (todos los hosts)**:
+
+1. El cajero inicia el cobro en cualquier punto de cobro del sistema.
 2. Se crea una `IntegracionPagoTransaccion` en estado `pendiente` con `cobrable_type/id = NULL`.
 3. Se llama al gateway (MercadoPago Orders API `POST /v1/orders`, modo `dynamic`) para generar el QR. Esta llamada HTTP ocurre **FUERA de la transaccion DB** para no mantener locks tenant durante la latencia de red.
-4. El `qr_data` (trama EMVCo) se persiste en la transaccion. El front renderiza el SVG del QR una sola vez al iniciar y lo guarda en una prop Livewire (`cobroIntegracionQrSvg`) para evitar re-renders durante el polling.
+4. El `qr_data` (trama EMVCo) se persiste en la transaccion. El front renderiza el SVG del QR una sola vez al iniciar y lo guarda en la prop `cobroIntegracionQrSvg` para evitar re-renders durante el polling.
 5. Se muestra el modal "Esperando pago" con el QR y un countdown hasta `expira_en`.
 6. Livewire hace polling cada 3 segundos (`wire:poll.3s="pollearCobroIntegracion"`). Cada tick llama a `CobroIntegracionService::consultarEstado()`.
 7. Cuando el gateway reporta `aprobado`:
    - `confirmarCobro()` marca la transaccion como `confirmado` y registra `confirmado_en`. El cobrable NO se asocia aun.
-   - Se setea `cobroIntegracionConfirmado = true` en el componente Livewire.
-   - Se llama a `verificarPuntoVentaYProcesar()` que ahora, al ver `cobroIntegracionConfirmado = true`, omite el guard y avanza al flujo normal de creacion de venta/pedido.
-8. El metodo terminal (`procesarVentaConDesglose` en NuevaVenta, o su equivalente en Pedidos) crea el comprobante normalmente y llama a `asociarCobroIntegracionAlCobrable($cobrable)`.
-9. `asociarCobrable()` asocia el cobrable a la transaccion ya confirmada y registra el evento `cobrable_asociado`.
-10. Si el cliente no paga o el cajero cancela: `cancelarCobro()` avisa al proveedor (silencia errores de red), marca la transaccion como `cancelado` y no se crea ningun comprobante.
+   - Se setea `cobroIntegracionConfirmado = true`.
+   - Se invoca el hook `alConfirmarCobroIntegracion()` para que el host materialice su cobrable.
+8. El host materializa el cobrable (crea la venta, cobra el pedido, materializa el pago planificado) y llama a `asociarCobroIntegracionAlCobrable($cobrable)`.
+9. `asociarCobrable()` vincula el cobrable a la transaccion ya confirmada y registra el evento `cobrable_asociado`.
+10. Si el cliente no paga o el cajero cancela: `cancelarCobro()` avisa al proveedor (silencia errores de red), marca la transaccion como `cancelado` y no se materializa ningun cobrable. Se invoca el hook `alCancelarCobroIntegracion()`.
+
+**Variante — pago planificado con QR** (`PedidosMostrador`):
+- Al confirmar un pago planificado cuya `FormaPago` tiene integracion: NO se materializa inmediatamente. Se inicia el cobro QR y se espera al polling.
+- Al aprobarse: `confirmarPagoPlanificado()` del service crea el `MovimientoCaja`, pasa el estado del pago a `activo` y recalcula `estado_pago` del pedido. Luego se asocia la transaccion al `PedidoMostrador`.
+- Si el QR se cancela o expira: el `PedidoMostradorPago` queda en estado `planificado` intacto (sin ningun movimiento de caja). El modal "Cobrar pendiente" se reabre para reintentar o editar.
+
+**Variante — fallo de facturacion fiscal con QR ya confirmado** (`NuevaVenta`):
+- Si `ComprobanteFiscalService` falla despues de que el cobro QR fue confirmado, la venta queda registrada igual (los pagos y movimientos de caja ya se persistieron). Solo la emision fiscal queda pendiente.
+- El sistema muestra un toast con el mensaje: "El cobro se registro, pero la facturacion quedo pendiente. Reintentala desde Cajas → Pagos Pendientes de Facturacion."
+- Los pagos afectados quedan con `estado_facturacion = 'pendiente_de_facturar'` y aparecen en el reporte "Pagos Pendientes de Facturar".
+
+#### Concern `WithCobroIntegracion` — unica fuente de verdad del cobro QR
+
+`app/Livewire/Concerns/Carrito/WithCobroIntegracion.php` centraliza toda la maquinaria del cobro por integracion. Es usado por:
+- `WithPagosDesglose` (que a su vez es usado por `NuevaVenta` y `NuevoPedidoMostrador`)
+- `PedidosMostrador` (directamente, para cobro de pagos planificados)
+
+Cualquier cambio a la logica de cobro QR debe hacerse en este concern para que impacte en todos los puntos de cobro.
+
+**Props publicas del concern**: `mostrarModalEsperandoPago`, `cobroIntegracionTransaccionId`, `cobroIntegracionQrData`, `cobroIntegracionQrSvg`, `cobroIntegracionMonto`, `cobroIntegracionExpiraTs`, `cobroIntegracionConfirmado`.
+
+**Metodos publicos**: 
+- `iniciarCobroIntegracion(array $datos): void` — Recibe `forma_pago_id`, `monto`, `sucursal_id`, `caja_id`, `moneda_id` como array explicito (el concern no depende de props del host). Resuelve `integracionPrincipal()`, verifica `IntegracionPagoSucursal` activa, llama a `CobroIntegracionService::iniciarCobro()`, genera el SVG del QR y abre el modal.
+- `pollearCobroIntegracion(): void` — Polling via `wire:poll`. Al estado `aprobado`: llama `confirmarCobro()`, setea `cobroIntegracionConfirmado = true`, cierra modal e invoca el hook `alConfirmarCobroIntegracion()`. Al estado `cancelado/expirado/fallido`: dispatcha toast, resetea estado, dispatcha evento `cobro-integracion-no-confirmado` e invoca el hook `alCancelarCobroIntegracion()`.
+- `cancelarCobroIntegracion(): void` — Llama `cancelarCobro()` en el service, resetea estado, dispatcha `cobro-integracion-no-confirmado` e invoca `alCancelarCobroIntegracion()`.
+
+**Metodos protegidos**:
+- `resetCobroIntegracion(): void` — Limpia todas las props del cobro.
+- `asociarCobroIntegracionAlCobrable(Model $cobrable): void` — Asocia la transaccion confirmada al cobrable. No-op si no hubo cobro por integracion.
+- `renderizarQrSvg(?string $qrData): ?string` — Genera SVG inline a partir de la trama EMVCo. Sin imagick/gd. Se genera una vez al iniciar para sobrevivir los morphs de `wire:poll`.
+- `cajaIdParaPantallaCliente(): ?int` — Default: `caja_activa()`. Los hosts con caja seleccionada propia lo overridean (p. ej. `WithPagosDesglose` retorna `$this->cajaSeleccionada ?? caja_activa()`).
+
+**Propiedad computed**: `usaPantallaClienteActiva: bool` — Lee `cajas.usa_pantalla_cliente` usando `cajaIdParaPantallaCliente()`.
+
+**Hooks que el host puede overridear**:
+- `alConfirmarCobroIntegracion(): void` — Default no-op. Se invoca con `cobroIntegracionConfirmado = true` y el modal ya cerrado. Cada host lo implementa para materializar su cobrable.
+- `alCancelarCobroIntegracion(): void` — Default no-op. Se invoca tras resetear el estado. El host puede reabrir su modal para reintentar.
 
 #### Enganche en el trait `WithPagosDesglose`
 
-El trait es compartido entre `NuevaVenta` y `NuevoPedidoMostrador`. Implementa el flujo QR completo con estos metodos clave:
+El trait es compartido entre `NuevaVenta` y `NuevoPedidoMostrador`. Usa `WithCobroIntegracion` internamente. Implementa los elementos especificos del desglose:
 
 - `desglosePagoConIntegracion(): ?array` — Detecta si algun pago del desglose usa una FP con integracion.
-- `iniciarCobroIntegracion(array $pago): void` — Resuelve la `IntegracionPagoSucursal` activa para la sucursal, llama a `CobroIntegracionService::iniciarCobro()` y abre el modal.
-- `pollearCobroIntegracion(): void` — Polling del estado. Al aprobar: confirma, setea flag y llama a `verificarPuntoVentaYProcesar()`.
-- `cancelarCobroIntegracion(): void` — Cancela via service y cierra modal.
-- `asociarCobroIntegracionAlCobrable(Model $cobrable): void` — Lo llaman los terminales de cada host tras persistir el comprobante. No-op si no hubo cobro por integracion.
-- `usaPantallaClienteActiva: bool` (#[Computed]) — Lee `cajas.usa_pantalla_cliente` de la caja activa.
+- `interceptarCobroPorIntegracion(): bool` — Punto unico de enganche: si hay un pago con integracion no confirmado, llama `iniciarCobroIntegracion()` y retorna `true` (el caller debe abortar y esperar al polling).
+- `cajaIdParaPantallaCliente(): ?int` — Override: retorna `$this->cajaSeleccionada ?? caja_activa()`.
+- `alConfirmarCobroIntegracion(): void` — Override: llama `verificarPuntoVentaYProcesar()` para reanudar el flujo de venta/pedido con el flag `cobroIntegracionConfirmado = true`.
 
-**Guard en `verificarPuntoVentaYProcesar()`**: si `!cobroIntegracionConfirmado && desglosePagoConIntegracion() !== null`, inicia el cobro QR y retorna. La segunda vez que entra (con `cobroIntegracionConfirmado = true`), el guard no aplica y el flujo continua normalmente.
+**Guard en `verificarPuntoVentaYProcesar()`**: si `!cobroIntegracionConfirmado && desglosePagoConIntegracion() !== null`, llama `interceptarCobroPorIntegracion()` y retorna. La segunda vez que entra (con `cobroIntegracionConfirmado = true`), el guard no aplica y el flujo continua normalmente.
+
+**Hook `alCancelarCobroIntegracion()` en `NuevoPedidoMostrador`**: si `$modalPagoEnModoCobro` era true, reabre `$mostrarModalPago` para que el operario retome sin perder el desglose armado.
 
 #### Auditoria append-only
 
