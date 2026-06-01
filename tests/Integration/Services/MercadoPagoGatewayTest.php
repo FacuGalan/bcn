@@ -531,6 +531,80 @@ class MercadoPagoGatewayTest extends TestCase
         Http::assertSent(fn ($req) => ! array_key_exists('category', $req->data()));
     }
 
+    public function test_crear_store_con_external_id_duplicado_adopta_la_existente_y_la_actualiza(): void
+    {
+        $externalId = 'BCN-'.$this->comercio->id.'-'.$this->sucursalId;
+
+        Http::fake([
+            // La búsqueda devuelve la store que ya existe en la cuenta MP.
+            'api.mercadopago.com/users/*/stores/search*' => Http::response([
+                'results' => [
+                    ['id' => 5550001, 'external_id' => $externalId],
+                ],
+            ], 200),
+            // El PUT de actualización (adopción).
+            'api.mercadopago.com/users/*/stores/5550001' => Http::response([
+                'id' => 5550001,
+                'external_id' => $externalId,
+            ], 200),
+            // El POST de creación falla con el 400 de external_id duplicado.
+            'api.mercadopago.com/users/*/stores' => Http::response([
+                'message' => "external id '{$externalId}' is already assigned to this user 555111",
+                'error' => 'bad_request',
+            ], 400),
+        ]);
+
+        $config = $this->crearConfig();
+        $sucursal = $this->crearSucursalConCoordenadas();
+
+        $resp = $this->gateway->crearStore($config, $sucursal, $this->comercio->id);
+
+        $this->assertSame(5550001, $resp['id']);
+        Http::assertSent(fn ($r) => $r->method() === 'POST' && str_ends_with($r->url(), '/stores'));
+        Http::assertSent(fn ($r) => $r->method() === 'GET' && str_contains($r->url(), '/stores/search'));
+        Http::assertSent(fn ($r) => $r->method() === 'PUT' && str_contains($r->url(), '/stores/5550001'));
+    }
+
+    public function test_crear_pos_con_external_id_duplicado_adopta_el_existente_y_conserva_su_qr(): void
+    {
+        $config = $this->crearConfig();
+        $sucursal = $this->sucursalSincronizada();
+        $caja = $this->crearCaja();
+        $externalId = \App\Services\IntegracionesPago\MercadoPagoGateway::externalIdPos($this->comercio->id, $caja->id);
+
+        Http::fake([
+            // La búsqueda devuelve el POS existente (con su QR).
+            'api.mercadopago.com/pos/search*' => Http::response([
+                'results' => [
+                    [
+                        'id' => 6660002,
+                        'external_id' => $externalId,
+                        'qr' => [
+                            'image' => 'https://mp.com/qr/existente.png',
+                            'template_document' => 'https://mp.com/qr/existente.pdf',
+                        ],
+                    ],
+                ],
+            ], 200),
+            // El PUT de actualización no devuelve el QR (caso real de MP).
+            'api.mercadopago.com/pos/6660002' => Http::response(['id' => 6660002], 200),
+            // El POST de creación falla con el 400 de external_id duplicado.
+            'api.mercadopago.com/pos' => Http::response([
+                'message' => "external id '{$externalId}' is already assigned to this user",
+                'error' => 'bad_request',
+            ], 400),
+        ]);
+
+        $resp = $this->gateway->crearPos($config, $caja, $sucursal, null, $this->comercio->id);
+
+        $this->assertSame(6660002, $resp['id']);
+        // Conservó el QR del POS existente aunque el PUT no lo devolvió.
+        $this->assertSame('https://mp.com/qr/existente.png', $resp['qr']['image']);
+        Http::assertSent(fn ($r) => $r->method() === 'POST' && str_ends_with($r->url(), '/pos'));
+        Http::assertSent(fn ($r) => $r->method() === 'GET' && str_contains($r->url(), '/pos/search'));
+        Http::assertSent(fn ($r) => $r->method() === 'PUT' && str_contains($r->url(), '/pos/6660002'));
+    }
+
     public function test_external_id_helpers_respetan_limites_de_mp(): void
     {
         $storeExt = \App\Services\IntegracionesPago\MercadoPagoGateway::externalIdStore(1, 999);

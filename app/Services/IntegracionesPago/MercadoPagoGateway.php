@@ -156,6 +156,26 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         $response = $this->client($config)
             ->post(self::API_BASE.'/users/'.$config->user_id_externo.'/stores', $payload);
 
+        // Recuperación idempotente: si MP responde que el external_id ya está
+        // asignado (la store ya existe en esta cuenta — típico al re-sincronizar
+        // o al compartir credenciales entre entornos), la adoptamos buscándola
+        // por external_id y la actualizamos en vez de fallar.
+        if ($this->esErrorExternalIdDuplicado($response)) {
+            $existente = $this->buscarStorePorExternalId($config, $externalId);
+            if ($existente !== null && ! empty($existente['id'])) {
+                Log::info('MercadoPagoGateway::crearStore - external_id ya existía en MP, adoptando store existente', [
+                    'sucursal_id' => $sucursal->id,
+                    'external_id' => $externalId,
+                    'mp_store_id' => $existente['id'],
+                ]);
+
+                $sucursal->mp_store_id = (string) $existente['id'];
+                $sucursal->mp_store_external_id = $externalId;
+
+                return $this->actualizarStore($config, $sucursal, $comercioId);
+            }
+        }
+
         $this->guardResponse($response, 'crearStore');
 
         Log::info('MercadoPagoGateway::crearStore OK', [
@@ -228,6 +248,32 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
 
         $response = $this->client($config)->post(self::API_BASE.'/pos', $payload);
 
+        // Recuperación idempotente (mismo criterio que crearStore): si el POS ya
+        // existe en esta cuenta MP, lo adoptamos por external_id y lo actualizamos.
+        if ($this->esErrorExternalIdDuplicado($response)) {
+            $existente = $this->buscarPosPorExternalId($config, $externalId);
+            if ($existente !== null && ! empty($existente['id'])) {
+                Log::info('MercadoPagoGateway::crearPos - external_id ya existía en MP, adoptando POS existente', [
+                    'caja_id' => $caja->id,
+                    'external_id' => $externalId,
+                    'mp_pos_id' => $existente['id'],
+                ]);
+
+                $caja->mp_pos_id = (string) $existente['id'];
+                $caja->mp_pos_external_id = $externalId;
+
+                $actualizado = $this->actualizarPos($config, $caja, $sucursal, $rubro, $comercioId);
+
+                // El PUT de POS no siempre devuelve el QR; conservamos el del
+                // POS existente para no perder la URL del código.
+                if (empty($actualizado['qr']) && ! empty($existente['qr'])) {
+                    $actualizado['qr'] = $existente['qr'];
+                }
+
+                return $actualizado;
+            }
+        }
+
         $this->guardResponse($response, 'crearPos');
 
         Log::info('MercadoPagoGateway::crearPos OK', [
@@ -275,7 +321,91 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         return true;
     }
 
+    /**
+     * Busca una Store de la cuenta por su external_id.
+     * GET /users/{user_id}/stores/search?external_id=...
+     *
+     * @return array|null La store encontrada (con `id`, `external_id`, etc.) o null.
+     */
+    public function buscarStorePorExternalId(IntegracionPagoSucursal $config, string $externalId): ?array
+    {
+        $response = $this->client($config)
+            ->get(self::API_BASE.'/users/'.$config->user_id_externo.'/stores/search', [
+                'external_id' => $externalId,
+            ]);
+
+        if (! $response->successful()) {
+            Log::warning('MercadoPagoGateway::buscarStorePorExternalId - búsqueda falló', [
+                'external_id' => $externalId,
+                'status' => $response->status(),
+            ]);
+
+            return null;
+        }
+
+        return $this->matchPorExternalId($response->json('results') ?? [], $externalId);
+    }
+
+    /**
+     * Busca un POS de la cuenta por su external_id.
+     * GET /pos/search?external_id=...
+     *
+     * @return array|null El POS encontrado (con `id`, `qr`, etc.) o null.
+     */
+    public function buscarPosPorExternalId(IntegracionPagoSucursal $config, string $externalId): ?array
+    {
+        $response = $this->client($config)
+            ->get(self::API_BASE.'/pos/search', [
+                'external_id' => $externalId,
+            ]);
+
+        if (! $response->successful()) {
+            Log::warning('MercadoPagoGateway::buscarPosPorExternalId - búsqueda falló', [
+                'external_id' => $externalId,
+                'status' => $response->status(),
+            ]);
+
+            return null;
+        }
+
+        return $this->matchPorExternalId($response->json('results') ?? [], $externalId);
+    }
+
     // ==================== Helpers internos ====================
+
+    /**
+     * Detecta el error de MP "external id ya asignado a este usuario" (HTTP 400),
+     * que ocurre al intentar crear una Store/POS cuyo external_id ya existe en la
+     * cuenta. Disparador de la recuperación idempotente (adoptar el existente).
+     */
+    private function esErrorExternalIdDuplicado(\Illuminate\Http\Client\Response $response): bool
+    {
+        if ($response->status() !== 400) {
+            return false;
+        }
+
+        $cuerpo = strtolower($response->body());
+
+        return str_contains($cuerpo, 'already assigned')
+            || str_contains($cuerpo, 'already exists');
+    }
+
+    /**
+     * Devuelve el resultado cuyo external_id coincide exactamente; si ninguno
+     * coincide, cae al primero de la lista (la búsqueda ya filtró por external_id).
+     *
+     * @param  array<int, array>  $resultados
+     */
+    private function matchPorExternalId(array $resultados, string $externalId): ?array
+    {
+        foreach ($resultados as $item) {
+            if (($item['external_id'] ?? null) === $externalId) {
+                return $item;
+            }
+        }
+
+        return $resultados[0] ?? null;
+    }
 
     private function client(IntegracionPagoSucursal $config): PendingRequest
     {
