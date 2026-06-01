@@ -189,6 +189,15 @@ class CobroIntegracionService
     }
 
     /**
+     * Registra la recepción de un webhook del proveedor para una transacción
+     * (auditoría). Append-only; no muta el estado de la transacción.
+     */
+    public function registrarEventoWebhook(IntegracionPagoTransaccion $transaccion, ?array $payload = null): void
+    {
+        $this->registrarEvento($transaccion, IntegracionPagoEvento::EVENTO_WEBHOOK_RECIBIDO, $payload);
+    }
+
+    /**
      * Marca la transacción como fallida y registra el evento de error.
      */
     private function marcarFallida(IntegracionPagoTransaccion $transaccion, string $motivo): void

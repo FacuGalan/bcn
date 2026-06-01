@@ -25,3 +25,10 @@ use Illuminate\Support\Facades\Broadcast;
 Broadcast::channel('comercios.{comercioId}.{resource}', function (User $user, int $comercioId, string $resource) {
     return $user->hasAccessToComercio($comercioId);
 });
+
+// Canal de una transacción de cobro por integración (QR). El comodín genérico
+// de arriba solo matchea UN segmento, así que el canal multi-segmento de la
+// transacción (integraciones-pago.transaccion.{id}) necesita su propia regla.
+Broadcast::channel('comercios.{comercioId}.integraciones-pago.transaccion.{transaccionId}', function (User $user, int $comercioId, int $transaccionId) {
+    return $user->hasAccessToComercio($comercioId);
+});
