@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Pedidos;
 
+use App\Livewire\Concerns\Carrito\WithCobroIntegracion;
+use App\Models\FormaPago;
 use App\Models\PedidoMostrador;
 use App\Models\PedidoMostradorPago;
 use App\Services\Pedidos\PedidoMostradorService;
@@ -33,6 +35,11 @@ class PedidosMostrador extends Component
         // override de la clase ($this->getListeners()) sigue ganando igual.
         CajaAware::getListeners insteadof SucursalAware;
     }
+
+    // Cobro por QR (mismo concern que usan NuevaVenta/NuevoPedidoMostrador):
+    // materializa pagos planificados con forma de pago integrada solo cuando el
+    // pago QR se confirma. Única fuente de verdad del cobro por integración.
+    use WithCobroIntegracion;
 
     // ==================== FILTROS ====================
 
@@ -85,6 +92,14 @@ class PedidosMostrador extends Component
     public array $cobrarPedidoInfo = [];
 
     public array $cobrarPagosPlanificados = [];
+
+    /**
+     * Pago planificado (PedidoMostradorPago) que se está cobrando por QR. Se
+     * setea al disparar el cobro por integración y se materializa recién cuando
+     * el QR se aprueba (alConfirmarCobroIntegracion). Si el QR se cancela/expira,
+     * queda planificado y editable.
+     */
+    public ?int $cobroIntegracionPagoPlanificadoId = null;
 
     // ==================== MODAL: CONFIRMAR CONVERSIÓN ====================
 
@@ -987,6 +1002,20 @@ class PedidosMostrador extends Component
             return;
         }
 
+        // Si alguno de los planificados usa una forma de pago con integración
+        // (QR), NO los confirmamos en lote: cada pago QR necesita su propio
+        // cobro con espera de confirmación. Abrimos "Cobrar pendiente" para
+        // confirmarlos de a uno (los integrados disparan el QR).
+        $fpIntegradas = FormaPago::whereIn('id', $planificados->pluck('forma_pago_id')->unique())
+            ->get()
+            ->filter->tieneIntegracion();
+
+        if ($fpIntegradas->isNotEmpty()) {
+            $this->abrirCobrar($pedidoId);
+
+            return;
+        }
+
         try {
             foreach ($planificados as $pago) {
                 $this->service->confirmarPagoPlanificado($pago);
@@ -1160,6 +1189,17 @@ class PedidosMostrador extends Component
             return;
         }
 
+        // Si la forma de pago tiene integración (QR), NO materializamos directo:
+        // disparamos el cobro por QR y esperamos. El pago se materializa recién
+        // al aprobarse (alConfirmarCobroIntegracion); si sale negativo queda
+        // planificado y editable.
+        $formaPago = FormaPago::find($pago->forma_pago_id);
+        if ($formaPago && $formaPago->tieneIntegracion()) {
+            $this->iniciarCobroIntegracionPagoPlanificado($pago);
+
+            return;
+        }
+
         try {
             $this->service->confirmarPagoPlanificado($pago);
             $this->dispatch('toast-success', message: __('Pago confirmado'));
@@ -1170,6 +1210,104 @@ class PedidosMostrador extends Component
                 'error' => $e->getMessage(),
             ]);
             $this->dispatch('toast-error', message: $e->getMessage());
+        }
+    }
+
+    /**
+     * Dispara el cobro por QR de un pago planificado con forma de pago
+     * integrada. Cierra el modal "Cobrar pendiente" mientras se muestra el QR
+     * (se reabre al confirmar o al cancelar). El pedido aporta sucursal y caja
+     * para resolver la integración y el POS.
+     */
+    protected function iniciarCobroIntegracionPagoPlanificado(PedidoMostradorPago $pago): void
+    {
+        $pedido = $pago->pedido()->first();
+        if (! $pedido) {
+            $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+
+            return;
+        }
+
+        $this->cobroIntegracionPagoPlanificadoId = $pago->id;
+        $this->showCobrarModal = false;
+
+        $this->iniciarCobroIntegracion([
+            'forma_pago_id' => $pago->forma_pago_id,
+            'monto' => (float) $pago->monto_final,
+            'moneda_id' => $pago->moneda_id,
+            'sucursal_id' => $pedido->sucursal_id,
+            'caja_id' => $pedido->caja_id ?? caja_activa(),
+        ]);
+
+        // Si iniciarCobroIntegracion no abrió el modal (FP sin integración
+        // configurada en la sucursal, etc.), reabrimos el "Cobrar pendiente".
+        if (! $this->mostrarModalEsperandoPago) {
+            $this->cobroIntegracionPagoPlanificadoId = null;
+            $this->abrirCobrar($pago->pedido_mostrador_id);
+        }
+    }
+
+    /**
+     * Hook del concern: el cobro QR del pago planificado se aprobó. Materializa
+     * ese pago (lo pasa a activo, toca caja, recalcula estado_pago) y asocia la
+     * transacción QR al pedido. Reabre "Cobrar pendiente" con el estado fresco.
+     */
+    protected function alConfirmarCobroIntegracion(): void
+    {
+        $pagoId = $this->cobroIntegracionPagoPlanificadoId;
+        $pago = $pagoId ? PedidoMostradorPago::find($pagoId) : null;
+
+        if (! $pago) {
+            $this->resetCobroIntegracion();
+            $this->cobroIntegracionPagoPlanificadoId = null;
+
+            return;
+        }
+
+        $pedidoId = $pago->pedido_mostrador_id;
+
+        try {
+            $this->service->confirmarPagoPlanificado($pago);
+
+            $pedido = PedidoMostrador::find($pedidoId);
+            if ($pedido) {
+                $this->asociarCobroIntegracionAlCobrable($pedido);
+            }
+
+            $this->dispatch('toast-success', message: __('Pago confirmado'));
+        } catch (Exception $e) {
+            Log::error('Error al confirmar pago planificado por QR', [
+                'pago_id' => $pagoId,
+                'error' => $e->getMessage(),
+            ]);
+            $this->dispatch('toast-error', message: $e->getMessage());
+        } finally {
+            $this->resetCobroIntegracion();
+            $this->cobroIntegracionPagoPlanificadoId = null;
+        }
+
+        // Reabrir el modal con el estado actualizado para seguir cobrando los
+        // pagos planificados restantes (o cerrarlo si ya no quedan).
+        $this->abrirCobrar($pedidoId);
+    }
+
+    /**
+     * Hook del concern de cobro QR: el pago planificado se canceló/expiró, no se
+     * materializó nada. Reabrimos "Cobrar pendiente" para reintentar o editar.
+     * Solo aplica si había un pago planificado en cobro (el cobro rápido del
+     * sub-componente maneja su propio caso por separado).
+     */
+    protected function alCancelarCobroIntegracion(): void
+    {
+        if ($this->cobroIntegracionPagoPlanificadoId === null) {
+            return;
+        }
+
+        $pago = PedidoMostradorPago::find($this->cobroIntegracionPagoPlanificadoId);
+        $this->cobroIntegracionPagoPlanificadoId = null;
+
+        if ($pago) {
+            $this->abrirCobrar($pago->pedido_mostrador_id);
         }
     }
 

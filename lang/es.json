@@ -10,6 +10,7 @@
     "Debe seleccionar al menos un modo permitido": "Debe seleccionar al menos un modo permitido",
     "Debe seleccionar un modo default": "Debe seleccionar un modo default",
     "Debe seleccionar una integración": "Debe seleccionar una integración",
+    "El cobro se registró, pero la facturación quedó pendiente. Reintentala desde Cajas → Pagos Pendientes de Facturación.": "El cobro se registró, pero la facturación quedó pendiente. Reintentala desde Cajas → Pagos Pendientes de Facturación.",
     "El modo default debe estar entre los modos permitidos": "El modo default debe estar entre los modos permitidos",
     "El pago no se completó (:estado)": "El pago no se completó (:estado)",
     "Escaneá el código con la app para pagar": "Escaneá el código con la app para pagar",

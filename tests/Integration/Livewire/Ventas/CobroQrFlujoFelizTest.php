@@ -11,6 +11,7 @@ use App\Models\IntegracionPagoEvento;
 use App\Models\IntegracionPagoSucursal;
 use App\Models\IntegracionPagoTransaccion;
 use App\Models\Venta;
+use App\Models\VentaPago;
 use App\Services\CuponService;
 use App\Services\IntegracionesPago\MercadoPagoGateway;
 use App\Services\OpcionalService;
@@ -260,5 +261,78 @@ class CobroQrFlujoFelizTest extends TestCase
         $eventos = IntegracionPagoEvento::where('transaccion_id', $txId)->pluck('evento')->all();
         $this->assertContains(IntegracionPagoEvento::EVENTO_CONFIRMADO, $eventos);
         $this->assertContains(IntegracionPagoEvento::EVENTO_COBRABLE_ASOCIADO, $eventos);
+    }
+
+    public function test_si_la_facturacion_falla_con_cobro_qr_confirmado_la_venta_se_registra_pendiente(): void
+    {
+        Http::fake([
+            '*/v1/orders/*' => Http::response(['id' => self::ORDER_ID, 'status' => 'processed'], 200),
+            '*/v1/orders' => Http::response([
+                'id' => self::ORDER_ID,
+                'status' => 'created',
+                'type_response' => ['qr_data' => self::QR_DATA],
+            ], 200),
+        ]);
+
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'nombre' => 'Producto QR', 'precio_base' => 100,
+        ]);
+        $fp = $this->crearFormaPagoConIntegracion();
+
+        $component = $this->prepararComponente();
+        $component->items = [$this->itemCarrito($articulo->id, 'Producto QR', 100)];
+        $component->calcularVenta();
+        $total = (float) ($component->resultado['total_final'] ?? 0);
+
+        // Forzar facturación: la caja del test no tiene punto de venta/CUIT, así que
+        // crearComprobanteFiscal va a fallar → el catch debe registrar igual la venta.
+        $component->emitirFacturaFiscal = true;
+        $component->formaPagoId = $fp->id;
+        $component->montoPendienteDesglose = 0;
+        $component->desglosePagos = [[
+            'forma_pago_id' => $fp->id,
+            'nombre' => $fp->nombre,
+            'concepto_pago_id' => $fp->concepto_pago_id,
+            'monto_base' => $total,
+            'ajuste_porcentaje' => 0,
+            'monto_ajuste' => 0,
+            'monto_final' => $total,
+            'monto_recibido' => $total,
+            'vuelto' => 0,
+            'cuotas' => 1,
+            'recargo_cuotas' => 0,
+            'es_cuenta_corriente' => false,
+            'afecta_caja' => false,
+            'factura_fiscal' => true,
+            'es_moneda_extranjera' => false,
+            'moneda_id' => null,
+            'tipo_cambio_id' => null,
+            'tipo_cambio_tasa' => null,
+            'monto_moneda_original' => null,
+        ]];
+
+        // Paso 1: iniciar cobro (QR), sin venta todavía.
+        $this->llamarProtegido($component, 'verificarPuntoVentaYProcesar');
+        $this->assertTrue($component->mostrarModalEsperandoPago);
+        $txId = $component->cobroIntegracionTransaccionId;
+        $this->assertEquals(0, Venta::count());
+
+        // Paso 2: pago aprobado → la FC falla, pero la venta DEBE quedar registrada.
+        $component->pollearCobroIntegracion();
+
+        $this->assertEquals(1, Venta::count(), 'La venta debe registrarse aunque la facturación falle (el cobro ya entró)');
+        $venta = Venta::first();
+
+        // El pago queda en pendiente_de_facturar (reintentable desde Cajas).
+        $pago = VentaPago::where('venta_id', $venta->id)->first();
+        $this->assertEquals(VentaPago::ESTADO_FACT_PENDIENTE, $pago->estado_facturacion, 'El pago debe quedar pendiente de facturar');
+
+        // No se emitió comprobante fiscal.
+        $this->assertEquals(0, $venta->comprobantesFiscales()->count(), 'No debe haber comprobante fiscal');
+
+        // El cobro QR quedó confirmado y asociado a la venta.
+        $tx = IntegracionPagoTransaccion::find($txId);
+        $this->assertEquals(IntegracionPagoTransaccion::ESTADO_CONFIRMADO, $tx->estado);
+        $this->assertEquals($venta->id, $tx->cobrable_id);
     }
 }
