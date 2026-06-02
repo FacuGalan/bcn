@@ -2,6 +2,7 @@
 
 namespace Tests\Integration\Services;
 
+use App\Events\IntegracionesPago\IntegracionPagoActualizado;
 use App\Models\IntegracionPago;
 use App\Models\IntegracionPagoEvento;
 use App\Models\IntegracionPagoSucursal;
@@ -178,5 +179,91 @@ class CobroIntegracionServiceTest extends TestCase
         $this->assertSame('https://mp.com/qr/999111/static.png', $tx->metadata['qr_image_url'] ?? null);
         $this->assertSame('ORD-EST-SVC', $tx->external_id);
         $this->assertSame('qr_estatico', $tx->modo_usado);
+    }
+
+    // ==================== Fase 8 — confirmación manual + expiración ====================
+
+    private function crearTransaccionPendiente(?\Carbon\Carbon $expiraEn = null): IntegracionPagoTransaccion
+    {
+        $mpId = IntegracionPago::porCodigo('mercadopago_qr')->value('id');
+        $config = IntegracionPagoSucursal::firstOrCreate(
+            ['integracion_pago_id' => $mpId, 'sucursal_id' => $this->sucursalId],
+            ['modo' => 'test', 'access_token_test' => 'TEST-TOKEN-12345', 'user_id_externo' => '999888777'],
+        );
+
+        $formaPago = \App\Models\FormaPago::firstOrCreate(
+            ['codigo' => 'QR_PEND'],
+            ['nombre' => 'QR Pend', 'concepto' => 'wallet', 'activo' => true],
+        );
+
+        return IntegracionPagoTransaccion::create([
+            'integracion_pago_sucursal_id' => $config->id,
+            'forma_pago_id' => $formaPago->id,
+            'sucursal_id' => $this->sucursalId,
+            'usuario_iniciador_id' => 1,
+            'modo_usado' => 'qr_estatico',
+            'monto' => 800.00,
+            'estado' => IntegracionPagoTransaccion::ESTADO_PENDIENTE,
+            'expira_en' => $expiraEn ?? now()->addMinutes(5),
+        ]);
+    }
+
+    public function test_confirmar_manual_marca_confirmado_manual_y_registra_quien(): void
+    {
+        $tx = $this->crearTransaccionPendiente();
+
+        $this->service->confirmarManual($tx, usuarioId: 7, motivo: 'cliente mostró comprobante');
+
+        $tx->refresh();
+        $this->assertSame(IntegracionPagoTransaccion::ESTADO_CONFIRMADO_MANUAL, $tx->estado);
+        $this->assertNotNull($tx->confirmado_en);
+
+        $evento = IntegracionPagoEvento::where('transaccion_id', $tx->id)
+            ->where('evento', IntegracionPagoEvento::EVENTO_CONFIRMADO_MANUAL)
+            ->first();
+        $this->assertNotNull($evento);
+        $this->assertSame(7, $evento->metadata['usuario_id']);
+        $this->assertSame('cliente mostró comprobante', $evento->metadata['motivo']);
+    }
+
+    public function test_confirmar_manual_es_idempotente_en_estado_terminal(): void
+    {
+        $tx = $this->crearTransaccionPendiente();
+        $tx->update(['estado' => IntegracionPagoTransaccion::ESTADO_CANCELADO]);
+
+        $this->service->confirmarManual($tx, usuarioId: 1);
+
+        $tx->refresh();
+        $this->assertSame(IntegracionPagoTransaccion::ESTADO_CANCELADO, $tx->estado);
+        $this->assertEquals(
+            0,
+            IntegracionPagoEvento::where('transaccion_id', $tx->id)
+                ->where('evento', IntegracionPagoEvento::EVENTO_CONFIRMADO_MANUAL)->count(),
+        );
+    }
+
+    public function test_expirar_pendientes_vencidas_marca_expirado_y_respeta_vigentes(): void
+    {
+        \Illuminate\Support\Facades\Event::fake([IntegracionPagoActualizado::class]);
+
+        $vencida = $this->crearTransaccionPendiente(now()->subMinute());
+        $vigente = $this->crearTransaccionPendiente(now()->addMinutes(5));
+
+        $cantidad = $this->service->expirarPendientesVencidas();
+
+        $this->assertSame(1, $cantidad);
+        $this->assertSame(IntegracionPagoTransaccion::ESTADO_EXPIRADO, $vencida->fresh()->estado);
+        $this->assertSame(IntegracionPagoTransaccion::ESTADO_PENDIENTE, $vigente->fresh()->estado);
+
+        $this->assertEquals(
+            1,
+            IntegracionPagoEvento::where('transaccion_id', $vencida->id)
+                ->where('evento', IntegracionPagoEvento::EVENTO_EXPIRADO)->count(),
+        );
+
+        \Illuminate\Support\Facades\Event::assertDispatched(
+            IntegracionPagoActualizado::class,
+            fn (IntegracionPagoActualizado $e) => $e->transaccionId === $vencida->id && $e->estado === 'expirado',
+        );
     }
 }

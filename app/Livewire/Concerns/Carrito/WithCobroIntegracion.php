@@ -90,6 +90,17 @@ trait WithCobroIntegracion
     }
 
     /**
+     * Si el usuario puede confirmar manualmente un cobro pendiente (RF-12). Lo
+     * consume el modal de espera para mostrar/ocultar el fallback "el cliente
+     * pagó" cuando el sistema no detecta el pago automáticamente.
+     */
+    #[Computed]
+    public function puedeConfirmarManual(): bool
+    {
+        return Auth::user()?->hasPermissionTo('integraciones_pago.confirmar_manual') ?? false;
+    }
+
+    /**
      * Inicia el cobro QR: resuelve la integración de la forma de pago y la
      * config de la sucursal, pide el QR al gateway vía CobroIntegracionService y
      * abre el modal de espera. La transacción nace sin cobrable (se asocia al
@@ -193,6 +204,28 @@ trait WithCobroIntegracion
             return;
         }
 
+        // Reaccionar primero al estado LOCAL de la transacción: el webhook (Fase 6)
+        // la confirma server-side y el job de expiración (Fase 8) la vence — en
+        // ambos casos el estado ya quedó resuelto en la DB y no hace falta (ni
+        // conviene) re-consultar al proveedor.
+        if ($transaccion->estaConfirmada()) {
+            $this->cobroIntegracionConfirmado = true;
+            $this->mostrarModalEsperandoPago = false;
+            $this->alConfirmarCobroIntegracion();
+
+            return;
+        }
+
+        if ($transaccion->estaEnEstadoTerminal()) {
+            // expirado / cancelado / fallido / sin_match.
+            $this->dispatch('toast-error', message: __('El pago no se completó (:estado)', ['estado' => $transaccion->estado]));
+            $this->resetCobroIntegracion();
+            $this->dispatch('cobro-integracion-no-confirmado');
+            $this->alCancelarCobroIntegracion();
+
+            return;
+        }
+
         $service = app(CobroIntegracionService::class);
 
         try {
@@ -224,6 +257,39 @@ trait WithCobroIntegracion
             $this->alCancelarCobroIntegracion();
         }
         // 'pendiente' → seguir esperando (no-op).
+    }
+
+    /**
+     * Confirma manualmente el cobro en curso (RF-12): fallback cuando el sistema
+     * no detectó el pago automáticamente y el cajero —con permiso— verificó que
+     * el cliente pagó. Marca la transacción `confirmado_manual` (auditado con el
+     * usuario) y delega en el host la materialización del cobrable, igual que el
+     * camino automático.
+     */
+    public function confirmarCobroIntegracionManual(): void
+    {
+        if (! $this->cobroIntegracionTransaccionId) {
+            return;
+        }
+
+        if (! $this->puedeConfirmarManual) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para confirmar pagos manualmente'));
+
+            return;
+        }
+
+        $transaccion = IntegracionPagoTransaccion::find($this->cobroIntegracionTransaccionId);
+        if (! $transaccion) {
+            $this->resetCobroIntegracion();
+
+            return;
+        }
+
+        app(CobroIntegracionService::class)->confirmarManual($transaccion, Auth::id());
+
+        $this->cobroIntegracionConfirmado = true;
+        $this->mostrarModalEsperandoPago = false;
+        $this->alConfirmarCobroIntegracion();
     }
 
     /**

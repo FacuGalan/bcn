@@ -141,6 +141,31 @@
                                x-text="expirado ? '{{ __('Expirado') }}' : (mm + ':' + ss)"></p>
                         @endif
                     </div>
+
+                    {{-- Confirmación manual (RF-12): fallback con permiso si el pago no se detecta solo --}}
+                    @if($this->puedeConfirmarManual)
+                        <div x-data="{ confirmando: false }">
+                            <button x-show="!confirmando" type="button" @click="confirmando = true"
+                                    class="w-full text-center text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline">
+                                {{ __('El pago no se detectó automáticamente') }}
+                            </button>
+                            <div x-show="confirmando" x-cloak class="rounded-xl border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3">
+                                <p class="text-xs text-amber-800 dark:text-amber-200">
+                                    {{ __('Confirmá solo si verificaste que el cliente pagó. El sistema no detectó el pago automáticamente y esta acción queda registrada.') }}
+                                </p>
+                                <div class="mt-3 flex gap-2">
+                                    <button type="button" wire:click="confirmarCobroIntegracionManual"
+                                            class="flex-1 inline-flex justify-center rounded-md px-3 py-2 bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
+                                        {{ __('Sí, el cliente pagó') }}
+                                    </button>
+                                    <button type="button" @click="confirmando = false"
+                                            class="inline-flex justify-center rounded-md px-3 py-2 border border-gray-300 dark:border-gray-600 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                        {{ __('Volver') }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
                 </div>
 
                 {{-- Footer --}}

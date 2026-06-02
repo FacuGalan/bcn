@@ -2183,7 +2183,7 @@ Registro append-only de transacciones de cobro. Una transaccion nace en estado `
 | `cobrable_type` | varchar(255) nullable | FQCN del cobrable (`App\Models\Venta`, `App\Models\PedidoMostrador`). NULL hasta que se asocia. |
 | `cobrable_id` | bigint unsigned nullable | ID del cobrable. NULL hasta que se asocia. |
 | `modo_usado` | varchar(50) | Modo de cobro (`qr_dinamico`, `qr_estatico`) |
-| `estado` | varchar(50) | Estado: `pendiente`, `confirmado`, `cancelado`, `fallido`, `expirado` |
+| `estado` | varchar(50) | Estado: `pendiente`, `confirmado`, `confirmado_manual`, `cancelado`, `fallido`, `expirado` |
 | `monto` | decimal(12,2) | Monto del cobro |
 | `moneda_id` | bigint FK nullable | Moneda del cobro |
 | `qr_data` | text nullable | Trama EMVCo del QR dinamico |
@@ -2199,7 +2199,9 @@ Registro append-only de transacciones de cobro. Una transaccion nace en estado `
 - `cobrable_type` y `cobrable_id` son nullable desde Fase 5 (migracion `make_cobrable_nullable_integraciones_pago_transacciones`).
 - Relacion `cobrable()` es `morphTo`: el cobrable puede ser `Venta` o `PedidoMostrador`.
 - Modelo "cobro primero, cobrable despues": la transaccion nace sin cobrable (`cobrable_type/id = null`). El cobrable se asocia recien cuando se materializa el comprobante (venta nueva, pedido cobrado, pago planificado confirmado). Aplica en todos los flujos: Nueva Venta, NuevoPedidoMostrador y confirmacion de pagos planificados desde PedidosMostrador.
-- `estaEnEstadoTerminal()`: devuelve true si `estado` es `confirmado`, `cancelado`, `fallido` o `expirado`.
+- `estaEnEstadoTerminal()`: devuelve true si `estado` es `confirmado`, `confirmado_manual`, `cancelado`, `fallido` o `expirado`.
+- `estaConfirmada()`: devuelve true si `estado` es `confirmado` o `confirmado_manual`.
+- Scope `vencidas()`: filtra transacciones con `estado = 'pendiente'` y `expira_en <= now()`. Usado por el comando de expiracion automatica.
 
 #### Tabla: `{PREFIX}integraciones_pago_eventos` (tenant)
 
@@ -2219,11 +2221,11 @@ Ledger de auditoria append-only de cada transaccion. Cada cambio de estado o eve
 - `EVENTO_CREADO` = `'creado'`
 - `EVENTO_INICIADO_EN_GATEWAY` = `'iniciado_en_gateway'`
 - `EVENTO_CONFIRMADO` = `'confirmado'`
-- `EVENTO_CONFIRMADO_MANUAL` = `'confirmado_manual'`
+- `EVENTO_CONFIRMADO_MANUAL` = `'confirmado_manual'` — confirmacion manual por cajero con permiso; `metadata` incluye `usuario_id` y opcionalmente `motivo`
 - `EVENTO_COBRABLE_ASOCIADO` = `'cobrable_asociado'`
 - `EVENTO_CANCELADO` = `'cancelado'`
 - `EVENTO_ERROR` = `'error'`
-- `EVENTO_EXPIRADO` = `'expirado'`
+- `EVENTO_EXPIRADO` = `'expirado'` — generado por el comando de expiracion automatica
 
 #### Tabla: `comercios.rubro` (campo en `config.comercios`)
 
@@ -2240,6 +2242,8 @@ Campo `rubro varchar(50) nullable` agregado a la tabla `comercios` de la conexio
   - `confirmarCobro(IntegracionPagoTransaccion $transaccion, ?Model $cobrable = null, array $payload = []): void` — Marca como `confirmado`, registra `confirmado_en`, asocia el cobrable si se provee. Idempotente.
   - `asociarCobrable(IntegracionPagoTransaccion $transaccion, Model $cobrable): void` — Asocia el cobrable a una transaccion ya confirmada. Necesario en el modelo "cobro primero, venta despues": el pago se confirma cuando el cliente escanea el QR, pero el comprobante se crea despues. Idempotente.
   - `cancelarCobro(IntegracionPagoTransaccion $transaccion): bool` — Avisa al proveedor y marca como `cancelado`. Si el gateway falla al cancelar, la transaccion se cancela localmente igual y se loguea el error. Idempotente.
+  - `confirmarManual(IntegracionPagoTransaccion $transaccion, ?int $usuarioId = null, ?string $motivo = null): void` — (Fase 8, RF-12) Marca la transaccion con estado `confirmado_manual` (distinto de `confirmado` para diferenciarlo en reportes y conciliacion) y registra en `integraciones_pago_eventos` quien la confirmo (`usuario_id` en `metadata`). El cobrable se materializa igual que en el camino automatico (el concern llama `alConfirmarCobroIntegracion()`). Idempotente: si la transaccion ya esta en estado terminal, no hace nada.
+  - `expirarPendientesVencidas(): int` — (Fase 8, RF-16) Obtiene todas las transacciones en scope `vencidas()` del tenant activo, las marca como `expirado`, registra el evento `expirado` en el ledger y broadcastea `IntegracionPagoActualizado` con `estado = 'expirado'` por cada una para que el modal del cajero cierre solo. Bajo el modelo "cobro primero" no hay cobrable que anular. Retorna la cantidad de transacciones expiradas.
 - **`MercadoPagoGateway`** (actualizado Fase 7): Implementa `IntegracionPagoGatewayContract`. Metodos de sincronizacion: `crearStore`, `actualizarStore`, `eliminarStore`, `crearPos`, `actualizarPos`, `eliminarPos`. Metodos de cobro QR: `iniciarCobro` (usa Orders API `POST /v1/orders`; soporta modo `dynamic` y `static` segun `transaccion->modo_usado`; metodo privado `mapearModoOrdersApi()` convierte el valor interno al esperado por MP), `consultarEstado` (polling del order), `cancelarCobro`. En modo `dynamic` MP devuelve `qr_data`; en `static` no (se usa `qr_image_url` = `caja->mp_pos_qr_url`). El webhook es identico para ambos modos (mismo topico "Order", mismo matching por `external_id`).
 - **`SincronizacionMercadoPagoService`**: Orquesta crear-vs-actualizar. Decide segun `mp_store_id` / `mp_pos_id`. Persiste IDs y URLs devueltos en una transaccion tenant.
 - **`IntegracionPagoSucursalService`**: CRUD de configuraciones. Al cambiar `modo` o `user_id_externo` limpia los IDs de MP locales (Store + todos sus POS) via `limpiarSincronizacionMp()`.
@@ -2267,6 +2271,24 @@ Campo `rubro varchar(50) nullable` agregado a la tabla `comercios` de la conexio
    Resolucion del modo al cobrar: `CobroIntegracionService` lee `$integracion->pivot->modo_default`; ese valor se pasa como `modo_usado` a la transaccion y luego `MercadoPagoGateway::mapearModoOrdersApi()` lo convierte al valor esperado por la Orders API (`dynamic` / `static`).
 
 6. **Sincronizacion via sync()**: Al guardar, el componente llama a `$formaPago->integraciones()->sync($syncIntegraciones)` con el mapa `[integracion_pago_id => [modo_default, modos_permitidos, es_principal]]`, donde `modos_permitidos` es siempre `json_encode([$modo_default])`. Si la FP no admite integraciones se llama a `detach()` para limpiar registros huerfanos.
+
+#### Permisos del modulo de integraciones de pago
+
+| Permiso | Descripcion |
+|---|---|
+| `func.integraciones_pago.administrar` | Configurar y sincronizar integraciones (acceso al modulo de configuracion) |
+| `integraciones_pago.confirmar_manual` | (Fase 8, RF-12) Confirmar manualmente un cobro pendiente cuando el sistema no lo detecto automaticamente. Muestra el panel de fallback en el modal "Esperando pago". Recomendado solo para supervisores o cajeros de confianza dado el riesgo de confirmar un pago no realizado. |
+
+#### Comando de expiracion automatica (Fase 8, RF-16)
+
+`php artisan integraciones-pago:expirar-pendientes`
+
+- Corre cada minuto via el scheduler de Laravel (`bootstrap/app.php`, con `withoutOverlapping()` para evitar solapamientos).
+- Itera TODOS los comercios (multi-tenant): para cada uno llama a `TenantService::setComercio()` y luego a `CobroIntegracionService::expirarPendientesVencidas()`.
+- Marca como `expirado` las transacciones que tienen `estado = 'pendiente'` y `expira_en <= now()` (scope `vencidas()` del modelo).
+- Por cada transaccion expirada broadcastea `IntegracionPagoActualizado` con `estado = 'expirado'` en el canal de la transaccion, para que el modal del cajero cierre y muestre "tiempo agotado" sin requerir accion manual.
+- Bajo el modelo "cobro primero, cobrable despues" NO anula ninguna venta: las transacciones que expiran nunca tuvieron cobrable asociado.
+- Tolerante a fallos por comercio: un error en un tenant no interrumpe el procesamiento del resto (try/catch por comercio).
 
 #### Reglas de negocio criticas (Mercado Pago)
 
@@ -2761,16 +2783,18 @@ A diferencia del flujo tradicional (donde el comprobante se crea y luego se regi
    - **QR dinamico**: MP devuelve `qr_data` (trama EMVCo). Se persiste en la transaccion y el front renderiza el SVG del QR una vez, guardandolo en `cobroIntegracionQrSvg`.
    - **QR estatico**: MP no devuelve `qr_data`. El gateway retorna `qr_image_url` con la URL del QR impreso del POS (`caja->mp_pos_qr_url`), que se persiste en `transaccion.metadata['qr_image_url']` y el front lo expone via `cobroIntegracionQrImagenUrl`.
 5. Se muestra el modal "Esperando pago" con el QR y un countdown hasta `expira_en`.
-6. La confirmacion puede llegar por dos vias (la primera que llegue gana):
+6. La confirmacion puede llegar por tres vias (la primera que llegue gana):
    - **Webhook (camino principal)**: MP llama a `POST /api/integraciones/mercadopago/webhook`. El servidor confirma la transaccion y broadcastea el evento `IntegracionPagoActualizado`. El frontend escucha via Echo/Reverb en el canal privado `comercios.{id}.integraciones-pago.transaccion.{txId}`, re-consulta el estado y detecta `confirmado` de forma instantanea.
-   - **Polling (respaldo)**: Livewire hace polling cada 3 segundos (`wire:poll.3s="pollearCobroIntegracion"`). Cada tick llama a `CobroIntegracionService::consultarEstado()`. Actua como red de seguridad si el webhook no llego (webhook no configurado, fallo de red, etc.).
-7. Cuando el estado es `aprobado` (detectado por cualquiera de las dos vias):
-   - `confirmarCobro()` marca la transaccion como `confirmado` y registra `confirmado_en`. El cobrable NO se asocia aun.
+   - **Polling (respaldo)**: Livewire hace polling cada 3 segundos (`wire:poll.3s="pollearCobroIntegracion"`). Cada tick lee primero el estado LOCAL de la transaccion; solo si sigue `pendiente` consulta al proveedor via `CobroIntegracionService::consultarEstado()`. Actua como red de seguridad si el webhook no llego (webhook no configurado, fallo de red, etc.).
+   - **Confirmacion manual (fallback, Fase 8, RF-12)**: si el usuario tiene el permiso `integraciones_pago.confirmar_manual` y el cajero verifica fisicamente que el cliente pago, puede presionar "Si, el cliente pago" en el panel de fallback del modal. Llama a `CobroIntegracionService::confirmarManual()`. La transaccion queda en estado `confirmado_manual` (distinto de `confirmado` para diferenciarlo en reportes). La auditoria registra quien confirmo.
+7. Cuando el pago se confirma (por cualquiera de las tres vias):
+   - La transaccion queda en `confirmado` (automatico) o `confirmado_manual` (fallback). En ambos casos `estaConfirmada()` devuelve true.
    - Se setea `cobroIntegracionConfirmado = true`.
    - Se invoca el hook `alConfirmarCobroIntegracion()` para que el host materialice su cobrable.
 8. El host materializa el cobrable (crea la venta, cobra el pedido, materializa el pago planificado) y llama a `asociarCobroIntegracionAlCobrable($cobrable)`.
 9. `asociarCobrable()` vincula el cobrable a la transaccion ya confirmada y registra el evento `cobrable_asociado`.
 10. Si el cliente no paga o el cajero cancela: `cancelarCobro()` avisa al proveedor (silencia errores de red), marca la transaccion como `cancelado` y no se materializa ningun cobrable. Se invoca el hook `alCancelarCobroIntegracion()`.
+11. **Expiracion automatica (Fase 8, RF-16)**: si la transaccion sigue `pendiente` pasado `expira_en`, el comando `integraciones-pago:expirar-pendientes` (corre cada minuto) la marca como `expirado` y broadcastea `IntegracionPagoActualizado` con `estado = 'expirado'`. El polling del modal detecta el estado terminal localmente y cierra el modal mostrando "tiempo agotado". No se anula ninguna venta.
 
 **Variante — pago planificado con QR** (`PedidosMostrador`):
 - Al confirmar un pago planificado cuya `FormaPago` tiene integracion: NO se materializa inmediatamente. Se inicia el cobro QR y se espera al polling.
@@ -2797,8 +2821,9 @@ Cualquier cambio a la logica de cobro QR debe hacerse en este concern para que i
 
 **Metodos publicos**: 
 - `iniciarCobroIntegracion(array $datos): void` — Recibe `forma_pago_id`, `monto`, `sucursal_id`, `caja_id`, `moneda_id` como array explicito (el concern no depende de props del host). Resuelve `integracionPrincipal()`, verifica `IntegracionPagoSucursal` activa, llama a `CobroIntegracionService::iniciarCobro()`, genera el SVG del QR y abre el modal.
-- `pollearCobroIntegracion(): void` — Respaldo via `wire:poll.3s`. Al estado `aprobado`: llama `confirmarCobro()`, setea `cobroIntegracionConfirmado = true`, cierra modal e invoca el hook `alConfirmarCobroIntegracion()`. Al estado `cancelado/expirado/fallido`: dispatcha toast, resetea estado, dispatcha evento `cobro-integracion-no-confirmado` e invoca el hook `alCancelarCobroIntegracion()`. Idempotente: si el webhook ya confirmo antes, `confirmarCobro()` es no-op.
-> El camino rápido por webhook NO es un método PHP: la suscripción al broadcast vive en el Blade del modal de espera (`_modal-esperando-pago-integracion.blade.php`) — Alpine se suscribe por Echo al canal de la transacción en `init()` y, al recibir `.IntegracionPagoActualizado`, llama a `$wire.pollearCobroIntegracion()` (el mismo método de respaldo). No hay listener Livewire/`getListeners()` por transacción.
+- `pollearCobroIntegracion(): void` — Respaldo via `wire:poll.3s`. Primero lee el estado LOCAL de la transaccion en DB (sin re-consultar al proveedor): si `estaConfirmada()` cierra el modal y llama `alConfirmarCobroIntegracion()`; si `estaEnEstadoTerminal()` (expirado/cancelado/fallido) dispatcha toast, resetea y llama `alCancelarCobroIntegracion()`. Solo si la transaccion sigue `pendiente` consulta al proveedor via `CobroIntegracionService::consultarEstado()`. Al estado `aprobado`: llama `confirmarCobro()`, setea `cobroIntegracionConfirmado = true`, cierra modal e invoca `alConfirmarCobroIntegracion()`. Al estado `cancelado/expirado/fallido`: dispatcha toast, resetea, dispatcha `cobro-integracion-no-confirmado` e invoca `alCancelarCobroIntegracion()`. Idempotente: si el webhook ya confirmo antes, `confirmarCobro()` es no-op.
+> El camino rapido por webhook NO es un metodo PHP: la suscripcion al broadcast vive en el Blade del modal de espera (`_modal-esperando-pago-integracion.blade.php`) — Alpine se suscribe por Echo al canal de la transaccion en `init()` y, al recibir `.IntegracionPagoActualizado`, llama a `$wire.pollearCobroIntegracion()` (el mismo metodo de respaldo). No hay listener Livewire/`getListeners()` por transaccion.
+- `confirmarCobroIntegracionManual(): void` — (Fase 8, RF-12) Llama a `CobroIntegracionService::confirmarManual()` con el `Auth::id()` del cajero, marca `cobroIntegracionConfirmado = true`, cierra el modal e invoca `alConfirmarCobroIntegracion()`. Verifica el permiso `integraciones_pago.confirmar_manual` antes de proceder; si el usuario no lo tiene, dispatcha un toast de error y no hace nada.
 - `cancelarCobroIntegracion(): void` — Llama `cancelarCobro()` en el service, resetea estado, dispatcha `cobro-integracion-no-confirmado` e invoca `alCancelarCobroIntegracion()`.
 
 **Metodos protegidos**:
@@ -2807,7 +2832,9 @@ Cualquier cambio a la logica de cobro QR debe hacerse en este concern para que i
 - `renderizarQrSvg(?string $qrData): ?string` — Genera SVG inline a partir de la trama EMVCo. Sin imagick/gd. Se genera una vez al iniciar para sobrevivir los morphs de `wire:poll`.
 - `cajaIdParaPantallaCliente(): ?int` — Default: `caja_activa()`. Los hosts con caja seleccionada propia lo overridean (p. ej. `WithPagosDesglose` retorna `$this->cajaSeleccionada ?? caja_activa()`).
 
-**Propiedad computed**: `usaPantallaClienteActiva: bool` — Lee `cajas.usa_pantalla_cliente` usando `cajaIdParaPantallaCliente()`.
+**Propiedades computed**:
+- `usaPantallaClienteActiva: bool` — Lee `cajas.usa_pantalla_cliente` usando `cajaIdParaPantallaCliente()`.
+- `puedeConfirmarManual: bool` — (Fase 8) Evalua si el usuario autenticado tiene el permiso `integraciones_pago.confirmar_manual`. El modal de espera lo usa para mostrar u ocultar el panel de confirmacion manual.
 
 **Hooks que el host puede overridear**:
 - `alConfirmarCobroIntegracion(): void` — Default no-op. Se invoca con `cobroIntegracionConfirmado = true` y el modal ya cerrado. Cada host lo implementa para materializar su cobrable.
@@ -2833,9 +2860,11 @@ Cada paso relevante genera una fila en `{PREFIX}integraciones_pago_eventos`:
 - `iniciado_en_gateway` → al recibir el QR del proveedor
 - `webhook_recibido` → al recibir la notificacion de MP en el endpoint webhook (con `metadata.payload` del body recibido)
 - `confirmado` → al detectar el pago aprobado (por webhook o por polling)
+- `confirmado_manual` → al confirmar manualmente via el panel de fallback en el modal de espera; `metadata` contiene `usuario_id` del cajero que confirmo
 - `cobrable_asociado` → al vincular la venta/pedido a la transaccion
 - `cancelado` → al cancelar
 - `error` → si el gateway falla al iniciar (con `metadata.motivo`)
+- `expirado` → generado por el comando `integraciones-pago:expirar-pendientes` al marcar la transaccion como expirada
 
 #### Pantalla orientada al cliente (segundo monitor)
 

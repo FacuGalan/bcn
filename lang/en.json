@@ -13,6 +13,7 @@
     "El cobro se registró, pero la facturación quedó pendiente. Reintentala desde Cajas → Pagos Pendientes de Facturación.": "The payment was recorded, but invoicing is pending. Retry it from Registers → Pending Invoicing Payments.",
     "El modo default debe estar entre los modos permitidos": "The default mode must be among the allowed modes",
     "El pago no se completó (:estado)": "The payment was not completed (:estado)",
+    "El pago no se detectó automáticamente": "The payment was not detected automatically",
     "Escaneá el código con la app para pagar": "Scan the code with the app to pay",
     "Escaneá para pagar": "Scan to pay",
     "Esperando confirmación del pago…": "Waiting for payment confirmation…",
@@ -3121,5 +3122,8 @@
     "y": "and",
     "Ya asignado": "Already assigned",
     "Ya existe un cliente con el CUIT :cuit: :nombre": "A customer already exists with CUIT :cuit: :nombre",
-    "Ya existe una etiqueta con este código en el grupo.": "A tag with this code already exists in the group."
+    "Ya existe una etiqueta con este código en el grupo.": "A tag with this code already exists in the group.",
+    "Confirmá solo si verificaste que el cliente pagó. El sistema no detectó el pago automáticamente y esta acción queda registrada.": "Confirm only if you verified the customer paid. The system did not detect the payment automatically and this action is logged.",
+    "No tenés permiso para confirmar pagos manualmente": "You do not have permission to confirm payments manually",
+    "Sí, el cliente pagó": "Yes, the customer paid"
 }
