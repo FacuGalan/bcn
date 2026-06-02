@@ -390,7 +390,9 @@ Existen dos modos de cobro QR, configurables por forma de pago (ver seccion 12.4
 
    Cuando el comercio tiene el **webhook de Mercado Pago configurado**, la confirmacion es **instantanea**: MP avisa al sistema en tiempo real y el modal se cierra al instante sin esperar ningun ciclo de consulta. Si el webhook no esta configurado, el sistema consulta el estado del pago cada 3 segundos como respaldo.
 
-6. Si el cajero presiona **"Cancelar cobro"** o el QR expira sin pago, el modal se cierra y no se crea ninguna venta.
+6. Si el cajero presiona **"Cancelar cobro"** o el QR expira sin pago, el modal se cierra y no se crea ninguna venta. Si el tiempo de espera vence sin que el sistema detecte el pago automaticamente, la orden expira y el modal lo indica.
+
+**Confirmacion manual (solo si el usuario tiene el permiso habilitado):** si el sistema no detecto el pago automaticamente (por ejemplo, si el webhook no llego y el countdown ya termino), aparece un enlace discreto **"El pago no se detecto automaticamente"** en la parte inferior del modal. Al hacer clic, se abre un panel de advertencia ambar con el texto "Confirma solo si verificaste que el cliente pago". Presionar **"Si, el cliente pago"** confirma el cobro manualmente. Esta accion queda registrada con el usuario que la realizo para auditoria. El botton **"Volver"** descarta el panel sin hacer nada.
 
 **Si la facturacion fiscal falla con el cobro ya confirmado**: el pago queda registrado igual (el cobro ya entro) pero la factura queda pendiente de emision. Aparece un aviso indicando que el cobro fue exitoso y que la facturacion puede reintentarse desde **Cajas → Pagos Pendientes de Facturacion**.
 
@@ -2677,9 +2679,16 @@ Para activar esta funcionalidad, en el modal de configuracion de Mercado Pago co
 
 > Si el Webhook Secret no esta configurado, el sistema igual funciona correctamente: consulta el estado del pago cada 3 segundos como respaldo. La diferencia es solo en la velocidad de deteccion de la confirmacion.
 
+#### Expiracion automatica de cobros
+
+Si un cobro QR queda esperando pago y el tiempo configurado vence, el sistema lo expira automaticamente sin requerir intervencion manual. El modal del cajero se cierra y muestra un aviso de tiempo agotado. No se genera ninguna venta ni movimiento de caja. El cajero puede iniciar un nuevo cobro desde el mismo punto de cobro.
+
 #### Permisos requeridos
 
-Solo usuarios con el permiso **"func.integraciones_pago.administrar"** pueden configurar y sincronizar integraciones.
+| Permiso | Descripcion |
+|---|---|
+| `func.integraciones_pago.administrar` | Configurar y sincronizar integraciones (acceso al modulo de configuracion) |
+| `integraciones_pago.confirmar_manual` | Confirmar manualmente un cobro cuando el sistema no lo detecto automaticamente. Habilita el panel de fallback en el modal "Esperando pago". Asignar solo a cajeros supervisores de confianza. |
 
 ---
 

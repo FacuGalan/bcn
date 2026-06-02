@@ -13,6 +13,7 @@
     "El cobro se registró, pero la facturación quedó pendiente. Reintentala desde Cajas → Pagos Pendientes de Facturación.": "El cobro se registró, pero la facturación quedó pendiente. Reintentala desde Cajas → Pagos Pendientes de Facturación.",
     "El modo default debe estar entre los modos permitidos": "El modo default debe estar entre los modos permitidos",
     "El pago no se completó (:estado)": "El pago no se completó (:estado)",
+    "El pago no se detectó automáticamente": "El pago no se detectó automáticamente",
     "Escaneá el código con la app para pagar": "Escaneá el código con la app para pagar",
     "Escaneá para pagar": "Escaneá para pagar",
     "Esperando confirmación del pago…": "Esperando confirmación del pago…",
@@ -3121,5 +3122,8 @@
     "y": "y",
     "Ya asignado": "Ya asignado",
     "Ya existe un cliente con el CUIT :cuit: :nombre": "Ya existe un cliente con el CUIT :cuit: :nombre",
-    "Ya existe una etiqueta con este código en el grupo.": "Ya existe una etiqueta con este código en el grupo."
+    "Ya existe una etiqueta con este código en el grupo.": "Ya existe una etiqueta con este código en el grupo.",
+    "Confirmá solo si verificaste que el cliente pagó. El sistema no detectó el pago automáticamente y esta acción queda registrada.": "Confirmá solo si verificaste que el cliente pagó. El sistema no detectó el pago automáticamente y esta acción queda registrada.",
+    "No tenés permiso para confirmar pagos manualmente": "No tenés permiso para confirmar pagos manualmente",
+    "Sí, el cliente pagó": "Sí, el cliente pagó"
 }

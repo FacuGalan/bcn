@@ -2,9 +2,11 @@
 
 namespace App\Services\IntegracionesPago;
 
+use App\Events\IntegracionesPago\IntegracionPagoActualizado;
 use App\Models\IntegracionPagoEvento;
 use App\Models\IntegracionPagoSucursal;
 use App\Models\IntegracionPagoTransaccion;
+use App\Services\TenantService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -142,6 +144,74 @@ class CobroIntegracionService
 
             $this->registrarEvento($transaccion, IntegracionPagoEvento::EVENTO_CONFIRMADO, $payload ?: null);
         });
+    }
+
+    /**
+     * Confirma manualmente un cobro pendiente (RF-12): fallback para cuando el
+     * sistema no detectó el pago automáticamente (webhook/polling) y el cajero,
+     * con permiso, verifica que el cliente efectivamente pagó.
+     *
+     * Marca la transacción con el estado propio `confirmado_manual` (distinto de
+     * `confirmado` para diferenciarlo en reportes/conciliación) y deja registro
+     * de QUIÉN la confirmó y POR QUÉ. Igual que el camino automático, el cobrable
+     * se materializa y asocia después por el host (modelo "cobro primero").
+     *
+     * Idempotente: si la transacción ya está en estado terminal, no hace nada.
+     */
+    public function confirmarManual(IntegracionPagoTransaccion $transaccion, ?int $usuarioId = null, ?string $motivo = null): void
+    {
+        if ($transaccion->estaEnEstadoTerminal()) {
+            return;
+        }
+
+        DB::connection('pymes_tenant')->transaction(function () use ($transaccion, $usuarioId, $motivo) {
+            $transaccion->estado = IntegracionPagoTransaccion::ESTADO_CONFIRMADO_MANUAL;
+            $transaccion->confirmado_en = now();
+            $transaccion->save();
+
+            $this->registrarEvento(
+                $transaccion,
+                IntegracionPagoEvento::EVENTO_CONFIRMADO_MANUAL,
+                null,
+                array_filter([
+                    'usuario_id' => $usuarioId,
+                    'motivo' => $motivo,
+                ], fn ($v) => $v !== null && $v !== ''),
+            );
+        });
+    }
+
+    /**
+     * Marca como `expirado` las transacciones pendientes cuyo `expira_en` ya
+     * pasó (RF-16). Lo llama el comando programado por cada comercio. Por cada
+     * una broadcastea `IntegracionPagoActualizado` con estado `expirado` para que
+     * el modal que todavía espera cierre y muestre "tiempo agotado".
+     *
+     * Bajo el modelo "cobro primero, cobrable después" NO hay venta que anular:
+     * la transacción vencida nunca tuvo cobrable (si lo tuviera, estaría
+     * confirmada y no entraría en este scope).
+     *
+     * @return int cantidad de transacciones expiradas
+     */
+    public function expirarPendientesVencidas(): int
+    {
+        $comercioId = app(TenantService::class)->getComercioId();
+        $vencidas = IntegracionPagoTransaccion::vencidas()->get();
+
+        foreach ($vencidas as $transaccion) {
+            DB::connection('pymes_tenant')->transaction(function () use ($transaccion) {
+                $transaccion->estado = IntegracionPagoTransaccion::ESTADO_EXPIRADO;
+                $transaccion->save();
+
+                $this->registrarEvento($transaccion, IntegracionPagoEvento::EVENTO_EXPIRADO);
+            });
+
+            if ($comercioId) {
+                IntegracionPagoActualizado::dispatch($comercioId, $transaccion->id, 'expirado');
+            }
+        }
+
+        return $vencidas->count();
     }
 
     /**
