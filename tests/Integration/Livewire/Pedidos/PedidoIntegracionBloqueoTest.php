@@ -47,6 +47,11 @@ class PedidoIntegracionBloqueoTest extends TestCase
 
         $this->actingAs(\App\Models\User::factory()->create());
 
+        \App\Models\Caja::where('id', $this->cajaId)->update([
+            'estado' => 'abierta',
+            'fecha_apertura' => now(),
+        ]);
+
         $integracion = IntegracionPago::firstOrCreate(
             ['codigo' => 'mercadopago_qr'],
             [
@@ -191,6 +196,25 @@ class PedidoIntegracionBloqueoTest extends TestCase
             PedidoMostradorPago::ESTADO_ANULADO,
             $pagoEfectivo->fresh()->estado,
         );
+    }
+
+    public function test_venta_convertida_de_pedido_con_qr_hereda_el_bloqueo(): void
+    {
+        ['pedido' => $pedido] = $this->pedidoConCobroIntegracionConfirmado();
+
+        $venta = $this->service->convertirEnVenta($pedido->fresh());
+
+        // El venta_pago de QR heredó el link a la transacción confirmada del pedido.
+        $vp = \App\Models\VentaPago::where('venta_id', $venta->id)
+            ->whereNotNull('integracion_pago_transaccion_id')
+            ->first();
+        $this->assertNotNull($vp, 'El venta_pago de QR debe quedar vinculado a la transacción del pedido');
+        $this->assertTrue($venta->fresh()->tieneIntegracionPagoConfirmada());
+
+        // Y por ende la venta resultante tampoco se puede anular.
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('cobro por integración');
+        app(\App\Services\VentaService::class)->cancelarVentaCompleta($venta->id);
     }
 
     public function test_config_rechaza_cuenta_mp_ya_usada_por_otra_sucursal(): void

@@ -11,6 +11,7 @@ use App\Events\PedidoMostrador\PedidoEstadoPagoCambiado;
 use App\Models\Articulo;
 use App\Models\Caja;
 use App\Models\FormaPago;
+use App\Models\IntegracionPagoTransaccion;
 use App\Models\MovimientoCaja;
 use App\Models\MovimientoStock;
 use App\Models\PedidoMostrador;
@@ -1582,8 +1583,19 @@ class PedidoMostradorService
     {
         $pagos = $pedido->pagos()->where('estado', PedidoMostradorPago::ESTADO_ACTIVO)->get();
 
+        // Trazabilidad del cobro por integración (QR): la transacción se asoció al
+        // PEDIDO (cobrable polimórfico) y no se trasladaba al venta_pago, dejando
+        // a la venta resultante sin el link → el bloqueo de anulación (que mira
+        // venta_pagos.integracion_pago_transaccion_id) no la protegía. Mapear las
+        // transacciones confirmadas del pedido por forma de pago para vincularlas.
+        $txsIntegracionPorFp = IntegracionPagoTransaccion::porCobrable($pedido->getMorphClass(), $pedido->id)
+            ->confirmadas()
+            ->get()
+            ->keyBy('forma_pago_id');
+
         foreach ($pagos as $pago) {
             $ventaPago = VentaPago::create([
+                'integracion_pago_transaccion_id' => $txsIntegracionPorFp->get($pago->forma_pago_id)?->id,
                 'venta_id' => $venta->id,
                 'forma_pago_id' => $pago->forma_pago_id,
                 'concepto_pago_id' => $pago->concepto_pago_id,
