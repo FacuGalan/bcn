@@ -410,6 +410,37 @@ class MercadoPagoGatewayTest extends TestCase
         });
     }
 
+    public function test_store_usa_nombre_publico_de_la_sucursal_si_existe(): void
+    {
+        Http::fake([
+            'api.mercadopago.com/users/*/stores' => Http::response(['id' => 1, 'external_id' => 'X'], 201),
+        ]);
+
+        $config = $this->crearConfig();
+        $sucursal = $this->crearSucursalConCoordenadas();
+        $sucursal->update(['nombre_publico' => 'Pizzería del Centro']);
+
+        $this->gateway->crearStore($config, $sucursal->refresh(), $this->comercio->id);
+
+        Http::assertSent(fn ($request) => $request->data()['name'] === 'Pizzería del Centro');
+    }
+
+    public function test_store_cae_al_nombre_del_comercio_si_la_sucursal_no_tiene_nombre_publico(): void
+    {
+        Http::fake([
+            'api.mercadopago.com/users/*/stores' => Http::response(['id' => 1, 'external_id' => 'X'], 201),
+        ]);
+
+        $config = $this->crearConfig();
+        $sucursal = $this->crearSucursalConCoordenadas();
+        $sucursal->update(['nombre_publico' => null]);
+
+        $this->gateway->crearStore($config, $sucursal->refresh(), $this->comercio->id);
+
+        // No el nombre interno de la sucursal ni el de la cuenta MP: el del comercio.
+        Http::assertSent(fn ($request) => $request->data()['name'] === $this->comercio->nombre);
+    }
+
     public function test_crear_store_sin_coordenadas_lanza_excepcion(): void
     {
         $config = $this->crearConfig();

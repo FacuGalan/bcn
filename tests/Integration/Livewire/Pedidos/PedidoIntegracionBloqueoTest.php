@@ -78,6 +78,13 @@ class PedidoIntegracionBloqueoTest extends TestCase
         IntegracionPagoEvento::query()->delete();
         IntegracionPagoTransaccion::query()->delete();
         IntegracionPagoSucursal::query()->delete();
+        // El mass-delete de arriba NO dispara hooks → limpiar el índice a mano.
+        \Illuminate\Support\Facades\DB::connection('config')
+            ->table('mercadopago_collector_index')
+            ->whereIn('user_id_externo', ['999888777', 'CROSS-COMERCIO-999'])
+            ->delete();
+        // Comercio descartable del test cross-comercio (CASCADE limpia su índice).
+        \App\Models\Comercio::where('cuit', 'TEST-CROSS-COMERCIO')->forceDelete();
         $this->tearDownTenant();
         parent::tearDown();
     }
@@ -217,24 +224,92 @@ class PedidoIntegracionBloqueoTest extends TestCase
         app(\App\Services\VentaService::class)->cancelarVentaCompleta($venta->id);
     }
 
-    public function test_config_rechaza_cuenta_mp_ya_usada_por_otra_sucursal(): void
+    public function test_config_rechaza_cuenta_mp_ya_usada_por_otro_comercio(): void
     {
-        // El setUp ya registró user_id 999888777 (modo test) para esta sucursal,
-        // sincronizando el collector_index. Otra sucursal que intente la MISMA
-        // cuenta+modo debe ser rechazada ANTES de persistir (la validación corre
-        // previo a la transacción, por eso un sucursal_id cualquiera alcanza).
+        // OTRO comercio real (FK del índice). Se limpia en tearDown (CASCADE).
+        $otroComercio = \App\Models\Comercio::forceCreate([
+            'nombre' => 'Comercio Cross Test',
+            'cuit' => 'TEST-CROSS-COMERCIO',
+            'email' => 'cross@test.com',
+            'database_name' => 'pymes_test',
+            'prefijo' => null,
+            'max_usuarios' => 5,
+        ]);
+
+        \Illuminate\Support\Facades\DB::connection('config')
+            ->table('mercadopago_collector_index')
+            ->insert([
+                'user_id_externo' => 'CROSS-COMERCIO-999',
+                'modo' => 'test',
+                'comercio_id' => $otroComercio->id,
+                'sucursal_id' => 1,
+                'integracion_pago_sucursal_id' => 1,
+                'activo' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
         $integracion = IntegracionPago::porCodigo('mercadopago_qr')->first();
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('ya está configurada en otra sucursal');
+        $this->expectExceptionMessage('ya está en uso por otro comercio');
 
         IntegracionPagoSucursalService::crear([
             'integracion_pago_id' => $integracion->id,
-            'sucursal_id' => $this->sucursalId + 999, // otra sucursal
+            'sucursal_id' => $this->sucursalId,
             'modo' => 'test',
-            'access_token_test' => 'TEST-TOKEN-OTRA',
-            'user_id_externo' => '999888777', // mismo que la sucursal del setUp
+            'access_token_test' => 'TEST-TOKEN-X',
+            'user_id_externo' => 'CROSS-COMERCIO-999',
             'activo' => true,
         ]);
+    }
+
+    public function test_config_permite_misma_cuenta_en_otra_sucursal_del_mismo_comercio(): void
+    {
+        // El setUp ya registró user_id 999888777 para la sucursal 1 de ESTE comercio.
+        // Otra sucursal del MISMO comercio puede compartir esa cuenta MP (una app
+        // por sucursal, varios Stores/POS bajo la misma cuenta). No debe bloquear.
+        $sucursal2 = $this->crearSucursalAdicional();
+        $integracion = IntegracionPago::porCodigo('mercadopago_qr')->first();
+
+        $config2 = IntegracionPagoSucursalService::crear([
+            'integracion_pago_id' => $integracion->id,
+            'sucursal_id' => $sucursal2,
+            'modo' => 'test',
+            'access_token_test' => 'TEST-TOKEN-SUC2',
+            'user_id_externo' => '999888777', // misma cuenta que la sucursal 1
+            'activo' => true,
+        ]);
+
+        $this->assertNotNull($config2->id);
+
+        // El índice sigue resolviendo al comercio correcto (una sola fila por cuenta).
+        $filas = \App\Models\MercadoPagoCollectorIndex::where('user_id_externo', '999888777')->get();
+        $this->assertCount(1, $filas);
+        $this->assertEquals($this->comercio->id, (int) $filas->first()->comercio_id);
+    }
+
+    public function test_borrar_sucursal_que_comparte_cuenta_no_huerfana_el_indice(): void
+    {
+        // Dos sucursales del comercio comparten la cuenta 999888777.
+        $sucursal2 = $this->crearSucursalAdicional();
+        $integracion = IntegracionPago::porCodigo('mercadopago_qr')->first();
+
+        $config2 = IntegracionPagoSucursalService::crear([
+            'integracion_pago_id' => $integracion->id,
+            'sucursal_id' => $sucursal2,
+            'modo' => 'test',
+            'access_token_test' => 'TEST-TOKEN-SUC2',
+            'user_id_externo' => '999888777',
+            'activo' => true,
+        ]);
+
+        // Al borrar una de las dos, el índice NO debe quedar huérfano: la otra
+        // sucursal sigue usando la cuenta, así que la entrada se re-apunta a ella.
+        IntegracionPagoSucursalService::eliminar($config2);
+
+        $filas = \App\Models\MercadoPagoCollectorIndex::where('user_id_externo', '999888777')->get();
+        $this->assertCount(1, $filas, 'La entrada del índice debe seguir existiendo');
+        $this->assertEquals($this->comercio->id, (int) $filas->first()->comercio_id);
     }
 }

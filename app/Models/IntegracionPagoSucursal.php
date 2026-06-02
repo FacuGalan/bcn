@@ -216,6 +216,21 @@ class IntegracionPagoSucursal extends Model
             ->where('modo', $this->modo)
             ->first();
 
+        // Defensa: NUNCA reasignar a otro comercio una cuenta MP ya registrada por
+        // un comercio distinto (cruce de datos financieros). El service ya lo valida
+        // antes de guardar; esto cubre saves directos del modelo. Dentro del MISMO
+        // comercio, en cambio, se permite (varias sucursales comparten la cuenta).
+        if ($existente && (int) $existente->comercio_id !== (int) $comercioId) {
+            \Illuminate\Support\Facades\Log::warning('collector_index: user_id ya pertenece a otro comercio, no se reasigna', [
+                'user_id_externo' => $this->user_id_externo,
+                'modo' => $this->modo,
+                'comercio_existente' => $existente->comercio_id,
+                'comercio_actual' => $comercioId,
+            ]);
+
+            return;
+        }
+
         $datos = [
             'comercio_id' => $comercioId,
             'sucursal_id' => $this->sucursal_id,
@@ -241,13 +256,32 @@ class IntegracionPagoSucursal extends Model
     }
 
     /**
-     * Borra una fila del índice por (user_id_externo, modo) específicos.
-     * Útil cuando cambia user_id o modo y necesitamos limpiar el registro viejo
-     * antes de insertar el nuevo.
+     * Quita la entrada del índice para una clave (user_id_externo, modo).
+     *
+     * Cuenta MP compartida: si OTRA config activa del mismo comercio sigue usando
+     * esa cuenta+modo, NO se borra la entrada (esa sucursal perdería el ruteo del
+     * webhook); en su lugar se re-apunta el índice a ella. Solo se borra cuando ya
+     * ninguna config la usa. Se llama al eliminar una config o al cambiarle el
+     * user_id/modo (con la clave vieja).
      */
     protected function removerDelIndiceColectorPorClave(?string $userIdExterno, ?string $modo): void
     {
         if (! $userIdExterno || ! $modo) {
+            return;
+        }
+
+        $otra = static::query()
+            ->where('user_id_externo', $userIdExterno)
+            ->where('modo', $modo)
+            ->where('id', '<>', $this->id)
+            ->where('activo', true)
+            ->first();
+
+        if ($otra) {
+            // Otra sucursal del comercio sigue usando la cuenta: el índice debe
+            // apuntar a ella (no borrar). Re-sincroniza desde esa config.
+            $otra->sincronizarIndiceColector();
+
             return;
         }
 

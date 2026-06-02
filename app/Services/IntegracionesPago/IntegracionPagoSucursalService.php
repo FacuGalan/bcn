@@ -25,10 +25,9 @@ class IntegracionPagoSucursalService
      */
     public static function crear(array $data): IntegracionPagoSucursal
     {
-        self::validarUserIdNoUsadoPorOtraSucursal(
+        self::validarUserIdNoUsadoPorOtroComercio(
             $data['user_id_externo'] ?? null,
             $data['modo'] ?? null,
-            excluirConfigId: null,
         );
 
         return DB::connection('pymes_tenant')->transaction(function () use ($data) {
@@ -50,10 +49,9 @@ class IntegracionPagoSucursalService
      */
     public static function actualizar(IntegracionPagoSucursal $config, array $data): IntegracionPagoSucursal
     {
-        self::validarUserIdNoUsadoPorOtraSucursal(
+        self::validarUserIdNoUsadoPorOtroComercio(
             $data['user_id_externo'] ?? $config->user_id_externo,
             $data['modo'] ?? $config->modo,
-            excluirConfigId: $config->id,
         );
 
         return DB::connection('pymes_tenant')->transaction(function () use ($config, $data) {
@@ -83,32 +81,38 @@ class IntegracionPagoSucursalService
 
     /**
      * Rechaza configurar una cuenta MP (user_id_externo + modo) que ya está en
-     * uso por OTRA sucursal/comercio. El webhook resuelve la sucursal por el
-     * `user_id` MP vía `mercadopago_collector_index`, que es único por
-     * (user_id_externo, modo): si dos sucursales comparten la misma cuenta, la
-     * última guardada pisaría el índice y la otra dejaría de recibir
-     * confirmaciones por webhook. Mejor bloquear con un mensaje claro.
+     * uso por OTRO COMERCIO. El webhook resuelve el comercio por el `user_id` MP
+     * vía `mercadopago_collector_index`, único por (user_id_externo, modo): si
+     * dos COMERCIOS distintos compartieran la misma cuenta, la última config
+     * guardada pisaría el ruteo y desviaría las confirmaciones al comercio
+     * equivocado (cruce de datos financieros entre clientes). Eso se bloquea.
      *
-     * @throws \RuntimeException si la cuenta ya está tomada por otra config
+     * En cambio, varias SUCURSALES del MISMO comercio SÍ pueden compartir una
+     * cuenta MP (una app por sucursal, varios Stores/POS bajo la misma cuenta):
+     * el ruteo del webhook es a nivel comercio y la transacción se resuelve
+     * después por su `external_id`, así que no hay ambigüedad. MP soporta este
+     * modelo y el sistema debe aprovecharlo.
+     *
+     * @throws \RuntimeException si la cuenta ya está tomada por OTRO comercio
      */
-    private static function validarUserIdNoUsadoPorOtraSucursal(
+    private static function validarUserIdNoUsadoPorOtroComercio(
         ?string $userIdExterno,
         ?string $modo,
-        ?int $excluirConfigId,
     ): void {
         if (empty($userIdExterno) || empty($modo)) {
             return;
         }
 
+        $comercioActualId = app(\App\Services\TenantService::class)->getComercioId();
+
         $existente = DB::connection('config')
             ->table('mercadopago_collector_index')
             ->where('user_id_externo', $userIdExterno)
             ->where('modo', $modo)
-            ->when($excluirConfigId !== null, fn ($q) => $q->where('integracion_pago_sucursal_id', '<>', $excluirConfigId))
             ->first();
 
-        if ($existente) {
-            throw new \RuntimeException(__('Esta cuenta de Mercado Pago (user_id :user) ya está configurada en otra sucursal para el modo :modo. Cada sucursal debe usar una cuenta de Mercado Pago distinta.', [
+        if ($existente && (int) $existente->comercio_id !== (int) $comercioActualId) {
+            throw new \RuntimeException(__('Esta cuenta de Mercado Pago (user_id :user) ya está en uso por otro comercio para el modo :modo. Usá una cuenta de Mercado Pago distinta.', [
                 'user' => $userIdExterno,
                 'modo' => $modo,
             ]));

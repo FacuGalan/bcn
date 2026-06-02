@@ -151,7 +151,7 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
 
         $externalId = self::externalIdStore($comercioId, $sucursal->id);
 
-        $payload = $this->buildStorePayload($sucursal, $externalId);
+        $payload = $this->buildStorePayload($sucursal, $externalId, $this->nombreComercio($comercioId));
 
         $response = $this->client($config)
             ->post(self::API_BASE.'/users/'.$config->user_id_externo.'/stores', $payload);
@@ -201,7 +201,7 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
             throw new \RuntimeException(__('La sucursal no tiene un Store creado en Mercado Pago'));
         }
 
-        $payload = $this->buildStorePayload($sucursal, null);
+        $payload = $this->buildStorePayload($sucursal, null, $this->nombreComercio($comercioId));
 
         $response = $this->client($config)
             ->put(self::API_BASE.'/users/'.$config->user_id_externo.'/stores/'.$sucursal->mp_store_id, $payload);
@@ -499,12 +499,15 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
      * simple: lo último que parezca un número se considera altura). Si no
      * se detecta número, se manda 'S/N' como fallback.
      */
-    private function buildStorePayload(Sucursal $sucursal, ?string $externalId): array
+    private function buildStorePayload(Sucursal $sucursal, ?string $externalId, string $nombreComercio): array
     {
         [$streetName, $streetNumber] = $this->splitDireccion((string) $sucursal->direccion);
 
         $payload = [
-            'name' => $sucursal->nombre_publico ?: $sucursal->nombre,
+            // Nombre que ve el pagador en Mercado Pago: el nombre público de la
+            // sucursal si lo tiene; si no, el nombre del comercio (no el interno
+            // de la sucursal ni el de la cuenta MP del integrador).
+            'name' => $sucursal->nombre_publico ?: ($nombreComercio ?: $sucursal->nombre),
             'location' => [
                 'street_name' => $streetName,
                 'street_number' => $streetNumber,
@@ -521,6 +524,15 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         }
 
         return $payload;
+    }
+
+    /**
+     * Nombre comercial del comercio (tenant) para usarlo como nombre visible de
+     * la Store en MP cuando la sucursal no tiene nombre público propio.
+     */
+    private function nombreComercio(int $comercioId): string
+    {
+        return (string) (\App\Models\Comercio::find($comercioId)?->nombre ?? '');
     }
 
     /**

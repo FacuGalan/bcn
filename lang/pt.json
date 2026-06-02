@@ -1323,7 +1323,7 @@
     "Esta acción también eliminará todas las etiquetas del grupo.": "Esta ação também excluirá todas as etiquetas do grupo.",
     "Esta caja nunca ha sido abierta. Inicie un turno para comenzar a operar.": "Este caixa nunca foi aberto. Inicie um turno para começar a operar.",
     "Esta categoría ya está agregada": "Esta categoria já foi adicionada",
-    "Esta cuenta de Mercado Pago (user_id :user) ya está configurada en otra sucursal para el modo :modo. Cada sucursal debe usar una cuenta de Mercado Pago distinta.": "Esta conta do Mercado Pago (user_id :user) já está configurada em outra filial para o modo :modo. Cada filial deve usar uma conta do Mercado Pago diferente.",
+    "Esta cuenta de Mercado Pago (user_id :user) ya está en uso por otro comercio para el modo :modo. Usá una cuenta de Mercado Pago distinta.": "Esta conta do Mercado Pago (user_id :user) já está em uso por outro comércio para o modo :modo. Use uma conta do Mercado Pago diferente.",
     "Esta es un área segura de la aplicación. Por favor confirmá tu contraseña antes de continuar.": "Esta é uma área segura da aplicação. Por favor confirme sua senha antes de continuar.",
     "Esta es una": "Esta é uma",
     "Esta forma de pago no permite cuotas": "Esta forma de pagamento não permite parcelas",
