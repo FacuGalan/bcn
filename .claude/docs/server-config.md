@@ -142,6 +142,61 @@ El hook `post-merge` ejecuta `php artisan optimize` automáticamente tras `git p
 
 ---
 
+## Integraciones de Pago (Mercado Pago QR)
+
+El cobro por QR de Mercado Pago necesita configuración adicional en el servidor para
+funcionar end-to-end. Hay dos playbooks detallados; esta sección resume lo que el
+servidor debe garantizar.
+
+### Webhook (confirmación en tiempo real)
+
+- **Ruta pública**: el proxy debe enrutar `POST https://<DOMINIO>/api/integraciones/mercadopago/webhook`
+  a la app, sin auth ni IP-whitelist (MP llega desde sus IPs). Es una URL **única
+  global**; la app resuelve la sucursal por el `user_id` MP del payload vía la tabla
+  `mercadopago_collector_index` (DB `config`).
+  ```bash
+  # Debe responder 200 (payload vacío → {"status":"ignored"})
+  curl -i -X POST https://<DOMINIO>/api/integraciones/mercadopago/webhook \
+    -H "Content-Type: application/json" -d '{}'
+  ```
+- **Reverb corriendo** (el mismo que usa Pedidos en tiempo real): el broadcast del
+  pago confirmado llega al navegador del cajero por `wss://<DOMINIO>/app/{key}`. En
+  `.env`: `BROADCAST_CONNECTION=reverb` + `REVERB_*`; en el build del front:
+  `VITE_REVERB_HOST/PORT/SCHEME`. Si se tocan las `VITE_*`, hace falta `npm run build`.
+- **Caches tras deploy**: `php artisan optimize` (incluye `route:cache`; sin esto la
+  ruta del webhook puede dar 404).
+- **Panel de MP**: por cada sucursal/aplicación, registrar la misma URL del webhook,
+  tópico **Órdenes** (Orders API, NO "Pagos"), y cargar el signing secret en
+  Configuración → Integraciones de Pago (campo `webhook_secret`, se guarda encriptado).
+- Sin webhook el cobro **igual funciona** por polling (cada 3s mientras el cajero
+  espera); el webhook agrega confirmación instantánea y robustez.
+
+> Playbook completo: `.claude/docs/integraciones-pago-webhook-deploy.md`
+> (incluye prueba con `ngrok http <puerto>` para túnel contra localhost en dev).
+
+### Expiración de transacciones pendientes (scheduler)
+
+El comando `integraciones-pago:expirar-pendientes` marca como `expirado` las
+transacciones QR que vencieron sin pago. Corre vía el **scheduler de Laravel**
+(`bootstrap/app.php`, `everyMinute` + `withoutOverlapping`), igual que
+`precios:procesar-programados`. **No requiere cron nuevo**: ambos los dispara la
+única entrada de cron del servidor:
+
+```cron
+* * * * * php /ruta/al/proyecto/artisan schedule:run >> /dev/null 2>&1
+```
+
+Si `precios:procesar-programados` ya corre en el servidor, la expiración corre sola
+tras el deploy. Verificar que el scheduler esté activo:
+
+```bash
+php artisan schedule:list   # debe listar ambos comandos
+```
+
+> Playbook completo: `.claude/docs/integraciones-pago-expiracion-deploy.md`
+
+---
+
 ## Verificación
 
 Para verificar que la configuración está correcta en cualquier servidor:
