@@ -590,14 +590,22 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
     // ==================== Cobro QR dinámico (Orders API) ====================
 
     /**
-     * Inicia un cobro QR dinámico creando una Order en MP (POST /v1/orders).
+     * Inicia un cobro QR creando una Order en MP (POST /v1/orders).
      *
-     * Orders API nueva con `config.qr.mode = dynamic`: genera un QR único por
-     * transacción (`type_response.qr_data`) asociado al POS de la caja
-     * (`config.qr.external_pos_id`, sincronizado en Fase 3.5). El pago se
-     * confirma por webhook con tópico "Order" (Fase 6); acá solo se crea.
+     * Orders API nueva: el modo del QR se define por `config.qr.mode`, mapeado
+     * desde `transaccion->modo_usado`:
+     *  - `qr_dinamico` → `dynamic`: genera un QR único por transacción
+     *    (`type_response.qr_data`) que la app renderiza y muestra en pantalla.
+     *  - `qr_estatico` → `static`: NO devuelve `qr_data`. La orden con monto se
+     *    "encola" en el POS de la caja y el cliente escanea el QR FÍSICO impreso
+     *    del POS (cuya imagen guardamos en `caja->mp_pos_qr_url` al sincronizar
+     *    en Fase 3.5). Equivale al comportamiento legacy de Órdenes presenciales.
      *
-     * @return array{qr_data: string, external_reference: string, external_id: string, payload: array}
+     * En ambos modos la orden lleva `external_reference` y notifica por el mismo
+     * tópico "Order" (Fase 6) → el matching del webhook por `external_id` sirve
+     * para los dos sin distinción. Acá solo se crea la orden.
+     *
+     * @return array{qr_data: ?string, qr_image_url: ?string, external_reference: string, external_id: string, payload: array}
      */
     public function iniciarCobro(
         IntegracionPagoSucursal $config,
@@ -609,6 +617,7 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
             throw new \RuntimeException(__('La caja no tiene un punto de venta (POS) sincronizado en Mercado Pago. Sincronícela antes de cobrar con QR.'));
         }
 
+        $modoQr = $this->mapearModoOrdersApi($transaccion->modo_usado);
         $externalReference = 'BCN-TX-'.$transaccion->id;
         $monto = number_format((float) $transaccion->monto, 2, '.', '');
 
@@ -619,7 +628,7 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
             'config' => [
                 'qr' => [
                     'external_pos_id' => $caja->mp_pos_external_id,
-                    'mode' => 'dynamic',
+                    'mode' => $modoQr,
                 ],
             ],
             'transactions' => [
@@ -640,7 +649,9 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         $data = $response->json();
         $qrData = $data['type_response']['qr_data'] ?? null;
 
-        if (empty($qrData)) {
+        // En dinámico es obligatorio que MP devuelva la trama del QR; en estático
+        // no aplica (se usa el QR impreso del POS), así que no se exige.
+        if ($modoQr === 'dynamic' && empty($qrData)) {
             Log::warning('MercadoPagoGateway::iniciarCobro - respuesta sin qr_data', [
                 'transaccion_id' => $transaccion->id,
                 'order_id' => $data['id'] ?? null,
@@ -652,14 +663,30 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         Log::info('MercadoPagoGateway::iniciarCobro OK', [
             'transaccion_id' => $transaccion->id,
             'order_id' => $data['id'] ?? null,
+            'modo' => $modoQr,
         ]);
 
         return [
             'qr_data' => $qrData,
+            // En estático, la app muestra la imagen del QR impreso del POS.
+            'qr_image_url' => $modoQr === 'static' ? $caja->mp_pos_qr_url : null,
             'external_reference' => $externalReference,
             'external_id' => (string) ($data['id'] ?? ''),
             'payload' => $data,
         ];
+    }
+
+    /**
+     * Mapea el `modo_usado` interno (espejo de `modos_disponibles`) al valor de
+     * `config.qr.mode` de la Orders API. Default `dynamic` ante valores no
+     * reconocidos (no rompe el cobro por una config inesperada).
+     */
+    private function mapearModoOrdersApi(?string $modoUsado): string
+    {
+        return match ($modoUsado) {
+            self::MODO_QR_ESTATICO, 'static' => 'static',
+            default => 'dynamic',
+        };
     }
 
     /**

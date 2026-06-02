@@ -48,7 +48,9 @@ class GestionarFormasPago extends Component
     public array $conceptos_permitidos = []; // IDs de conceptos permitidos para mixtas
 
     // Integraciones de pago (N:M) — solo FP simple cuyo concepto permite_integracion.
-    // Cada fila: ['integracion_pago_id'=>, 'modo_default'=>, 'modos_permitidos'=>[], 'es_principal'=>bool]
+    // Cada fila: ['integracion_pago_id'=>, 'modo_default'=>, 'es_principal'=>bool]
+    // Cada integración usa UN modo de cobro (modo_default). El pivote conserva
+    // `modos_permitidos` por compatibilidad; se persiste como [modo_default].
     public array $integraciones_fp = [];
 
     // Cuenta empresa y moneda
@@ -118,7 +120,6 @@ class GestionarFormasPago extends Component
                 $rules['integraciones_fp'] = 'array';
                 $rules['integraciones_fp.*.integracion_pago_id'] = 'required|exists:pymes_tenant.integraciones_pago,id';
                 $rules['integraciones_fp.*.modo_default'] = 'required|string';
-                $rules['integraciones_fp.*.modos_permitidos'] = 'required|array|min:1';
             }
         }
 
@@ -138,9 +139,7 @@ class GestionarFormasPago extends Component
             'conceptos_permitidos.min' => __('Una forma de pago mixta debe permitir al menos 2 conceptos'),
             'integraciones_fp.*.integracion_pago_id.required' => __('Debe seleccionar una integración'),
             'integraciones_fp.*.integracion_pago_id.exists' => __('La integración seleccionada no es válida'),
-            'integraciones_fp.*.modo_default.required' => __('Debe seleccionar un modo default'),
-            'integraciones_fp.*.modos_permitidos.required' => __('Debe seleccionar al menos un modo permitido'),
-            'integraciones_fp.*.modos_permitidos.min' => __('Debe seleccionar al menos un modo permitido'),
+            'integraciones_fp.*.modo_default.required' => __('Debe seleccionar un modo de cobro'),
         ];
     }
 
@@ -195,8 +194,8 @@ class GestionarFormasPago extends Component
         $integracion = $this->integracionesActivas()->firstWhere('id', (int) $value);
         $modos = $integracion?->modos_disponibles ?? [];
 
+        // Preseleccionar el primer modo disponible (el usuario puede cambiarlo).
         $this->integraciones_fp[$index]['modo_default'] = $modos[0] ?? null;
-        $this->integraciones_fp[$index]['modos_permitidos'] = $modos;
     }
 
     public function agregarIntegracion()
@@ -204,7 +203,6 @@ class GestionarFormasPago extends Component
         $this->integraciones_fp[] = [
             'integracion_pago_id' => null,
             'modo_default' => null,
-            'modos_permitidos' => [],
             'es_principal' => count($this->integraciones_fp) === 0,
         ];
     }
@@ -307,7 +305,6 @@ class GestionarFormasPago extends Component
             $this->integraciones_fp = $formaPago->integraciones->map(fn ($int) => [
                 'integracion_pago_id' => $int->id,
                 'modo_default' => $int->pivot->modo_default,
-                'modos_permitidos' => json_decode($int->pivot->modos_permitidos ?? '[]', true) ?: [],
                 'es_principal' => (bool) $int->pivot->es_principal,
             ])->toArray();
         }
@@ -343,14 +340,6 @@ class GestionarFormasPago extends Component
                 }
                 if ($intId) {
                     $vistos[] = $intId;
-                }
-
-                $modoDefault = $row['modo_default'] ?? null;
-                $modosPermitidos = $row['modos_permitidos'] ?? [];
-                if ($modoDefault && ! in_array($modoDefault, $modosPermitidos, true)) {
-                    $this->addError("integraciones_fp.$i.modo_default", __('El modo default debe estar entre los modos permitidos'));
-
-                    return;
                 }
             }
         }
@@ -404,9 +393,12 @@ class GestionarFormasPago extends Component
                     if (empty($row['integracion_pago_id'])) {
                         continue;
                     }
+                    $modo = $row['modo_default'] ?? null;
                     $syncIntegraciones[$row['integracion_pago_id']] = [
-                        'modo_default' => $row['modo_default'] ?? null,
-                        'modos_permitidos' => json_encode(array_values($row['modos_permitidos'] ?? [])),
+                        'modo_default' => $modo,
+                        // Un solo modo por integración: el pivote conserva la columna
+                        // por compatibilidad, espejando el modo elegido.
+                        'modos_permitidos' => json_encode($modo ? [$modo] : []),
                         'es_principal' => ! empty($row['es_principal']),
                     ];
                 }

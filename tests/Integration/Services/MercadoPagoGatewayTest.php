@@ -4,6 +4,7 @@ namespace Tests\Integration\Services;
 
 use App\Models\IntegracionPago;
 use App\Models\IntegracionPagoSucursal;
+use App\Models\IntegracionPagoTransaccion;
 use App\Models\MercadoPagoCollectorIndex;
 use App\Services\IntegracionesPago\MercadoPagoGateway;
 use Illuminate\Http\Client\ConnectionException;
@@ -251,6 +252,116 @@ class MercadoPagoGatewayTest extends TestCase
         $this->assertTrue($this->gateway->verificarFirma($secret, $headers, $dataId));
         $this->assertFalse($this->gateway->verificarFirma('otro-secreto', $headers, $dataId));
         $this->assertFalse($this->gateway->verificarFirma($secret, ['x-signature' => ''], $dataId));
+    }
+
+    // ==================== Cobro QR — iniciarCobro (Fase 5 + 7) ====================
+
+    /**
+     * Transacción en memoria (sin tocar DB ni FKs): el gateway solo usa
+     * id, monto, modo_usado y la caja relacionada.
+     */
+    private function transaccionFake(\App\Models\Caja $caja, string $modo): IntegracionPagoTransaccion
+    {
+        $tx = new IntegracionPagoTransaccion([
+            'monto' => 1500.50,
+            'modo_usado' => $modo,
+            'caja_id' => $caja->id,
+        ]);
+        $tx->id = 4242;
+        $tx->setRelation('caja', $caja);
+
+        return $tx;
+    }
+
+    private function cajaSincronizadaConPos(array $overrides = []): \App\Models\Caja
+    {
+        $caja = $this->crearCaja();
+        $caja->update(array_merge([
+            'mp_pos_id' => '999111',
+            'mp_pos_external_id' => 'BCN'.$this->comercio->id.'POS'.$caja->id,
+            'mp_pos_qr_url' => 'https://mp.com/qr/999111/static.png',
+        ], $overrides));
+
+        return $caja->refresh();
+    }
+
+    public function test_iniciar_cobro_dinamico_envia_mode_dynamic_y_devuelve_qr_data(): void
+    {
+        Http::fake([
+            'api.mercadopago.com/v1/orders' => Http::response([
+                'id' => 'ORD-DIN-1',
+                'type_response' => ['qr_data' => '000201EMVCO-DINAMICO'],
+            ], 201),
+        ]);
+
+        $config = $this->crearConfig();
+        $caja = $this->cajaSincronizadaConPos();
+        $tx = $this->transaccionFake($caja, 'qr_dinamico');
+
+        $res = $this->gateway->iniciarCobro($config, $tx);
+
+        $this->assertSame('000201EMVCO-DINAMICO', $res['qr_data']);
+        $this->assertNull($res['qr_image_url']);
+        $this->assertSame('ORD-DIN-1', $res['external_id']);
+        $this->assertSame('BCN-TX-4242', $res['external_reference']);
+
+        Http::assertSent(fn ($r) => $r->method() === 'POST'
+            && str_ends_with($r->url(), '/v1/orders')
+            && $r->data()['config']['qr']['mode'] === 'dynamic'
+            && $r->data()['config']['qr']['external_pos_id'] === $caja->mp_pos_external_id
+            && $r->hasHeader('X-Idempotency-Key', 'order-BCN-TX-4242'));
+    }
+
+    public function test_iniciar_cobro_estatico_envia_mode_static_y_usa_qr_impreso_del_pos(): void
+    {
+        // En estático MP NO devuelve qr_data: la orden con monto se encola en el
+        // POS y el cliente escanea el QR impreso. No debe fallar por falta de qr_data.
+        Http::fake([
+            'api.mercadopago.com/v1/orders' => Http::response([
+                'id' => 'ORD-EST-1',
+            ], 201),
+        ]);
+
+        $config = $this->crearConfig();
+        $caja = $this->cajaSincronizadaConPos();
+        $tx = $this->transaccionFake($caja, 'qr_estatico');
+
+        $res = $this->gateway->iniciarCobro($config, $tx);
+
+        $this->assertNull($res['qr_data']);
+        $this->assertSame('https://mp.com/qr/999111/static.png', $res['qr_image_url']);
+        $this->assertSame('ORD-EST-1', $res['external_id']);
+
+        Http::assertSent(fn ($r) => $r->data()['config']['qr']['mode'] === 'static');
+    }
+
+    public function test_iniciar_cobro_dinamico_sin_qr_data_lanza_excepcion(): void
+    {
+        // En dinámico SÍ es obligatorio el qr_data (la app lo renderiza).
+        Http::fake([
+            'api.mercadopago.com/v1/orders' => Http::response(['id' => 'ORD-X'], 201),
+        ]);
+
+        $config = $this->crearConfig();
+        $caja = $this->cajaSincronizadaConPos();
+        $tx = $this->transaccionFake($caja, 'qr_dinamico');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/código QR/i');
+
+        $this->gateway->iniciarCobro($config, $tx);
+    }
+
+    public function test_iniciar_cobro_sin_pos_sincronizado_lanza_excepcion(): void
+    {
+        $config = $this->crearConfig();
+        $caja = $this->crearCaja(); // sin mp_pos_*
+        $tx = $this->transaccionFake($caja, 'qr_estatico');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/POS.*sincroniz/i');
+
+        $this->gateway->iniciarCobro($config, $tx);
     }
 
     // ==================== Stores ====================

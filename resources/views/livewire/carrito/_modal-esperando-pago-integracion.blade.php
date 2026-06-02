@@ -86,14 +86,24 @@
 
                     {{-- QR --}}
                     <div class="flex flex-col items-center">
-                        @if($cobroIntegracionQrSvg)
-                            {{-- QR en la pantalla del cajero (se oculta si va al monitor del cliente) --}}
+                        @if($cobroIntegracionQrSvg || $cobroIntegracionQrImagenUrl)
+                            {{-- QR en la pantalla del cajero (se oculta si va al monitor del cliente).
+                                 Dinámico: SVG renderizado de la trama EMVCo.
+                                 Estático: imagen del QR impreso del POS. --}}
                             <div x-show="!enPantallaCliente" class="flex flex-col items-center">
                                 <div class="bg-white p-3 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm" wire:ignore x-ref="qrLocal">
-                                    {!! $cobroIntegracionQrSvg !!}
+                                    @if($cobroIntegracionQrSvg)
+                                        {!! $cobroIntegracionQrSvg !!}
+                                    @else
+                                        <img src="{{ $cobroIntegracionQrImagenUrl }}" alt="{{ __('Código QR de la caja') }}" class="w-[240px] h-[240px] object-contain" />
+                                    @endif
                                 </div>
                                 <p class="mt-3 text-sm text-gray-500 dark:text-gray-400 text-center">
-                                    {{ __('Escaneá el código con la app para pagar') }}
+                                    @if($cobroIntegracionQrSvg)
+                                        {{ __('Escaneá el código con la app para pagar') }}
+                                    @else
+                                        {{ __('Pedile al cliente que escanee el QR de la caja') }}
+                                    @endif
                                 </p>
                             </div>
                             {{-- Modo compacto: el QR se está mostrando en el monitor del cliente --}}

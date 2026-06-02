@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-01
+> Version: 0.1.x | Ultima actualizacion: 2026-06-02
 
 ---
 
@@ -359,23 +359,29 @@ En la parte inferior de la columna derecha se muestra el resumen:
 3. Segun la forma de pago:
    - **Efectivo**: Se abrira un modal para ingresar el monto recibido y calcular el vuelto.
    - **Moneda extranjera**: Se abrira un modal con el tipo de cambio vigente para calcular el equivalente.
-   - **QR dinamico (integracion)**: Si la forma de pago tiene una integracion de cobro configurada (por ejemplo, Mercado Pago QR), se abrira el **modal de espera de pago** (ver abajo).
+   - **Integracion de pago (QR dinamico o estatico)**: Si la forma de pago tiene una integracion de cobro configurada (por ejemplo, Mercado Pago QR), se abrira el **modal de espera de pago** (ver abajo).
    - **Otros**: La venta se procesa directamente.
 4. Confirme la operacion.
 5. El sistema registrara la venta, actualizara el stock, registrara el movimiento de caja y, si corresponde, emitira el comprobante fiscal.
 
-#### Cobro con QR dinamico (integracion de pago)
+#### Cobro con integracion de pago (QR dinamico o QR estatico)
 
-Cuando la forma de pago seleccionada tiene una integracion de cobro activa (por ejemplo, Mercado Pago QR dinamico), el flujo es diferente al cobro tradicional: **el pago se confirma primero y el comprobante se crea despues**. Este mecanismo aplica en todos los puntos de cobro del sistema: Nueva Venta, Pedidos por Mostrador (desglose desde el editor o cobro rapido) y confirmacion de pagos planificados.
+Cuando la forma de pago seleccionada tiene una integracion de cobro activa (por ejemplo, Mercado Pago QR), el flujo es diferente al cobro tradicional: **el pago se confirma primero y el comprobante se crea despues**. Este mecanismo aplica en todos los puntos de cobro del sistema: Nueva Venta, Pedidos por Mostrador (desglose desde el editor o cobro rapido) y confirmacion de pagos planificados.
+
+Existen dos modos de cobro QR, configurables por forma de pago (ver seccion 12.4):
+
+- **QR dinamico**: el sistema genera un QR unico por venta con el monto exacto. El cajero o el cliente lo escanean desde la pantalla.
+- **QR estatico**: se usa el QR fisico impreso del mostrador (el que MP asigna al POS de la caja al sincronizarla). El sistema empuja el monto a ese POS y el cliente escanea el QR impreso que ya esta fijo en el mostrador. No hay una imagen de QR nueva en pantalla: el modal muestra la imagen del QR del POS para que el cajero la identifique y le indique al cliente donde escanear.
 
 **Flujo paso a paso (Nueva Venta):**
 
 1. Seleccione la forma de pago con integracion (identificada visualmente en la lista) y presione **"Cobrar"** (F2).
-2. El sistema genera un QR unico para esa venta y abre el **modal "Esperando pago"**.
+2. El sistema registra la orden de cobro y abre el **modal "Esperando pago"**.
 3. El modal muestra:
    - El monto a cobrar.
-   - El codigo QR para que el cliente escanee con su billetera digital.
-   - Un countdown de expiracion del QR.
+   - **QR dinamico**: el codigo QR generado para esa venta (el cliente lo escanea desde la pantalla).
+   - **QR estatico**: la imagen del QR impreso del POS de la caja (el cliente escanea el QR fisico del mostrador).
+   - Un countdown de expiracion.
 4. El cliente escanea el QR con su app (Mercado Pago u otra billetera compatible) y confirma el pago.
 5. El sistema detecta automaticamente la confirmacion y:
    - Cierra el modal.
@@ -388,7 +394,7 @@ Cuando la forma de pago seleccionada tiene una integracion de cobro activa (por 
 
 **Si la facturacion fiscal falla con el cobro ya confirmado**: el pago queda registrado igual (el cobro ya entro) pero la factura queda pendiente de emision. Aparece un aviso indicando que el cobro fue exitoso y que la facturacion puede reintentarse desde **Cajas → Pagos Pendientes de Facturacion**.
 
-> **Si la caja usa pantalla cliente**: el QR se muestra automaticamente en el segundo monitor orientado al cliente (ver seccion "Pantalla orientada al cliente" mas abajo). El cajero ve un modal compacto indicando que el QR esta en la pantalla del cliente.
+> **Si la caja usa pantalla cliente (solo modo QR dinamico)**: el QR generado se muestra automaticamente en el segundo monitor orientado al cliente (ver seccion "Pantalla orientada al cliente" mas abajo). El cajero ve un modal compacto indicando que el QR esta en la pantalla del cliente.
 
 #### Pantalla orientada al cliente (segundo monitor)
 
@@ -874,7 +880,7 @@ El desglose funciona identico al que se usa dentro del editor:
 - Permite cargar pagos en moneda extranjera con tipo de cambio.
 - Muestra el vuelto si el monto entregado supera el total.
 - El total base del desglose es el **saldo pendiente** del pedido (total - cobrado - planificado), no el total original.
-- Si la forma de pago seleccionada tiene una integracion de cobro (QR dinamico), al confirmar el desglose se abre el **modal "Esperando pago"** con el QR. El pedido se cobra y asocia a la transaccion solo cuando el cliente confirma el pago. Si el cobro se cancela o expira, el pedido no se modifica y el desglose se reabre automaticamente para reintentar o cambiar la forma de pago.
+- Si la forma de pago seleccionada tiene una integracion de cobro (QR dinamico o estatico), al confirmar el desglose se abre el **modal "Esperando pago"** con el QR correspondiente. El pedido se cobra y asocia a la transaccion solo cuando el cliente confirma el pago. Si el cobro se cancela o expira, el pedido no se modifica y el desglose se reabre automaticamente para reintentar o cambiar la forma de pago.
 
 Al confirmar, cada fila del desglose se agrega como pago activo (estado `activo`) directamente al pedido. Si el desglose tiene una sola forma de pago, el pago queda registrado con esa FP individual. Si tiene varias, cada pago queda con su FP especifica (no se usa una FP "mixta" artificial).
 
@@ -2342,9 +2348,10 @@ Este bloque permite vincular la forma de pago con una o mas integraciones config
 
 1. Haga clic en **"+ Agregar integracion"**.
 2. En la fila nueva seleccione la **integracion** del desplegable (muestra las integraciones activas del comercio).
-3. Elija el **modo default**: el modo que se preselecciona al cobrar (ej: "QR dinamico", "QR estatico").
-4. Marque los **modos permitidos** con los checkboxes: son los modos que el cajero podra elegir al cobrar. Debe marcar al menos uno. El modo default debe estar entre los marcados.
-5. Si la forma de pago tiene mas de una integracion, marque **"Principal"** en la que desea que se use por defecto cuando el punto de venta no pregunta al cajero.
+3. Elija el **modo de cobro**: determina como se procesa el pago al usar esta forma de pago en el punto de venta.
+   - **QR dinamico**: el sistema genera un QR unico por venta que se muestra en pantalla. El cliente lo escanea desde la pantalla del cajero o del monitor del cliente.
+   - **QR estatico**: el sistema empuja el monto al POS de la caja y el cliente escanea el QR fisico impreso del mostrador (el que queda fijo en el local). No se genera un QR nuevo en pantalla.
+4. Si la forma de pago tiene mas de una integracion, marque **"Principal"** en la que desea que se use por defecto cuando el punto de venta no pregunta al cajero.
 
 **Quitar una integracion:** haga clic en el icono de eliminar a la derecha de la fila.
 
@@ -2648,13 +2655,19 @@ En el modal de direccion complete:
 3. El sistema crea (o actualiza) la caja como "POS" en MP y guarda la URL del codigo QR estatico.
 4. Al completarse, vera el mensaje "Caja sincronizada con Mercado Pago".
 
-> El codigo QR estatico queda vinculado a esa caja. En una fase futura podra imprimirse directamente desde el sistema para que los clientes escaneen y paguen.
+Una vez sincronizada, cada caja muestra dos botones junto al QR del POS:
+- **Ver QR**: abre la imagen del QR estatico del POS en una nueva pestana.
+- **Imprimir QR**: abre el PDF imprimible del QR para que pueda imprimirlo y dejarlo fijo en el mostrador.
 
-#### Cobro con QR dinamico (Mercado Pago)
+> En movil los botones muestran solo el icono; en escritorio muestran icono y etiqueta.
 
-Una vez que la sucursal y la caja estan sincronizadas y la forma de pago tiene la integracion asignada (ver seccion 12.4), el cobro por QR dinamico esta disponible en todos los puntos de cobro del sistema: Nueva Venta, Pedidos por Mostrador (desglose desde el editor, cobro rapido desde el listado y confirmacion de pagos planificados).
+#### Cobro con integracion de pago (QR dinamico o QR estatico)
 
-El QR dinamico se genera por cada cobro individual con el monto exacto de la operacion. A diferencia del QR estatico (impreso), el QR dinamico expira y es de un solo uso. Ver el flujo completo en la seccion **3.1 — Cobro con QR dinamico**.
+Una vez que la sucursal y la caja estan sincronizadas y la forma de pago tiene la integracion asignada (ver seccion 12.4), el cobro por QR esta disponible en todos los puntos de cobro del sistema: Nueva Venta, Pedidos por Mostrador (desglose desde el editor, cobro rapido desde el listado y confirmacion de pagos planificados).
+
+El **modo de cobro** se define al configurar la forma de pago (ver seccion 12.4):
+- **QR dinamico**: genera un QR unico por venta con el monto exacto. Expira y es de un solo uso. Ver el flujo completo en la seccion **3.1 — Cobro con integracion de pago**.
+- **QR estatico**: usa el QR fisico del mostrador. El sistema envia el monto al POS de la caja y el cliente escanea el QR impreso que ya esta fijo. No caduca el QR (es permanente), pero la orden de cobro si tiene vencimiento. Ver el flujo completo en la seccion **3.1 — Cobro con integracion de pago**.
 
 #### Confirmacion en tiempo real (webhook)
 
