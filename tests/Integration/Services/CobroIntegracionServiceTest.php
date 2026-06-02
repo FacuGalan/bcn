@@ -9,6 +9,7 @@ use App\Models\IntegracionPagoTransaccion;
 use App\Models\Sucursal;
 use App\Services\IntegracionesPago\CobroIntegracionService;
 use App\Services\IntegracionesPago\MercadoPagoGateway;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 use Tests\Traits\WithSucursal;
 use Tests\Traits\WithTenant;
@@ -121,5 +122,61 @@ class CobroIntegracionServiceTest extends TestCase
                 ->where('evento', IntegracionPagoEvento::EVENTO_COBRABLE_ASOCIADO)
                 ->count()
         );
+    }
+
+    // ==================== Fase 7 — iniciar cobro QR estático ====================
+
+    public function test_iniciar_cobro_estatico_guarda_la_imagen_del_qr_del_pos_en_metadata(): void
+    {
+        // El modo estático no devuelve qr_data: la app muestra el QR impreso del
+        // POS (cuya URL se guardó al sincronizar la caja). El service debe
+        // persistir esa URL en metadata para que el front la pueda renderizar.
+        Http::fake([
+            'api.mercadopago.com/v1/orders' => Http::response(['id' => 'ORD-EST-SVC'], 201),
+        ]);
+
+        $mpId = IntegracionPago::porCodigo('mercadopago_qr')->value('id');
+        $config = IntegracionPagoSucursal::create([
+            'integracion_pago_id' => $mpId,
+            'sucursal_id' => $this->sucursalId,
+            'modo' => 'test',
+            'access_token_test' => 'TEST-TOKEN-12345',
+            'user_id_externo' => '999888777',
+        ]);
+
+        $formaPago = \App\Models\FormaPago::create([
+            'nombre' => 'QR Estático',
+            'codigo' => 'QR_EST',
+            'concepto' => 'wallet',
+            'activo' => true,
+        ]);
+
+        $caja = \App\Models\Caja::create([
+            'sucursal_id' => $this->sucursalId,
+            'nombre' => 'Caja QR',
+            'codigo' => 'CQR',
+            'tipo' => 'efectivo',
+            'saldo_actual' => 0,
+            'saldo_inicial' => 0,
+            'estado' => 'cerrada',
+            'activo' => true,
+            'mp_pos_id' => '999111',
+            'mp_pos_external_id' => 'BCN'.$this->comercio->id.'POS999',
+            'mp_pos_qr_url' => 'https://mp.com/qr/999111/static.png',
+        ]);
+
+        $tx = $this->service->iniciarCobro($config, [
+            'forma_pago_id' => $formaPago->id,
+            'sucursal_id' => $this->sucursalId,
+            'caja_id' => $caja->id,
+            'usuario_iniciador_id' => 1,
+            'modo_usado' => 'qr_estatico',
+            'monto' => 2500.00,
+        ]);
+
+        $this->assertNull($tx->qr_data);
+        $this->assertSame('https://mp.com/qr/999111/static.png', $tx->metadata['qr_image_url'] ?? null);
+        $this->assertSame('ORD-EST-SVC', $tx->external_id);
+        $this->assertSame('qr_estatico', $tx->modo_usado);
     }
 }

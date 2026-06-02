@@ -78,8 +78,7 @@ class GestionarFormasPagoTest extends TestCase
             ->set('concepto_pago_id', $this->walletId)
             ->set('integraciones_fp', [[
                 'integracion_pago_id' => $this->mpId,
-                'modo_default' => 'qr_dinamico',
-                'modos_permitidos' => ['qr_dinamico', 'qr_estatico'],
+                'modo_default' => 'qr_estatico',
                 'es_principal' => true,
             ]])
             ->call('guardar')
@@ -91,8 +90,9 @@ class GestionarFormasPagoTest extends TestCase
         $this->assertTrue($fp->tieneIntegracion());
 
         $pivot = $fp->integraciones->first()->pivot;
-        $this->assertSame('qr_dinamico', $pivot->modo_default);
-        $this->assertSame(['qr_dinamico', 'qr_estatico'], json_decode($pivot->modos_permitidos, true));
+        $this->assertSame('qr_estatico', $pivot->modo_default);
+        // Un solo modo por integración: modos_permitidos espeja el modo elegido.
+        $this->assertSame(['qr_estatico'], json_decode($pivot->modos_permitidos, true));
         $this->assertEquals(1, (int) $pivot->es_principal);
     }
 

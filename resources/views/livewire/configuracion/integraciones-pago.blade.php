@@ -227,20 +227,23 @@
                                             <div class="flex items-center gap-2">
                                                 @if ($caja->mp_pos_qr_url)
                                                     <a href="{{ $caja->mp_pos_qr_url }}" target="_blank" rel="noopener"
-                                                       title="{{ __('Ver QR') }}"
-                                                       class="inline-flex items-center px-2 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m0 14v1M4 12h1m14 0h1m-2.05-7.05l-.707.707M5.757 18.243l-.707.707m12.142 0l-.707-.707M5.757 5.757l-.707-.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                                                       title="{{ __('Ver QR estático del POS') }}"
+                                                       class="inline-flex items-center px-2 sm:px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                                        <svg class="w-4 h-4 sm:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                                         </svg>
+                                                        <span class="hidden sm:inline">{{ __('Ver QR') }}</span>
                                                     </a>
                                                 @endif
                                                 @if ($caja->mp_pos_qr_pdf_url)
                                                     <a href="{{ $caja->mp_pos_qr_pdf_url }}" target="_blank" rel="noopener"
-                                                       title="{{ __('Imprimir QR') }}"
-                                                       class="inline-flex items-center px-2 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                       title="{{ __('Imprimir el QR estático para dejarlo en el mostrador') }}"
+                                                       class="inline-flex items-center px-2 sm:px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                                        <svg class="w-4 h-4 sm:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                                                         </svg>
+                                                        <span class="hidden sm:inline">{{ __('Imprimir QR') }}</span>
                                                     </a>
                                                 @endif
 

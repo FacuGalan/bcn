@@ -556,9 +556,9 @@
                                                                 </select>
                                                                 @error("integraciones_fp.{$index}.integracion_pago_id") <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                                             </div>
-                                                            <!-- Modo default -->
+                                                            <!-- Modo de cobro -->
                                                             <div>
-                                                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Modo default') }}</label>
+                                                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Modo de cobro') }}</label>
                                                                 <select
                                                                     wire:model="integraciones_fp.{{ $index }}.modo_default"
                                                                     class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
@@ -570,29 +570,11 @@
                                                                     @endforeach
                                                                 </select>
                                                                 @error("integraciones_fp.{$index}.modo_default") <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                                                <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                                                                    {{ __('QR dinámico: se muestra en pantalla por venta. QR estático: el QR impreso fijo del mostrador.') }}
+                                                                </p>
                                                             </div>
                                                         </div>
-
-                                                        <!-- Modos permitidos -->
-                                                        @if($integracionSel)
-                                                            <div class="mt-3">
-                                                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Modos permitidos') }}</label>
-                                                                <div class="flex flex-wrap gap-x-4 gap-y-2">
-                                                                    @foreach(($integracionSel->modos_disponibles ?? []) as $modo)
-                                                                        <label class="flex items-center text-sm text-gray-700 dark:text-gray-300">
-                                                                            <input
-                                                                                type="checkbox"
-                                                                                value="{{ $modo }}"
-                                                                                wire:model="integraciones_fp.{{ $index }}.modos_permitidos"
-                                                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
-                                                                            />
-                                                                            <span class="ml-1.5">{{ $this->labelModo($modo) }}</span>
-                                                                        </label>
-                                                                    @endforeach
-                                                                </div>
-                                                                @error("integraciones_fp.{$index}.modos_permitidos") <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                                            </div>
-                                                        @endif
 
                                                         <!-- Principal + quitar -->
                                                         <div class="mt-3 flex items-center justify-between">

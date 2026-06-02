@@ -83,6 +83,15 @@ class CobroIntegracionService
             $transaccion->external_reference = $resultado['external_reference'] ?? null;
             $transaccion->external_id = $resultado['external_id'] ?? null;
             $transaccion->payload_respuesta = $resultado['payload'] ?? null;
+
+            // QR estático: no hay trama EMVCo (qr_data); el gateway devuelve la
+            // URL de la imagen del QR impreso del POS para mostrarla en pantalla.
+            if (! empty($resultado['qr_image_url'])) {
+                $transaccion->metadata = array_merge($transaccion->metadata ?? [], [
+                    'qr_image_url' => $resultado['qr_image_url'],
+                ]);
+            }
+
             $transaccion->save();
 
             $this->registrarEvento(

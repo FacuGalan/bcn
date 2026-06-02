@@ -46,6 +46,13 @@ trait WithCobroIntegracion
     /** @var string|null SVG del QR ya renderizado (se genera una vez al iniciar el cobro) */
     public ?string $cobroIntegracionQrSvg = null;
 
+    /**
+     * @var string|null URL de la imagen del QR impreso del POS (modo estático).
+     *                  En estático no hay trama EMVCo para renderizar: se muestra
+     *                  directamente la imagen del QR físico de la caja.
+     */
+    public ?string $cobroIntegracionQrImagenUrl = null;
+
     /** @var float Monto del cobro por integración en curso */
     public float $cobroIntegracionMonto = 0;
 
@@ -137,6 +144,8 @@ trait WithCobroIntegracion
         $this->cobroIntegracionTransaccionId = $transaccion->id;
         $this->cobroIntegracionQrData = $transaccion->qr_data;
         $this->cobroIntegracionQrSvg = $this->renderizarQrSvg($transaccion->qr_data);
+        // Modo estático: sin trama EMVCo; mostramos la imagen del QR impreso del POS.
+        $this->cobroIntegracionQrImagenUrl = $transaccion->metadata['qr_image_url'] ?? null;
         $this->cobroIntegracionMonto = (float) $transaccion->monto;
         $this->cobroIntegracionExpiraTs = $transaccion->expira_en?->timestamp;
         $this->cobroIntegracionConfirmado = false;
@@ -244,6 +253,7 @@ trait WithCobroIntegracion
         $this->cobroIntegracionTransaccionId = null;
         $this->cobroIntegracionQrData = null;
         $this->cobroIntegracionQrSvg = null;
+        $this->cobroIntegracionQrImagenUrl = null;
         $this->cobroIntegracionMonto = 0;
         $this->cobroIntegracionExpiraTs = null;
         $this->cobroIntegracionConfirmado = false;
