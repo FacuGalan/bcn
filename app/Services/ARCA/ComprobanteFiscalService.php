@@ -329,6 +329,7 @@ class ComprobanteFiscalService
                             $pago->update([
                                 'comprobante_fiscal_id' => $comprobante->id,
                                 'monto_facturado' => $montoFacturado,
+                                'estado_facturacion' => VentaPago::ESTADO_FACT_FACTURADO,
                             ]);
                         }
                     }
@@ -342,6 +343,7 @@ class ComprobanteFiscalService
                     $pago->update([
                         'comprobante_fiscal_id' => $comprobante->id,
                         'monto_facturado' => $pago->monto_final,
+                        'estado_facturacion' => VentaPago::ESTADO_FACT_FACTURADO,
                     ]);
                 }
             }
