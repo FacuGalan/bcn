@@ -1323,6 +1323,7 @@
     "Esta acción también eliminará todas las etiquetas del grupo.": "This action will also delete all tags in the group.",
     "Esta caja nunca ha sido abierta. Inicie un turno para comenzar a operar.": "This register has never been opened. Start a shift to begin operating.",
     "Esta categoría ya está agregada": "This category is already added",
+    "Esta cuenta de Mercado Pago (user_id :user) ya está configurada en otra sucursal para el modo :modo. Cada sucursal debe usar una cuenta de Mercado Pago distinta.": "This Mercado Pago account (user_id :user) is already configured in another branch for :modo mode. Each branch must use a different Mercado Pago account.",
     "Esta es un área segura de la aplicación. Por favor confirmá tu contraseña antes de continuar.": "This is a secure area of the application. Please confirm your password before continuing.",
     "Esta es una": "This is a",
     "Esta forma de pago no permite cuotas": "This payment method does not allow installments",

@@ -127,22 +127,28 @@ class CobroIntegracionService
      */
     public function confirmarCobro(IntegracionPagoTransaccion $transaccion, ?Model $cobrable = null, array $payload = []): void
     {
-        if ($transaccion->estaEnEstadoTerminal()) {
-            return;
-        }
-
         DB::connection('pymes_tenant')->transaction(function () use ($transaccion, $cobrable, $payload) {
-            if ($cobrable) {
-                $transaccion->cobrable()->associate($cobrable);
+            // Re-leer bajo lock: serializa esta transición contra una cancelación o
+            // confirmación concurrente (ej. webhook confirma mientras el cajero
+            // cancela). El primero en tomar el lock gana; el segundo ve el estado
+            // terminal y no hace nada.
+            $bloqueada = $this->bloquearTransaccion($transaccion);
+            if (! $bloqueada || $bloqueada->estaEnEstadoTerminal()) {
+                return;
             }
-            $transaccion->estado = IntegracionPagoTransaccion::ESTADO_CONFIRMADO;
-            $transaccion->confirmado_en = now();
-            if (! empty($payload)) {
-                $transaccion->payload_respuesta = $payload;
-            }
-            $transaccion->save();
 
-            $this->registrarEvento($transaccion, IntegracionPagoEvento::EVENTO_CONFIRMADO, $payload ?: null);
+            if ($cobrable) {
+                $bloqueada->cobrable()->associate($cobrable);
+            }
+            $bloqueada->estado = IntegracionPagoTransaccion::ESTADO_CONFIRMADO;
+            $bloqueada->confirmado_en = now();
+            if (! empty($payload)) {
+                $bloqueada->payload_respuesta = $payload;
+            }
+            $bloqueada->save();
+
+            $this->registrarEvento($bloqueada, IntegracionPagoEvento::EVENTO_CONFIRMADO, $payload ?: null);
+            $this->sincronizarModelo($transaccion, $bloqueada);
         });
     }
 
@@ -160,17 +166,18 @@ class CobroIntegracionService
      */
     public function confirmarManual(IntegracionPagoTransaccion $transaccion, ?int $usuarioId = null, ?string $motivo = null): void
     {
-        if ($transaccion->estaEnEstadoTerminal()) {
-            return;
-        }
-
         DB::connection('pymes_tenant')->transaction(function () use ($transaccion, $usuarioId, $motivo) {
-            $transaccion->estado = IntegracionPagoTransaccion::ESTADO_CONFIRMADO_MANUAL;
-            $transaccion->confirmado_en = now();
-            $transaccion->save();
+            $bloqueada = $this->bloquearTransaccion($transaccion);
+            if (! $bloqueada || $bloqueada->estaEnEstadoTerminal()) {
+                return;
+            }
+
+            $bloqueada->estado = IntegracionPagoTransaccion::ESTADO_CONFIRMADO_MANUAL;
+            $bloqueada->confirmado_en = now();
+            $bloqueada->save();
 
             $this->registrarEvento(
-                $transaccion,
+                $bloqueada,
                 IntegracionPagoEvento::EVENTO_CONFIRMADO_MANUAL,
                 null,
                 array_filter([
@@ -178,6 +185,7 @@ class CobroIntegracionService
                     'motivo' => $motivo,
                 ], fn ($v) => $v !== null && $v !== ''),
             );
+            $this->sincronizarModelo($transaccion, $bloqueada);
         });
     }
 
@@ -224,15 +232,18 @@ class CobroIntegracionService
      */
     public function asociarCobrable(IntegracionPagoTransaccion $transaccion, Model $cobrable): void
     {
-        if ($transaccion->cobrable_id !== null) {
-            return;
-        }
-
         DB::connection('pymes_tenant')->transaction(function () use ($transaccion, $cobrable) {
-            $transaccion->cobrable()->associate($cobrable);
-            $transaccion->save();
+            // Bajo lock: si otro flujo concurrente ya asoció un cobrable, no pisar.
+            $bloqueada = $this->bloquearTransaccion($transaccion);
+            if (! $bloqueada || $bloqueada->cobrable_id !== null) {
+                return;
+            }
 
-            $this->registrarEvento($transaccion, IntegracionPagoEvento::EVENTO_COBRABLE_ASOCIADO);
+            $bloqueada->cobrable()->associate($cobrable);
+            $bloqueada->save();
+
+            $this->registrarEvento($bloqueada, IntegracionPagoEvento::EVENTO_COBRABLE_ASOCIADO);
+            $this->sincronizarModelo($transaccion, $bloqueada);
         });
     }
 
@@ -258,10 +269,18 @@ class CobroIntegracionService
         }
 
         return DB::connection('pymes_tenant')->transaction(function () use ($transaccion) {
-            $transaccion->estado = IntegracionPagoTransaccion::ESTADO_CANCELADO;
-            $transaccion->save();
+            // Re-leer bajo lock: si entre el chequeo inicial y acá un webhook
+            // confirmó el cobro, NO lo pisamos con 'cancelado' (la plata entró).
+            $bloqueada = $this->bloquearTransaccion($transaccion);
+            if (! $bloqueada || $bloqueada->estaEnEstadoTerminal()) {
+                return true;
+            }
 
-            $this->registrarEvento($transaccion, IntegracionPagoEvento::EVENTO_CANCELADO);
+            $bloqueada->estado = IntegracionPagoTransaccion::ESTADO_CANCELADO;
+            $bloqueada->save();
+
+            $this->registrarEvento($bloqueada, IntegracionPagoEvento::EVENTO_CANCELADO);
+            $this->sincronizarModelo($transaccion, $bloqueada);
 
             return true;
         });
@@ -292,6 +311,30 @@ class CobroIntegracionService
                 ['motivo' => $motivo],
             );
         });
+    }
+
+    /**
+     * Re-lee la transacción con `lockForUpdate` dentro de la transacción DB
+     * actual. Serializa las transiciones de estado concurrentes (confirmar /
+     * cancelar / asociar) sobre la misma fila: el segundo proceso espera el lock
+     * y luego ve el estado ya resuelto. Debe llamarse SIEMPRE dentro de un
+     * `DB::connection('pymes_tenant')->transaction(...)`.
+     */
+    private function bloquearTransaccion(IntegracionPagoTransaccion $transaccion): ?IntegracionPagoTransaccion
+    {
+        return IntegracionPagoTransaccion::whereKey($transaccion->id)->lockForUpdate()->first();
+    }
+
+    /**
+     * Copia el estado persistido (instancia bloqueada) al modelo que recibió el
+     * caller, para que quien tenga la referencia original vea el estado final sin
+     * tener que refrescar a mano.
+     */
+    private function sincronizarModelo(IntegracionPagoTransaccion $original, IntegracionPagoTransaccion $fresca): void
+    {
+        $original->setRawAttributes($fresca->getAttributes());
+        $original->syncOriginal();
+        $original->setRelations($fresca->getRelations());
     }
 
     /**

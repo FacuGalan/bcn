@@ -211,6 +211,16 @@ trait WithCobroIntegracion
         if ($transaccion->estaConfirmada()) {
             $this->cobroIntegracionConfirmado = true;
             $this->mostrarModalEsperandoPago = false;
+
+            // Guard de reentrada: si la transacción ya tiene cobrable, otro flujo
+            // (otra pestaña, webhook + este polling casi simultáneos) ya materializó
+            // la venta/pedido. NO volver a materializar para no duplicar.
+            if ($transaccion->cobrable_id !== null) {
+                $this->resetCobroIntegracion();
+
+                return;
+            }
+
             $this->alConfirmarCobroIntegracion();
 
             return;

@@ -25,6 +25,12 @@ class IntegracionPagoSucursalService
      */
     public static function crear(array $data): IntegracionPagoSucursal
     {
+        self::validarUserIdNoUsadoPorOtraSucursal(
+            $data['user_id_externo'] ?? null,
+            $data['modo'] ?? null,
+            excluirConfigId: null,
+        );
+
         return DB::connection('pymes_tenant')->transaction(function () use ($data) {
             $config = IntegracionPagoSucursal::create($data);
 
@@ -44,6 +50,12 @@ class IntegracionPagoSucursalService
      */
     public static function actualizar(IntegracionPagoSucursal $config, array $data): IntegracionPagoSucursal
     {
+        self::validarUserIdNoUsadoPorOtraSucursal(
+            $data['user_id_externo'] ?? $config->user_id_externo,
+            $data['modo'] ?? $config->modo,
+            excluirConfigId: $config->id,
+        );
+
         return DB::connection('pymes_tenant')->transaction(function () use ($config, $data) {
             $config->fill($data);
 
@@ -67,6 +79,40 @@ class IntegracionPagoSucursalService
 
             return $config->refresh();
         });
+    }
+
+    /**
+     * Rechaza configurar una cuenta MP (user_id_externo + modo) que ya está en
+     * uso por OTRA sucursal/comercio. El webhook resuelve la sucursal por el
+     * `user_id` MP vía `mercadopago_collector_index`, que es único por
+     * (user_id_externo, modo): si dos sucursales comparten la misma cuenta, la
+     * última guardada pisaría el índice y la otra dejaría de recibir
+     * confirmaciones por webhook. Mejor bloquear con un mensaje claro.
+     *
+     * @throws \RuntimeException si la cuenta ya está tomada por otra config
+     */
+    private static function validarUserIdNoUsadoPorOtraSucursal(
+        ?string $userIdExterno,
+        ?string $modo,
+        ?int $excluirConfigId,
+    ): void {
+        if (empty($userIdExterno) || empty($modo)) {
+            return;
+        }
+
+        $existente = DB::connection('config')
+            ->table('mercadopago_collector_index')
+            ->where('user_id_externo', $userIdExterno)
+            ->where('modo', $modo)
+            ->when($excluirConfigId !== null, fn ($q) => $q->where('integracion_pago_sucursal_id', '<>', $excluirConfigId))
+            ->first();
+
+        if ($existente) {
+            throw new \RuntimeException(__('Esta cuenta de Mercado Pago (user_id :user) ya está configurada en otra sucursal para el modo :modo. Cada sucursal debe usar una cuenta de Mercado Pago distinta.', [
+                'user' => $userIdExterno,
+                'modo' => $modo,
+            ]));
+        }
     }
 
     /**

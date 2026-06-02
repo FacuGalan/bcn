@@ -275,6 +275,20 @@ class PedidoMostrador extends Model
         return $this->hasMany(PedidoMostradorPromocion::class, 'pedido_mostrador_id');
     }
 
+    /**
+     * Indica si el pedido tiene un cobro por integración de pago (QR MercadoPago)
+     * ya confirmado en el proveedor. La transacción se asocia al pedido vía
+     * `cobrable` polimórfico (no hay columna por pago como en venta_pagos).
+     * Mientras no exista refund real, un pedido así no puede cancelarse ni se
+     * puede anular su pago de integración: la plata ya entró al proveedor.
+     */
+    public function tieneIntegracionPagoConfirmada(): bool
+    {
+        return IntegracionPagoTransaccion::porCobrable($this->getMorphClass(), $this->id)
+            ->confirmadas()
+            ->exists();
+    }
+
     // ==================== SCOPES ====================
 
     public function scopePorSucursal(Builder $query, int $sucursalId): Builder
