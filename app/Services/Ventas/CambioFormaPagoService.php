@@ -464,6 +464,13 @@ class CambioFormaPagoService
             return ['puede' => false, 'razon' => __('No se puede modificar una venta cancelada')];
         }
 
+        // Bloqueo Fase 9: el pago se cobró por una integración (QR MercadoPago) ya
+        // confirmada. Cambiar o eliminar este pago dejaría plata cobrada en el
+        // proveedor sin reflejo. La devolución debe hacerse desde el proveedor.
+        if ($pago->tieneIntegracionConfirmada()) {
+            return ['puede' => false, 'razon' => __('No se puede modificar: este pago se cobró por integración (QR) y ya fue confirmado. La devolución debe hacerse desde el proveedor de pago.')];
+        }
+
         if ($pago->venta->puntos_ganados > 0) {
             $puntosService = new \App\Services\PuntosService;
             if (! $puntosService->validarAnulacionVenta($pago->venta)) {

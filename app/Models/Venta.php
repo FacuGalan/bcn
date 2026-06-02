@@ -342,6 +342,21 @@ class Venta extends Model
     }
 
     /**
+     * Indica si la venta tiene algún pago cobrado por una integración de pago
+     * (QR MercadoPago) ya confirmada en el proveedor. Mientras no exista refund
+     * real, una venta así no puede anularse ni modificarse: la plata ya entró.
+     */
+    public function tieneIntegracionPagoConfirmada(): bool
+    {
+        return $this->pagos()
+            ->whereNotNull('integracion_pago_transaccion_id')
+            ->whereHas('integracionTransaccion', function ($q) {
+                $q->confirmadas();
+            })
+            ->exists();
+    }
+
+    /**
      * Verifica si es venta en cuenta corriente
      */
     public function esCtaCte(): bool

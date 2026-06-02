@@ -967,6 +967,20 @@ class VentaService
     }
 
     /**
+     * Protege contra anular/modificar una venta cuyo cobro ya se efectuó vía una
+     * integración de pago (QR MercadoPago) confirmada. Mientras no exista refund
+     * real contra el proveedor, anular la venta dejaría plata cobrada sin devolver.
+     *
+     * @throws Exception
+     */
+    protected function protegerContraIntegracionConfirmada(Venta $venta): void
+    {
+        if ($venta->tieneIntegracionPagoConfirmada()) {
+            throw new Exception(__('No se puede anular ni modificar: esta venta tiene un cobro por integración (QR) ya confirmado. La devolución debe hacerse desde el proveedor de pago.'));
+        }
+    }
+
+    /**
      * Cancela una venta completamente y revierte todos sus efectos
      * - Emite nota de crédito si tiene comprobantes fiscales (y emitirNotaCredito=true)
      * - Revierte el stock
@@ -985,6 +999,10 @@ class VentaService
     {
         // Validar puntos ANTES de iniciar transacción (RF-14)
         $ventaParaValidar = Venta::find($ventaId);
+        if ($ventaParaValidar) {
+            // Bloqueo Fase 9: no anular si hay cobro por integración confirmado
+            $this->protegerContraIntegracionConfirmada($ventaParaValidar);
+        }
         if ($ventaParaValidar && $ventaParaValidar->puntos_ganados > 0) {
             $puntosService = new PuntosService;
             if (! $puntosService->validarAnulacionVenta($ventaParaValidar)) {
@@ -1271,6 +1289,9 @@ class VentaService
             if ($venta->estaCancelada()) {
                 throw new Exception('La venta está cancelada');
             }
+
+            // Bloqueo Fase 9: pasar a CC anularía el cobro por integración confirmado
+            $this->protegerContraIntegracionConfirmada($venta);
 
             if ($venta->es_cuenta_corriente) {
                 throw new Exception('La venta ya es cuenta corriente');

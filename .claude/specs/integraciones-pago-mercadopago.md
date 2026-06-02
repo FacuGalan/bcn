@@ -1,10 +1,10 @@
 # Integraciones de Pago — MercadoPago (y framework extensible) — Especificación
 
-## Estado: APROBADO (2026-05-26) — implementación pendiente
+## Estado: EN IMPLEMENTACIÓN — Fases 1-9 COMPLETAS (2026-06-02), resta Fase 10 (docs + PR final)
 
 > Framework genérico para conectar pasarelas de pago (MercadoPago en MVP, luego MODO, Cuenta DNI, PayPal, etc.) a Formas de Pago del sistema. Cada FormaPago puede tener una integración asignada con un **modo** específico (QR dinámico, QR estático, etc.) y, al cobrar, se dispara el flujo correspondiente (generar QR, esperar confirmación por webhook+Reverb, materializar la venta).
 >
-> **Próximo paso**: `/sdd-apply integraciones-pago-mercadopago` — Fase 1 (esqueleto BD + modelos + catálogo).
+> **Próximo paso**: Fase 10 — documentación (`@docs-sync`), instrucciones de webhook en `server-config.md`, y PR final con `/sdd-verify`. Las Fases 1-9 ya están mergeadas (PRs #107 a #120) salvo Fase 9, en su rama.
 
 ---
 
@@ -873,13 +873,17 @@ Claves nuevas (en `lang/es.json`, `lang/en.json`, `lang/pt.json`, orden alfabét
 
 **Entregable**: cobertura de casos edge (timeout + fallback manual).
 
-### Fase 9: Pagos mixtos + estabilización [PENDIENTE]
+### Fase 9: Pagos mixtos + estabilización [COMPLETO — 2026-06-02]
 
-1. Verificar que el flujo de pagos mixtos funciona end-to-end (puede requerir ajustes en NuevaVenta).
-2. Tests específicos de pago mixto.
-3. Smoke testing exhaustivo en NuevaVenta.
+1. ✅ **Pagos mixtos verificados end-to-end**: el flujo ya estaba construido en `WithPagosDesglose` (Fase 5/7). El desglose admite N pagos, uno de los cuales puede ser de integración (QR); al confirmar el QR se materializan todos los pagos del desglose. No requirió ajustes funcionales en NuevaVenta, sólo trazabilidad.
+2. ✅ **Trazabilidad del pago de integración**: nueva columna tenant `venta_pagos.integracion_pago_transaccion_id` (FK nullable a `integraciones_pago_transacciones`, `ON DELETE SET NULL`). En `procesarVentaConDesglose` se vincula al único `venta_pago` cobrado por integración (modo único por FP, Fase 7). Resuelve la ambigüedad de "cuál de los pagos del desglose fue el QR". Helpers: `VentaPago::tieneIntegracionConfirmada()`, `Venta::tieneIntegracionPagoConfirmada()`, relación `VentaPago::integracionTransaccion()`.
+3. ✅ **Bloqueo de anulación/modificación (en lugar de refund)**: mientras no exista refund real contra el proveedor, una venta/pago con cobro de integración **confirmado** no puede anularse ni modificarse (la plata ya entró a la cuenta MP). Guard centralizado `VentaService::protegerContraIntegracionConfirmada()` en `cancelarVentaCompleta` (y vía ella `cancelarVenta`) y `anularPagosYPasarACtaCte`. `anularSoloParteFiscal` NO se bloquea (es ajuste fiscal puro, no toca el cobro). Modificación bloqueada en `CambioFormaPagoService::puedeModificarVentaPago()` → cubre `cambiarFormaPago`, `eliminarPagoDeVenta` y la UI de Ventas.
+4. ✅ **Tests** (`CobroQrPagoMixtoTest`, 4 tests / 17 assertions): pago mixto efectivo+QR vincula la tx al pago correcto (y NO al efectivo); cobro QR es por la porción de la integración (no el total); no se puede anular venta con integración confirmada; el bloqueo no deja la venta cancelada; no se puede modificar el pago de integración.
+5. ✅ Migración aplicada en dev + testing, `tenant_tables.sql` regenerado, traducciones es/en/pt, Pint OK, 30 tests de integración de pagos verdes (sin regresiones).
 
-**Entregable**: pagos mixtos funcionales.
+**Refund real → PENDIENTE FUTURO** (decisión 2026-06-02): no se desarrolla todavía. Cuando se necesite devolver un cobro de integración, hay que: (a) agregar `reembolsar(transaccion)` al Gateway/Service que pegue al endpoint de refund del proveedor, (b) registrar un `IntegracionPagoEvento` de reverso (append-only), (c) recién entonces permitir la anulación de la venta levantando el guard. La columna `integracion_pago_transaccion_id` ya deja el rastro necesario para implementarlo.
+
+**Entregable**: pagos mixtos funcionales + trazabilidad + bloqueo seguro de anulación. ✅
 
 ### Fase 10: Documentación + PR [PENDIENTE]
 
