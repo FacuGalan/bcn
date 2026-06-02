@@ -63,6 +63,7 @@ class VentaPago extends Model
         'estado',
         'movimiento_caja_id',
         'comprobante_fiscal_id',
+        'integracion_pago_transaccion_id',
         'monto_facturado',
         'anulado_por_usuario_id',
         'anulado_at',
@@ -156,6 +157,16 @@ class VentaPago extends Model
     public function comprobanteFiscal(): BelongsTo
     {
         return $this->belongsTo(ComprobanteFiscal::class, 'comprobante_fiscal_id');
+    }
+
+    /**
+     * Transacción de integración de pago (MercadoPago QR) que cobró este pago.
+     * Sólo presente en el venta_pago que se pagó vía integración dentro de un
+     * desglose mixto. Habilita la trazabilidad y el bloqueo de modificación.
+     */
+    public function integracionTransaccion(): BelongsTo
+    {
+        return $this->belongsTo(IntegracionPagoTransaccion::class, 'integracion_pago_transaccion_id');
     }
 
     public function cierreTurno(): BelongsTo
@@ -331,6 +342,21 @@ class VentaPago extends Model
     public function estaFacturado(): bool
     {
         return $this->comprobante_fiscal_id !== null;
+    }
+
+    /**
+     * Indica si este pago fue cobrado por una integración de pago (QR MP) cuyo
+     * cobro ya se efectuó y confirmó en el proveedor. En ese caso el pago no se
+     * puede modificar ni anular sin un refund real (no implementado todavía),
+     * porque la plata ya entró a la cuenta del proveedor.
+     */
+    public function tieneIntegracionConfirmada(): bool
+    {
+        if ($this->integracion_pago_transaccion_id === null) {
+            return false;
+        }
+
+        return $this->integracionTransaccion()->confirmadas()->exists();
     }
 
     /**

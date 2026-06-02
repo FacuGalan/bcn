@@ -334,6 +334,16 @@ Si selecciona una forma de pago de tipo "Mixta", al presionar el boton de cobro 
 5. El sistema calculara automaticamente los ajustes (recargos/descuentos) de cada forma de pago.
 6. Cuando el monto pendiente llegue a cero, podra confirmar la venta.
 
+**Pago mixto con QR MercadoPago**: si el desglose incluye una forma de pago con integracion QR (por ejemplo, parte en efectivo + parte con QR Mercado Pago), el sistema solo cobra la porcion de integracion a traves del QR. El flujo es el siguiente:
+
+1. Arme el desglose con todas las formas de pago. La porcion con QR indica el monto exacto a cobrar por esa via.
+2. Al confirmar el desglose, el sistema abre el **modal "Esperando pago"** por el monto de la porcion QR.
+3. El cliente escanea el QR y confirma el pago desde su app.
+4. Una vez confirmado el cobro QR, el sistema materializa la venta con todos los pagos del desglose (efectivo, QR, etc.) en un solo paso.
+5. Los otros medios de pago del desglose (por ejemplo, efectivo) quedan registrados en la venta junto con el cobro QR.
+
+> **Importante**: una venta que incluye un cobro QR confirmado **no puede anularse ni modificarse** (ver restriccion mas abajo). Si el QR se cancela o expira antes de confirmarse, la venta no se crea y el desglose queda disponible para reintentar.
+
 #### Facturacion fiscal
 
 Si la sucursal tiene facturacion fiscal habilitada, la venta puede generar automaticamente un comprobante fiscal (factura A, B o C segun el cliente). El tipo de comprobante se muestra junto al nombre del cliente seleccionado.
@@ -521,6 +531,8 @@ Para cada venta en la lista, puede:
 
 > **Importante**: La anulacion de una venta es irreversible. Verifique cuidadosamente antes de confirmar.
 
+> **Restriccion por cobro QR confirmado**: Si la venta tiene un cobro realizado por integracion (QR MercadoPago) ya confirmado, el sistema **no permitira anularla**. Vera el mensaje: "No se puede anular ni modificar: esta venta tiene un cobro por integracion (QR) ya confirmado. La devolucion debe hacerse desde el proveedor de pago." Esto se debe a que el dinero ya fue acreditado en la cuenta de MercadoPago y el sistema aun no tiene mecanismo de devolucion automatica. La anulacion del comprobante fiscal (parte fiscal unicamente) si sigue siendo posible y no se ve afectada por esta restriccion.
+
 ### 3.3 Programa de Puntos
 
 **Ruta**: Ventas → Programa de Puntos
@@ -606,6 +618,7 @@ El boton de modificar queda deshabilitado si:
 - La venta esta cancelada.
 - La venta tiene puntos canjeados por terceros.
 - El pago pertenece a un turno cerrado y no se tiene el permiso `func.cambiar_forma_pago_turno_cerrado`.
+- **El pago fue cobrado por integracion QR (MercadoPago) y ya fue confirmado**: el boton aparece deshabilitado con el tooltip "No se puede modificar: este pago se cobro por integracion (QR) y ya fue confirmado. La devolucion debe hacerse desde el proveedor de pago." La devolucion debe gestionarse directamente desde el panel de MercadoPago.
 
 #### Cobros CC aplicados
 

@@ -224,6 +224,7 @@ Desglose de formas de pago de una venta. Una venta puede tener multiples pagos (
 | `comprobante_fiscal_nuevo_id` | bigint FK nullable | FK a `{PREFIX}comprobantes_fiscales.id` — FC nueva emitida cuando este pago es reemplazo |
 | `estado_facturacion` | enum | Estado fiscal del pago: `no_facturado`, `facturado`, `pendiente_de_facturar`, `error_arca` |
 | `datos_snapshot_json` | json nullable | Snapshot JSON del estado del pago al momento de anularse (forense): forma_pago, montos, caja, usuario, turno |
+| `integracion_pago_transaccion_id` | bigint FK nullable | FK a `{PREFIX}integraciones_pago_transacciones.id` (ON DELETE SET NULL) — transaccion QR que cobro este pago. Solo presente en el venta_pago que se cobro via integracion dentro de un desglose mixto o pago unico por QR. Habilita trazabilidad y bloqueo de modificacion/anulacion. |
 | `created_at`, `updated_at` | timestamp | Timestamps |
 
 **Nota**: Los pagos originales de la venta tienen `operacion_origen = 'venta_original'`. Al cambiar un pago, el pago viejo queda con `estado = 'anulado'` y el nuevo tiene `venta_pago_reemplazado_id` apuntando al anulado y `operacion_origen = 'cambio_pago'`. Este patron es append-only, consistente con movimientos_stock y movimientos_cuenta_corriente.
@@ -2630,6 +2631,7 @@ Antes de ejecutar se valida:
 3. El `venta_pago` no tiene cobros de CC imputados activos (`cobrosAplicados()->exists() === false`).
 4. La venta no tiene puntos canjeados.
 5. Si `venta_pago.cierre_turno_id` no es NULL: el usuario debe tener permiso `func.cambiar_forma_pago_turno_cerrado`.
+6. **(Fase 9)** El `venta_pago` no tiene un cobro de integracion confirmado: `VentaPago::tieneIntegracionConfirmada()` devuelve false. Si devuelve true, `CambioFormaPagoService::puedeModificarVentaPago()` retorna `['puede' => false, 'razon' => ...]`.
 
 #### Fase A — atomica
 
@@ -2942,6 +2944,32 @@ Indice UNIQUE en `(user_id_externo, modo)`. Se sincroniza via `IntegracionPagoSu
 Metodo nuevo (Fase 6). Configura la conexion tenant (`pymes_tenant`) para un proceso que corre fuera de una sesion HTTP (webhook, comando artisan, job de cola). A diferencia del flujo normal (que resuelve el comercio desde la sesion del usuario autenticado), este metodo acepta el `comercioId` directamente y establece el prefijo de tablas en el `TenantService` sin requerir `Auth::user()`.
 
 Uso tipico: el webhook lo llama tras resolver el `comercio_id` desde `mercadopago_collector_index`, antes de cualquier consulta a tablas tenant.
+
+#### Trazabilidad de cobros en pagos mixtos (Fase 9)
+
+La columna `venta_pagos.integracion_pago_transaccion_id` (FK nullable a `{PREFIX}integraciones_pago_transacciones`, ON DELETE SET NULL) vincula el `venta_pago` que fue cobrado via QR con su transaccion confirmada. Resuelve el caso de pagos mixtos donde solo una de las formas de pago usa integracion QR.
+
+**Regla de asignacion (en `WithPagosDesglose::procesarVentaConDesglose`)**: al materializar la venta, se itera el desglose de pagos y se asigna `integracion_pago_transaccion_id` al primer `venta_pago` cuya `FormaPago` tenga integracion (`tieneIntegracion()`), usando el `cobroIntegracionTransaccionId` ya confirmado. El flag `$txIntegracionAsignada` garantiza que solo un `venta_pago` recibe el vinculo (modo unico por FP).
+
+**Helpers en `VentaPago` (Fase 9)**:
+- `integracionTransaccion(): BelongsTo` — relacion a `IntegracionPagoTransaccion` via `integracion_pago_transaccion_id`.
+- `tieneIntegracionConfirmada(): bool` — retorna true si `integracion_pago_transaccion_id` no es null Y `integracionTransaccion()->confirmadas()->exists()` (usa el scope `confirmadas()` del modelo, que cubre tanto `confirmado` como `confirmado_manual`).
+
+**Helper en `Venta` (Fase 9)**:
+- `tieneIntegracionPagoConfirmada(): bool` — retorna true si algun `venta_pago` de la venta tiene `integracion_pago_transaccion_id` no nulo con transaccion confirmada. Usa `whereNotNull` + `whereHas('integracionTransaccion', fn($q) => $q->confirmadas())`.
+
+#### Bloqueo de anulacion y modificacion por cobro QR confirmado (Fase 9)
+
+Una venta o pago con cobro de integracion QR ya confirmado no puede anularse ni modificarse porque el dinero ya fue acreditado en la cuenta del proveedor (MercadoPago) y no existe mecanismo de refund automatico implementado todavia.
+
+**Metodo protegido `VentaService::protegerContraIntegracionConfirmada(Venta $venta): void`**: lanza `Exception` con el mensaje traducible `'No se puede anular ni modificar: esta venta tiene un cobro por integracion (QR) ya confirmado. La devolucion debe hacerse desde el proveedor de pago.'` si `$venta->tieneIntegracionPagoConfirmada()` devuelve true.
+
+**Donde se aplica el bloqueo**:
+- `VentaService::cancelarVentaCompleta()` — antes de iniciar la transaccion. Bloquea la anulacion total de la venta.
+- `VentaService::anularPagosYPasarACtaCte()` — antes de la transaccion. Bloquea el pase a cuenta corriente (que anularia los pagos actuales).
+- `CambioFormaPagoService::puedeModificarVentaPago()` — retorna `['puede' => false, 'razon' => ...]` si el `venta_pago` tiene `tieneIntegracionConfirmada() === true`. Bloquea la modificacion de ese pago especifico.
+
+**Que NO bloquea**: la anulacion de solo la parte fiscal (emision de nota de credito sobre el comprobante) no toca el cobro y sigue siendo posible. El bloqueo aplica solo a operaciones que reverterian el dinero cobrado.
 
 ---
 

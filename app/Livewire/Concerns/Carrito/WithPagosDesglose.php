@@ -2054,9 +2054,23 @@ trait WithPagosDesglose
 
                 // Guardar desglose de pagos con nuevos campos
                 $pagosCreados = []; // Mapeo de índice => VentaPago ID para facturación parcial
+                $txIntegracionAsignada = false; // El cobro QR se vincula a un único venta_pago
                 foreach ($this->desglosePagos as $index => $pago) {
                     $fp = FormaPago::find($pago['forma_pago_id']);
                     $esCuentaCorriente = $fp && strtoupper($fp->codigo) === 'CTA_CTE';
+
+                    // Trazabilidad (Fase 9): vincular el pago cobrado por integración
+                    // (QR MP) con su transacción confirmada. Modo único por FP → se
+                    // asigna a un solo venta_pago. Habilita el bloqueo posterior de
+                    // modificación/anulación (no hay refund real todavía).
+                    $integracionTransaccionId = null;
+                    if (! $txIntegracionAsignada
+                        && $this->cobroIntegracionConfirmado
+                        && $this->cobroIntegracionTransaccionId
+                        && $fp && $fp->tieneIntegracion()) {
+                        $integracionTransaccionId = $this->cobroIntegracionTransaccionId;
+                        $txIntegracionAsignada = true;
+                    }
 
                     // Determinar si es pago en efectivo (solo efectivo afecta la caja física)
                     $conceptoPago = null;
@@ -2161,6 +2175,7 @@ trait WithPagosDesglose
                         'afecta_caja' => $afectaCaja,
                         'estado' => 'activo',
                         'movimiento_caja_id' => $movimientoCajaId,
+                        'integracion_pago_transaccion_id' => $integracionTransaccionId,
                         'moneda_id' => $pago['moneda_id'] ?? $fpMonedaId ?? Moneda::obtenerPrincipal()?->id,
                         'monto_moneda_original' => $pago['monto_moneda_original'] ?? null,
                         'tipo_cambio_tasa' => $pago['tipo_cambio_tasa'] ?? null,
