@@ -99,7 +99,7 @@ class Sucursal extends Model
 
     protected $fillable = [
         'nombre', 'nombre_publico', 'codigo', 'direccion', 'telefono', 'email', 'logo_path',
-        'es_principal', 'datos_fiscales_id', 'activa', 'configuracion',
+        'es_principal', 'datos_fiscales_id', 'activa', 'configuracion', 'config_pantalla_cliente',
         // Campos de configuración
         'usa_clave_autorizacion', 'clave_autorizacion', 'tipo_impresion_factura',
         'imprime_encabezado_comanda', 'agrupa_articulos_venta', 'agrupa_articulos_impresion',
@@ -118,6 +118,7 @@ class Sucursal extends Model
         'es_principal' => 'boolean',
         'activa' => 'boolean',
         'configuracion' => 'array',
+        'config_pantalla_cliente' => 'array',
         'usa_clave_autorizacion' => 'boolean',
         'imprime_encabezado_comanda' => 'boolean',
         'agrupa_articulos_venta' => 'boolean',
