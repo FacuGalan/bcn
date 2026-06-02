@@ -11,6 +11,7 @@ use App\Events\PedidoMostrador\PedidoEstadoPagoCambiado;
 use App\Models\Articulo;
 use App\Models\Caja;
 use App\Models\FormaPago;
+use App\Models\IntegracionPagoTransaccion;
 use App\Models\MovimientoCaja;
 use App\Models\MovimientoStock;
 use App\Models\PedidoMostrador;
@@ -543,6 +544,19 @@ class PedidoMostradorService
             throw new Exception('El pago ya estaba anulado');
         }
 
+        // Bloqueo: este pago se cobró por integración (QR) y ya está confirmado en
+        // el proveedor. Anularlo dejaría plata cobrada sin devolver. La transacción
+        // se asocia al pedido (cobrable polimórfico); identificamos el pago por su
+        // forma de pago con integración. Otros pagos del pedido (ej. efectivo) sí
+        // se pueden anular. La devolución del QR debe hacerse desde el proveedor.
+        $fpPago = $pago->formaPago()->first();
+        if ($fpPago && $fpPago->tieneIntegracion()) {
+            $pedidoDelPago = $pago->pedido()->first();
+            if ($pedidoDelPago && $pedidoDelPago->tieneIntegracionPagoConfirmada()) {
+                throw new Exception(__('No se puede modificar: este pago se cobró por integración (QR) y ya fue confirmado. La devolución debe hacerse desde el proveedor de pago.'));
+            }
+        }
+
         // Guard: paridad con CambioFormaPagoService::puedeModificarPago().
         // Si el pago ya forma parte de un cierre de turno cerrado, anularlo
         // dejaría el contraasiento fuera del cierre y descuadraría el arqueo.
@@ -597,6 +611,12 @@ class PedidoMostradorService
             PedidoMostrador::ESTADO_FACTURADO,
         ], true)) {
             throw new Exception("No se puede cancelar un pedido en estado '{$pedido->estado_pedido}'");
+        }
+
+        // Bloqueo: cancelar anularía el cobro por integración (QR) ya confirmado.
+        // La plata ya entró al proveedor; la devolución debe hacerse desde ahí.
+        if ($pedido->tieneIntegracionPagoConfirmada()) {
+            throw new Exception(__('No se puede anular ni modificar: este pedido tiene un cobro por integración (QR) ya confirmado. La devolución debe hacerse desde el proveedor de pago.'));
         }
 
         DB::connection('pymes_tenant')->transaction(function () use ($pedido, $motivo) {
@@ -1563,8 +1583,19 @@ class PedidoMostradorService
     {
         $pagos = $pedido->pagos()->where('estado', PedidoMostradorPago::ESTADO_ACTIVO)->get();
 
+        // Trazabilidad del cobro por integración (QR): la transacción se asoció al
+        // PEDIDO (cobrable polimórfico) y no se trasladaba al venta_pago, dejando
+        // a la venta resultante sin el link → el bloqueo de anulación (que mira
+        // venta_pagos.integracion_pago_transaccion_id) no la protegía. Mapear las
+        // transacciones confirmadas del pedido por forma de pago para vincularlas.
+        $txsIntegracionPorFp = IntegracionPagoTransaccion::porCobrable($pedido->getMorphClass(), $pedido->id)
+            ->confirmadas()
+            ->get()
+            ->keyBy('forma_pago_id');
+
         foreach ($pagos as $pago) {
             $ventaPago = VentaPago::create([
+                'integracion_pago_transaccion_id' => $txsIntegracionPorFp->get($pago->forma_pago_id)?->id,
                 'venta_id' => $venta->id,
                 'forma_pago_id' => $pago->forma_pago_id,
                 'concepto_pago_id' => $pago->concepto_pago_id,

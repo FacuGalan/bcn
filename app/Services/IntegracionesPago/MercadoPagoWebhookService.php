@@ -3,7 +3,6 @@
 namespace App\Services\IntegracionesPago;
 
 use App\Events\IntegracionesPago\IntegracionPagoActualizado;
-use App\Models\IntegracionPagoSucursal;
 use App\Models\IntegracionPagoTransaccion;
 use App\Models\MercadoPagoCollectorIndex;
 use App\Services\TenantService;
@@ -71,33 +70,28 @@ class MercadoPagoWebhookService
             return ['status' => 'sin_match', 'motivo' => 'user_id no registrado'];
         }
 
-        // Configurar la conexión tenant (sin sesión: ruta api).
+        // Configurar la conexión tenant (sin sesión: ruta api). El índice resuelve
+        // SOLO el comercio (DB tenant). La sucursal se deduce de la propia
+        // transacción, no del índice: así una cuenta MP compartida por varias
+        // sucursales del comercio enruta bien (el índice apunta a una cualquiera).
         app(TenantService::class)->usarComercioParaProceso($index->comercio_id);
-
-        $config = IntegracionPagoSucursal::find($index->integracion_pago_sucursal_id);
-        if (! $config) {
-            Log::warning('MP webhook: config de sucursal no encontrada', [
-                'comercio_id' => $index->comercio_id,
-                'integracion_pago_sucursal_id' => $index->integracion_pago_sucursal_id,
-            ]);
-
-            return ['status' => 'sin_match', 'motivo' => 'config no encontrada'];
-        }
-
-        // Verificación de firma: si la sucursal tiene secret configurado, es
-        // obligatoria. Sin secret, se omite (se confía en el re-chequeo via API).
-        if (! empty($config->webhook_secret)
-            && ! $gateway->verificarFirma($config->webhook_secret, $headers, $orderId)) {
-            Log::warning('MP webhook: firma inválida', ['order_id' => $orderId, 'comercio_id' => $index->comercio_id]);
-
-            return ['status' => 'firma_invalida'];
-        }
 
         $transaccion = IntegracionPagoTransaccion::where('external_id', $orderId)->first();
         if (! $transaccion) {
             Log::info('MP webhook: transacción no encontrada para la order', ['order_id' => $orderId]);
 
             return ['status' => 'sin_match', 'motivo' => 'transacción no encontrada'];
+        }
+
+        // Config de la SUCURSAL real de la transacción (su propia app/credenciales).
+        // Verificación de firma con su secret: si está configurado, es obligatoria;
+        // sin secret se omite (se confía en el re-chequeo autenticado a la API).
+        $config = $transaccion->integracionSucursal;
+        if ($config && ! empty($config->webhook_secret)
+            && ! $gateway->verificarFirma($config->webhook_secret, $headers, $orderId)) {
+            Log::warning('MP webhook: firma inválida', ['order_id' => $orderId, 'comercio_id' => $index->comercio_id]);
+
+            return ['status' => 'firma_invalida'];
         }
 
         // Auditoría: queda registro de la notificación recibida.
