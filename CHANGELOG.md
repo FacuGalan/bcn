@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.1.7](https://github.com/FacuGalan/bcn/compare/v0.1.6...v0.1.7) (2026-06-02)
+
+
+### Funcionalidades
+
+* **integraciones-pago:** cobro QR en todos los flujos de cobro de pedidos ([#115](https://github.com/FacuGalan/bcn/issues/115)) ([476281d](https://github.com/FacuGalan/bcn/commit/476281dfa312cf5ef20363b9ae0b15c61fb395c7))
+* **integraciones-pago:** Fase 1 - esqueleto BD, modelos y catalogo (MVP MP) ([#107](https://github.com/FacuGalan/bcn/issues/107)) ([b231925](https://github.com/FacuGalan/bcn/commit/b231925b6c25357edd6c42ade00d1bef74d93921))
+* **integraciones-pago:** Fase 2 - UI configuracion + service sucursal ([#109](https://github.com/FacuGalan/bcn/issues/109)) ([64a44ab](https://github.com/FacuGalan/bcn/commit/64a44abc31c76987c127679ef8be0a1350eda6e4))
+* **integraciones-pago:** Fase 3 - MercadoPagoGateway + probar conexion ([#110](https://github.com/FacuGalan/bcn/issues/110)) ([d055ca6](https://github.com/FacuGalan/bcn/commit/d055ca6502d246aa2139fc629818317e7db7c5ba))
+* **integraciones-pago:** Fase 3.5 - sincronizacion Sucursal-&gt;Store y Caja-&gt;POS de MP ([#111](https://github.com/FacuGalan/bcn/issues/111)) ([ea8e276](https://github.com/FacuGalan/bcn/commit/ea8e276feedbedc63a8d943f6a8a60010dc05a5a))
+* **integraciones-pago:** Fase 4 - FormaPago con integraciones (N:M) + modos ([#112](https://github.com/FacuGalan/bcn/issues/112)) ([b63941a](https://github.com/FacuGalan/bcn/commit/b63941a46f8effabbe5a53f09d5542e8b10e8d5d))
+* **integraciones-pago:** Fase 5 - cobro QR dinámico + pantalla cliente ([#114](https://github.com/FacuGalan/bcn/issues/114)) ([a315f80](https://github.com/FacuGalan/bcn/commit/a315f807dc769650b73f50b132f72aab4d7830a5))
+* **integraciones-pago:** Fase 6 - webhook MP + confirmación en tiempo real (Reverb) ([#116](https://github.com/FacuGalan/bcn/issues/116)) ([5a63bc9](https://github.com/FacuGalan/bcn/commit/5a63bc92feed0fdfbf41f26fd820f0deab8e4c75))
+* **integraciones-pago:** Fase 7 - cobro QR estático + modo único por forma de pago ([#119](https://github.com/FacuGalan/bcn/issues/119)) ([11eacd9](https://github.com/FacuGalan/bcn/commit/11eacd945c1b9dca6ee43f053f29dbc09af7d099))
+* **integraciones-pago:** Fase 8 - confirmación manual + job de expiración ([#120](https://github.com/FacuGalan/bcn/issues/120)) ([39fc740](https://github.com/FacuGalan/bcn/commit/39fc740af09eb2d402ca4b42fdc4fb12d76fbdf7))
+* **integraciones-pago:** Fase 9 + 10 - pagos mixtos, trazabilidad y cierre del MVP ([#121](https://github.com/FacuGalan/bcn/issues/121)) ([fbe1e51](https://github.com/FacuGalan/bcn/commit/fbe1e516157e86cdb2fb29b023165b0a661aba2d))
+
+
+### Correcciones
+
+* **facturación:** marcar el pago como facturado al asociar el comprobante ([#118](https://github.com/FacuGalan/bcn/issues/118)) ([651f871](https://github.com/FacuGalan/bcn/commit/651f8716e83e6d47f43bf4ff6133ce2832dd617b))
+* **integraciones-pago:** auditoria fases 1-10 - bloqueo en pedidos, concurrencia y cuenta MP unica ([#122](https://github.com/FacuGalan/bcn/issues/122)) ([ae97e45](https://github.com/FacuGalan/bcn/commit/ae97e453ec7faacb3fdef838371596a5967d28d8))
+* **integraciones-pago:** sincronización idempotente de Store/POS de MP ([#117](https://github.com/FacuGalan/bcn/issues/117)) ([b28ae3c](https://github.com/FacuGalan/bcn/commit/b28ae3c81a1777b13b7693fbd3b5b0265f4bba51))
+
+
+### Rendimiento
+
+* **tests:** optimizar suite quitando reset de AUTO_INCREMENT (-62%) ([#113](https://github.com/FacuGalan/bcn/issues/113)) ([3d073a7](https://github.com/FacuGalan/bcn/commit/3d073a7beb9141847f72f7614e845cf032614066))
+
 ## [0.1.6](https://github.com/FacuGalan/bcn/compare/v0.1.5...v0.1.6) (2026-05-26)
 
 
