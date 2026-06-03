@@ -7,7 +7,6 @@
         x-data="{
             conectada: false,
             esModoApp: false,
-            soportada: ('open' in window),
             pcConfig: @js($this->configPantallaCliente),
             sincronizarConfig() {
                 if (window.bcnPantallaClienteHost && this.pcConfig && Object.keys(this.pcConfig).length) {
@@ -46,20 +45,25 @@
             destroy() { if (this._t) clearInterval(this._t); }
         }"
     >
-        {{-- En modo PWA instalada y sin pantalla viva: el botón NO abre nada (no se
-             puede lanzar la otra PWA desde web) → queda como indicador no clickeable. --}}
+        {{-- En modo PWA instalada el botón NO controla la otra PWA (no se puede
+             lanzarla ni cerrarla desde web) → es un indicador puro no clickeable en
+             ambos estados. En navegador normal sí es interactivo (popup de respaldo). --}}
         <button
             type="button"
             @click="conectar()"
-            :disabled="!conectada && esModoApp"
+            :disabled="esModoApp"
             class="inline-flex items-center gap-1.5 rounded-full shadow px-2.5 py-1 text-xs font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:cursor-default"
-            :class="conectada
-                ? 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500'
-                : (esModoApp
-                    ? 'bg-gray-800/90 text-gray-100 focus:ring-gray-500 dark:bg-gray-700'
+            :class="esModoApp
+                ? (conectada
+                    ? 'bg-green-600 text-white focus:ring-green-500'
+                    : 'bg-gray-800/90 text-gray-100 focus:ring-gray-500 dark:bg-gray-700')
+                : (conectada
+                    ? 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500'
                     : 'bg-gray-800/90 text-gray-100 hover:bg-gray-700 focus:ring-gray-500 dark:bg-gray-700 dark:hover:bg-gray-600')"
             :title="conectada
-                ? '{{ __('Pantalla cliente conectada (clic para cerrar)') }}'
+                ? (esModoApp
+                    ? '{{ __('Pantalla cliente conectada') }}'
+                    : '{{ __('Pantalla cliente conectada (clic para cerrar)') }}')
                 : (esModoApp
                     ? '{{ __('Abrí la app Pantalla Cliente en el monitor del cliente para conectarla') }}'
                     : '{{ __('Conectar pantalla cliente') }}')"
