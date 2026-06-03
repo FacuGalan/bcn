@@ -165,32 +165,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const installHelp = document.getElementById('pc-install-help');
     let deferredPrompt = null;
 
-    // Tres contextos posibles:
-    //  - fullscreen  → es la PWA dedicada ya instalada bien: no ofrecer nada.
-    //  - standalone  → corre DENTRO de la app del sistema (scope "/" la captura):
-    //                  NO se puede instalar aparte desde acá → instruir abrir en
-    //                  el navegador.
-    //  - navegador   → ofrecer instalar (botón nativo o instrucciones).
-    const esFullscreenApp = window.matchMedia('(display-mode: fullscreen)').matches;
-    const esStandalone =
+    // ¿Corre como PWA dedicada ya instalada? Como el scope /pantalla-cliente es
+    // disjunto del /app de la app principal, cualquier modo "app" (standalone /
+    // minimal-ui / fullscreen) implica que es ESTA PWA abierta desde su ícono →
+    // no ofrecemos instalar. Si es una pestaña/popup del navegador, sí.
+    const enModoApp =
         window.matchMedia('(display-mode: standalone)').matches ||
+        window.matchMedia('(display-mode: minimal-ui)').matches ||
+        window.matchMedia('(display-mode: fullscreen)').matches ||
         window.navigator.standalone === true;
 
-    if (esFullscreenApp) {
-        // PWA dedicada instalada correctamente: nada para mostrar.
-    } else if (esStandalone) {
-        // Corre dentro de la app del sistema (scope "/"): no se puede instalar
-        // aparte desde acá. No mostramos nada intrusivo; el botón "Enviar a la
-        // 2da pantalla" cubre el caso de uso de mandarla al otro monitor.
-    } else if (installBtn) {
-        // Navegador normal: ofrecer instalar (aunque el prompt nativo tarde).
+    if (installBtn && !enModoApp) {
+        // Navegador: ofrecer instalar (aunque el prompt nativo tarde o no exista).
         installBtn.classList.remove('hidden');
     }
 
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredPrompt = e;
-        if (installBtn && !esFullscreenApp && !esStandalone) installBtn.classList.remove('hidden');
+        if (installBtn && !enModoApp) installBtn.classList.remove('hidden');
         if (installHelp) installHelp.classList.add('hidden');
     });
 

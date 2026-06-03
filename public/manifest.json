@@ -1,14 +1,14 @@
 {
-    "id": "/",
+    "id": "/app",
     "name": "BCN Pymes - Sistema de Gestión",
     "short_name": "BCN Pymes",
     "description": "Sistema de gestión comercial para PyMEs",
-    "start_url": "/dashboard",
+    "start_url": "/app",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#222036",
     "orientation": "any",
-    "scope": "/",
+    "scope": "/app",
     "icons": [
         {
             "src": "/pwa-icons/icon-72x72.png",

@@ -16,7 +16,7 @@ class ProfileTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user)->get('/profile');
+        $response = $this->actingAs($user)->get(route('profile'));
 
         $response->assertRedirect(route('comercio.selector'));
     }

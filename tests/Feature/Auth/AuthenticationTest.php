@@ -15,7 +15,7 @@ class AuthenticationTest extends TestCase
 
     public function test_login_screen_can_be_rendered(): void
     {
-        $response = $this->get('/login');
+        $response = $this->get(route('login'));
 
         $response
             ->assertOk()
@@ -66,9 +66,31 @@ class AuthenticationTest extends TestCase
 
         $this->actingAs($user);
 
-        $response = $this->get('/dashboard');
+        $response = $this->get(route('dashboard'));
 
         $response->assertRedirect(route('comercio.selector'));
+    }
+
+    public function test_app_home_redirects_to_login_when_guest(): void
+    {
+        // start_url "/app" de la PWA: sin sesión → login (dentro del scope /app).
+        $this->get('/app')->assertRedirect(route('login'));
+    }
+
+    public function test_app_home_redirects_to_dashboard_when_authenticated(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $this->get('/app')->assertRedirect(route('dashboard'));
+    }
+
+    public function test_legacy_urls_redirect_to_app_prefix(): void
+    {
+        // Redirects de cortesía: URLs viejas → /app/* (no romper bookmarks).
+        $this->get('/dashboard')->assertRedirect('/app/dashboard');
+        $this->get('/login')->assertRedirect('/app/login');
+        $this->get('/ventas/nueva')->assertRedirect('/app/ventas/nueva');
     }
 
     public function test_users_can_logout(): void
@@ -83,7 +105,7 @@ class AuthenticationTest extends TestCase
 
         $component
             ->assertHasNoErrors()
-            ->assertRedirect('/');
+            ->assertRedirect(route('login'));
 
         $this->assertGuest();
     }

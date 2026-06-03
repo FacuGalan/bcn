@@ -1,10 +1,12 @@
-const CACHE_NAME = 'bcn-pymes-v4';
+const CACHE_NAME = 'bcn-pymes-v5';
 const OFFLINE_URL = '/offline.html';
 
-// Recursos para cachear inmediatamente
+// Recursos para cachear inmediatamente.
+// La PWA principal vive ahora bajo "/app" (scope acotado). Ver
+// .claude/specs/pwa-scope-multiapp.md
 const PRECACHE_ASSETS = [
-    '/',
-    '/dashboard',
+    '/app',
+    '/app/dashboard',
     '/offline.html',
     '/manifest.json'
 ];
