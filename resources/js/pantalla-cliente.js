@@ -165,32 +165,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const installHelp = document.getElementById('pc-install-help');
     let deferredPrompt = null;
 
-    // Tres contextos posibles:
-    //  - fullscreen  → es la PWA dedicada ya instalada bien: no ofrecer nada.
-    //  - standalone  → corre DENTRO de la app del sistema (scope "/" la captura):
-    //                  NO se puede instalar aparte desde acá → instruir abrir en
-    //                  el navegador.
-    //  - navegador   → ofrecer instalar (botón nativo o instrucciones).
-    const esFullscreenApp = window.matchMedia('(display-mode: fullscreen)').matches;
-    const esStandalone =
+    // ¿Corre como PWA dedicada ya instalada? Como el scope /pantalla-cliente es
+    // disjunto del /app de la app principal, cualquier modo "app" (standalone /
+    // minimal-ui / fullscreen) implica que es ESTA PWA abierta desde su ícono →
+    // no ofrecemos instalar. Si es una pestaña/popup del navegador, sí.
+    const enModoApp =
         window.matchMedia('(display-mode: standalone)').matches ||
+        window.matchMedia('(display-mode: minimal-ui)').matches ||
+        window.matchMedia('(display-mode: fullscreen)').matches ||
         window.navigator.standalone === true;
 
-    if (esFullscreenApp) {
-        // PWA dedicada instalada correctamente: nada para mostrar.
-    } else if (esStandalone) {
-        // Corre dentro de la app del sistema (scope "/"): no se puede instalar
-        // aparte desde acá. No mostramos nada intrusivo; el botón "Enviar a la
-        // 2da pantalla" cubre el caso de uso de mandarla al otro monitor.
-    } else if (installBtn) {
-        // Navegador normal: ofrecer instalar (aunque el prompt nativo tarde).
+    if (installBtn && !enModoApp) {
+        // Navegador: ofrecer instalar (aunque el prompt nativo tarde o no exista).
         installBtn.classList.remove('hidden');
     }
 
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredPrompt = e;
-        if (installBtn && !esFullscreenApp && !esStandalone) installBtn.classList.remove('hidden');
+        if (installBtn && !enModoApp) installBtn.classList.remove('hidden');
         if (installHelp) installHelp.classList.add('hidden');
     });
 
@@ -222,6 +215,42 @@ document.addEventListener('DOMContentLoaded', () => {
     // Placement API (multi-monitor). El conteo real de pantallas requiere
     // permiso, que se pide al hacer clic.
     const puedeEnviar = !!btnEnviar && 'getScreenDetails' in window;
+
+    // Al abrir, llevar la ventana al monitor PRINCIPAL. El SO reabre la PWA en el
+    // monitor donde se usó por última vez (el del cliente), pero ese monitor no
+    // tiene mouse/teclado, así que el cajero no puede manipularla ni tocar "enviar
+    // a 2da pantalla". Moviéndola al principal recupera el control y la reenvía.
+    // Requiere el permiso "window-management" (ya concedido si antes usó el botón
+    // de enviar). NO lo pedimos en carga: sin gesto de usuario el prompt no puede
+    // aparecer; si no está concedido, no hacemos nada y queda donde la abrió el SO.
+    const tienePermisoVentanas = async () => {
+        if (!navigator.permissions || !navigator.permissions.query) return false;
+        for (const name of ['window-management', 'window-placement']) {
+            try {
+                const r = await navigator.permissions.query({ name });
+                return r.state === 'granted';
+            } catch (_) {
+                /* nombre no soportado en este navegador: probar el siguiente */
+            }
+        }
+        return false;
+    };
+
+    const moverAMonitorPrincipal = async () => {
+        if (!('getScreenDetails' in window)) return;
+        if (!(await tienePermisoVentanas())) return;
+        try {
+            const details = await window.getScreenDetails();
+            if (details.screens.length < 2) return; // un solo monitor: nada que mover
+            const principal = details.screens.find((s) => s.isPrimary);
+            if (!principal || details.currentScreen === principal) return;
+            window.moveTo(principal.availLeft, principal.availTop);
+        } catch (_) {
+            /* moveTo/permiso restringido: se queda donde la abrió el SO */
+        }
+    };
+
+    moverAMonitorPrincipal();
 
     const entrarFullscreen = () => {
         const el = document.documentElement;

@@ -55,10 +55,33 @@ const host = {
     },
 
     /**
-     * Conecta con la pantalla del cliente. Si ya hay una viva (PWA instalada o
-     * popup abierto) le manda la config y listo. Si no hay ninguna, abre el
-     * popup de respaldo posicionado en el 2do monitor. Debe llamarse desde un
-     * gesto del usuario (click) para que el navegador no bloquee el popup.
+     * ¿Esta pestaña corre como PWA instalada (standalone/fullscreen/minimal-ui)?
+     * Importa porque, en ese modo, window.open de una URL fuera del scope de la
+     * PWA (/pantalla-cliente está fuera de /app) la abre DENTRO de esta misma
+     * PWA en vez de la app dedicada — y el navegador tampoco permite lanzar la
+     * otra PWA desde un botón. Entonces no abrimos el popup: el botón queda solo
+     * como indicador para que el cajero abra la app "Pantalla Cliente".
+     */
+    esModoApp() {
+        return (
+            window.matchMedia('(display-mode: standalone)').matches ||
+            window.matchMedia('(display-mode: minimal-ui)').matches ||
+            window.matchMedia('(display-mode: fullscreen)').matches ||
+            window.navigator.standalone === true
+        );
+    },
+
+    /**
+     * Conecta con la pantalla del cliente. Devuelve un estado:
+     *  - 'conectada'    : ya hay una pantalla viva (PWA instalada o popup); le
+     *                     manda la config y listo.
+     *  - 'necesita-app' : no hay pantalla viva y el POS corre como PWA instalada;
+     *                     NO se abre popup (abriría dentro de esta PWA). El botón
+     *                     debe indicar al cajero que abra la app "Pantalla Cliente".
+     *  - 'popup'        : navegador normal; se abrió el popup de respaldo en el
+     *                     2do monitor.
+     * Debe llamarse desde un gesto del usuario (click) para que el navegador no
+     * bloquee el popup.
      */
     async conectar() {
         // ¿Ya hay una pantalla viva? (p. ej. la PWA abierta en el 2do monitor)
@@ -68,10 +91,18 @@ const host = {
             this.enviarConfig();
             if (this.win && !this.win.closed) this.win.focus();
 
-            return true;
+            return 'conectada';
         }
 
-        // No hay ninguna: abrir el popup de respaldo. Calcular las coordenadas
+        // No hay pantalla viva y corremos como PWA instalada: no abrir el popup
+        // (se abriría DENTRO de esta PWA, fuera de su scope, en vez de la app
+        // dedicada). El botón queda como indicador; el cajero abre la app desde
+        // su ícono y la detección por pong la conecta automáticamente.
+        if (this.esModoApp()) {
+            return 'necesita-app';
+        }
+
+        // Navegador normal: abrir el popup de respaldo. Calcular las coordenadas
         // del SEGUNDO monitor ANTES de abrir (más fiable que moveTo posterior).
         // getScreenDetails() pide el permiso "window-management" (una vez).
         let features = `popup=yes,width=${Math.min(900, window.screen.availWidth)},height=${Math.min(700, window.screen.availHeight)}`;
@@ -98,7 +129,7 @@ const host = {
         // dudas que el listener se registre tarde.
         if (this.win) setTimeout(() => this.enviarConfig(), 700);
 
-        return this.estaConectada();
+        return 'popup';
     },
 
     /**

@@ -53,278 +53,336 @@ use Illuminate\Support\Facades\Route;
 Route::view('/', 'welcome');
 
 /**
- * Ruta del selector de comercio
- * Accesible solo para usuarios autenticados sin comercio activo
+ * Pantallas auxiliares — PWAs con scope propio, FUERA de "/app".
+ *
+ * Clase A (co-ubicadas con el POS, mismo navegador/perfil): usan `auth` y
+ * comparten la sesión; el contexto de tenant lo provee ConfigureTenantMiddleware
+ * (grupo `web`, global). Quedan fuera de "/app" para poder instalarse como apps
+ * separadas de la PWA principal.
+ * Ref: .claude/specs/pwa-scope-multiapp.md
  */
-Route::get('/comercio/selector', ComercioSelector::class)
-    ->middleware(['auth'])
-    ->name('comercio.selector');
-
-/**
- * Rutas protegidas con middleware tenant
- * Requieren autenticación y comercio activo
- */
-Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
-
-    // Dashboard principal (redirige al dashboard de sucursal)
-    Route::get('dashboard', DashboardSucursal::class)->name('dashboard');
-
-    // Perfil de usuario
-    Route::view('profile', 'profile')->name('profile');
-
-    // =========================================
-    // MÓDULOS OPERATIVOS
-    // =========================================
-
-    /**
-     * Ventas / POS (Point of Sale)
-     * Gestión de ventas, punto de venta, facturación
-     */
-    Route::get('ventas', Ventas::class)->name('ventas.index');
-    Route::get('ventas/nueva', NuevaVenta::class)->name('ventas.create');
-
-    // Pantalla orientada al cliente (segundo monitor del puesto). Página
-    // liviana sin shell de la app; recibe el QR de cobro vía BroadcastChannel
-    // desde la pestaña del cajero (mismo origen). Ver Fase 5 integraciones-pago.
+Route::middleware(['auth'])->group(function () {
+    // Pantalla orientada al cliente (segundo monitor del puesto). Página liviana
+    // sin shell de la app; recibe el QR de cobro y su personalización vía
+    // BroadcastChannel desde la pestaña del cajero (mismo origen).
     Route::get('pantalla-cliente', function () {
         $empresa = \App\Models\EmpresaConfig::getConfig();
 
         return view('pantalla-cliente', [
             // logo_path crudo: la URL se arma con asset() en la vista (host del
-            // request), no con Storage::url() que usa el host fijo de la config
-            // y rompe si la app no corre en el puerto de APP_URL.
+            // request), no con Storage::url() que usa el host fijo de la config.
             'logoPath' => $empresa?->logo_path,
             'empresaNombre' => $empresa?->nombre,
         ]);
     })->name('pantalla-cliente');
-    Route::get('configuracion/puntos', ProgramaPuntos::class)->name('configuracion.puntos');
-    Route::get('ventas/cupones', GestionCupones::class)->name('ventas.cupones');
-
-    /**
-     * Pedidos por Mostrador
-     * Lista y gestión de pedidos por mostrador (alta de pedido en próxima entrega).
-     */
-    Route::get('pedidos/mostrador', PedidosMostrador::class)->name('pedidos.mostrador');
-
-    /**
-     * Compras
-     * Gestión de compras, proveedores, pagos
-     */
-    Route::get('compras', Compras::class)->name('compras.index');
-
-    /**
-     * Stock / Inventario
-     * Control de stock, ajustes, inventario físico
-     */
-    Route::get('stock', StockInventario::class)->name('stock.index');
-    Route::get('stock/movimientos', MovimientosStock::class)->name('stock.movimientos');
-    Route::get('stock/inventario-general', InventarioGeneral::class)->name('stock.inventario-general');
-    Route::get('stock/recetas', GestionarRecetas::class)->name('stock.recetas');
-    Route::get('stock/produccion/lote', ProduccionLote::class)->name('stock.produccion-lote');
-    Route::get('stock/produccion', Produccion::class)->name('stock.produccion');
-
-    /**
-     * Cajas
-     * Gestión de cajas, apertura, cierre, movimientos
-     */
-    Route::get('cajas', GestionCajas::class)->name('cajas.index');
-
-    Route::prefix('cajas')->name('cajas.')->group(function () {
-        // Turno actual - estado del turno, movimientos del día, etc.
-        Route::get('turno-actual', TurnoActual::class)->name('turno-actual');
-
-        // Historial de turnos - cierres anteriores
-        Route::get('historial-turnos', HistorialTurnos::class)->name('historial-turnos');
-
-        // Saldos de cajas - redirige a tesorería (el tesorero gestiona los saldos)
-        Route::redirect('saldos', '/tesoreria')->name('saldos');
-
-        // Movimientos manuales - ingresos/egresos manuales, transferencias
-        Route::get('movimientos-manuales', MovimientosManuales::class)->name('movimientos-manuales');
-
-        // Ajustes post-cierre - reporte de cambios de pago sobre turnos cerrados
-        Route::get('ajustes-post-cierre', \App\Livewire\Cajas\AjustesPostCierre::class)->name('ajustes-post-cierre');
-
-        // Pagos pendientes de facturar - cuando falla ARCA al emitir FC nueva
-        Route::get('pagos-pendientes-facturacion', \App\Livewire\Cajas\PagosPendientesFacturacion::class)->name('pagos-pendientes-facturacion');
-    });
-
-    // =========================================
-    // TESORERÍA
-    // =========================================
-
-    /**
-     * Tesorería
-     * Gestión de fondos, provisiones, rendiciones y arqueos
-     */
-    Route::prefix('tesoreria')->name('tesoreria.')->group(function () {
-        // Gestión principal de tesorería
-        Route::get('/', GestionTesoreria::class)->name('index');
-
-        // Reportes de tesorería
-        Route::get('reportes', ReportesTesoreria::class)->name('reportes');
-    });
-
-    // =========================================
-    // BANCOS / CUENTAS EMPRESA
-    // =========================================
-
-    Route::prefix('bancos')->name('bancos.')->group(function () {
-        Route::get('/', ResumenCuentas::class)->name('resumen');
-        Route::get('cuentas', GestionCuentas::class)->name('cuentas');
-        Route::get('movimientos', MovimientosCuenta::class)->name('movimientos');
-        Route::get('transferencias', TransferenciasCuenta::class)->name('transferencias');
-    });
-
-    // =========================================
-    // ARTÍCULOS
-    // =========================================
-
-    Route::prefix('articulos')->name('articulos.')->group(function () {
-        /**
-         * Listado de Artículos
-         * Gestión completa de productos y servicios
-         */
-        Route::get('/', GestionarArticulos::class)->name('gestionar');
-
-        /**
-         * Categorías
-         * Gestión de categorías de artículos
-         */
-        Route::get('categorias', GestionarCategorias::class)->name('categorias');
-
-        /**
-         * Etiquetas
-         * Gestión de grupos de etiquetas y sus valores
-         */
-        Route::get('etiquetas', GestionarEtiquetas::class)->name('etiquetas');
-
-        /**
-         * Asignar Etiquetas
-         * Asignación masiva de etiquetas a artículos
-         */
-        Route::get('asignar-etiquetas', AsignarEtiquetas::class)->name('asignar-etiquetas');
-
-        /**
-         * Cambio Masivo de Precios
-         * Actualización de precios en lote con filtros y vista previa
-         */
-        Route::get('cambio-masivo-precios', CambioMasivoPrecios::class)->name('cambio-masivo-precios');
-
-        /**
-         * Recetas - Redirige a Stock > Recetas
-         */
-        Route::redirect('recetas', '/stock/recetas')->name('recetas');
-
-        /**
-         * Grupos Opcionales
-         * Gestión del catálogo global de grupos de opciones y sus opciones
-         */
-        Route::get('grupos-opcionales', GestionarGruposOpcionales::class)->name('grupos-opcionales');
-
-        /**
-         * Asignar Opcionales
-         * Asignación de grupos opcionales a artículos (para todas las sucursales)
-         */
-        Route::get('asignar-opcionales', AsignarOpcionales::class)->name('asignar-opcionales');
-    });
-
-    // =========================================
-    // CLIENTES
-    // =========================================
-
-    Route::prefix('clientes')->name('clientes.')->group(function () {
-        /**
-         * Listado de Clientes
-         * Gestión completa de clientes
-         */
-        Route::get('/', GestionarClientes::class)->name('index');
-
-        /**
-         * Cobranzas
-         * Gestión de cobros de clientes con cuenta corriente
-         */
-        Route::get('cobranzas', GestionarCobranzas::class)->name('cobranzas');
-    });
-
-    // =========================================
-    // CONFIGURACIÓN
-    // =========================================
-
-    Route::prefix('configuracion')->name('configuracion.')->group(function () {
-        /**
-         * Empresa
-         * Configuración de datos de empresa, CUITs y sucursales
-         */
-        Route::get('empresa', ConfiguracionEmpresa::class)->name('empresa');
-
-        /**
-         * Usuarios
-         * Gestión de usuarios del comercio
-         */
-        Route::get('usuarios', Usuarios::class)->name('usuarios');
-
-        /**
-         * Roles y Permisos
-         * Configuración de roles y permisos del sistema
-         */
-        Route::get('roles', RolesPermisos::class)->name('roles');
-
-        /**
-         * Formas de Pago
-         * Configuración de formas de pago y planes de cuotas
-         */
-        Route::get('formas-pago', GestionarFormasPago::class)->name('formas-pago');
-        Route::get('formas-pago-sucursal', FormasPagoSucursal::class)->name('formas-pago-sucursal');
-
-        /**
-         * Gestión de Formas de Pago y Cuotas (Sistema Dinámico)
-         * Configuración de formas de pago con planes de cuotas
-         */
-        Route::get('gestionar-formas-pago', ListarFormasPago::class)->name('gestionar-formas-pago');
-
-        /**
-         * Listas de Precios
-         * Gestión del sistema de precios dinámico
-         */
-        Route::get('precios', ListarPrecios::class)->name('precios');
-        Route::get('precios/nuevo', WizardListaPrecio::class)->name('precios.nuevo');
-        Route::get('precios/{id}/editar', WizardListaPrecio::class)->name('precios.editar');
-
-        /**
-         * Promociones
-         * Gestión de promociones, descuentos y ofertas
-         */
-        Route::get('promociones', ListarPromociones::class)->name('promociones');
-        Route::get('promociones/nueva', WizardPromocion::class)->name('promociones.nueva');
-        Route::get('promociones/{id}/editar', WizardPromocion::class)->name('promociones.editar');
-
-        /**
-         * Promociones Especiales (NxM y Combos)
-         * Gestión de promociones 2x1, 3x2, packs y combos
-         */
-        Route::get('promociones-especiales', ListarPromocionesEspeciales::class)->name('promociones-especiales');
-        Route::get('promociones-especiales/nueva', WizardPromocionEspecial::class)->name('promociones-especiales.nueva');
-        Route::get('promociones-especiales/{id}/editar', WizardPromocionEspecial::class)->name('promociones-especiales.editar');
-
-        /**
-         * Monedas y Tipos de Cambio
-         * Gestión de monedas del sistema y cotizaciones
-         */
-        Route::get('monedas', GestionMonedas::class)->name('monedas');
-
-        /**
-         * Impresoras
-         * Configuración de impresoras por sucursal/caja
-         */
-        Route::get('impresoras', Impresoras::class)->name('impresoras');
-
-        /**
-         * Integraciones de Pago
-         * Configuración de credenciales de proveedores (MercadoPago, etc.) por sucursal
-         */
-        Route::get('integraciones-pago', IntegracionesPago::class)->name('integraciones-pago');
-    });
 });
 
-require __DIR__.'/auth.php';
+/**
+ * Aplicación principal — PWA con scope "/app".
+ *
+ * Incluye el login (Opción B): así, al abrir la PWA (start_url "/app") el
+ * redirect del middleware `auth` cae DENTRO del scope y se ve como parte de la
+ * app. Los NOMBRES de ruta NO cambian (route('dashboard') sigue igual); solo
+ * cambian las URLs (/dashboard → /app/dashboard).
+ * Ref: .claude/specs/pwa-scope-multiapp.md
+ */
+Route::prefix('app')->group(function () {
+
+    // Punto de entrada de la PWA (start_url "/app"): redirige según haya sesión.
+    Route::get('/', function () {
+        return redirect()->route(\Illuminate\Support\Facades\Auth::check() ? 'dashboard' : 'login');
+    })->name('app.home');
+
+    /**
+     * Ruta del selector de comercio
+     * Accesible solo para usuarios autenticados sin comercio activo
+     */
+    Route::get('comercio/selector', ComercioSelector::class)
+        ->middleware(['auth'])
+        ->name('comercio.selector');
+
+    /**
+     * Rutas protegidas con middleware tenant
+     * Requieren autenticación y comercio activo
+     */
+    Route::middleware(['auth', 'verified', 'tenant'])->group(function () {
+
+        // Dashboard principal (redirige al dashboard de sucursal)
+        Route::get('dashboard', DashboardSucursal::class)->name('dashboard');
+
+        // Perfil de usuario
+        Route::view('profile', 'profile')->name('profile');
+
+        // =========================================
+        // MÓDULOS OPERATIVOS
+        // =========================================
+
+        /**
+         * Ventas / POS (Point of Sale)
+         * Gestión de ventas, punto de venta, facturación
+         */
+        Route::get('ventas', Ventas::class)->name('ventas.index');
+        Route::get('ventas/nueva', NuevaVenta::class)->name('ventas.create');
+
+        Route::get('configuracion/puntos', ProgramaPuntos::class)->name('configuracion.puntos');
+        Route::get('ventas/cupones', GestionCupones::class)->name('ventas.cupones');
+
+        /**
+         * Pedidos por Mostrador
+         * Lista y gestión de pedidos por mostrador (alta de pedido en próxima entrega).
+         */
+        Route::get('pedidos/mostrador', PedidosMostrador::class)->name('pedidos.mostrador');
+
+        /**
+         * Compras
+         * Gestión de compras, proveedores, pagos
+         */
+        Route::get('compras', Compras::class)->name('compras.index');
+
+        /**
+         * Stock / Inventario
+         * Control de stock, ajustes, inventario físico
+         */
+        Route::get('stock', StockInventario::class)->name('stock.index');
+        Route::get('stock/movimientos', MovimientosStock::class)->name('stock.movimientos');
+        Route::get('stock/inventario-general', InventarioGeneral::class)->name('stock.inventario-general');
+        Route::get('stock/recetas', GestionarRecetas::class)->name('stock.recetas');
+        Route::get('stock/produccion/lote', ProduccionLote::class)->name('stock.produccion-lote');
+        Route::get('stock/produccion', Produccion::class)->name('stock.produccion');
+
+        /**
+         * Cajas
+         * Gestión de cajas, apertura, cierre, movimientos
+         */
+        Route::get('cajas', GestionCajas::class)->name('cajas.index');
+
+        Route::prefix('cajas')->name('cajas.')->group(function () {
+            // Turno actual - estado del turno, movimientos del día, etc.
+            Route::get('turno-actual', TurnoActual::class)->name('turno-actual');
+
+            // Historial de turnos - cierres anteriores
+            Route::get('historial-turnos', HistorialTurnos::class)->name('historial-turnos');
+
+            // Saldos de cajas - redirige a tesorería (el tesorero gestiona los saldos)
+            Route::redirect('saldos', '/app/tesoreria')->name('saldos');
+
+            // Movimientos manuales - ingresos/egresos manuales, transferencias
+            Route::get('movimientos-manuales', MovimientosManuales::class)->name('movimientos-manuales');
+
+            // Ajustes post-cierre - reporte de cambios de pago sobre turnos cerrados
+            Route::get('ajustes-post-cierre', \App\Livewire\Cajas\AjustesPostCierre::class)->name('ajustes-post-cierre');
+
+            // Pagos pendientes de facturar - cuando falla ARCA al emitir FC nueva
+            Route::get('pagos-pendientes-facturacion', \App\Livewire\Cajas\PagosPendientesFacturacion::class)->name('pagos-pendientes-facturacion');
+        });
+
+        // =========================================
+        // TESORERÍA
+        // =========================================
+
+        /**
+         * Tesorería
+         * Gestión de fondos, provisiones, rendiciones y arqueos
+         */
+        Route::prefix('tesoreria')->name('tesoreria.')->group(function () {
+            // Gestión principal de tesorería
+            Route::get('/', GestionTesoreria::class)->name('index');
+
+            // Reportes de tesorería
+            Route::get('reportes', ReportesTesoreria::class)->name('reportes');
+        });
+
+        // =========================================
+        // BANCOS / CUENTAS EMPRESA
+        // =========================================
+
+        Route::prefix('bancos')->name('bancos.')->group(function () {
+            Route::get('/', ResumenCuentas::class)->name('resumen');
+            Route::get('cuentas', GestionCuentas::class)->name('cuentas');
+            Route::get('movimientos', MovimientosCuenta::class)->name('movimientos');
+            Route::get('transferencias', TransferenciasCuenta::class)->name('transferencias');
+        });
+
+        // =========================================
+        // ARTÍCULOS
+        // =========================================
+
+        Route::prefix('articulos')->name('articulos.')->group(function () {
+            /**
+             * Listado de Artículos
+             * Gestión completa de productos y servicios
+             */
+            Route::get('/', GestionarArticulos::class)->name('gestionar');
+
+            /**
+             * Categorías
+             * Gestión de categorías de artículos
+             */
+            Route::get('categorias', GestionarCategorias::class)->name('categorias');
+
+            /**
+             * Etiquetas
+             * Gestión de grupos de etiquetas y sus valores
+             */
+            Route::get('etiquetas', GestionarEtiquetas::class)->name('etiquetas');
+
+            /**
+             * Asignar Etiquetas
+             * Asignación masiva de etiquetas a artículos
+             */
+            Route::get('asignar-etiquetas', AsignarEtiquetas::class)->name('asignar-etiquetas');
+
+            /**
+             * Cambio Masivo de Precios
+             * Actualización de precios en lote con filtros y vista previa
+             */
+            Route::get('cambio-masivo-precios', CambioMasivoPrecios::class)->name('cambio-masivo-precios');
+
+            /**
+             * Recetas - Redirige a Stock > Recetas
+             */
+            Route::redirect('recetas', '/app/stock/recetas')->name('recetas');
+
+            /**
+             * Grupos Opcionales
+             * Gestión del catálogo global de grupos de opciones y sus opciones
+             */
+            Route::get('grupos-opcionales', GestionarGruposOpcionales::class)->name('grupos-opcionales');
+
+            /**
+             * Asignar Opcionales
+             * Asignación de grupos opcionales a artículos (para todas las sucursales)
+             */
+            Route::get('asignar-opcionales', AsignarOpcionales::class)->name('asignar-opcionales');
+        });
+
+        // =========================================
+        // CLIENTES
+        // =========================================
+
+        Route::prefix('clientes')->name('clientes.')->group(function () {
+            /**
+             * Listado de Clientes
+             * Gestión completa de clientes
+             */
+            Route::get('/', GestionarClientes::class)->name('index');
+
+            /**
+             * Cobranzas
+             * Gestión de cobros de clientes con cuenta corriente
+             */
+            Route::get('cobranzas', GestionarCobranzas::class)->name('cobranzas');
+        });
+
+        // =========================================
+        // CONFIGURACIÓN
+        // =========================================
+
+        Route::prefix('configuracion')->name('configuracion.')->group(function () {
+            /**
+             * Empresa
+             * Configuración de datos de empresa, CUITs y sucursales
+             */
+            Route::get('empresa', ConfiguracionEmpresa::class)->name('empresa');
+
+            /**
+             * Usuarios
+             * Gestión de usuarios del comercio
+             */
+            Route::get('usuarios', Usuarios::class)->name('usuarios');
+
+            /**
+             * Roles y Permisos
+             * Configuración de roles y permisos del sistema
+             */
+            Route::get('roles', RolesPermisos::class)->name('roles');
+
+            /**
+             * Formas de Pago
+             * Configuración de formas de pago y planes de cuotas
+             */
+            Route::get('formas-pago', GestionarFormasPago::class)->name('formas-pago');
+            Route::get('formas-pago-sucursal', FormasPagoSucursal::class)->name('formas-pago-sucursal');
+
+            /**
+             * Gestión de Formas de Pago y Cuotas (Sistema Dinámico)
+             * Configuración de formas de pago con planes de cuotas
+             */
+            Route::get('gestionar-formas-pago', ListarFormasPago::class)->name('gestionar-formas-pago');
+
+            /**
+             * Listas de Precios
+             * Gestión del sistema de precios dinámico
+             */
+            Route::get('precios', ListarPrecios::class)->name('precios');
+            Route::get('precios/nuevo', WizardListaPrecio::class)->name('precios.nuevo');
+            Route::get('precios/{id}/editar', WizardListaPrecio::class)->name('precios.editar');
+
+            /**
+             * Promociones
+             * Gestión de promociones, descuentos y ofertas
+             */
+            Route::get('promociones', ListarPromociones::class)->name('promociones');
+            Route::get('promociones/nueva', WizardPromocion::class)->name('promociones.nueva');
+            Route::get('promociones/{id}/editar', WizardPromocion::class)->name('promociones.editar');
+
+            /**
+             * Promociones Especiales (NxM y Combos)
+             * Gestión de promociones 2x1, 3x2, packs y combos
+             */
+            Route::get('promociones-especiales', ListarPromocionesEspeciales::class)->name('promociones-especiales');
+            Route::get('promociones-especiales/nueva', WizardPromocionEspecial::class)->name('promociones-especiales.nueva');
+            Route::get('promociones-especiales/{id}/editar', WizardPromocionEspecial::class)->name('promociones-especiales.editar');
+
+            /**
+             * Monedas y Tipos de Cambio
+             * Gestión de monedas del sistema y cotizaciones
+             */
+            Route::get('monedas', GestionMonedas::class)->name('monedas');
+
+            /**
+             * Impresoras
+             * Configuración de impresoras por sucursal/caja
+             */
+            Route::get('impresoras', Impresoras::class)->name('impresoras');
+
+            /**
+             * Integraciones de Pago
+             * Configuración de credenciales de proveedores (MercadoPago, etc.) por sucursal
+             */
+            Route::get('integraciones-pago', IntegracionesPago::class)->name('integraciones-pago');
+        }); // fin grupo configuración
+    }); // fin grupo ['auth','verified','tenant']
+
+    /**
+     * Rutas de autenticación (login, logout, recuperar/reset de contraseña,
+     * verificación) DENTRO de "/app" para que el login quede en el scope de la
+     * PWA principal (Opción B). Los nombres (login, logout, ...) no cambian.
+     */
+    require __DIR__.'/auth.php';
+}); // fin grupo prefix('app')
+
+/**
+ * Redirects de cortesía: URLs viejas (sin prefijo) → "/app/*".
+ * Evitan romper bookmarks/deep-links previos al refactor de scope. Se redirige el
+ * primer nivel y cualquier sub-path (301), preservando el query string.
+ *
+ * Se excluyen rutas firmadas/transitorias (verify-email, confirm-password): un
+ * redirect rompería la firma y de todos modos los emails nuevos ya usan /app/*.
+ */
+$legacyPaths = [
+    'dashboard', 'ventas', 'stock', 'cajas', 'tesoreria', 'bancos',
+    'articulos', 'clientes', 'configuracion', 'pedidos', 'compras',
+    'comercio', 'profile', 'login', 'forgot-password', 'reset-password',
+];
+
+foreach ($legacyPaths as $seg) {
+    Route::get($seg.'/{rest?}', function (?string $rest = null) use ($seg) {
+        $destino = '/app/'.$seg.($rest !== null && $rest !== '' ? '/'.$rest : '');
+        if ($q = request()->getQueryString()) {
+            $destino .= '?'.$q;
+        }
+
+        return redirect($destino, 301);
+    })->where('rest', '.*');
+}

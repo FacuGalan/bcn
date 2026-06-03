@@ -6,10 +6,16 @@
     <meta name="theme-color" content="#222036" id="pc-theme-color">
     <title>{{ __('Pantalla cliente') }}</title>
 
-    {{-- PWA dedicada: manifest propio con display:fullscreen (arranca a pantalla
-         completa sin gesto y con ícono propio en la barra de tareas). NO usar el
-         manifest.json de la app. --}}
+    {{-- PWA dedicada: manifest propio (display:standalone — abre como ventana
+         normal; el botón "Enviar a la 2da pantalla" la pone fullscreen en el otro
+         monitor). NO usar el manifest.json de la app. --}}
     <link rel="manifest" href="{{ asset('manifest-pantalla-cliente.json') }}">
+
+    {{-- Ícono propio (monitor) para la ventana/pestaña y atajos — evita que caiga
+         al favicon global (logo BCN). --}}
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('pwa-icons/pantalla-cliente-192x192.png') }}">
+    <link rel="icon" type="image/png" sizes="512x512" href="{{ asset('pwa-icons/pantalla-cliente-512x512.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('pwa-icons/pantalla-cliente-192x192.png') }}">
 
     @vite(['resources/js/pantalla-cliente.js'])
 
@@ -138,7 +144,7 @@
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
         </svg>
-        {{ __('Instalar 2da pantalla') }}
+        {{ __('Instalar pantalla cliente') }}
     </button>
 
     {{-- Instrucciones manuales: aparecen cuando no hay prompt nativo o cuando la
