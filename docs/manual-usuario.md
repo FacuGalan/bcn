@@ -423,15 +423,17 @@ Si la caja activa tiene habilitada la opcion "Usa pantalla cliente" (configurabl
 6. Al completarse o cancelarse el cobro, la pantalla del cliente vuelve al estado de espera.
 
 El boton cambia su apariencia segun el estado de conexion:
-- **Gris oscuro**: pantalla no conectada. Clic conecta.
+- **Gris oscuro**: pantalla no conectada. Clic conecta (en navegador normal, abre una ventana nueva posicionada en el segundo monitor).
 - **Verde con punto pulsante**: pantalla conectada. Clic desconecta.
+
+> **Si usa el sistema como app instalada (PWA)**: al hacer clic en "Conectar pantalla cliente" no se abre ninguna ventana. En su lugar, el boton queda gris con el texto "Pantalla cliente desconectada" como indicador de estado. Para usar la pantalla del cliente en este modo, la app "Pantalla Cliente" debe abrirse manualmente desde su icono de app (debe estar instalada; ver seccion 12.12). Una vez que esa app este abierta, la deteccion es automatica: el boton pasara a verde en pocos segundos sin ninguna accion adicional del cajero.
 
 **Botones flotantes en la ventana del cliente:**
 
 Dentro de la ventana de la pantalla cliente aparecen tres botones flotantes en la esquina inferior derecha:
 - **Pantalla completa**: activa o desactiva el modo fullscreen de la ventana.
 - **Enviar a la 2da pantalla**: mueve la ventana al segundo monitor y la pone en fullscreen automaticamente (requiere que el navegador haya obtenido el permiso "Gestion de ventanas").
-- **Instalar 2da pantalla**: instala la pantalla cliente como una app PWA independiente en el sistema operativo, con icono propio en la barra de tareas. Util para tener la pantalla del cliente siempre disponible sin necesidad de una pestana del navegador.
+- **Instalar pantalla cliente**: instala la pantalla cliente como una app PWA independiente en el sistema operativo, con icono propio en la barra de tareas. Util para tener la pantalla del cliente siempre disponible sin necesidad de una pestana del navegador. Solo aparece cuando la pagina se abre en una ventana normal del navegador (no cuando ya corre como app instalada).
 
 > Requiere Chrome o Edge con permisos de "Gestion de ventanas" (el navegador solicitara el permiso la primera vez que use la funcion de posicionamiento automatico). Si el navegador no soporta la API, la ventana se abre de todas formas y puede arrastrarse manualmente al segundo monitor.
 
@@ -2261,7 +2263,7 @@ Gestion de las sucursales del comercio:
   - Facturacion fiscal automatica.
   - Configuracion de WhatsApp (envio de comandas y notificaciones).
 - **Personalizar 2da pantalla** (visible solo si alguna caja de la sucursal tiene "Usa pantalla orientada al cliente" activado): abre el modal de personalizacion de la pantalla cliente. Ver seccion 12.12.
-- **Instalar 2da pantalla** (visible en las mismas condiciones): abre la URL `/pantalla-cliente` para que el usuario la instale como app PWA desde el navegador.
+- **Instalar pantalla cliente** (visible en las mismas condiciones): abre la URL `/pantalla-cliente` en el navegador para que el usuario la instale como app PWA independiente.
 
 #### Pestana "Cajas"
 
@@ -2748,9 +2750,11 @@ Haga clic en **"Guardar"**. Los cambios se aplican de inmediato en la proxima ve
 
 #### Instalar la 2da pantalla como app
 
-En la misma tarjeta de sucursal, el boton **"Instalar 2da pantalla"** abre `/pantalla-cliente` en el navegador. Desde esa pagina, el boton flotante **"Instalar 2da pantalla"** permite instalarla como una aplicacion PWA independiente con icono propio en la barra de tareas, de modo que pueda abrirse sin una pestana del navegador.
+En la misma tarjeta de sucursal, el boton **"Instalar pantalla cliente"** abre `/pantalla-cliente` en el navegador. Desde esa pagina, el boton flotante **"Instalar pantalla cliente"** permite instalarla como una aplicacion PWA independiente con icono propio en la barra de tareas, de modo que pueda abrirse sin una pestana del navegador.
 
-> **Limitacion conocida**: si el sistema principal (BCN Pymes) ya esta instalado como PWA en el mismo navegador, el navegador puede impedir instalar la 2da pantalla como app separada desde dentro de la misma sesion. En ese caso, abra `/pantalla-cliente` en una ventana normal (no en la PWA instalada) para completar la instalacion.
+La pantalla cliente y la app principal (BCN Pymes) tienen scopes de PWA distintos y no superpuestos, por lo que pueden instalarse como apps separadas al mismo tiempo en el mismo navegador.
+
+> **Flujo recomendado con la app principal instalada**: instale ambas apps. El sistema principal corre bajo `/app`; la pantalla cliente, bajo `/pantalla-cliente`. Una vez instaladas, el cajero abre la pantalla cliente desde su icono; la deteccion es automatica.
 
 ---
 

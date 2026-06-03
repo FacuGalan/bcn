@@ -216,6 +216,42 @@ document.addEventListener('DOMContentLoaded', () => {
     // permiso, que se pide al hacer clic.
     const puedeEnviar = !!btnEnviar && 'getScreenDetails' in window;
 
+    // Al abrir, llevar la ventana al monitor PRINCIPAL. El SO reabre la PWA en el
+    // monitor donde se usó por última vez (el del cliente), pero ese monitor no
+    // tiene mouse/teclado, así que el cajero no puede manipularla ni tocar "enviar
+    // a 2da pantalla". Moviéndola al principal recupera el control y la reenvía.
+    // Requiere el permiso "window-management" (ya concedido si antes usó el botón
+    // de enviar). NO lo pedimos en carga: sin gesto de usuario el prompt no puede
+    // aparecer; si no está concedido, no hacemos nada y queda donde la abrió el SO.
+    const tienePermisoVentanas = async () => {
+        if (!navigator.permissions || !navigator.permissions.query) return false;
+        for (const name of ['window-management', 'window-placement']) {
+            try {
+                const r = await navigator.permissions.query({ name });
+                return r.state === 'granted';
+            } catch (_) {
+                /* nombre no soportado en este navegador: probar el siguiente */
+            }
+        }
+        return false;
+    };
+
+    const moverAMonitorPrincipal = async () => {
+        if (!('getScreenDetails' in window)) return;
+        if (!(await tienePermisoVentanas())) return;
+        try {
+            const details = await window.getScreenDetails();
+            if (details.screens.length < 2) return; // un solo monitor: nada que mover
+            const principal = details.screens.find((s) => s.isPrimary);
+            if (!principal || details.currentScreen === principal) return;
+            window.moveTo(principal.availLeft, principal.availTop);
+        } catch (_) {
+            /* moveTo/permiso restringido: se queda donde la abrió el SO */
+        }
+    };
+
+    moverAMonitorPrincipal();
+
     const entrarFullscreen = () => {
         const el = document.documentElement;
         if (!document.fullscreenElement && el.requestFullscreen) {

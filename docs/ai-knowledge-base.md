@@ -2895,8 +2895,8 @@ Arquitectura client-side para mostrar el QR al cliente en un segundo monitor, si
 **Componentes**:
 - `resources/js/pantalla-cliente-host.js`: Objeto `window.bcnPantallaClienteHost` que vive en la pestana del POS (cajero). Abre la ventana del cliente via `window.open()` y la posiciona en el segundo monitor usando la **Window Management API** (`window.getScreenDetails()`). Comunica mensajes via **BroadcastChannel** (canal `bcn-pantalla-cliente`). Envia la config de personalizacion (logo_url, nombre, colores, animacion) junto con el primer mensaje y ante cada pong recibido.
 - `resources/js/pantalla-cliente.js`: Script de la ventana del cliente (`/pantalla-cliente`). Escucha mensajes del BroadcastChannel y actualiza la UI: aplica config via CSS custom properties + clases de animacion, muestra QR en fullscreen o vuelve al estado idle. Persiste la ultima config recibida en `localStorage` (clave `bcn-pc-config`) para sobrevivir recargas.
-- `resources/views/pantalla-cliente.blade.php`: Vista liviana sin Livewire/Alpine. Muestra logo e idle state. Incluye tres botones flotantes: "Pantalla completa", "Enviar a la 2da pantalla" (Window Management API + fullscreen), "Instalar 2da pantalla" (PWA install prompt). Respeta `prefers-reduced-motion`. Footer "Powered by BCNSOFT" (banner_bcn.png).
-- `resources/views/livewire/carrito/_boton-pantalla-cliente.blade.php`: Boton flotante (Alpine, client-side) que se renderiza solo si `usaPantallaClienteActiva` es true. Refresca el estado de conexion cada 2 segundos.
+- `resources/views/pantalla-cliente.blade.php`: Vista liviana sin Livewire/Alpine. Muestra logo e idle state. Incluye tres botones flotantes: "Pantalla completa", "Enviar a la 2da pantalla" (Window Management API + fullscreen), "Instalar pantalla cliente" (PWA install prompt; solo visible en modo navegador, oculto si ya corre como app instalada). Respeta `prefers-reduced-motion`. Footer "Powered by BCNSOFT" (banner_bcn.png). Declara iconos propios (monitor naranja, `pantalla-cliente-192x192.png` / `512x512.png`) para la pestana/barra de tareas.
+- `resources/views/livewire/carrito/_boton-pantalla-cliente.blade.php`: Boton flotante (Alpine, client-side) que se renderiza solo si `usaPantallaClienteActiva` es true. Refresca el estado de conexion cada 2 segundos via `bcnPantallaClienteHost.pingear()`. **Comportamiento segun contexto**: en navegador normal (`'open' in window` = true), el clic llama a `window.open()` para abrir la pantalla cliente; en PWA instalada (`'open' in window` = false, `soportada = false`), el boton queda como indicador de estado no clickeable — muestra "Pantalla cliente desconectada" en gris cuando no hay conexion, y pasa a verde automaticamente cuando la app Pantalla Cliente (instalada por separado) esta abierta y responde pong.
 - `resources/views/livewire/carrito/_modal-esperando-pago-integracion.blade.php`: Modal con logica Alpine que, al abrirse, detecta si hay pantalla cliente conectada y envia el QR via `host.enviarQr()`. Si va al cliente, el cajero ve un panel compacto en lugar del QR.
 
 **Mensajes BroadcastChannel**:
@@ -2915,11 +2915,19 @@ Arquitectura client-side para mostrar el QR al cliente en un segundo monitor, si
 **Config computed en Livewire**:
 `WithCobroIntegracion::configPantallaCliente()` (computed) — llama a `sucursal->getConfigPantallaCliente()` y agrega `logo_url` (via `logoPantallaClienteUrl()`) y `nombre` (via `nombrePantallaCliente()`). Es el objeto que el host envia al cliente via BroadcastChannel.
 
-**Ruta**: `GET /pantalla-cliente` (autenticada, sin Livewire). Carga `empresaConfig` para mostrar logo y nombre como fallback inicial antes de recibir la config del host.
+**Ruta**: `GET /pantalla-cliente` (autenticada con `auth`, sin `verified`/`tenant`; fuera del grupo `prefix('app')`). Carga `empresaConfig` para mostrar logo y nombre como fallback inicial antes de recibir la config del host.
 
-**PWA dedicada**:
-- Manifest: `public/manifest-pantalla-cliente.json`. `display: fullscreen`, `scope: /pantalla-cliente`, `id: /pantalla-cliente`. Icono propio: monitor naranja (#FFAF22) sobre fondo oscuro, archivos `public/pwa-icons/pantalla-cliente-*.png`.
-- **Limitacion de scope**: si la app principal BCN Pymes esta instalada como PWA con `scope: /`, el navegador no permite instalar una segunda app con scope hijo desde dentro de la PWA instalada. Para instalar la pantalla cliente como app separada, el usuario debe abrir `/pantalla-cliente` desde una ventana normal del navegador (no desde la PWA instalada).
+**PWA principal (app)**:
+- Manifest: `public/manifest.json`. `scope: /app`, `start_url: /app`, `id: /app`, `display: standalone`.
+- `public/sw.js`: CACHE_NAME `bcn-pymes-v5`, precachea `/app`, `/app/dashboard`, `/offline.html`, `/manifest.json`.
+- Ruta `GET /app` (sin sub-path): redirect server-side a `route('dashboard')` si hay sesion activa, o a `route('login')` si no. Permite que al abrir la PWA (`start_url: /app`) el login caiga dentro del scope (no abre pestaña del navegador).
+- Todas las rutas autenticadas viven bajo `/app/*` (nombres de ruta sin cambios: `dashboard`, `ventas.index`, etc.).
+- Redirects de cortesia 301 desde URLs viejas sin prefijo (`/dashboard`, `/login`, `/ventas`, etc.) hacia `/app/*` para no romper bookmarks.
+
+**PWA pantalla cliente**:
+- Manifest: `public/manifest-pantalla-cliente.json`. `display: standalone` (no `fullscreen`; el fullscreen lo aplica el boton "Enviar a la 2da pantalla" en runtime), `display_override: ["standalone","minimal-ui"]`, `scope: /pantalla-cliente`, `id: /pantalla-cliente`. Icono propio: monitor naranja (#FFAF22), archivos `public/pwa-icons/pantalla-cliente-*.png`.
+- Los scopes `/app` y `/pantalla-cliente` son disjuntos: el navegador los trata como apps independientes instalables al mismo tiempo. Ya no existe la limitacion anterior de scope hijo.
+- Deteccion de modo instalado en `pantalla-cliente.js`: `enModoApp = standalone || minimal-ui || fullscreen || navigator.standalone`. Si `enModoApp` es true, el boton "Instalar pantalla cliente" se oculta.
 
 **Requisitos del navegador**: Chrome o Edge, contexto seguro (https o localhost), monitores en modo "Extender". El permiso `window-management` se solicita la primera vez que se usa `getScreenDetails()`. Si la API no esta disponible o el permiso se deniega, la ventana se abre de todas formas y el cajero la arrastra manualmente.
 
