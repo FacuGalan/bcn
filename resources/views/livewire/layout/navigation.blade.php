@@ -824,18 +824,19 @@ new class extends Component
 
 {{-- Overlay de instalación PWA --}}
 <div
-    x-data="{ status: 'idle', installEventCount: 0 }"
+    x-data="{ status: 'idle', _safety: null }"
     x-init="
         window.addEventListener('pwa-installing', () => {
             status = 'installing';
-            installEventCount = 0;
+            clearTimeout(this._safety);
+            // Red de seguridad: si la instalación no emite 'appinstalled' (p.ej.
+            // la app se abrió en otra ventana), igual ocultamos el overlay.
+            this._safety = setTimeout(() => { if (status === 'installing') status = 'idle'; }, 6000);
         });
         window.addEventListener('appinstalled', () => {
-            installEventCount++;
-            if (installEventCount >= 2) {
-                status = 'installed';
-                setTimeout(() => status = 'idle', 5000);
-            }
+            clearTimeout(this._safety);
+            status = 'installed';
+            setTimeout(() => status = 'idle', 2500);
         });
     "
     x-show="status !== 'idle'"

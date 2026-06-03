@@ -1941,6 +1941,7 @@ CREATE TABLE `{{PREFIX}}sucursales` (
   `es_principal` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si es la sucursal principal/central',
   `datos_fiscales_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Si factura con datos propios',
   `configuracion` text COLLATE utf8mb4_unicode_ci COMMENT 'Configuraciones específicas (JSON)',
+  `config_pantalla_cliente` text COLLATE utf8mb4_unicode_ci COMMENT 'Personalizacion de la segunda pantalla (pantalla cliente) - JSON',
   `activa` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Si la sucursal está activa',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,

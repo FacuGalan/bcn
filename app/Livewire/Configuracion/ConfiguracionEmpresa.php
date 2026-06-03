@@ -182,6 +182,31 @@ class ConfiguracionEmpresa extends Component
 
     public $configCajaUsaPantallaCliente = false;
 
+    // ==================== PERSONALIZAR PANTALLA CLIENTE (2da pantalla) ====================
+    public $mostrarModalPersonalizarPantalla = false;
+
+    public $pcSucursalId = null;
+
+    public $pcSucursalNombre = '';
+
+    public $pcLogoUrl = null;
+
+    public $pcMostrarLogo = true;
+
+    public $pcMostrarNombre = true;
+
+    public $pcColorFondo = '#222036';
+
+    public $pcAnimacion = 'aurora';
+
+    public $pcColorAcento = '#22d3ee';
+
+    public $pcColorTexto = 'auto';
+
+    public $pcMensajeIdle = 'Listo para cobrar';
+
+    public $pcTamanoLogo = 'md';
+
     // ==================== TAB CAJAS - GRUPOS DE CIERRE ====================
     public $mostrarModalGrupoCierre = false;
 
@@ -918,6 +943,82 @@ class ConfiguracionEmpresa extends Component
         $this->configCajaModoCargaInicial = 'manual';
         $this->configCajaMontoFijoInicial = null;
         $this->configCajaUsaPantallaCliente = false;
+        $this->resetErrorBag();
+    }
+
+    // --- Modal Personalizar Pantalla Cliente (2da pantalla, config por sucursal) ---
+
+    /**
+     * Abre el modal de personalización de la 2da pantalla. La config es POR
+     * SUCURSAL: se carga la config de la sucursal (con defaults mergeados) en
+     * las props del modal. Todas las cajas de la sucursal heredan.
+     */
+    public function abrirPersonalizarPantalla($sucursalId)
+    {
+        $sucursal = Sucursal::findOrFail($sucursalId);
+
+        $config = $sucursal->getConfigPantallaCliente();
+
+        $this->pcSucursalId = $sucursal->id;
+        $this->pcSucursalNombre = $sucursal->nombrePantallaCliente();
+        $this->pcLogoUrl = $sucursal->logoPantallaClienteUrl();
+        $this->pcMostrarLogo = (bool) $config['mostrar_logo'];
+        $this->pcMostrarNombre = (bool) $config['mostrar_nombre'];
+        $this->pcColorFondo = $config['color_fondo'];
+        $this->pcAnimacion = $config['animacion'];
+        $this->pcColorAcento = $config['color_acento'];
+        $this->pcColorTexto = $config['color_texto'];
+        $this->pcMensajeIdle = $config['mensaje_idle'];
+        $this->pcTamanoLogo = $config['tamano_logo'];
+
+        $this->mostrarModalPersonalizarPantalla = true;
+    }
+
+    public function guardarPersonalizarPantalla()
+    {
+        $this->validate([
+            'pcColorFondo' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'pcColorAcento' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'pcColorTexto' => ['required', 'regex:/^(auto|#[0-9a-fA-F]{6})$/'],
+            'pcAnimacion' => ['required', 'in:ninguna,respiracion,aurora'],
+            'pcTamanoLogo' => ['required', 'in:sm,md,lg'],
+            'pcMensajeIdle' => ['nullable', 'string', 'max:60'],
+        ], [
+            'pcColorFondo.regex' => __('El color de fondo debe ser un código hexadecimal válido.'),
+            'pcColorAcento.regex' => __('El color de acento debe ser un código hexadecimal válido.'),
+            'pcColorTexto.regex' => __('El color de texto debe ser "auto" o un hexadecimal válido.'),
+        ]);
+
+        try {
+            $sucursal = Sucursal::findOrFail($this->pcSucursalId);
+
+            $sucursal->update([
+                'config_pantalla_cliente' => [
+                    'mostrar_logo' => (bool) $this->pcMostrarLogo,
+                    'mostrar_nombre' => (bool) $this->pcMostrarNombre,
+                    'color_fondo' => $this->pcColorFondo,
+                    'animacion' => $this->pcAnimacion,
+                    'color_acento' => $this->pcColorAcento,
+                    'color_texto' => $this->pcColorTexto,
+                    'mensaje_idle' => trim((string) $this->pcMensajeIdle) ?: Sucursal::CONFIG_PANTALLA_CLIENTE_DEFAULTS['mensaje_idle'],
+                    'tamano_logo' => $this->pcTamanoLogo,
+                ],
+            ]);
+
+            $this->cerrarModalPersonalizarPantalla();
+
+            $this->dispatch('notify', message: __('Personalización de la pantalla cliente guardada'), type: 'success');
+        } catch (\Exception $e) {
+            $this->dispatch('notify', message: __('Error: ').$e->getMessage(), type: 'error');
+        }
+    }
+
+    public function cerrarModalPersonalizarPantalla()
+    {
+        $this->mostrarModalPersonalizarPantalla = false;
+        $this->pcSucursalId = null;
+        $this->pcSucursalNombre = '';
+        $this->pcLogoUrl = null;
         $this->resetErrorBag();
     }
 

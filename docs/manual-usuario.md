@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-02
+> Version: 0.1.x | Ultima actualizacion: 2026-06-03
 
 ---
 
@@ -66,6 +66,7 @@
   - [12.9 Monedas](#129-monedas)
   - [12.10 Impresoras](#1210-impresoras)
   - [12.11 Integraciones de Pago](#1211-integraciones-de-pago)
+  - [12.12 Personalizar 2da Pantalla (por Sucursal)](#1212-personalizar-2da-pantalla-por-sucursal)
 - [13. Flujos de Trabajo Comunes](#13-flujos-de-trabajo-comunes)
   - [13.1 Abrir el comercio por la manana](#131-abrir-el-comercio-por-la-manana)
   - [13.2 Realizar una venta tipica](#132-realizar-una-venta-tipica)
@@ -417,13 +418,20 @@ Si la caja activa tiene habilitada la opcion "Usa pantalla cliente" (configurabl
 1. Conecte el segundo monitor al equipo y configure el sistema operativo en modo **"Extender"** (no duplicar).
 2. Abra Chrome o Edge en el puesto de cobro.
 3. Haga clic en el boton **"Conectar pantalla cliente"** (borde inferior, centrado). El sistema abrira una ventana nueva posicionada en el segundo monitor.
-4. La ventana del cliente mostrara el logo de la empresa y el texto "Listo para cobrar" mientras no haya cobro en curso.
+4. La ventana del cliente mostrara el logo y nombre de la sucursal con el texto "Listo para cobrar" mientras no haya cobro en curso. La apariencia visual (colores, animacion, tamano del logo) sigue la configuracion de personalizacion de la sucursal (ver seccion 12.12).
 5. Al iniciar un cobro con QR, el codigo QR se mostrara automaticamente en la pantalla del cliente a pantalla completa. El cajero vera un modal compacto.
 6. Al completarse o cancelarse el cobro, la pantalla del cliente vuelve al estado de espera.
 
 El boton cambia su apariencia segun el estado de conexion:
 - **Gris oscuro**: pantalla no conectada. Clic conecta.
 - **Verde con punto pulsante**: pantalla conectada. Clic desconecta.
+
+**Botones flotantes en la ventana del cliente:**
+
+Dentro de la ventana de la pantalla cliente aparecen tres botones flotantes en la esquina inferior derecha:
+- **Pantalla completa**: activa o desactiva el modo fullscreen de la ventana.
+- **Enviar a la 2da pantalla**: mueve la ventana al segundo monitor y la pone en fullscreen automaticamente (requiere que el navegador haya obtenido el permiso "Gestion de ventanas").
+- **Instalar 2da pantalla**: instala la pantalla cliente como una app PWA independiente en el sistema operativo, con icono propio en la barra de tareas. Util para tener la pantalla del cliente siempre disponible sin necesidad de una pestana del navegador.
 
 > Requiere Chrome o Edge con permisos de "Gestion de ventanas" (el navegador solicitara el permiso la primera vez que use la funcion de posicionamiento automatico). Si el navegador no soporta la API, la ventana se abre de todas formas y puede arrastrarse manualmente al segundo monitor.
 
@@ -2252,6 +2260,8 @@ Gestion de las sucursales del comercio:
   - Control de stock en produccion: Igual al anterior.
   - Facturacion fiscal automatica.
   - Configuracion de WhatsApp (envio de comandas y notificaciones).
+- **Personalizar 2da pantalla** (visible solo si alguna caja de la sucursal tiene "Usa pantalla orientada al cliente" activado): abre el modal de personalizacion de la pantalla cliente. Ver seccion 12.12.
+- **Instalar 2da pantalla** (visible en las mismas condiciones): abre la URL `/pantalla-cliente` para que el usuario la instale como app PWA desde el navegador.
 
 #### Pestana "Cajas"
 
@@ -2702,6 +2712,45 @@ Si un cobro QR queda esperando pago y el tiempo configurado vence, el sistema lo
 |---|---|
 | `func.integraciones_pago.administrar` | Configurar y sincronizar integraciones (acceso al modulo de configuracion) |
 | `integraciones_pago.confirmar_manual` | Confirmar manualmente un cobro cuando el sistema no lo detecto automaticamente. Habilita el panel de fallback en el modal "Esperando pago". Asignar solo a cajeros supervisores de confianza. |
+
+---
+
+### 12.12 Personalizar 2da Pantalla (por Sucursal)
+
+Permite definir la apariencia de la pantalla orientada al cliente (segundo monitor) de forma independiente para cada sucursal.
+
+> Este boton aparece solo en la tarjeta de una sucursal que tenga al menos una caja con "Usa pantalla orientada al cliente" activado.
+
+#### Abrir el modal
+
+En **Configuracion → Empresa → Sucursales**, localice la tarjeta de la sucursal y haga clic en **"Personalizar 2da pantalla"**. Se abre un modal con las opciones de configuracion y una vista previa en tiempo real.
+
+#### Opciones disponibles
+
+| Opcion | Valores | Descripcion |
+|---|---|---|
+| Mostrar logo | Si / No | Si se muestra el logo de la sucursal (o empresa si no tiene logo propio). |
+| Mostrar nombre | Si / No | Si se muestra el nombre publico de la sucursal. |
+| Color de fondo | Hex (ej: #222036) | Color de fondo de la pantalla idle. |
+| Animacion | Ninguna / Respiracion / Aurora | Efecto visual sobre el fondo durante el estado de espera. "Respiracion" pulsa la opacidad suavemente; "Aurora" genera un degradado animado. Ambas respetan la preferencia del sistema operativo de reducir animaciones. |
+| Color de acento | Hex (ej: #22d3ee) | Color usado en textos y bordes destacados. |
+| Color de texto | Automatico / Hex | "Automatico" calcula el color (blanco o negro) segun la luminancia del fondo para garantizar contraste. Con un hex fijo puede elegir el color manualmente. |
+| Mensaje en espera | Texto libre | Texto que se muestra en la pantalla cuando no hay cobro en curso (por defecto: "Listo para cobrar"). |
+| Tamano del logo | Pequeno / Mediano / Grande | Controla el tamano del logo en la pantalla idle. |
+
+#### Vista previa en vivo
+
+El modal incluye una miniatura de la pantalla cliente que se actualiza al instante con cada cambio que realice, antes de guardar.
+
+#### Guardar
+
+Haga clic en **"Guardar"**. Los cambios se aplican de inmediato en la proxima vez que la pantalla cliente se conecte o se recargue. La config se transmite automaticamente via BroadcastChannel cuando el host (POS) esta conectado.
+
+#### Instalar la 2da pantalla como app
+
+En la misma tarjeta de sucursal, el boton **"Instalar 2da pantalla"** abre `/pantalla-cliente` en el navegador. Desde esa pagina, el boton flotante **"Instalar 2da pantalla"** permite instalarla como una aplicacion PWA independiente con icono propio en la barra de tareas, de modo que pueda abrirse sin una pestana del navegador.
+
+> **Limitacion conocida**: si el sistema principal (BCN Pymes) ya esta instalado como PWA en el mismo navegador, el navegador puede impedir instalar la 2da pantalla como app separada desde dentro de la misma sesion. En ese caso, abra `/pantalla-cliente` en una ventana normal (no en la PWA instalada) para completar la instalacion.
 
 ---
 
