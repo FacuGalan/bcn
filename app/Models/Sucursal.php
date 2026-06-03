@@ -51,6 +51,22 @@ class Sucursal extends Model
     ];
 
     /**
+     * Valores por defecto de la personalización de la pantalla cliente (2da
+     * pantalla). Se mergean con lo guardado en `config_pantalla_cliente` para
+     * que nunca falten keys aunque la columna esté vacía o desactualizada.
+     */
+    public const CONFIG_PANTALLA_CLIENTE_DEFAULTS = [
+        'mostrar_logo' => true,
+        'mostrar_nombre' => true,
+        'color_fondo' => '#222036',
+        'animacion' => 'aurora',      // ninguna | respiracion | aurora
+        'color_acento' => '#22d3ee',
+        'color_texto' => 'auto',      // auto (contraste según fondo) o hex
+        'mensaje_idle' => 'Listo para cobrar',
+        'tamano_logo' => 'md',        // sm | md | lg
+    ];
+
+    /**
      * Provincias de Argentina con código ISO 3166-2 → nombre oficial.
      *
      * Se guarda el código en `sucursales.provincia` (ej. 'AR-B') y se traduce
@@ -138,6 +154,17 @@ class Sucursal extends Model
     public function tieneCoordenadas(): bool
     {
         return $this->latitud !== null && $this->longitud !== null;
+    }
+
+    /**
+     * ¿Alguna caja de esta sucursal usa la pantalla orientada al cliente (2da
+     * pantalla)? Gatea los botones de personalizar/instalar la 2da pantalla en
+     * la config de la sucursal (la config es por sucursal, pero solo tiene
+     * sentido si al menos un punto la usa).
+     */
+    public function usaPantallaCliente(): bool
+    {
+        return $this->cajas()->where('usa_pantalla_cliente', true)->exists();
     }
 
     public function estaSincronizadaEnMp(): bool
@@ -234,6 +261,42 @@ class Sucursal extends Model
         }
 
         return Storage::disk('public')->url($this->logo_path);
+    }
+
+    /**
+     * Personalización de la pantalla cliente (2da pantalla) de esta sucursal,
+     * con los DEFAULTS mergeados para garantizar todas las keys. Lo consumen el
+     * modal de configuración (carga) y el host del POS (envío por BroadcastChannel).
+     */
+    public function getConfigPantallaCliente(): array
+    {
+        $guardada = is_array($this->config_pantalla_cliente) ? $this->config_pantalla_cliente : [];
+
+        return array_merge(self::CONFIG_PANTALLA_CLIENTE_DEFAULTS, $guardada);
+    }
+
+    /**
+     * URL del logo a mostrar en la pantalla cliente: el de la sucursal si tiene,
+     * si no el del comercio (EmpresaConfig). Se arma con asset() (host del
+     * request) — NO con Storage::url() que usa el host fijo de la config y rompe
+     * si la app no corre en el puerto de APP_URL.
+     */
+    public function logoPantallaClienteUrl(): ?string
+    {
+        $path = $this->logo_path ?: EmpresaConfig::getConfig()->logo_path;
+
+        return $path ? asset('storage/'.$path) : null;
+    }
+
+    /**
+     * Nombre a mostrar en la pantalla cliente: nombre público de la sucursal,
+     * o su nombre, o el nombre del comercio como último fallback.
+     */
+    public function nombrePantallaCliente(): string
+    {
+        return $this->nombre_publico
+            ?: $this->nombre
+            ?: EmpresaConfig::getConfig()->nombre;
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Models\Caja;
 use App\Models\FormaPago;
 use App\Models\IntegracionPagoSucursal;
 use App\Models\IntegracionPagoTransaccion;
+use App\Models\Sucursal;
 use App\Services\IntegracionesPago\CobroIntegracionService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
@@ -77,6 +78,29 @@ trait WithCobroIntegracion
         $cajaId = $this->cajaIdParaPantallaCliente();
 
         return (bool) (Caja::find($cajaId)?->usa_pantalla_cliente ?? false);
+    }
+
+    /**
+     * Personalización de la 2da pantalla (config de la sucursal de la caja del
+     * puesto) lista para enviar por BroadcastChannel: incluye los valores de
+     * `getConfigPantallaCliente()` más el logo (URL absoluta) y el nombre a
+     * mostrar. La consume `_boton-pantalla-cliente.blade.php` para inyectarla en
+     * el host JS. Devuelve [] si no hay caja/sucursal resoluble.
+     */
+    #[Computed]
+    public function configPantallaCliente(): array
+    {
+        $caja = Caja::find($this->cajaIdParaPantallaCliente());
+        $sucursal = $caja?->sucursal_id ? Sucursal::find($caja->sucursal_id) : null;
+
+        if (! $sucursal) {
+            return [];
+        }
+
+        return array_merge($sucursal->getConfigPantallaCliente(), [
+            'logo_url' => $sucursal->logoPantallaClienteUrl(),
+            'nombre' => $sucursal->nombrePantallaCliente(),
+        ]);
     }
 
     /**

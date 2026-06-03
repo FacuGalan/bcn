@@ -1,0 +1,35 @@
+{
+    "id": "/pantalla-cliente",
+    "name": "Pantalla Cliente",
+    "short_name": "Pantalla Cliente",
+    "description": "Segunda pantalla orientada al cliente del puesto de cobro",
+    "start_url": "/pantalla-cliente",
+    "display": "fullscreen",
+    "display_override": ["fullscreen", "standalone"],
+    "background_color": "#222036",
+    "theme_color": "#222036",
+    "orientation": "landscape",
+    "scope": "/pantalla-cliente",
+    "icons": [
+        {
+            "src": "/pwa-icons/pantalla-cliente-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/pwa-icons/pantalla-cliente-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/pwa-icons/pantalla-cliente-maskable-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ],
+    "categories": ["business", "productivity"],
+    "lang": "es-AR"
+}

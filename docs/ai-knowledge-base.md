@@ -1068,6 +1068,26 @@ Ya descrita en seccion 1.2. Campos adicionales relevantes:
 - `provincia` -- `varchar(100)` nullable. Codigo ISO 3166-2 de provincia argentina (ej: `AR-B`, `AR-C`). Se traduce a nombre oficial al armar payloads externos. Ver `Sucursal::PROVINCIAS_AR[]` y `Sucursal::provinciaNombre()`.
 - `mp_store_id` -- `varchar(50)` nullable. ID numerico devuelto por MP al crear la Store. Se usa para actualizar/eliminar. Indexado.
 - `mp_store_external_id` -- `varchar(60)` nullable. Identificador externo en MP. Formato: `BCN-{comercio_id}-{sucursal_id}`. Unico (UNIQUE INDEX). Solo se envia al **crear** la store; en updates MP lo rechaza por colision consigo mismo.
+- `config_pantalla_cliente` -- `json` nullable, cast `array`. Configuracion de personalizacion de la pantalla orientada al cliente. Se mergea con `Sucursal::CONFIG_PANTALLA_CLIENTE_DEFAULTS` antes de usarse. Ver helpers en el modelo `Sucursal`.
+
+**Defaults de `config_pantalla_cliente`** (`Sucursal::CONFIG_PANTALLA_CLIENTE_DEFAULTS`):
+
+| Clave | Tipo / Valores | Default |
+|---|---|---|
+| `mostrar_logo` | bool | `true` |
+| `mostrar_nombre` | bool | `true` |
+| `color_fondo` | hex string | `#222036` |
+| `animacion` | `ninguna` / `respiracion` / `aurora` | `ninguna` |
+| `color_acento` | hex string | `#22d3ee` |
+| `color_texto` | `auto` / hex string | `auto` |
+| `mensaje_idle` | string | `""` (usa texto por defecto en el frontend) |
+| `tamano_logo` | `sm` / `md` / `lg` | `md` |
+
+**Helpers en el modelo `Sucursal`**:
+- `getConfigPantallaCliente(): array` — merge de `config_pantalla_cliente` (DB) con `CONFIG_PANTALLA_CLIENTE_DEFAULTS`. Garantiza que nunca falten claves aunque la columna este NULL o incompleta.
+- `logoPantallaClienteUrl(): string|null` — devuelve la URL del logo a mostrar: logo de la sucursal si existe, logo de la empresa como fallback. Usa `asset()`.
+- `nombrePantallaCliente(): string` — nombre a mostrar: `nombre_publico` ?? `nombre` ?? nombre de la empresa.
+- `usaPantallaCliente(): bool` — true si al menos una caja de la sucursal tiene `usa_pantalla_cliente = 1`.
 
 #### Tabla: `formas_pago`
 Formas de pago disponibles. Pueden ser simples (un concepto) o mixtas (multiples conceptos).
@@ -2870,21 +2890,36 @@ Cada paso relevante genera una fila en `{PREFIX}integraciones_pago_eventos`:
 
 #### Pantalla orientada al cliente (segundo monitor)
 
-Arquitectura client-side para mostrar el QR al cliente en un segundo monitor, sin backend adicional.
+Arquitectura client-side para mostrar el QR al cliente en un segundo monitor, sin backend adicional. La apariencia es personalizable por sucursal via `sucursales.config_pantalla_cliente`.
 
 **Componentes**:
-- `resources/js/pantalla-cliente-host.js`: Objeto `window.bcnPantallaClienteHost` que vive en la pestana del POS (cajero). Abre la ventana del cliente via `window.open()` y la posiciona en el segundo monitor usando la **Window Management API** (`window.getScreenDetails()`). Comunica mensajes via **BroadcastChannel** (canal `bcn-pantalla-cliente`).
-- `resources/js/pantalla-cliente.js`: Script de la ventana del cliente (`/pantalla-cliente`). Escucha mensajes del BroadcastChannel y actualiza la UI: muestra QR en fullscreen o vuelve al estado idle.
-- `resources/views/pantalla-cliente.blade.php`: Vista liviana sin Livewire/Alpine. Muestra logo de empresa en idle y el QR durante el cobro. Tiene boton de pantalla completa.
+- `resources/js/pantalla-cliente-host.js`: Objeto `window.bcnPantallaClienteHost` que vive en la pestana del POS (cajero). Abre la ventana del cliente via `window.open()` y la posiciona en el segundo monitor usando la **Window Management API** (`window.getScreenDetails()`). Comunica mensajes via **BroadcastChannel** (canal `bcn-pantalla-cliente`). Envia la config de personalizacion (logo_url, nombre, colores, animacion) junto con el primer mensaje y ante cada pong recibido.
+- `resources/js/pantalla-cliente.js`: Script de la ventana del cliente (`/pantalla-cliente`). Escucha mensajes del BroadcastChannel y actualiza la UI: aplica config via CSS custom properties + clases de animacion, muestra QR en fullscreen o vuelve al estado idle. Persiste la ultima config recibida en `localStorage` (clave `bcn-pc-config`) para sobrevivir recargas.
+- `resources/views/pantalla-cliente.blade.php`: Vista liviana sin Livewire/Alpine. Muestra logo e idle state. Incluye tres botones flotantes: "Pantalla completa", "Enviar a la 2da pantalla" (Window Management API + fullscreen), "Instalar 2da pantalla" (PWA install prompt). Respeta `prefers-reduced-motion`. Footer "Powered by BCNSOFT" (banner_bcn.png).
 - `resources/views/livewire/carrito/_boton-pantalla-cliente.blade.php`: Boton flotante (Alpine, client-side) que se renderiza solo si `usaPantallaClienteActiva` es true. Refresca el estado de conexion cada 2 segundos.
 - `resources/views/livewire/carrito/_modal-esperando-pago-integracion.blade.php`: Modal con logica Alpine que, al abrirse, detecta si hay pantalla cliente conectada y envia el QR via `host.enviarQr()`. Si va al cliente, el cajero ve un panel compacto en lugar del QR.
 
 **Mensajes BroadcastChannel**:
 - `{ type: 'qr', svg, monto, leyenda }` → muestra el QR en la pantalla cliente
 - `{ type: 'idle' }` → vuelve al estado de espera
-- `{ type: 'ping' }` / `{ type: 'pong' }` → heartbeat
+- `{ type: 'ping' }` / `{ type: 'pong' }` → heartbeat para detectar conexion activa
+- `{ type: 'config', logo_url, nombre, color_fondo, color_acento, color_texto, animacion, tamano_logo, mostrar_logo, mostrar_nombre, mensaje_idle }` → aplica personalizacion visual
 
-**Ruta**: `GET /pantalla-cliente` (autenticada, sin Livewire). Carga `empresaConfig` para mostrar logo y nombre.
+**Flujo ping/pong (entrega robusta de config)**:
+1. Al cargar, la pantalla cliente emite `pong` por el BroadcastChannel.
+2. El host detecta el `pong` y reenvía inmediatamente la config actual.
+3. Esto garantiza que si la pantalla se recarga mientras el host esta activo, recibe la config sin necesitar una accion del cajero.
+4. `estaConectada()` en el host devuelve true si la referencia `window` de la ventana cliente sigue abierta O si se recibio un `pong` en los ultimos N segundos.
+5. Antes de enviar la config via `postMessage`, el host clona el objeto a plano (`JSON.parse(JSON.stringify(...))`) para evitar errores de structured clone con proxies Alpine.
+
+**Config computed en Livewire**:
+`WithCobroIntegracion::configPantallaCliente()` (computed) — llama a `sucursal->getConfigPantallaCliente()` y agrega `logo_url` (via `logoPantallaClienteUrl()`) y `nombre` (via `nombrePantallaCliente()`). Es el objeto que el host envia al cliente via BroadcastChannel.
+
+**Ruta**: `GET /pantalla-cliente` (autenticada, sin Livewire). Carga `empresaConfig` para mostrar logo y nombre como fallback inicial antes de recibir la config del host.
+
+**PWA dedicada**:
+- Manifest: `public/manifest-pantalla-cliente.json`. `display: fullscreen`, `scope: /pantalla-cliente`, `id: /pantalla-cliente`. Icono propio: monitor naranja (#FFAF22) sobre fondo oscuro, archivos `public/pwa-icons/pantalla-cliente-*.png`.
+- **Limitacion de scope**: si la app principal BCN Pymes esta instalada como PWA con `scope: /`, el navegador no permite instalar una segunda app con scope hijo desde dentro de la PWA instalada. Para instalar la pantalla cliente como app separada, el usuario debe abrir `/pantalla-cliente` desde una ventana normal del navegador (no desde la PWA instalada).
 
 **Requisitos del navegador**: Chrome o Edge, contexto seguro (https o localhost), monitores en modo "Extender". El permiso `window-management` se solicita la primera vez que se usa `getScreenDetails()`. Si la API no esta disponible o el permiso se deniega, la ventana se abre de todas formas y el cajero la arrastra manualmente.
 

@@ -1,9 +1,12 @@
 # Personalización de la Pantalla Cliente (segunda pantalla) — Spec / Handoff
 
-## Estado: EN PROGRESO — scaffolding hecho (migración + modelo), resto pendiente.
+## Estado: COMPLETO — los 10 pasos implementados y verificados (tests + build OK).
 Rama: `feat/pantalla-cliente-personalizacion` (creada desde master post-#122).
 
-> Handoff escrito el 2026-06-02 al cortar la sesión. Retomar desde "Pendiente".
+> Handoff escrito el 2026-06-02. Implementación terminada el 2026-06-03:
+> 24 tests verdes (ConfigSucursalFlagsTest + SmokeConfiguracionTest), 62 verdes en
+> Ventas/Pedidos, Pint OK, `npm run build` OK. Falta: docs (`@docs-sync` al crear PR),
+> commit + PR, y validación visual en vivo del usuario.
 
 ---
 

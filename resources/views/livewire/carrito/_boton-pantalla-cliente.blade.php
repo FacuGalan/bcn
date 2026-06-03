@@ -7,8 +7,20 @@
         x-data="{
             conectada: false,
             soportada: ('open' in window),
+            pcConfig: @js($this->configPantallaCliente),
+            sincronizarConfig() {
+                if (window.bcnPantallaClienteHost && this.pcConfig && Object.keys(this.pcConfig).length) {
+                    window.bcnPantallaClienteHost.setConfig(this.pcConfig);
+                }
+            },
             refrescar() {
-                this.conectada = !!(window.bcnPantallaClienteHost && window.bcnPantallaClienteHost.estaConectada());
+                if (window.bcnPantallaClienteHost) {
+                    // Pinguear mantiene fresca la detección de la PWA (responde pong).
+                    window.bcnPantallaClienteHost.pingear();
+                    this.conectada = window.bcnPantallaClienteHost.estaConectada();
+                } else {
+                    this.conectada = false;
+                }
             },
             async conectar() {
                 if (!window.bcnPantallaClienteHost) return;
@@ -17,10 +29,12 @@
                     this.conectada = false;
                     return;
                 }
+                this.sincronizarConfig();
                 await window.bcnPantallaClienteHost.conectar();
                 this.refrescar();
             },
             init() {
+                this.sincronizarConfig();
                 this.refrescar();
                 this._t = setInterval(() => this.refrescar(), 2000);
             },

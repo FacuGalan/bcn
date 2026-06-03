@@ -290,6 +290,229 @@
             </div>
         @endif
 
+        {{-- Modal Personalizar Pantalla Cliente (2da pantalla) --}}
+        @if($mostrarModalPersonalizarPantalla)
+            <x-bcn-modal
+                show
+                :title="__('Personalizar 2da pantalla') . ' — ' . $pcSucursalNombre"
+                color="bg-violet-600"
+                maxWidth="4xl"
+                submit="guardarPersonalizarPantalla"
+                onClose="cerrarModalPersonalizarPantalla"
+            >
+                <x-slot:body>
+                    <div
+                        x-data="{
+                            mostrarLogo: @entangle('pcMostrarLogo'),
+                            mostrarNombre: @entangle('pcMostrarNombre'),
+                            colorFondo: @entangle('pcColorFondo'),
+                            animacion: @entangle('pcAnimacion'),
+                            colorAcento: @entangle('pcColorAcento'),
+                            colorTexto: @entangle('pcColorTexto'),
+                            mensajeIdle: @entangle('pcMensajeIdle'),
+                            tamanoLogo: @entangle('pcTamanoLogo'),
+                            colorTextoCustom: '#ffffff',
+                            get autoTexto() { return this.colorTexto === 'auto'; },
+                            set autoTexto(v) { this.colorTexto = v ? 'auto' : this.colorTextoCustom; },
+                            contraste(hex) {
+                                const c = (hex || '#000000').replace('#', '');
+                                if (c.length !== 6) return '#ffffff';
+                                const r = parseInt(c.substr(0, 2), 16);
+                                const g = parseInt(c.substr(2, 2), 16);
+                                const b = parseInt(c.substr(4, 2), 16);
+                                return (0.299 * r + 0.587 * g + 0.114 * b) > 140 ? '#111827' : '#ffffff';
+                            },
+                            get textoEfectivo() {
+                                return this.colorTexto === 'auto' ? this.contraste(this.colorFondo) : this.colorTexto;
+                            },
+                            get logoSize() {
+                                return { sm: '3rem', md: '4.5rem', lg: '6rem' }[this.tamanoLogo] || '4.5rem';
+                            },
+                            init() {
+                                if (this.colorTexto !== 'auto') this.colorTextoCustom = this.colorTexto;
+                            }
+                        }"
+                        class="grid grid-cols-1 lg:grid-cols-2 gap-6"
+                    >
+                        {{-- Columna de controles --}}
+                        <div class="space-y-5">
+                            {{-- Toggles logo / nombre --}}
+                            <div class="space-y-3">
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" x-model="mostrarLogo"
+                                        class="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-violet-600 focus:ring-violet-500 dark:bg-gray-700">
+                                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Mostrar logo') }}</span>
+                                </label>
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" x-model="mostrarNombre"
+                                        class="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-violet-600 focus:ring-violet-500 dark:bg-gray-700">
+                                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Mostrar nombre') }}</span>
+                                </label>
+                            </div>
+
+                            {{-- Color de fondo --}}
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Color de fondo') }}</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="color" x-model="colorFondo"
+                                        class="h-9 w-12 rounded border border-gray-300 dark:border-gray-600 bg-transparent cursor-pointer p-0.5">
+                                    <input type="text" x-model="colorFondo" maxlength="7"
+                                        class="w-28 rounded-md border-gray-300 shadow-sm focus:border-violet-500 focus:ring-violet-500 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                </div>
+                                @error('pcColorFondo') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                            </div>
+
+                            {{-- Color de acento --}}
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Color de acento') }}</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="color" x-model="colorAcento"
+                                        class="h-9 w-12 rounded border border-gray-300 dark:border-gray-600 bg-transparent cursor-pointer p-0.5">
+                                    <input type="text" x-model="colorAcento" maxlength="7"
+                                        class="w-28 rounded-md border-gray-300 shadow-sm focus:border-violet-500 focus:ring-violet-500 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                </div>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Se usa en el monto y los detalles destacados.') }}</p>
+                                @error('pcColorAcento') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                            </div>
+
+                            {{-- Color de texto --}}
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Color de texto') }}</label>
+                                <label class="flex items-center gap-3 cursor-pointer mb-2">
+                                    <input type="checkbox" x-model="autoTexto"
+                                        class="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-violet-600 focus:ring-violet-500 dark:bg-gray-700">
+                                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ __('Contraste automático según el fondo') }}</span>
+                                </label>
+                                <div class="flex items-center gap-2" x-show="!autoTexto" x-cloak>
+                                    <input type="color" x-model="colorTextoCustom" @input="colorTexto = colorTextoCustom"
+                                        class="h-9 w-12 rounded border border-gray-300 dark:border-gray-600 bg-transparent cursor-pointer p-0.5">
+                                    <input type="text" x-model="colorTextoCustom" @input="colorTexto = colorTextoCustom" maxlength="7"
+                                        class="w-28 rounded-md border-gray-300 shadow-sm focus:border-violet-500 focus:ring-violet-500 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                </div>
+                                @error('pcColorTexto') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                            </div>
+
+                            {{-- Animación --}}
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Animación') }}</label>
+                                <select x-model="animacion"
+                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-violet-500 focus:ring-violet-500 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    <option value="ninguna">{{ __('Ninguna') }}</option>
+                                    <option value="respiracion">{{ __('Respiración + glow') }}</option>
+                                    <option value="aurora">{{ __('Aurora + flotación') }}</option>
+                                </select>
+                                @error('pcAnimacion') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                            </div>
+
+                            {{-- Tamaño del logo --}}
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tamaño del logo') }}</label>
+                                <select x-model="tamanoLogo"
+                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-violet-500 focus:ring-violet-500 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    <option value="sm">{{ __('Pequeño') }}</option>
+                                    <option value="md">{{ __('Mediano') }}</option>
+                                    <option value="lg">{{ __('Grande') }}</option>
+                                </select>
+                                @error('pcTamanoLogo') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                            </div>
+
+                            {{-- Mensaje idle --}}
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Mensaje de espera') }}</label>
+                                <input type="text" x-model="mensajeIdle" maxlength="60"
+                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-violet-500 focus:ring-violet-500 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    placeholder="{{ __('Listo para cobrar') }}">
+                                @error('pcMensajeIdle') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                            </div>
+                        </div>
+
+                        {{-- Columna de preview en vivo --}}
+                        <div>
+                            {{-- Animaciones del preview (replican las de la pantalla cliente real,
+                                 escaladas para el mini-recuadro). Scopeadas con .pc-prev-*. --}}
+                            <style>
+                                .pc-prev-aurora {
+                                    position: absolute; inset: -25%; z-index: 0; opacity: 0;
+                                    background:
+                                        radial-gradient(45% 45% at 20% 25%, var(--pc-acento) 0%, transparent 60%),
+                                        radial-gradient(40% 40% at 80% 30%, var(--pc-acento) 0%, transparent 55%),
+                                        radial-gradient(50% 50% at 50% 85%, var(--pc-acento) 0%, transparent 60%);
+                                    background-size: 200% 200%;
+                                    filter: blur(28px) saturate(140%);
+                                    transition: opacity .8s ease;
+                                }
+                                .pc-prev-anim-aurora .pc-prev-aurora {
+                                    opacity: .4;
+                                    animation: pc-prev-aurora-move 22s ease-in-out infinite alternate;
+                                }
+                                .pc-prev-anim-aurora .pc-prev-logo { animation: pc-prev-flota 7s ease-in-out infinite; }
+                                .pc-prev-anim-respiracion .pc-prev-logo,
+                                .pc-prev-anim-respiracion .pc-prev-nombre {
+                                    animation: pc-prev-respira 5.5s ease-in-out infinite;
+                                }
+                                @keyframes pc-prev-respira {
+                                    0%, 100% { transform: scale(1); opacity: .9; filter: drop-shadow(0 0 0 transparent); }
+                                    50%      { transform: scale(1.05); opacity: 1; filter: drop-shadow(0 0 10px var(--pc-acento)); }
+                                }
+                                @keyframes pc-prev-aurora-move {
+                                    0%   { background-position: 0% 0%, 100% 0%, 50% 100%; }
+                                    50%  { background-position: 40% 60%, 60% 40%, 30% 50%; }
+                                    100% { background-position: 100% 100%, 0% 100%, 70% 0%; }
+                                }
+                                @keyframes pc-prev-flota {
+                                    0%, 100% { transform: translateY(0); }
+                                    50%      { transform: translateY(-8px); }
+                                }
+                                @media (prefers-reduced-motion: reduce) {
+                                    .pc-prev-logo, .pc-prev-nombre { animation: none !important; }
+                                    .pc-prev-aurora { animation: none !important; }
+                                }
+                            </style>
+
+                            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">{{ __('Vista previa') }}</p>
+                            <div class="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600 shadow-inner aspect-[4/3] relative flex flex-col items-center justify-center text-center px-6"
+                                :class="{ 'pc-prev-anim-aurora': animacion === 'aurora', 'pc-prev-anim-respiracion': animacion === 'respiracion' }"
+                                :style="`background-color: ${colorFondo}; color: ${textoEfectivo}; --pc-acento: ${colorAcento};`">
+
+                                {{-- Capa de fondo para la aurora --}}
+                                <div class="pc-prev-aurora" aria-hidden="true"></div>
+
+                                {{-- Contenido sobre la aurora --}}
+                                <div class="relative z-10 flex flex-col items-center w-full">
+                                    <template x-if="mostrarLogo && '{{ $pcLogoUrl }}'">
+                                        <img src="{{ $pcLogoUrl }}" alt="logo" class="pc-prev-logo object-contain mb-3" :style="`max-height: ${logoSize}; max-width: 60%;`">
+                                    </template>
+                                    <template x-if="mostrarNombre">
+                                        <p class="pc-prev-nombre text-lg font-bold mb-2" x-text="'{{ $pcSucursalNombre }}'"></p>
+                                    </template>
+                                    <p class="text-sm font-light opacity-70" x-text="mensajeIdle || '{{ __('Listo para cobrar') }}'"></p>
+                                    <p class="text-2xl font-extrabold mt-3" :style="`color: ${colorAcento};`">$1.234,00</p>
+                                </div>
+
+                                {{-- Footer Powered by --}}
+                                <div class="absolute bottom-2 left-0 right-0 z-10 flex items-center justify-center gap-1.5 opacity-40">
+                                    <span class="text-[10px]" :style="`color: ${textoEfectivo};`">{{ __('Powered by') }}</span>
+                                    <img src="{{ asset('banner_bcn.png') }}" alt="BCNSOFT" class="h-3 object-contain">
+                                </div>
+                            </div>
+                            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('La configuración aplica a todas las cajas de esta sucursal.') }}</p>
+                        </div>
+                    </div>
+                </x-slot:body>
+
+                <x-slot:footer>
+                    <button type="button" wire:click="cerrarModalPersonalizarPantalla"
+                        class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500">
+                        {{ __('Cancelar') }}
+                    </button>
+                    <button type="submit"
+                        class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-violet-600 text-sm font-medium text-white hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500">
+                        {{ __('Guardar') }}
+                    </button>
+                </x-slot:footer>
+            </x-bcn-modal>
+        @endif
+
         {{-- Modal Confirmación Eliminar Punto de Venta --}}
         @if($mostrarConfirmacionEliminarPV)
             <div class="fixed inset-0 z-[60] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
