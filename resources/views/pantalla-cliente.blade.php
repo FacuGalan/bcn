@@ -155,6 +155,37 @@
         <p class="opacity-80">{{ __('Abrí esta dirección en tu navegador Chrome o Edge (no dentro de la app del sistema) y usá el menú ⋮ → "Instalar". Luego abrila desde su ícono en el segundo monitor.') }}</p>
     </div>
 
+    {{-- Cartel de instalación destacado: SOLO se muestra cuando la página se abrió con
+         ?instalar=1 (desde el botón "Instalar pantalla cliente" del perfil de la app
+         principal). Hace obvia la acción de instalar en vez del botón chico de abajo, y
+         avisa si ya está instalada. Lo controla pantalla-cliente.js. Los textos
+         dinámicos viajan en data-* para respetar las traducciones (__()). --}}
+    <div id="pc-install-overlay"
+        class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm px-6"
+        data-msg-default="{{ __('Instalala como app para abrirla a pantalla completa en el segundo monitor, con su propio ícono.') }}"
+        data-msg-instalada="{{ __('Parece que ya está instalada en este navegador. Buscá su ícono para abrirla, o usá el menú ⋮ del navegador → Instalar.') }}"
+        data-msg-ok="{{ __('¡Listo! Ya está instalada. Abrila desde su ícono en el segundo monitor.') }}"
+        data-txt-instalar="{{ __('Instalar ahora') }}"
+        data-txt-entendido="{{ __('Entendido') }}">
+        <div class="w-full max-w-md rounded-3xl bg-white text-gray-900 shadow-2xl p-8 text-center">
+            <div class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-100 text-violet-600">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold mb-2">{{ __('Instalar pantalla cliente') }}</h2>
+            <p id="pc-install-overlay-msg" class="text-gray-600 mb-6">{{ __('Instalala como app para abrirla a pantalla completa en el segundo monitor, con su propio ícono.') }}</p>
+            <button id="pc-install-overlay-btn"
+                class="w-full inline-flex items-center justify-center gap-2 rounded-full bg-violet-600 hover:bg-violet-700 text-white text-base font-semibold px-6 py-3 shadow-lg transition">
+                <svg id="pc-install-overlay-btn-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                <span id="pc-install-overlay-btn-text">{{ __('Instalar ahora') }}</span>
+            </button>
+            <button id="pc-install-overlay-cerrar" class="mt-4 text-sm text-gray-400 hover:text-gray-600">{{ __('Ahora no') }}</button>
+        </div>
+    </div>
+
     {{-- Botones flotantes abajo a la derecha --}}
     <div class="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
         {{-- Enviar al 2do monitor y poner fullscreen ahí (Multi-Screen Window

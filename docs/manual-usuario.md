@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-03
+> Version: 0.1.x | Ultima actualizacion: 2026-06-05
 
 ---
 
@@ -104,7 +104,7 @@ Antes de comenzar a usar el sistema, es importante comprender los siguientes con
 Al iniciar sesion, encontrara:
 
 - **Menu lateral izquierdo**: Contiene todos los modulos del sistema organizados en categorias (Ventas, Compras, Stock, Cajas, etc.). Haga clic en una categoria para ver sus sub-opciones.
-- **Barra superior (navbar)**: Muestra los modulos principales del sistema como pestanas horizontales. A la derecha encontrara selectores de sucursal y caja, ademas de su perfil de usuario.
+- **Barra superior (navbar)**: Muestra los modulos principales del sistema como pestanas horizontales. A la derecha encontrara selectores de sucursal y caja, ademas de su perfil de usuario. El desplegable de perfil incluye las opciones **"Instalar App"** (para instalar BCN Pymes como app PWA en el dispositivo) e **"Instalar pantalla cliente"** (para instalar la pantalla del segundo monitor como app independiente).
 - **Banda de sub-items**: Debajo del navbar, al seleccionar un modulo que tiene sub-secciones, aparece una banda compacta con los items hijos. El item activo se resalta con subrayado naranja y texto en negrita.
 - **Area de contenido principal**: Ocupa la mayor parte de la pantalla y muestra la pagina o modulo seleccionado.
 
@@ -2263,7 +2263,6 @@ Gestion de las sucursales del comercio:
   - Facturacion fiscal automatica.
   - Configuracion de WhatsApp (envio de comandas y notificaciones).
 - **Personalizar 2da pantalla** (visible solo si alguna caja de la sucursal tiene "Usa pantalla orientada al cliente" activado): abre el modal de personalizacion de la pantalla cliente. Ver seccion 12.12.
-- **Instalar pantalla cliente** (visible en las mismas condiciones): abre la URL `/pantalla-cliente` en el navegador para que el usuario la instale como app PWA independiente.
 
 #### Pestana "Cajas"
 
@@ -2750,7 +2749,11 @@ Haga clic en **"Guardar"**. Los cambios se aplican de inmediato en la proxima ve
 
 #### Instalar la 2da pantalla como app
 
-En la misma tarjeta de sucursal, el boton **"Instalar pantalla cliente"** abre `/pantalla-cliente` en el navegador. Desde esa pagina, el boton flotante **"Instalar pantalla cliente"** permite instalarla como una aplicacion PWA independiente con icono propio en la barra de tareas, de modo que pueda abrirse sin una pestana del navegador.
+Haga clic en su perfil de usuario (esquina superior derecha del navbar) y seleccione **"Instalar pantalla cliente"**. El sistema abrira `/pantalla-cliente?instalar=1` en una pestana nueva. En esa pagina aparecera un cartel destacado con el boton **"Instalar ahora"** que dispara el dialogo nativo de instalacion del navegador.
+
+Si el navegador detecta que la app ya esta instalada (o no soporta instalacion PWA), el cartel lo indicara con un boton **"Entendido"** para cerrarlo. Al completarse la instalacion con exito, el cartel cambia a un mensaje de confirmacion.
+
+El boton esta disponible siempre en el desplegable de perfil (no se oculta aunque la app ya este instalada), ya que desde la app principal no es posible detectar con fiabilidad si la PWA de pantalla cliente esta instalada en el dispositivo.
 
 La pantalla cliente y la app principal (BCN Pymes) tienen scopes de PWA distintos y no superpuestos, por lo que pueden instalarse como apps separadas al mismo tiempo en el mismo navegador.
 

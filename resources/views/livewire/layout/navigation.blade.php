@@ -463,6 +463,31 @@ new class extends Component
                             </button>
                         </div>
 
+                        <!-- Instalar Pantalla Cliente (Desktop) -->
+                        {{-- Abre /pantalla-cliente?instalar=1 en una pestaña nueva, donde su
+                             propio botón auto-dispara el prompt nativo. No se puede disparar el
+                             prompt de otra PWA desde /app (cada documento tiene un solo
+                             manifest). Se muestra SIEMPRE: no hay forma fiable de saber desde
+                             /app si esa PWA ya está instalada (getInstalledRelatedApps exige
+                             estar dentro de su scope /pantalla-cliente y no corre en iframe), y
+                             ocultarla con una bandera dejaría al usuario sin poder reinstalar
+                             tras desinstalar. --}}
+                        <div>
+                            <a
+                                href="{{ route('pantalla-cliente') }}?instalar=1"
+                                target="_blank"
+                                rel="noopener"
+                                class="block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:bg-gray-100 dark:focus:bg-gray-700 transition duration-150 ease-in-out"
+                            >
+                                <span class="flex items-center">
+                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                    {{ __('Instalar pantalla cliente') }}
+                                </span>
+                            </a>
+                        </div>
+
                         <!-- Authentication -->
                         <button wire:click="logout" class="w-full text-start">
                             <x-dropdown-link>
@@ -807,6 +832,22 @@ new class extends Component
                     </svg>
                     {{ __('Instalar App') }}
                 </button>
+            </div>
+
+            <!-- Instalar Pantalla Cliente (Mobile) -->
+            {{-- Se muestra siempre (ver nota en el bloque desktop). --}}
+            <div>
+                <a
+                    href="{{ route('pantalla-cliente') }}?instalar=1"
+                    target="_blank"
+                    rel="noopener"
+                    class="w-full flex items-center px-3 py-2 text-sm font-medium text-bcn-primary rounded-md hover:bg-bcn-white dark:hover:bg-gray-700 hover:text-bcn-secondary"
+                >
+                    <svg class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    {{ __('Instalar pantalla cliente') }}
+                </a>
             </div>
 
             <button

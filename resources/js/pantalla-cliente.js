@@ -208,6 +208,95 @@ document.addEventListener('DOMContentLoaded', () => {
         if (installHelp) installHelp.classList.add('hidden');
     });
 
+    // --- Cartel de instalación destacado (?instalar=1) ---
+    // La página se abrió desde el botón "Instalar pantalla cliente" del perfil de la
+    // app principal. En vez del botón chico de abajo (poco visible y que no hace nada
+    // si ya está instalada), mostramos un cartel grande con un botón claro. El prompt
+    // nativo solo existe en ESTA página (otro manifest/scope que /app) y exige un gesto
+    // del usuario: el botón del cartel ES ese gesto. Si no hay prompt (ya instalada o
+    // navegador sin soporte), el cartel lo explica en vez de quedarse mudo.
+    const autoInstalar = new URLSearchParams(window.location.search).has('instalar');
+    const overlay = document.getElementById('pc-install-overlay');
+
+    if (autoInstalar && overlay && !enModoApp) {
+        const overlayMsg = document.getElementById('pc-install-overlay-msg');
+        const overlayBtn = document.getElementById('pc-install-overlay-btn');
+        const overlayBtnText = document.getElementById('pc-install-overlay-btn-text');
+        const overlayBtnIcon = document.getElementById('pc-install-overlay-btn-icon');
+        const overlayCerrar = document.getElementById('pc-install-overlay-cerrar');
+
+        const ICONO_INSTALAR =
+            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>';
+        const ICONO_TILDE =
+            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>';
+
+        // 'instalar' = el botón dispara el prompt; 'cerrar' = ya instalada → solo cierra.
+        let modo = 'instalar';
+        const cerrar = () => overlay.classList.add('hidden');
+
+        // Estado "instalar": botón violeta con ícono de descarga.
+        const verModoInstalar = (mensaje) => {
+            modo = 'instalar';
+            if (overlayMsg) overlayMsg.textContent = mensaje;
+            if (overlayBtnText) overlayBtnText.textContent = overlay.dataset.txtInstalar || '';
+            if (overlayBtn) {
+                overlayBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                overlayBtn.classList.add('bg-violet-600', 'hover:bg-violet-700');
+            }
+            if (overlayBtnIcon) overlayBtnIcon.innerHTML = ICONO_INSTALAR;
+        };
+
+        // Estado "hecho" (ya instalada o recién instalada): botón VERDE con TILDE.
+        const verModoHecho = (mensaje) => {
+            modo = 'cerrar';
+            if (overlayMsg) overlayMsg.textContent = mensaje;
+            if (overlayBtnText) overlayBtnText.textContent = overlay.dataset.txtEntendido || '';
+            if (overlayBtn) {
+                overlayBtn.classList.remove('bg-violet-600', 'hover:bg-violet-700');
+                overlayBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+            }
+            if (overlayBtnIcon) overlayBtnIcon.innerHTML = ICONO_TILDE;
+        };
+
+        overlay.classList.remove('hidden');
+        // Que los clics dentro del cartel no disparen el fullscreen global.
+        overlay.addEventListener('click', (e) => e.stopPropagation());
+        if (overlayCerrar) overlayCerrar.addEventListener('click', cerrar);
+
+        // Si en un par de segundos no llegó el prompt nativo (y no es modo app), lo más
+        // probable es que ya esté instalada o que el navegador no lo soporte.
+        const sinPrompt = setTimeout(() => {
+            if (!deferredPrompt) verModoHecho(overlay.dataset.msgInstalada || '');
+        }, 2500);
+
+        // Si el prompt aparece (incluso después del timeout), volver a modo instalar.
+        window.addEventListener('beforeinstallprompt', () => {
+            verModoInstalar(overlay.dataset.msgDefault || '');
+        });
+
+        if (overlayBtn) {
+            overlayBtn.addEventListener('click', async () => {
+                if (modo === 'cerrar' || !deferredPrompt) {
+                    cerrar();
+                    return;
+                }
+                const prompt = deferredPrompt;
+                deferredPrompt = null;
+                prompt.prompt();
+                try {
+                    await prompt.userChoice;
+                } catch (_) {
+                    /* el usuario cerró el diálogo */
+                }
+            });
+        }
+
+        window.addEventListener('appinstalled', () => {
+            clearTimeout(sinPrompt);
+            verModoHecho(overlay.dataset.msgOk || '');
+        });
+    }
+
     // --- Botones flotantes: pantalla completa + enviar al 2do monitor ---
     const hint = document.getElementById('pc-fullscreen-hint');
     const btnEnviar = document.getElementById('pc-enviar-2da');
