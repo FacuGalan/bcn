@@ -247,18 +247,6 @@
                                             </svg>
                                             {{ __('Personalizar 2da pantalla') }}
                                         </button>
-                                        <a
-                                            href="{{ route('pantalla-cliente') }}"
-                                            target="_blank"
-                                            rel="noopener"
-                                            class="inline-flex items-center px-3 py-1.5 bg-white border border-violet-300 text-violet-700 text-sm font-medium rounded-md hover:bg-violet-50 dark:bg-gray-700 dark:border-violet-700 dark:text-violet-300 dark:hover:bg-violet-900/20 transition-colors"
-                                            title="{{ __('Abre la pantalla cliente en una pestaña nueva para instalarla como app en el segundo monitor') }}"
-                                        >
-                                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                                            </svg>
-                                            {{ __('Instalar pantalla cliente') }}
-                                        </a>
                                     @endif
                                     @if($sucursal->hasLogo())
                                         <button
