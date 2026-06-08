@@ -1,8 +1,12 @@
 # QR Monto-Libre (qr_libre) — Especificación
 
-## Estado: EN REVISIÓN
+## Estado: EN PROGRESO — Fases 1-4 COMPLETAS (commiteadas), Fase 5 (cierre) PENDIENTE
 
 > Modo `qr_libre` dentro de la integración `mercadopago_qr`. Cobro con QR de monto libre: el sistema NO empuja monto a MP, muestra una imagen de QR "Cobrar" subida por el comercio (opcionalmente en 2da pantalla) y el cajero confirma el pago manualmente. Deja la transacción registrada como riel para conciliación/webhook futuros.
+>
+> **Rama**: `feat/integraciones-pago-qr-monto-libre` (desde master). **Commits**: Fase 1 `4e676a7`, Fase 2 `ee54ce4`, Fase 3 `1532707`, Fase 4 `422ae3e`, fix imagen+UI `71fa43f`. Validado en vivo por el usuario (config + cobro + confirmación + imagen OK).
+>
+> **FALTA (Fase 5, próxima sesión)**: (1) guard en el webhook para ignorar `qr_libre` (no matchear); (2) traducciones es/en/pt (`/traducir`) — los strings nuevos hoy andan por fallback de clave en español; (3) docs (`@docs-sync`: manual-usuario + ai-knowledge-base); (4) `/sdd-verify` + abrir PR. Recordar el **Mapa de conflictos con Point #128** (sección más abajo) al mergear.
 
 ---
 
