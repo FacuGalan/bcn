@@ -750,11 +750,20 @@ class ProvisionComercioCommand extends Command
             [
                 'codigo' => 'mercadopago_qr',
                 'nombre' => 'Mercado Pago - QR',
-                'descripcion' => 'Cobros con Mercado Pago: QR dinámico (se muestra en pantalla por venta) y QR estático (QR impreso del POS, con el monto empujado a la caja).',
+                'descripcion' => 'Cobros con Mercado Pago: QR dinámico y QR estático, ambos con monto definido (enviado desde el sistema).',
                 'modos_disponibles' => json_encode(['qr_dinamico', 'qr_estatico']),
                 'gateway_class' => \App\Services\IntegracionesPago\MercadoPagoGateway::class,
                 'activo' => true,
                 'orden' => 1,
+            ],
+            [
+                'codigo' => 'mercadopago_point',
+                'nombre' => 'Mercado Pago - Point',
+                'descripcion' => 'Cobros con Mercado Pago Point: el monto se envía a la terminal física desde el sistema y el cliente paga con tarjeta o QR en el propio aparato.',
+                'modos_disponibles' => json_encode(['point']),
+                'gateway_class' => \App\Services\IntegracionesPago\MercadoPagoGateway::class,
+                'activo' => true,
+                'orden' => 2,
             ],
         ];
 

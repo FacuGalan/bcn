@@ -157,6 +157,7 @@ CREATE TABLE `{{PREFIX}}cajas` (
   `mp_pos_external_id` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'external_id del POS en MP, formato BCN-{c}-POS-{caja}',
   `mp_pos_qr_url` text COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'URL del PNG del QR estático asociado al POS',
   `mp_pos_qr_pdf_url` text COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'URL del PDF imprimible del QR del POS',
+  `mp_point_terminal_id` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ID de la terminal Point de MP asignada a la caja, formato {tipo}__{serial}',
   `usa_pantalla_cliente` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'Si el puesto/caja tiene un segundo monitor orientado al cliente para mostrar el QR de cobro',
   PRIMARY KEY (`id`),
   UNIQUE KEY `cajas_sucursal_numero_unique` (`sucursal_id`,`numero`),
@@ -164,6 +165,7 @@ CREATE TABLE `{{PREFIX}}cajas` (
   KEY `idx_estado` (`estado`),
   KEY `idx_sucursal` (`sucursal_id`),
   KEY `idx_cajas_mp_pos_id` (`mp_pos_id`),
+  KEY `idx_cajas_mp_point_terminal_id` (`mp_point_terminal_id`),
   KEY `{{PREFIX}}cajas_grupo_cierre_id_foreign` (`grupo_cierre_id`),
   CONSTRAINT `{{PREFIX}}cajas_grupo_cierre_id_foreign` FOREIGN KEY (`grupo_cierre_id`) REFERENCES `{{PREFIX}}grupos_cierre` (`id`) ON DELETE SET NULL,
   CONSTRAINT `{{PREFIX}}cajas_sucursal_id_foreign` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
@@ -986,6 +988,7 @@ CREATE TABLE `{{PREFIX}}forma_pago_integraciones` (
   `integracion_pago_id` bigint(20) unsigned NOT NULL,
   `modo_default` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Modo preseleccionado al cobrar: qr_dinamico, qr_estatico, ...',
   `modos_permitidos` json DEFAULT NULL COMMENT 'Modos que el cajero puede elegir al cobrar (incluye el default)',
+  `config_point` json DEFAULT NULL COMMENT 'Config del modo Point por FP: {"default_type":"credit_card|debit_card|qr"}; null = Abierto',
   `es_principal` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Integracion preseleccionada si la FP tiene varias',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
