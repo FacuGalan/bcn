@@ -231,11 +231,15 @@ Claves nuevas (es/en/pt), alfabéticas, vía `/traducir`:
 
 **Entregable**: el gateway crea/cancela orders Point. ✅ (sin UI todavía; verificado con `Http::fake`)
 
-### Fase 3: Config UI — terminal por caja + default_type [PENDIENTE]
-1. `SincronizacionMercadoPagoService::listarTerminales` + `vincularTerminalCaja`.
-2. `IntegracionesPago` + vista: sección "Terminales por caja" espejando la de POS del QR (botón "Vincular terminal" por caja → lista `GET /terminals/v1/list`, activa PDV, guarda `mp_point_terminal_id`).
-3. `GestionarFormasPago` + vista: selector `default_type` (persistir en `config_point`).
-4. Smoke de ambos componentes.
+### Fase 3: Config UI — terminal por caja + default_type [EN PROGRESO]
+**3a (service, no visual) [COMPLETO — 2026-06-08]**:
+1. ✅ `MercadoPagoGateway::listarTerminales` (`GET /terminals/v1/list`) + `activarModoPDV` (`PATCH /terminals/v1/setup` PDV).
+2. ✅ `SincronizacionMercadoPagoService::listarTerminales` + `vincularTerminalCaja` (activa PDV + persiste `mp_point_terminal_id`) + `desvincularTerminalCaja`. 3 tests `Http::fake` verdes. Pint OK.
+
+**3b (UI, validación en vivo) [PENDIENTE]**:
+3. `IntegracionesPago` + vista: sección "Terminales por caja" espejando la de POS del QR (botón "Vincular terminal" por caja → lista terminales, vincula, muestra la en uso).
+4. `GestionarFormasPago` + vista: selector `default_type` (persistir en `config_point`).
+5. Smoke de ambos componentes.
 
 **Entregable**: admin configura Point end-to-end desde la UI.
 
