@@ -576,6 +576,25 @@
                                                             </div>
                                                         </div>
 
+                                                        <!-- Medio de pago en la terminal (solo Point) -->
+                                                        @if (($fila['modo_default'] ?? null) === 'point')
+                                                            <div class="mt-3">
+                                                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Medio de pago en la terminal') }}</label>
+                                                                <select
+                                                                    wire:model="integraciones_fp.{{ $index }}.default_type"
+                                                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
+                                                                >
+                                                                    <option value="">{{ __('Abierto (el cliente elige)') }}</option>
+                                                                    <option value="credit_card">{{ __('Tarjeta de crédito') }}</option>
+                                                                    <option value="debit_card">{{ __('Tarjeta de débito') }}</option>
+                                                                    <option value="qr">{{ __('QR') }}</option>
+                                                                </select>
+                                                                <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                                                                    {{ __('Define qué medio aparece preseleccionado en el posnet. "Abierto" deja elegir al cliente.') }}
+                                                                </p>
+                                                            </div>
+                                                        @endif
+
                                                         <!-- Principal + quitar -->
                                                         <div class="mt-3 flex items-center justify-between">
                                                             <label class="flex items-center text-sm text-gray-700 dark:text-gray-300">

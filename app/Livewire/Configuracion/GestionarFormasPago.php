@@ -196,6 +196,8 @@ class GestionarFormasPago extends Component
 
         // Preseleccionar el primer modo disponible (el usuario puede cambiarlo).
         $this->integraciones_fp[$index]['modo_default'] = $modos[0] ?? null;
+        // Al cambiar de integración se resetea el medio de pago Point (Abierto).
+        $this->integraciones_fp[$index]['default_type'] = null;
     }
 
     public function agregarIntegracion()
@@ -203,6 +205,7 @@ class GestionarFormasPago extends Component
         $this->integraciones_fp[] = [
             'integracion_pago_id' => null,
             'modo_default' => null,
+            'default_type' => null,
             'es_principal' => count($this->integraciones_fp) === 0,
         ];
     }
@@ -305,6 +308,7 @@ class GestionarFormasPago extends Component
             $this->integraciones_fp = $formaPago->integraciones->map(fn ($int) => [
                 'integracion_pago_id' => $int->id,
                 'modo_default' => $int->pivot->modo_default,
+                'default_type' => data_get(json_decode($int->pivot->config_point ?? 'null', true), 'default_type'),
                 'es_principal' => (bool) $int->pivot->es_principal,
             ])->toArray();
         }
@@ -394,11 +398,18 @@ class GestionarFormasPago extends Component
                         continue;
                     }
                     $modo = $row['modo_default'] ?? null;
+                    // Point: medio de pago en la terminal (default_type). Vacío = Abierto
+                    // (no se envía → el cliente elige en el aparato). Solo aplica a point.
+                    $defaultType = $row['default_type'] ?? null;
+                    $configPoint = ($modo === 'point' && ! empty($defaultType))
+                        ? json_encode(['default_type' => $defaultType])
+                        : null;
                     $syncIntegraciones[$row['integracion_pago_id']] = [
                         'modo_default' => $modo,
                         // Un solo modo por integración: el pivote conserva la columna
                         // por compatibilidad, espejando el modo elegido.
                         'modos_permitidos' => json_encode($modo ? [$modo] : []),
+                        'config_point' => $configPoint,
                         'es_principal' => ! empty($row['es_principal']),
                     ];
                 }

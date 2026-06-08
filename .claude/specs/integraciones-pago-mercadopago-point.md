@@ -231,15 +231,18 @@ Claves nuevas (es/en/pt), alfabéticas, vía `/traducir`:
 
 **Entregable**: el gateway crea/cancela orders Point. ✅ (sin UI todavía; verificado con `Http::fake`)
 
-### Fase 3: Config UI — terminal por caja + default_type [EN PROGRESO]
-**3a (service, no visual) [COMPLETO — 2026-06-08]**:
+### Fase 3: Config UI — terminal por caja + default_type [COMPLETO — 2026-06-08]
+**3a (service, no visual)** ✅:
 1. ✅ `MercadoPagoGateway::listarTerminales` (`GET /terminals/v1/list`) + `activarModoPDV` (`PATCH /terminals/v1/setup` PDV).
-2. ✅ `SincronizacionMercadoPagoService::listarTerminales` + `vincularTerminalCaja` (activa PDV + persiste `mp_point_terminal_id`) + `desvincularTerminalCaja`. 3 tests `Http::fake` verdes. Pint OK.
+2. ✅ `SincronizacionMercadoPagoService::listarTerminales` + `vincularTerminalCaja` (activa PDV + persiste `mp_point_terminal_id`) + `desvincularTerminalCaja`. 3 tests `Http::fake` verdes.
 
-**3b (UI, validación en vivo) [PENDIENTE]**:
-3. `IntegracionesPago` + vista: sección "Terminales por caja" espejando la de POS del QR (botón "Vincular terminal" por caja → lista terminales, vincula, muestra la en uso).
-4. `GestionarFormasPago` + vista: selector `default_type` (persistir en `config_point`).
-5. Smoke de ambos componentes.
+**3b.1 (UI terminales por caja)** ✅:
+3. ✅ `IntegracionesPago`: `buscarTerminales`/`vincularTerminal`/`desvincularTerminal` + props. Vista: sección "Terminales por caja" espejando la de POS del QR (botón "Buscar terminales", por caja muestra la en uso o selector + Vincular/Desvincular). Test Livewire verde.
+
+**3b.2 (selector default_type en Formas de Pago)** ✅:
+4. ✅ `GestionarFormasPago`: campo `default_type` por fila de integración; persiste en pivote `config_point` (`{"default_type":...}`; Abierto = null) solo si modo=point. Carga desde el pivote al editar. Vista: selector "Medio de pago en la terminal" (credit_card/debit_card/qr/Abierto) visible solo si modo=point. 2 tests (crédito persiste, abierto = null) verdes.
+
+5. ✅ Smoke de ambos componentes OK. 19 traducciones es/en/pt. Pint OK.
 
 **Entregable**: admin configura Point end-to-end desde la UI.
 
