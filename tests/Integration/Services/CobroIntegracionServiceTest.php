@@ -181,6 +181,49 @@ class CobroIntegracionServiceTest extends TestCase
         $this->assertSame('qr_estatico', $tx->modo_usado);
     }
 
+    // ==================== QR monto-libre (qr_libre) ====================
+
+    public function test_iniciar_cobro_qr_libre_no_llama_a_mp_y_persiste_la_imagen_en_metadata(): void
+    {
+        // qr_libre: el monto lo pone el cliente; no se crea order en MP. El
+        // service siembra la imagen pasada en metadata y el gateway la devuelve
+        // como qr_image_url, sin pegarle a MP (assertNothingSent lo garantiza).
+        Http::fake();
+
+        $mpId = IntegracionPago::porCodigo('mercadopago_qr')->value('id');
+        $config = IntegracionPagoSucursal::create([
+            'integracion_pago_id' => $mpId,
+            'sucursal_id' => $this->sucursalId,
+            'modo' => 'test',
+            'access_token_test' => 'TEST-TOKEN-12345',
+            'user_id_externo' => '999888777',
+        ]);
+
+        $formaPago = \App\Models\FormaPago::create([
+            'nombre' => 'QR Libre',
+            'codigo' => 'QR_LIBRE',
+            'concepto' => 'wallet',
+            'activo' => true,
+        ]);
+
+        $tx = $this->service->iniciarCobro($config, [
+            'forma_pago_id' => $formaPago->id,
+            'sucursal_id' => $this->sucursalId,
+            'usuario_iniciador_id' => 1,
+            'modo_usado' => 'qr_libre',
+            'monto' => 3200.00,
+            'metadata' => ['qr_libre_imagen_url' => 'https://cdn.bcn/qr-cobrar.png'],
+        ]);
+
+        $this->assertNull($tx->qr_data);
+        $this->assertNull($tx->external_id); // no hay order en MP
+        $this->assertSame('https://cdn.bcn/qr-cobrar.png', $tx->metadata['qr_image_url'] ?? null);
+        $this->assertSame('https://cdn.bcn/qr-cobrar.png', $tx->metadata['qr_libre_imagen_url'] ?? null);
+        $this->assertSame('qr_libre', $tx->modo_usado);
+
+        Http::assertNothingSent();
+    }
+
     // ==================== Fase 8 — confirmación manual + expiración ====================
 
     private function crearTransaccionPendiente(?\Carbon\Carbon $expiraEn = null): IntegracionPagoTransaccion

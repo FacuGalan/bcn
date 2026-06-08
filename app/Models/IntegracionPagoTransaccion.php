@@ -98,6 +98,8 @@ class IntegracionPagoTransaccion extends Model
 
     public const MODO_QR_ESTATICO = 'qr_estatico';
 
+    public const MODO_QR_LIBRE = 'qr_libre';
+
     // ==================== Relaciones ====================
 
     public function integracionSucursal(): BelongsTo
