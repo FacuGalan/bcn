@@ -808,6 +808,46 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         return 'PT'.$segundos.'S';
     }
 
+    // ==================== Terminales Point (Integration API) ====================
+
+    /**
+     * Lista las terminales (devices) Point asociadas a la cuenta MP de esta
+     * config (`GET /terminals/v1/list`). Devuelve el array de terminales con
+     * `id`, `pos_id`, `store_id`, `external_pos_id` y `operating_mode`.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function listarTerminales(IntegracionPagoSucursal $config): array
+    {
+        $response = $this->client($config)
+            ->get(self::API_BASE.'/terminals/v1/list', ['limit' => 50]);
+
+        $this->guardResponse($response, 'listarTerminales');
+
+        return $response->json()['data']['terminals'] ?? [];
+    }
+
+    /**
+     * Pone una terminal en modo integrado / PDV (`PATCH /terminals/v1/setup`),
+     * requisito para poder empujarle cobros desde el sistema. Devuelve el
+     * payload de respuesta de MP.
+     *
+     * @return array<string, mixed>
+     */
+    public function activarModoPDV(IntegracionPagoSucursal $config, string $terminalId): array
+    {
+        $response = $this->client($config)
+            ->patch(self::API_BASE.'/terminals/v1/setup', [
+                'terminals' => [
+                    ['id' => $terminalId, 'operating_mode' => 'PDV'],
+                ],
+            ]);
+
+        $this->guardResponse($response, 'activarModoPDV');
+
+        return $response->json() ?? [];
+    }
+
     /**
      * Consulta el estado de la order en MP (GET /v1/orders/{id}).
      * Fallback de polling; la confirmación primaria llega por webhook.
