@@ -987,6 +987,7 @@ CREATE TABLE `{{PREFIX}}forma_pago_integraciones` (
   `modo_default` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Modo preseleccionado al cobrar: qr_dinamico, qr_estatico, ...',
   `modos_permitidos` json DEFAULT NULL COMMENT 'Modos que el cajero puede elegir al cobrar (incluye el default)',
   `es_principal` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Integracion preseleccionada si la FP tiene varias',
+  `config_qr_libre` json DEFAULT NULL COMMENT 'Config del modo qr_libre por FormaPago (ej: imagen del QR Cobrar subida)',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
