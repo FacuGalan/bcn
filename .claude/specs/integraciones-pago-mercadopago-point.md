@@ -257,8 +257,8 @@ Claves nuevas (es/en/pt), alfabéticas, vía `/traducir`:
 ### Fase 5: Pulido + docs + PR [EN PROGRESO]
 1. ✅ "Buscar terminales" + "Activar modo integrado" (PDV) ya en la UI (Fase 3b.1).
 2. ✅ Botón "Ver terminal" en Gestión de Cajas (RF-10): `verTerminalPoint($cajaId)` abre modal con el terminal_id y, best-effort, el `operating_mode` del device desde MP (si hay credenciales Point). Solo aparece si la caja tiene `mp_point_terminal_id`. Smoke test verde. 5 traducciones.
-3. ⬜ `@docs-sync` → manual + ai-knowledge-base (incluir procedimiento de prueba con endpoint de simulación `POST /v1/orders/{id}/events`).
-4. ⬜ `/sdd-verify` + PR.
+3. ✅ `@docs-sync` → `manual-usuario.md` (7.1 Cajas "Ver terminal", 12.4 Formas de Pago, 12.11 Integraciones de Pago con subsección Point + pruebas) y `ai-knowledge-base.md` (columnas, catálogo, gateway, service, reglas Point, webhook).
+4. ⬜ PR contra master.
 
 **Procedimiento de prueba (documentar)**: Point se prueba con un posnet físico **vinculado a credenciales de PRUEBA**; no se paga físicamente: se simula cada estado con `POST /v1/orders/{order_id}/events` (status processed/failed/canceled/expired/action_required) → MP manda el webhook real → el sistema confirma. Pagos reales en el aparato requieren cuenta de PRODUCCIÓN. Sin device no se prueba contra el sandbox (los tests `Http::fake` ya cubren el código).
 
