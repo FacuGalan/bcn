@@ -35,6 +35,9 @@
                 if (usa && host && host.estaConectada()) {
                     this.$nextTick(() => {
                         const svg = this.$refs.qrLocal ? this.$refs.qrLocal.innerHTML : '';
+                        // Point u otros modos sin QR: el cobro va a la terminal física,
+                        // no se manda nada al monitor del cliente.
+                        if (!svg) return;
                         host.enviarQr(svg, {{ (float) $cobroIntegracionMonto }}, '{{ __('Escaneá para pagar') }}');
                         this.enPantallaCliente = true;
                     });
@@ -115,6 +118,18 @@
                                 </div>
                                 <p class="text-base font-medium text-gray-700 dark:text-gray-200">{{ __('Mostrando el QR en la pantalla del cliente') }}</p>
                                 <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('Pedile al cliente que escanee con su app') }}</p>
+                            </div>
+                        @elseif($cobroIntegracionModo === 'point')
+                            {{-- Point: el cobro se empuja a la terminal física; no hay QR en nuestra
+                                 pantalla (el aparato muestra tarjeta/QR). Solo esperamos. --}}
+                            <div class="flex flex-col items-center text-center py-2">
+                                <div class="flex items-center justify-center w-24 h-24 rounded-full bg-sky-100 dark:bg-sky-900/30 mb-3">
+                                    <svg class="w-12 h-12 text-sky-600 dark:text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                                <p class="text-base font-medium text-gray-700 dark:text-gray-200">{{ __('Esperando pago en la terminal') }}</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('Pedile al cliente que pague en el posnet') }}</p>
                             </div>
                         @else
                             <div class="flex items-center justify-center w-[240px] h-[240px] bg-gray-100 dark:bg-gray-700 rounded-xl">

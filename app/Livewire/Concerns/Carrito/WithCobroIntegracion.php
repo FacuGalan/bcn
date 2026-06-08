@@ -41,6 +41,9 @@ trait WithCobroIntegracion
     /** @var int|null Transacción de cobro en curso (IntegracionPagoTransaccion) */
     public ?int $cobroIntegracionTransaccionId = null;
 
+    /** @var string|null Modo del cobro en curso (qr_dinamico|qr_estatico|point). El modal decide qué mostrar. */
+    public ?string $cobroIntegracionModo = null;
+
     /** @var string|null Trama EMVCo del QR a renderizar en el front */
     public ?string $cobroIntegracionQrData = null;
 
@@ -160,15 +163,43 @@ trait WithCobroIntegracion
             return;
         }
 
+        $modo = $integracion->pivot->modo_default ?? 'qr_dinamico';
+        $cajaId = $datos['caja_id'] ?? caja_activa();
+
+        // Modo Point: el cobro se empuja a la terminal física de la caja. Validamos
+        // que tenga terminal vinculada y armamos los datos específicos (medio de
+        // pago y cuotas) que el gateway lee de metadata['point'].
+        $metadata = null;
+        if ($modo === 'point') {
+            $caja = Caja::find($cajaId);
+            if (! $caja || empty($caja->mp_point_terminal_id)) {
+                $this->dispatch('toast-error', message: __('La caja no tiene una terminal Point asignada. Vinculá una en Integraciones de Pago.'));
+
+                return;
+            }
+
+            $defaultType = data_get(json_decode($integracion->pivot->config_point ?? 'null', true), 'default_type');
+            $point = [];
+            if (! empty($defaultType)) {
+                $point['default_type'] = $defaultType;
+                // Las cuotas solo aplican a crédito; salen de la cuota elegida en el desglose.
+                if ($defaultType === 'credit_card') {
+                    $point['installments'] = max(1, (int) ($datos['cuotas'] ?? 1));
+                }
+            }
+            $metadata = ['point' => $point];
+        }
+
         try {
             $transaccion = app(CobroIntegracionService::class)->iniciarCobro($config, [
                 'forma_pago_id' => $formaPago->id,
                 'sucursal_id' => $sucursalId,
-                'caja_id' => $datos['caja_id'] ?? caja_activa(),
+                'caja_id' => $cajaId,
                 'usuario_iniciador_id' => Auth::id(),
-                'modo_usado' => $integracion->pivot->modo_default ?? 'qr_dinamico',
+                'modo_usado' => $modo,
                 'monto' => (float) ($datos['monto'] ?? $datos['monto_final'] ?? 0),
                 'moneda_id' => $datos['moneda_id'] ?? null,
+                'metadata' => $metadata,
             ]);
         } catch (\Throwable $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
@@ -177,6 +208,7 @@ trait WithCobroIntegracion
         }
 
         $this->cobroIntegracionTransaccionId = $transaccion->id;
+        $this->cobroIntegracionModo = $transaccion->modo_usado;
         $this->cobroIntegracionQrData = $transaccion->qr_data;
         $this->cobroIntegracionQrSvg = $this->renderizarQrSvg($transaccion->qr_data);
         // Modo estático: sin trama EMVCo; mostramos la imagen del QR impreso del POS.
@@ -351,6 +383,7 @@ trait WithCobroIntegracion
     {
         $this->mostrarModalEsperandoPago = false;
         $this->cobroIntegracionTransaccionId = null;
+        $this->cobroIntegracionModo = null;
         $this->cobroIntegracionQrData = null;
         $this->cobroIntegracionQrSvg = null;
         $this->cobroIntegracionQrImagenUrl = null;

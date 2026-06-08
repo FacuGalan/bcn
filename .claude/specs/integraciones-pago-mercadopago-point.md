@@ -246,13 +246,13 @@ Claves nuevas (es/en/pt), alfabéticas, vía `/traducir`:
 
 **Entregable**: admin configura Point end-to-end desde la UI.
 
-### Fase 4: Cobro end-to-end + modal [PENDIENTE]
-1. `WithCobroIntegracion`: armar `$datos` Point (terminal de caja activa, default_type, installments) + validación RF-06.
-2. Modal: estado "esperando en terminal" sin QR.
-3. Extender `sincronizarIndiceColector` (guard Point).
-4. Tests: cobro Point flujo feliz (mock gateway), webhook Point sync índice + confirma.
+### Fase 4: Cobro end-to-end + modal [COMPLETO — 2026-06-08]
+1. ✅ `WithCobroIntegracion::iniciarCobroIntegracion`: para modo `point` valida terminal de la caja (RF-06), arma `metadata['point']` (default_type de la FP `config_point`, installments de la cuota del desglose solo en credit_card) y lo pasa al service. Prop `cobroIntegracionModo` para que el modal decida. `CobroIntegracionService::iniciarCobro` ahora acepta `metadata` y la persiste en la transacción (el gateway la lee).
+2. ✅ Modal `_modal-esperando-pago-integracion`: rama `@elseif modo === 'point'` muestra "Esperando pago en la terminal" + ícono posnet, sin QR. El envío a la pantalla cliente se guarda (no manda QR vacío para Point).
+3. ✅ `IntegracionPagoSucursal::sincronizarIndiceColector`: guard extendido a `[CODIGO_MERCADOPAGO_QR, CODIGO_MERCADOPAGO_POINT]` → el webhook de Point resuelve (mismo topic `orders`, distingue por external_id).
+4. ✅ Tests: `CobroQrFlujoFelizTest::test_flujo_feliz_point...` (end-to-end: POST type:point con terminal+medio+cuotas, sin QR, confirma → materializa venta) + `IntegracionPagoSucursalServiceTest::...config_point_tambien_sincroniza_indice` (índice registra Point). 72 tests de la suite verdes. Pint OK. 1 traducción nueva.
 
-**Entregable**: una venta con FP Point empuja el cobro a la terminal, espera, y confirma por webhook.
+**Entregable**: una venta con FP Point empuja el cobro a la terminal, espera sin QR, y al confirmar materializa la venta. ✅ (verificado con `Http::fake`; webhook real reutiliza el flujo existente)
 
 ### Fase 5: Pulido + docs + PR [PENDIENTE]
 1. (Opcional) "Buscar terminales" + "Activar modo integrado" en la UI.
