@@ -101,6 +101,8 @@
                                 <p class="mt-3 text-sm text-gray-500 dark:text-gray-400 text-center">
                                     @if($cobroIntegracionQrSvg)
                                         {{ __('Escaneá el código con la app para pagar') }}
+                                    @elseif($cobroIntegracionModo === 'qr_libre')
+                                        {{ __('El cliente escanea el QR e ingresa el monto en su app') }}
                                     @else
                                         {{ __('Pedile al cliente que escanee el QR de la caja') }}
                                     @endif
@@ -127,23 +129,56 @@
                     </div>
 
                     {{-- Estado: esperando confirmación + countdown --}}
-                    <div class="rounded-xl p-4 text-center border-2 border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20">
-                        <div class="flex items-center justify-center gap-2 text-sky-700 dark:text-sky-300">
-                            <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                            </svg>
-                            <span class="text-sm font-medium">{{ __('Esperando confirmación del pago…') }}</span>
+                    @if($cobroIntegracionModo === 'qr_libre')
+                        {{-- qr_libre: no hay detección automática; el cajero confirma a mano. --}}
+                        <div class="rounded-xl p-4 text-center border-2 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
+                            <span class="text-sm font-medium text-amber-700 dark:text-amber-300">{{ __('Esperá a que el cliente pague el monto en su app de Mercado Pago.') }}</span>
+                            @if($cobroIntegracionExpiraTs)
+                                <p class="mt-2 text-xs uppercase tracking-wide text-amber-500 dark:text-amber-400">{{ __('Expira en') }}</p>
+                                <p class="text-2xl font-bold text-amber-700 dark:text-amber-300"
+                                   x-text="expirado ? '{{ __('Expirado') }}' : (mm + ':' + ss)"></p>
+                            @endif
                         </div>
-                        @if($cobroIntegracionExpiraTs)
-                            <p class="mt-2 text-xs uppercase tracking-wide text-sky-500 dark:text-sky-400">{{ __('Expira en') }}</p>
-                            <p class="text-2xl font-bold text-sky-700 dark:text-sky-300"
-                               x-text="expirado ? '{{ __('Expirado') }}' : (mm + ':' + ss)"></p>
-                        @endif
-                    </div>
+                    @else
+                        <div class="rounded-xl p-4 text-center border-2 border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20">
+                            <div class="flex items-center justify-center gap-2 text-sky-700 dark:text-sky-300">
+                                <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                                <span class="text-sm font-medium">{{ __('Esperando confirmación del pago…') }}</span>
+                            </div>
+                            @if($cobroIntegracionExpiraTs)
+                                <p class="mt-2 text-xs uppercase tracking-wide text-sky-500 dark:text-sky-400">{{ __('Expira en') }}</p>
+                                <p class="text-2xl font-bold text-sky-700 dark:text-sky-300"
+                                   x-text="expirado ? '{{ __('Expirado') }}' : (mm + ':' + ss)"></p>
+                            @endif
+                        </div>
+                    @endif
 
-                    {{-- Confirmación manual (RF-12): fallback con permiso si el pago no se detecta solo --}}
-                    @if($this->puedeConfirmarManual)
+                    {{-- Confirmación manual (RF-12) --}}
+                    @if($cobroIntegracionModo === 'qr_libre')
+                        {{-- qr_libre: la confirmación manual ES la acción principal (no hay detección automática). --}}
+                        @if($this->puedeConfirmarManual)
+                            <div>
+                                <button type="button" wire:click="confirmarCobroIntegracionManual"
+                                        class="w-full inline-flex justify-center items-center gap-2 rounded-md px-4 py-2.5 bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    {{ __('Confirmar pago recibido') }}
+                                </button>
+                                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
+                                    {{ __('Confirmá solo si verificaste que el cliente pagó. Esta acción queda registrada.') }}
+                                </p>
+                            </div>
+                        @else
+                            <p class="text-xs text-amber-600 dark:text-amber-400 text-center">
+                                {{ __('Pedí a un usuario habilitado que confirme el pago recibido.') }}
+                            </p>
+                        @endif
+                    @elseif($this->puedeConfirmarManual)
+                        {{-- Otros modos: fallback discreto si el pago no se detecta solo. --}}
                         <div x-data="{ confirmando: false }">
                             <button x-show="!confirmando" type="button" @click="confirmando = true"
                                     class="w-full text-center text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline">
