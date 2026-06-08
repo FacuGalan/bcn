@@ -36,7 +36,8 @@ class CobroQrLibreTest extends TestCase
 {
     use WithCaja, WithSucursal, WithTenant, WithVentaHelpers;
 
-    private const QR_IMG_URL = 'http://localhost/storage/integraciones/qr_libre/1/cobrar.webp';
+    // URL root-relativa derivada del imagen_path (portable, igual que Articulo::imagenUrl).
+    private const QR_IMG_URL = '/storage/integraciones/qr_libre/1/cobrar.webp';
 
     protected function setUp(): void
     {

@@ -185,15 +185,16 @@ trait WithCobroIntegracion
         // Se pasa al gateway vía metadata; sin imagen no se puede cobrar.
         $metadata = null;
         if ($esQrLibre) {
-            $imagenUrl = data_get(json_decode($integracion->pivot->config_qr_libre ?? 'null', true), 'imagen_url');
+            $imagenPath = data_get(json_decode($integracion->pivot->config_qr_libre ?? 'null', true), 'imagen_path');
 
-            if (empty($imagenUrl)) {
+            if (empty($imagenPath)) {
                 $this->dispatch('toast-error', message: __('Configurá la imagen del QR de Mercado Pago en la forma de pago antes de cobrar con QR de monto libre.'));
 
                 return;
             }
 
-            $metadata = ['qr_libre_imagen_url' => $imagenUrl];
+            // URL root-relativa derivada del path (portable entre hosts/puertos).
+            $metadata = ['qr_libre_imagen_url' => \App\Services\IntegracionesPago\ImagenQrLibreService::urlPublica($imagenPath)];
         }
 
         try {

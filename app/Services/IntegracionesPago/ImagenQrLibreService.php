@@ -86,8 +86,25 @@ class ImagenQrLibreService
 
         return [
             'path' => $path,
-            'url' => Storage::disk('public')->url($path),
+            // URL root-relativa (NO absoluta con APP_URL): portable entre hosts/
+            // puertos en dev y prod, igual que Articulo::imagenUrl(). Ver helper
+            // estático urlPublica() para reconstruirla desde el path.
+            'url' => self::urlPublica($path),
         ];
+    }
+
+    /**
+     * URL pública root-relativa de un path del disk público. Portable entre
+     * hosts/puertos (usa el host desde el que se sirve el HTML), a diferencia de
+     * `Storage::url()` que arma con APP_URL.
+     */
+    public static function urlPublica(?string $path): ?string
+    {
+        if (empty($path)) {
+            return null;
+        }
+
+        return '/storage/'.ltrim($path, '/');
     }
 
     /**

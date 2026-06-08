@@ -579,33 +579,53 @@
                                                         <!-- QR de monto libre: imagen del QR "Cobrar" a mostrar al cliente -->
                                                         @if(($fila['modo_default'] ?? null) === 'qr_libre')
                                                             @php $qrPreviewUrl = isset($qrLibreImagenes[$index]) ? $qrLibreImagenes[$index]->temporaryUrl() : ($fila['qr_libre_imagen_url'] ?? null); @endphp
-                                                            <div class="mt-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-3 bg-white dark:bg-gray-800/40">
-                                                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Imagen del QR de cobro de Mercado Pago') }}</label>
-                                                                <p class="text-xs text-gray-400 dark:text-gray-500 mb-2">
-                                                                    {{ __('Subí el QR "Cobrar" de tu cuenta de Mercado Pago. El cliente lo escanea, ingresa el monto y vos confirmás el pago manualmente.') }}
-                                                                </p>
-                                                                <div class="flex items-start gap-3">
-                                                                    @if($qrPreviewUrl)
-                                                                        <img src="{{ $qrPreviewUrl }}" alt="{{ __('QR de cobro') }}" class="w-24 h-24 object-contain rounded-md border border-gray-200 dark:border-gray-600 bg-white shrink-0" />
-                                                                    @else
-                                                                        <div class="flex items-center justify-center w-24 h-24 rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-300 dark:text-gray-500 shrink-0">
-                                                                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4h6v6H4V4zm0 10h6v6H4v-6zM14 4h6v6h-6V4zm0 10h2v2h-2v-2zm4 0h2v2h-2v-2zm-4 4h2v2h-2v-2zm4 0h2v2h-2v-2z"/>
-                                                                            </svg>
+                                                            <div class="mt-3">
+                                                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">{{ __('Imagen del QR de cobro de Mercado Pago') }}</label>
+                                                                <div
+                                                                    x-data="{ over: false }"
+                                                                    x-on:dragover.prevent="over = true"
+                                                                    x-on:dragleave.prevent="over = false"
+                                                                    x-on:drop.prevent="over = false; if ($event.dataTransfer.files.length) { $refs.qrInput.files = $event.dataTransfer.files; $refs.qrInput.dispatchEvent(new Event('change', { bubbles: true })); }"
+                                                                >
+                                                                    <input type="file" x-ref="qrInput" id="qr-libre-{{ $index }}"
+                                                                        accept="image/jpeg,image/png,image/webp"
+                                                                        wire:model="qrLibreImagenes.{{ $index }}" class="hidden" />
+                                                                    <label for="qr-libre-{{ $index }}"
+                                                                        class="flex items-center gap-4 cursor-pointer rounded-xl border-2 border-dashed p-4 transition-colors"
+                                                                        :class="over ? 'border-bcn-primary bg-bcn-light/40 dark:bg-bcn-primary/10' : 'border-gray-300 dark:border-gray-600 hover:border-bcn-primary/60 hover:bg-gray-50 dark:hover:bg-gray-700/40'">
+                                                                        {{-- Thumbnail / placeholder --}}
+                                                                        @if($qrPreviewUrl)
+                                                                            <img src="{{ $qrPreviewUrl }}" alt="{{ __('QR de cobro') }}" class="w-20 h-20 object-contain rounded-lg border border-gray-200 dark:border-gray-600 bg-white shrink-0" />
+                                                                        @else
+                                                                            <div class="flex items-center justify-center w-20 h-20 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 shrink-0">
+                                                                                <svg class="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4h6v6H4V4zm0 10h6v6H4v-6zM14 4h6v6h-6V4zm0 10h2v2h-2v-2zm4 0h2v2h-2v-2zm-4 4h2v2h-2v-2zm4 0h2v2h-2v-2z"/>
+                                                                                </svg>
+                                                                            </div>
+                                                                        @endif
+                                                                        {{-- Texto --}}
+                                                                        <div class="min-w-0 flex-1">
+                                                                            <p class="text-sm font-medium text-gray-700 dark:text-gray-200">
+                                                                                {{ $qrPreviewUrl ? __('Cambiar imagen del QR') : __('Subí el QR “Cobrar” de Mercado Pago') }}
+                                                                            </p>
+                                                                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                                                                                {{ __('Arrastrá una imagen o hacé clic. JPG, PNG o WebP (máx. 4 MB).') }}
+                                                                            </p>
+                                                                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                                                {{ __('El cliente lo escanea, ingresa el monto y vos confirmás el pago.') }}
+                                                                            </p>
+                                                                            <div wire:loading wire:target="qrLibreImagenes.{{ $index }}" class="mt-1.5 inline-flex items-center gap-1.5 text-xs text-sky-600 dark:text-sky-400">
+                                                                                <svg class="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                                                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                                                                </svg>
+                                                                                {{ __('Subiendo imagen…') }}
+                                                                            </div>
                                                                         </div>
-                                                                    @endif
-                                                                    <div class="flex-1 min-w-0">
-                                                                        <input
-                                                                            type="file"
-                                                                            accept="image/jpeg,image/png,image/webp"
-                                                                            wire:model="qrLibreImagenes.{{ $index }}"
-                                                                            class="block w-full text-xs text-gray-600 dark:text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-bcn-light file:text-bcn-primary hover:file:bg-bcn-light/70 file:cursor-pointer"
-                                                                        />
-                                                                        <div wire:loading wire:target="qrLibreImagenes.{{ $index }}" class="mt-1.5 text-xs text-sky-600 dark:text-sky-400">{{ __('Subiendo imagen…') }}</div>
-                                                                        @error("qrLibreImagenes.{$index}") <span class="block mt-1 text-red-600 text-xs">{{ $message }}</span> @enderror
-                                                                        @error("integraciones_fp.{$index}.qr_libre") <span class="block mt-1 text-red-600 text-xs">{{ $message }}</span> @enderror
-                                                                    </div>
+                                                                    </label>
                                                                 </div>
+                                                                @error("qrLibreImagenes.{$index}") <span class="block mt-1 text-red-600 text-xs">{{ $message }}</span> @enderror
+                                                                @error("integraciones_fp.{$index}.qr_libre") <span class="block mt-1 text-red-600 text-xs">{{ $message }}</span> @enderror
                                                             </div>
                                                         @endif
 

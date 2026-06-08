@@ -364,15 +364,16 @@ class GestionarFormasPago extends Component
             // Cargar integraciones de pago asociadas (pivote).
             $this->integraciones_fp = $formaPago->integraciones->map(function ($int) {
                 $cfgLibre = json_decode($int->pivot->config_qr_libre ?? 'null', true);
+                $pathLibre = data_get($cfgLibre, 'imagen_path');
 
                 return [
                     'integracion_pago_id' => $int->id,
                     'modo_default' => $int->pivot->modo_default,
                     'es_principal' => (bool) $int->pivot->es_principal,
-                    // QR ya guardado (modo qr_libre): URL para preview + path para
-                    // preservarlo/borrarlo al guardar sin nuevo upload.
-                    'qr_libre_imagen_url' => data_get($cfgLibre, 'imagen_url'),
-                    'qr_libre_imagen_path' => data_get($cfgLibre, 'imagen_path'),
+                    // QR ya guardado (modo qr_libre): la URL se DERIVA del path
+                    // (root-relativa, portable), no se confía en la guardada.
+                    'qr_libre_imagen_url' => ImagenQrLibreService::urlPublica($pathLibre),
+                    'qr_libre_imagen_path' => $pathLibre,
                 ];
             })->toArray();
             $this->qrLibreImagenes = [];
