@@ -254,10 +254,13 @@ Claves nuevas (es/en/pt), alfabéticas, vía `/traducir`:
 
 **Entregable**: una venta con FP Point empuja el cobro a la terminal, espera sin QR, y al confirmar materializa la venta. ✅ (verificado con `Http::fake`; webhook real reutiliza el flujo existente)
 
-### Fase 5: Pulido + docs + PR [PENDIENTE]
-1. (Opcional) "Buscar terminales" + "Activar modo integrado" en la UI.
-2. Botón "Ver terminal" en cajas (RF-10).
-3. `@docs-sync` → manual + ai-knowledge-base. `/sdd-verify`. PR.
+### Fase 5: Pulido + docs + PR [EN PROGRESO]
+1. ✅ "Buscar terminales" + "Activar modo integrado" (PDV) ya en la UI (Fase 3b.1).
+2. ✅ Botón "Ver terminal" en Gestión de Cajas (RF-10): `verTerminalPoint($cajaId)` abre modal con el terminal_id y, best-effort, el `operating_mode` del device desde MP (si hay credenciales Point). Solo aparece si la caja tiene `mp_point_terminal_id`. Smoke test verde. 5 traducciones.
+3. ⬜ `@docs-sync` → manual + ai-knowledge-base (incluir procedimiento de prueba con endpoint de simulación `POST /v1/orders/{id}/events`).
+4. ⬜ `/sdd-verify` + PR.
+
+**Procedimiento de prueba (documentar)**: Point se prueba con un posnet físico **vinculado a credenciales de PRUEBA**; no se paga físicamente: se simula cada estado con `POST /v1/orders/{order_id}/events` (status processed/failed/canceled/expired/action_required) → MP manda el webhook real → el sistema confirma. Pagos reales en el aparato requieren cuenta de PRODUCCIÓN. Sin device no se prueba contra el sandbox (los tests `Http::fake` ya cubren el código).
 
 **Entregable**: feature completo y verificado.
 

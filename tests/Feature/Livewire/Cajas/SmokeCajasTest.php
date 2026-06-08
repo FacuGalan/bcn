@@ -6,6 +6,7 @@ use App\Livewire\Cajas\GestionCajas;
 use App\Livewire\Cajas\HistorialTurnos;
 use App\Livewire\Cajas\MovimientosManuales;
 use App\Livewire\Cajas\TurnoActual;
+use App\Models\Caja;
 use App\Models\User;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -62,5 +63,15 @@ class SmokeCajasTest extends TestCase
     public function test_turno_actual_monta(): void
     {
         Livewire::test(TurnoActual::class)->assertOk();
+    }
+
+    public function test_gestion_cajas_ver_terminal_point_abre_modal_con_el_terminal_id(): void
+    {
+        Caja::where('id', $this->cajaId)->update(['mp_point_terminal_id' => 'PAX_A910__SNCAJA']);
+
+        Livewire::test(GestionCajas::class)
+            ->call('verTerminalPoint', $this->cajaId)
+            ->assertSet('showTerminalModal', true)
+            ->assertSet('terminalPointInfo.terminal_id', 'PAX_A910__SNCAJA');
     }
 }
