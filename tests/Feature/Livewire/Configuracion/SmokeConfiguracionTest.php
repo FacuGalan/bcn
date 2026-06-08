@@ -204,6 +204,61 @@ class SmokeConfiguracionTest extends TestCase
             });
     }
 
+    public function test_integraciones_pago_vincular_terminal_point_persiste_terminal_id(): void
+    {
+        $point = \App\Models\IntegracionPago::porCodigo('mercadopago_point')->first();
+        if (! $point) {
+            $point = \App\Models\IntegracionPago::create([
+                'codigo' => 'mercadopago_point',
+                'nombre' => 'Mercado Pago - Point',
+                'modos_disponibles' => ['point'],
+                'gateway_class' => \App\Services\IntegracionesPago\MercadoPagoGateway::class,
+                'activo' => true,
+                'orden' => 2,
+            ]);
+        }
+
+        $config = \App\Models\IntegracionPagoSucursal::updateOrCreate(
+            [
+                'integracion_pago_id' => $point->id,
+                'sucursal_id' => $this->sucursalId,
+            ],
+            [
+                'modo' => 'test',
+                'access_token_test' => 'TEST-POINT',
+                'user_id_externo' => '7777',
+            ]
+        );
+
+        $caja = \App\Models\Caja::create([
+            'sucursal_id' => $this->sucursalId,
+            'nombre' => 'Caja Point',
+            'codigo' => 'CPT',
+            'tipo' => 'efectivo',
+            'saldo_actual' => 0,
+            'saldo_inicial' => 0,
+            'estado' => 'cerrada',
+            'activo' => true,
+        ]);
+
+        \Illuminate\Support\Facades\Http::fake([
+            'api.mercadopago.com/terminals/v1/list*' => \Illuminate\Support\Facades\Http::response([
+                'data' => ['terminals' => [['id' => 'PAX_A910__SN999', 'operating_mode' => 'STANDALONE']]],
+            ], 200),
+            'api.mercadopago.com/terminals/v1/setup' => \Illuminate\Support\Facades\Http::response([
+                'terminals' => [['id' => 'PAX_A910__SN999', 'operating_mode' => 'PDV']],
+            ], 200),
+        ]);
+
+        Livewire::test(IntegracionesPago::class)
+            ->call('buscarTerminales', $config->id)
+            ->set("terminalSeleccionado.{$caja->id}", 'PAX_A910__SN999')
+            ->call('vincularTerminal', $config->id, $caja->id)
+            ->assertDispatched('notify', fn ($name, $params) => ($params['type'] ?? null) === 'success');
+
+        $this->assertSame('PAX_A910__SN999', \App\Models\Caja::find($caja->id)->mp_point_terminal_id);
+    }
+
     public function test_listar_precios_monta(): void
     {
         Livewire::test(ListarPrecios::class)->assertOk();

@@ -270,6 +270,98 @@
                         </div>
                     </div>
                 @endif
+
+                {{-- Sección Terminales Point (solo si es MercadoPago Point y hay config) --}}
+                @if ($config && $integracion->codigo === \App\Models\IntegracionPago::CODIGO_MERCADOPAGO_POINT && $sucursalActiva)
+                    <div class="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 px-4 sm:px-6 py-4 space-y-4">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center">
+                                <svg class="w-4 h-4 mr-1.5 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                                {{ __('Terminales por caja') }}
+                            </h4>
+
+                            <button wire:click="buscarTerminales({{ $config->id }})"
+                                    wire:loading.attr="disabled"
+                                    wire:target="buscarTerminales({{ $config->id }})"
+                                    class="inline-flex items-center px-3 py-1.5 border border-bcn-primary text-xs sm:text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                                <svg wire:loading.remove wire:target="buscarTerminales({{ $config->id }})" class="w-4 h-4 sm:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <svg wire:loading wire:target="buscarTerminales({{ $config->id }})" class="animate-spin w-4 h-4 sm:mr-1.5" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                                <span class="hidden sm:inline">{{ __('Buscar terminales') }}</span>
+                            </button>
+                        </div>
+
+                        @if ($cajas->isEmpty())
+                            <p class="text-xs text-gray-500 dark:text-gray-400 italic">{{ __('No hay cajas activas en esta sucursal') }}</p>
+                        @else
+                            <div class="space-y-2">
+                                @foreach ($cajas as $caja)
+                                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                                        <div class="text-xs sm:text-sm">
+                                            <span class="font-medium text-gray-900 dark:text-white">{{ $caja->nombre }}</span>
+                                            <span class="text-gray-500 dark:text-gray-400 ml-1">#{{ $caja->numero }}</span>
+                                            @if ($caja->mp_point_terminal_id)
+                                                <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                                    <span class="w-1.5 h-1.5 mr-1.5 bg-green-500 rounded-full"></span>
+                                                    {{ __('Terminal') }}: {{ $caja->mp_point_terminal_id }}
+                                                </span>
+                                            @else
+                                                <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                                    <span class="w-1.5 h-1.5 mr-1.5 bg-gray-400 rounded-full"></span>
+                                                    {{ __('Sin terminal') }}
+                                                </span>
+                                            @endif
+                                        </div>
+
+                                        <div class="flex items-center gap-2">
+                                            @if ($caja->mp_point_terminal_id)
+                                                <button wire:click="desvincularTerminal({{ $caja->id }})"
+                                                        wire:loading.attr="disabled"
+                                                        wire:target="desvincularTerminal({{ $caja->id }})"
+                                                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors">
+                                                    <svg class="w-4 h-4 sm:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                                    </svg>
+                                                    <span class="hidden sm:inline">{{ __('Desvincular') }}</span>
+                                                </button>
+                                            @elseif (! empty($terminalesDisponibles))
+                                                <select wire:model="terminalSeleccionado.{{ $caja->id }}"
+                                                        class="text-xs sm:text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 focus:border-bcn-primary focus:ring-bcn-primary py-1.5">
+                                                    <option value="">{{ __('Elegí una terminal') }}</option>
+                                                    @foreach ($terminalesDisponibles as $term)
+                                                        <option value="{{ $term['id'] }}">{{ $term['id'] }} ({{ $term['operating_mode'] ?? '—' }})</option>
+                                                    @endforeach
+                                                </select>
+                                                <button wire:click="vincularTerminal({{ $config->id }}, {{ $caja->id }})"
+                                                        wire:loading.attr="disabled"
+                                                        wire:target="vincularTerminal({{ $config->id }}, {{ $caja->id }})"
+                                                        class="inline-flex items-center px-3 py-1.5 border border-bcn-primary text-xs font-medium rounded-md text-white bg-bcn-primary hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                                                    <span class="hidden sm:inline">{{ __('Vincular') }}</span>
+                                                    <svg class="w-4 h-4 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                                    </svg>
+                                                </button>
+                                            @else
+                                                <span class="text-xs text-gray-400 dark:text-gray-500 italic">{{ __('Buscá terminales para vincular') }}</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            {{ __('Al vincular, la terminal se pone en modo integrado (PDV) y los cobros se le envían desde el sistema.') }}
+                        </p>
+                    </div>
+                @endif
             </div>
         @empty
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-12 text-center">
