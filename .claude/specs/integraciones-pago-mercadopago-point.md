@@ -223,13 +223,13 @@ Claves nuevas (es/en/pt), alfabéticas, vía `/traducir`:
 **Entregable**: catálogo muestra Point; columnas listas. ✅
 **Nota**: los tests de comportamiento (gateway Point, cobro Point) llegan en Fases 2 y 4 (proporcional: Fase 1 es schema/seed verificado en vivo).
 
-### Fase 2: Gateway — cobro Point (Orders API) [PENDIENTE]
-1. `MODO_POINT` + `modosSoportados()`.
-2. Rama `point` en `iniciarCobro` (validar payload contra MCP de MP).
-3. Ajuste de `cancelarCobro` (header `at_terminal`).
-4. Tests gateway con `Http::fake` (order type:point, abierto vs credit_card+cuotas, cancel).
+### Fase 2: Gateway — cobro Point (Orders API) [COMPLETO — 2026-06-08]
+1. ✅ `MercadoPagoGateway::MODO_POINT` + `modosSoportados()` (3 modos). Const espejo en `IntegracionPagoTransaccion::MODO_POINT`.
+2. ✅ Rama `point` en `iniciarCobro` → `iniciarCobroPoint`: `POST /v1/orders` con `type:"point"`, `config.point.terminal_id` (de `caja->mp_point_terminal_id`), `expiration_time` acotado PT30S..PT3H (`expirationTimeIso`), `transactions.payments[].amount` string. `payment_method` solo si la FP definió `default_type` (de `metadata['point']`); `default_installments` solo en `credit_card`. `qr_data`/`qr_image_url` = null (el aparato muestra todo). Valida terminal asignada (RF-06).
+3. ✅ `cancelarCobro` agrega header `x-allow-cancelable-status: at_terminal` para modo point.
+4. ✅ 5 tests nuevos en `MercadoPagoGatewayTest` (type:point + terminal + abierto; credit_card+cuotas; débito sin installments; sin terminal lanza; cancel con header). 39/39 verdes, suite integraciones-pago sin regresiones. Pint OK.
 
-**Entregable**: el gateway crea/cancela orders Point (sin UI todavía; test programático).
+**Entregable**: el gateway crea/cancela orders Point. ✅ (sin UI todavía; verificado con `Http::fake`)
 
 ### Fase 3: Config UI — terminal por caja + default_type [PENDIENTE]
 1. `SincronizacionMercadoPagoService::listarTerminales` + `vincularTerminalCaja`.

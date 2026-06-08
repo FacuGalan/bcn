@@ -73,13 +73,14 @@ class MercadoPagoGatewayTest extends TestCase
 
     // ==================== modosSoportados ====================
 
-    public function test_modos_soportados_devuelve_qr_dinamico_y_estatico(): void
+    public function test_modos_soportados_devuelve_qr_dinamico_estatico_y_point(): void
     {
         $modos = $this->gateway->modosSoportados();
 
         $this->assertContains('qr_dinamico', $modos);
         $this->assertContains('qr_estatico', $modos);
-        $this->assertCount(2, $modos);
+        $this->assertContains('point', $modos);
+        $this->assertCount(3, $modos);
     }
 
     // ==================== probarConexion - camino feliz ====================
@@ -362,6 +363,133 @@ class MercadoPagoGatewayTest extends TestCase
         $this->expectExceptionMessageMatches('/POS.*sincroniz/i');
 
         $this->gateway->iniciarCobro($config, $tx);
+    }
+
+    // ==================== Cobro Point — iniciarCobro (Fase 2) ====================
+
+    private function cajaConTerminalPoint(): \App\Models\Caja
+    {
+        $caja = $this->crearCaja();
+        $caja->update(['mp_point_terminal_id' => 'PAX_A910__SN123456']);
+
+        return $caja->refresh();
+    }
+
+    private function transaccionFakePoint(\App\Models\Caja $caja, array $point = []): IntegracionPagoTransaccion
+    {
+        $tx = new IntegracionPagoTransaccion([
+            'monto' => 1500.50,
+            'modo_usado' => 'point',
+            'caja_id' => $caja->id,
+            'metadata' => $point ? ['point' => $point] : null,
+        ]);
+        $tx->id = 7373;
+        $tx->setRelation('caja', $caja);
+
+        return $tx;
+    }
+
+    public function test_iniciar_cobro_point_envia_type_point_terminal_y_no_devuelve_qr(): void
+    {
+        Http::fake([
+            'api.mercadopago.com/v1/orders' => Http::response(['id' => 'ORD00000POINT1'], 201),
+        ]);
+
+        $config = $this->crearConfig();
+        $caja = $this->cajaConTerminalPoint();
+        $tx = $this->transaccionFakePoint($caja); // sin default_type ⇒ "Abierto"
+
+        $res = $this->gateway->iniciarCobro($config, $tx);
+
+        $this->assertNull($res['qr_data']);
+        $this->assertNull($res['qr_image_url']);
+        $this->assertSame('ORD00000POINT1', $res['external_id']);
+        $this->assertSame('BCN-TX-7373', $res['external_reference']);
+
+        Http::assertSent(function ($r) use ($caja) {
+            $d = $r->data();
+
+            return $r->method() === 'POST'
+                && str_ends_with($r->url(), '/v1/orders')
+                && $d['type'] === 'point'
+                && $d['config']['point']['terminal_id'] === $caja->mp_point_terminal_id
+                && $d['transactions']['payments'][0]['amount'] === '1500.50'
+                && str_starts_with($d['expiration_time'], 'PT') && str_ends_with($d['expiration_time'], 'S')
+                // "Abierto": NO se envía payment_method.
+                && ! array_key_exists('payment_method', $d['config'])
+                && $r->hasHeader('X-Idempotency-Key', 'order-BCN-TX-7373');
+        });
+    }
+
+    public function test_iniciar_cobro_point_credito_con_cuotas_envia_default_type_e_installments(): void
+    {
+        Http::fake([
+            'api.mercadopago.com/v1/orders' => Http::response(['id' => 'ORD-PT-CUOTAS'], 201),
+        ]);
+
+        $config = $this->crearConfig();
+        $caja = $this->cajaConTerminalPoint();
+        $tx = $this->transaccionFakePoint($caja, ['default_type' => 'credit_card', 'installments' => 3]);
+
+        $this->gateway->iniciarCobro($config, $tx);
+
+        Http::assertSent(function ($r) {
+            $pm = $r->data()['config']['payment_method'] ?? [];
+
+            return ($pm['default_type'] ?? null) === 'credit_card'
+                && ($pm['default_installments'] ?? null) === 3;
+        });
+    }
+
+    public function test_iniciar_cobro_point_debito_no_envia_installments(): void
+    {
+        Http::fake([
+            'api.mercadopago.com/v1/orders' => Http::response(['id' => 'ORD-PT-DEB'], 201),
+        ]);
+
+        $config = $this->crearConfig();
+        $caja = $this->cajaConTerminalPoint();
+        // Aunque venga installments, en débito no aplica.
+        $tx = $this->transaccionFakePoint($caja, ['default_type' => 'debit_card', 'installments' => 6]);
+
+        $this->gateway->iniciarCobro($config, $tx);
+
+        Http::assertSent(function ($r) {
+            $pm = $r->data()['config']['payment_method'] ?? [];
+
+            return ($pm['default_type'] ?? null) === 'debit_card'
+                && ! array_key_exists('default_installments', $pm);
+        });
+    }
+
+    public function test_iniciar_cobro_point_sin_terminal_asignada_lanza_excepcion(): void
+    {
+        $config = $this->crearConfig();
+        $caja = $this->crearCaja(); // sin mp_point_terminal_id
+        $tx = $this->transaccionFakePoint($caja);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/terminal Point/i');
+
+        $this->gateway->iniciarCobro($config, $tx);
+    }
+
+    public function test_cancelar_cobro_point_envia_header_at_terminal(): void
+    {
+        Http::fake([
+            'api.mercadopago.com/v1/orders/*/cancel' => Http::response(['status' => 'canceled'], 200),
+        ]);
+
+        $config = $this->crearConfig();
+        $caja = $this->cajaConTerminalPoint();
+        $tx = $this->transaccionFakePoint($caja);
+        $tx->external_id = 'ORD-PT-CANCEL';
+
+        $this->assertTrue($this->gateway->cancelarCobro($config, $tx));
+
+        Http::assertSent(fn ($r) => $r->method() === 'POST'
+            && str_contains($r->url(), '/v1/orders/ORD-PT-CANCEL/cancel')
+            && $r->hasHeader('x-allow-cancelable-status', 'at_terminal'));
     }
 
     // ==================== Stores ====================
