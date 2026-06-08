@@ -560,7 +560,7 @@
                                                             <div>
                                                                 <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Modo de cobro') }}</label>
                                                                 <select
-                                                                    wire:model="integraciones_fp.{{ $index }}.modo_default"
+                                                                    wire:model.live="integraciones_fp.{{ $index }}.modo_default"
                                                                     class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm shadow-sm focus:border-bcn-primary focus:ring-bcn-primary"
                                                                     @disabled(! $integracionSel)
                                                                 >
@@ -571,10 +571,43 @@
                                                                 </select>
                                                                 @error("integraciones_fp.{$index}.modo_default") <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                                                 <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                                                                    {{ __('QR dinámico: se muestra en pantalla por venta. QR estático: el QR impreso fijo del mostrador.') }}
+                                                                    {{ __('QR dinámico: se muestra en pantalla por venta. QR estático: el QR impreso fijo del mostrador. QR de monto libre: el cliente ingresa el monto y confirmás a mano.') }}
                                                                 </p>
                                                             </div>
                                                         </div>
+
+                                                        <!-- QR de monto libre: imagen del QR "Cobrar" a mostrar al cliente -->
+                                                        @if(($fila['modo_default'] ?? null) === 'qr_libre')
+                                                            @php $qrPreviewUrl = isset($qrLibreImagenes[$index]) ? $qrLibreImagenes[$index]->temporaryUrl() : ($fila['qr_libre_imagen_url'] ?? null); @endphp
+                                                            <div class="mt-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-3 bg-white dark:bg-gray-800/40">
+                                                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Imagen del QR de cobro de Mercado Pago') }}</label>
+                                                                <p class="text-xs text-gray-400 dark:text-gray-500 mb-2">
+                                                                    {{ __('Subí el QR "Cobrar" de tu cuenta de Mercado Pago. El cliente lo escanea, ingresa el monto y vos confirmás el pago manualmente.') }}
+                                                                </p>
+                                                                <div class="flex items-start gap-3">
+                                                                    @if($qrPreviewUrl)
+                                                                        <img src="{{ $qrPreviewUrl }}" alt="{{ __('QR de cobro') }}" class="w-24 h-24 object-contain rounded-md border border-gray-200 dark:border-gray-600 bg-white shrink-0" />
+                                                                    @else
+                                                                        <div class="flex items-center justify-center w-24 h-24 rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-300 dark:text-gray-500 shrink-0">
+                                                                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4h6v6H4V4zm0 10h6v6H4v-6zM14 4h6v6h-6V4zm0 10h2v2h-2v-2zm4 0h2v2h-2v-2zm-4 4h2v2h-2v-2zm4 0h2v2h-2v-2z"/>
+                                                                            </svg>
+                                                                        </div>
+                                                                    @endif
+                                                                    <div class="flex-1 min-w-0">
+                                                                        <input
+                                                                            type="file"
+                                                                            accept="image/jpeg,image/png,image/webp"
+                                                                            wire:model="qrLibreImagenes.{{ $index }}"
+                                                                            class="block w-full text-xs text-gray-600 dark:text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-bcn-light file:text-bcn-primary hover:file:bg-bcn-light/70 file:cursor-pointer"
+                                                                        />
+                                                                        <div wire:loading wire:target="qrLibreImagenes.{{ $index }}" class="mt-1.5 text-xs text-sky-600 dark:text-sky-400">{{ __('Subiendo imagen…') }}</div>
+                                                                        @error("qrLibreImagenes.{$index}") <span class="block mt-1 text-red-600 text-xs">{{ $message }}</span> @enderror
+                                                                        @error("integraciones_fp.{$index}.qr_libre") <span class="block mt-1 text-red-600 text-xs">{{ $message }}</span> @enderror
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        @endif
 
                                                         <!-- Principal + quitar -->
                                                         <div class="mt-3 flex items-center justify-between">
