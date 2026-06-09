@@ -246,7 +246,15 @@ trait WithCobroIntegracion
 
         // Quitar el prólogo XML (la declaración inicial de tipo xml): al embeber
         // el SVG inline en HTML puede provocar quirks de render en algunos navegadores.
-        return trim(preg_replace('/^<\?xml.*?\?>\s*/s', '', (string) $svg));
+        $svg = trim(preg_replace('/^<\?xml.*?\?>\s*/s', '', (string) $svg));
+
+        // Hacerlo responsivo: el SVG ya trae viewBox, así que con width/height 100%
+        // escala al contenedor. El modal acota ese contenedor al viewport para que
+        // todo el contenido entre de una vez, sin scroll, en cualquier pantalla.
+        $svg = preg_replace('/(<svg\b[^>]*?)\s+width="\d+"/', '$1', $svg, 1);
+        $svg = preg_replace('/(<svg\b[^>]*?)\s+height="\d+"/', '$1', $svg, 1);
+
+        return preg_replace('/<svg\b/', '<svg width="100%" height="100%"', $svg, 1);
     }
 
     /**
@@ -353,15 +361,21 @@ trait WithCobroIntegracion
             return;
         }
 
-        if (! $this->tienePermisoConfirmarManual()) {
-            $this->dispatch('toast-error', message: __('No tenés permiso para confirmar pagos manualmente'));
+        $transaccion = IntegracionPagoTransaccion::find($this->cobroIntegracionTransaccionId);
+        if (! $transaccion) {
+            $this->resetCobroIntegracion();
 
             return;
         }
 
-        $transaccion = IntegracionPagoTransaccion::find($this->cobroIntegracionTransaccionId);
-        if (! $transaccion) {
-            $this->resetCobroIntegracion();
+        // qr_libre: la confirmación manual ES el cobro (no hay webhook ni detección
+        // automática), por lo que es parte natural del flujo de cobro y la puede
+        // hacer quien opera la caja, sin el permiso de override. El resto de modos
+        // sí lo exige: ahí confirmar a mano es un fallback excepcional (el sistema
+        // no detectó el pago) que conviene restringir.
+        $esQrLibre = $transaccion->modo_usado === IntegracionPagoTransaccion::MODO_QR_LIBRE;
+        if (! $esQrLibre && ! $this->tienePermisoConfirmarManual()) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para confirmar pagos manualmente'));
 
             return;
         }

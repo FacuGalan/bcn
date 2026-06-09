@@ -251,6 +251,43 @@ class CobroQrLibreTest extends TestCase
         $this->assertContains(IntegracionPagoEvento::EVENTO_COBRABLE_ASOCIADO, $eventos);
     }
 
+    public function test_cobro_qr_libre_lo_confirma_un_usuario_sin_permiso_de_override(): void
+    {
+        // qr_libre no tiene webhook: la confirmación manual ES el cobro, así que la
+        // puede hacer quien opera la caja SIN el permiso integraciones_pago.confirmar_manual
+        // (ese permiso solo restringe el override excepcional de los modos automáticos).
+        $cajero = \App\Models\User::factory()->create(['is_system_admin' => false]);
+        $this->actingAs($cajero);
+        $this->assertFalse($cajero->hasPermissionTo('integraciones_pago.confirmar_manual'));
+
+        Http::fake();
+
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'nombre' => 'Producto Libre', 'precio_base' => 100,
+        ]);
+        $fp = $this->crearFormaPagoQrLibre();
+
+        $component = $this->prepararComponente();
+        $component->items = [$this->itemCarrito($articulo->id, 'Producto Libre', 100)];
+        $component->calcularVenta();
+        $total = (float) ($component->resultado['total_final'] ?? 0);
+
+        $component->formaPagoId = $fp->id;
+        $component->montoPendienteDesglose = 0;
+        $component->desglosePagos = $this->desglose($fp, $total);
+
+        $this->llamarProtegido($component, 'verificarPuntoVentaYProcesar');
+        $this->assertTrue($component->mostrarModalEsperandoPago);
+
+        // El cajero confirma manualmente: debe materializar la venta igual.
+        $component->confirmarCobroIntegracionManual();
+
+        $this->assertEquals(1, Venta::count(), 'El cajero sin permiso de override debe poder confirmar qr_libre');
+        $tx = IntegracionPagoTransaccion::first();
+        $this->assertEquals(IntegracionPagoTransaccion::ESTADO_CONFIRMADO_MANUAL, $tx->estado);
+        $this->assertFalse($component->mostrarModalEsperandoPago);
+    }
+
     public function test_cobro_qr_libre_sin_imagen_configurada_no_abre_modal_ni_crea_transaccion(): void
     {
         Http::fake();
