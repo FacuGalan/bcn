@@ -54,6 +54,13 @@ trait WithCobroIntegracion
      */
     public ?string $cobroIntegracionQrImagenUrl = null;
 
+    /**
+     * @var string|null Modo del cobro en curso (qr_dinamico|qr_estatico|qr_libre).
+     *                  El modal lo usa para adaptar la UI (qr_libre = imagen +
+     *                  confirmación manual primaria, sin detección automática).
+     */
+    public ?string $cobroIntegracionModo = null;
+
     /** @var float Monto del cobro por integración en curso */
     public float $cobroIntegracionMonto = 0;
 
@@ -121,6 +128,15 @@ trait WithCobroIntegracion
     #[Computed]
     public function puedeConfirmarManual(): bool
     {
+        return $this->tienePermisoConfirmarManual();
+    }
+
+    /**
+     * Lógica del permiso de confirmación manual, usable desde acciones (no solo
+     * desde la computed, que requiere el ciclo de vida de Livewire montado).
+     */
+    protected function tienePermisoConfirmarManual(): bool
+    {
         return Auth::user()?->hasPermissionTo('integraciones_pago.confirmar_manual') ?? false;
     }
 
@@ -147,6 +163,8 @@ trait WithCobroIntegracion
         }
 
         $sucursalId = $datos['sucursal_id'] ?? null;
+        $modo = $integracion->pivot->modo_default ?? 'qr_dinamico';
+        $esQrLibre = $modo === IntegracionPagoTransaccion::MODO_QR_LIBRE;
 
         $config = IntegracionPagoSucursal::query()
             ->where('integracion_pago_id', $integracion->id)
@@ -154,10 +172,29 @@ trait WithCobroIntegracion
             ->where('activo', true)
             ->first();
 
-        if (! $config || ! $config->estaConfigurada()) {
+        // qr_libre no empuja nada a MP: no exige Access Token cargado, solo que la
+        // integración exista/activa en la sucursal. Los demás modos sí requieren
+        // credenciales configuradas.
+        if (! $config || (! $esQrLibre && ! $config->estaConfigurada())) {
             $this->dispatch('toast-error', message: __('La integración de pago no está configurada en esta sucursal'));
 
             return;
+        }
+
+        // qr_libre: la imagen del QR "Cobrar" vive en el pivote (config_qr_libre).
+        // Se pasa al gateway vía metadata; sin imagen no se puede cobrar.
+        $metadata = null;
+        if ($esQrLibre) {
+            $imagenPath = data_get(json_decode($integracion->pivot->config_qr_libre ?? 'null', true), 'imagen_path');
+
+            if (empty($imagenPath)) {
+                $this->dispatch('toast-error', message: __('Configurá la imagen del QR de Mercado Pago en la forma de pago antes de cobrar con QR de monto libre.'));
+
+                return;
+            }
+
+            // URL root-relativa derivada del path (portable entre hosts/puertos).
+            $metadata = ['qr_libre_imagen_url' => \App\Services\IntegracionesPago\ImagenQrLibreService::urlPublica($imagenPath)];
         }
 
         try {
@@ -166,9 +203,10 @@ trait WithCobroIntegracion
                 'sucursal_id' => $sucursalId,
                 'caja_id' => $datos['caja_id'] ?? caja_activa(),
                 'usuario_iniciador_id' => Auth::id(),
-                'modo_usado' => $integracion->pivot->modo_default ?? 'qr_dinamico',
+                'modo_usado' => $modo,
                 'monto' => (float) ($datos['monto'] ?? $datos['monto_final'] ?? 0),
                 'moneda_id' => $datos['moneda_id'] ?? null,
+                'metadata' => $metadata,
             ]);
         } catch (\Throwable $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
@@ -177,9 +215,11 @@ trait WithCobroIntegracion
         }
 
         $this->cobroIntegracionTransaccionId = $transaccion->id;
+        $this->cobroIntegracionModo = $transaccion->modo_usado;
         $this->cobroIntegracionQrData = $transaccion->qr_data;
         $this->cobroIntegracionQrSvg = $this->renderizarQrSvg($transaccion->qr_data);
-        // Modo estático: sin trama EMVCo; mostramos la imagen del QR impreso del POS.
+        // Modo estático/qr_libre: sin trama EMVCo; se muestra la imagen del QR
+        // (impreso del POS en estático, "Cobrar" subido en qr_libre).
         $this->cobroIntegracionQrImagenUrl = $transaccion->metadata['qr_image_url'] ?? null;
         $this->cobroIntegracionMonto = (float) $transaccion->monto;
         $this->cobroIntegracionExpiraTs = $transaccion->expira_en?->timestamp;
@@ -206,7 +246,15 @@ trait WithCobroIntegracion
 
         // Quitar el prólogo XML (la declaración inicial de tipo xml): al embeber
         // el SVG inline en HTML puede provocar quirks de render en algunos navegadores.
-        return trim(preg_replace('/^<\?xml.*?\?>\s*/s', '', (string) $svg));
+        $svg = trim(preg_replace('/^<\?xml.*?\?>\s*/s', '', (string) $svg));
+
+        // Hacerlo responsivo: el SVG ya trae viewBox, así que con width/height 100%
+        // escala al contenedor. El modal acota ese contenedor al viewport para que
+        // todo el contenido entre de una vez, sin scroll, en cualquier pantalla.
+        $svg = preg_replace('/(<svg\b[^>]*?)\s+width="\d+"/', '$1', $svg, 1);
+        $svg = preg_replace('/(<svg\b[^>]*?)\s+height="\d+"/', '$1', $svg, 1);
+
+        return preg_replace('/<svg\b/', '<svg width="100%" height="100%"', $svg, 1);
     }
 
     /**
@@ -260,6 +308,13 @@ trait WithCobroIntegracion
             return;
         }
 
+        // qr_libre: no hay order en MP que consultar. La confirmación es siempre
+        // manual; mientras siga pendiente, el poll no tiene nada que hacer (los
+        // estados terminal/confirmado ya se resolvieron arriba con el estado local).
+        if ($transaccion->modo_usado === IntegracionPagoTransaccion::MODO_QR_LIBRE) {
+            return;
+        }
+
         $service = app(CobroIntegracionService::class);
 
         try {
@@ -306,15 +361,21 @@ trait WithCobroIntegracion
             return;
         }
 
-        if (! $this->puedeConfirmarManual) {
-            $this->dispatch('toast-error', message: __('No tenés permiso para confirmar pagos manualmente'));
+        $transaccion = IntegracionPagoTransaccion::find($this->cobroIntegracionTransaccionId);
+        if (! $transaccion) {
+            $this->resetCobroIntegracion();
 
             return;
         }
 
-        $transaccion = IntegracionPagoTransaccion::find($this->cobroIntegracionTransaccionId);
-        if (! $transaccion) {
-            $this->resetCobroIntegracion();
+        // qr_libre: la confirmación manual ES el cobro (no hay webhook ni detección
+        // automática), por lo que es parte natural del flujo de cobro y la puede
+        // hacer quien opera la caja, sin el permiso de override. El resto de modos
+        // sí lo exige: ahí confirmar a mano es un fallback excepcional (el sistema
+        // no detectó el pago) que conviene restringir.
+        $esQrLibre = $transaccion->modo_usado === IntegracionPagoTransaccion::MODO_QR_LIBRE;
+        if (! $esQrLibre && ! $this->tienePermisoConfirmarManual()) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para confirmar pagos manualmente'));
 
             return;
         }
@@ -351,6 +412,7 @@ trait WithCobroIntegracion
     {
         $this->mostrarModalEsperandoPago = false;
         $this->cobroIntegracionTransaccionId = null;
+        $this->cobroIntegracionModo = null;
         $this->cobroIntegracionQrData = null;
         $this->cobroIntegracionQrSvg = null;
         $this->cobroIntegracionQrImagenUrl = null;

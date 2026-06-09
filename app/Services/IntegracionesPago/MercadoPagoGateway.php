@@ -35,11 +35,14 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
 
     public const MODO_QR_ESTATICO = 'qr_estatico';
 
+    public const MODO_QR_LIBRE = 'qr_libre';
+
     public function modosSoportados(): array
     {
         return [
             self::MODO_QR_DINAMICO,
             self::MODO_QR_ESTATICO,
+            self::MODO_QR_LIBRE,
         ];
     }
 
@@ -623,6 +626,13 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         IntegracionPagoSucursal $config,
         IntegracionPagoTransaccion $transaccion
     ): array {
+        // QR monto-libre: el cliente ingresa el monto en su app, no se empuja
+        // nada a MP. No hay order ni POS; solo se muestra la imagen del QR
+        // "Cobrar" configurada en la FormaPago y el cajero confirma manualmente.
+        if ($transaccion->modo_usado === self::MODO_QR_LIBRE) {
+            return $this->iniciarCobroQrLibre($transaccion);
+        }
+
         $caja = $transaccion->caja;
 
         if (! $caja || ! $caja->estaSincronizadaEnMp() || empty($caja->mp_pos_external_id)) {
@@ -699,6 +709,44 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
             self::MODO_QR_ESTATICO, 'static' => 'static',
             default => 'dynamic',
         };
+    }
+
+    // ==================== Cobro QR monto-libre (sin API) ====================
+
+    /**
+     * Inicia un cobro con QR de monto libre. A diferencia de los otros modos,
+     * NO llama a la Orders API: el cliente escanea el QR "Cobrar" de la cuenta
+     * MP (una imagen que el comercio sube en la config de la FormaPago) e ingresa
+     * el monto en su app. El sistema no conoce ni empuja el monto a MP, y la
+     * confirmación es SIEMPRE manual (no hay order que consultar/pollear).
+     *
+     * La imagen llega vía `metadata['qr_libre_imagen_url']`, sembrada por el
+     * wiring del cobro (CobroIntegracionService a partir de `config_qr_libre`
+     * del pivote). Se valida acá como defensa además del pre-chequeo de la UI.
+     *
+     * @return array{qr_data: ?string, qr_image_url: ?string, external_reference: string, external_id: ?string, payload: array}
+     */
+    private function iniciarCobroQrLibre(IntegracionPagoTransaccion $transaccion): array
+    {
+        $imagenUrl = $transaccion->metadata['qr_libre_imagen_url'] ?? null;
+
+        if (empty($imagenUrl)) {
+            throw new \RuntimeException(__('Configurá la imagen del QR de Mercado Pago en la forma de pago antes de cobrar con QR de monto libre.'));
+        }
+
+        Log::info('MercadoPagoGateway::iniciarCobroQrLibre OK (sin llamada a MP)', [
+            'transaccion_id' => $transaccion->id,
+        ]);
+
+        // external_reference se conserva (útil para conciliación/webhook futuros);
+        // external_id queda null porque no existe order en MP.
+        return [
+            'qr_data' => null,
+            'qr_image_url' => $imagenUrl,
+            'external_reference' => 'BCN-TX-'.$transaccion->id,
+            'external_id' => null,
+            'payload' => [],
+        ];
     }
 
     /**

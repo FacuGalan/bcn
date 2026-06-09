@@ -36,7 +36,7 @@ class CobroIntegracionService
      * confirmar y se asocia con confirmarCobro); Pedidos Mostrador sí lo pasa
      * (el pedido existe y se cobra contra él).
      *
-     * @param  array{forma_pago_id:int,sucursal_id:int,caja_id:?int,usuario_iniciador_id:int,modo_usado:string,monto:float,moneda_id:?int}  $datos
+     * @param  array{forma_pago_id:int,sucursal_id:int,caja_id:?int,usuario_iniciador_id:int,modo_usado:string,monto:float,moneda_id:?int,metadata?:array}  $datos
      *
      * @throws \RuntimeException si el gateway falla al generar el cobro
      */
@@ -55,6 +55,11 @@ class CobroIntegracionService
                 'estado' => IntegracionPagoTransaccion::ESTADO_PENDIENTE,
                 'expira_en' => now()->addSeconds($config->timeout_segundos),
             ]);
+            // Metadata inicial opcional (ej. qr_libre pasa la imagen del QR a
+            // mostrar). El gateway la lee; luego se le hace merge con la respuesta.
+            if (! empty($datos['metadata'])) {
+                $transaccion->metadata = $datos['metadata'];
+            }
             if ($cobrable) {
                 $transaccion->cobrable()->associate($cobrable);
             }

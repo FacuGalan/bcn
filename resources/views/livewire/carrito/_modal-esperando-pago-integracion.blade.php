@@ -1,7 +1,7 @@
 {{-- Modal "Esperando pago" — cobro por QR con integración (Fase 5, compartido NuevaVenta + Pedidos) --}}
 @if($mostrarModalEsperandoPago)
     @php($__cobroComercioId = app(\App\Services\TenantService::class)->getComercioId())
-    <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-esperando-pago" role="dialog" aria-modal="true"
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4" aria-labelledby="modal-esperando-pago" role="dialog" aria-modal="true"
         wire:poll.3s="pollearCobroIntegracion"
         data-usa-pantalla-cliente="{{ $this->usaPantallaClienteActiva ? '1' : '0' }}"
         @if($__cobroComercioId && $cobroIntegracionTransaccionId)
@@ -63,12 +63,12 @@
             }
         }"
         @keydown.escape.window="$wire.cancelarCobroIntegracion()">
-        <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
-            <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity"></div>
-            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full w-full">
+        <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity"></div>
+        {{-- Panel: flex column con altura acotada al viewport; solo el body scrollea
+             (header + footer siempre visibles, sin scroll de página). --}}
+        <div class="relative bg-white dark:bg-gray-800 rounded-lg text-left shadow-xl transform transition-all w-full sm:max-w-md max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
                 {{-- Header --}}
-                <div class="bg-sky-600 px-4 py-3 sm:px-6">
+                <div class="flex-none bg-sky-600 px-4 py-3 sm:px-6">
                     <h3 class="text-lg leading-6 font-medium text-white flex items-center">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
@@ -77,11 +77,11 @@
                     </h3>
                 </div>
 
-                <div class="px-4 py-5 sm:p-6 space-y-5">
+                <div class="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 space-y-3">
                     {{-- Monto a cobrar --}}
-                    <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 text-center">
-                        <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{{ __('Monto a cobrar') }}</p>
-                        <p class="text-3xl font-extrabold text-gray-900 dark:text-white">${{ number_format($cobroIntegracionMonto, 2, ',', '.') }}</p>
+                    <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3 text-center">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">{{ __('Monto a cobrar') }}</p>
+                        <p class="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white">${{ number_format($cobroIntegracionMonto, 2, ',', '.') }}</p>
                     </div>
 
                     {{-- QR --}}
@@ -91,16 +91,18 @@
                                  Dinámico: SVG renderizado de la trama EMVCo.
                                  Estático: imagen del QR impreso del POS. --}}
                             <div x-show="!enPantallaCliente" class="flex flex-col items-center">
-                                <div class="bg-white p-3 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm" wire:ignore x-ref="qrLocal">
+                                <div class="bg-white p-2.5 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm" wire:ignore x-ref="qrLocal">
                                     @if($cobroIntegracionQrSvg)
-                                        {!! $cobroIntegracionQrSvg !!}
+                                        <div class="w-48 h-48 max-h-[35vh] mx-auto">{!! $cobroIntegracionQrSvg !!}</div>
                                     @else
-                                        <img src="{{ $cobroIntegracionQrImagenUrl }}" alt="{{ __('Código QR de la caja') }}" class="w-[240px] h-[240px] object-contain" />
+                                        <img src="{{ $cobroIntegracionQrImagenUrl }}" alt="{{ __('Código QR de la caja') }}" class="h-48 w-auto max-h-[35vh] object-contain" />
                                     @endif
                                 </div>
-                                <p class="mt-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400 text-center">
                                     @if($cobroIntegracionQrSvg)
                                         {{ __('Escaneá el código con la app para pagar') }}
+                                    @elseif($cobroIntegracionModo === 'qr_libre')
+                                        {{ __('El cliente escanea el QR e ingresa el monto en su app') }}
                                     @else
                                         {{ __('Pedile al cliente que escanee el QR de la caja') }}
                                     @endif
@@ -117,7 +119,7 @@
                                 <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('Pedile al cliente que escanee con su app') }}</p>
                             </div>
                         @else
-                            <div class="flex items-center justify-center w-[240px] h-[240px] bg-gray-100 dark:bg-gray-700 rounded-xl">
+                            <div class="flex items-center justify-center h-48 w-48 aspect-square max-h-[35vh] bg-gray-100 dark:bg-gray-700 rounded-xl">
                                 <svg class="animate-spin h-8 w-8 text-sky-600" fill="none" viewBox="0 0 24 24">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
@@ -127,23 +129,52 @@
                     </div>
 
                     {{-- Estado: esperando confirmación + countdown --}}
-                    <div class="rounded-xl p-4 text-center border-2 border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20">
-                        <div class="flex items-center justify-center gap-2 text-sky-700 dark:text-sky-300">
-                            <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                            </svg>
-                            <span class="text-sm font-medium">{{ __('Esperando confirmación del pago…') }}</span>
+                    @if($cobroIntegracionModo === 'qr_libre')
+                        {{-- qr_libre: no hay detección automática; el cajero confirma a mano. --}}
+                        <div class="rounded-xl px-3 py-2.5 text-center border-2 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
+                            <span class="text-sm font-medium text-amber-700 dark:text-amber-300">{{ __('Esperá a que el cliente pague el monto en su app de Mercado Pago.') }}</span>
+                            @if($cobroIntegracionExpiraTs)
+                                <p class="mt-1 text-xs uppercase tracking-wide text-amber-500 dark:text-amber-400">{{ __('Expira en') }}</p>
+                                <p class="text-xl font-bold text-amber-700 dark:text-amber-300"
+                                   x-text="expirado ? '{{ __('Expirado') }}' : (mm + ':' + ss)"></p>
+                            @endif
                         </div>
-                        @if($cobroIntegracionExpiraTs)
-                            <p class="mt-2 text-xs uppercase tracking-wide text-sky-500 dark:text-sky-400">{{ __('Expira en') }}</p>
-                            <p class="text-2xl font-bold text-sky-700 dark:text-sky-300"
-                               x-text="expirado ? '{{ __('Expirado') }}' : (mm + ':' + ss)"></p>
-                        @endif
-                    </div>
+                    @else
+                        <div class="rounded-xl px-3 py-2.5 text-center border-2 border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20">
+                            <div class="flex items-center justify-center gap-2 text-sky-700 dark:text-sky-300">
+                                <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                                <span class="text-sm font-medium">{{ __('Esperando confirmación del pago…') }}</span>
+                            </div>
+                            @if($cobroIntegracionExpiraTs)
+                                <p class="mt-1 text-xs uppercase tracking-wide text-sky-500 dark:text-sky-400">{{ __('Expira en') }}</p>
+                                <p class="text-xl font-bold text-sky-700 dark:text-sky-300"
+                                   x-text="expirado ? '{{ __('Expirado') }}' : (mm + ':' + ss)"></p>
+                            @endif
+                        </div>
+                    @endif
 
-                    {{-- Confirmación manual (RF-12): fallback con permiso si el pago no se detecta solo --}}
-                    @if($this->puedeConfirmarManual)
+                    {{-- Confirmación manual (RF-12) --}}
+                    @if($cobroIntegracionModo === 'qr_libre')
+                        {{-- qr_libre: la confirmación manual ES la única forma de cerrar el
+                             cobro (no hay webhook ni detección automática), así que el botón
+                             se muestra SIEMPRE a quien opera la caja, sin exigir permiso de override. --}}
+                        <div>
+                            <button type="button" wire:click="confirmarCobroIntegracionManual"
+                                    class="w-full inline-flex justify-center items-center gap-2 rounded-md px-4 py-2.5 bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                                {{ __('Confirmar pago recibido') }}
+                            </button>
+                            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
+                                {{ __('Confirmá solo si verificaste que el cliente pagó. Esta acción queda registrada.') }}
+                            </p>
+                        </div>
+                    @elseif($this->puedeConfirmarManual)
+                        {{-- Otros modos: fallback discreto si el pago no se detecta solo. --}}
                         <div x-data="{ confirmando: false }">
                             <button x-show="!confirmando" type="button" @click="confirmando = true"
                                     class="w-full text-center text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline">
@@ -169,7 +200,7 @@
                 </div>
 
                 {{-- Footer --}}
-                <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 flex flex-row-reverse gap-2">
+                <div class="flex-none bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 flex flex-row-reverse gap-2">
                     <button
                         wire:click="cancelarCobroIntegracion"
                         type="button"
@@ -178,6 +209,5 @@
                     </button>
                 </div>
             </div>
-        </div>
     </div>
 @endif

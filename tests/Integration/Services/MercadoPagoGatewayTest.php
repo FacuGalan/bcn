@@ -73,13 +73,14 @@ class MercadoPagoGatewayTest extends TestCase
 
     // ==================== modosSoportados ====================
 
-    public function test_modos_soportados_devuelve_qr_dinamico_y_estatico(): void
+    public function test_modos_soportados_devuelve_qr_dinamico_estatico_y_libre(): void
     {
         $modos = $this->gateway->modosSoportados();
 
         $this->assertContains('qr_dinamico', $modos);
         $this->assertContains('qr_estatico', $modos);
-        $this->assertCount(2, $modos);
+        $this->assertContains('qr_libre', $modos);
+        $this->assertCount(3, $modos);
     }
 
     // ==================== probarConexion - camino feliz ====================
@@ -362,6 +363,50 @@ class MercadoPagoGatewayTest extends TestCase
         $this->expectExceptionMessageMatches('/POS.*sincroniz/i');
 
         $this->gateway->iniciarCobro($config, $tx);
+    }
+
+    // ==================== Cobro QR monto-libre (qr_libre) ====================
+
+    public function test_iniciar_cobro_qr_libre_no_llama_a_mp_y_devuelve_la_imagen(): void
+    {
+        // Si el gateway pegara a MP, assertNothingSent fallaría.
+        Http::fake();
+
+        $config = $this->crearConfig();
+        $tx = new IntegracionPagoTransaccion([
+            'monto' => 2500.00,
+            'modo_usado' => 'qr_libre',
+            'metadata' => ['qr_libre_imagen_url' => 'https://cdn.bcn/qr-cobrar.png'],
+        ]);
+        $tx->id = 4242;
+
+        $res = $this->gateway->iniciarCobro($config, $tx);
+
+        $this->assertNull($res['qr_data']);
+        $this->assertSame('https://cdn.bcn/qr-cobrar.png', $res['qr_image_url']);
+        $this->assertNull($res['external_id']); // no hay order en MP
+        $this->assertSame('BCN-TX-4242', $res['external_reference']);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_iniciar_cobro_qr_libre_sin_imagen_configurada_lanza_excepcion(): void
+    {
+        Http::fake();
+
+        $config = $this->crearConfig();
+        $tx = new IntegracionPagoTransaccion([
+            'monto' => 1000.00,
+            'modo_usado' => 'qr_libre',
+        ]); // sin metadata['qr_libre_imagen_url']
+        $tx->id = 1;
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/imagen del QR/i');
+
+        $this->gateway->iniciarCobro($config, $tx);
+
+        Http::assertNothingSent();
     }
 
     // ==================== Stores ====================
