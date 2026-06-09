@@ -1,12 +1,12 @@
 # QR Monto-Libre (qr_libre) — Especificación
 
-## Estado: EN PROGRESO — Fases 1-4 COMPLETAS (commiteadas), Fase 5 (cierre) PENDIENTE
+## Estado: COMPLETO — Fases 1-5 implementadas, validadas en vivo, listo para PR
 
 > Modo `qr_libre` dentro de la integración `mercadopago_qr`. Cobro con QR de monto libre: el sistema NO empuja monto a MP, muestra una imagen de QR "Cobrar" subida por el comercio (opcionalmente en 2da pantalla) y el cajero confirma el pago manualmente. Deja la transacción registrada como riel para conciliación/webhook futuros.
 >
-> **Rama**: `feat/integraciones-pago-qr-monto-libre` (desde master). **Commits**: Fase 1 `4e676a7`, Fase 2 `ee54ce4`, Fase 3 `1532707`, Fase 4 `422ae3e`, fix imagen+UI `71fa43f`. Validado en vivo por el usuario (config + cobro + confirmación + imagen OK).
+> **Rama**: `feat/integraciones-pago-qr-monto-libre` (desde master). **Commits**: Fase 1 `4e676a7`, Fase 2 `ee54ce4`, Fase 3 `1532707`, Fase 4 `422ae3e`, fix imagen+UI `71fa43f`, Fase 5 `d3d6d78`. Validado en vivo por el usuario (config + cobro + confirmación + imagen + modal sin scroll OK).
 >
-> **FALTA (Fase 5, próxima sesión)**: (1) guard en el webhook para ignorar `qr_libre` (no matchear); (2) traducciones es/en/pt (`/traducir`) — los strings nuevos hoy andan por fallback de clave en español; (3) docs (`@docs-sync`: manual-usuario + ai-knowledge-base); (4) `/sdd-verify` + abrir PR. Recordar el **Mapa de conflictos con Point #128** (sección más abajo) al mergear.
+> **Fase 5 (cierre) HECHA**: (1) guard en el webhook que ignora `qr_libre` (no re-consulta ni confirma); (2) traducciones es/en/pt; (3) docs (`@docs-sync`: manual-usuario + ai-knowledge-base); (4) PR. **Ajustes UX extra (sesión 2026-06-09)**: botón "Confirmar pago recibido" siempre visible en qr_libre y SIN exigir el permiso `integraciones_pago.confirmar_manual` (es el único modo de cerrar el cobro; +test de regresión); modal acotado al viewport (`max-h-[92vh]`/`min-h-0`) con QR responsivo (SVG escalable + imagen capada a `35vh`) → todo visible sin scroll; textos de config que explican los 3 modos de QR y cómo configurar "monto abierto" en MP. Recordar el **Mapa de conflictos con Point #128** (sección más abajo) al mergear.
 
 ---
 
@@ -176,11 +176,12 @@ Claves nuevas (es/en/pt), p.ej.:
 3. Pantalla cliente: verificar envío de imagen.
 4. Tests integración: cobro `qr_libre` feliz (confirma manual → materializa), cancelar, sin imagen.
 
-### Fase 5: Cierre [PENDIENTE]
-1. Webhook: guard `qr_libre` (no matchear).
-2. Traducciones es/en/pt (`/traducir`).
-3. Docs (`@docs-sync`: `manual-usuario.md` + `ai-knowledge-base.md`).
-4. `/sdd-verify` + PR.
+### Fase 5: Cierre [COMPLETO]
+1. Webhook: guard `qr_libre` (no matchear). ✅
+2. Traducciones es/en/pt. ✅
+3. Docs (`@docs-sync`: `manual-usuario.md` + `ai-knowledge-base.md`). ✅
+4. PR. ✅
+5. (Extra UX, 2026-06-09) Botón confirmar siempre visible en qr_libre sin permiso de override (+test); modal sin scroll (panel `max-h-[92vh]` + QR responsivo); textos de config "monto abierto". ✅
 
 ---
 
