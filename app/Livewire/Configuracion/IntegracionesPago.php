@@ -433,7 +433,7 @@ class IntegracionesPago extends Component
 
             SincronizacionMercadoPagoService::vincularTerminalCaja($config, $caja, $terminalId);
 
-            $this->dispatch('notify', message: __('Terminal vinculada a la caja'), type: 'success');
+            $this->dispatch('notify', message: __('Terminal vinculada a la caja. Reiniciá el Point (con internet) para que tome el modo integrado.'), type: 'success');
         } catch (\Throwable $e) {
             $this->dispatch('notify', message: $e->getMessage(), type: 'error');
         }

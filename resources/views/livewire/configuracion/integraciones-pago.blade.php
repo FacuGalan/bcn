@@ -332,6 +332,21 @@
                                                     <span class="hidden sm:inline">{{ __('Desvincular') }}</span>
                                                 </button>
                                             @elseif (! empty($terminalesDisponibles))
+                                                <div x-data="{ ayudaTerminal: false }" class="relative flex items-center">
+                                                    <button type="button"
+                                                            @click="ayudaTerminal = !ayudaTerminal"
+                                                            @click.outside="ayudaTerminal = false"
+                                                            class="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+                                                            title="{{ __('¿Dónde encuentro este número?') }}">
+                                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                        </svg>
+                                                    </button>
+                                                    <div x-show="ayudaTerminal" x-cloak x-transition
+                                                         class="absolute left-0 top-full mt-2 w-64 z-20 rounded-md bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg">
+                                                        {{ __('El número de serie (SC) está en la etiqueta con código de barras pegada en la parte de atrás del Point, en la parte superior.') }}
+                                                    </div>
+                                                </div>
                                                 <select wire:model="terminalSeleccionado.{{ $caja->id }}"
                                                         class="text-xs sm:text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 focus:border-bcn-primary focus:ring-bcn-primary py-1.5">
                                                     <option value="">{{ __('Elegí una terminal') }}</option>
@@ -359,6 +374,7 @@
 
                         <p class="text-xs text-gray-500 dark:text-gray-400">
                             {{ __('Al vincular, la terminal se pone en modo integrado (PDV) y los cobros se le envían desde el sistema.') }}
+                            {{ __('Después de vincular, reiniciá el dispositivo con conexión a internet para que el cambio de modo se aplique.') }}
                         </p>
                     </div>
                 @endif
