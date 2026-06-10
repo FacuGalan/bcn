@@ -202,7 +202,8 @@
                 <div class="space-y-3 text-sm">
                     <div class="flex flex-col gap-1">
                         <span class="text-gray-500 dark:text-gray-400">{{ __('Terminal') }}</span>
-                        <span class="font-mono font-medium text-gray-900 dark:text-white break-all">{{ $terminalPointInfo['terminal_id'] }}</span>
+                        <span class="font-medium text-gray-900 dark:text-white">{{ \App\Services\IntegracionesPago\SincronizacionMercadoPagoService::formatearTerminal($terminalPointInfo['terminal_id']) }}</span>
+                        <span class="font-mono text-xs text-gray-400 dark:text-gray-500 break-all">{{ $terminalPointInfo['terminal_id'] }}</span>
                     </div>
                     @if($terminalPointInfo['operating_mode'])
                         <div class="flex items-center justify-between">

@@ -109,6 +109,29 @@ class SincronizacionMercadoPagoService
     }
 
     /**
+     * Versión legible de un terminal_id de Point para mostrar en UI. MP arma el
+     * id como `{MARCA}_{MODELO}__{SERIE}` y la serie suele repetir el modelo:
+     * "NEWLAND_N950__N950NCD200152797" → "N950 · SC:NCD200152797".
+     */
+    public static function formatearTerminal(?string $terminalId): string
+    {
+        if (! $terminalId || ! str_contains($terminalId, '__')) {
+            return (string) $terminalId;
+        }
+
+        [$marcaModelo, $serie] = explode('__', $terminalId, 2);
+        $modelo = str_contains($marcaModelo, '_')
+            ? substr($marcaModelo, strrpos($marcaModelo, '_') + 1)
+            : $marcaModelo;
+
+        if ($modelo !== '' && str_starts_with($serie, $modelo)) {
+            $serie = substr($serie, strlen($modelo));
+        }
+
+        return $serie !== '' ? $modelo.' · SC:'.$serie : $modelo;
+    }
+
+    /**
      * Vincula una terminal Point a una caja: la pone en modo integrado (PDV) en
      * MP y persiste el `terminal_id` en la caja. A partir de ahí el sistema le
      * empuja cobros con `type:"point"`.
