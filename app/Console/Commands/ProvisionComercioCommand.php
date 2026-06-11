@@ -180,7 +180,7 @@ class ProvisionComercioCommand extends Command
                 ['Lista de Precios', 'Lista Base (BASE)'],
                 ['Tipos IVA', '3 (Exento, 10.5%, 21%)'],
                 ['Conceptos pago', '7'],
-                ['Formas pago', '7 (5 + Cuenta Corriente + Mixta)'],
+                ['Formas pago', '8 (5 + Cuenta Corriente + Mixta + Canje Puntos)'],
                 ['Roles', '5 (Super Admin, Admin, Gerente, Vendedor, Visualizador)'],
             ]
         );

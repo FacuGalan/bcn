@@ -116,7 +116,7 @@
                         <div class="flex-1">
                             <div class="flex items-center gap-2">
                                 <h3 class="text-sm font-medium text-gray-900 dark:text-white">{{ $formaPago->nombre }}</h3>
-                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $formaPago->activo ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800' }}">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $formaPago->activo ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200' }}">
                                     {{ $formaPago->activo ? __('Activa') : __('Inactiva') }}
                                 </span>
                             </div>
@@ -132,28 +132,28 @@
                             @endif
                             <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
                                 @if($formaPago->permite_cuotas)
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200">
                                         <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z"/><path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd"/></svg>
                                         {{ __('Permite cuotas') }}
                                     </span>
                                 @endif
                                 @if($formaPago->factura_fiscal)
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200">
                                         <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
                                         {{ __('Factura fiscal') }}
                                     </span>
                                 @endif
                                 @if($formaPago->ajuste_porcentaje > 0)
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-red-100 text-red-800">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200">
                                         +{{ $formaPago->ajuste_porcentaje }}% {{ __('recargo') }}
                                     </span>
                                 @elseif($formaPago->ajuste_porcentaje < 0)
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-green-100 text-green-800">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200">
                                         {{ $formaPago->ajuste_porcentaje }}% {{ __('descuento') }}
                                     </span>
                                 @endif
                                 @if($puntosActivo && $formaPago->multiplicador_puntos != 1)
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
                                         <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
                                         x{{ $formaPago->multiplicador_puntos }} {{ __('puntos') }}
                                     </span>
@@ -168,7 +168,7 @@
                                                 ->map(fn($word) => strtoupper(substr($word, 0, 1)))
                                                 ->join('');
                                         @endphp
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800" title="{{ $sucursal->nombre }}">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200" title="{{ $sucursal->nombre }}">
                                             {{ $initials }}
                                         </span>
                                     @endforeach
@@ -254,7 +254,7 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     @if($formaPago->es_mixta)
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200">
                                             {{ __('Mixta') }}
                                         </span>
                                         @if($formaPago->conceptosPermitidos->count() > 0)
@@ -269,7 +269,7 @@
                                             </div>
                                         @endif
                                     @else
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
                                             {{ __($formaPago->conceptoPago?->nombre ?? ucfirst(str_replace('_', ' ', $formaPago->concepto))) }}
                                         </span>
                                     @endif
@@ -277,28 +277,28 @@
                                 <td class="px-6 py-4">
                                     <div class="flex flex-wrap gap-2">
                                         @if($formaPago->permite_cuotas)
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200">
                                                 <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z"/><path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd"/></svg>
                                                 {{ __('Cuotas') }}
                                             </span>
                                         @endif
                                         @if($formaPago->factura_fiscal)
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200">
                                                 <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/></svg>
                                                 {{ __('Fiscal') }}
                                             </span>
                                         @endif
                                         @if($formaPago->ajuste_porcentaje > 0)
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200">
                                                 +{{ $formaPago->ajuste_porcentaje }}% {{ __('recargo') }}
                                             </span>
                                         @elseif($formaPago->ajuste_porcentaje < 0)
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200">
                                                 {{ $formaPago->ajuste_porcentaje }}% {{ __('descuento') }}
                                             </span>
                                         @endif
                                         @if($puntosActivo && $formaPago->multiplicador_puntos != 1)
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
                                                 <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
                                                 x{{ $formaPago->multiplicador_puntos }} {{ __('puntos') }}
                                             </span>
@@ -314,7 +314,7 @@
                                                         ->map(fn($word) => strtoupper(substr($word, 0, 1)))
                                                         ->join('');
                                                 @endphp
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800" title="{{ $sucursal->nombre }}">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200" title="{{ $sucursal->nombre }}">
                                                     {{ $initials }}
                                                 </span>
                                             @endforeach
@@ -880,11 +880,11 @@
                                                             {{ $cuota['cantidad_cuotas'] }} {{ $cuota['cantidad_cuotas'] == 1 ? __('cuota') : __('cuotas') }}
                                                         </span>
                                                         @if($cuota['recargo_porcentaje'] > 0)
-                                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200">
                                                                 +{{ $cuota['recargo_porcentaje'] }}% {{ __('recargo') }}
                                                             </span>
                                                         @else
-                                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200">
                                                                 {{ __('Sin recargo') }}
                                                             </span>
                                                         @endif

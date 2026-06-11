@@ -269,6 +269,23 @@ class CobroIntegracionServiceTest extends TestCase
         $this->assertSame('cliente mostró comprobante', $evento->metadata['motivo']);
     }
 
+    public function test_confirmar_manual_de_transaccion_point_marca_confirmado_manual(): void
+    {
+        $tx = $this->crearTransaccionPendiente();
+        $tx->update(['modo_usado' => IntegracionPagoTransaccion::MODO_POINT]);
+
+        $this->service->confirmarManual($tx, usuarioId: 3, motivo: 'aprobado en el posnet, no llegó el webhook');
+
+        $tx->refresh();
+        $this->assertSame(IntegracionPagoTransaccion::ESTADO_CONFIRMADO_MANUAL, $tx->estado);
+        $this->assertNotNull($tx->confirmado_en);
+        $this->assertSame(
+            1,
+            IntegracionPagoEvento::where('transaccion_id', $tx->id)
+                ->where('evento', IntegracionPagoEvento::EVENTO_CONFIRMADO_MANUAL)->count(),
+        );
+    }
+
     public function test_confirmar_manual_es_idempotente_en_estado_terminal(): void
     {
         $tx = $this->crearTransaccionPendiente();

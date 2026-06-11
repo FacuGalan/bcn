@@ -109,7 +109,9 @@ class SmokeConfiguracionTest extends TestCase
             ->call('abrirConfig', $mp->id)
             ->assertSet('mostrarModal', true)
             ->assertSet('integracionPagoId', $mp->id)
-            ->assertSet('editMode', false);
+            ->assertSet('editMode', false)
+            // La ayuda del modal muestra la URL del webhook a configurar en MP.
+            ->assertSee(route('integraciones.mercadopago.webhook'));
     }
 
     public function test_integraciones_pago_sincronizar_sucursal_persiste_mp_store_id(): void

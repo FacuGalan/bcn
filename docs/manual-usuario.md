@@ -2790,6 +2790,8 @@ Cuando Mercado Pago esta configurado con un **Webhook Secret**, las confirmacion
 
 Para activar esta funcionalidad, complete el campo **"Webhook Secret"** en el modal de configuracion de cada integracion. La URL de webhook del sistema es: `https://{su-dominio}/api/integraciones/mercadopago/webhook`.
 
+Debajo del campo "Webhook Secret" hay un boton **"¿Como obtener el Webhook Secret?"** que despliega la guia paso a paso: en la aplicacion creada en Mercado Pago ir a "Notificaciones" → "Webhooks" → "Configurar notificaciones", asegurarse de estar en la pestaña **"Modo productivo"**, pegar la URL del sistema (el panel la muestra con un boton "Copiar"), seleccionar unicamente el evento **"Order (Mercado Pago)"**, guardar y copiar la clave secreta generada al campo del formulario. Cada aplicacion de MP (QR, Point) tiene su propio webhook y su propia clave: los pasos se repiten en cada una.
+
 > Si el Webhook Secret no esta configurado, el sistema igual funciona correctamente: consulta el estado del pago cada 3 segundos como respaldo. La diferencia es solo en la velocidad de deteccion de la confirmacion.
 
 #### Expiracion automatica de cobros
