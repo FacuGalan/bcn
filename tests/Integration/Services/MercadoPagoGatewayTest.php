@@ -84,6 +84,26 @@ class MercadoPagoGatewayTest extends TestCase
         $this->assertCount(4, $modos);
     }
 
+    // ==================== identidadCuentaEmpresa ====================
+
+    public function test_identidad_cuenta_empresa_devuelve_subtipo_e_identificador(): void
+    {
+        $config = $this->crearConfig(); // user_id_externo = 999888777
+
+        $identidad = $this->gateway->identidadCuentaEmpresa($config);
+
+        $this->assertSame('mercadopago', $identidad['subtipo']);
+        $this->assertSame('999888777', $identidad['identificador_externo']);
+        $this->assertSame('Mercado Pago 999888777', $identidad['nombre_sugerido']);
+    }
+
+    public function test_identidad_cuenta_empresa_es_null_sin_user_id_externo(): void
+    {
+        $config = $this->crearConfig(['user_id_externo' => null]);
+
+        $this->assertNull($this->gateway->identidadCuentaEmpresa($config));
+    }
+
     // ==================== probarConexion - camino feliz ====================
 
     public function test_probar_conexion_devuelve_info_de_la_cuenta_cuando_id_coincide(): void

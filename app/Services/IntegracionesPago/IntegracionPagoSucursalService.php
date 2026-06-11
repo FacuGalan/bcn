@@ -30,7 +30,7 @@ class IntegracionPagoSucursalService
             $data['modo'] ?? null,
         );
 
-        return DB::connection('pymes_tenant')->transaction(function () use ($data) {
+        $config = DB::connection('pymes_tenant')->transaction(function () use ($data) {
             $config = IntegracionPagoSucursal::create($data);
 
             Log::info('IntegracionPagoSucursal creada', [
@@ -42,6 +42,10 @@ class IntegracionPagoSucursalService
 
             return $config;
         });
+
+        self::autoVincularCuentaEmpresa($config);
+
+        return $config;
     }
 
     /**
@@ -54,7 +58,7 @@ class IntegracionPagoSucursalService
             $data['modo'] ?? $config->modo,
         );
 
-        return DB::connection('pymes_tenant')->transaction(function () use ($config, $data) {
+        $config = DB::connection('pymes_tenant')->transaction(function () use ($config, $data) {
             $config->fill($data);
 
             // Si cambia el modo (test↔producción) o la cuenta MP (user_id_externo),
@@ -77,6 +81,27 @@ class IntegracionPagoSucursalService
 
             return $config->refresh();
         });
+
+        self::autoVincularCuentaEmpresa($config);
+
+        return $config;
+    }
+
+    /**
+     * Auto-vincula la CuentaEmpresa de la cuenta real del proveedor (RF-02).
+     * Solo aplica en producción; en test es no-op. Nunca rompe el guardado de
+     * credenciales: cualquier error queda en log.
+     */
+    private static function autoVincularCuentaEmpresa(IntegracionPagoSucursal $config): void
+    {
+        try {
+            \App\Services\CuentaEmpresaService::findOrCreateParaIntegracion($config);
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo auto-vincular la CuentaEmpresa de la integración', [
+                'config_id' => $config->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

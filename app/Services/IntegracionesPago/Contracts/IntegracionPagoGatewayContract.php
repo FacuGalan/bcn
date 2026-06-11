@@ -82,4 +82,20 @@ interface IntegracionPagoGatewayContract
      * @return string[]
      */
     public function modosSoportados(): array;
+
+    /**
+     * Identidad de la cuenta del proveedor a la que llega la plata de esta
+     * config, para vincularla con una CuentaEmpresa del ledger (match por
+     * `(subtipo, identificador_externo)` — varias filas de catálogo del mismo
+     * proveedor comparten la MISMA cuenta real, ej. MP QR y MP Point).
+     *
+     * Devuelve null si el proveedor no se mapea a una cuenta conciliable o si
+     * a la config le faltan datos para identificarla.
+     *
+     * Único punto provider-specific del vínculo de cuentas: todo el resto
+     * (auto-creación, autocompletado, registro de movimientos) es genérico.
+     *
+     * @return array{subtipo: string, identificador_externo: string, nombre_sugerido: string}|null
+     */
+    public function identidadCuentaEmpresa(IntegracionPagoSucursal $config): ?array;
 }

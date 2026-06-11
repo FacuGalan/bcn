@@ -50,6 +50,25 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
     }
 
     /**
+     * Identidad de la cuenta MP de esta config para el vínculo con
+     * CuentaEmpresa: la plata de QR y Point cae en la MISMA cuenta (el
+     * `user_id_externo`), aunque sean aplicaciones/filas de catálogo
+     * distintas. Sin `user_id_externo` no hay identidad resoluble.
+     */
+    public function identidadCuentaEmpresa(IntegracionPagoSucursal $config): ?array
+    {
+        if (empty($config->user_id_externo)) {
+            return null;
+        }
+
+        return [
+            'subtipo' => 'mercadopago',
+            'identificador_externo' => (string) $config->user_id_externo,
+            'nombre_sugerido' => 'Mercado Pago '.$config->user_id_externo,
+        ];
+    }
+
+    /**
      * Verifica las credenciales contra `GET /users/me`.
      *
      * Si responde 200 y el `id` del payload coincide con `user_id_externo`
