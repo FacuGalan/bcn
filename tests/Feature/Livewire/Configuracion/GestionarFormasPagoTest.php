@@ -59,7 +59,7 @@ class GestionarFormasPagoTest extends TestCase
 
         $this->mpId = IntegracionPago::create([
             'codigo' => 'mercadopago_qr', 'nombre' => 'Mercado Pago',
-            'modos_disponibles' => ['qr_dinamico', 'qr_estatico'],
+            'modos_disponibles' => ['qr_dinamico', 'qr_estatico', 'qr_libre'],
             'gateway_class' => 'App\\Services\\IntegracionesPago\\MercadoPagoGateway',
             'activo' => true, 'orden' => 1,
         ])->id;
@@ -171,6 +171,56 @@ class GestionarFormasPagoTest extends TestCase
         $fp = FormaPago::where('nombre', 'Efectivo X')->first();
         $this->assertNotNull($fp);
         $this->assertFalse($fp->tieneIntegracion());
+    }
+
+    public function test_qr_libre_sin_imagen_no_guarda_y_da_error(): void
+    {
+        Livewire::test(GestionarFormasPago::class)
+            ->call('crear')
+            ->set('nombre', 'MP Libre sin img')
+            ->set('es_mixta', false)
+            ->set('concepto_pago_id', $this->walletId)
+            ->set('integraciones_fp', [[
+                'integracion_pago_id' => $this->mpId,
+                'modo_default' => 'qr_libre',
+                'es_principal' => true,
+            ]])
+            ->call('guardar')
+            ->assertHasErrors('integraciones_fp.0.qr_libre');
+
+        $this->assertNull(FormaPago::where('nombre', 'MP Libre sin img')->first());
+    }
+
+    public function test_guardar_fp_qr_libre_sube_imagen_y_persiste_config(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+
+        Livewire::test(GestionarFormasPago::class)
+            ->call('crear')
+            ->set('nombre', 'MP Libre')
+            ->set('es_mixta', false)
+            ->set('concepto_pago_id', $this->walletId)
+            ->set('integraciones_fp', [[
+                'integracion_pago_id' => $this->mpId,
+                'modo_default' => 'qr_libre',
+                'es_principal' => true,
+            ]])
+            ->set('qrLibreImagenes.0', \Illuminate\Http\UploadedFile::fake()->image('qr.png', 400, 400))
+            ->call('guardar')
+            ->assertHasNoErrors()
+            ->assertDispatched('notify');
+
+        $fp = FormaPago::where('nombre', 'MP Libre')->first();
+        $this->assertNotNull($fp);
+
+        $pivot = $fp->integraciones->first()->pivot;
+        $this->assertSame('qr_libre', $pivot->modo_default);
+
+        $cfg = json_decode($pivot->config_qr_libre, true);
+        $this->assertNotEmpty($cfg['imagen_path'] ?? null);
+        $this->assertNotEmpty($cfg['imagen_url'] ?? null);
+        $this->assertStringStartsWith('integraciones/qr_libre/', $cfg['imagen_path']);
+        \Illuminate\Support\Facades\Storage::disk('public')->assertExists($cfg['imagen_path']);
     }
 
     public function test_no_permite_integracion_duplicada(): void

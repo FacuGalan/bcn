@@ -990,6 +990,7 @@ CREATE TABLE `{{PREFIX}}forma_pago_integraciones` (
   `modos_permitidos` json DEFAULT NULL COMMENT 'Modos que el cajero puede elegir al cobrar (incluye el default)',
   `config_point` json DEFAULT NULL COMMENT 'Config del modo Point por FP: {"default_type":"credit_card|debit_card|qr"}; null = Abierto',
   `es_principal` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Integracion preseleccionada si la FP tiene varias',
+  `config_qr_libre` json DEFAULT NULL COMMENT 'Config del modo qr_libre por FormaPago (ej: imagen del QR Cobrar subida)',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),

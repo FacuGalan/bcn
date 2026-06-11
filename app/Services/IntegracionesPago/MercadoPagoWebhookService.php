@@ -83,6 +83,20 @@ class MercadoPagoWebhookService
             return ['status' => 'sin_match', 'motivo' => 'transacción no encontrada'];
         }
 
+        // QR de monto libre: la imagen "Cobrar" es un QR estático genérico de la
+        // cuenta (no lleva el external_id de NUESTRA order), así que el pago real
+        // nunca matchea esta transacción por order_id. La confirmación es SOLO
+        // manual (el cajero ve la acreditación en su app MP y confirma). Ignoramos
+        // sin re-consultar ni confirmar para no acreditar contra el cobro equivocado.
+        if ($transaccion->modo_usado === IntegracionPagoTransaccion::MODO_QR_LIBRE) {
+            Log::info('MP webhook: transacción qr_libre ignorada (confirmación manual)', [
+                'transaccion_id' => $transaccion->id,
+                'order_id' => $orderId,
+            ]);
+
+            return ['status' => 'ignored', 'motivo' => 'qr_libre se confirma manualmente', 'transaccion_id' => $transaccion->id];
+        }
+
         // Config de la SUCURSAL real de la transacción (su propia app/credenciales).
         // Verificación de firma con su secret: si está configurado, es obligatoria;
         // sin secret se omite (se confía en el re-chequeo autenticado a la API).

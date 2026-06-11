@@ -58,6 +58,11 @@ class CobroIntegracionService
                 'estado' => IntegracionPagoTransaccion::ESTADO_PENDIENTE,
                 'expira_en' => now()->addSeconds($config->timeout_segundos),
             ]);
+            // Metadata inicial opcional (ej. qr_libre pasa la imagen del QR a
+            // mostrar). El gateway la lee; luego se le hace merge con la respuesta.
+            if (! empty($datos['metadata'])) {
+                $transaccion->metadata = $datos['metadata'];
+            }
             if ($cobrable) {
                 $transaccion->cobrable()->associate($cobrable);
             }

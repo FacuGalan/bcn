@@ -1143,15 +1143,16 @@ Pivote N:M entre `formas_pago` e `integraciones_pago`. Define que integraciones 
 | `id` | bigint PK | ID unico |
 | `forma_pago_id` | bigint FK | Forma de pago (ON DELETE CASCADE) |
 | `integracion_pago_id` | bigint FK | Integracion de pago (ON DELETE CASCADE) |
-| `modo_default` | varchar(50) nullable | Modo de cobro de la integracion (ej: `qr_dinamico`, `qr_estatico`, `point`). Una FP usa un unico modo; este campo es la fuente de verdad |
+| `modo_default` | varchar(50) nullable | Modo de cobro de la integracion (`qr_dinamico`, `qr_estatico`, `qr_libre`, `point`). Una FP usa un unico modo; este campo es la fuente de verdad |
 | `modos_permitidos` | json nullable | Array json conservado por compatibilidad de esquema; siempre se persiste como `[modo_default]` (espejo de un solo elemento) |
 | `es_principal` | boolean | Si es la integracion preseleccionada cuando la FP tiene varias |
 | `config_point` | json nullable | Configuracion especifica del modo Point: `{"default_type":"credit_card"|"debit_card"|"qr"}`. Ausente o null = "Abierto": no se envia `default_type` a MP y el cliente elige el medio en el aparato. Extensible a futuros parametros Point. |
+| `config_qr_libre` | json nullable | Configuracion del modo `qr_libre`: `{"imagen_path": "integraciones/qr_libre/{comercioId}/{uuid}.webp", "imagen_url": "/storage/..."}`. NULL para los otros modos. La URL publica se reconstruye siempre a partir del `imagen_path` via `ImagenQrLibreService::urlPublica()` (root-relativa, portable entre hosts). |
 | `created_at`, `updated_at` | timestamp | Timestamps |
 
 **Indices**: UNIQUE `(forma_pago_id, integracion_pago_id)`.
 
-**Relacion en FormaPago**: `integraciones()` — `BelongsToMany` con `withPivot(['modo_default','modos_permitidos','es_principal','config_point'])`.
+**Relacion en FormaPago**: `integraciones()` — `BelongsToMany` con `withPivot(['modo_default','modos_permitidos','es_principal','config_point','config_qr_libre'])`.
 
 **Helpers en FormaPago**:
 - `tieneIntegracion()` — devuelve true si la FP tiene al menos una integracion vinculada.
@@ -2205,7 +2206,7 @@ Registro append-only de transacciones de cobro. Una transaccion nace en estado `
 | `usuario_iniciador_id` | bigint FK | Usuario que inicio el cobro |
 | `cobrable_type` | varchar(255) nullable | FQCN del cobrable (`App\Models\Venta`, `App\Models\PedidoMostrador`). NULL hasta que se asocia. |
 | `cobrable_id` | bigint unsigned nullable | ID del cobrable. NULL hasta que se asocia. |
-| `modo_usado` | varchar(50) | Modo de cobro (`qr_dinamico`, `qr_estatico`) |
+| `modo_usado` | varchar(50) | Modo de cobro (`qr_dinamico`, `qr_estatico`, `qr_libre`) |
 | `estado` | varchar(50) | Estado: `pendiente`, `confirmado`, `confirmado_manual`, `cancelado`, `fallido`, `expirado` |
 | `monto` | decimal(12,2) | Monto del cobro |
 | `moneda_id` | bigint FK nullable | Moneda del cobro |
@@ -2260,22 +2261,24 @@ Campo `rubro varchar(50) nullable` agregado a la tabla `comercios` de la conexio
 #### Services
 
 - **`CobroIntegracionService`** (Fase 5): Orquesta el ciclo de vida de un cobro por integracion. API unica consumida por todos los flujos de cobro via el concern `WithCobroIntegracion` (usado por `WithPagosDesglose` en `NuevaVenta`/`NuevoPedidoMostrador` y directamente por `PedidosMostrador` para pagos planificados). Metodos publicos:
-  - `iniciarCobro(IntegracionPagoSucursal $config, array $datos, ?Model $cobrable = null): IntegracionPagoTransaccion` — Crea la transaccion en `pendiente`, llama al gateway (FUERA de la transaccion DB para no mantener locks durante la latencia de red) y persiste `qr_data`, `external_id`, etc. El array `$datos` acepta el campo opcional `metadata` (array nullable) que se persiste en la transaccion y es leido por el gateway al iniciar (ejemplo Point: `['point' => ['default_type' => 'credit_card', 'installments' => 3]]`).
+  - `iniciarCobro(IntegracionPagoSucursal $config, array $datos, ?Model $cobrable = null): IntegracionPagoTransaccion` — Crea la transaccion en `pendiente`, aplica la `metadata` inicial opcional (`$datos['metadata']`) si se provee, llama al gateway para obtener el QR/datos de cobro (FUERA de la transaccion DB para no mantener locks durante la latencia de red) y persiste `qr_data`, `external_id`, etc. La `metadata` la lee el gateway al iniciar: el modo `point` la usa para `['point' => ['default_type' => 'credit_card', 'installments' => 3]]`; el modo `qr_libre` para `qr_libre_imagen_url`.
   - `consultarEstado(IntegracionPagoTransaccion $transaccion): string` — Consulta el estado en el proveedor. Devuelve `'pendiente'|'aprobado'|'cancelado'|'expirado'` sin mutar la transaccion.
   - `confirmarCobro(IntegracionPagoTransaccion $transaccion, ?Model $cobrable = null, array $payload = []): void` — Marca como `confirmado`, registra `confirmado_en`, asocia el cobrable si se provee. Idempotente.
   - `asociarCobrable(IntegracionPagoTransaccion $transaccion, Model $cobrable): void` — Asocia el cobrable a una transaccion ya confirmada. Necesario en el modelo "cobro primero, venta despues": el pago se confirma cuando el cliente escanea el QR, pero el comprobante se crea despues. Idempotente.
   - `cancelarCobro(IntegracionPagoTransaccion $transaccion): bool` — Avisa al proveedor y marca como `cancelado`. Si el gateway falla al cancelar, la transaccion se cancela localmente igual y se loguea el error. Idempotente.
-  - `confirmarManual(IntegracionPagoTransaccion $transaccion, ?int $usuarioId = null, ?string $motivo = null): void` — (Fase 8, RF-12) Marca la transaccion con estado `confirmado_manual` (distinto de `confirmado` para diferenciarlo en reportes y conciliacion) y registra en `integraciones_pago_eventos` quien la confirmo (`usuario_id` en `metadata`). El cobrable se materializa igual que en el camino automatico (el concern llama `alConfirmarCobroIntegracion()`). Idempotente: si la transaccion ya esta en estado terminal, no hace nada.
+  - `confirmarManual(IntegracionPagoTransaccion $transaccion, ?int $usuarioId = null, ?string $motivo = null): void` — (Fase 8, RF-12) Marca la transaccion con estado `confirmado_manual` (distinto de `confirmado` para diferenciarlo en reportes y conciliacion) y registra en `integraciones_pago_eventos` quien la confirmo (`usuario_id` en `metadata`). El cobrable se materializa igual que en el camino automatico (el concern llama `alConfirmarCobroIntegracion()`). Idempotente: si la transaccion ya esta en estado terminal, no hace nada. Es el unico camino de cierre para el modo `qr_libre`.
   - `expirarPendientesVencidas(): int` — (Fase 8, RF-16) Obtiene todas las transacciones en scope `vencidas()` del tenant activo, las marca como `expirado`, registra el evento `expirado` en el ledger y broadcastea `IntegracionPagoActualizado` con `estado = 'expirado'` por cada una para que el modal del cajero cierre solo. Bajo el modelo "cobro primero" no hay cobrable que anular. Retorna la cantidad de transacciones expiradas.
-- **`MercadoPagoGateway`** (actualizado con soporte Point): Implementa `IntegracionPagoGatewayContract`. Metodos de sincronizacion (QR): `crearStore`, `actualizarStore`, `eliminarStore`, `crearPos`, `actualizarPos`, `eliminarPos`. Metodos de cobro: `iniciarCobro` (gateway public; delega a rama segun `transaccion->modo_usado`): si el modo es `point` llama al metodo privado `iniciarCobroPoint`; de lo contrario usa la rama QR existente con `mapearModoOrdersApi()` (`dynamic`/`static`). Metodo privado `iniciarCobroPoint`: hace `POST /v1/orders` con `type:"point"`, `config.point.terminal_id = caja->mp_point_terminal_id`, `config.payment_method.default_type` (si la FP definio un medio; null = Abierto), `config.payment_method.default_installments` (solo credit_card), `expiration_time` ISO 8601 acotado a PT30S..PT3H. Devuelve `qr_data = null` (el QR no se renderiza en pantalla; el aparato lo muestra). `cancelarCobro`: para modo `point` agrega el header `x-allow-cancelable-status: at_terminal` para permitir cancelar la order mientras esta "en terminal" (estado que MP llama `at_terminal`). Metodos Point publicos: `listarTerminales(config)` — `GET /terminals/v1/list` (hasta 50 terminales); `activarModoPDV(config, terminalId)` — `PATCH /terminals/v1/setup` con `operating_mode: "PDV"` (requisito previo para poder empujar cobros al device). El webhook es identico para QR y Point (mismo topico "orders"; se distingue la transaccion por `external_id`).
-- **`SincronizacionMercadoPagoService`**: Orquesta crear-vs-actualizar para QR (Store/POS) y para Point (terminales/devices). Decide segun `mp_store_id` / `mp_pos_id`. Metodos nuevos para Point: `listarTerminales(config)` — delega en el gateway; `vincularTerminalCaja(config, caja, terminalId)` — llama a `activarModoPDV` en el gateway y persiste `mp_point_terminal_id` en la caja en una transaccion tenant; `desvincularTerminalCaja(caja)` — limpia `mp_point_terminal_id` localmente (no toca el modo del device en MP).
+- **`MercadoPagoGateway`** (actualizado con soporte Point + qr_libre): Implementa `IntegracionPagoGatewayContract`. Metodos de sincronizacion (QR): `crearStore`, `actualizarStore`, `eliminarStore`, `crearPos`, `actualizarPos`, `eliminarPos`. Metodos de cobro: `iniciarCobro` (gateway public; delega a rama segun `transaccion->modo_usado`): si el modo es `point` llama al metodo privado `iniciarCobroPoint`; si es `qr_libre` llama al metodo privado `iniciarCobroQrLibre()` (no llama a la Orders API, retorna `qr_image_url` desde `metadata['qr_libre_imagen_url']` y `external_id = null`); de lo contrario usa la rama QR existente con `mapearModoOrdersApi()` (`dynamic`/`static`). Metodo privado `iniciarCobroPoint`: hace `POST /v1/orders` con `type:"point"`, `config.point.terminal_id = caja->mp_point_terminal_id`, `config.payment_method.default_type` (si la FP definio un medio; null = Abierto), `config.payment_method.default_installments` (solo credit_card), `expiration_time` ISO 8601 acotado a PT30S..PT3H. Devuelve `qr_data = null` (el QR no se renderiza en pantalla; el aparato lo muestra). `consultarEstado` — polling del order (no-op efectivo para `qr_libre` ya que `external_id = null`). `cancelarCobro`: para modo `point` agrega el header `x-allow-cancelable-status: at_terminal` para permitir cancelar la order mientras esta "en terminal" (estado que MP llama `at_terminal`). En modo `dynamic` MP devuelve `qr_data`; en `static` y `qr_libre` se usa `qr_image_url`. Metodos Point publicos: `listarTerminales(config)` — `GET /terminals/v1/list` (hasta 50 terminales); `activarModoPDV(config, terminalId)` — `PATCH /terminals/v1/setup` con `operating_mode: "PDV"` (requisito previo para poder empujar cobros al device). El webhook es identico para QR y Point (mismo topico "orders"; se distingue la transaccion por `external_id`). Constantes: `MODO_QR_DINAMICO`, `MODO_QR_ESTATICO`, `MODO_QR_LIBRE`, `MODO_POINT`.
+- **`MercadoPagoWebhookService`**: Procesa notificaciones entrantes de MP. Contiene un guard explicito para el modo `qr_libre`: si la transaccion encontrada tiene `modo_usado = 'qr_libre'`, el webhook retorna inmediatamente con `status = 'ignored'` sin re-consultar ni confirmar. Razon: el QR "Cobrar" de MP es un QR estatico generico de la cuenta (no lleva el `external_id` de ninguna order nuestra), por lo que el pago real nunca puede matchear por `order_id`. La confirmacion es exclusivamente manual via `confirmarManual()`.
+- **`ImagenQrLibreService`**: Procesa el upload de la imagen del QR "Cobrar" de Mercado Pago para el modo `qr_libre`. Defensas de seguridad: validacion de tamano (max 4 MB), deteccion de MIME real por magic bytes via `finfo` (no por extension ni Content-Type), whitelist JPG/PNG/WebP (SVG prohibido), re-encoding completo a WebP con Intervention Image/GD (elimina EXIF y payloads embebidos), nombre por UUID (sin path traversal), path scopeado por `comercioId`. NO redimensiona agresivamente (el QR debe quedar nitido y escaneable): solo achica si supera 1000px, con calidad WebP 90. Metodo estatico `urlPublica(?string $path): ?string` — deriva la URL root-relativa `/storage/{path}` a partir del path del disco publico (no usa `APP_URL`, portable entre hosts). Almacenamiento: disk `public`, ruta `integraciones/qr_libre/{comercioId}/{uuid}.webp`.
+- **`SincronizacionMercadoPagoService`**: Orquesta crear-vs-actualizar para QR (Store/POS) y para Point (terminales/devices). Decide segun `mp_store_id` / `mp_pos_id`. Persiste IDs y URLs devueltos en una transaccion tenant. Metodos para Point: `listarTerminales(config)` — delega en el gateway; `vincularTerminalCaja(config, caja, terminalId)` — llama a `activarModoPDV` en el gateway y persiste `mp_point_terminal_id` en la caja en una transaccion tenant; `desvincularTerminalCaja(caja)` — limpia `mp_point_terminal_id` localmente (no toca el modo del device en MP).
 - **`IntegracionPagoSucursalService`**: CRUD de configuraciones. Al cambiar `modo` o `user_id_externo` limpia los IDs de MP locales (Store + todos sus POS) via `limpiarSincronizacionMp()`.
 
 #### Catalogo de integraciones — codigos vigentes
 
 | Codigo | Nombre | Descripcion | Orden |
 |---|---|---|---|
-| `mercadopago_qr` | Mercado Pago - QR | Cobros con Mercado Pago: QR dinamico y QR estatico, ambos con monto definido (enviado desde el sistema). Renombrado desde `mercadopago` en Fase 4. | 1 |
+| `mercadopago_qr` | Mercado Pago - QR | Cobro via QR dinamico, QR estatico o QR de monto libre. Renombrado desde `mercadopago` en Fase 4 para dar lugar a futuros productos MP como filas separadas del catalogo. Los modos disponibles (`modos_disponibles` en el catalogo): `qr_dinamico`, `qr_estatico`, `qr_libre` | 1 |
 | `mercadopago_point` | Mercado Pago - Point | Cobros con Mercado Pago Point: el monto se envia a la terminal fisica desde el sistema y el cliente paga con tarjeta o QR en el propio aparato. Producto MP separado del QR; usa su propia aplicacion MP con access_token propio. Reusa `MercadoPagoGateway` con rama por modo. | 2 |
 
 **Constantes PHP**:
@@ -2285,10 +2288,11 @@ Campo `rubro varchar(50) nullable` agregado a la tabla `comercios` de la conexio
 **Constantes de modo en `IntegracionPagoTransaccion`**:
 - `MODO_QR_DINAMICO = 'qr_dinamico'`
 - `MODO_QR_ESTATICO = 'qr_estatico'`
+- `MODO_QR_LIBRE = 'qr_libre'`
 - `MODO_POINT = 'point'`
 
 **Constantes de modo en `MercadoPagoGateway`** (mismos valores):
-- `MODO_QR_DINAMICO`, `MODO_QR_ESTATICO`, `MODO_POINT = 'point'`
+- `MODO_QR_DINAMICO`, `MODO_QR_ESTATICO`, `MODO_QR_LIBRE = 'qr_libre'`, `MODO_POINT = 'point'`
 
 #### Reglas de negocio — asignacion de integraciones a formas de pago (Fase 4)
 
@@ -2300,18 +2304,33 @@ Campo `rubro varchar(50) nullable` agregado a la tabla `comercios` de la conexio
 
 4. **Principal para cobro sin pregunta**: Al cobrar, si la FP tiene una unica integracion se usa automaticamente. Si tiene varias, se usa la marcada `es_principal`. Si ninguna esta marcada, se toma la primera. El helper `integracionPrincipal()` implementa esta logica.
 
-5. **Modos de cobro**: Los modos (`qr_dinamico`, `qr_estatico`, `point`) son variantes de cobro, no integraciones separadas. Cada forma de pago usa **un unico modo**, configurado en el campo `modo_default` del pivote. El campo `modos_permitidos` (json array) se conserva por compatibilidad de esquema y se persiste siempre como `[modo_default]` (espejo de un solo elemento). No hay validacion de inclusion porque no existe seleccion multiple.
+5. **Modos de cobro**: Los modos (`qr_dinamico`, `qr_estatico`, `qr_libre`, `point`) son variantes de cobro, no integraciones separadas. Cada forma de pago usa **un unico modo**, configurado en el campo `modo_default` del pivote. El campo `modos_permitidos` (json array) se conserva por compatibilidad de esquema y se persiste siempre como `[modo_default]` (espejo de un solo elemento). No hay validacion de inclusion porque no existe seleccion multiple.
 
-   Resolucion del modo al cobrar: `WithCobroIntegracion::iniciarCobroIntegracion` lee `$integracion->pivot->modo_default`. Para QR, ese valor se pasa como `modo_usado` a la transaccion y `MercadoPagoGateway::mapearModoOrdersApi()` lo convierte al valor esperado por la Orders API (`dynamic` / `static`). Para `point`, el concern valida que la caja tenga `mp_point_terminal_id`, construye `metadata['point']` con `default_type` (de `config_point` del pivote) e `installments` (de las cuotas del desglose, solo si `default_type = credit_card`), y pasa `metadata` a `CobroIntegracionService::iniciarCobro()`. El gateway detecta `modo_usado = 'point'` y delega en `iniciarCobroPoint()`.
+   Resolucion del modo al cobrar: `WithCobroIntegracion::iniciarCobroIntegracion` lee `$integracion->pivot->modo_default`; ese valor se pasa como `modo_usado` a la transaccion. Para `qr_dinamico` y `qr_estatico`, `MercadoPagoGateway::mapearModoOrdersApi()` lo convierte al valor esperado por la Orders API (`dynamic` / `static`). Para `point`, el concern valida que la caja tenga `mp_point_terminal_id`, construye `metadata['point']` con `default_type` (de `config_point` del pivote) e `installments` (de las cuotas del desglose, solo si `default_type = credit_card`), y pasa `metadata` a `CobroIntegracionService::iniciarCobro()`; el gateway detecta `modo_usado = 'point'` y delega en `iniciarCobroPoint()`. Para `qr_libre`, el gateway toma un camino alternativo (`iniciarCobroQrLibre`) que no llama a la Orders API.
 
-6. **Sincronizacion via sync()**: Al guardar, el componente llama a `$formaPago->integraciones()->sync($syncIntegraciones)` con el mapa `[integracion_pago_id => [modo_default, modos_permitidos, es_principal, config_point]]`, donde `modos_permitidos` es siempre `json_encode([$modo_default])` y `config_point` es `json_encode(['default_type' => ...])` o null (Abierto). Si la FP no admite integraciones se llama a `detach()` para limpiar registros huerfanos.
+   El modo `qr_libre` tiene requerimientos distintos al cobrar: NO exige `access_token` ni que la caja este sincronizada en MP (no hay credenciales de API involucradas). Solo requiere que la integracion exista y este activa en la sucursal, y que `config_qr_libre.imagen_path` no sea nulo en el pivote. La URL de la imagen se deriva root-relativamente via `ImagenQrLibreService::urlPublica($path)` y se pasa al gateway a traves de `metadata['qr_libre_imagen_url']`.
+
+6. **Sincronizacion via sync()**: Al guardar, el componente llama a `$formaPago->integraciones()->sync($syncIntegraciones)` con el mapa `[integracion_pago_id => [modo_default, modos_permitidos, es_principal, config_point, config_qr_libre]]`, donde `modos_permitidos` es siempre `json_encode([$modo_default])`, `config_point` es `json_encode(['default_type' => ...])` o null (Abierto), y `config_qr_libre` es null para los modos que no lo usan. Si la FP no admite integraciones se llama a `detach()` para limpiar registros huerfanos.
+
+#### Reglas de negocio — confirmacion manual segun modo
+
+El concern `WithCobroIntegracion` distingue dos contextos al llamar a `confirmarCobroIntegracionManual()`:
+
+- **Modo `qr_libre`**: la confirmacion manual ES el unico flujo de cierre (no hay webhook ni deteccion automatica). Por lo tanto el boton "Confirmar pago recibido" se muestra siempre visible en el modal, accesible a cualquier operario de la caja **sin necesidad del permiso `integraciones_pago.confirmar_manual`**.
+- **Modos `qr_dinamico`, `qr_estatico` y `point`**: la confirmacion manual es un fallback excepcional (el sistema no detecto el pago automaticamente). Se muestra como un enlace discreto y **requiere el permiso `integraciones_pago.confirmar_manual`** para habilitarse.
+
+El metodo `tienePermisoConfirmarManual()` (extraido del computed `puedeConfirmarManual`) verifica `hasPermissionTo('integraciones_pago.confirmar_manual')` y se usa desde la accion (no solo desde la computed) para permitir el chequeo en el momento de la llamada.
+
+#### Reglas de negocio — polling para `qr_libre`
+
+El metodo `pollearCobroIntegracion()` del concern tiene un short-circuit explicito para `qr_libre`: si la transaccion en curso tiene `modo_usado = 'qr_libre'`, el poll retorna sin hacer ninguna consulta al gateway ni a la BD (mas alla de la lectura del estado local). Razon: no existe `external_id` en MP que consultar; la unica fuente de verdad es la confirmacion manual del cajero.
 
 #### Permisos del modulo de integraciones de pago
 
 | Permiso | Descripcion |
 |---|---|
 | `func.integraciones_pago.administrar` | Configurar y sincronizar integraciones (acceso al modulo de configuracion) |
-| `integraciones_pago.confirmar_manual` | (Fase 8, RF-12) Confirmar manualmente un cobro pendiente cuando el sistema no lo detecto automaticamente. Muestra el panel de fallback en el modal "Esperando pago". Recomendado solo para supervisores o cajeros de confianza dado el riesgo de confirmar un pago no realizado. |
+| `integraciones_pago.confirmar_manual` | Confirmar manualmente un cobro en los modos `qr_dinamico` y `qr_estatico` cuando el sistema no lo detecto automaticamente. Muestra el panel de fallback en el modal "Esperando pago". No aplica al modo `qr_libre` (su confirmacion manual no requiere este permiso). Recomendado solo para supervisores o cajeros de confianza. |
 
 #### Comando de expiracion automatica (Fase 8, RF-16)
 

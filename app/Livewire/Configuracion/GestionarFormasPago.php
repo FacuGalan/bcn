@@ -11,17 +11,20 @@ use App\Models\IntegracionPago;
 use App\Models\Moneda;
 use App\Models\Sucursal;
 use App\Services\CatalogoCache;
+use App\Services\IntegracionesPago\ImagenQrLibreService;
 use App\Services\PuntosService;
+use App\Services\TenantService;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 #[Lazy]
 #[Layout('layouts.app')]
 class GestionarFormasPago extends Component
 {
-    use WithPagination;
+    use WithFileUploads, WithPagination;
 
     // Propiedades del formulario principal
     public $formaPagoId = null;
@@ -52,6 +55,11 @@ class GestionarFormasPago extends Component
     // Cada integración usa UN modo de cobro (modo_default). El pivote conserva
     // `modos_permitidos` por compatibilidad; se persiste como [modo_default].
     public array $integraciones_fp = [];
+
+    // Imágenes de QR "Cobrar" recién subidas para filas en modo qr_libre,
+    // keyed por el índice de la fila en $integraciones_fp (Livewire WithFileUploads).
+    // El QR ya guardado (en edición) viaja en $integraciones_fp[$i]['qr_libre_imagen_url'].
+    public array $qrLibreImagenes = [];
 
     // Cuenta empresa y moneda
     public $cuenta_empresa_id = null;
@@ -120,6 +128,9 @@ class GestionarFormasPago extends Component
                 $rules['integraciones_fp'] = 'array';
                 $rules['integraciones_fp.*.integracion_pago_id'] = 'required|exists:pymes_tenant.integraciones_pago,id';
                 $rules['integraciones_fp.*.modo_default'] = 'required|string';
+                // Imagen del QR (modo qr_libre): límite y mimes para rechazo
+                // temprano. El service valida el MIME real con finfo después.
+                $rules['qrLibreImagenes.*'] = 'nullable|image|mimes:jpg,jpeg,png,webp|max:'.(\App\Services\IntegracionesPago\ImagenQrLibreService::MAX_SIZE_BYTES / 1024);
             }
         }
 
@@ -163,6 +174,7 @@ class GestionarFormasPago extends Component
             $this->multiplicador_puntos = 1;
             $this->factura_fiscal = false;
             $this->integraciones_fp = []; // las mixtas no usan integraciones
+            $this->qrLibreImagenes = [];
         } else {
             // No es mixta: limpiar conceptos permitidos
             $this->conceptos_permitidos = [];
@@ -176,6 +188,7 @@ class GestionarFormasPago extends Component
     {
         if (! $this->conceptoPermiteIntegracion()) {
             $this->integraciones_fp = [];
+            $this->qrLibreImagenes = [];
         }
     }
 
@@ -207,6 +220,8 @@ class GestionarFormasPago extends Component
             'modo_default' => null,
             'default_type' => null,
             'es_principal' => count($this->integraciones_fp) === 0,
+            'qr_libre_imagen_url' => null,
+            'qr_libre_imagen_path' => null,
         ];
     }
 
@@ -214,6 +229,16 @@ class GestionarFormasPago extends Component
     {
         unset($this->integraciones_fp[$index]);
         $this->integraciones_fp = array_values($this->integraciones_fp);
+        // Reindexar uploads pendientes (array sparse): correr las claves > index
+        // una posición hacia abajo para que sigan alineadas con las filas.
+        $reindexados = [];
+        foreach ($this->qrLibreImagenes as $i => $file) {
+            if ($i === $index) {
+                continue;
+            }
+            $reindexados[$i > $index ? $i - 1 : $i] = $file;
+        }
+        $this->qrLibreImagenes = $reindexados;
 
         // Garantizar que siempre haya una principal si quedan filas.
         if (! empty($this->integraciones_fp)
@@ -227,6 +252,40 @@ class GestionarFormasPago extends Component
         foreach (array_keys($this->integraciones_fp) as $i) {
             $this->integraciones_fp[$i]['es_principal'] = ($i == $index);
         }
+    }
+
+    /**
+     * Resuelve el JSON de `config_qr_libre` del pivote para una fila al guardar.
+     * Modo qr_libre: si hay imagen nueva subida la guarda (y borra la anterior si
+     * se reemplaza); si no, conserva la ya guardada. Otros modos → null.
+     */
+    private function resolverConfigQrLibre(int $index, array $row, ?string $modo, ImagenQrLibreService $imagenQrService, ?int $comercioId): ?string
+    {
+        if ($modo !== 'qr_libre') {
+            return null;
+        }
+
+        $upload = $this->qrLibreImagenes[$index] ?? null;
+
+        if ($upload) {
+            $guardada = $imagenQrService->guardar((int) $comercioId, $upload);
+            // Reemplazo: borrar la imagen anterior (si la había y es distinta).
+            if (! empty($row['qr_libre_imagen_path']) && $row['qr_libre_imagen_path'] !== $guardada['path']) {
+                $imagenQrService->eliminar($row['qr_libre_imagen_path']);
+            }
+
+            return json_encode(['imagen_path' => $guardada['path'], 'imagen_url' => $guardada['url']]);
+        }
+
+        // Sin subida nueva: conservar la imagen ya guardada (edición).
+        if (! empty($row['qr_libre_imagen_path']) || ! empty($row['qr_libre_imagen_url'])) {
+            return json_encode([
+                'imagen_path' => $row['qr_libre_imagen_path'] ?? null,
+                'imagen_url' => $row['qr_libre_imagen_url'] ?? null,
+            ]);
+        }
+
+        return null;
     }
 
     /**
@@ -257,6 +316,8 @@ class GestionarFormasPago extends Component
         return match ($modo) {
             'qr_dinamico' => __('QR dinámico'),
             'qr_estatico' => __('QR estático'),
+            'qr_libre' => __('QR de monto libre'),
+            'point' => __('Point (terminal física)'),
             default => $modo,
         };
     }
@@ -305,12 +366,22 @@ class GestionarFormasPago extends Component
             $this->conceptos_permitidos = [];
 
             // Cargar integraciones de pago asociadas (pivote).
-            $this->integraciones_fp = $formaPago->integraciones->map(fn ($int) => [
-                'integracion_pago_id' => $int->id,
-                'modo_default' => $int->pivot->modo_default,
-                'default_type' => data_get(json_decode($int->pivot->config_point ?? 'null', true), 'default_type'),
-                'es_principal' => (bool) $int->pivot->es_principal,
-            ])->toArray();
+            $this->integraciones_fp = $formaPago->integraciones->map(function ($int) {
+                $cfgLibre = json_decode($int->pivot->config_qr_libre ?? 'null', true);
+                $pathLibre = data_get($cfgLibre, 'imagen_path');
+
+                return [
+                    'integracion_pago_id' => $int->id,
+                    'modo_default' => $int->pivot->modo_default,
+                    'default_type' => data_get(json_decode($int->pivot->config_point ?? 'null', true), 'default_type'),
+                    'es_principal' => (bool) $int->pivot->es_principal,
+                    // QR ya guardado (modo qr_libre): la URL se DERIVA del path
+                    // (root-relativa, portable), no se confía en la guardada.
+                    'qr_libre_imagen_url' => ImagenQrLibreService::urlPublica($pathLibre),
+                    'qr_libre_imagen_path' => $pathLibre,
+                ];
+            })->toArray();
+            $this->qrLibreImagenes = [];
         }
 
         // Cargar sucursales donde está activa
@@ -344,6 +415,16 @@ class GestionarFormasPago extends Component
                 }
                 if ($intId) {
                     $vistos[] = $intId;
+                }
+
+                // El modo qr_libre necesita la imagen del QR de cobro: nueva subida
+                // o ya guardada (en edición). Sin imagen no se puede cobrar.
+                if (($row['modo_default'] ?? null) === 'qr_libre'
+                    && empty($this->qrLibreImagenes[$i])
+                    && empty($row['qr_libre_imagen_url'])) {
+                    $this->addError("integraciones_fp.$i.qr_libre", __('Configurá la imagen del QR de Mercado Pago en la forma de pago antes de cobrar con QR de monto libre.'));
+
+                    return;
                 }
             }
         }
@@ -392,8 +473,11 @@ class GestionarFormasPago extends Component
 
             // Sincronizar integraciones de pago (solo FP simple cuyo concepto las permite)
             if (! $this->es_mixta && $this->conceptoPermiteIntegracion()) {
+                $imagenQrService = app(ImagenQrLibreService::class);
+                $comercioId = app(TenantService::class)->getComercioId();
+
                 $syncIntegraciones = [];
-                foreach ($this->integraciones_fp as $row) {
+                foreach ($this->integraciones_fp as $index => $row) {
                     if (empty($row['integracion_pago_id'])) {
                         continue;
                     }
@@ -404,6 +488,10 @@ class GestionarFormasPago extends Component
                     $configPoint = ($modo === 'point' && ! empty($defaultType))
                         ? json_encode(['default_type' => $defaultType])
                         : null;
+
+                    // config_qr_libre: imagen del QR "Cobrar" para el modo qr_libre.
+                    $configQrLibre = $this->resolverConfigQrLibre($index, $row, $modo, $imagenQrService, $comercioId);
+
                     $syncIntegraciones[$row['integracion_pago_id']] = [
                         'modo_default' => $modo,
                         // Un solo modo por integración: el pivote conserva la columna
@@ -411,6 +499,7 @@ class GestionarFormasPago extends Component
                         'modos_permitidos' => json_encode($modo ? [$modo] : []),
                         'config_point' => $configPoint,
                         'es_principal' => ! empty($row['es_principal']),
+                        'config_qr_libre' => $configQrLibre,
                     ];
                 }
                 $formaPago->integraciones()->sync($syncIntegraciones);
@@ -573,6 +662,7 @@ class GestionarFormasPago extends Component
         $this->es_mixta = false;
         $this->conceptos_permitidos = [];
         $this->integraciones_fp = [];
+        $this->qrLibreImagenes = [];
         $this->sucursales_seleccionadas = [];
         $this->cuenta_empresa_id = null;
         $this->moneda_id = null;

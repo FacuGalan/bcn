@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-08
+> Version: 0.1.x | Ultima actualizacion: 2026-06-11
 
 ---
 
@@ -375,16 +375,17 @@ En la parte inferior de la columna derecha se muestra el resumen:
 4. Confirme la operacion.
 5. El sistema registrara la venta, actualizara el stock, registrara el movimiento de caja y, si corresponde, emitira el comprobante fiscal.
 
-#### Cobro con integracion de pago (QR dinamico o QR estatico)
+#### Cobro con integracion de pago (QR dinamico, QR estatico o QR de monto libre)
 
 Cuando la forma de pago seleccionada tiene una integracion de cobro activa (por ejemplo, Mercado Pago QR), el flujo es diferente al cobro tradicional: **el pago se confirma primero y el comprobante se crea despues**. Este mecanismo aplica en todos los puntos de cobro del sistema: Nueva Venta, Pedidos por Mostrador (desglose desde el editor o cobro rapido) y confirmacion de pagos planificados.
 
-Existen dos modos de cobro QR, configurables por forma de pago (ver seccion 12.4):
+Existen tres modos de cobro QR, configurables por forma de pago (ver seccion 12.4):
 
 - **QR dinamico**: el sistema genera un QR unico por venta con el monto exacto. El cajero o el cliente lo escanean desde la pantalla.
 - **QR estatico**: se usa el QR fisico impreso del mostrador (el que MP asigna al POS de la caja al sincronizarla). El sistema empuja el monto a ese POS y el cliente escanea el QR impreso que ya esta fijo en el mostrador. No hay una imagen de QR nueva en pantalla: el modal muestra la imagen del QR del POS para que el cajero la identifique y le indique al cliente donde escanear.
+- **QR de monto libre**: se muestra la imagen del QR "Cobrar" que el comercio cargo en la configuracion de la forma de pago. El cliente escanea ese QR con su app de Mercado Pago e ingresa el monto por su cuenta. No hay deteccion automatica (el sistema no crea ninguna orden en MP): el cajero confirma el pago manualmente una vez que ve la acreditacion en su app de MP.
 
-**Flujo paso a paso (Nueva Venta):**
+**Flujo paso a paso (Nueva Venta) — modos QR dinamico y QR estatico:**
 
 1. Seleccione la forma de pago con integracion (identificada visualmente en la lista) y presione **"Cobrar"** (F2).
 2. El sistema registra la orden de cobro y abre el **modal "Esperando pago"**.
@@ -403,7 +404,21 @@ Existen dos modos de cobro QR, configurables por forma de pago (ver seccion 12.4
 
 6. Si el cajero presiona **"Cancelar cobro"** o el QR expira sin pago, el modal se cierra y no se crea ninguna venta. Si el tiempo de espera vence sin que el sistema detecte el pago automaticamente, la orden expira y el modal lo indica.
 
-**Confirmacion manual (solo si el usuario tiene el permiso habilitado):** si el sistema no detecto el pago automaticamente (por ejemplo, si el webhook no llego y el countdown ya termino), aparece un enlace discreto **"El pago no se detecto automaticamente"** en la parte inferior del modal. Al hacer clic, se abre un panel de advertencia ambar con el texto "Confirma solo si verificaste que el cliente pago". Presionar **"Si, el cliente pago"** confirma el cobro manualmente. Esta accion queda registrada con el usuario que la realizo para auditoria. El botton **"Volver"** descarta el panel sin hacer nada.
+**Confirmacion manual (modos QR dinamico y QR estatico, solo si el usuario tiene el permiso habilitado):** si el sistema no detecto el pago automaticamente (por ejemplo, si el webhook no llego y el countdown ya termino), aparece un enlace discreto **"El pago no se detecto automaticamente"** en la parte inferior del modal. Al hacer clic, se abre un panel de advertencia ambar con el texto "Confirma solo si verificaste que el cliente pago". Presionar **"Si, el cliente pago"** confirma el cobro manualmente. Esta accion queda registrada con el usuario que la realizo para auditoria. El botton **"Volver"** descarta el panel sin hacer nada.
+
+**Flujo paso a paso (Nueva Venta) — modo QR de monto libre:**
+
+1. Seleccione la forma de pago configurada en modo "QR de monto libre" y presione **"Cobrar"** (F2).
+2. El sistema abre el **modal "Esperando pago"** mostrando:
+   - El monto a cobrar (referencia para el cajero).
+   - La imagen del QR "Cobrar" de Mercado Pago que el comercio cargo en la configuracion.
+   - Un mensaje indicando que el cliente debe escanear e ingresar el monto en su app.
+   - Un countdown de expiracion (referencia; no hay deteccion automatica).
+3. El cajero le muestra el QR al cliente. El cliente lo escanea con su app de Mercado Pago, ingresa el monto que el cajero le indica y confirma el pago desde su app.
+4. El cajero verifica en su propia app de Mercado Pago que el pago fue acreditado.
+5. El cajero presiona **"Confirmar pago recibido"** (boton verde, siempre visible). El sistema registra la venta, asocia la transaccion y cierra el modal. Esta confirmacion queda auditada.
+
+> El boton "Confirmar pago recibido" en el modo QR de monto libre lo puede presionar cualquier operario de la caja sin necesidad de permisos adicionales, ya que es la unica forma de cerrar el cobro (no hay deteccion automatica ni webhook). Es distinto al panel de fallback de los otros modos, que si requiere el permiso `integraciones_pago.confirmar_manual`.
 
 **Si la facturacion fiscal falla con el cobro ya confirmado**: el pago queda registrado igual (el cobro ya entro) pero la factura queda pendiente de emision. Aparece un aviso indicando que el cobro fue exitoso y que la facturacion puede reintentarse desde **Cajas → Pagos Pendientes de Facturacion**.
 
@@ -2379,7 +2394,13 @@ Este bloque permite vincular la forma de pago con una o mas integraciones config
 3. Elija el **modo de cobro**: determina como se procesa el pago al usar esta forma de pago en el punto de venta.
    - **QR dinamico**: el sistema genera un QR unico por venta que se muestra en pantalla. El cliente lo escanea desde la pantalla del cajero o del monitor del cliente.
    - **QR estatico**: el sistema empuja el monto al POS de la caja y el cliente escanea el QR fisico impreso del mostrador (el que queda fijo en el local). No se genera un QR nuevo en pantalla.
+   - **QR de monto libre**: se muestra al cliente una imagen del QR "Cobrar" de Mercado Pago que usted carga en esta configuracion. El cliente escanea el QR e ingresa el monto en su app. El cajero confirma el pago manualmente.
    - **Point**: el sistema envia el monto a la terminal fisica (posnet) asignada a la caja. El cliente paga pasando la tarjeta o escaneando el QR que muestra el propio aparato. El cajero no ve ningun QR en pantalla.
+
+   Al elegir **QR de monto libre**, aparece el campo **"Imagen del QR de cobro de Mercado Pago"**: haga clic en el area o arrastre una imagen (JPG, PNG o WebP, maximo 4 MB) con el QR que descargo desde la app de Mercado Pago en la seccion "Cobrar con QR". El sistema re-procesa y almacena la imagen de forma segura.
+
+   > **Importante**: el QR debe estar configurado en Mercado Pago en modo **"monto abierto"** (el cliente ingresa el importe). Si el QR esta en modo "monto fijo / lo define el cajero", al escanearlo la app de MP le pedira al cliente que avise al cajero y no podra ingresar el monto. Para configurarlo, en la app de Mercado Pago vaya a Cobrar con QR → configuracion de su local o caja → elija "monto abierto", descargue ese QR y subalo aca.
+
 4. Si selecciona el modo **Point**, aparece el campo **"Medio de pago en la terminal"**:
    - **Abierto (el cliente elige)**: no se preselecciona ningun medio; la terminal muestra todas las opciones al cliente. Es el valor por defecto.
    - **Tarjeta de credito**: el posnet arranca preseleccionando credito. Las cuotas elegidas en el desglose de la venta se envian como cuotas de tarjeta.
@@ -2697,13 +2718,14 @@ Una vez sincronizada, cada caja muestra dos botones junto al QR del POS:
 
 > En movil los botones muestran solo el icono; en escritorio muestran icono y etiqueta.
 
-##### Cobro con QR (dinamico o estatico)
+#### Cobro con integracion de pago (QR dinamico, QR estatico o QR de monto libre)
 
 Una vez que la sucursal y la caja estan sincronizadas y la forma de pago tiene la integracion asignada (ver seccion 12.4), el cobro por QR esta disponible en todos los puntos de cobro del sistema: Nueva Venta, Pedidos por Mostrador (desglose desde el editor, cobro rapido desde el listado y confirmacion de pagos planificados).
 
 El **modo de cobro** se define al configurar la forma de pago (ver seccion 12.4):
-- **QR dinamico**: genera un QR unico por venta con el monto exacto. Expira y es de un solo uso.
-- **QR estatico**: usa el QR fisico del mostrador. El sistema envia el monto al POS de la caja y el cliente escanea el QR impreso que ya esta fijo. No caduca el QR (es permanente), pero la orden de cobro si tiene vencimiento.
+- **QR dinamico**: genera un QR unico por venta con el monto exacto. Expira y es de un solo uso. Ver el flujo completo en la seccion **3.1 — Cobro con integracion de pago**.
+- **QR estatico**: usa el QR fisico del mostrador. El sistema envia el monto al POS de la caja y el cliente escanea el QR impreso que ya esta fijo. No caduca el QR (es permanente), pero la orden de cobro si tiene vencimiento. Ver el flujo completo en la seccion **3.1 — Cobro con integracion de pago**.
+- **QR de monto libre**: no requiere sincronizacion de sucursal ni caja en Mercado Pago. El modal muestra la imagen del QR "Cobrar" configurada en la forma de pago; el cliente escanea e ingresa el monto en su app; el cajero confirma manualmente. Ver el flujo completo en la seccion **3.1 — Cobro con integracion de pago**.
 
 #### Mercado Pago - Point (posnet fisico)
 
@@ -2779,7 +2801,7 @@ Si un cobro queda esperando pago y el tiempo configurado vence, el sistema lo ex
 | Permiso | Descripcion |
 |---|---|
 | `func.integraciones_pago.administrar` | Configurar y sincronizar integraciones, vincular terminales Point (acceso al modulo de configuracion) |
-| `integraciones_pago.confirmar_manual` | Confirmar manualmente un cobro cuando el sistema no lo detecto automaticamente. Habilita el panel de fallback en el modal "Esperando pago". Asignar solo a cajeros supervisores de confianza. |
+| `integraciones_pago.confirmar_manual` | Confirmar manualmente un cobro en los modos QR dinamico, QR estatico y Point cuando el sistema no lo detecto automaticamente. Habilita el panel de fallback en el modal "Esperando pago". No aplica al modo QR de monto libre (cuya confirmacion manual es la unica forma de cerrar el cobro y no requiere permiso). Asignar solo a cajeros supervisores de confianza. |
 
 ---
 
