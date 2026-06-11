@@ -36,7 +36,7 @@ class CobroIntegracionService
      * confirmar y se asocia con confirmarCobro); Pedidos Mostrador sí lo pasa
      * (el pedido existe y se cobra contra él).
      *
-     * @param  array{forma_pago_id:int,sucursal_id:int,caja_id:?int,usuario_iniciador_id:int,modo_usado:string,monto:float,moneda_id:?int,metadata?:array}  $datos
+     * @param  array{forma_pago_id:int,sucursal_id:int,caja_id:?int,usuario_iniciador_id:int,modo_usado:string,monto:float,moneda_id:?int,metadata?:?array}  $datos
      *
      * @throws \RuntimeException si el gateway falla al generar el cobro
      */
@@ -52,6 +52,9 @@ class CobroIntegracionService
                 'modo_usado' => $datos['modo_usado'],
                 'monto' => $datos['monto'],
                 'moneda_id' => $datos['moneda_id'] ?? null,
+                // Datos específicos del modo que el gateway lee al iniciar (ej. Point:
+                // ['point' => ['default_type' => ..., 'installments' => ...]]).
+                'metadata' => $datos['metadata'] ?? null,
                 'estado' => IntegracionPagoTransaccion::ESTADO_PENDIENTE,
                 'expira_en' => now()->addSeconds($config->timeout_segundos),
             ]);

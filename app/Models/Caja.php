@@ -52,8 +52,10 @@ class Caja extends Model
         'modo_carga_inicial',
         'monto_fijo_inicial',
         'grupo_cierre_id',
-        // Mercado Pago POS
+        // Mercado Pago POS (producto QR)
         'mp_pos_id', 'mp_pos_external_id', 'mp_pos_qr_url', 'mp_pos_qr_pdf_url',
+        // Mercado Pago Point (terminal física por caja)
+        'mp_point_terminal_id',
         // Pantalla orientada al cliente (segundo monitor del puesto)
         'usa_pantalla_cliente',
     ];

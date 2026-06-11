@@ -35,6 +35,8 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
 
     public const MODO_QR_ESTATICO = 'qr_estatico';
 
+    public const MODO_POINT = 'point';
+
     public const MODO_QR_LIBRE = 'qr_libre';
 
     public function modosSoportados(): array
@@ -42,6 +44,7 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         return [
             self::MODO_QR_DINAMICO,
             self::MODO_QR_ESTATICO,
+            self::MODO_POINT,
             self::MODO_QR_LIBRE,
         ];
     }
@@ -626,6 +629,11 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         IntegracionPagoSucursal $config,
         IntegracionPagoTransaccion $transaccion
     ): array {
+        // Point usa otra rama: terminal física (device), no POS/QR.
+        if ($transaccion->modo_usado === self::MODO_POINT) {
+            return $this->iniciarCobroPoint($config, $transaccion);
+        }
+
         // QR monto-libre: el cliente ingresa el monto en su app, no se empuja
         // nada a MP. No hay order ni POS; solo se muestra la imagen del QR
         // "Cobrar" configurada en la FormaPago y el cajero confirma manualmente.
@@ -711,6 +719,145 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         };
     }
 
+    // ==================== Cobro Point (Orders API, terminal física) ====================
+
+    /**
+     * Inicia un cobro en una terminal Point física creando una Order en MP
+     * (POST /v1/orders con `type: "point"`). El sistema EMPUJA el monto a la
+     * terminal asignada a la caja (`caja->mp_point_terminal_id`); el cliente paga
+     * con tarjeta o con el QR que muestra el PROPIO aparato. No devuelve QR para
+     * renderizar acá: `qr_data` queda null y el modal muestra "esperando en la
+     * terminal".
+     *
+     * Parámetros específicos de Point (los arma el wiring del cobro en
+     * `metadata['point']`): `default_type` (credit_card|debit_card|qr; ausente =
+     * "Abierto", la terminal acepta todos) e `installments` (solo credit_card).
+     *
+     * @return array{qr_data: ?string, qr_image_url: ?string, external_reference: string, external_id: string, payload: array}
+     */
+    private function iniciarCobroPoint(
+        IntegracionPagoSucursal $config,
+        IntegracionPagoTransaccion $transaccion
+    ): array {
+        $caja = $transaccion->caja;
+
+        if (! $caja || empty($caja->mp_point_terminal_id)) {
+            throw new \RuntimeException(__('La caja no tiene una terminal Point de Mercado Pago asignada. Vincúlela antes de cobrar con Point.'));
+        }
+
+        $externalReference = 'BCN-TX-'.$transaccion->id;
+        $monto = number_format((float) $transaccion->monto, 2, '.', '');
+
+        // payment_method: solo se envía si la FP definió un default_type. "Abierto"
+        // (null) ⇒ se omite y el cliente elige el medio en el aparato.
+        $point = $transaccion->metadata['point'] ?? [];
+        $defaultType = $point['default_type'] ?? null;
+        $installments = $point['installments'] ?? null;
+
+        $configPayload = [
+            'point' => [
+                'terminal_id' => $caja->mp_point_terminal_id,
+                'print_on_terminal' => 'no_ticket',
+            ],
+        ];
+
+        if (! empty($defaultType)) {
+            $paymentMethod = ['default_type' => $defaultType];
+            // Las cuotas solo aplican a crédito.
+            if ($defaultType === 'credit_card' && ! empty($installments)) {
+                $paymentMethod['default_installments'] = (int) $installments;
+            }
+            $configPayload['payment_method'] = $paymentMethod;
+        }
+
+        $payload = [
+            'type' => 'point',
+            'external_reference' => $externalReference,
+            'expiration_time' => $this->expirationTimeIso($config),
+            'transactions' => [
+                'payments' => [
+                    ['amount' => $monto],
+                ],
+            ],
+            'config' => $configPayload,
+        ];
+
+        $response = $this->client($config)
+            ->withHeaders(['X-Idempotency-Key' => 'order-'.$externalReference])
+            ->post(self::API_BASE.'/v1/orders', $payload);
+
+        $this->guardResponse($response, 'iniciarCobroPoint');
+
+        $data = $response->json();
+
+        Log::info('MercadoPagoGateway::iniciarCobroPoint OK', [
+            'transaccion_id' => $transaccion->id,
+            'order_id' => $data['id'] ?? null,
+            'terminal_id' => $caja->mp_point_terminal_id,
+            'default_type' => $defaultType ?? 'abierto',
+        ]);
+
+        return [
+            'qr_data' => null,
+            'qr_image_url' => null,
+            'external_reference' => $externalReference,
+            'external_id' => (string) ($data['id'] ?? ''),
+            'payload' => $data,
+        ];
+    }
+
+    /**
+     * Construye el `expiration_time` ISO 8601 de la order a partir del timeout
+     * configurado de la sucursal, acotado al rango que acepta MP: PT30S..PT3H.
+     */
+    private function expirationTimeIso(IntegracionPagoSucursal $config): string
+    {
+        $segundos = (int) ($config->timeout_segundos ?: 300);
+        $segundos = max(30, min($segundos, 10800));
+
+        return 'PT'.$segundos.'S';
+    }
+
+    // ==================== Terminales Point (Integration API) ====================
+
+    /**
+     * Lista las terminales (devices) Point asociadas a la cuenta MP de esta
+     * config (`GET /terminals/v1/list`). Devuelve el array de terminales con
+     * `id`, `pos_id`, `store_id`, `external_pos_id` y `operating_mode`.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function listarTerminales(IntegracionPagoSucursal $config): array
+    {
+        $response = $this->client($config)
+            ->get(self::API_BASE.'/terminals/v1/list', ['limit' => 50]);
+
+        $this->guardResponse($response, 'listarTerminales');
+
+        return $response->json()['data']['terminals'] ?? [];
+    }
+
+    /**
+     * Pone una terminal en modo integrado / PDV (`PATCH /terminals/v1/setup`),
+     * requisito para poder empujarle cobros desde el sistema. Devuelve el
+     * payload de respuesta de MP.
+     *
+     * @return array<string, mixed>
+     */
+    public function activarModoPDV(IntegracionPagoSucursal $config, string $terminalId): array
+    {
+        $response = $this->client($config)
+            ->patch(self::API_BASE.'/terminals/v1/setup', [
+                'terminals' => [
+                    ['id' => $terminalId, 'operating_mode' => 'PDV'],
+                ],
+            ]);
+
+        $this->guardResponse($response, 'activarModoPDV');
+
+        return $response->json() ?? [];
+    }
+
     // ==================== Cobro QR monto-libre (sin API) ====================
 
     /**
@@ -788,8 +935,16 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
             return false;
         }
 
+        $headers = ['X-Idempotency-Key' => 'cancel-'.$transaccion->external_id];
+
+        // Point: la order suele estar `at_terminal` (esperando en el aparato);
+        // MP exige este header para permitir cancelarla en ese estado.
+        if ($transaccion->modo_usado === self::MODO_POINT) {
+            $headers['x-allow-cancelable-status'] = 'at_terminal';
+        }
+
         $response = $this->client($config)
-            ->withHeaders(['X-Idempotency-Key' => 'cancel-'.$transaccion->external_id])
+            ->withHeaders($headers)
             ->post(self::API_BASE.'/v1/orders/'.$transaccion->external_id.'/cancel');
 
         if ($response->successful()) {

@@ -55,9 +55,10 @@ trait WithCobroIntegracion
     public ?string $cobroIntegracionQrImagenUrl = null;
 
     /**
-     * @var string|null Modo del cobro en curso (qr_dinamico|qr_estatico|qr_libre).
+     * @var string|null Modo del cobro en curso (qr_dinamico|qr_estatico|qr_libre|point).
      *                  El modal lo usa para adaptar la UI (qr_libre = imagen +
-     *                  confirmación manual primaria, sin detección automática).
+     *                  confirmación manual primaria, sin detección automática;
+     *                  point = "esperando en la terminal", sin QR en pantalla).
      */
     public ?string $cobroIntegracionModo = null;
 
@@ -181,9 +182,35 @@ trait WithCobroIntegracion
             return;
         }
 
+        $cajaId = $datos['caja_id'] ?? caja_activa();
+
+        $metadata = null;
+
+        // Modo Point: el cobro se empuja a la terminal física de la caja. Validamos
+        // que tenga terminal vinculada y armamos los datos específicos (medio de
+        // pago y cuotas) que el gateway lee de metadata['point'].
+        if ($modo === 'point') {
+            $caja = Caja::find($cajaId);
+            if (! $caja || empty($caja->mp_point_terminal_id)) {
+                $this->dispatch('toast-error', message: __('La caja no tiene una terminal Point asignada. Vinculá una en Integraciones de Pago.'));
+
+                return;
+            }
+
+            $defaultType = data_get(json_decode($integracion->pivot->config_point ?? 'null', true), 'default_type');
+            $point = [];
+            if (! empty($defaultType)) {
+                $point['default_type'] = $defaultType;
+                // Las cuotas solo aplican a crédito; salen de la cuota elegida en el desglose.
+                if ($defaultType === 'credit_card') {
+                    $point['installments'] = max(1, (int) ($datos['cuotas'] ?? 1));
+                }
+            }
+            $metadata = ['point' => $point];
+        }
+
         // qr_libre: la imagen del QR "Cobrar" vive en el pivote (config_qr_libre).
         // Se pasa al gateway vía metadata; sin imagen no se puede cobrar.
-        $metadata = null;
         if ($esQrLibre) {
             $imagenPath = data_get(json_decode($integracion->pivot->config_qr_libre ?? 'null', true), 'imagen_path');
 
@@ -201,7 +228,7 @@ trait WithCobroIntegracion
             $transaccion = app(CobroIntegracionService::class)->iniciarCobro($config, [
                 'forma_pago_id' => $formaPago->id,
                 'sucursal_id' => $sucursalId,
-                'caja_id' => $datos['caja_id'] ?? caja_activa(),
+                'caja_id' => $cajaId,
                 'usuario_iniciador_id' => Auth::id(),
                 'modo_usado' => $modo,
                 'monto' => (float) ($datos['monto'] ?? $datos['monto_final'] ?? 0),

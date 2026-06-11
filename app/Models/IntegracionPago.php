@@ -48,6 +48,8 @@ class IntegracionPago extends Model
 
     public const CODIGO_MERCADOPAGO_QR = 'mercadopago_qr';
 
+    public const CODIGO_MERCADOPAGO_POINT = 'mercadopago_point';
+
     // ==================== Relaciones ====================
 
     public function sucursales(): HasMany

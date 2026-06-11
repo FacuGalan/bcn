@@ -90,4 +90,86 @@ class SincronizacionMercadoPagoService
             return $caja->refresh();
         });
     }
+
+    /**
+     * Lista las terminales Point de la cuenta MP de esta config (para elegir
+     * cuál asignar a cada caja en la UI). Point NO usa stores/POS: trabaja con
+     * vinculación de devices.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function listarTerminales(IntegracionPagoSucursal $config): array
+    {
+        $gateway = $config->integracion->getGatewayInstance();
+        if (! $gateway instanceof MercadoPagoGateway) {
+            throw new \RuntimeException('El gateway de la integración no es Mercado Pago');
+        }
+
+        return $gateway->listarTerminales($config);
+    }
+
+    /**
+     * Versión legible de un terminal_id de Point para mostrar en UI. MP arma el
+     * id como `{MARCA}_{MODELO}__{SERIE}` y la serie suele repetir el modelo:
+     * "NEWLAND_N950__N950NCD200152797" → "N950 · SC:NCD200152797".
+     */
+    public static function formatearTerminal(?string $terminalId): string
+    {
+        if (! $terminalId || ! str_contains($terminalId, '__')) {
+            return (string) $terminalId;
+        }
+
+        [$marcaModelo, $serie] = explode('__', $terminalId, 2);
+        $modelo = str_contains($marcaModelo, '_')
+            ? substr($marcaModelo, strrpos($marcaModelo, '_') + 1)
+            : $marcaModelo;
+
+        if ($modelo !== '' && str_starts_with($serie, $modelo)) {
+            $serie = substr($serie, strlen($modelo));
+        }
+
+        return $serie !== '' ? $modelo.' · SC:'.$serie : $modelo;
+    }
+
+    /**
+     * Vincula una terminal Point a una caja: la pone en modo integrado (PDV) en
+     * MP y persiste el `terminal_id` en la caja. A partir de ahí el sistema le
+     * empuja cobros con `type:"point"`.
+     */
+    public static function vincularTerminalCaja(
+        IntegracionPagoSucursal $config,
+        Caja $caja,
+        string $terminalId
+    ): Caja {
+        $gateway = $config->integracion->getGatewayInstance();
+        if (! $gateway instanceof MercadoPagoGateway) {
+            throw new \RuntimeException('El gateway de la integración no es Mercado Pago');
+        }
+
+        $gateway->activarModoPDV($config, $terminalId);
+
+        return DB::connection('pymes_tenant')->transaction(function () use ($caja, $terminalId) {
+            $caja->update(['mp_point_terminal_id' => $terminalId]);
+
+            Log::info('SincronizacionMercadoPagoService::vincularTerminalCaja OK', [
+                'caja_id' => $caja->id,
+                'terminal_id' => $terminalId,
+            ]);
+
+            return $caja->refresh();
+        });
+    }
+
+    /**
+     * Quita la terminal Point asignada a una caja (no toca el modo del device
+     * en MP; solo limpia la asociación local).
+     */
+    public static function desvincularTerminalCaja(Caja $caja): Caja
+    {
+        return DB::connection('pymes_tenant')->transaction(function () use ($caja) {
+            $caja->update(['mp_point_terminal_id' => null]);
+
+            return $caja->refresh();
+        });
+    }
 }

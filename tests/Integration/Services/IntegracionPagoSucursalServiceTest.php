@@ -43,6 +43,17 @@ class IntegracionPagoSucursalServiceTest extends TestCase
             ]);
         }
 
+        if (! IntegracionPago::porCodigo('mercadopago_point')->exists()) {
+            IntegracionPago::create([
+                'codigo' => 'mercadopago_point',
+                'nombre' => 'Mercado Pago - Point',
+                'modos_disponibles' => ['point'],
+                'gateway_class' => 'App\\Services\\IntegracionesPago\\MercadoPagoGateway',
+                'activo' => true,
+                'orden' => 2,
+            ]);
+        }
+
         MercadoPagoCollectorIndex::query()->delete();
     }
 
@@ -74,6 +85,26 @@ class IntegracionPagoSucursalServiceTest extends TestCase
 
         $idx = MercadoPagoCollectorIndex::porUserId('mp-user-svc-001', 'test')->first();
         $this->assertNotNull($idx);
+        $this->assertSame($this->comercio->id, $idx->comercio_id);
+        $this->assertSame($config->id, $idx->integracion_pago_sucursal_id);
+    }
+
+    public function test_crear_config_point_tambien_sincroniza_indice_global(): void
+    {
+        // El webhook de Point usa el mismo resolver que el QR: la config Point debe
+        // registrar el índice colector igual (fix del guard en sincronizarIndiceColector).
+        $pointId = IntegracionPago::porCodigo('mercadopago_point')->value('id');
+
+        $config = IntegracionPagoSucursalService::crear([
+            'integracion_pago_id' => $pointId,
+            'sucursal_id' => $this->sucursalId,
+            'modo' => 'test',
+            'access_token_test' => 'TEST-POINT-TOKEN',
+            'user_id_externo' => 'mp-user-point-001',
+        ]);
+
+        $idx = MercadoPagoCollectorIndex::porUserId('mp-user-point-001', 'test')->first();
+        $this->assertNotNull($idx, 'El índice colector debe registrarse también para Point');
         $this->assertSame($this->comercio->id, $idx->comercio_id);
         $this->assertSame($config->id, $idx->integracion_pago_sucursal_id);
     }

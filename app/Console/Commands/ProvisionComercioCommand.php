@@ -756,6 +756,15 @@ class ProvisionComercioCommand extends Command
                 'activo' => true,
                 'orden' => 1,
             ],
+            [
+                'codigo' => 'mercadopago_point',
+                'nombre' => 'Mercado Pago - Point',
+                'descripcion' => 'Cobros con Mercado Pago Point: el monto se envía a la terminal física desde el sistema y el cliente paga con tarjeta o QR en el propio aparato.',
+                'modos_disponibles' => json_encode(['point']),
+                'gateway_class' => \App\Services\IntegracionesPago\MercadoPagoGateway::class,
+                'activo' => true,
+                'orden' => 2,
+            ],
         ];
 
         foreach ($integraciones as $integ) {

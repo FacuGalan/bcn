@@ -137,6 +137,59 @@ class CobroQrFlujoFelizTest extends TestCase
         return $fp;
     }
 
+    private function crearFormaPagoPoint(): FormaPago
+    {
+        // La caja del puesto tiene una terminal Point vinculada.
+        Caja::where('id', $this->cajaId)->update(['mp_point_terminal_id' => 'PAX_A910__SNFELIZ']);
+
+        // Point es un producto/catálogo aparte con su propia config de sucursal.
+        $integracion = IntegracionPago::firstOrCreate(
+            ['codigo' => 'mercadopago_point'],
+            [
+                'nombre' => 'Mercado Pago - Point',
+                'modos_disponibles' => ['point'],
+                'gateway_class' => MercadoPagoGateway::class,
+                'activo' => true,
+                'orden' => 2,
+            ]
+        );
+
+        IntegracionPagoSucursal::firstOrCreate(
+            ['integracion_pago_id' => $integracion->id, 'sucursal_id' => $this->sucursalId],
+            [
+                'modo' => 'test',
+                'access_token_test' => 'TEST-POINT-TOKEN',
+                'user_id_externo' => '7771',
+                'activo' => true,
+            ]
+        );
+
+        $concepto = ConceptoPago::firstOrCreate(
+            ['codigo' => 'WALLET'],
+            ['nombre' => 'Billetera virtual', 'activo' => true, 'orden' => 5]
+        );
+
+        $fp = FormaPago::create([
+            'nombre' => 'MP Point',
+            'codigo' => 'mp_point',
+            'concepto' => 'wallet',
+            'concepto_pago_id' => $concepto->id,
+            'es_mixta' => false,
+            'permite_cuotas' => true,
+            'ajuste_porcentaje' => 0,
+            'activo' => true,
+        ]);
+
+        $fp->integraciones()->attach($integracion->id, [
+            'modo_default' => 'point',
+            'modos_permitidos' => json_encode(['point']),
+            'config_point' => json_encode(['default_type' => 'credit_card']),
+            'es_principal' => true,
+        ]);
+
+        return $fp;
+    }
+
     private function itemCarrito(int $articuloId, string $nombre, float $precio): array
     {
         return [
@@ -261,6 +314,90 @@ class CobroQrFlujoFelizTest extends TestCase
         $eventos = IntegracionPagoEvento::where('transaccion_id', $txId)->pluck('evento')->all();
         $this->assertContains(IntegracionPagoEvento::EVENTO_CONFIRMADO, $eventos);
         $this->assertContains(IntegracionPagoEvento::EVENTO_COBRABLE_ASOCIADO, $eventos);
+    }
+
+    public function test_flujo_feliz_point_empuja_a_la_terminal_sin_qr_y_crea_venta(): void
+    {
+        Http::fake([
+            // GET estado de la orden → processed = aprobado.
+            '*/v1/orders/*' => Http::response(['id' => self::ORDER_ID, 'status' => 'processed'], 200),
+            // POST crear orden Point → NO devuelve qr_data (el aparato lo maneja).
+            '*/v1/orders' => Http::response(['id' => self::ORDER_ID, 'status' => 'created'], 200),
+        ]);
+
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'nombre' => 'Producto Point', 'precio_base' => 100,
+        ]);
+
+        $fp = $this->crearFormaPagoPoint();
+
+        $component = $this->prepararComponente();
+        $component->items = [$this->itemCarrito($articulo->id, 'Producto Point', 100)];
+        $component->calcularVenta();
+        $total = (float) ($component->resultado['total_final'] ?? 0);
+
+        $component->formaPagoId = $fp->id;
+        $component->montoPendienteDesglose = 0;
+        $component->desglosePagos = [[
+            'forma_pago_id' => $fp->id,
+            'nombre' => $fp->nombre,
+            'concepto_pago_id' => $fp->concepto_pago_id,
+            'monto_base' => $total,
+            'ajuste_porcentaje' => 0,
+            'monto_ajuste' => 0,
+            'monto_final' => $total,
+            'monto_recibido' => $total,
+            'vuelto' => 0,
+            'cuotas' => 3, // crédito en 3 cuotas → default_installments = 3
+            'recargo_cuotas' => 0,
+            'es_cuenta_corriente' => false,
+            'afecta_caja' => false,
+            'factura_fiscal' => false,
+            'es_moneda_extranjera' => false,
+            'moneda_id' => null,
+            'tipo_cambio_id' => null,
+            'tipo_cambio_tasa' => null,
+            'monto_moneda_original' => null,
+        ]];
+
+        // --- Paso 1: iniciar cobro → empuja a la terminal, SIN QR, SIN venta ---
+        $this->llamarProtegido($component, 'verificarPuntoVentaYProcesar');
+
+        $this->assertTrue($component->mostrarModalEsperandoPago, 'Debe abrirse el modal de espera');
+        $this->assertSame('point', $component->cobroIntegracionModo, 'El modo en curso debe ser point');
+        $this->assertNull($component->cobroIntegracionQrData, 'Point no muestra QR en nuestra pantalla');
+        $this->assertNull($component->cobroIntegracionQrSvg, 'No debe renderizarse SVG para Point');
+        $this->assertEquals(0, Venta::count(), 'NO debe existir la venta todavía (cobro primero)');
+
+        $tx = IntegracionPagoTransaccion::find($component->cobroIntegracionTransaccionId);
+        $this->assertSame('point', $tx->modo_usado);
+        $this->assertSame('credit_card', $tx->metadata['point']['default_type']);
+        $this->assertSame(3, $tx->metadata['point']['installments']);
+
+        // El POST a MP fue type:point con terminal de la caja + medio + cuotas.
+        Http::assertSent(function ($r) {
+            if ($r->method() !== 'POST' || ! str_ends_with($r->url(), '/v1/orders')) {
+                return false;
+            }
+            $d = $r->data();
+
+            return ($d['type'] ?? null) === 'point'
+                && ($d['config']['point']['terminal_id'] ?? null) === 'PAX_A910__SNFELIZ'
+                && ($d['config']['payment_method']['default_type'] ?? null) === 'credit_card'
+                && ($d['config']['payment_method']['default_installments'] ?? null) === 3;
+        });
+
+        // --- Paso 2: la terminal confirma (GET processed) → materializa la venta ---
+        $component->pollearCobroIntegracion();
+
+        $this->assertEquals(1, Venta::count(), 'Debe crearse la venta al confirmar el pago en la terminal');
+        $venta = Venta::first();
+
+        $tx->refresh();
+        $this->assertEquals(IntegracionPagoTransaccion::ESTADO_CONFIRMADO, $tx->estado);
+        $this->assertEquals($venta->id, $tx->cobrable_id, 'La transacción debe asociarse a la venta');
+        $this->assertFalse($component->mostrarModalEsperandoPago, 'El modal debe cerrarse');
+        $this->assertNull($component->cobroIntegracionModo, 'El estado del cobro debe resetearse');
     }
 
     public function test_si_la_facturacion_falla_con_cobro_qr_confirmado_la_venta_se_registra_pendiente(): void

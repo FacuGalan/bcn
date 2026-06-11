@@ -204,4 +204,73 @@ class SincronizacionMercadoPagoServiceTest extends TestCase
         Http::assertSent(fn ($req) => $req->method() === 'PUT' && str_contains($req->url(), '/pos/111222'));
         Http::assertNotSent(fn ($req) => $req->method() === 'POST');
     }
+
+    // ==================== Terminales Point (Fase 3) ====================
+
+    private function crearCajaSimple(): Caja
+    {
+        return Caja::create([
+            'sucursal_id' => $this->sucursalId,
+            'nombre' => 'Caja Point',
+            'codigo' => 'CP',
+            'tipo' => 'efectivo',
+            'saldo_actual' => 0,
+            'saldo_inicial' => 0,
+            'estado' => 'cerrada',
+            'activo' => true,
+        ]);
+    }
+
+    public function test_listar_terminales_devuelve_los_devices_de_la_cuenta(): void
+    {
+        Http::fake([
+            'api.mercadopago.com/terminals/v1/list*' => Http::response([
+                'data' => [
+                    'terminals' => [
+                        ['id' => 'PAX_A910__SN001', 'pos_id' => 1, 'store_id' => 9, 'operating_mode' => 'STANDALONE'],
+                        ['id' => 'PAX_A910__SN002', 'pos_id' => 2, 'store_id' => 9, 'operating_mode' => 'PDV'],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $config = $this->crearConfig();
+
+        $terminales = SincronizacionMercadoPagoService::listarTerminales($config);
+
+        $this->assertCount(2, $terminales);
+        $this->assertSame('PAX_A910__SN001', $terminales[0]['id']);
+    }
+
+    public function test_vincular_terminal_caja_activa_pdv_y_persiste_el_terminal_id(): void
+    {
+        Http::fake([
+            'api.mercadopago.com/terminals/v1/setup' => Http::response([
+                'terminals' => [['id' => 'PAX_A910__SN002', 'operating_mode' => 'PDV']],
+            ], 200),
+        ]);
+
+        $config = $this->crearConfig();
+        $caja = $this->crearCajaSimple();
+
+        $resultado = SincronizacionMercadoPagoService::vincularTerminalCaja($config, $caja, 'PAX_A910__SN002');
+
+        $this->assertSame('PAX_A910__SN002', $resultado->mp_point_terminal_id);
+
+        Http::assertSent(fn ($req) => $req->method() === 'PATCH'
+            && str_contains($req->url(), '/terminals/v1/setup')
+            && $req->data()['terminals'][0]['id'] === 'PAX_A910__SN002'
+            && $req->data()['terminals'][0]['operating_mode'] === 'PDV');
+    }
+
+    public function test_desvincular_terminal_caja_limpia_el_terminal_id(): void
+    {
+        $config = $this->crearConfig();
+        $caja = $this->crearCajaSimple();
+        $caja->update(['mp_point_terminal_id' => 'PAX_A910__SN002']);
+
+        $resultado = SincronizacionMercadoPagoService::desvincularTerminalCaja($caja->refresh());
+
+        $this->assertNull($resultado->mp_point_terminal_id);
+    }
 }

@@ -75,6 +75,14 @@ class IntegracionesPago extends Component
 
     public ?string $longitud = null;
 
+    // ==================== Terminales Point ====================
+
+    /** @var array<int, array<string, mixed>> Terminales devueltas por MP al buscar. */
+    public array $terminalesDisponibles = [];
+
+    /** @var array<int, string> Terminal elegida por caja (cajaId => terminal_id). */
+    public array $terminalSeleccionado = [];
+
     // ==================== Lifecycle ====================
 
     public function mount(): void
@@ -376,6 +384,77 @@ class IntegracionesPago extends Component
             );
 
             $this->dispatch('notify', message: __('Caja sincronizada con Mercado Pago'), type: 'success');
+        } catch (\Throwable $e) {
+            $this->dispatch('notify', message: $e->getMessage(), type: 'error');
+        }
+    }
+
+    // ==================== Terminales Point ====================
+
+    public function buscarTerminales(int $configId): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.integraciones_pago.administrar')) {
+            $this->dispatch('notify', message: __('No tiene permiso para administrar integraciones de pago'), type: 'error');
+
+            return;
+        }
+
+        try {
+            $config = IntegracionPagoSucursal::with('integracion')->findOrFail($configId);
+            $this->terminalesDisponibles = SincronizacionMercadoPagoService::listarTerminales($config);
+
+            if (empty($this->terminalesDisponibles)) {
+                $this->dispatch('notify', message: __('No se encontraron terminales Point en la cuenta'), type: 'info');
+            }
+        } catch (\Throwable $e) {
+            $this->dispatch('notify', message: $e->getMessage(), type: 'error');
+        }
+    }
+
+    public function vincularTerminal(int $configId, int $cajaId): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.integraciones_pago.administrar')) {
+            $this->dispatch('notify', message: __('No tiene permiso para administrar integraciones de pago'), type: 'error');
+
+            return;
+        }
+
+        $terminalId = $this->terminalSeleccionado[$cajaId] ?? null;
+        if (empty($terminalId)) {
+            $this->dispatch('notify', message: __('Elegí una terminal para vincular'), type: 'error');
+
+            return;
+        }
+
+        try {
+            $config = IntegracionPagoSucursal::with('integracion')->findOrFail($configId);
+            $sucursal = $this->sucursalActivaModel();
+            $caja = Caja::where('sucursal_id', $sucursal?->id)->findOrFail($cajaId);
+
+            SincronizacionMercadoPagoService::vincularTerminalCaja($config, $caja, $terminalId);
+
+            $this->dispatch('notify', message: __('Terminal vinculada a la caja. Reiniciá el Point (con internet) para que tome el modo integrado.'), type: 'success');
+        } catch (\Throwable $e) {
+            $this->dispatch('notify', message: $e->getMessage(), type: 'error');
+        }
+    }
+
+    public function desvincularTerminal(int $cajaId): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.integraciones_pago.administrar')) {
+            $this->dispatch('notify', message: __('No tiene permiso para administrar integraciones de pago'), type: 'error');
+
+            return;
+        }
+
+        try {
+            $sucursal = $this->sucursalActivaModel();
+            $caja = Caja::where('sucursal_id', $sucursal?->id)->findOrFail($cajaId);
+
+            SincronizacionMercadoPagoService::desvincularTerminalCaja($caja);
+            unset($this->terminalSeleccionado[$cajaId]);
+
+            $this->dispatch('notify', message: __('Terminal desvinculada de la caja'), type: 'success');
         } catch (\Throwable $e) {
             $this->dispatch('notify', message: $e->getMessage(), type: 'error');
         }

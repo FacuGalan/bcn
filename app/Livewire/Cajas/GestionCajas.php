@@ -3,9 +3,12 @@
 namespace App\Livewire\Cajas;
 
 use App\Models\Caja;
+use App\Models\IntegracionPago;
+use App\Models\IntegracionPagoSucursal;
 use App\Models\MovimientoCaja;
 use App\Models\Sucursal;
 use App\Services\CajaService;
+use App\Services\IntegracionesPago\SincronizacionMercadoPagoService;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -89,6 +92,13 @@ class GestionCajas extends Component
     // Ver movimientos
     public $cajaMovimientosId = null;
 
+    // Ver terminal Point (posnet)
+    public $showTerminalModal = false;
+
+    public $terminalCajaId = null;
+
+    public $terminalPointInfo = null;
+
     protected $cajaService;
 
     public function boot(CajaService $cajaService)
@@ -130,6 +140,54 @@ class GestionCajas extends Component
             'cajaCerrar' => $this->cajaCerrarId ? Caja::find($this->cajaCerrarId) : null,
             'cajaMovimiento' => $this->cajaMovimientoId ? Caja::find($this->cajaMovimientoId) : null,
         ]);
+    }
+
+    /**
+     * Muestra la terminal Point (posnet) asignada a la caja. Best-effort: si hay
+     * credenciales Point configuradas para la sucursal, trae el modo de operación
+     * del dispositivo desde MP; si no, muestra al menos el terminal_id asignado.
+     */
+    public function verTerminalPoint($cajaId): void
+    {
+        $caja = Caja::find($cajaId);
+        if (! $caja || empty($caja->mp_point_terminal_id)) {
+            return;
+        }
+
+        $this->terminalCajaId = $cajaId;
+        $this->terminalPointInfo = [
+            'terminal_id' => $caja->mp_point_terminal_id,
+            'operating_mode' => null,
+            'consultado' => false,
+        ];
+
+        try {
+            $point = IntegracionPago::porCodigo(IntegracionPago::CODIGO_MERCADOPAGO_POINT)->first();
+            $config = $point
+                ? IntegracionPagoSucursal::where('integracion_pago_id', $point->id)
+                    ->where('sucursal_id', $caja->sucursal_id)
+                    ->where('activo', true)
+                    ->first()
+                : null;
+
+            if ($config && $config->estaConfigurada()) {
+                $device = collect(SincronizacionMercadoPagoService::listarTerminales($config))
+                    ->firstWhere('id', $caja->mp_point_terminal_id);
+                $this->terminalPointInfo['operating_mode'] = $device['operating_mode'] ?? null;
+                $this->terminalPointInfo['consultado'] = true;
+            }
+        } catch (\Throwable $e) {
+            // MP no respondió: igual mostramos el terminal_id asignado.
+        }
+
+        $this->showTerminalModal = true;
+    }
+
+    public function cerrarTerminalModal(): void
+    {
+        $this->showTerminalModal = false;
+        $this->terminalCajaId = null;
+        $this->terminalPointInfo = null;
     }
 
     public function abrirModalApertura($cajaId)

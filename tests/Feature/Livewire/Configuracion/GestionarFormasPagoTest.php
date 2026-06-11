@@ -25,6 +25,8 @@ class GestionarFormasPagoTest extends TestCase
 
     private int $mpId;
 
+    private int $pointId;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -61,6 +63,13 @@ class GestionarFormasPagoTest extends TestCase
             'gateway_class' => 'App\\Services\\IntegracionesPago\\MercadoPagoGateway',
             'activo' => true, 'orden' => 1,
         ])->id;
+
+        $this->pointId = IntegracionPago::create([
+            'codigo' => 'mercadopago_point', 'nombre' => 'Mercado Pago - Point',
+            'modos_disponibles' => ['point'],
+            'gateway_class' => 'App\\Services\\IntegracionesPago\\MercadoPagoGateway',
+            'activo' => true, 'orden' => 2,
+        ])->id;
     }
 
     protected function tearDown(): void
@@ -94,6 +103,51 @@ class GestionarFormasPagoTest extends TestCase
         // Un solo modo por integración: modos_permitidos espeja el modo elegido.
         $this->assertSame(['qr_estatico'], json_decode($pivot->modos_permitidos, true));
         $this->assertEquals(1, (int) $pivot->es_principal);
+    }
+
+    public function test_guardar_fp_point_con_credito_persiste_default_type_en_config_point(): void
+    {
+        Livewire::test(GestionarFormasPago::class)
+            ->call('crear')
+            ->set('nombre', 'MP Point Crédito')
+            ->set('es_mixta', false)
+            ->set('concepto_pago_id', $this->walletId)
+            ->set('integraciones_fp', [[
+                'integracion_pago_id' => $this->pointId,
+                'modo_default' => 'point',
+                'default_type' => 'credit_card',
+                'es_principal' => true,
+            ]])
+            ->call('guardar')
+            ->assertHasNoErrors()
+            ->assertDispatched('notify');
+
+        $fp = FormaPago::where('nombre', 'MP Point Crédito')->first();
+        $this->assertNotNull($fp);
+
+        $pivot = $fp->integraciones->first()->pivot;
+        $this->assertSame('point', $pivot->modo_default);
+        $this->assertSame(['default_type' => 'credit_card'], json_decode($pivot->config_point, true));
+    }
+
+    public function test_guardar_fp_point_abierto_deja_config_point_nulo(): void
+    {
+        Livewire::test(GestionarFormasPago::class)
+            ->call('crear')
+            ->set('nombre', 'MP Point Abierto')
+            ->set('es_mixta', false)
+            ->set('concepto_pago_id', $this->walletId)
+            ->set('integraciones_fp', [[
+                'integracion_pago_id' => $this->pointId,
+                'modo_default' => 'point',
+                'default_type' => '', // Abierto
+                'es_principal' => true,
+            ]])
+            ->call('guardar')
+            ->assertHasNoErrors();
+
+        $fp = FormaPago::where('nombre', 'MP Point Abierto')->first();
+        $this->assertNull($fp->integraciones->first()->pivot->config_point);
     }
 
     public function test_concepto_sin_permite_integracion_no_persiste_integraciones(): void

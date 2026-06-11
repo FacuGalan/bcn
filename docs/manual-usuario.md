@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-09
+> Version: 0.1.x | Ultima actualizacion: 2026-06-11
 
 ---
 
@@ -1437,6 +1437,8 @@ Para cada caja, segun su estado:
 
 - **Ver movimientos**: Abre un panel con todos los movimientos de la caja paginados, mostrando fecha, concepto, tipo (ingreso/egreso), monto y usuario.
 
+- **Ver terminal** (solo si la caja tiene una terminal Point de Mercado Pago asignada): Muestra el ID de la terminal Point vinculada a esa caja y, si las credenciales de la integracion Point estan configuradas en la sucursal, consulta el modo de operacion actual del dispositivo en Mercado Pago.
+
 ---
 
 ### 7.2 Turno Actual
@@ -2393,12 +2395,18 @@ Este bloque permite vincular la forma de pago con una o mas integraciones config
    - **QR dinamico**: el sistema genera un QR unico por venta que se muestra en pantalla. El cliente lo escanea desde la pantalla del cajero o del monitor del cliente.
    - **QR estatico**: el sistema empuja el monto al POS de la caja y el cliente escanea el QR fisico impreso del mostrador (el que queda fijo en el local). No se genera un QR nuevo en pantalla.
    - **QR de monto libre**: se muestra al cliente una imagen del QR "Cobrar" de Mercado Pago que usted carga en esta configuracion. El cliente escanea el QR e ingresa el monto en su app. El cajero confirma el pago manualmente.
+   - **Point**: el sistema envia el monto a la terminal fisica (posnet) asignada a la caja. El cliente paga pasando la tarjeta o escaneando el QR que muestra el propio aparato. El cajero no ve ningun QR en pantalla.
 
    Al elegir **QR de monto libre**, aparece el campo **"Imagen del QR de cobro de Mercado Pago"**: haga clic en el area o arrastre una imagen (JPG, PNG o WebP, maximo 4 MB) con el QR que descargo desde la app de Mercado Pago en la seccion "Cobrar con QR". El sistema re-procesa y almacena la imagen de forma segura.
 
    > **Importante**: el QR debe estar configurado en Mercado Pago en modo **"monto abierto"** (el cliente ingresa el importe). Si el QR esta en modo "monto fijo / lo define el cajero", al escanearlo la app de MP le pedira al cliente que avise al cajero y no podra ingresar el monto. Para configurarlo, en la app de Mercado Pago vaya a Cobrar con QR → configuracion de su local o caja → elija "monto abierto", descargue ese QR y subalo aca.
 
-4. Si la forma de pago tiene mas de una integracion, marque **"Principal"** en la que desea que se use por defecto cuando el punto de venta no pregunta al cajero.
+4. Si selecciona el modo **Point**, aparece el campo **"Medio de pago en la terminal"**:
+   - **Abierto (el cliente elige)**: no se preselecciona ningun medio; la terminal muestra todas las opciones al cliente. Es el valor por defecto.
+   - **Tarjeta de credito**: el posnet arranca preseleccionando credito. Las cuotas elegidas en el desglose de la venta se envian como cuotas de tarjeta.
+   - **Tarjeta de debito**: el posnet arranca preseleccionando debito.
+   - **QR**: el posnet muestra su propio QR al cliente.
+5. Si la forma de pago tiene mas de una integracion, marque **"Principal"** en la que desea que se use por defecto cuando el punto de venta no pregunta al cajero.
 
 **Quitar una integracion:** haga clic en el icono de eliminar a la derecha de la fila.
 
@@ -2657,17 +2665,19 @@ Cada sucursal puede tener su propia configuracion de impresion:
 
 ### 12.11 Integraciones de Pago
 
-Permite conectar las sucursales y cajas del comercio con pasarelas de pago externas. En esta version, el unico proveedor disponible es **Mercado Pago**.
+Permite conectar las sucursales y cajas del comercio con pasarelas de pago externas. Cada producto de Mercado Pago (QR y Point) es una integracion independiente con sus propias credenciales y configuracion.
 
 #### Que ve al entrar
 
 - Pestana de la sucursal activa con las integraciones disponibles.
 - Para cada integracion: estado de conexion (conectada / no conectada), modo (Test o Produccion) y acciones.
-- Si hay una integracion configurada: boton **"Sincronizar Sucursal"** y lista de cajas activas con boton **"Sincronizar Caja"** para cada una.
+- Si hay una integracion configurada: botones de sincronizacion y lista de cajas activas.
 
-#### Configurar una integracion (Mercado Pago)
+#### Mercado Pago - QR (QR dinamico y QR estatico)
 
-Haga clic en **"Configurar"** junto a Mercado Pago:
+##### Configurar la integracion QR
+
+Haga clic en **"Configurar"** junto a Mercado Pago - QR:
 
 1. **Modo**: Seleccione "Test" para pruebas o "Produccion" para operar con dinero real.
 2. **User ID Externo**: ID numerico de la cuenta de Mercado Pago del comercio.
@@ -2678,7 +2688,7 @@ Haga clic en **"Configurar"** junto a Mercado Pago:
 
 > **Atencion**: Si cambia el modo (Test a Produccion o viceversa) o el User ID, el sistema borra automaticamente los IDs de Store y POS guardados localmente, ya que las cuentas de test y produccion son cuentas de MP distintas y sus recursos no se comparten. Debera volver a sincronizar sucursal y cajas.
 
-#### Configurar la direccion de la sucursal
+##### Configurar la direccion de la sucursal
 
 Mercado Pago requiere coordenadas geograficas, localidad y provincia para registrar la sucursal como "Store". Si la sucursal aun no tiene estos datos, vera un aviso y el boton **"Editar Direccion"**.
 
@@ -2688,14 +2698,14 @@ En el modal de direccion complete:
 - Provincia (seleccione de la lista de provincias argentinas).
 - Latitud y Longitud (coordenadas decimales).
 
-#### Sincronizar la sucursal con Mercado Pago
+##### Sincronizar la sucursal con Mercado Pago
 
 1. Asegurese de que la sucursal tenga direccion, localidad, provincia y coordenadas configuradas.
 2. Haga clic en **"Sincronizar Sucursal"**.
 3. El sistema crea (o actualiza si ya existia) la sucursal como "Store" en la cuenta de MP.
 4. Al completarse, vera el mensaje "Sucursal sincronizada con Mercado Pago".
 
-#### Sincronizar una caja con Mercado Pago
+##### Sincronizar una caja con Mercado Pago (QR)
 
 1. La sucursal debe estar sincronizada primero.
 2. En la lista de cajas de la integracion, haga clic en **"Sincronizar"** junto a la caja deseada.
@@ -2717,24 +2727,81 @@ El **modo de cobro** se define al configurar la forma de pago (ver seccion 12.4)
 - **QR estatico**: usa el QR fisico del mostrador. El sistema envia el monto al POS de la caja y el cliente escanea el QR impreso que ya esta fijo. No caduca el QR (es permanente), pero la orden de cobro si tiene vencimiento. Ver el flujo completo en la seccion **3.1 — Cobro con integracion de pago**.
 - **QR de monto libre**: no requiere sincronizacion de sucursal ni caja en Mercado Pago. El modal muestra la imagen del QR "Cobrar" configurada en la forma de pago; el cliente escanea e ingresa el monto en su app; el cajero confirma manualmente. Ver el flujo completo en la seccion **3.1 — Cobro con integracion de pago**.
 
-#### Confirmacion en tiempo real (webhook)
+#### Mercado Pago - Point (posnet fisico)
 
-Cuando Mercado Pago esta configurado con un **Webhook Secret**, las confirmaciones de cobro QR llegan al sistema de forma instantanea: MP envia una notificacion al servidor en el momento en que el cliente aprueba el pago, y el modal de espera del cajero se cierra al instante sin necesidad de esperar ciclos de consulta.
+Point es un producto de Mercado Pago separado del QR. Requiere sus **propias credenciales** (Access Token de la aplicacion Point, distinta a la del QR) aunque sean de la misma cuenta de Mercado Pago.
 
-Para activar esta funcionalidad, en el modal de configuracion de Mercado Pago complete el campo **"Webhook Secret"** con el valor que Mercado Pago le asigna al registrar la URL de notificaciones en el panel de desarrolladores de MP. La URL de webhook del sistema es: `https://{su-dominio}/api/integraciones/mercadopago/webhook`.
+Al cobrar con Point, el monto se empuja directamente a la terminal fisica asignada a la caja. El cliente paga pasando la tarjeta o escaneando el QR que muestra el propio aparato. El cajero ve el modal "Esperando pago en la terminal" sin ningun QR en pantalla.
+
+##### Configurar la integracion Point
+
+Haga clic en **"Configurar"** junto a Mercado Pago - Point:
+
+1. **Modo**: "Test" o "Produccion".
+2. **User ID Externo**: ID de la cuenta MP (puede ser el mismo que el QR si es la misma cuenta).
+3. **Access Token (Produccion)** y **Access Token (Test)** correspondientes a la aplicacion Point.
+4. Haga clic en **"Probar Conexion"** y luego en **"Guardar"**.
+
+##### Vincular terminales a las cajas
+
+Dentro de la integracion Point, una vez guardadas las credenciales, aparece la seccion **"Terminales por caja"**:
+
+1. Haga clic en **"Buscar terminales"**: el sistema consulta a Mercado Pago y lista los dispositivos Point vinculados a la cuenta.
+2. Para cada caja que no tiene terminal asignada, seleccione la terminal en el desplegable y haga clic en **"Vincular"**.
+   - Al vincular, el sistema activa el modo integrado (PDV) en el dispositivo: a partir de ese momento el posnet acepta cobros enviados desde el sistema en lugar de operarse manualmente.
+3. Para quitar la asignacion, haga clic en **"Desvincular"**.
+
+Cada caja muestra su estado de terminal:
+- Punto verde + ID de la terminal: la caja tiene una terminal asignada.
+- "Sin terminal": la caja aun no tiene una terminal Point vinculada.
+
+> Si la caja no tiene terminal vinculada, la forma de pago Point no estara disponible para esa caja en el punto de venta.
+
+##### Cobro con Point
+
+Con la integracion configurada y la terminal vinculada a la caja, al usar una forma de pago con modo Point en el punto de venta:
+
+1. El sistema envia el monto a la terminal fisica de la caja.
+2. El modal muestra **"Esperando pago en la terminal"** (sin QR: el aparato gestiona la interaccion con el cliente).
+3. El cliente paga en el posnet con tarjeta o QR del propio aparato.
+4. Al confirmar MP via webhook, el modal cierra y la venta se materializa automaticamente.
+5. Si el cajero cancela, el sistema envia la cancelacion a MP con el estado "en terminal" permitido.
+
+Las cuotas seleccionadas en el desglose de la venta se envian como cuotas de tarjeta de credito (solo cuando el medio configurado es "Tarjeta de credito").
+
+##### Pruebas con Point en ambiente Test
+
+Point se prueba con un posnet fisico vinculado a credenciales de TEST de la aplicacion Point. No se realiza ningun pago fisico; en cambio, los distintos estados del cobro (aprobado, rechazado, cancelado, expirado) se simulan enviando eventos a la order desde el panel de desarrolladores de MP o via API:
+
+```
+POST https://api.mercadopago.com/v1/orders/{order_id}/events
+{ "status": "processed" }   → simula pago aprobado
+{ "status": "failed" }      → simula pago rechazado
+{ "status": "canceled" }    → simula cancelacion
+```
+
+Mercado Pago envia el webhook real al sistema en respuesta a esos eventos.
+
+> Para operar con dinero real en el posnet se requiere una cuenta de PRODUCCION y credenciales de produccion.
+
+#### Confirmacion en tiempo real (webhook — aplica a QR y Point)
+
+Cuando Mercado Pago esta configurado con un **Webhook Secret**, las confirmaciones de cobro llegan al sistema de forma instantanea: MP envia una notificacion al servidor en el momento en que el cliente aprueba el pago, y el modal de espera del cajero se cierra al instante sin necesidad de esperar ciclos de consulta. Esto aplica tanto para cobros por QR como por Point, ya que ambos usan el mismo topic de webhook ("orders").
+
+Para activar esta funcionalidad, complete el campo **"Webhook Secret"** en el modal de configuracion de cada integracion. La URL de webhook del sistema es: `https://{su-dominio}/api/integraciones/mercadopago/webhook`.
 
 > Si el Webhook Secret no esta configurado, el sistema igual funciona correctamente: consulta el estado del pago cada 3 segundos como respaldo. La diferencia es solo en la velocidad de deteccion de la confirmacion.
 
 #### Expiracion automatica de cobros
 
-Si un cobro QR queda esperando pago y el tiempo configurado vence, el sistema lo expira automaticamente sin requerir intervencion manual. El modal del cajero se cierra y muestra un aviso de tiempo agotado. No se genera ninguna venta ni movimiento de caja. El cajero puede iniciar un nuevo cobro desde el mismo punto de cobro.
+Si un cobro queda esperando pago y el tiempo configurado vence, el sistema lo expira automaticamente sin requerir intervencion manual. El modal del cajero se cierra y muestra un aviso de tiempo agotado. No se genera ninguna venta ni movimiento de caja. El cajero puede iniciar un nuevo cobro desde el mismo punto de cobro. Aplica tanto a cobros por QR como por Point.
 
 #### Permisos requeridos
 
 | Permiso | Descripcion |
 |---|---|
-| `func.integraciones_pago.administrar` | Configurar y sincronizar integraciones (acceso al modulo de configuracion) |
-| `integraciones_pago.confirmar_manual` | Confirmar manualmente un cobro en los modos QR dinamico y QR estatico cuando el sistema no lo detecto automaticamente. Habilita el panel de fallback en el modal "Esperando pago". No aplica al modo QR de monto libre (cuya confirmacion manual es la unica forma de cerrar el cobro y no requiere permiso). Asignar solo a cajeros supervisores de confianza. |
+| `func.integraciones_pago.administrar` | Configurar y sincronizar integraciones, vincular terminales Point (acceso al modulo de configuracion) |
+| `integraciones_pago.confirmar_manual` | Confirmar manualmente un cobro en los modos QR dinamico, QR estatico y Point cuando el sistema no lo detecto automaticamente. Habilita el panel de fallback en el modal "Esperando pago". No aplica al modo QR de monto libre (cuya confirmacion manual es la unica forma de cerrar el cobro y no requiere permiso). Asignar solo a cajeros supervisores de confianza. |
 
 ---
 

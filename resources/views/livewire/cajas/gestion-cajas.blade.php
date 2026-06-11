@@ -61,6 +61,14 @@
                             <button wire:click="abrirModalApertura({{ $caja->id }})" class="w-full px-3 py-2 border border-transparent rounded text-sm font-medium text-white bg-green-600 hover:bg-green-700">{{ __('Abrir Caja') }}</button>
                         @endif
                         <button wire:click="verMovimientos({{ $caja->id }})" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">{{ __('Ver Movimientos') }}</button>
+                        @if($caja->mp_point_terminal_id)
+                            <button wire:click="verTerminalPoint({{ $caja->id }})" class="w-full px-3 py-2 border border-sky-300 dark:border-sky-700 rounded text-sm font-medium text-sky-700 dark:text-sky-300 bg-white dark:bg-gray-700 hover:bg-sky-50 dark:hover:bg-sky-900/20 inline-flex items-center justify-center gap-1.5">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                                {{ __('Ver terminal') }}
+                            </button>
+                        @endif
                     </div>
                 </div>
             @endforeach
@@ -174,6 +182,40 @@
                     </tbody>
                 </table>
                 @if($movimientos->hasPages())<div class="mt-4">{{ $movimientos->links() }}</div>@endif
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button" @click="close()" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">{{ __('Cerrar') }}</button>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
+    {{-- Modal Ver Terminal Point (posnet) --}}
+    @if($showTerminalModal && $terminalPointInfo)
+        <x-bcn-modal
+            title="{{ __('Terminal Point') }}"
+            color="bg-sky-600"
+            maxWidth="sm"
+            onClose="cerrarTerminalModal"
+        >
+            <x-slot:body>
+                <div class="space-y-3 text-sm">
+                    <div class="flex flex-col gap-1">
+                        <span class="text-gray-500 dark:text-gray-400">{{ __('Terminal') }}</span>
+                        <span class="font-medium text-gray-900 dark:text-white">{{ \App\Services\IntegracionesPago\SincronizacionMercadoPagoService::formatearTerminal($terminalPointInfo['terminal_id']) }}</span>
+                        <span class="font-mono text-xs text-gray-400 dark:text-gray-500 break-all">{{ $terminalPointInfo['terminal_id'] }}</span>
+                    </div>
+                    @if($terminalPointInfo['operating_mode'])
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">{{ __('Modo de operación') }}</span>
+                            <span class="font-medium text-gray-900 dark:text-white">{{ $terminalPointInfo['operating_mode'] }}</span>
+                        </div>
+                    @elseif($terminalPointInfo['consultado'])
+                        <p class="text-xs text-amber-600 dark:text-amber-400">{{ __('No se pudo identificar el dispositivo en Mercado Pago (puede estar offline o desvinculado).') }}</p>
+                    @else
+                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Configurá las credenciales de Point para ver más detalles del dispositivo.') }}</p>
+                    @endif
+                </div>
             </x-slot:body>
 
             <x-slot:footer>

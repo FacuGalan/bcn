@@ -121,7 +121,7 @@ class FormaPago extends Model
             'forma_pago_integraciones',
             'forma_pago_id',
             'integracion_pago_id'
-        )->withPivot(['modo_default', 'modos_permitidos', 'es_principal', 'config_qr_libre'])->withTimestamps();
+        )->withPivot(['modo_default', 'modos_permitidos', 'es_principal', 'config_point', 'config_qr_libre'])->withTimestamps();
     }
 
     /**
