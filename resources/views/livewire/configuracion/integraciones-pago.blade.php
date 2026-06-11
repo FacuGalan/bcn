@@ -430,6 +430,9 @@
                     </div>
 
                     {{-- Tutorial colapsable --}}
+                    @php
+                        $esPointAyuda = $integraciones->firstWhere('id', $integracionPagoId)?->codigo === 'mercadopago_point';
+                    @endphp
                     <div x-show="mostrarAyuda" x-collapse x-cloak
                          class="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4">
                         <div class="space-y-5 text-sm">
@@ -439,7 +442,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 <p class="text-xs text-blue-800 dark:text-blue-200">
-                                    {{ __('Las credenciales de Mercado Pago se generan por producto. Esta integración cubre QR (dinámico y estático). Si en el futuro desea usar Point u otro medio, deberá crear una aplicación adicional en Mercado Pago y configurarla como una integración separada.') }}
+                                    {{ __('Las credenciales de Mercado Pago se generan por aplicación (producto). QR y Point usan aplicaciones separadas, cada una con sus propias credenciales y su propio webhook, aunque pertenezcan a la misma cuenta de Mercado Pago.') }}
                                 </p>
                             </div>
 
@@ -454,7 +457,11 @@
                                     <li>{{ __('Vaya a "Tus integraciones" y haga clic en "Crear aplicación"') }}</li>
                                     <li>{!! __('Tipo de integración: seleccione <strong>"Pagos presenciales"</strong>') !!}</li>
                                     <li>{!! __('Modelo de integración: <strong>"Plataforma"</strong> (si está usando BCN Pymes como plataforma de cobro). Solo elija "Desarrollo propio" si es desarrollador de Mercado Pago.') !!}</li>
-                                    <li>{!! __('Producto a integrar: seleccione <strong>"QR"</strong>') !!}</li>
+                                    @if ($esPointAyuda)
+                                        <li>{!! __('Producto a integrar: seleccione <strong>"Point"</strong>') !!}</li>
+                                    @else
+                                        <li>{!! __('Producto a integrar: seleccione <strong>"QR"</strong>') !!}</li>
+                                    @endif
                                     <li>{{ __('Acepte los términos y confirme la creación de la aplicación') }}</li>
                                 </ol>
                             </div>
@@ -498,18 +505,6 @@
                                 </ol>
                             </div>
 
-                            {{-- Paso 5: Webhook Secret --}}
-                            <div>
-                                <h4 class="font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center">
-                                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100 text-xs font-bold mr-2">5</span>
-                                    {{ __('Webhook Secret') }} <span class="ml-1 text-xs font-normal">({{ __('opcional pero recomendado') }})</span>
-                                </h4>
-                                <ol class="list-decimal list-inside space-y-1 text-blue-800 dark:text-blue-200 ml-8">
-                                    <li>{{ __('Dentro de la aplicación, vaya a "Webhooks" → "Configurar notificaciones"') }}</li>
-                                    <li>{{ __('Genere una clave secreta y péguela en este campo') }}</li>
-                                    <li>{{ __('Permite verificar que las notificaciones provienen de Mercado Pago') }}</li>
-                                </ol>
-                            </div>
                         </div>
                     </div>
 
@@ -570,18 +565,62 @@
                     </div>
 
                     {{-- Webhook secret + timeout --}}
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Webhook Secret') }}</label>
-                            <input type="password" wire:model="webhook_secret"
-                                   class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
-                            @error('webhook_secret') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    <div x-data="{ mostrarAyudaWebhook: false }">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Webhook Secret') }}</label>
+                                <input type="password" wire:model="webhook_secret"
+                                       class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                                @error('webhook_secret') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                                <button type="button" @click="mostrarAyudaWebhook = !mostrarAyudaWebhook"
+                                        class="mt-2 inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
+                                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span x-text="mostrarAyudaWebhook ? '{{ __('Ocultar ayuda') }}' : '{{ __('¿Cómo obtener el Webhook Secret?') }}'"></span>
+                                </button>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Timeout (segundos)') }} *</label>
+                                <input type="number" wire:model="timeout_segundos" min="30" max="3600"
+                                       class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                                @error('timeout_segundos') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Timeout (segundos)') }} *</label>
-                            <input type="number" wire:model="timeout_segundos" min="30" max="3600"
-                                   class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
-                            @error('timeout_segundos') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+
+                        {{-- Ayuda colapsable: configurar el webhook en Mercado Pago --}}
+                        <div x-show="mostrarAyudaWebhook" x-collapse x-cloak
+                             class="mt-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4">
+                            <div class="text-sm">
+                                <h4 class="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                                    {{ __('Configurar el Webhook (notificaciones de pago)') }}
+                                </h4>
+                                <ol class="list-decimal list-inside space-y-1 text-blue-800 dark:text-blue-200">
+                                    <li>{{ __('Dentro de la aplicación creada en Mercado Pago, vaya al apartado "Notificaciones" y seleccione "Webhooks"') }}</li>
+                                    <li>{!! __('Haga clic en "Configurar notificaciones" y asegúrese de estar en la pestaña <strong>"Modo productivo"</strong>') !!}</li>
+                                    <li>{{ __('En "URL de producción" ingrese la siguiente dirección:') }}</li>
+                                </ol>
+                                <div class="mt-1.5 flex items-center gap-2" x-data="{ copiado: false }">
+                                    <code class="flex-1 min-w-0 truncate text-xs bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-md px-2 py-1.5 text-blue-900 dark:text-blue-100">{{ route('integraciones.mercadopago.webhook') }}</code>
+                                    <button type="button"
+                                            @click="navigator.clipboard.writeText('{{ route('integraciones.mercadopago.webhook') }}'); copiado = true; setTimeout(() => copiado = false, 2000)"
+                                            class="inline-flex items-center px-2 py-1.5 text-xs font-medium rounded-md border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors shrink-0">
+                                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                        </svg>
+                                        <span x-show="!copiado">{{ __('Copiar') }}</span>
+                                        <span x-show="copiado" x-cloak>{{ __('¡Copiado!') }}</span>
+                                    </button>
+                                </div>
+                                <ol class="mt-1.5 list-decimal list-inside space-y-1 text-blue-800 dark:text-blue-200" start="4">
+                                    <li>{!! __('En "Eventos", seleccione únicamente <strong>"Order (Mercado Pago)"</strong> (no marque otros eventos)') !!}</li>
+                                    <li>{{ __('Guarde la configuración: Mercado Pago generará una clave secreta') }}</li>
+                                    <li>{{ __('Copie esa clave y péguela en el campo "Webhook Secret" de este formulario') }}</li>
+                                </ol>
+                                <p class="mt-2 text-xs text-blue-700 dark:text-blue-300">
+                                    {{ __('El webhook permite confirmar los pagos al instante, incluso si el cajero cierra el navegador. Sin webhook, el sistema detecta el pago por consulta periódica (más lento). Cada aplicación de Mercado Pago (QR, Point) tiene su propio webhook y su propia clave secreta: repita estos pasos en cada una.') }}
+                                </p>
+                            </div>
                         </div>
                     </div>
 
