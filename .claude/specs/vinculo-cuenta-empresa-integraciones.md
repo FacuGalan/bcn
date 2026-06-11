@@ -191,12 +191,12 @@ El requisito explícito del usuario es **no hacerlo MP-específico**: igual que 
 2. Implementación en `MercadoPagoGateway`.
 3. Test: MP devuelve la identidad correcta; `null` sin `user_id_externo`.
 
-### Fase 3: Servicio de vínculo + auto-crear al guardar prod [PENDIENTE]
+### Fase 3: Servicio de vínculo + auto-crear al guardar prod [COMPLETO]
 1. `CuentaEmpresaService::findOrCreateParaIntegracion()` (genérico, solo prod, lookup D5, idempotente).
 2. Invocación desde `IntegracionPagoSucursalService` al guardar credenciales prod.
 3. Tests: crea en prod, no-op en test, idempotencia, identidad-null, D5 (completa única sin identificador / crea ante ambigüedad), identidades distintas → cuentas distintas.
 
-### Fase 4: Movimiento al confirmar + anti doble registro [PENDIENTE]
+### Fase 4: Movimiento al confirmar + anti doble registro [COMPLETO]
 1. Registrar movimiento en `CobroIntegracionService::confirmarCobro()` y `confirmarManual()` (RF-04: solo-prod, resolución por config con fallback FP, idempotencia por origen, captura de excepciones).
 2. Flag de pago-por-integración en el flujo de cobro (`WithCobroIntegracion`/hosts) + skip en los 3 sitios de materialización (RF-05).
 3. Tests: ingreso en prod (todos los modos incl. qr_libre/point), no-op en test, UN solo movimiento con venta materializada (anti doble registro), desglose mixto registra solo el pago no-integración, idempotencia multi-camino, excepción no rompe confirmación, anulación no revierte, origen polimórfico correcto.

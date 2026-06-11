@@ -400,6 +400,105 @@ class CobroQrFlujoFelizTest extends TestCase
         $this->assertNull($component->cobroIntegracionModo, 'El estado del cobro debe resetearse');
     }
 
+    public function test_cobro_en_produccion_registra_un_solo_movimiento_de_cuenta_sin_duplicar(): void
+    {
+        // Anti doble registro (D6/D7 del spec de vínculo): el ingreso lo registra
+        // CobroIntegracionService al confirmar (cuenta REAL de la config); la
+        // materialización de la venta NO debe registrar un segundo movimiento por
+        // la cuenta de la FP, aunque la FP tenga cuenta_empresa_id vinculada.
+        Http::fake([
+            '*/v1/orders/*' => Http::response(['id' => self::ORDER_ID, 'status' => 'processed'], 200),
+            '*/v1/orders' => Http::response([
+                'id' => self::ORDER_ID,
+                'status' => 'created',
+                'type_response' => ['qr_data' => self::QR_DATA],
+            ], 200),
+        ]);
+
+        \App\Models\ConceptoMovimientoCuenta::firstOrCreate(
+            ['codigo' => 'cobro_integracion'],
+            ['nombre' => 'Cobro por integración de pago', 'tipo' => 'ingreso', 'es_sistema' => true, 'orden' => 12, 'activo' => true],
+        );
+        \App\Models\MovimientoCuentaEmpresa::query()->delete();
+        \App\Models\CuentaEmpresa::query()->delete();
+
+        // Config en PRODUCCIÓN (el guard solo-prod habilita el ledger). Update por
+        // modelo (no builder) para que el cast `encrypted` del token aplique.
+        IntegracionPagoSucursal::where('sucursal_id', $this->sucursalId)->first()->update([
+            'modo' => 'produccion',
+            'access_token_produccion' => 'APP_USR-PROD-FELIZ',
+        ]);
+
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'nombre' => 'Producto Prod', 'precio_base' => 100,
+        ]);
+
+        $fp = $this->crearFormaPagoConIntegracion();
+
+        // La FP tiene una cuenta vinculada (default manual): si la materialización
+        // registrara por-FP, duplicaría. La cuenta del movimiento debe ser la de
+        // la IDENTIDAD (mercadopago/999888777), no esta.
+        $cuentaFp = \App\Models\CuentaEmpresa::create([
+            'nombre' => 'Cuenta default FP', 'tipo' => 'billetera_digital', 'subtipo' => 'otro', 'activo' => true,
+        ]);
+        $fp->update(['cuenta_empresa_id' => $cuentaFp->id]);
+
+        $component = $this->prepararComponente();
+        $component->items = [$this->itemCarrito($articulo->id, 'Producto Prod', 100)];
+        $component->calcularVenta();
+        $total = (float) ($component->resultado['total_final'] ?? 0);
+
+        $component->formaPagoId = $fp->id;
+        $component->montoPendienteDesglose = 0;
+        $component->desglosePagos = [[
+            'forma_pago_id' => $fp->id,
+            'nombre' => $fp->nombre,
+            'concepto_pago_id' => $fp->concepto_pago_id,
+            'monto_base' => $total,
+            'ajuste_porcentaje' => 0,
+            'monto_ajuste' => 0,
+            'monto_final' => $total,
+            'monto_recibido' => $total,
+            'vuelto' => 0,
+            'cuotas' => 1,
+            'recargo_cuotas' => 0,
+            'es_cuenta_corriente' => false,
+            'afecta_caja' => false,
+            'factura_fiscal' => false,
+            'es_moneda_extranjera' => false,
+            'moneda_id' => null,
+            'tipo_cambio_id' => null,
+            'tipo_cambio_tasa' => null,
+            'monto_moneda_original' => null,
+        ]];
+
+        $this->llamarProtegido($component, 'verificarPuntoVentaYProcesar');
+        $txId = $component->cobroIntegracionTransaccionId;
+        $component->pollearCobroIntegracion();
+
+        $this->assertEquals(1, Venta::count(), 'La venta debe materializarse');
+        $venta = Venta::first();
+
+        // UN solo movimiento en total, con origen la TRANSACCIÓN (no el VentaPago).
+        $this->assertSame(1, \App\Models\MovimientoCuentaEmpresa::count(), 'Debe haber UN único movimiento (sin duplicar)');
+        $mov = \App\Models\MovimientoCuentaEmpresa::first();
+        $this->assertSame('IntegracionPagoTransaccion', $mov->origen_tipo);
+        $this->assertSame($txId, $mov->origen_id);
+        $this->assertEquals($total, (float) $mov->monto);
+
+        // La cuenta es la de la IDENTIDAD de la config, no la default de la FP.
+        $cuentaMov = \App\Models\CuentaEmpresa::find($mov->cuenta_empresa_id);
+        $this->assertSame('mercadopago', $cuentaMov->subtipo);
+        $this->assertSame('999888777', $cuentaMov->identificador_externo);
+        $this->assertEquals(0, (float) $cuentaFp->fresh()->saldo_actual, 'La cuenta de la FP no debe tocarse');
+
+        // El VentaPago del pago por integración NO liga movimiento (los flujos de
+        // anulación no tendrán nada que contraasentar — D8).
+        $ventaPago = VentaPago::where('venta_id', $venta->id)->first();
+        $this->assertNotNull($ventaPago->integracion_pago_transaccion_id);
+        $this->assertNull($ventaPago->movimiento_cuenta_empresa_id);
+    }
+
     public function test_si_la_facturacion_falla_con_cobro_qr_confirmado_la_venta_se_registra_pendiente(): void
     {
         Http::fake([

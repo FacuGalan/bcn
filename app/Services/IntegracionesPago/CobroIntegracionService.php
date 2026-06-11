@@ -3,9 +3,12 @@
 namespace App\Services\IntegracionesPago;
 
 use App\Events\IntegracionesPago\IntegracionPagoActualizado;
+use App\Models\CuentaEmpresa;
 use App\Models\IntegracionPagoEvento;
 use App\Models\IntegracionPagoSucursal;
 use App\Models\IntegracionPagoTransaccion;
+use App\Models\MovimientoCuentaEmpresa;
+use App\Services\CuentaEmpresaService;
 use App\Services\TenantService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -135,14 +138,14 @@ class CobroIntegracionService
      */
     public function confirmarCobro(IntegracionPagoTransaccion $transaccion, ?Model $cobrable = null, array $payload = []): void
     {
-        DB::connection('pymes_tenant')->transaction(function () use ($transaccion, $cobrable, $payload) {
+        $confirmo = DB::connection('pymes_tenant')->transaction(function () use ($transaccion, $cobrable, $payload) {
             // Re-leer bajo lock: serializa esta transición contra una cancelación o
             // confirmación concurrente (ej. webhook confirma mientras el cajero
             // cancela). El primero en tomar el lock gana; el segundo ve el estado
             // terminal y no hace nada.
             $bloqueada = $this->bloquearTransaccion($transaccion);
             if (! $bloqueada || $bloqueada->estaEnEstadoTerminal()) {
-                return;
+                return false;
             }
 
             if ($cobrable) {
@@ -157,7 +160,13 @@ class CobroIntegracionService
 
             $this->registrarEvento($bloqueada, IntegracionPagoEvento::EVENTO_CONFIRMADO, $payload ?: null);
             $this->sincronizarModelo($transaccion, $bloqueada);
+
+            return true;
         });
+
+        if ($confirmo) {
+            $this->registrarMovimientoCuentaEmpresa($transaccion);
+        }
     }
 
     /**
@@ -174,10 +183,10 @@ class CobroIntegracionService
      */
     public function confirmarManual(IntegracionPagoTransaccion $transaccion, ?int $usuarioId = null, ?string $motivo = null): void
     {
-        DB::connection('pymes_tenant')->transaction(function () use ($transaccion, $usuarioId, $motivo) {
+        $confirmo = DB::connection('pymes_tenant')->transaction(function () use ($transaccion, $usuarioId, $motivo) {
             $bloqueada = $this->bloquearTransaccion($transaccion);
             if (! $bloqueada || $bloqueada->estaEnEstadoTerminal()) {
-                return;
+                return false;
             }
 
             $bloqueada->estado = IntegracionPagoTransaccion::ESTADO_CONFIRMADO_MANUAL;
@@ -194,7 +203,72 @@ class CobroIntegracionService
                 ], fn ($v) => $v !== null && $v !== ''),
             );
             $this->sincronizarModelo($transaccion, $bloqueada);
+
+            return true;
         });
+
+        if ($confirmo) {
+            $this->registrarMovimientoCuentaEmpresa($transaccion, $usuarioId);
+        }
+    }
+
+    /**
+     * Registra el ingreso en la CuentaEmpresa de la cuenta REAL del proveedor
+     * al confirmarse un cobro por integración (RF-04 del spec de vínculo).
+     *
+     * - El movimiento sigue a la plata: se registra acá (cuando el proveedor
+     *   ve el pago), NO al materializar la venta. Los sitios de materialización
+     *   saltean su registro por-FP para estos pagos (anti doble registro, D6).
+     * - La cuenta se resuelve por la IDENTIDAD de la config de la sucursal de
+     *   la transacción (D7) — con sucursales que usan cuentas distintas del
+     *   proveedor, cada cobro impacta la suya. Fallback: cuenta_empresa_id de
+     *   la FormaPago si el gateway no expone identidad.
+     * - Solo producción (D1); idempotente por origen polimórfico (webhook,
+     *   polling y confirmación manual pueden converger).
+     * - Nunca rompe la confirmación: cualquier error queda en log.
+     */
+    private function registrarMovimientoCuentaEmpresa(IntegracionPagoTransaccion $transaccion, ?int $usuarioId = null): void
+    {
+        try {
+            $config = $transaccion->integracionSucursal;
+            if (! $config || ! $config->esProduccion()) {
+                return;
+            }
+
+            $yaRegistrado = MovimientoCuentaEmpresa::where('origen_tipo', 'IntegracionPagoTransaccion')
+                ->where('origen_id', $transaccion->id)
+                ->exists();
+            if ($yaRegistrado) {
+                return;
+            }
+
+            $cuenta = CuentaEmpresaService::findOrCreateParaIntegracion($config);
+
+            if (! $cuenta && $transaccion->formaPago?->cuenta_empresa_id) {
+                $cuenta = CuentaEmpresa::find($transaccion->formaPago->cuenta_empresa_id);
+            }
+
+            if (! $cuenta) {
+                return;
+            }
+
+            CuentaEmpresaService::registrarMovimientoAutomatico(
+                $cuenta,
+                'ingreso',
+                (float) $transaccion->monto,
+                'cobro_integracion',
+                'IntegracionPagoTransaccion',
+                $transaccion->id,
+                "Cobro por integración #{$transaccion->id} ({$transaccion->modo_usado})",
+                $usuarioId ?? $transaccion->usuario_iniciador_id,
+                $transaccion->sucursal_id,
+            );
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo registrar el movimiento de cuenta empresa del cobro por integración', [
+                'transaccion_id' => $transaccion->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
