@@ -90,6 +90,8 @@ class CobroQrFlujoFelizTest extends TestCase
         IntegracionPagoEvento::query()->delete();
         IntegracionPagoTransaccion::query()->delete();
         IntegracionPagoSucursal::query()->delete();
+        \App\Models\MovimientoCuentaEmpresa::query()->delete();
+        \App\Models\CuentaEmpresa::query()->delete();
         $this->tearDownTenant();
         parent::tearDown();
     }

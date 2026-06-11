@@ -46,6 +46,26 @@ class CuentaEmpresaService
      * cuenta (el UNIQUE (subtipo, identificador_externo) lo refuerza en BD;
      * ante una carrera de creación se re-busca el match exacto).
      */
+    /**
+     * Variante SOLO-LECTURA de findOrCreateParaIntegracion: devuelve la cuenta
+     * ya vinculada a la identidad de la config, sin crear ni completar nada.
+     * La usa la UI para sugerir defaults sin efectos secundarios.
+     */
+    public static function buscarParaIntegracion(IntegracionPagoSucursal $config): ?CuentaEmpresa
+    {
+        if (! $config->esProduccion()) {
+            return null;
+        }
+
+        $identidad = $config->integracion?->getGatewayInstance()->identidadCuentaEmpresa($config);
+
+        if (! $identidad) {
+            return null;
+        }
+
+        return CuentaEmpresa::porIdentidad($identidad['subtipo'], $identidad['identificador_externo'])->first();
+    }
+
     public static function findOrCreateParaIntegracion(IntegracionPagoSucursal $config): ?CuentaEmpresa
     {
         if (! $config->esProduccion()) {

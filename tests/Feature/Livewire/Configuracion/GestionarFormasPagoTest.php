@@ -239,4 +239,60 @@ class GestionarFormasPagoTest extends TestCase
 
         $this->assertNull(FormaPago::where('nombre', 'MP Dup')->first());
     }
+
+    // ==================== RF-03: autocompletar cuenta_empresa_id ====================
+
+    public function test_seleccionar_integracion_sugiere_la_cuenta_real_como_default_editable(): void
+    {
+        // Config prod + cuenta ya vinculada por el auto-vínculo (RF-02).
+        \App\Models\MovimientoCuentaEmpresa::query()->delete();
+        \App\Models\CuentaEmpresa::query()->delete();
+        $cuenta = \App\Models\CuentaEmpresa::create([
+            'nombre' => 'Mercado Pago 123123123', 'tipo' => 'billetera_digital',
+            'subtipo' => 'mercadopago', 'identificador_externo' => '123123123', 'activo' => true,
+        ]);
+        \App\Models\IntegracionPagoSucursal::create([
+            'integracion_pago_id' => $this->mpId,
+            'sucursal_id' => $this->sucursalId,
+            'modo' => 'produccion',
+            'access_token_produccion' => 'APP_USR-PROD',
+            'user_id_externo' => '123123123',
+            'activo' => true,
+        ]);
+
+        Livewire::test(GestionarFormasPago::class)
+            ->call('crear')
+            ->set('es_mixta', false)
+            ->set('concepto_pago_id', $this->walletId)
+            ->call('agregarIntegracion')
+            ->set('integraciones_fp.0.integracion_pago_id', $this->mpId)
+            ->assertSet('cuenta_empresa_id', $cuenta->id)
+            ->assertSet('cuentaSugeridaAutomaticamente', true)
+            // Default EDITABLE: el usuario puede vaciarla y no se re-impone.
+            ->set('cuenta_empresa_id', null)
+            ->assertSet('cuentaSugeridaAutomaticamente', false);
+    }
+
+    public function test_sin_config_produccion_no_sugiere_cuenta(): void
+    {
+        \App\Models\MovimientoCuentaEmpresa::query()->delete();
+        \App\Models\CuentaEmpresa::query()->delete();
+        \App\Models\IntegracionPagoSucursal::create([
+            'integracion_pago_id' => $this->mpId,
+            'sucursal_id' => $this->sucursalId,
+            'modo' => 'test',
+            'access_token_test' => 'TEST-TOKEN',
+            'user_id_externo' => '123123123',
+            'activo' => true,
+        ]);
+
+        Livewire::test(GestionarFormasPago::class)
+            ->call('crear')
+            ->set('es_mixta', false)
+            ->set('concepto_pago_id', $this->walletId)
+            ->call('agregarIntegracion')
+            ->set('integraciones_fp.0.integracion_pago_id', $this->mpId)
+            ->assertSet('cuenta_empresa_id', null)
+            ->assertSet('cuentaSugeridaAutomaticamente', false);
+    }
 }
