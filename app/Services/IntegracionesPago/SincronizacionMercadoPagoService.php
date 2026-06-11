@@ -166,8 +166,15 @@ class SincronizacionMercadoPagoService
      */
     public static function desvincularTerminalCaja(Caja $caja): Caja
     {
-        return DB::connection('pymes_tenant')->transaction(function () use ($caja) {
+        $terminalId = $caja->mp_point_terminal_id;
+
+        return DB::connection('pymes_tenant')->transaction(function () use ($caja, $terminalId) {
             $caja->update(['mp_point_terminal_id' => null]);
+
+            Log::info('SincronizacionMercadoPagoService::desvincularTerminalCaja OK', [
+                'caja_id' => $caja->id,
+                'terminal_id' => $terminalId,
+            ]);
 
             return $caja->refresh();
         });
