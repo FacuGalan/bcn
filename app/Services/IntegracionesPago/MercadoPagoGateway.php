@@ -68,6 +68,231 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         ];
     }
 
+    // ==================== Reporte de cuenta (conciliación, Paso 3) ====================
+
+    /**
+     * Solicita la generación del reporte "Dinero en cuenta" (account-money,
+     * endpoints `settlement_report`) para el período. MP lo genera de forma
+     * ASÍNCRONA (202): el identificador devuelto es el rango pedido, que
+     * obtenerReporteCuenta() usa para encontrarlo en el listado.
+     *
+     * Antes de la primera solicitud asegura la configuración del reporte
+     * (columnas + include_withdraw) — sin config, MP rechaza la generación.
+     */
+    public function solicitarReporteCuenta(
+        IntegracionPagoSucursal $config,
+        \DateTimeInterface $desde,
+        \DateTimeInterface $hasta
+    ): ?string {
+        $this->asegurarConfigReporteCuenta($config);
+
+        $beginDate = $desde->format('Y-m-d').'T00:00:00Z';
+        $endDate = $hasta->format('Y-m-d').'T23:59:59Z';
+
+        $response = $this->client($config)->post(self::API_BASE.'/v1/account/settlement_report', [
+            'begin_date' => $beginDate,
+            'end_date' => $endDate,
+        ]);
+
+        // 202 = generación aceptada. Algunas cuentas devuelven 200/201.
+        $this->guardResponse($response, 'solicitarReporteCuenta');
+
+        return $beginDate.'|'.$endDate;
+    }
+
+    /**
+     * Busca en el listado el reporte del rango solicitado y, si ya está
+     * generado, lo descarga y devuelve las filas normalizadas. Devuelve null
+     * si MP todavía no lo generó (reintentar después).
+     */
+    public function obtenerReporteCuenta(
+        IntegracionPagoSucursal $config,
+        string $solicitud
+    ): ?array {
+        [$beginDate, $endDate] = array_pad(explode('|', $solicitud), 2, '');
+
+        $response = $this->client($config)->get(self::API_BASE.'/v1/account/settlement_report/list');
+        $this->guardResponse($response, 'obtenerReporteCuenta:list');
+
+        $reportes = $response->json() ?? [];
+        $archivo = null;
+
+        foreach ($reportes as $reporte) {
+            if (! is_array($reporte) || empty($reporte['file_name'])) {
+                continue;
+            }
+            // Match laxo por fecha (MP puede normalizar la hora del rango).
+            $mismoBegin = substr((string) ($reporte['begin_date'] ?? ''), 0, 10) === substr($beginDate, 0, 10);
+            $mismoEnd = substr((string) ($reporte['end_date'] ?? ''), 0, 10) === substr($endDate, 0, 10);
+
+            if ($mismoBegin && $mismoEnd) {
+                $archivo = $reporte['file_name'];
+                break;
+            }
+        }
+
+        if ($archivo === null) {
+            return null; // Todavía no está generado.
+        }
+
+        $descarga = $this->client($config)
+            ->timeout(60)
+            ->get(self::API_BASE.'/v1/account/settlement_report/'.$archivo);
+        $this->guardResponse($descarga, 'obtenerReporteCuenta:download');
+
+        return [
+            'filas' => $this->parsearCsvReporteCuenta($descarga->body()),
+            'archivo' => $archivo,
+        ];
+    }
+
+    /**
+     * Garantiza que la cuenta tenga configuración del reporte account-money.
+     * Solo la crea si no existe (no pisa una config que el usuario ya use
+     * para sus propios reportes).
+     */
+    private function asegurarConfigReporteCuenta(IntegracionPagoSucursal $config): void
+    {
+        $actual = $this->client($config)->get(self::API_BASE.'/v1/account/settlement_report/config');
+
+        if ($actual->successful() && ! empty($actual->json('columns'))) {
+            return;
+        }
+
+        $creacion = $this->client($config)->post(self::API_BASE.'/v1/account/settlement_report/config', [
+            'file_name_prefix' => 'bcn-conciliacion',
+            'include_withdraw' => true,
+            'display_timezone' => 'GMT-03',
+            'columns' => array_map(
+                fn (string $key) => ['key' => $key],
+                [
+                    'DATE', 'SOURCE_ID', 'EXTERNAL_REFERENCE', 'RECORD_TYPE', 'DESCRIPTION',
+                    'NET_CREDIT_AMOUNT', 'NET_DEBIT_AMOUNT', 'GROSS_AMOUNT', 'MP_FEE_AMOUNT',
+                    'TRANSACTION_TYPE', 'TRANSACTION_AMOUNT', 'FEE_AMOUNT', 'SETTLEMENT_NET_AMOUNT',
+                    'TRANSACTION_DATE', 'PAYMENT_METHOD',
+                ]
+            ),
+        ]);
+
+        // Si la config ya existía (409 o similar) seguimos: la solicitud del
+        // reporte va a usar la config vigente de la cuenta.
+        if ($creacion->failed() && $creacion->status() !== 409) {
+            Log::info('MercadoPagoGateway::asegurarConfigReporteCuenta no pudo crear config (se usa la vigente)', [
+                'status' => $creacion->status(),
+                'body' => $creacion->body(),
+            ]);
+        }
+    }
+
+    /**
+     * Parsea el CSV del reporte account-money y normaliza cada fila al
+     * formato provider-agnostic del contrato.
+     *
+     * Tolerante a los dos dialectos de columnas documentados por MP
+     * (TRANSACTION_TYPE/TRANSACTION_AMOUNT/FEE_AMOUNT vs
+     * RECORD_TYPE/DESCRIPTION/GROSS_AMOUNT/MP_FEE_AMOUNT/NET_*): el formato
+     * exacto se valida contra un reporte real en la puesta en marcha.
+     */
+    private function parsearCsvReporteCuenta(string $csv): array
+    {
+        $csv = ltrim($csv, "\xEF\xBB\xBF"); // BOM
+        $lineas = preg_split('/\r\n|\r|\n/', trim($csv));
+
+        if (count($lineas) < 2) {
+            return []; // Solo header o vacío: sin movimientos en el período.
+        }
+
+        $separador = substr_count($lineas[0], ';') > substr_count($lineas[0], ',') ? ';' : ',';
+        $headers = array_map(fn ($h) => strtoupper(trim($h)), str_getcsv($lineas[0], $separador));
+
+        $filas = [];
+        foreach (array_slice($lineas, 1) as $linea) {
+            if (trim($linea) === '') {
+                continue;
+            }
+            $valores = str_getcsv($linea, $separador);
+            if (count($valores) < 2) {
+                continue;
+            }
+            $fila = array_combine($headers, array_pad($valores, count($headers), null));
+            $filas[] = $this->normalizarFilaReporte($fila);
+        }
+
+        return $filas;
+    }
+
+    private function normalizarFilaReporte(array $fila): array
+    {
+        $valor = fn (array $candidatas) => collect($candidatas)
+            ->map(fn ($c) => $fila[$c] ?? null)
+            ->first(fn ($v) => $v !== null && trim((string) $v) !== '');
+
+        $numero = function (array $candidatas) use ($valor): float {
+            $crudo = $valor($candidatas);
+
+            return $crudo === null ? 0.0 : (float) str_replace(',', '.', preg_replace('/[^0-9,.\-]/', '', (string) $crudo));
+        };
+
+        $bruto = $numero(['TRANSACTION_AMOUNT', 'GROSS_AMOUNT']);
+        $comision = abs($numero(['FEE_AMOUNT', 'MP_FEE_AMOUNT']));
+        $neto = $numero(['SETTLEMENT_NET_AMOUNT', 'REAL_AMOUNT']);
+
+        // Dialecto NET_CREDIT/NET_DEBIT: el neto es crédito - débito.
+        if ($neto === 0.0) {
+            $credito = $numero(['NET_CREDIT_AMOUNT']);
+            $debito = $numero(['NET_DEBIT_AMOUNT']);
+            if ($credito !== 0.0 || $debito !== 0.0) {
+                $neto = $credito - $debito;
+            }
+        }
+        if ($neto === 0.0 && $bruto !== 0.0) {
+            $neto = $bruto - $comision;
+        }
+        if ($bruto === 0.0 && $neto !== 0.0) {
+            $bruto = $neto + $comision;
+        }
+
+        $fechaCruda = $valor(['TRANSACTION_DATE', 'DATE', 'SETTLEMENT_DATE']);
+        try {
+            $fecha = $fechaCruda ? \Carbon\Carbon::parse($fechaCruda)->format('Y-m-d H:i:s') : null;
+        } catch (\Throwable) {
+            $fecha = null;
+        }
+
+        $tipoCrudo = strtolower((string) ($valor(['TRANSACTION_TYPE', 'DESCRIPTION', 'RECORD_TYPE']) ?? ''));
+
+        return [
+            'tipo' => $this->normalizarTipoReporte($tipoCrudo, $neto),
+            'id_externo' => $valor(['SOURCE_ID']) !== null ? (string) $valor(['SOURCE_ID']) : null,
+            'referencia' => $valor(['EXTERNAL_REFERENCE']) !== null ? (string) $valor(['EXTERNAL_REFERENCE']) : null,
+            'fecha' => $fecha,
+            'descripcion' => trim(implode(' ', array_filter([
+                $valor(['TRANSACTION_TYPE', 'DESCRIPTION', 'RECORD_TYPE']),
+                $valor(['PAYMENT_METHOD']),
+            ]))) ?: null,
+            'monto_bruto' => round($bruto, 2),
+            'comision' => round($comision, 2),
+            'monto_neto' => round($neto, 2),
+        ];
+    }
+
+    /**
+     * Mapa TRANSACTION_TYPE/DESCRIPTION de MP → tipo normalizado del contrato.
+     * El orden importa: withdrawal_cancel antes que withdrawal.
+     */
+    private function normalizarTipoReporte(string $tipoCrudo, float $neto): string
+    {
+        return match (true) {
+            str_contains($tipoCrudo, 'settlement'), str_contains($tipoCrudo, 'payment') => 'cobro',
+            str_contains($tipoCrudo, 'refund') => 'devolucion',
+            str_contains($tipoCrudo, 'chargeback'), str_contains($tipoCrudo, 'dispute'), str_contains($tipoCrudo, 'mediation') => 'contracargo',
+            str_contains($tipoCrudo, 'withdrawal_cancel'), str_contains($tipoCrudo, 'withdraw_cancel') => 'retiro_cancelado',
+            str_contains($tipoCrudo, 'withdraw'), str_contains($tipoCrudo, 'payout') => 'retiro',
+            $neto > 0 => 'acreditacion',
+            default => 'otro',
+        };
+    }
+
     /**
      * Verifica las credenciales contra `GET /users/me`.
      *
