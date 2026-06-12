@@ -49,6 +49,11 @@ class GestionCuentas extends Component
 
     public ?string $color = null;
 
+    // Solo lectura en el modal: identifica la cuenta del proveedor de pago.
+    public ?string $identificador_externo = null;
+
+    public bool $conciliacion_automatica = false;
+
     // Confirmación eliminar
     public bool $showConfirmDelete = false;
 
@@ -87,7 +92,7 @@ class GestionCuentas extends Component
 
     public function crear()
     {
-        $this->reset(['cuentaId', 'nombre', 'tipo', 'subtipo', 'banco', 'numero_cuenta', 'cbu', 'alias', 'titular', 'moneda_id', 'color']);
+        $this->reset(['cuentaId', 'nombre', 'tipo', 'subtipo', 'banco', 'numero_cuenta', 'cbu', 'alias', 'titular', 'moneda_id', 'color', 'identificador_externo', 'conciliacion_automatica']);
         $this->tipo = 'banco';
         $monedaPrincipal = Moneda::obtenerPrincipal();
         $this->moneda_id = $monedaPrincipal?->id;
@@ -108,6 +113,8 @@ class GestionCuentas extends Component
         $this->titular = $cuenta->titular;
         $this->moneda_id = $cuenta->moneda_id;
         $this->color = $cuenta->color;
+        $this->identificador_externo = $cuenta->identificador_externo;
+        $this->conciliacion_automatica = (bool) $cuenta->conciliacion_automatica;
         $this->showModal = true;
     }
 
@@ -126,6 +133,8 @@ class GestionCuentas extends Component
             'titular' => $this->titular,
             'moneda_id' => $this->moneda_id,
             'color' => $this->color,
+            // Solo tiene efecto en cuentas vinculadas a un proveedor (RF-08).
+            'conciliacion_automatica' => $this->identificador_externo ? $this->conciliacion_automatica : false,
         ];
 
         if ($this->cuentaId) {

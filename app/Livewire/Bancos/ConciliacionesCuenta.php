@@ -1,0 +1,299 @@
+<?php
+
+namespace App\Livewire\Bancos;
+
+use App\Models\ConciliacionCuenta;
+use App\Models\ConciliacionFila;
+use App\Models\CuentaEmpresa;
+use App\Services\IntegracionesPago\ConciliacionCuentaService;
+use Illuminate\Support\Carbon;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\Lazy;
+use Livewire\Attributes\Url;
+use Livewire\Component;
+use Livewire\WithPagination;
+
+/**
+ * Conciliaciones de CuentaEmpresa contra el proveedor de pago (Paso 3 de
+ * integraciones-pago): listado de corridas + detalle de revisión con
+ * aplicar/descartar.
+ *
+ * Las cuentas son globales del comercio (NO SucursalAware). Mientras una
+ * corrida está `generando`, el detalle se refresca con wire:poll hasta que el
+ * comando del scheduler la deja pendiente_revision.
+ *
+ * Ref: .claude/specs/conciliacion-mercadopago.md (Fase 4, RF-06).
+ */
+#[Layout('layouts.app')]
+#[Lazy]
+class ConciliacionesCuenta extends Component
+{
+    use WithPagination;
+
+    // Filtros del listado.
+    #[Url]
+    public string $filtroCuenta = '';
+
+    public string $filtroEstado = '';
+
+    // Detalle de una corrida.
+    public ?int $detalleId = null;
+
+    public string $filtroClasificacion = '';
+
+    // Modal nueva conciliación.
+    public bool $showModalNueva = false;
+
+    public string $nuevaCuentaId = '';
+
+    public string $nuevaDesde = '';
+
+    public string $nuevaHasta = '';
+
+    // Confirmaciones aplicar / descartar.
+    public bool $showConfirmAplicar = false;
+
+    public string $saldoInicialProveedor = '';
+
+    public bool $showConfirmDescartar = false;
+
+    public function updatedFiltroCuenta()
+    {
+        $this->resetPage();
+    }
+
+    public function updatedFiltroEstado()
+    {
+        $this->resetPage();
+    }
+
+    // ==================== Nueva conciliación ====================
+
+    public function abrirNueva(): void
+    {
+        $this->nuevaCuentaId = $this->filtroCuenta !== '' ? $this->filtroCuenta : '';
+        $this->nuevaDesde = now()->subDays(7)->toDateString();
+        $this->nuevaHasta = now()->toDateString();
+        $this->showModalNueva = true;
+    }
+
+    public function crearCorrida(): void
+    {
+        $this->validate([
+            'nuevaCuentaId' => 'required',
+            'nuevaDesde' => 'required|date',
+            'nuevaHasta' => 'required|date|after_or_equal:nuevaDesde',
+        ], [], [
+            'nuevaCuentaId' => __('Cuenta'),
+            'nuevaDesde' => __('Desde'),
+            'nuevaHasta' => __('Hasta'),
+        ]);
+
+        $cuenta = CuentaEmpresa::findOrFail((int) $this->nuevaCuentaId);
+
+        try {
+            $corrida = app(ConciliacionCuentaService::class)->crearCorrida(
+                $cuenta,
+                Carbon::parse($this->nuevaDesde),
+                Carbon::parse($this->nuevaHasta),
+                auth()->id(),
+            );
+        } catch (\RuntimeException $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+
+            return;
+        }
+
+        $this->showModalNueva = false;
+        $this->detalleId = $corrida->id;
+        $this->dispatch('toast-success', message: __('Conciliación iniciada: se está pidiendo el reporte al proveedor'));
+    }
+
+    public function cancelarNueva(): void
+    {
+        $this->showModalNueva = false;
+    }
+
+    // ==================== Detalle ====================
+
+    public function verDetalle(int $id): void
+    {
+        $this->detalleId = $id;
+        $this->filtroClasificacion = '';
+    }
+
+    public function cerrarDetalle(): void
+    {
+        $this->detalleId = null;
+        $this->showConfirmAplicar = false;
+        $this->showConfirmDescartar = false;
+    }
+
+    /**
+     * Alterna generar_movimiento ↔ ignorar en una fila propuesta (solo
+     * mientras la corrida está en revisión).
+     */
+    public function toggleAccionFila(int $filaId): void
+    {
+        $corrida = $this->detalle;
+
+        if (! $corrida || ! $corrida->esEditable()) {
+            return;
+        }
+
+        $fila = ConciliacionFila::where('conciliacion_cuenta_id', $corrida->id)->find($filaId);
+
+        if (! $fila || ! $fila->esPropuesta()) {
+            return;
+        }
+
+        $fila->update([
+            'accion' => $fila->accion === ConciliacionFila::ACCION_GENERAR_MOVIMIENTO
+                ? ConciliacionFila::ACCION_IGNORAR
+                : ConciliacionFila::ACCION_GENERAR_MOVIMIENTO,
+        ]);
+
+        app(ConciliacionCuentaService::class)->recalcularTotales($corrida);
+    }
+
+    // ==================== Aplicar / Descartar ====================
+
+    public function confirmarAplicar(): void
+    {
+        if (! $this->puedeAplicar) {
+            return;
+        }
+
+        $this->saldoInicialProveedor = '';
+        $this->showConfirmAplicar = true;
+    }
+
+    public function aplicar(): void
+    {
+        $corrida = $this->detalle;
+
+        if (! $corrida || ! $this->puedeAplicar) {
+            return;
+        }
+
+        $saldoInicial = null;
+        if ($this->esPrimeraConciliacion && trim($this->saldoInicialProveedor) !== '') {
+            $saldoInicial = (float) str_replace(',', '.', $this->saldoInicialProveedor);
+        }
+
+        try {
+            app(ConciliacionCuentaService::class)->aplicar($corrida, auth()->id(), $saldoInicial);
+        } catch (\RuntimeException $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+
+            return;
+        }
+
+        $this->showConfirmAplicar = false;
+        $this->dispatch('toast-success', message: __('Conciliación aplicada: los ajustes se registraron en la cuenta'));
+    }
+
+    public function confirmarDescartar(): void
+    {
+        if (! $this->puedeAplicar) {
+            return;
+        }
+
+        $this->showConfirmDescartar = true;
+    }
+
+    public function descartar(): void
+    {
+        $corrida = $this->detalle;
+
+        if (! $corrida || ! $this->puedeAplicar) {
+            return;
+        }
+
+        try {
+            app(ConciliacionCuentaService::class)->descartar($corrida, auth()->id());
+        } catch (\RuntimeException $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+
+            return;
+        }
+
+        $this->showConfirmDescartar = false;
+        $this->dispatch('toast-success', message: __('Conciliación descartada'));
+    }
+
+    // ==================== Computed ====================
+
+    public function getPuedeAplicarProperty(): bool
+    {
+        return auth()->user()?->hasPermissionTo('func.conciliaciones.aplicar') ?? false;
+    }
+
+    public function getDetalleProperty(): ?ConciliacionCuenta
+    {
+        if ($this->detalleId === null) {
+            return null;
+        }
+
+        return ConciliacionCuenta::with('cuentaEmpresa')->find($this->detalleId);
+    }
+
+    /**
+     * ¿La corrida del detalle es la primera de su cuenta? Habilita el campo
+     * de ajuste inicial (RF-07).
+     */
+    public function getEsPrimeraConciliacionProperty(): bool
+    {
+        $corrida = $this->detalle;
+
+        if (! $corrida) {
+            return false;
+        }
+
+        return ! ConciliacionCuenta::deCuenta($corrida->cuenta_empresa_id)
+            ->where('id', '!=', $corrida->id)
+            ->where('estado', ConciliacionCuenta::ESTADO_APLICADA)
+            ->exists();
+    }
+
+    public function getCuentasConciliablesProperty()
+    {
+        return CuentaEmpresa::activas()
+            ->whereNotNull('identificador_externo')
+            ->orderBy('nombre')
+            ->get();
+    }
+
+    public function placeholder()
+    {
+        return <<<'HTML'
+        <x-skeleton.page-table :statCards="0" :filterCount="2" :columns="6" :rows="6" />
+        HTML;
+    }
+
+    public function render()
+    {
+        $detalle = $this->detalle;
+        $filas = collect();
+
+        if ($detalle) {
+            $filas = ConciliacionFila::where('conciliacion_cuenta_id', $detalle->id)
+                ->when($this->filtroClasificacion !== '', fn ($q) => $q->where('clasificacion', $this->filtroClasificacion))
+                ->orderByRaw("FIELD(clasificacion, 'solo_proveedor', 'matcheado', 'ya_registrado', 'solo_sistema')")
+                ->orderBy('fecha')
+                ->get();
+        }
+
+        $corridas = ConciliacionCuenta::with('cuentaEmpresa')
+            ->when($this->filtroCuenta !== '', fn ($q) => $q->where('cuenta_empresa_id', (int) $this->filtroCuenta))
+            ->when($this->filtroEstado !== '', fn ($q) => $q->where('estado', $this->filtroEstado))
+            ->orderByDesc('id')
+            ->paginate(15);
+
+        return view('livewire.bancos.conciliaciones-cuenta', [
+            'corridas' => $corridas,
+            'detalle' => $detalle,
+            'filas' => $filas,
+        ]);
+    }
+}

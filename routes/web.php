@@ -8,6 +8,7 @@ use App\Livewire\Articulos\GestionarCategorias;
 use App\Livewire\Articulos\GestionarEtiquetas;
 use App\Livewire\Articulos\GestionarGruposOpcionales;
 use App\Livewire\Articulos\GestionarRecetas;
+use App\Livewire\Bancos\ConciliacionesCuenta;
 use App\Livewire\Bancos\GestionCuentas;
 use App\Livewire\Bancos\MovimientosCuenta;
 use App\Livewire\Bancos\ResumenCuentas;
@@ -201,6 +202,7 @@ Route::prefix('app')->group(function () {
             Route::get('cuentas', GestionCuentas::class)->name('cuentas');
             Route::get('movimientos', MovimientosCuenta::class)->name('movimientos');
             Route::get('transferencias', TransferenciasCuenta::class)->name('transferencias');
+            Route::get('conciliaciones', ConciliacionesCuenta::class)->name('conciliaciones');
         });
 
         // =========================================

@@ -81,6 +81,13 @@
                             </div>
                         </div>
                         <div class="flex gap-2">
+                            @if($cuenta->identificador_externo)
+                            <a href="{{ route('bancos.conciliaciones', ['filtroCuenta' => $cuenta->id]) }}" wire:navigate
+                                class="inline-flex items-center justify-center px-3 py-2 border border-green-600 text-sm font-medium rounded-md text-green-600 hover:bg-green-600 hover:text-white transition-colors duration-150"
+                                title="{{ __('Conciliar') }}">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-2.031.352 5.988 5.988 0 01-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.971zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.989 5.989 0 01-2.031.352 5.989 5.989 0 01-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.971z" /></svg>
+                            </a>
+                            @endif
                             <button wire:click="edit({{ $cuenta->id }})" class="inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white transition-colors duration-150">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                             </button>
@@ -171,6 +178,14 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <div class="flex justify-end gap-2">
+                                    @if($cuenta->identificador_externo)
+                                    <a href="{{ route('bancos.conciliaciones', ['filtroCuenta' => $cuenta->id]) }}" wire:navigate
+                                        class="inline-flex items-center justify-center px-3 py-2 border border-green-600 text-sm font-medium rounded-md text-green-600 hover:bg-green-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 transition-colors duration-150"
+                                        title="{{ __('Conciliar') }}">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-2.031.352 5.988 5.988 0 01-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.971zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.989 5.989 0 01-2.031.352 5.989 5.989 0 01-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.971z" /></svg>
+                                        {{ __('Conciliar') }}
+                                    </a>
+                                    @endif
                                     <button wire:click="edit({{ $cuenta->id }})" class="inline-flex items-center justify-center px-3 py-2 border border-bcn-primary text-sm font-medium rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary transition-colors duration-150">
                                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                         {{ __('Editar') }}
@@ -282,6 +297,22 @@
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Color') }}</label>
                         <input wire:model="color" type="color" class="mt-1 block h-10 w-20 rounded-md border-gray-300 dark:border-gray-600 cursor-pointer">
                     </div>
+
+                    {{-- Conciliación automática (solo cuentas vinculadas a un proveedor de pago) --}}
+                    @if($cuentaId && $identificador_externo)
+                    <div class="sm:col-span-2 rounded-md bg-blue-50 dark:bg-blue-900/20 p-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <p class="text-sm font-medium text-gray-900 dark:text-white">{{ __('Conciliación automática diaria') }}</p>
+                                <p class="mt-0.5 text-xs text-gray-600 dark:text-gray-300">{{ __('Cada día se prepara una conciliación del día anterior contra el proveedor de pago. Siempre queda pendiente de su revisión: nunca se aplica sola.') }}</p>
+                            </div>
+                            <button type="button" wire:click="$toggle('conciliacion_automatica')"
+                                class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-bcn-primary {{ $conciliacion_automatica ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600' }}">
+                                <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $conciliacion_automatica ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                            </button>
+                        </div>
+                    </div>
+                    @endif
 
                 </div>
             </x-slot:body>
