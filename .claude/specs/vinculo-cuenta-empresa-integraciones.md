@@ -1,6 +1,6 @@
 # Vínculo CuentaEmpresa ↔ Integraciones de Pago - Especificación
 
-## Estado: APROBADO (revisado 2026-06-11)
+## Estado: IMPLEMENTADO (verificado 2026-06-12)
 
 > Paso 2 del roadmap de integraciones-pago (qr_libre #129 y Point #128 ya mergeados a master).
 > Vincula automáticamente la `CuentaEmpresa` (ledger de saldo) con la cuenta del proveedor
@@ -201,10 +201,11 @@ El requisito explícito del usuario es **no hacerlo MP-específico**: igual que 
 2. Flag de pago-por-integración en el flujo de cobro (`WithCobroIntegracion`/hosts) + skip en los 3 sitios de materialización (RF-05).
 3. Tests: ingreso en prod (todos los modos incl. qr_libre/point), no-op en test, UN solo movimiento con venta materializada (anti doble registro), desglose mixto registra solo el pago no-integración, idempotencia multi-camino, excepción no rompe confirmación, anulación no revierte, origen polimórfico correcto.
 
-### Fase 5: Autocompletar UI + cierre [EN PROGRESO — código completo, falta cierre]
+### Fase 5: Autocompletar UI + cierre [COMPLETO]
 1. ✅ Autocompletar `cuenta_empresa_id` en `GestionarFormasPago` (default editable) + hint + traducciones (es/en/pt) + `buscarParaIntegracion()` lookup-only en el service.
 2. ✅ Tests Livewire del autocompletado (sugiere con config prod, no sugiere en test, editable sin re-imposición).
-3. PENDIENTE (próxima sesión): validación visual del usuario en vivo → `/sdd-verify` → docs (`@docs-sync`) → PR.
+3. ✅ Validación en vivo del usuario (2026-06-12): credenciales prod → cuenta creada; QR y Point (misma cuenta MP) convergen a UNA sola CuentaEmpresa (D3/D7); FP sugiere cuenta; cobro real → 1 movimiento.
+4. ✅ `/sdd-verify` (2026-06-12): 90 tests verdes, Pint verde, Spec Compliance Matrix completa. Se agregó test de desglose mixto (`test_desglose_mixto_registra_cada_movimiento_en_su_cuenta`) que faltaba para el criterio RF-05.
 
 ---
 

@@ -501,6 +501,143 @@ class CobroQrFlujoFelizTest extends TestCase
         $this->assertNull($ventaPago->movimiento_cuenta_empresa_id);
     }
 
+    public function test_desglose_mixto_registra_cada_movimiento_en_su_cuenta(): void
+    {
+        // RF-05 (D6): en un desglose mixto el skip aplica SOLO al pago por
+        // integración. El otro pago (FP con cuenta vinculada) registra su
+        // movimiento por-FP normalmente (origen VentaPago, concepto venta).
+        Http::fake([
+            '*/v1/orders/*' => Http::response(['id' => self::ORDER_ID, 'status' => 'processed'], 200),
+            '*/v1/orders' => Http::response([
+                'id' => self::ORDER_ID,
+                'status' => 'created',
+                'type_response' => ['qr_data' => self::QR_DATA],
+            ], 200),
+        ]);
+
+        \App\Models\ConceptoMovimientoCuenta::firstOrCreate(
+            ['codigo' => 'cobro_integracion'],
+            ['nombre' => 'Cobro por integración de pago', 'tipo' => 'ingreso', 'es_sistema' => true, 'orden' => 12, 'activo' => true],
+        );
+        \App\Models\ConceptoMovimientoCuenta::firstOrCreate(
+            ['codigo' => 'venta'],
+            ['nombre' => 'Venta', 'tipo' => 'ingreso', 'es_sistema' => true, 'orden' => 1, 'activo' => true],
+        );
+        \App\Models\MovimientoCuentaEmpresa::query()->delete();
+        \App\Models\CuentaEmpresa::query()->delete();
+
+        IntegracionPagoSucursal::where('sucursal_id', $this->sucursalId)->first()->update([
+            'modo' => 'produccion',
+            'access_token_produccion' => 'APP_USR-PROD-MIXTO',
+        ]);
+
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
+            'nombre' => 'Producto Mixto', 'precio_base' => 100,
+        ]);
+
+        $fpIntegracion = $this->crearFormaPagoConIntegracion();
+
+        // Segunda FP sin integración (transferencia) con cuenta vinculada.
+        $conceptoTransf = ConceptoPago::firstOrCreate(
+            ['codigo' => 'TRANSF'],
+            ['nombre' => 'Transferencia', 'activo' => true, 'orden' => 6]
+        );
+        $cuentaBanco = \App\Models\CuentaEmpresa::create([
+            'nombre' => 'Banco Galicia', 'tipo' => 'banco', 'subtipo' => 'otro', 'activo' => true,
+        ]);
+        $fpTransferencia = FormaPago::create([
+            'nombre' => 'Transferencia',
+            'codigo' => 'transf',
+            'concepto' => 'transferencia',
+            'concepto_pago_id' => $conceptoTransf->id,
+            'cuenta_empresa_id' => $cuentaBanco->id,
+            'es_mixta' => false,
+            'permite_cuotas' => false,
+            'ajuste_porcentaje' => 0,
+            'activo' => true,
+        ]);
+
+        $component = $this->prepararComponente();
+        $component->items = [$this->itemCarrito($articulo->id, 'Producto Mixto', 100)];
+        $component->calcularVenta();
+        $total = (float) ($component->resultado['total_final'] ?? 0);
+        $montoIntegracion = round($total * 0.6, 2);
+        $montoTransferencia = round($total - $montoIntegracion, 2);
+
+        $pagoBase = [
+            'ajuste_porcentaje' => 0,
+            'monto_ajuste' => 0,
+            'vuelto' => 0,
+            'cuotas' => 1,
+            'recargo_cuotas' => 0,
+            'es_cuenta_corriente' => false,
+            'afecta_caja' => false,
+            'factura_fiscal' => false,
+            'es_moneda_extranjera' => false,
+            'moneda_id' => null,
+            'tipo_cambio_id' => null,
+            'tipo_cambio_tasa' => null,
+            'monto_moneda_original' => null,
+        ];
+        $component->formaPagoId = $fpIntegracion->id;
+        $component->montoPendienteDesglose = 0;
+        $component->desglosePagos = [
+            array_merge($pagoBase, [
+                'forma_pago_id' => $fpIntegracion->id,
+                'nombre' => $fpIntegracion->nombre,
+                'concepto_pago_id' => $fpIntegracion->concepto_pago_id,
+                'monto_base' => $montoIntegracion,
+                'monto_final' => $montoIntegracion,
+                'monto_recibido' => $montoIntegracion,
+            ]),
+            array_merge($pagoBase, [
+                'forma_pago_id' => $fpTransferencia->id,
+                'nombre' => $fpTransferencia->nombre,
+                'concepto_pago_id' => $fpTransferencia->concepto_pago_id,
+                'monto_base' => $montoTransferencia,
+                'monto_final' => $montoTransferencia,
+                'monto_recibido' => $montoTransferencia,
+            ]),
+        ];
+
+        $this->llamarProtegido($component, 'verificarPuntoVentaYProcesar');
+        $txId = $component->cobroIntegracionTransaccionId;
+        $component->pollearCobroIntegracion();
+
+        $this->assertEquals(1, Venta::count(), 'La venta debe materializarse');
+        $venta = Venta::first();
+
+        // DOS movimientos: el de la transacción (cuenta de la identidad) y el
+        // por-FP de la transferencia (cuenta del banco). Ni uno más.
+        $this->assertSame(2, \App\Models\MovimientoCuentaEmpresa::count(), 'Debe haber exactamente DOS movimientos');
+
+        $movIntegracion = \App\Models\MovimientoCuentaEmpresa::where('origen_tipo', 'IntegracionPagoTransaccion')->first();
+        $this->assertNotNull($movIntegracion, 'El cobro por integración debe registrar su movimiento');
+        $this->assertSame($txId, $movIntegracion->origen_id);
+        $this->assertEquals($montoIntegracion, (float) $movIntegracion->monto);
+        $cuentaMov = \App\Models\CuentaEmpresa::find($movIntegracion->cuenta_empresa_id);
+        $this->assertSame('mercadopago', $cuentaMov->subtipo);
+        $this->assertSame('999888777', $cuentaMov->identificador_externo);
+
+        $movTransferencia = \App\Models\MovimientoCuentaEmpresa::where('origen_tipo', 'VentaPago')->first();
+        $this->assertNotNull($movTransferencia, 'El pago no-integración debe registrar su movimiento por-FP');
+        $this->assertSame($cuentaBanco->id, $movTransferencia->cuenta_empresa_id);
+        $this->assertEquals($montoTransferencia, (float) $movTransferencia->monto);
+        $this->assertEquals($montoTransferencia, (float) $cuentaBanco->fresh()->saldo_actual);
+
+        // Links en venta_pagos: el de integración queda NULL (D8); el de
+        // transferencia liga su movimiento (flujo por-FP intacto).
+        $pagoIntegracion = VentaPago::where('venta_id', $venta->id)
+            ->where('forma_pago_id', $fpIntegracion->id)->first();
+        $this->assertNotNull($pagoIntegracion->integracion_pago_transaccion_id);
+        $this->assertNull($pagoIntegracion->movimiento_cuenta_empresa_id);
+
+        $pagoTransferencia = VentaPago::where('venta_id', $venta->id)
+            ->where('forma_pago_id', $fpTransferencia->id)->first();
+        $this->assertNull($pagoTransferencia->integracion_pago_transaccion_id);
+        $this->assertSame($movTransferencia->id, $pagoTransferencia->movimiento_cuenta_empresa_id);
+    }
+
     public function test_si_la_facturacion_falla_con_cobro_qr_confirmado_la_venta_se_registra_pendiente(): void
     {
         Http::fake([
