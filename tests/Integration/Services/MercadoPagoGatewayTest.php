@@ -971,7 +971,12 @@ class MercadoPagoGatewayTest extends TestCase
             new \DateTimeImmutable('2026-06-10'),
         );
 
-        $this->assertSame('2026-06-01T00:00:00Z|2026-06-10T23:59:59Z', $solicitud);
+        // Solicitud = JSON con el rango pedido + cuándo se pidió (para que el
+        // matcheo del listado descarte reportes anteriores a la solicitud).
+        $datos = json_decode($solicitud, true);
+        $this->assertSame('2026-06-01T00:00:00Z', $datos['begin']);
+        $this->assertSame('2026-06-10T23:59:59Z', $datos['end']);
+        $this->assertNotEmpty($datos['solicitado_en']);
         Http::assertSent(fn ($r) => $r->method() === 'POST'
             && str_ends_with($r->url(), '/v1/account/settlement_report')
             && $r['begin_date'] === '2026-06-01T00:00:00Z'

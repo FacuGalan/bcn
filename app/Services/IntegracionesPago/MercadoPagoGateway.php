@@ -97,37 +97,74 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         // 202 = generación aceptada. Algunas cuentas devuelven 200/201.
         $this->guardResponse($response, 'solicitarReporteCuenta');
 
-        return $beginDate.'|'.$endDate;
+        return json_encode([
+            'begin' => $beginDate,
+            'end' => $endDate,
+            'solicitado_en' => now()->utc()->toIso8601String(),
+        ]);
     }
 
     /**
      * Busca en el listado el reporte del rango solicitado y, si ya está
      * generado, lo descarga y devuelve las filas normalizadas. Devuelve null
      * si MP todavía no lo generó (reintentar después).
+     *
+     * Hallazgo con la cuenta real (2026-06-12): MP NO devuelve el rango tal
+     * cual se pidió — lo ancla al día local de la cuenta y lo guarda en UTC
+     * (pedimos 02..12 y listó begin 2026-06-01T03:00Z / end 2026-06-13T02:59Z),
+     * así que el match exacto por fecha no sirve. Criterio robusto: status
+     * `processed` + creado DESPUÉS de nuestra solicitud + extremos del rango a
+     * menos de 36 h de los pedidos (cubre cualquier anclaje de timezone), y
+     * entre los candidatos se toma el de rango más cercano.
      */
     public function obtenerReporteCuenta(
         IntegracionPagoSucursal $config,
         string $solicitud
     ): ?array {
-        [$beginDate, $endDate] = array_pad(explode('|', $solicitud), 2, '');
+        // Formato actual: JSON {begin, end, solicitado_en}. Compat con el
+        // formato inicial "begin|end" de corridas ya en vuelo.
+        $datos = json_decode($solicitud, true);
+        if (! is_array($datos)) {
+            [$begin, $end] = array_pad(explode('|', $solicitud), 2, '');
+            $datos = ['begin' => $begin, 'end' => $end, 'solicitado_en' => null];
+        }
+
+        $beginPedido = strtotime($datos['begin'] ?? '') ?: 0;
+        $endPedido = strtotime($datos['end'] ?? '') ?: 0;
+        // Margen de 5 min por skew de reloj entre nuestro server y MP.
+        $solicitadoEn = ! empty($datos['solicitado_en']) ? (strtotime($datos['solicitado_en']) - 300) : null;
+        $tolerancia = 36 * 3600;
 
         $response = $this->client($config)->get(self::API_BASE.'/v1/account/settlement_report/list');
         $this->guardResponse($response, 'obtenerReporteCuenta:list');
 
         $reportes = $response->json() ?? [];
         $archivo = null;
+        $mejorDistancia = PHP_INT_MAX;
 
         foreach ($reportes as $reporte) {
             if (! is_array($reporte) || empty($reporte['file_name'])) {
                 continue;
             }
-            // Match laxo por fecha (MP puede normalizar la hora del rango).
-            $mismoBegin = substr((string) ($reporte['begin_date'] ?? ''), 0, 10) === substr($beginDate, 0, 10);
-            $mismoEnd = substr((string) ($reporte['end_date'] ?? ''), 0, 10) === substr($endDate, 0, 10);
+            // Sin status asumimos listo (el listado solo muestra generados).
+            if (($reporte['status'] ?? 'processed') !== 'processed') {
+                continue;
+            }
+            if ($solicitadoEn !== null && ! empty($reporte['date_created'])
+                && strtotime($reporte['date_created']) < $solicitadoEn) {
+                continue; // Reporte viejo, anterior a nuestra solicitud.
+            }
 
-            if ($mismoBegin && $mismoEnd) {
+            $deltaBegin = abs((strtotime((string) ($reporte['begin_date'] ?? '')) ?: 0) - $beginPedido);
+            $deltaEnd = abs((strtotime((string) ($reporte['end_date'] ?? '')) ?: 0) - $endPedido);
+
+            if ($deltaBegin > $tolerancia || $deltaEnd > $tolerancia) {
+                continue;
+            }
+
+            if ($deltaBegin + $deltaEnd < $mejorDistancia) {
+                $mejorDistancia = $deltaBegin + $deltaEnd;
                 $archivo = $reporte['file_name'];
-                break;
             }
         }
 
