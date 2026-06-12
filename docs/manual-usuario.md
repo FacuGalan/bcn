@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-11
+> Version: 0.1.x | Ultima actualizacion: 2026-06-12
 
 ---
 
@@ -2377,7 +2377,7 @@ Haga clic en **"Nueva Forma de Pago"** y complete:
 - **Ajuste porcentual**: Recargo (+) o descuento (-) que se aplica al total. Por ejemplo, "+3%" para tarjeta de credito o "-5%" para efectivo.
 - **Permite cuotas**: Si esta forma de pago ofrece pagos en cuotas.
 - **Factura fiscal**: Si esta forma de pago genera factura fiscal por defecto.
-- **Cuenta empresa**: Cuenta bancaria o billetera asociada (opcional).
+- **Cuenta empresa**: Cuenta bancaria o billetera asociada (opcional). Si la forma de pago tiene una integracion de cobro con credenciales de produccion configuradas, este campo se autocompleta automaticamente con la cuenta real del proveedor (ver mas abajo). El valor sugerido es editable.
 - **Moneda**: Moneda de la forma de pago (util para pagos en moneda extranjera).
 - **Sucursales**: En que sucursales esta disponible.
 
@@ -2411,6 +2411,15 @@ Este bloque permite vincular la forma de pago con una o mas integraciones config
 **Quitar una integracion:** haga clic en el icono de eliminar a la derecha de la fila.
 
 > Las formas de pago mixtas no admiten integraciones de pago. El bloque solo aparece en formas de pago simples con concepto compatible.
+
+#### Cuenta vinculada automaticamente desde la integracion
+
+Cuando se selecciona una integracion que tiene credenciales de **produccion** configuradas, el sistema busca la cuenta del proveedor de pago que fue creada automaticamente y pre-selecciona el campo **"Cuenta empresa"** con esa cuenta. Aparece un aviso azul: "Cuenta vinculada automaticamente desde la integracion de pago".
+
+- El valor es **editable**: el usuario puede cambiarlo o dejarlo en blanco.
+- Si ya habia una cuenta seleccionada manualmente, el sistema no la sobreescribe.
+- Si la integracion esta en modo **Test** o no tiene credenciales guardadas, no se sugiere ninguna cuenta.
+- Esta cuenta es la que recibe los movimientos de saldo cuando los cobros por esa integracion se confirman (ver comportamiento de saldo mas abajo).
 
 **Para formas de pago mixtas:**
 Active el switch "Es mixta" para crear una forma de pago que permite combinar multiples conceptos (por ejemplo, parte en efectivo y parte con tarjeta). Seleccione los conceptos de pago permitidos (minimo 2).
@@ -2797,6 +2806,22 @@ Debajo del campo "Webhook Secret" hay un boton **"¿Como obtener el Webhook Secr
 #### Expiracion automatica de cobros
 
 Si un cobro queda esperando pago y el tiempo configurado vence, el sistema lo expira automaticamente sin requerir intervencion manual. El modal del cajero se cierra y muestra un aviso de tiempo agotado. No se genera ninguna venta ni movimiento de caja. El cajero puede iniciar un nuevo cobro desde el mismo punto de cobro. Aplica tanto a cobros por QR como por Point.
+
+#### Cuenta empresa y saldo del proveedor
+
+Al guardar credenciales de una integracion en modo **Produccion**, el sistema crea automaticamente (o reutiliza si ya existe) una **Cuenta Empresa** que representa la cuenta real del proveedor (por ejemplo, la cuenta de Mercado Pago del comercio). Esta cuenta aparece en Tesoreria → Cuentas Empresa junto con el saldo acumulado.
+
+**Como se actualiza el saldo:**
+
+- Cuando un cobro por integracion se **confirma** (via webhook automatico, polling o confirmacion manual), el sistema registra un movimiento de ingreso en esa cuenta con el concepto "Cobro por integracion de pago".
+- El ingreso se registra en el momento de la confirmacion del cobro, no al emitir el comprobante. Esto refleja el instante en que el dinero realmente entro al proveedor.
+- Si el comercio tiene dos sucursales que usan cuentas de Mercado Pago distintas, cada cobro impacta la cuenta de su propia sucursal.
+- Si dos sucursales comparten la misma cuenta de Mercado Pago (mismo User ID Externo), sus cobros convergen al saldo de una sola Cuenta Empresa.
+- Los cobros en modo **Test** no generan ningun movimiento ni afectan el saldo.
+
+**Anular una venta cobrada por integracion:**
+
+Al anular la venta, el movimiento de la cuenta del proveedor **no se revierte**. Esto es correcto: el dinero sigue en Mercado Pago salvo que el comercio haga una devolucion manual desde el panel del proveedor. El sistema refleja este comportamiento real.
 
 #### Permisos requeridos
 
