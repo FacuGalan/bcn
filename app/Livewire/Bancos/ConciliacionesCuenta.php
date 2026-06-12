@@ -36,10 +36,20 @@ class ConciliacionesCuenta extends Component
 
     public string $filtroEstado = '';
 
-    // Detalle de una corrida.
+    // Detalle de una corrida. El filtro arranca en 'novedades' (pseudo-valor
+    // que agrupa coincide + solo_proveedor + solo_sistema): lo prioritario a
+    // revisar, dejando afuera el ruido de ya_registrado.
     public ?int $detalleId = null;
 
-    public string $filtroClasificacion = '';
+    public string $filtroClasificacion = self::FILTRO_NOVEDADES;
+
+    public const FILTRO_NOVEDADES = 'novedades';
+
+    private const CLASIFICACIONES_NOVEDADES = [
+        ConciliacionFila::CLASIFICACION_MATCHEADO,
+        ConciliacionFila::CLASIFICACION_SOLO_PROVEEDOR,
+        ConciliacionFila::CLASIFICACION_SOLO_SISTEMA,
+    ];
 
     // Modal nueva conciliación.
     public bool $showModalNueva = false;
@@ -119,7 +129,7 @@ class ConciliacionesCuenta extends Component
     public function verDetalle(int $id): void
     {
         $this->detalleId = $id;
-        $this->filtroClasificacion = '';
+        $this->filtroClasificacion = self::FILTRO_NOVEDADES;
     }
 
     public function cerrarDetalle(): void
@@ -294,13 +304,25 @@ class ConciliacionesCuenta extends Component
     {
         $detalle = $this->detalle;
         $filas = collect();
+        $soloSistemaRecientes = 0;
 
         if ($detalle) {
             $filas = ConciliacionFila::where('conciliacion_cuenta_id', $detalle->id)
-                ->when($this->filtroClasificacion !== '', fn ($q) => $q->where('clasificacion', $this->filtroClasificacion))
+                ->when($this->filtroClasificacion === self::FILTRO_NOVEDADES, fn ($q) => $q->whereIn('clasificacion', self::CLASIFICACIONES_NOVEDADES))
+                ->when($this->filtroClasificacion !== '' && $this->filtroClasificacion !== self::FILTRO_NOVEDADES, fn ($q) => $q->where('clasificacion', $this->filtroClasificacion))
                 ->orderByRaw("FIELD(clasificacion, 'solo_proveedor', 'matcheado', 'ya_registrado', 'solo_sistema')")
                 ->orderBy('fecha')
                 ->get();
+
+            // Hint del lag: cobros del sistema sin contraparte en el reporte
+            // pero muy recientes — el pipeline de reportes del proveedor corre
+            // con horas de demora, casi seguro se concilian en la próxima corrida.
+            if ($detalle->esEditable()) {
+                $soloSistemaRecientes = ConciliacionFila::where('conciliacion_cuenta_id', $detalle->id)
+                    ->where('clasificacion', ConciliacionFila::CLASIFICACION_SOLO_SISTEMA)
+                    ->where('fecha', '>=', now()->subDay())
+                    ->count();
+            }
         }
 
         $corridas = ConciliacionCuenta::with('cuentaEmpresa')
@@ -313,6 +335,7 @@ class ConciliacionesCuenta extends Component
             'corridas' => $corridas,
             'detalle' => $detalle,
             'filas' => $filas,
+            'soloSistemaRecientes' => $soloSistemaRecientes,
         ]);
     }
 }

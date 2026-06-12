@@ -16,7 +16,7 @@
                 'error' => __('Error'),
             ];
             $clasificacionLabel = [
-                'matcheado' => __('Conciliado'),
+                'matcheado' => __('Coincide'),
                 'solo_proveedor' => __('Solo en el proveedor'),
                 'solo_sistema' => __('Solo en el sistema'),
                 'ya_registrado' => __('Ya registrado'),
@@ -83,7 +83,7 @@
                     {{-- Resumen --}}
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
                         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Movimientos conciliados') }}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Coincidencias') }}</p>
                             <p class="mt-1 text-lg font-bold text-green-600 dark:text-green-400">{{ $detalle->total_matcheados }}</p>
                         </div>
                         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
@@ -104,6 +104,17 @@
                         </div>
                     </div>
 
+                    {{-- Hint del lag del reporte del proveedor (cobros recientes solo en el sistema) --}}
+                    @if($soloSistemaRecientes > 0)
+                        <div class="flex items-start gap-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4 sm:mb-6">
+                            <svg class="w-5 h-5 flex-shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <p class="text-sm text-amber-800 dark:text-amber-200">
+                                {{ trans_choice('{1} Hay :count cobro de las últimas 24 horas que todavía no figura en el reporte del proveedor.|[2,*] Hay :count cobros de las últimas 24 horas que todavía no figuran en el reporte del proveedor.', $soloSistemaRecientes, ['count' => $soloSistemaRecientes]) }}
+                                {{ __('El proveedor incluye los movimientos con algunas horas de demora: lo normal es que se concilien solos en una próxima conciliación, sin que tengas que hacer nada.') }}
+                            </p>
+                        </div>
+                    @endif
+
                     {{-- Filtro por clasificación + acciones --}}
                     <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-4 sm:mb-6">
                         <div class="p-4 sm:p-6">
@@ -111,6 +122,7 @@
                                 <div class="flex-1">
                                     <select wire:model.live="filtroClasificacion"
                                         class="w-full sm:w-72 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
+                                        <option value="novedades">{{ __('Novedades') }}</option>
                                         <option value="">{{ __('Todas las clasificaciones') }}</option>
                                         @foreach($clasificacionLabel as $valor => $label)
                                             <option value="{{ $valor }}">{{ $label }}</option>
@@ -312,7 +324,7 @@
                         <div class="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
                             <span>{{ $corrida->origen === 'programada' ? __('Programada') : __('Manual') }}</span>
                             <span>·</span>
-                            <span>{{ $corrida->total_matcheados }} {{ __('conciliados') }}</span>
+                            <span>{{ $corrida->total_matcheados }} {{ __('coincidencias') }}</span>
                             <span>·</span>
                             <span>{{ $corrida->total_solo_proveedor }} {{ __('por revisar') }}</span>
                         </div>

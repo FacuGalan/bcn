@@ -200,6 +200,47 @@ class ConciliacionesCuentaTest extends TestCase
         $this->assertEquals(-500, (float) $cuenta->fresh()->saldo_actual);
     }
 
+    public function test_detalle_arranca_en_novedades_oculta_ya_registrado_y_muestra_hint_de_lag(): void
+    {
+        $this->actuarComoAdmin();
+        $cuenta = $this->crearCuentaConciliable();
+        $corrida = $this->corridaEnRevision($cuenta);
+
+        // Ruido: fila ya materializada en una corrida anterior.
+        ConciliacionFila::create([
+            'conciliacion_cuenta_id' => $corrida->id,
+            'tipo' => ConciliacionFila::TIPO_COBRO,
+            'clasificacion' => ConciliacionFila::CLASIFICACION_YA_REGISTRADO,
+            'id_externo' => 'PAY-VIEJO',
+            'fecha' => now()->subDays(3),
+            'descripcion' => 'cobro viejo ya registrado',
+            'monto_bruto' => 100,
+            'monto_neto' => 100,
+            'accion' => ConciliacionFila::ACCION_SIN_ACCION,
+        ]);
+
+        // Cobro reciente sin contraparte en el reporte (lag del proveedor).
+        ConciliacionFila::create([
+            'conciliacion_cuenta_id' => $corrida->id,
+            'tipo' => ConciliacionFila::TIPO_COBRO,
+            'clasificacion' => ConciliacionFila::CLASIFICACION_SOLO_SISTEMA,
+            'fecha' => now()->subHours(2),
+            'descripcion' => 'cobro reciente solo sistema',
+            'monto_bruto' => 50,
+            'monto_neto' => 50,
+            'accion' => ConciliacionFila::ACCION_SIN_ACCION,
+        ]);
+
+        Livewire::test(ConciliacionesCuenta::class)
+            ->call('verDetalle', $corrida->id)
+            ->assertSet('filtroClasificacion', ConciliacionesCuenta::FILTRO_NOVEDADES)
+            ->assertSee('cobro reciente solo sistema')
+            ->assertDontSee('cobro viejo ya registrado')
+            ->assertSee('todavía no figura en el reporte del proveedor')
+            ->set('filtroClasificacion', '')
+            ->assertSee('cobro viejo ya registrado');
+    }
+
     public function test_descartar_con_permiso(): void
     {
         $this->actuarComoAdmin();
