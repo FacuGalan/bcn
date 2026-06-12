@@ -953,4 +953,156 @@ class MercadoPagoGatewayTest extends TestCase
         // El POS exige external_id estrictamente alfanumérico (sin guiones).
         $this->assertMatchesRegularExpression('/^[A-Za-z0-9]+$/', $posExt);
     }
+
+    // ==================== Reporte de cuenta (conciliación) ====================
+
+    public function test_solicitar_reporte_cuenta_envia_rango_y_devuelve_solicitud(): void
+    {
+        $config = $this->crearConfig();
+
+        Http::fake([
+            '*/v1/account/settlement_report/config' => Http::response(['columns' => [['key' => 'DATE']]], 200),
+            '*/v1/account/settlement_report' => Http::response([], 202),
+        ]);
+
+        $solicitud = $this->gateway->solicitarReporteCuenta(
+            $config,
+            new \DateTimeImmutable('2026-06-01'),
+            new \DateTimeImmutable('2026-06-10'),
+        );
+
+        // Solicitud = JSON con el rango pedido + cuándo se pidió (para que el
+        // matcheo del listado descarte reportes anteriores a la solicitud).
+        $datos = json_decode($solicitud, true);
+        $this->assertSame('2026-06-01T00:00:00Z', $datos['begin']);
+        $this->assertSame('2026-06-10T23:59:59Z', $datos['end']);
+        $this->assertNotEmpty($datos['solicitado_en']);
+        Http::assertSent(fn ($r) => $r->method() === 'POST'
+            && str_ends_with($r->url(), '/v1/account/settlement_report')
+            && $r['begin_date'] === '2026-06-01T00:00:00Z'
+            && $r['end_date'] === '2026-06-10T23:59:59Z');
+    }
+
+    public function test_solicitar_reporte_crea_la_config_si_no_existe(): void
+    {
+        $config = $this->crearConfig();
+
+        Http::fake([
+            '*/v1/account/settlement_report/config' => Http::sequence()
+                ->push(['message' => 'not found'], 404)
+                ->push(['columns' => []], 201),
+            '*/v1/account/settlement_report' => Http::response([], 202),
+        ]);
+
+        $this->gateway->solicitarReporteCuenta(
+            $config,
+            new \DateTimeImmutable('2026-06-01'),
+            new \DateTimeImmutable('2026-06-01'),
+        );
+
+        Http::assertSent(fn ($r) => $r->method() === 'POST'
+            && str_ends_with($r->url(), '/settlement_report/config')
+            && $r['include_withdraw'] === true);
+    }
+
+    public function test_obtener_reporte_devuelve_null_si_no_esta_listo(): void
+    {
+        $config = $this->crearConfig();
+
+        Http::fake([
+            '*/v1/account/settlement_report/list' => Http::response([
+                ['file_name' => 'otro-rango.csv', 'begin_date' => '2026-05-01T00:00:00Z', 'end_date' => '2026-05-31T23:59:59Z'],
+            ], 200),
+        ]);
+
+        $resultado = $this->gateway->obtenerReporteCuenta($config, '2026-06-01T00:00:00Z|2026-06-10T23:59:59Z');
+
+        $this->assertNull($resultado);
+    }
+
+    public function test_obtener_reporte_descarga_y_normaliza_todos_los_tipos(): void
+    {
+        $config = $this->crearConfig();
+
+        $csv = implode("\n", [
+            'TRANSACTION_TYPE,SOURCE_ID,EXTERNAL_REFERENCE,TRANSACTION_DATE,TRANSACTION_AMOUNT,FEE_AMOUNT,SETTLEMENT_NET_AMOUNT,PAYMENT_METHOD',
+            'SETTLEMENT,111,BCN-TX-1,2026-06-02T10:00:00.000-04:00,1000.00,-41.00,959.00,account_money',
+            'REFUND,222,,2026-06-03T11:00:00.000-04:00,-500.00,0,-500.00,credit_card',
+            'CHARGEBACK,333,,2026-06-04T12:00:00.000-04:00,-200.00,0,-200.00,credit_card',
+            'WITHDRAWAL,444,,2026-06-05T13:00:00.000-04:00,-3000.00,0,-3000.00,',
+            'WITHDRAWAL_CANCEL,555,,2026-06-06T14:00:00.000-04:00,3000.00,0,3000.00,',
+            'SOMETHING_NEW,666,,2026-06-07T15:00:00.000-04:00,750.00,0,750.00,',
+        ]);
+
+        Http::fake([
+            '*/v1/account/settlement_report/list' => Http::response([
+                ['file_name' => 'bcn-conciliacion-1.csv', 'begin_date' => '2026-06-01T00:00:00Z', 'end_date' => '2026-06-10T23:59:59Z'],
+            ], 200),
+            '*/v1/account/settlement_report/bcn-conciliacion-1.csv' => Http::response($csv, 200),
+        ]);
+
+        $resultado = $this->gateway->obtenerReporteCuenta($config, '2026-06-01T00:00:00Z|2026-06-10T23:59:59Z');
+
+        $this->assertSame('bcn-conciliacion-1.csv', $resultado['archivo']);
+        $filas = $resultado['filas'];
+        $this->assertCount(6, $filas);
+
+        $porId = collect($filas)->keyBy('id_externo');
+        $this->assertSame('cobro', $porId['111']['tipo']);
+        $this->assertSame('BCN-TX-1', $porId['111']['referencia']);
+        $this->assertEquals(1000.00, $porId['111']['monto_bruto']);
+        $this->assertEquals(41.00, $porId['111']['comision']);
+        $this->assertEquals(959.00, $porId['111']['monto_neto']);
+        $this->assertSame('2026-06-02', substr($porId['111']['fecha'], 0, 10));
+
+        $this->assertSame('devolucion', $porId['222']['tipo']);
+        $this->assertSame('contracargo', $porId['333']['tipo']);
+        $this->assertSame('retiro', $porId['444']['tipo']);
+        $this->assertSame('retiro_cancelado', $porId['555']['tipo']);
+        // Crédito de tipo desconocido → acreditación (rendiciones, transferencias).
+        $this->assertSame('acreditacion', $porId['666']['tipo']);
+    }
+
+    public function test_obtener_reporte_soporta_dialecto_net_credit_debit_y_separador_punto_y_coma(): void
+    {
+        $config = $this->crearConfig();
+
+        $csv = implode("\n", [
+            'DATE;SOURCE_ID;EXTERNAL_REFERENCE;RECORD_TYPE;DESCRIPTION;NET_CREDIT_AMOUNT;NET_DEBIT_AMOUNT;GROSS_AMOUNT;MP_FEE_AMOUNT',
+            '2026-06-02T10:00:00.000-04:00;777;BCN-TX-9;release;payment;959.00;0.00;1000.00;-41.00',
+            '2026-06-05T13:00:00.000-04:00;888;;release;withdrawal;0.00;3000.00;-3000.00;0.00',
+        ]);
+
+        Http::fake([
+            '*/v1/account/settlement_report/list' => Http::response([
+                ['file_name' => 'rep.csv', 'begin_date' => '2026-06-01T03:00:00Z', 'end_date' => '2026-06-10T03:00:00Z'],
+            ], 200),
+            '*/v1/account/settlement_report/rep.csv' => Http::response($csv, 200),
+        ]);
+
+        $resultado = $this->gateway->obtenerReporteCuenta($config, '2026-06-01T00:00:00Z|2026-06-10T23:59:59Z');
+
+        $filas = collect($resultado['filas'])->keyBy('id_externo');
+        $this->assertSame('cobro', $filas['777']['tipo']);
+        $this->assertEquals(959.00, $filas['777']['monto_neto']);
+        $this->assertEquals(41.00, $filas['777']['comision']);
+        $this->assertSame('retiro', $filas['888']['tipo']);
+        $this->assertEquals(-3000.00, $filas['888']['monto_neto']);
+    }
+
+    public function test_obtener_reporte_con_error_de_descarga_lanza_excepcion(): void
+    {
+        $config = $this->crearConfig();
+
+        Http::fake([
+            '*/v1/account/settlement_report/list' => Http::response([
+                ['file_name' => 'rep.csv', 'begin_date' => '2026-06-01T00:00:00Z', 'end_date' => '2026-06-10T23:59:59Z'],
+            ], 200),
+            '*/v1/account/settlement_report/rep.csv' => Http::response(['message' => 'forbidden'], 403),
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+
+        $this->gateway->obtenerReporteCuenta($config, '2026-06-01T00:00:00Z|2026-06-10T23:59:59Z');
+    }
 }

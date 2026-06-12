@@ -621,6 +621,62 @@ CREATE TABLE `{{PREFIX}}conceptos_pago` (
   KEY `{{PREFIX}}conceptos_pago_activo_index` (`activo`),
   KEY `{{PREFIX}}conceptos_pago_orden_index` (`orden`)
 ) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}conciliacion_filas`;
+CREATE TABLE `{{PREFIX}}conciliacion_filas` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `conciliacion_cuenta_id` bigint(20) unsigned NOT NULL,
+  `tipo` enum('cobro','comision','impuesto','devolucion','contracargo','retiro','retiro_cancelado','acreditacion','ajuste_inicial','otro') COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Tipo normalizado provider-agnostic',
+  `clasificacion` enum('matcheado','solo_proveedor','solo_sistema','ya_registrado') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `id_externo` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Id de la operación en el proveedor (MP = SOURCE_ID)',
+  `referencia` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Referencia que el sistema envió al cobrar (MP = EXTERNAL_REFERENCE)',
+  `fecha` datetime DEFAULT NULL COMMENT 'Fecha de la operación en el proveedor',
+  `descripcion` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `monto_bruto` decimal(15,2) NOT NULL DEFAULT '0.00',
+  `comision` decimal(15,2) NOT NULL DEFAULT '0.00',
+  `monto_neto` decimal(15,2) NOT NULL DEFAULT '0.00',
+  `accion` enum('generar_movimiento','ignorar','sin_accion') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'sin_accion' COMMENT 'Editable en la revisión. Propuestas arrancan en generar_movimiento',
+  `tipo_movimiento` enum('ingreso','egreso') COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Del movimiento propuesto',
+  `concepto_codigo` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Concepto del movimiento propuesto',
+  `integracion_pago_transaccion_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Transacción del sistema matcheada',
+  `movimiento_cuenta_empresa_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Movimiento generado al aplicar',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_concf_corrida_clasif` (`conciliacion_cuenta_id`,`clasificacion`),
+  KEY `idx_concf_id_externo` (`id_externo`),
+  KEY `idx_concf_transaccion` (`integracion_pago_transaccion_id`),
+  KEY `{{PREFIX}}fk_concf_movimiento` (`movimiento_cuenta_empresa_id`),
+  CONSTRAINT `{{PREFIX}}fk_concf_corrida` FOREIGN KEY (`conciliacion_cuenta_id`) REFERENCES `{{PREFIX}}conciliaciones_cuenta` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_concf_movimiento` FOREIGN KEY (`movimiento_cuenta_empresa_id`) REFERENCES `{{PREFIX}}movimientos_cuenta_empresa` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_concf_transaccion` FOREIGN KEY (`integracion_pago_transaccion_id`) REFERENCES `{{PREFIX}}integraciones_pago_transacciones` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}conciliaciones_cuenta`;
+CREATE TABLE `{{PREFIX}}conciliaciones_cuenta` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `cuenta_empresa_id` bigint(20) unsigned NOT NULL,
+  `desde` date NOT NULL,
+  `hasta` date NOT NULL,
+  `estado` enum('generando','pendiente_revision','aplicada','descartada','error') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'generando',
+  `origen` enum('manual','programada') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'manual',
+  `solicitud_reporte` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Identificador de la solicitud del reporte al proveedor (NULL = aún no solicitado)',
+  `archivo_reporte` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Nombre del archivo descargado del proveedor (auditoría)',
+  `saldo_sistema` decimal(15,2) DEFAULT NULL COMMENT 'Snapshot del saldo del ledger al crear la corrida',
+  `total_matcheados` int(11) NOT NULL DEFAULT '0',
+  `total_solo_proveedor` int(11) NOT NULL DEFAULT '0',
+  `total_solo_sistema` int(11) NOT NULL DEFAULT '0',
+  `monto_propuesto_ingresos` decimal(15,2) NOT NULL DEFAULT '0.00',
+  `monto_propuesto_egresos` decimal(15,2) NOT NULL DEFAULT '0.00',
+  `error_mensaje` text COLLATE utf8mb4_unicode_ci,
+  `usuario_id` bigint(20) unsigned DEFAULT NULL COMMENT 'FK lógico cross-DB a config.users. NULL = corrida programada',
+  `aplicada_por` bigint(20) unsigned DEFAULT NULL COMMENT 'FK lógico cross-DB a config.users',
+  `aplicada_en` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_concc_cuenta_estado` (`cuenta_empresa_id`,`estado`),
+  KEY `idx_concc_estado` (`estado`),
+  CONSTRAINT `{{PREFIX}}fk_concc_cuenta` FOREIGN KEY (`cuenta_empresa_id`) REFERENCES `{{PREFIX}}cuentas_empresa` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}configuracion_impresion`;
 CREATE TABLE `{{PREFIX}}configuracion_impresion` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -686,6 +742,7 @@ CREATE TABLE `{{PREFIX}}cuentas_empresa` (
   `tipo` enum('banco','billetera_digital') COLLATE utf8mb4_unicode_ci NOT NULL,
   `subtipo` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `identificador_externo` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Id de la cuenta en el proveedor de pago externo (MP = user_id). Match: (subtipo, identificador_externo)',
+  `conciliacion_automatica` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Crear corrida de conciliación diaria automática (solo cuentas con identificador_externo)',
   `banco` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `numero_cuenta` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `cbu` varchar(22) COLLATE utf8mb4_unicode_ci DEFAULT NULL,

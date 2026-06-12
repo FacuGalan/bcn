@@ -98,4 +98,38 @@ interface IntegracionPagoGatewayContract
      * @return array{subtipo: string, identificador_externo: string, nombre_sugerido: string}|null
      */
     public function identidadCuentaEmpresa(IntegracionPagoSucursal $config): ?array;
+
+    /**
+     * Solicita al proveedor el reporte de movimientos de la cuenta para un
+     * período (conciliación, Paso 3). Los proveedores con generación
+     * asíncrona (MP) disparan acá la generación; uno síncrono puede
+     * devolver un identificador y resolver todo en obtenerReporteCuenta().
+     *
+     * Devuelve un identificador opaco de la solicitud (para reclamar el
+     * resultado después) o null si el proveedor no soporta reportes de cuenta.
+     *
+     * @throws \RuntimeException con mensaje legible si el proveedor rechaza la solicitud
+     */
+    public function solicitarReporteCuenta(
+        IntegracionPagoSucursal $config,
+        \DateTimeInterface $desde,
+        \DateTimeInterface $hasta
+    ): ?string;
+
+    /**
+     * Reclama el resultado de una solicitud de reporte. Devuelve:
+     * - null si el reporte todavía no está listo (reintentarse después);
+     * - array de filas normalizadas provider-agnostic si está listo:
+     *   cada fila = ['tipo' => cobro|devolucion|contracargo|retiro|retiro_cancelado|acreditacion|otro,
+     *   'id_externo', 'referencia', 'fecha' (Y-m-d H:i:s|null), 'descripcion',
+     *   'monto_bruto', 'comision', 'monto_neto'].
+     *
+     * @return array{filas: array, archivo: string}|null
+     *
+     * @throws \RuntimeException con mensaje legible si la descarga/parseo falla
+     */
+    public function obtenerReporteCuenta(
+        IntegracionPagoSucursal $config,
+        string $solicitud
+    ): ?array;
 }

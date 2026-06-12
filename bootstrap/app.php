@@ -36,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
         $schedule->command('precios:procesar-programados')->everyMinute();
         $schedule->command('integraciones-pago:expirar-pendientes')->everyMinute()->withoutOverlapping();
+        $schedule->command('conciliaciones:procesar')->everyMinute()->withoutOverlapping();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

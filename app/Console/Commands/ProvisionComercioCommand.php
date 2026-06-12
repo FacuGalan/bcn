@@ -701,6 +701,12 @@ class ProvisionComercioCommand extends Command
             ['codigo' => 'ajuste', 'nombre' => 'Ajuste', 'tipo' => 'ambos', 'es_sistema' => false, 'orden' => 10],
             ['codigo' => 'otro', 'nombre' => 'Otro', 'tipo' => 'ambos', 'es_sistema' => false, 'orden' => 11],
             ['codigo' => 'cobro_integracion', 'nombre' => 'Cobro por integración de pago', 'tipo' => 'ingreso', 'es_sistema' => true, 'orden' => 12],
+            ['codigo' => 'comision_integracion', 'nombre' => 'Comisión del proveedor de pago', 'tipo' => 'egreso', 'es_sistema' => true, 'orden' => 13],
+            ['codigo' => 'retiro_integracion', 'nombre' => 'Retiro a banco desde el proveedor', 'tipo' => 'egreso', 'es_sistema' => true, 'orden' => 14],
+            ['codigo' => 'devolucion_integracion', 'nombre' => 'Devolución/contracargo en el proveedor', 'tipo' => 'egreso', 'es_sistema' => true, 'orden' => 15],
+            ['codigo' => 'acreditacion_integracion', 'nombre' => 'Acreditación en el proveedor de pago', 'tipo' => 'ingreso', 'es_sistema' => true, 'orden' => 16],
+            ['codigo' => 'ajuste_conciliacion', 'nombre' => 'Ajuste por conciliación', 'tipo' => 'ambos', 'es_sistema' => true, 'orden' => 17],
+            ['codigo' => 'impuesto_integracion', 'nombre' => 'Impuestos y retenciones del proveedor de pago', 'tipo' => 'egreso', 'es_sistema' => true, 'orden' => 18],
         ];
 
         foreach ($conceptos as $concepto) {

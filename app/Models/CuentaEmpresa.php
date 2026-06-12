@@ -31,6 +31,7 @@ class CuentaEmpresa extends Model
         'tipo',
         'subtipo',
         'identificador_externo',
+        'conciliacion_automatica',
         'banco',
         'numero_cuenta',
         'cbu',
@@ -46,6 +47,7 @@ class CuentaEmpresa extends Model
     protected $casts = [
         'saldo_actual' => 'decimal:2',
         'activo' => 'boolean',
+        'conciliacion_automatica' => 'boolean',
         'orden' => 'integer',
     ];
 
@@ -66,6 +68,11 @@ class CuentaEmpresa extends Model
     public function movimientos(): HasMany
     {
         return $this->hasMany(MovimientoCuentaEmpresa::class, 'cuenta_empresa_id');
+    }
+
+    public function conciliaciones(): HasMany
+    {
+        return $this->hasMany(ConciliacionCuenta::class, 'cuenta_empresa_id');
     }
 
     // ==================== Scopes ====================

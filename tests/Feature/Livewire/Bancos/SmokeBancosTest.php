@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Livewire\Bancos;
 
+use App\Livewire\Bancos\ConciliacionesCuenta;
 use App\Livewire\Bancos\GestionCuentas;
 use App\Livewire\Bancos\MovimientosCuenta;
 use App\Livewire\Bancos\ResumenCuentas;
@@ -53,5 +54,10 @@ class SmokeBancosTest extends TestCase
     public function test_transferencias_cuenta_monta(): void
     {
         Livewire::test(TransferenciasCuenta::class)->assertOk();
+    }
+
+    public function test_conciliaciones_cuenta_monta(): void
+    {
+        Livewire::test(ConciliacionesCuenta::class)->assertOk();
     }
 }
