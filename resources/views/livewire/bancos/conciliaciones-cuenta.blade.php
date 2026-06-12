@@ -30,6 +30,7 @@
             $tipoLabel = [
                 'cobro' => __('Cobro'),
                 'comision' => __('Comisión'),
+                'impuesto' => __('Impuesto/Retención'),
                 'devolucion' => __('Devolución'),
                 'contracargo' => __('Contracargo'),
                 'retiro' => __('Retiro'),

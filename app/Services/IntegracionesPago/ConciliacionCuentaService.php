@@ -46,7 +46,11 @@ class ConciliacionCuentaService
         ConciliacionFila::TIPO_DEVOLUCION => ['egreso', 'devolucion_integracion'],
         ConciliacionFila::TIPO_CONTRACARGO => ['egreso', 'devolucion_integracion'],
         ConciliacionFila::TIPO_RETIRO => ['egreso', 'retiro_integracion'],
+        ConciliacionFila::TIPO_IMPUESTO => ['egreso', 'impuesto_integracion'],
     ];
+
+    /** Límite del proveedor: los reportes cubren hasta 60 días (doc MP). */
+    private const MAX_DIAS_PERIODO = 60;
 
     /**
      * Crea una corrida de conciliación en estado `generando` (RF-03).
@@ -66,6 +70,10 @@ class ConciliacionCuentaService
 
         if ($desde->greaterThan($hasta)) {
             throw new \RuntimeException(__('El período de conciliación es inválido'));
+        }
+
+        if ($desde->diffInDays($hasta) > self::MAX_DIAS_PERIODO) {
+            throw new \RuntimeException(__('El proveedor solo genera reportes de hasta :dias días', ['dias' => self::MAX_DIAS_PERIODO]));
         }
 
         if ($this->resolverConfigParaCuenta($cuenta) === null) {
@@ -264,18 +272,25 @@ class ConciliacionCuentaService
 
             $cuenta = $corrida->cuentaEmpresa;
 
-            // Universo sistema: cobros por integración del período (±1 día por timezone).
+            // Universo de MATCHEO: TODOS los cobros por integración de la
+            // cuenta, sin filtro de fecha — una liquidación tardía del
+            // proveedor (lag de su pipeline) puede traer en este reporte un
+            // cobro confirmado días antes del período, y si no lo matcheamos
+            // se propondría un ingreso DUPLICADO como solo_proveedor.
             $movimientosSistema = MovimientoCuentaEmpresa::where('cuenta_empresa_id', $cuenta->id)
                 ->where('origen_tipo', 'IntegracionPagoTransaccion')
                 ->where('estado', 'activo')
                 ->get();
 
-            $transacciones = IntegracionPagoTransaccion::whereIn('id', $movimientosSistema->pluck('origen_id'))
-                ->whereBetween('confirmado_en', [
-                    $corrida->desde->copy()->startOfDay()->subDay(),
-                    $corrida->hasta->copy()->endOfDay()->addDay(),
-                ])
-                ->get();
+            $transacciones = IntegracionPagoTransaccion::whereIn('id', $movimientosSistema->pluck('origen_id'))->get();
+
+            // Universo de ALERTA solo-sistema: solo lo confirmado dentro del
+            // período (±1 día por timezone) — lo anterior ya fue alertado o
+            // conciliado por corridas previas.
+            $ventanaSoloSistema = [
+                $corrida->desde->copy()->startOfDay()->subDay(),
+                $corrida->hasta->copy()->endOfDay()->addDay(),
+            ];
 
             $porReferencia = $transacciones->whereNotNull('external_reference')->keyBy('external_reference');
             $porIdExterno = $transacciones->whereNotNull('external_id')->keyBy('external_id');
@@ -298,6 +313,12 @@ class ConciliacionCuentaService
             // Solo-sistema: cobros del ledger sin contraparte en el reporte (alerta).
             foreach ($transacciones as $transaccion) {
                 if (isset($transaccionesMatcheadas[$transaccion->id])) {
+                    continue;
+                }
+
+                if ($transaccion->confirmado_en === null
+                    || $transaccion->confirmado_en->lt($ventanaSoloSistema[0])
+                    || $transaccion->confirmado_en->gt($ventanaSoloSistema[1])) {
                     continue;
                 }
 
@@ -406,6 +427,35 @@ class ConciliacionCuentaService
                     ]);
                 }
 
+                // Deducciones MÁS ALLÁ de la comisión (retenciones y
+                // percepciones impositivas dentro del cobro): si el neto del
+                // proveedor no cierra con bruto - comisión, el residuo se
+                // propone como egreso de impuestos para que el saldo
+                // converja. El cálculo impositivo fino por condición de IVA
+                // es un feature aparte; acá registramos lo ya descontado.
+                $residuo = round((float) $base['monto_bruto'] - $comision - (float) $base['monto_neto'], 2);
+                if ($residuo > self::EPSILON) {
+                    $yaImpuesto = $idExterno !== null && isset($yaRegistradas[ConciliacionFila::TIPO_IMPUESTO.'|'.$idExterno]);
+
+                    ConciliacionFila::create([
+                        'conciliacion_cuenta_id' => $corrida->id,
+                        'tipo' => ConciliacionFila::TIPO_IMPUESTO,
+                        'clasificacion' => $yaImpuesto
+                            ? ConciliacionFila::CLASIFICACION_YA_REGISTRADO
+                            : ConciliacionFila::CLASIFICACION_MATCHEADO,
+                        'id_externo' => $idExterno,
+                        'referencia' => $fila['referencia'] ?? null,
+                        'fecha' => $fila['fecha'] ?? null,
+                        'descripcion' => __('Impuestos/retenciones sobre cobro').' '.($fila['referencia'] ?? $idExterno ?? ''),
+                        'monto_bruto' => $residuo,
+                        'monto_neto' => $residuo,
+                        'accion' => $yaImpuesto ? ConciliacionFila::ACCION_SIN_ACCION : ConciliacionFila::ACCION_GENERAR_MOVIMIENTO,
+                        'tipo_movimiento' => 'egreso',
+                        'concepto_codigo' => 'impuesto_integracion',
+                        'integracion_pago_transaccion_id' => $transaccion->id,
+                    ]);
+                }
+
                 return;
             }
         }
@@ -415,6 +465,12 @@ class ConciliacionCuentaService
             $base['monto_neto'] >= 0 ? 'ingreso' : 'egreso',
             'ajuste_conciliacion',
         ];
+
+        // Anulación/devolución de un impuesto (tax_*_cancel, neto positivo):
+        // entra plata, no sale — mismo patrón que retiro_cancelado.
+        if ($tipo === ConciliacionFila::TIPO_IMPUESTO && $base['monto_neto'] > 0) {
+            [$tipoMovimiento, $concepto] = ['ingreso', 'acreditacion_integracion'];
+        }
 
         // `otro` queda informativo: el usuario decide activarlo (default ignorar).
         $accion = $tipo === ConciliacionFila::TIPO_OTRO

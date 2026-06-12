@@ -317,11 +317,15 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
 
     /**
      * Mapa TRANSACTION_TYPE/DESCRIPTION de MP → tipo normalizado del contrato.
-     * El orden importa: withdrawal_cancel antes que withdrawal.
+     * El orden importa: `tax` PRIMERO (tax_payment_iibb contiene "payment" y
+     * tax_withholding_payout contiene "payout" — sin esto se clasifican como
+     * cobro/retiro con el signo al revés), withdrawal_cancel antes que
+     * withdrawal.
      */
     private function normalizarTipoReporte(string $tipoCrudo, float $neto): string
     {
         return match (true) {
+            str_contains($tipoCrudo, 'tax') => 'impuesto',
             str_contains($tipoCrudo, 'settlement'), str_contains($tipoCrudo, 'payment') => 'cobro',
             str_contains($tipoCrudo, 'refund') => 'devolucion',
             str_contains($tipoCrudo, 'chargeback'), str_contains($tipoCrudo, 'dispute'), str_contains($tipoCrudo, 'mediation') => 'contracargo',

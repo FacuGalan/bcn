@@ -52,6 +52,8 @@ class ConciliacionFila extends Model
 
     public const TIPO_COMISION = 'comision';
 
+    public const TIPO_IMPUESTO = 'impuesto';
+
     public const TIPO_DEVOLUCION = 'devolucion';
 
     public const TIPO_CONTRACARGO = 'contracargo';

@@ -625,7 +625,7 @@ DROP TABLE IF EXISTS `{{PREFIX}}conciliacion_filas`;
 CREATE TABLE `{{PREFIX}}conciliacion_filas` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `conciliacion_cuenta_id` bigint(20) unsigned NOT NULL,
-  `tipo` enum('cobro','comision','devolucion','contracargo','retiro','retiro_cancelado','acreditacion','ajuste_inicial','otro') COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Tipo normalizado provider-agnostic',
+  `tipo` enum('cobro','comision','impuesto','devolucion','contracargo','retiro','retiro_cancelado','acreditacion','ajuste_inicial','otro') COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Tipo normalizado provider-agnostic',
   `clasificacion` enum('matcheado','solo_proveedor','solo_sistema','ya_registrado') COLLATE utf8mb4_unicode_ci NOT NULL,
   `id_externo` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Id de la operación en el proveedor (MP = SOURCE_ID)',
   `referencia` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Referencia que el sistema envió al cobrar (MP = EXTERNAL_REFERENCE)',

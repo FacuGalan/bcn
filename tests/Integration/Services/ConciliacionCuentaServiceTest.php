@@ -61,6 +61,7 @@ class ConciliacionCuentaServiceTest extends TestCase
             ['codigo' => 'devolucion_integracion', 'nombre' => 'Devolución/contracargo en el proveedor', 'tipo' => 'egreso'],
             ['codigo' => 'acreditacion_integracion', 'nombre' => 'Acreditación en el proveedor de pago', 'tipo' => 'ingreso'],
             ['codigo' => 'ajuste_conciliacion', 'nombre' => 'Ajuste por conciliación', 'tipo' => 'ambos'],
+            ['codigo' => 'impuesto_integracion', 'nombre' => 'Impuestos y retenciones del proveedor de pago', 'tipo' => 'egreso'],
         ];
         foreach ($conceptos as $i => $concepto) {
             ConceptoMovimientoCuenta::firstOrCreate(
@@ -114,7 +115,7 @@ class ConciliacionCuentaServiceTest extends TestCase
     /**
      * Transacción confirmada + su movimiento de ledger (como lo deja el Paso 2).
      */
-    private function crearCobroDelSistema(CuentaEmpresa $cuenta, IntegracionPagoSucursal $config, string $ref, float $monto): IntegracionPagoTransaccion
+    private function crearCobroDelSistema(CuentaEmpresa $cuenta, IntegracionPagoSucursal $config, string $ref, float $monto, ?\Illuminate\Support\Carbon $confirmadoEn = null): IntegracionPagoTransaccion
     {
         $formaPago = FormaPago::firstOrCreate(
             ['codigo' => 'QR_CONC'],
@@ -130,7 +131,7 @@ class ConciliacionCuentaServiceTest extends TestCase
             'monto' => $monto,
             'external_reference' => $ref,
             'estado' => IntegracionPagoTransaccion::ESTADO_CONFIRMADO,
-            'confirmado_en' => now(),
+            'confirmado_en' => $confirmadoEn ?? now(),
         ]);
 
         CuentaEmpresaService::registrarMovimientoAutomatico(
@@ -339,6 +340,114 @@ class ConciliacionCuentaServiceTest extends TestCase
         $this->assertSame(1, $corrida->total_matcheados);
         $this->assertSame(3, $corrida->total_solo_proveedor);
         $this->assertSame(1, $corrida->total_solo_sistema);
+    }
+
+    public function test_crear_corrida_falla_con_periodo_mayor_al_limite_del_proveedor(): void
+    {
+        $this->crearConfigProd();
+        $cuenta = $this->crearCuentaVinculada();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('60');
+
+        $this->service->crearCorrida($cuenta, now()->subDays(61), now(), 1);
+    }
+
+    public function test_cobro_con_retenciones_propone_impuesto_por_el_residuo(): void
+    {
+        $config = $this->crearConfigProd();
+        $cuenta = $this->crearCuentaVinculada();
+        $this->crearCobroDelSistema($cuenta, $config, 'BCN-TX-1', 1000.00);
+
+        // Neto 940: bruto 1000 - comisión 41 - retenciones 19.
+        $fecha = now()->subDay()->format('Y-m-d\TH:i:s.000-04:00');
+        $csv = implode("\n", [
+            $this->csvHeader(),
+            "SETTLEMENT,111,BCN-TX-1,{$fecha},1000.00,-41.00,940.00",
+        ]);
+
+        $corrida = $this->conciliarConReporte($cuenta, $csv);
+        $filas = ConciliacionFila::where('conciliacion_cuenta_id', $corrida->id)->get();
+
+        $impuesto = $filas->firstWhere('tipo', ConciliacionFila::TIPO_IMPUESTO);
+        $this->assertNotNull($impuesto, 'El residuo bruto - comisión - neto debe proponerse como impuesto');
+        $this->assertSame(ConciliacionFila::CLASIFICACION_MATCHEADO, $impuesto->clasificacion);
+        $this->assertSame(ConciliacionFila::ACCION_GENERAR_MOVIMIENTO, $impuesto->accion);
+        $this->assertSame('egreso', $impuesto->tipo_movimiento);
+        $this->assertSame('impuesto_integracion', $impuesto->concepto_codigo);
+        $this->assertEquals(19.00, (float) $impuesto->monto_neto);
+
+        // Al aplicar el saldo converge al neto real: 1000 - 41 - 19 = 940.
+        $this->service->aplicar($corrida, 7);
+        $this->assertEquals(940.00, (float) $cuenta->fresh()->saldo_actual);
+    }
+
+    public function test_filas_de_impuestos_del_reporte_proponen_movimiento_con_el_signo_correcto(): void
+    {
+        $this->crearConfigProd();
+        $cuenta = $this->crearCuentaVinculada();
+
+        // tax_payment_iibb contiene "payment": sin el mapeo de tax iría a
+        // cobro y propondría un INGRESO por un monto negativo.
+        $fecha = now()->subDay()->format('Y-m-d\TH:i:s.000-04:00');
+        $csv = implode("\n", [
+            $this->csvHeader(),
+            "TAX_PAYMENT_IIBB,555,,{$fecha},-25.00,0,-25.00",
+            "TAX_PAYMENT_IIBB_CANCEL,556,,{$fecha},10.00,0,10.00",
+        ]);
+
+        $corrida = $this->conciliarConReporte($cuenta, $csv);
+        $filas = ConciliacionFila::where('conciliacion_cuenta_id', $corrida->id)->get();
+
+        $percepcion = $filas->firstWhere('id_externo', '555');
+        $this->assertSame(ConciliacionFila::TIPO_IMPUESTO, $percepcion->tipo);
+        $this->assertSame(ConciliacionFila::CLASIFICACION_SOLO_PROVEEDOR, $percepcion->clasificacion);
+        $this->assertSame(ConciliacionFila::ACCION_GENERAR_MOVIMIENTO, $percepcion->accion);
+        $this->assertSame('egreso', $percepcion->tipo_movimiento);
+        $this->assertSame('impuesto_integracion', $percepcion->concepto_codigo);
+
+        // Devolución de percepción (neto positivo) → ingreso.
+        $devolucion = $filas->firstWhere('id_externo', '556');
+        $this->assertSame(ConciliacionFila::TIPO_IMPUESTO, $devolucion->tipo);
+        $this->assertSame('ingreso', $devolucion->tipo_movimiento);
+        $this->assertSame('acreditacion_integracion', $devolucion->concepto_codigo);
+
+        // Aplicar: -25 + 10 = -15.
+        $this->service->aplicar($corrida, 7);
+        $this->assertEquals(-15.00, (float) $cuenta->fresh()->saldo_actual);
+    }
+
+    public function test_cobro_viejo_liquidado_tarde_matchea_y_no_duplica_ingreso(): void
+    {
+        $config = $this->crearConfigProd();
+        $cuenta = $this->crearCuentaVinculada();
+        // Confirmado 20 días atrás, FUERA del período de 7 días de la corrida:
+        // el lag del proveedor puede traerlo recién en este reporte.
+        $this->crearCobroDelSistema($cuenta, $config, 'BCN-TX-VIEJO', 500.00, now()->subDays(20));
+        // Otro cobro viejo que NO viene en el reporte: no debe alertarse
+        // como solo_sistema (está fuera del período).
+        $this->crearCobroDelSistema($cuenta, $config, 'BCN-TX-VIEJO-2', 300.00, now()->subDays(20));
+
+        $fecha = now()->subDay()->format('Y-m-d\TH:i:s.000-04:00');
+        $csv = implode("\n", [
+            $this->csvHeader(),
+            "SETTLEMENT,111,BCN-TX-VIEJO,{$fecha},500.00,-5.00,495.00",
+        ]);
+
+        $corrida = $this->conciliarConReporte($cuenta, $csv);
+        $filas = ConciliacionFila::where('conciliacion_cuenta_id', $corrida->id)->get();
+
+        // Matchea contra la transacción vieja: NO propone ingreso duplicado.
+        $cobro = $filas->firstWhere('id_externo', '111');
+        $this->assertSame(ConciliacionFila::CLASIFICACION_MATCHEADO, $cobro->clasificacion);
+        $this->assertSame(ConciliacionFila::ACCION_SIN_ACCION, $cobro->accion);
+
+        // Sin alertas solo_sistema por cobros fuera del período.
+        $this->assertSame(0, $filas->where('clasificacion', ConciliacionFila::CLASIFICACION_SOLO_SISTEMA)->count());
+
+        // Solo la comisión se propone: el saldo queda 800 (cobros) - 5 = 795.
+        $this->service->aplicar($corrida, 7);
+        $this->assertEquals(795.00, (float) $cuenta->fresh()->saldo_actual);
     }
 
     // ==================== Aplicar (RF-06) ====================
