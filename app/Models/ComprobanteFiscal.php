@@ -118,6 +118,15 @@ class ComprobanteFiscal extends Model
         return $this->hasMany(ComprobanteFiscalItem::class);
     }
 
+    /**
+     * Desglose de tributos no-IVA (sistema-impositivo RF-04): percepciones
+     * IIBB y otros tributos calculados al emitir.
+     */
+    public function tributosDetalle(): HasMany
+    {
+        return $this->hasMany(ComprobanteFiscalTributo::class);
+    }
+
     public function ventas(): BelongsToMany
     {
         return $this->belongsToMany(Venta::class, 'comprobante_fiscal_ventas')

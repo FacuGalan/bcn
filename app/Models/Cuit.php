@@ -100,6 +100,22 @@ class Cuit extends Model
     }
 
     /**
+     * Configuración impositiva del CUIT (sistema-impositivo RF-02)
+     */
+    public function impuestoConfigs(): HasMany
+    {
+        return $this->hasMany(CuitImpuestoConfig::class);
+    }
+
+    /**
+     * Ledger fiscal del CUIT (sistema-impositivo RF-03)
+     */
+    public function movimientosFiscales(): HasMany
+    {
+        return $this->hasMany(MovimientoFiscal::class);
+    }
+
+    /**
      * Relación con sucursales
      */
     public function sucursales(): BelongsToMany
