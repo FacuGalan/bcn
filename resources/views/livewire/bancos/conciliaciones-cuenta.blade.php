@@ -455,10 +455,10 @@
                 @endif
                 @if($this->esPrimeraConciliacion)
                     <div class="mt-4">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Saldo real en el proveedor al inicio del período') }} ({{ __('opcional') }})</label>
-                        <input wire:model="saldoInicialProveedor" type="text" inputmode="decimal" placeholder="0,00"
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Saldo real total en el proveedor') }} ({{ __('opcional') }})</label>
+                        <input wire:model="saldoFinalProveedor" type="text" inputmode="decimal" placeholder="0,00"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Si lo completa, se generará un ajuste inicial por la diferencia con el saldo del sistema a esa fecha') }}</p>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Es su primera conciliación: ingrese el saldo total actual de la cuenta en el proveedor (disponible + a liberar + reserva). Se generará un ajuste inicial por la diferencia y el saldo del sistema quedará igual al real.') }}</p>
                     </div>
                 @endif
             </x-slot:body>

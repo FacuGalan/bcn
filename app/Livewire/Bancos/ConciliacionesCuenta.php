@@ -53,7 +53,7 @@ class ConciliacionesCuenta extends Component
     // Confirmaciones aplicar / descartar.
     public bool $showConfirmAplicar = false;
 
-    public string $saldoInicialProveedor = '';
+    public string $saldoFinalProveedor = '';
 
     public bool $showConfirmDescartar = false;
 
@@ -164,7 +164,7 @@ class ConciliacionesCuenta extends Component
             return;
         }
 
-        $this->saldoInicialProveedor = '';
+        $this->saldoFinalProveedor = '';
         $this->showConfirmAplicar = true;
     }
 
@@ -176,13 +176,13 @@ class ConciliacionesCuenta extends Component
             return;
         }
 
-        $saldoInicial = null;
-        if ($this->esPrimeraConciliacion && trim($this->saldoInicialProveedor) !== '') {
-            $saldoInicial = (float) str_replace(',', '.', $this->saldoInicialProveedor);
+        $saldoFinal = null;
+        if ($this->esPrimeraConciliacion && trim($this->saldoFinalProveedor) !== '') {
+            $saldoFinal = $this->parsearMonto($this->saldoFinalProveedor);
         }
 
         try {
-            app(ConciliacionCuentaService::class)->aplicar($corrida, auth()->id(), $saldoInicial);
+            app(ConciliacionCuentaService::class)->aplicar($corrida, auth()->id(), $saldoFinal);
         } catch (\RuntimeException $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
 
@@ -220,6 +220,25 @@ class ConciliacionesCuenta extends Component
 
         $this->showConfirmDescartar = false;
         $this->dispatch('toast-success', message: __('Conciliación descartada'));
+    }
+
+    /**
+     * Tolera formato argentino ("23.607.226,75") y de máquina ("23607226.75").
+     */
+    private function parsearMonto(string $valor): float
+    {
+        $valor = trim(str_replace(' ', '', $valor));
+
+        if (str_contains($valor, ',')) {
+            // Con coma decimal, los puntos son separadores de miles.
+            $valor = str_replace('.', '', $valor);
+            $valor = str_replace(',', '.', $valor);
+        } elseif (substr_count($valor, '.') > 1) {
+            // Varios puntos sin coma: son miles ("23.607.226").
+            $valor = str_replace('.', '', $valor);
+        }
+
+        return (float) $valor;
     }
 
     // ==================== Computed ====================

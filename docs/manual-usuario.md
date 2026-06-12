@@ -1854,7 +1854,7 @@ Cada fila propuesta tiene un toggle **"Generar movimiento / Ignorar"** que puede
 
 #### Ajuste inicial (primera conciliacion de una cuenta)
 
-Si la cuenta no tiene ninguna conciliacion aplicada anteriormente, aparece un campo opcional **"Saldo real en el proveedor al inicio del periodo"**. Si lo completa, el sistema calcula la diferencia entre ese saldo y el que tenia el ledger en esa fecha y propone un movimiento de ajuste (ingreso o egreso segun el signo) que se aplica junto con el resto.
+Si la cuenta no tiene ninguna conciliacion aplicada anteriormente, aparece un campo opcional **"Saldo real total en el proveedor"**: el saldo ACTUAL de la cuenta tal como se ve en la app del proveedor (disponible + a liberar + reserva). Si lo completa, el sistema aplica primero todos los movimientos de la conciliacion y despues registra un ajuste inicial por la diferencia, dejando el saldo del sistema exactamente igual al real.
 
 #### Aplicar los ajustes
 

@@ -471,22 +471,31 @@ class ConciliacionCuentaServiceTest extends TestCase
 
     // ==================== Ajuste inicial (RF-07) ====================
 
-    public function test_ajuste_inicial_genera_movimiento_por_la_diferencia(): void
+    public function test_ajuste_inicial_converge_al_saldo_real_informado(): void
     {
         $this->crearConfigProd();
         $cuenta = $this->crearCuentaVinculada();
 
-        $corrida = $this->conciliarConReporte($cuenta, $this->csvHeader());
+        // Reporte con un retiro de $500: tras aplicarlo el ledger queda en -500.
+        $fecha = now()->subDay()->format('Y-m-d\TH:i:s.000-04:00');
+        $csv = implode("\n", [
+            $this->csvHeader(),
+            "WITHDRAWAL,333,,{$fecha},-500.00,0,-500.00",
+        ]);
+        $corrida = $this->conciliarConReporte($cuenta, $csv);
 
-        // El proveedor tenía $750 al inicio del período; el ledger, $0.
+        // El usuario informa que el saldo REAL total del proveedor es $750:
+        // el ajuste se calcula DESPUÉS de los movimientos (750 - (-500) = 1250)
+        // y la cuenta queda exactamente en el saldo real.
         $this->service->aplicar($corrida, 7, 750.00);
 
-        $ajuste = MovimientoCuentaEmpresa::where('cuenta_empresa_id', $cuenta->id)->first();
-        $this->assertNotNull($ajuste);
+        $ajuste = MovimientoCuentaEmpresa::where('cuenta_empresa_id', $cuenta->id)
+            ->get()
+            ->first(fn ($m) => (float) $m->monto === 1250.00);
+        $this->assertNotNull($ajuste, 'Debe generarse el ajuste por la diferencia post-conciliación');
         $this->assertSame('ingreso', $ajuste->tipo);
-        $this->assertEquals(750.00, (float) $ajuste->monto);
         $this->assertSame('ConciliacionFila', $ajuste->origen_tipo);
-        $this->assertEquals(750.00, (float) $cuenta->fresh()->saldo_actual);
+        $this->assertEquals(750.00, (float) $cuenta->fresh()->saldo_actual, 'La cuenta debe quedar en el saldo real informado');
 
         $fila = ConciliacionFila::find($ajuste->origen_id);
         $this->assertSame(ConciliacionFila::TIPO_AJUSTE_INICIAL, $fila->tipo);

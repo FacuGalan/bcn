@@ -2466,7 +2466,7 @@ El metodo `pollearCobroIntegracion()` del concern tiene un short-circuit explici
 
 11. **Corrida programada nunca auto-aplica**: la corrida creada por el comando (flag `conciliacion_automatica`) siempre queda `pendiente_revision`. La aplicacion siempre requiere accion humana.
 
-12. **Ajuste inicial (cierre de D11)**: si la cuenta no tiene ninguna corrida `aplicada` previa, la pantalla de revision ofrece el campo "Saldo real en el proveedor al inicio del periodo". Si se completa, se genera una fila de `tipo=ajuste_inicial` con movimiento `ajuste_conciliacion` (ingreso o egreso segun el signo de la diferencia) que se aplica junto con el resto.
+12. **Ajuste inicial (cierre de D11)**: si la cuenta no tiene ninguna corrida `aplicada` previa, al aplicar se ofrece el campo "Saldo real total en el proveedor" (saldo ACTUAL: disponible + a liberar + reserva). El ajuste se registra DESPUES de los movimientos de la corrida: fila `tipo=ajuste_inicial` con movimiento `ajuste_conciliacion` por `saldo_real - saldo_ledger_conciliado`, dejando la cuenta exactamente en el saldo real. MP no expone el saldo por API a tokens estandar (403), por eso es ingreso manual.
 
 13. **Genericidad del gateway**: `solicitarReporteCuenta()` y `obtenerReporteCuenta()` son metodos del contrato `IntegracionPagoGatewayContract`. La implementacion MP-especifica (endpoints `/v1/account/settlement_report/*`, parseo de CSV, mapeo de TRANSACTION_TYPE a tipo normalizado) vive exclusivamente en `MercadoPagoGateway`. Un proveedor que no soporte reportes devuelve `null` en `solicitarReporteCuenta()`.
 

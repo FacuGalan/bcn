@@ -451,13 +451,14 @@ class ConciliacionCuentaService
     /**
      * Aplica la corrida (RF-06): genera un MovimientoCuentaEmpresa por cada
      * fila con acción generar_movimiento (origen 'ConciliacionFila') y, si
-     * corresponde, el ajuste inicial (RF-07). Idempotente: una corrida ya
-     * aplicada se devuelve tal cual; una fila ya materializada en otra corrida
-     * se saltea y queda marcada ya_registrado.
+     * corresponde, el ajuste inicial (RF-07: el usuario informa el saldo REAL
+     * del proveedor al cierre y la cuenta converge exacto). Idempotente: una
+     * corrida ya aplicada se devuelve tal cual; una fila ya materializada en
+     * otra corrida se saltea y queda marcada ya_registrado.
      */
-    public function aplicar(ConciliacionCuenta $corrida, int $usuarioId, ?float $saldoInicialProveedor = null): ConciliacionCuenta
+    public function aplicar(ConciliacionCuenta $corrida, int $usuarioId, ?float $saldoFinalProveedor = null): ConciliacionCuenta
     {
-        return DB::connection('pymes_tenant')->transaction(function () use ($corrida, $usuarioId, $saldoInicialProveedor) {
+        return DB::connection('pymes_tenant')->transaction(function () use ($corrida, $usuarioId, $saldoFinalProveedor) {
             $corrida = ConciliacionCuenta::lockForUpdate()->findOrFail($corrida->id);
 
             if ($corrida->estaAplicada()) {
@@ -469,10 +470,6 @@ class ConciliacionCuentaService
             }
 
             $cuenta = $corrida->cuentaEmpresa;
-
-            if ($saldoInicialProveedor !== null) {
-                $this->aplicarAjusteInicial($corrida, $cuenta, $usuarioId, $saldoInicialProveedor);
-            }
 
             $filas = ConciliacionFila::where('conciliacion_cuenta_id', $corrida->id)
                 ->propuestas()
@@ -512,6 +509,13 @@ class ConciliacionCuentaService
                 $fila->update(['movimiento_cuenta_empresa_id' => $movimiento->id]);
             }
 
+            // El ajuste va DESPUÉS de los movimientos: la diferencia se mide
+            // contra el saldo del ledger ya conciliado, así la cuenta queda
+            // exactamente en el saldo real informado.
+            if ($saldoFinalProveedor !== null) {
+                $this->aplicarAjusteInicial($corrida, $cuenta, $usuarioId, $saldoFinalProveedor);
+            }
+
             $this->recalcularTotales($corrida);
 
             $corrida->update([
@@ -532,15 +536,20 @@ class ConciliacionCuentaService
 
     /**
      * Ajuste inicial (RF-07, cierre de D11): en la PRIMERA conciliación de la
-     * cuenta, el usuario puede informar el saldo real del proveedor al inicio
-     * del período; la diferencia con el saldo que el ledger tenía a esa fecha
-     * se registra como ajuste_conciliacion.
+     * cuenta, el usuario informa el saldo REAL TOTAL del proveedor al cierre
+     * del período (el que ve en su app: disponible + a liberar + reserva) y se
+     * registra un ajuste_conciliacion por la diferencia contra el saldo del
+     * ledger YA conciliado, dejando la cuenta exactamente en el saldo real.
+     *
+     * Se pide el saldo al CIERRE (no al inicio) porque es el dato que el
+     * usuario tiene a mano; absorbe toda la historia previa al período
+     * (decidido con el usuario en la validación en vivo, 2026-06-12).
      */
     private function aplicarAjusteInicial(
         ConciliacionCuenta $corrida,
         CuentaEmpresa $cuenta,
         int $usuarioId,
-        float $saldoInicialProveedor
+        float $saldoFinalProveedor
     ): void {
         $hayAplicadaPrevia = ConciliacionCuenta::deCuenta($cuenta->id)
             ->where('id', '!=', $corrida->id)
@@ -551,28 +560,21 @@ class ConciliacionCuentaService
             return; // El ajuste inicial solo aplica una vez.
         }
 
-        // Saldo del ledger al inicio del período: saldo actual menos el efecto
-        // neto de los movimientos registrados desde entonces.
-        $inicioPeriodo = $corrida->desde->copy()->startOfDay();
-        $efectoPosterior = MovimientoCuentaEmpresa::where('cuenta_empresa_id', $cuenta->id)
-            ->where('estado', 'activo')
-            ->where('created_at', '>=', $inicioPeriodo)
-            ->get()
-            ->sum(fn ($m) => $m->tipo === 'ingreso' ? (float) $m->monto : -(float) $m->monto);
-
-        $saldoLedgerInicio = (float) $cuenta->saldo_actual - $efectoPosterior;
-        $diferencia = round($saldoInicialProveedor - $saldoLedgerInicio, 2);
+        $saldoLedger = (float) $cuenta->fresh()->saldo_actual;
+        $diferencia = round($saldoFinalProveedor - $saldoLedger, 2);
 
         if (abs($diferencia) <= self::EPSILON) {
             return;
         }
 
+        $cierrePeriodo = $corrida->hasta->copy()->endOfDay();
+
         $fila = ConciliacionFila::create([
             'conciliacion_cuenta_id' => $corrida->id,
             'tipo' => ConciliacionFila::TIPO_AJUSTE_INICIAL,
             'clasificacion' => ConciliacionFila::CLASIFICACION_SOLO_PROVEEDOR,
-            'fecha' => $inicioPeriodo,
-            'descripcion' => __('Ajuste inicial: saldo del proveedor al :fecha', ['fecha' => $inicioPeriodo->format('d/m/Y')]),
+            'fecha' => $cierrePeriodo,
+            'descripcion' => __('Ajuste inicial: saldo real del proveedor al :fecha', ['fecha' => $cierrePeriodo->format('d/m/Y')]),
             'monto_neto' => $diferencia,
             'accion' => ConciliacionFila::ACCION_GENERAR_MOVIMIENTO,
             'tipo_movimiento' => $diferencia > 0 ? 'ingreso' : 'egreso',

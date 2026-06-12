@@ -159,11 +159,17 @@ faltantes. El usuario revisa y aplica.
   re-conciliar el período).
 
 ### RF-07: Ajuste inicial (cierre de D11)
-- Si la cuenta NO tiene ninguna conciliación aplicada previa, la pantalla de
-  revisión ofrece un campo opcional "Saldo real en el proveedor al inicio del
-  período": si se completa, propone un movimiento `ajuste_conciliacion`
-  (ingreso o egreso según el signo) por la diferencia entre ese saldo y el
-  saldo que el ledger tenía a esa fecha. Se aplica junto con el resto.
+- Si la cuenta NO tiene ninguna conciliación aplicada previa, al aplicar se
+  ofrece un campo opcional "Saldo real total en el proveedor" (el saldo ACTUAL
+  que el usuario ve en su app: disponible + a liberar + reserva): se registra
+  un movimiento `ajuste_conciliacion` por la diferencia contra el ledger YA
+  conciliado (el ajuste corre DESPUÉS de los movimientos de la corrida), de
+  modo que la cuenta queda exactamente en el saldo real.
+- **Revisión 2026-06-12 (validación en vivo)**: la versión original pedía el
+  saldo al INICIO del período — dato que el usuario no tiene a mano. Se cambió
+  al saldo al cierre, que es equivalente matemáticamente y trivial de obtener.
+  Se intentó leerlo automático por API (`/users/{id}/mercadopago_account/balance`)
+  pero MP lo restringe con 403 a tokens estándar → ingreso manual.
 
 ### RF-08: Conciliación automática programada (opcional, por cuenta)
 - `cuentas_empresa.conciliacion_automatica` (bool, default `false`), editable en
