@@ -149,7 +149,16 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
     /**
      * Garantiza que la cuenta tenga configuración del reporte account-money.
      * Solo la crea si no existe (no pisa una config que el usuario ya use
-     * para sus propios reportes).
+     * para sus propios reportes). Sin config, MP responde 404 (sin detalle) a
+     * la generación, así que un fallo acá corta con error legible.
+     *
+     * Payload validado contra la API real (2026-06-12): `file_name_prefix`,
+     * `frequency` y `columns` son OBLIGATORIOS aunque no se use la
+     * programación del lado de MP (queda `scheduled: false` — la programación
+     * solo se activa con el endpoint /schedule, que no usamos). Las columnas
+     * válidas son las del dialecto TRANSACTION_* (las DATE/RECORD_TYPE/NET_*
+     * pertenecen al reporte de Liquidaciones, MP las rechaza acá con un 400
+     * genérico sin causa).
      */
     private function asegurarConfigReporteCuenta(IntegracionPagoSucursal $config): void
     {
@@ -163,25 +172,18 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
             'file_name_prefix' => 'bcn-conciliacion',
             'include_withdraw' => true,
             'display_timezone' => 'GMT-03',
+            'header_language' => 'en',
+            'frequency' => ['hour' => 3, 'type' => 'daily', 'value' => 1],
             'columns' => array_map(
                 fn (string $key) => ['key' => $key],
                 [
-                    'DATE', 'SOURCE_ID', 'EXTERNAL_REFERENCE', 'RECORD_TYPE', 'DESCRIPTION',
-                    'NET_CREDIT_AMOUNT', 'NET_DEBIT_AMOUNT', 'GROSS_AMOUNT', 'MP_FEE_AMOUNT',
-                    'TRANSACTION_TYPE', 'TRANSACTION_AMOUNT', 'FEE_AMOUNT', 'SETTLEMENT_NET_AMOUNT',
-                    'TRANSACTION_DATE', 'PAYMENT_METHOD',
+                    'TRANSACTION_DATE', 'SOURCE_ID', 'EXTERNAL_REFERENCE', 'TRANSACTION_TYPE',
+                    'TRANSACTION_AMOUNT', 'FEE_AMOUNT', 'SETTLEMENT_NET_AMOUNT', 'PAYMENT_METHOD',
                 ]
             ),
         ]);
 
-        // Si la config ya existía (409 o similar) seguimos: la solicitud del
-        // reporte va a usar la config vigente de la cuenta.
-        if ($creacion->failed() && $creacion->status() !== 409) {
-            Log::info('MercadoPagoGateway::asegurarConfigReporteCuenta no pudo crear config (se usa la vigente)', [
-                'status' => $creacion->status(),
-                'body' => $creacion->body(),
-            ]);
-        }
+        $this->guardResponse($creacion, 'asegurarConfigReporteCuenta');
     }
 
     /**
