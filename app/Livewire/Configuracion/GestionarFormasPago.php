@@ -64,6 +64,10 @@ class GestionarFormasPago extends Component
     // Cuenta empresa y moneda
     public $cuenta_empresa_id = null;
 
+    // True cuando cuenta_empresa_id se autocompletó desde la cuenta real de la
+    // integración (RF-03). Solo muestra el hint en la UI; es default editable.
+    public bool $cuentaSugeridaAutomaticamente = false;
+
     public $moneda_id = null;
 
     // Sucursales seleccionadas
@@ -211,6 +215,45 @@ class GestionarFormasPago extends Component
         $this->integraciones_fp[$index]['modo_default'] = $modos[0] ?? null;
         // Al cambiar de integración se resetea el medio de pago Point (Abierto).
         $this->integraciones_fp[$index]['default_type'] = null;
+
+        // RF-03: sugerir la cuenta real de la integración como default editable.
+        $this->sugerirCuentaEmpresaDesdeIntegracion((int) $value);
+    }
+
+    /**
+     * Si la FP todavía no tiene cuenta vinculada, autocompleta `cuenta_empresa_id`
+     * con la CuentaEmpresa de la cuenta REAL del proveedor (la que el auto-vínculo
+     * creó al guardar credenciales de producción). Default editable: el usuario
+     * puede cambiarlo o vaciarlo. Sin config prod vinculada, no sugiere nada.
+     */
+    private function sugerirCuentaEmpresaDesdeIntegracion(?int $integracionPagoId): void
+    {
+        if ($this->cuenta_empresa_id || ! $integracionPagoId) {
+            return;
+        }
+
+        $configs = \App\Models\IntegracionPagoSucursal::where('integracion_pago_id', $integracionPagoId)
+            ->where('activo', true)
+            ->where('modo', \App\Models\IntegracionPagoSucursal::MODO_PRODUCCION)
+            ->get();
+
+        foreach ($configs as $config) {
+            $cuenta = \App\Services\CuentaEmpresaService::buscarParaIntegracion($config);
+            if ($cuenta) {
+                $this->cuenta_empresa_id = $cuenta->id;
+                $this->cuentaSugeridaAutomaticamente = true;
+
+                return;
+            }
+        }
+    }
+
+    /**
+     * Si el usuario cambia la cuenta a mano, deja de ser una sugerencia automática.
+     */
+    public function updatedCuentaEmpresaId(): void
+    {
+        $this->cuentaSugeridaAutomaticamente = false;
     }
 
     public function agregarIntegracion()
@@ -382,6 +425,12 @@ class GestionarFormasPago extends Component
                 ];
             })->toArray();
             $this->qrLibreImagenes = [];
+
+            // RF-03: si la FP integrada no tiene cuenta vinculada, sugerir la de
+            // la cuenta real del proveedor (default editable).
+            foreach ($this->integraciones_fp as $fila) {
+                $this->sugerirCuentaEmpresaDesdeIntegracion($fila['integracion_pago_id'] ?? null);
+            }
         }
 
         // Cargar sucursales donde está activa
@@ -665,6 +714,7 @@ class GestionarFormasPago extends Component
         $this->qrLibreImagenes = [];
         $this->sucursales_seleccionadas = [];
         $this->cuenta_empresa_id = null;
+        $this->cuentaSugeridaAutomaticamente = false;
         $this->moneda_id = null;
         $this->resetValidation();
     }

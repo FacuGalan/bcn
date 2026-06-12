@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ConceptoMovimientoCuenta;
 use App\Models\CuentaEmpresa;
+use App\Models\IntegracionPagoSucursal;
 use App\Models\MovimientoCuentaEmpresa;
 use App\Models\TransferenciaCuentaEmpresa;
 use Exception;
@@ -26,6 +27,106 @@ class CuentaEmpresaService
                 return $cuenta->estaDisponibleEnSucursal($sucursalId);
             })
             ->values();
+    }
+
+    /**
+     * Resuelve (o crea) la CuentaEmpresa que representa la cuenta REAL del
+     * proveedor de pago de una config de integración. Provider-agnostic: la
+     * identidad `(subtipo, identificador_externo)` la define el gateway vía
+     * `identidadCuentaEmpresa()` (único punto por-proveedor).
+     *
+     * Solo aplica en modo producción (el modo test no toca el ledger real).
+     * Lookup en cascada (D5 del spec):
+     *  (a) match exacto por (subtipo, identificador_externo) → reutilizar;
+     *  (b) si existe UNA ÚNICA cuenta del subtipo sin identificador (creada a
+     *      mano antes de este feature) → completarle el identificador;
+     *  (c) si no, crear una nueva (billetera digital, activa).
+     *
+     * Idempotente: re-invocar con la misma config devuelve siempre la misma
+     * cuenta (el UNIQUE (subtipo, identificador_externo) lo refuerza en BD;
+     * ante una carrera de creación se re-busca el match exacto).
+     */
+    /**
+     * Variante SOLO-LECTURA de findOrCreateParaIntegracion: devuelve la cuenta
+     * ya vinculada a la identidad de la config, sin crear ni completar nada.
+     * La usa la UI para sugerir defaults sin efectos secundarios.
+     */
+    public static function buscarParaIntegracion(IntegracionPagoSucursal $config): ?CuentaEmpresa
+    {
+        if (! $config->esProduccion()) {
+            return null;
+        }
+
+        $identidad = $config->integracion?->getGatewayInstance()->identidadCuentaEmpresa($config);
+
+        if (! $identidad) {
+            return null;
+        }
+
+        return CuentaEmpresa::porIdentidad($identidad['subtipo'], $identidad['identificador_externo'])->first();
+    }
+
+    public static function findOrCreateParaIntegracion(IntegracionPagoSucursal $config): ?CuentaEmpresa
+    {
+        if (! $config->esProduccion()) {
+            return null;
+        }
+
+        $identidad = $config->integracion?->getGatewayInstance()->identidadCuentaEmpresa($config);
+
+        if (! $identidad) {
+            return null;
+        }
+
+        return DB::connection('pymes_tenant')->transaction(function () use ($identidad) {
+            // (a) Match exacto por identidad.
+            $cuenta = CuentaEmpresa::porIdentidad($identidad['subtipo'], $identidad['identificador_externo'])->first();
+            if ($cuenta) {
+                return $cuenta;
+            }
+
+            // (b) Única cuenta del subtipo sin identificador → completarla.
+            $sinIdentificador = CuentaEmpresa::where('subtipo', $identidad['subtipo'])
+                ->whereNull('identificador_externo')
+                ->limit(2)
+                ->get();
+
+            if ($sinIdentificador->count() === 1) {
+                $cuenta = $sinIdentificador->first();
+                $cuenta->update(['identificador_externo' => $identidad['identificador_externo']]);
+
+                Log::info('CuentaEmpresaService::findOrCreateParaIntegracion completó cuenta existente', [
+                    'cuenta_empresa_id' => $cuenta->id,
+                    'subtipo' => $identidad['subtipo'],
+                    'identificador_externo' => $identidad['identificador_externo'],
+                ]);
+
+                return $cuenta->refresh();
+            }
+
+            // (c) Crear nueva.
+            try {
+                $cuenta = CuentaEmpresa::create([
+                    'nombre' => $identidad['nombre_sugerido'],
+                    'tipo' => CuentaEmpresa::TIPO_BILLETERA,
+                    'subtipo' => $identidad['subtipo'],
+                    'identificador_externo' => $identidad['identificador_externo'],
+                    'activo' => true,
+                ]);
+            } catch (\Illuminate\Database\QueryException $e) {
+                // Carrera de creación: otro proceso la creó entre (a) y acá.
+                // El UNIQUE la protege; se devuelve el match exacto.
+                return CuentaEmpresa::porIdentidad($identidad['subtipo'], $identidad['identificador_externo'])->firstOrFail();
+            }
+
+            Log::info('CuentaEmpresaService::findOrCreateParaIntegracion creó cuenta', [
+                'cuenta_empresa_id' => $cuenta->id,
+                'subtipo' => $identidad['subtipo'],
+                'identificador_externo' => $identidad['identificador_externo'],
+            ]);
+
+            return $cuenta;
+        });
     }
 
     /**

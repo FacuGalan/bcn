@@ -30,6 +30,7 @@ class CuentaEmpresa extends Model
         'nombre',
         'tipo',
         'subtipo',
+        'identificador_externo',
         'banco',
         'numero_cuenta',
         'cbu',
@@ -87,6 +88,17 @@ class CuentaEmpresa extends Model
     public function scopeBilleteras($query)
     {
         return $query->where('tipo', self::TIPO_BILLETERA);
+    }
+
+    /**
+     * Cuenta identificada por su identidad en el proveedor de pago externo:
+     * (subtipo, identificador_externo). Es el match que usa el auto-vínculo
+     * de integraciones (findOrCreateParaIntegracion).
+     */
+    public function scopePorIdentidad($query, string $subtipo, string $identificadorExterno)
+    {
+        return $query->where('subtipo', $subtipo)
+            ->where('identificador_externo', $identificadorExterno);
     }
 
     // ==================== Accessors ====================

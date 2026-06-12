@@ -2182,8 +2182,12 @@ trait WithPagosDesglose
                         'tipo_cambio_id' => $pago['tipo_cambio_id'] ?? null,
                     ]);
 
-                    // Si la forma de pago tiene cuenta empresa vinculada, registrar movimiento
-                    if (! $esCuentaCorriente) {
+                    // Si la forma de pago tiene cuenta empresa vinculada, registrar movimiento.
+                    // EXCEPTO pagos cobrados por integración: su ingreso ya lo registró
+                    // CobroIntegracionService al confirmar la transacción, en la cuenta
+                    // REAL del proveedor (origen IntegracionPagoTransaccion). Registrar
+                    // acá también lo duplicaría (D6 del spec de vínculo de cuentas).
+                    if (! $esCuentaCorriente && $integracionTransaccionId === null) {
                         $fpVinculada = FormaPago::find($pago['forma_pago_id']);
                         if ($fpVinculada && $fpVinculada->cuenta_empresa_id) {
                             try {

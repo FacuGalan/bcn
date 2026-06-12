@@ -700,6 +700,7 @@ class ProvisionComercioCommand extends Command
             ['codigo' => 'devolucion', 'nombre' => 'Devolución', 'tipo' => 'egreso', 'es_sistema' => true, 'orden' => 9],
             ['codigo' => 'ajuste', 'nombre' => 'Ajuste', 'tipo' => 'ambos', 'es_sistema' => false, 'orden' => 10],
             ['codigo' => 'otro', 'nombre' => 'Otro', 'tipo' => 'ambos', 'es_sistema' => false, 'orden' => 11],
+            ['codigo' => 'cobro_integracion', 'nombre' => 'Cobro por integración de pago', 'tipo' => 'ingreso', 'es_sistema' => true, 'orden' => 12],
         ];
 
         foreach ($conceptos as $concepto) {

@@ -55,6 +55,8 @@ class CobroIntegracionServiceTest extends TestCase
         IntegracionPagoEvento::query()->delete();
         IntegracionPagoTransaccion::query()->delete();
         IntegracionPagoSucursal::query()->delete();
+        \App\Models\MovimientoCuentaEmpresa::query()->delete();
+        \App\Models\CuentaEmpresa::query()->delete();
         $this->tearDownTenant();
         parent::tearDown();
     }
@@ -325,5 +327,170 @@ class CobroIntegracionServiceTest extends TestCase
             IntegracionPagoActualizado::class,
             fn (IntegracionPagoActualizado $e) => $e->transaccionId === $vencida->id && $e->estado === 'expirado',
         );
+    }
+
+    // ==================== Vínculo CuentaEmpresa — movimiento al confirmar (RF-04) ====================
+
+    private function asegurarConceptoCobroIntegracion(): void
+    {
+        \App\Models\ConceptoMovimientoCuenta::firstOrCreate(
+            ['codigo' => 'cobro_integracion'],
+            ['nombre' => 'Cobro por integración de pago', 'tipo' => 'ingreso', 'es_sistema' => true, 'orden' => 12, 'activo' => true],
+        );
+    }
+
+    private function limpiarLedger(): void
+    {
+        \App\Models\MovimientoCuentaEmpresa::query()->delete();
+        \App\Models\CuentaEmpresa::query()->delete();
+    }
+
+    /**
+     * Transacción pendiente sobre una config en PRODUCCIÓN (con identidad MP).
+     */
+    private function crearTransaccionPendienteProd(array $txOverrides = [], array $configOverrides = []): IntegracionPagoTransaccion
+    {
+        $this->asegurarConceptoCobroIntegracion();
+        $this->limpiarLedger();
+
+        $mpId = IntegracionPago::porCodigo('mercadopago_qr')->value('id');
+        $config = IntegracionPagoSucursal::firstOrCreate(
+            ['integracion_pago_id' => $mpId, 'sucursal_id' => $this->sucursalId],
+            array_merge([
+                'modo' => 'produccion',
+                'access_token_produccion' => 'APP_USR-PROD-TOKEN',
+                'user_id_externo' => '555666777',
+            ], $configOverrides),
+        );
+
+        $formaPago = \App\Models\FormaPago::firstOrCreate(
+            ['codigo' => 'QR_PROD'],
+            ['nombre' => 'QR Prod', 'concepto' => 'wallet', 'activo' => true],
+        );
+
+        return IntegracionPagoTransaccion::create(array_merge([
+            'integracion_pago_sucursal_id' => $config->id,
+            'forma_pago_id' => $formaPago->id,
+            'sucursal_id' => $this->sucursalId,
+            'usuario_iniciador_id' => 1,
+            'modo_usado' => 'qr_dinamico',
+            'monto' => 2500.00,
+            'estado' => IntegracionPagoTransaccion::ESTADO_PENDIENTE,
+            'expira_en' => now()->addMinutes(5),
+        ], $txOverrides));
+    }
+
+    public function test_confirmar_cobro_en_produccion_registra_movimiento_en_cuenta_real(): void
+    {
+        $tx = $this->crearTransaccionPendienteProd();
+
+        $this->service->confirmarCobro($tx);
+
+        $mov = \App\Models\MovimientoCuentaEmpresa::where('origen_tipo', 'IntegracionPagoTransaccion')
+            ->where('origen_id', $tx->id)->first();
+
+        $this->assertNotNull($mov, 'Confirmar en producción debe registrar el ingreso en la cuenta');
+        $this->assertSame('ingreso', $mov->tipo);
+        $this->assertEquals(2500.00, (float) $mov->monto);
+
+        // La cuenta es la de la IDENTIDAD de la config (auto-creada), no una manual.
+        $cuenta = \App\Models\CuentaEmpresa::find($mov->cuenta_empresa_id);
+        $this->assertSame('mercadopago', $cuenta->subtipo);
+        $this->assertSame('555666777', $cuenta->identificador_externo);
+        $this->assertEquals(2500.00, (float) $cuenta->fresh()->saldo_actual);
+    }
+
+    public function test_confirmar_cobro_en_modo_test_no_registra_movimiento(): void
+    {
+        $tx = $this->crearTransaccionPendienteProd([], [
+            'modo' => 'test',
+            'access_token_test' => 'TEST-TOKEN',
+            'access_token_produccion' => null,
+        ]);
+
+        $this->service->confirmarCobro($tx);
+
+        $this->assertSame(IntegracionPagoTransaccion::ESTADO_CONFIRMADO, $tx->fresh()->estado);
+        $this->assertSame(0, \App\Models\MovimientoCuentaEmpresa::count());
+        $this->assertSame(0, \App\Models\CuentaEmpresa::count());
+    }
+
+    public function test_confirmar_manual_en_produccion_tambien_registra_movimiento(): void
+    {
+        // Cubre qr_libre y point: la confirmación manual usa el mismo camino de ledger.
+        $tx = $this->crearTransaccionPendienteProd(['modo_usado' => 'qr_libre']);
+
+        $this->service->confirmarManual($tx, usuarioId: 5, motivo: 'pago verificado en la app');
+
+        $mov = \App\Models\MovimientoCuentaEmpresa::where('origen_tipo', 'IntegracionPagoTransaccion')
+            ->where('origen_id', $tx->id)->first();
+        $this->assertNotNull($mov);
+        $this->assertSame(5, $mov->usuario_id);
+    }
+
+    public function test_movimiento_es_idempotente_ante_confirmaciones_convergentes(): void
+    {
+        // Webhook + polling + manual pueden converger: un solo movimiento.
+        $tx = $this->crearTransaccionPendienteProd();
+
+        $this->service->confirmarCobro($tx);
+        $this->service->confirmarCobro($tx->fresh());
+        $this->service->confirmarManual($tx->fresh());
+
+        $this->assertSame(
+            1,
+            \App\Models\MovimientoCuentaEmpresa::where('origen_tipo', 'IntegracionPagoTransaccion')
+                ->where('origen_id', $tx->id)->count(),
+        );
+    }
+
+    public function test_movimiento_va_a_la_cuenta_de_la_identidad_no_a_la_de_la_forma_pago(): void
+    {
+        // D7: la FP puede apuntar a OTRA cuenta (default manual); manda la identidad.
+        // OJO: crear la cuenta DESPUÉS del helper (limpia el ledger al armar el fixture).
+        $tx = $this->crearTransaccionPendienteProd();
+        $cuentaManual = \App\Models\CuentaEmpresa::create([
+            'nombre' => 'Banco manual', 'tipo' => 'banco', 'subtipo' => 'cuenta_corriente', 'activo' => true,
+        ]);
+        $tx->formaPago->update(['cuenta_empresa_id' => $cuentaManual->id]);
+
+        $this->service->confirmarCobro($tx);
+
+        $mov = \App\Models\MovimientoCuentaEmpresa::where('origen_id', $tx->id)->first();
+        $this->assertNotSame($cuentaManual->id, $mov->cuenta_empresa_id);
+        $this->assertSame('mercadopago', \App\Models\CuentaEmpresa::find($mov->cuenta_empresa_id)->subtipo);
+        $this->assertEquals(0, (float) $cuentaManual->fresh()->saldo_actual);
+    }
+
+    public function test_sin_identidad_resoluble_usa_fallback_de_la_forma_pago(): void
+    {
+        // Config prod SIN user_id_externo → identidad null → fallback FP.
+        $tx = $this->crearTransaccionPendienteProd([], ['user_id_externo' => null]);
+        $cuentaFp = \App\Models\CuentaEmpresa::create([
+            'nombre' => 'Billetera FP', 'tipo' => 'billetera_digital', 'subtipo' => 'otro', 'activo' => true,
+        ]);
+        $tx->formaPago->update(['cuenta_empresa_id' => $cuentaFp->id]);
+
+        $this->service->confirmarCobro($tx);
+
+        $mov = \App\Models\MovimientoCuentaEmpresa::where('origen_id', $tx->id)->first();
+        $this->assertNotNull($mov);
+        $this->assertSame($cuentaFp->id, $mov->cuenta_empresa_id);
+    }
+
+    public function test_confirmacion_sobrevive_aunque_falte_el_concepto_del_catalogo(): void
+    {
+        // El registro del ledger es best-effort (try/catch): pase lo que pase con
+        // el catálogo de conceptos, la confirmación del cobro NUNCA se rompe.
+        // Sin el concepto, el movimiento se registra con concepto null (nullable).
+        $tx = $this->crearTransaccionPendienteProd();
+        \App\Models\ConceptoMovimientoCuenta::where('codigo', 'cobro_integracion')->delete();
+
+        $this->service->confirmarCobro($tx);
+
+        $this->assertSame(IntegracionPagoTransaccion::ESTADO_CONFIRMADO, $tx->fresh()->estado);
+        $mov = \App\Models\MovimientoCuentaEmpresa::where('origen_id', $tx->id)->first();
+        $this->assertNotNull($mov);
+        $this->assertNull($mov->concepto_movimiento_cuenta_id);
     }
 }

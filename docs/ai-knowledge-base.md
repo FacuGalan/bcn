@@ -962,6 +962,7 @@ Cuentas bancarias y billeteras digitales de la empresa.
 | `nombre` | varchar(100) | Nombre descriptivo |
 | `tipo` | enum | `banco` o `billetera_digital` |
 | `subtipo` | varchar(50) nullable | `cuenta_corriente`, `caja_ahorro`, `mercadopago`, `uala`, `paypal`, `otro` |
+| `identificador_externo` | varchar(100) nullable | ID de la cuenta en el proveedor de pago externo (para MP = `user_id_externo`). Junto con `subtipo` forma la identidad unica de la cuenta. Nullable: las cuentas bancarias/manuales no lo usan. |
 | `banco` | varchar(100) nullable | Nombre del banco |
 | `numero_cuenta` | varchar(50) nullable | Numero de cuenta |
 | `cbu` | varchar(22) nullable | CBU |
@@ -973,6 +974,10 @@ Cuentas bancarias y billeteras digitales de la empresa.
 | `orden` | int | Orden de visualizacion |
 | `color` | varchar(7) nullable | Color para UI |
 | `created_at`, `updated_at` | timestamp | Timestamps |
+
+**Indices**: UNIQUE `(subtipo, identificador_externo)`. MySQL permite multiples NULL en indices unicos, por lo que las cuentas manuales (sin identificador_externo) no colisionan entre si.
+
+**Scope `porIdentidad($subtipo, $identificadorExterno)`**: filtra por `(subtipo, identificador_externo)`. Es el punto de entrada del auto-vinculo de integraciones (`findOrCreateParaIntegracion`).
 
 #### Tabla: `movimientos_cuenta_empresa`
 Movimientos en cuentas bancarias/billeteras. Patron append-only con contraasientos.
@@ -987,7 +992,7 @@ Movimientos en cuentas bancarias/billeteras. Patron append-only con contraasient
 | `monto` | decimal(14,2) | Monto |
 | `saldo_anterior` | decimal(14,2) | Saldo antes |
 | `saldo_posterior` | decimal(14,2) | Saldo despues |
-| `origen_tipo` | varchar(50) nullable | `VentaPago`, `CobroPago`, `TransferenciaCuentaEmpresa`, `DepositoBancario`, `Manual` |
+| `origen_tipo` | varchar(50) nullable | `VentaPago`, `CobroPago`, `TransferenciaCuentaEmpresa`, `DepositoBancario`, `Manual`, `IntegracionPagoTransaccion` |
 | `origen_id` | bigint nullable | ID del origen |
 | `usuario_id` | bigint FK | Usuario |
 | `sucursal_id` | bigint FK nullable | Sucursal |
@@ -995,6 +1000,14 @@ Movimientos en cuentas bancarias/billeteras. Patron append-only con contraasient
 | `anulado_por_movimiento_id` | bigint FK nullable | Contraasiento |
 | `observaciones` | text nullable | Notas |
 | `created_at`, `updated_at` | timestamp | Timestamps |
+
+**Conceptos de movimiento conocidos** (tabla `{PREFIX}conceptos_movimiento_cuenta`, columna `codigo`):
+- `venta` — ingreso por venta directa
+- `cobro` — ingreso de cobranza de cuenta corriente
+- `ajuste` — ajuste manual
+- `transferencia_entrada` / `transferencia_salida` — transferencias entre cuentas
+- `deposito_bancario` — deposito bancario confirmado
+- `cobro_integracion` — ingreso por cobro confirmado a traves de una integracion de pago (QR, Point u otro proveedor). Registrado por `CobroIntegracionService` al confirmar la transaccion. Origen polimórfico: `IntegracionPagoTransaccion`. Permite filtrar los ingresos de integraciones para conciliacion.
 
 #### Tabla: `cuenta_empresa_sucursal`
 Pivot que vincula cuentas empresa con sucursales. Si no tiene sucursales asignadas, esta disponible en todas.
@@ -2263,16 +2276,20 @@ Campo `rubro varchar(50) nullable` agregado a la tabla `comercios` de la conexio
 - **`CobroIntegracionService`** (Fase 5): Orquesta el ciclo de vida de un cobro por integracion. API unica consumida por todos los flujos de cobro via el concern `WithCobroIntegracion` (usado por `WithPagosDesglose` en `NuevaVenta`/`NuevoPedidoMostrador` y directamente por `PedidosMostrador` para pagos planificados). Metodos publicos:
   - `iniciarCobro(IntegracionPagoSucursal $config, array $datos, ?Model $cobrable = null): IntegracionPagoTransaccion` — Crea la transaccion en `pendiente`, aplica la `metadata` inicial opcional (`$datos['metadata']`) si se provee, llama al gateway para obtener el QR/datos de cobro (FUERA de la transaccion DB para no mantener locks durante la latencia de red) y persiste `qr_data`, `external_id`, etc. La `metadata` la lee el gateway al iniciar: el modo `point` la usa para `['point' => ['default_type' => 'credit_card', 'installments' => 3]]`; el modo `qr_libre` para `qr_libre_imagen_url`.
   - `consultarEstado(IntegracionPagoTransaccion $transaccion): string` — Consulta el estado en el proveedor. Devuelve `'pendiente'|'aprobado'|'cancelado'|'expirado'` sin mutar la transaccion.
-  - `confirmarCobro(IntegracionPagoTransaccion $transaccion, ?Model $cobrable = null, array $payload = []): void` — Marca como `confirmado`, registra `confirmado_en`, asocia el cobrable si se provee. Idempotente.
+  - `confirmarCobro(IntegracionPagoTransaccion $transaccion, ?Model $cobrable = null, array $payload = []): void` — Marca como `confirmado`, registra `confirmado_en`, asocia el cobrable si se provee. Idempotente. Al confirmar exitosamente (primera vez), invoca `registrarMovimientoCuentaEmpresa()` fuera de la transaccion DB (el movimiento no rollbackea con ella).
   - `asociarCobrable(IntegracionPagoTransaccion $transaccion, Model $cobrable): void` — Asocia el cobrable a una transaccion ya confirmada. Necesario en el modelo "cobro primero, venta despues": el pago se confirma cuando el cliente escanea el QR, pero el comprobante se crea despues. Idempotente.
   - `cancelarCobro(IntegracionPagoTransaccion $transaccion): bool` — Avisa al proveedor y marca como `cancelado`. Si el gateway falla al cancelar, la transaccion se cancela localmente igual y se loguea el error. Idempotente.
-  - `confirmarManual(IntegracionPagoTransaccion $transaccion, ?int $usuarioId = null, ?string $motivo = null): void` — (Fase 8, RF-12) Marca la transaccion con estado `confirmado_manual` (distinto de `confirmado` para diferenciarlo en reportes y conciliacion) y registra en `integraciones_pago_eventos` quien la confirmo (`usuario_id` en `metadata`). El cobrable se materializa igual que en el camino automatico (el concern llama `alConfirmarCobroIntegracion()`). Idempotente: si la transaccion ya esta en estado terminal, no hace nada. Es el unico camino de cierre para el modo `qr_libre`.
+  - `confirmarManual(IntegracionPagoTransaccion $transaccion, ?int $usuarioId = null, ?string $motivo = null): void` — (Fase 8, RF-12) Marca la transaccion con estado `confirmado_manual` (distinto de `confirmado` para diferenciarlo en reportes y conciliacion) y registra en `integraciones_pago_eventos` quien la confirmo (`usuario_id` en `metadata`). El cobrable se materializa igual que en el camino automatico (el concern llama `alConfirmarCobroIntegracion()`). Idempotente: si la transaccion ya esta en estado terminal, no hace nada. Es el unico camino de cierre para el modo `qr_libre`. Al confirmar exitosamente, invoca `registrarMovimientoCuentaEmpresa()` con el `$usuarioId` del confirmador.
   - `expirarPendientesVencidas(): int` — (Fase 8, RF-16) Obtiene todas las transacciones en scope `vencidas()` del tenant activo, las marca como `expirado`, registra el evento `expirado` en el ledger y broadcastea `IntegracionPagoActualizado` con `estado = 'expirado'` por cada una para que el modal del cajero cierre solo. Bajo el modelo "cobro primero" no hay cobrable que anular. Retorna la cantidad de transacciones expiradas.
+  - `registrarMovimientoCuentaEmpresa(IntegracionPagoTransaccion $transaccion, ?int $usuarioId = null): void` — (privado, Paso 2) Registra el ingreso en la cuenta real del proveedor al confirmarse el cobro. Solo en produccion. Idempotente por origen polimórfico (`IntegracionPagoTransaccion`, `transaccion->id`): si ya existe un movimiento con ese origen no crea uno nuevo (webhook + polling + confirmacion manual convergen a 1 solo movimiento). Resolucion de cuenta: (1) `CuentaEmpresaService::findOrCreateParaIntegracion($config)` segun la config de la sucursal de la transaccion (D7); (2) fallback: `transaccion->formaPago->cuenta_empresa_id` si la identidad es null; (3) si tampoco existe, no registra nada. Concepto: `cobro_integracion`. Nunca rompe la confirmacion: cualquier excepcion queda en log warning.
 - **`MercadoPagoGateway`** (actualizado con soporte Point + qr_libre): Implementa `IntegracionPagoGatewayContract`. Metodos de sincronizacion (QR): `crearStore`, `actualizarStore`, `eliminarStore`, `crearPos`, `actualizarPos`, `eliminarPos`. Metodos de cobro: `iniciarCobro` (gateway public; delega a rama segun `transaccion->modo_usado`): si el modo es `point` llama al metodo privado `iniciarCobroPoint`; si es `qr_libre` llama al metodo privado `iniciarCobroQrLibre()` (no llama a la Orders API, retorna `qr_image_url` desde `metadata['qr_libre_imagen_url']` y `external_id = null`); de lo contrario usa la rama QR existente con `mapearModoOrdersApi()` (`dynamic`/`static`). Metodo privado `iniciarCobroPoint`: hace `POST /v1/orders` con `type:"point"`, `config.point.terminal_id = caja->mp_point_terminal_id`, `config.payment_method.default_type` (si la FP definio un medio; null = Abierto), `config.payment_method.default_installments` (solo credit_card), `expiration_time` ISO 8601 acotado a PT30S..PT3H. Devuelve `qr_data = null` (el QR no se renderiza en pantalla; el aparato lo muestra). `consultarEstado` — polling del order (no-op efectivo para `qr_libre` ya que `external_id = null`). `cancelarCobro`: para modo `point` agrega el header `x-allow-cancelable-status: at_terminal` para permitir cancelar la order mientras esta "en terminal" (estado que MP llama `at_terminal`). En modo `dynamic` MP devuelve `qr_data`; en `static` y `qr_libre` se usa `qr_image_url`. Metodos Point publicos: `listarTerminales(config)` — `GET /terminals/v1/list` (hasta 50 terminales); `activarModoPDV(config, terminalId)` — `PATCH /terminals/v1/setup` con `operating_mode: "PDV"` (requisito previo para poder empujar cobros al device). El webhook es identico para QR y Point (mismo topico "orders"; se distingue la transaccion por `external_id`). Constantes: `MODO_QR_DINAMICO`, `MODO_QR_ESTATICO`, `MODO_QR_LIBRE`, `MODO_POINT`.
 - **`MercadoPagoWebhookService`**: Procesa notificaciones entrantes de MP. Contiene un guard explicito para el modo `qr_libre`: si la transaccion encontrada tiene `modo_usado = 'qr_libre'`, el webhook retorna inmediatamente con `status = 'ignored'` sin re-consultar ni confirmar. Razon: el QR "Cobrar" de MP es un QR estatico generico de la cuenta (no lleva el `external_id` de ninguna order nuestra), por lo que el pago real nunca puede matchear por `order_id`. La confirmacion es exclusivamente manual via `confirmarManual()`.
 - **`ImagenQrLibreService`**: Procesa el upload de la imagen del QR "Cobrar" de Mercado Pago para el modo `qr_libre`. Defensas de seguridad: validacion de tamano (max 4 MB), deteccion de MIME real por magic bytes via `finfo` (no por extension ni Content-Type), whitelist JPG/PNG/WebP (SVG prohibido), re-encoding completo a WebP con Intervention Image/GD (elimina EXIF y payloads embebidos), nombre por UUID (sin path traversal), path scopeado por `comercioId`. NO redimensiona agresivamente (el QR debe quedar nitido y escaneable): solo achica si supera 1000px, con calidad WebP 90. Metodo estatico `urlPublica(?string $path): ?string` — deriva la URL root-relativa `/storage/{path}` a partir del path del disco publico (no usa `APP_URL`, portable entre hosts). Almacenamiento: disk `public`, ruta `integraciones/qr_libre/{comercioId}/{uuid}.webp`.
 - **`SincronizacionMercadoPagoService`**: Orquesta crear-vs-actualizar para QR (Store/POS) y para Point (terminales/devices). Decide segun `mp_store_id` / `mp_pos_id`. Persiste IDs y URLs devueltos en una transaccion tenant. Metodos para Point: `listarTerminales(config)` — delega en el gateway; `vincularTerminalCaja(config, caja, terminalId)` — llama a `activarModoPDV` en el gateway y persiste `mp_point_terminal_id` en la caja en una transaccion tenant; `desvincularTerminalCaja(caja)` — limpia `mp_point_terminal_id` localmente (no toca el modo del device en MP).
-- **`IntegracionPagoSucursalService`**: CRUD de configuraciones. Al cambiar `modo` o `user_id_externo` limpia los IDs de MP locales (Store + todos sus POS) via `limpiarSincronizacionMp()`.
+- **`IntegracionPagoSucursalService`**: CRUD de configuraciones. Al cambiar `modo` o `user_id_externo` limpia los IDs de MP locales (Store + todos sus POS) via `limpiarSincronizacionMp()`. Al guardar credenciales en modo `produccion`, invoca `CuentaEmpresaService::findOrCreateParaIntegracion()` para crear o reutilizar la `CuentaEmpresa` que representa la cuenta real del proveedor (RF-02 del spec de vinculo).
+- **`CuentaEmpresaService::findOrCreateParaIntegracion(IntegracionPagoSucursal $config): ?CuentaEmpresa`** (nuevo): resuelve la cuenta real del proveedor para una config de integracion. Solo aplica en modo `produccion`; no-op en `test`. Pide la identidad al gateway via `identidadCuentaEmpresa()` (unico codigo por-proveedor). Lookup en cascada: (a) match exacto por `(subtipo, identificador_externo)` → reutilizar; (b) si hay UNA UNICA cuenta del subtipo sin identificador → completarla; (c) crear nueva (`tipo=billetera_digital`, `activo=true`). Idempotente: ante carrera de creacion concurrente captura la excepcion del UNIQUE y re-busca el match exacto.
+- **`CuentaEmpresaService::buscarParaIntegracion(IntegracionPagoSucursal $config): ?CuentaEmpresa`** (nuevo): variante solo-lectura de `findOrCreateParaIntegracion`. Devuelve la cuenta ya vinculada sin crear ni completar nada. La usa la UI de Formas de Pago para sugerir el `cuenta_empresa_id` default sin efectos secundarios.
+- **`IntegracionPagoGatewayContract::identidadCuentaEmpresa(IntegracionPagoSucursal $config): ?array`** (nuevo metodo del contrato): cada gateway puede declarar su identidad de cuenta. Devuelve `['subtipo' => string, 'identificador_externo' => string, 'nombre_sugerido' => string]` o `null` si el proveedor no se mapea a una cuenta conciliable (o le faltan datos). `MercadoPagoGateway` lo implementa con `subtipo='mercadopago'`, `identificador_externo=$config->user_id_externo`, `nombre_sugerido='Mercado Pago '.$user_id_externo`; devuelve `null` si `user_id_externo` esta vacio. Futuros gateways lo implementan o heredan el default `null` (sin vinculo).
 
 #### Catalogo de integraciones — codigos vigentes
 
@@ -2342,6 +2359,24 @@ El metodo `pollearCobroIntegracion()` del concern tiene un short-circuit explici
 - Por cada transaccion expirada broadcastea `IntegracionPagoActualizado` con `estado = 'expirado'` en el canal de la transaccion, para que el modal del cajero cierre y muestre "tiempo agotado" sin requerir accion manual.
 - Bajo el modelo "cobro primero, cobrable despues" NO anula ninguna venta: las transacciones que expiran nunca tuvieron cobrable asociado.
 - Tolerante a fallos por comercio: un error en un tenant no interrumpe el procesamiento del resto (try/catch por comercio).
+
+#### Reglas de negocio — vinculo CuentaEmpresa e integraciones (Paso 2)
+
+1. **Auto-vinculo al guardar credenciales de produccion** (RF-02): `IntegracionPagoSucursalService` invoca `CuentaEmpresaService::findOrCreateParaIntegracion()` al persistir credenciales prod. El gateway provee `identidadCuentaEmpresa()` — unico codigo por-proveedor. QR y Point de la misma cuenta MP comparten la MISMA `CuentaEmpresa` (mismo `user_id_externo = subtipo 'mercadopago'`). En modo `test` es no-op.
+
+2. **Movimiento al confirmar, no al materializar** (D6): el ingreso en la `CuentaEmpresa` lo registra `CobroIntegracionService` al confirmar la transaccion, no al crear la venta. Esto refleja el instante real en que la plata entro al proveedor. Aplica a todos los modos (`qr_dinamico`, `qr_estatico`, `qr_libre`, `point`) y futuros proveedores.
+
+3. **Anti doble registro** (D6): los sitios de materializacion de pagos (`WithPagosDesglose`, `NuevaVenta`, `CobroService`) saltean el registro de movimiento por `formaPago->cuenta_empresa_id` cuando el pago tiene `integracion_pago_transaccion_id` no nulo. En un desglose mixto (integracion + efectivo), solo saltean el pago cobrado por integracion; los demas pagos con cuenta vinculada registran el suyo normal. Como consecuencia, `venta_pagos.movimiento_cuenta_empresa_id` queda NULL para pagos por integracion.
+
+4. **Cuenta resuelta por identidad de la config de la sucursal** (D7): `registrarMovimientoCuentaEmpresa()` resuelve la cuenta via `identidadCuentaEmpresa()` de la config de la transaccion (`transaccion->integracionSucursal`), no via `formaPago->cuenta_empresa_id`. Asi, dos sucursales con cuentas MP distintas impactan cada una la suya. Fallback: `formaPago->cuenta_empresa_id` si la identidad es null.
+
+5. **Anulacion no revierte el movimiento** (D8): como `venta_pagos.movimiento_cuenta_empresa_id` queda NULL en pagos por integracion, los flujos de anulacion y cambio de forma de pago (que contraasientan por ese link) no encuentran nada que revertir. El dinero sigue en el proveedor salvo refund manual externo. Una futura funcionalidad de refund agregaria el egreso como contraasiento; hasta entonces el saldo queda acumulado.
+
+6. **Idempotencia por origen polimórfico**: antes de registrar el movimiento se verifica que no exista ya un `MovimientoCuentaEmpresa` con `origen_tipo='IntegracionPagoTransaccion'` y el mismo `origen_id`. Webhook, polling y confirmacion manual pueden converger; solo el primero que llegue registra el movimiento.
+
+7. **Solo produccion afecta el ledger** (D1): el guard esta en `confirmarCobro`/`confirmarManual` (un solo lugar). No se replica en los sitios de materializacion.
+
+8. **Genericidad**: el unico codigo proveedor-especifico es `identidadCuentaEmpresa()` en cada clase gateway. El resto (columna, service de vinculo, movimiento, autocompletado) no menciona a ningun proveedor. Para agregar otro gateway, solo se implementa ese metodo.
 
 #### Reglas de negocio criticas (Mercado Pago)
 
@@ -2912,6 +2947,7 @@ El trait es compartido entre `NuevaVenta` y `NuevoPedidoMostrador`. Usa `WithCob
 - `interceptarCobroPorIntegracion(): bool` — Punto unico de enganche: si hay un pago con integracion no confirmado, llama `iniciarCobroIntegracion()` y retorna `true` (el caller debe abortar y esperar al polling).
 - `cajaIdParaPantallaCliente(): ?int` — Override: retorna `$this->cajaSeleccionada ?? caja_activa()`.
 - `alConfirmarCobroIntegracion(): void` — Override: llama `verificarPuntoVentaYProcesar()` para reanudar el flujo de venta/pedido con el flag `cobroIntegracionConfirmado = true`.
+- **Anti doble registro en `procesarVentaConDesglose()`**: al crear cada `VentaPago`, el trait saltea el bloque de registro por `formaPago->cuenta_empresa_id` cuando `$integracionTransaccionId !== null` (el pago fue cobrado por integracion). En ese caso `venta_pagos.movimiento_cuenta_empresa_id` queda NULL; los flujos de anulacion no tienen movimiento que contraasientar. Para los demas pagos del desglose (sin integracion), el registro procede normal.
 
 **Guard en `verificarPuntoVentaYProcesar()`**: si `!cobroIntegracionConfirmado && desglosePagoConIntegracion() !== null`, llama `interceptarCobroPorIntegracion()` y retorna. La segunda vez que entra (con `cobroIntegracionConfirmado = true`), el guard no aplica y el flujo continua normalmente.
 
@@ -3333,6 +3369,39 @@ WHERE e.transaccion_id = ?
 ORDER BY e.created_at ASC;
 ```
 
+#### Movimientos de cuenta empresa generados por integraciones de pago
+
+```sql
+-- Todos los ingresos por cobros de integracion en un periodo
+SELECT mce.created_at, mce.monto, mce.origen_id AS transaccion_id,
+       ce.nombre AS cuenta, mce.sucursal_id
+FROM {PREFIX}movimientos_cuenta_empresa mce
+JOIN {PREFIX}cuentas_empresa ce ON ce.id = mce.cuenta_empresa_id
+WHERE mce.origen_tipo = 'IntegracionPagoTransaccion'
+  AND mce.tipo = 'ingreso'
+  AND mce.estado = 'activo'
+  AND mce.created_at >= ?
+  AND mce.created_at <= ?
+ORDER BY mce.created_at DESC;
+```
+
+```sql
+-- Verificar idempotencia: buscar si ya existe movimiento para una transaccion
+SELECT id FROM {PREFIX}movimientos_cuenta_empresa
+WHERE origen_tipo = 'IntegracionPagoTransaccion'
+  AND origen_id = ?
+LIMIT 1;
+```
+
+```sql
+-- Cuentas empresa con identidad de proveedor vinculada (subtipo mercadopago)
+SELECT id, nombre, subtipo, identificador_externo, saldo_actual
+FROM {PREFIX}cuentas_empresa
+WHERE subtipo = 'mercadopago'
+  AND identificador_externo IS NOT NULL
+  AND activo = 1;
+```
+
 ### 4.2 Convenciones de Datos
 
 **Estados posibles de cada entidad:**
@@ -3353,7 +3422,7 @@ ORDER BY e.created_at ASC;
 | Produccion | `confirmado`, `anulado` | |
 | ProvisionFondo | `pendiente`, `confirmado`, `cancelado` | |
 | DepositoBancario | `pendiente`, `confirmado`, `cancelado` | |
-| IntegracionPagoTransaccion | `pendiente`, `confirmado`, `cancelado`, `fallido`, `expirado` | `estaEnEstadoTerminal()` = true para todos menos `pendiente` |
+| IntegracionPagoTransaccion | `pendiente`, `confirmado`, `confirmado_manual`, `cancelado`, `fallido`, `expirado` | `estaEnEstadoTerminal()` = true para todos menos `pendiente`. `estaConfirmada()` = true para `confirmado` y `confirmado_manual`. |
 
 **Formatos de fecha:**
 - Fechas se almacenan como `timestamp` o `date` en MySQL.
