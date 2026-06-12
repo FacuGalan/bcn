@@ -963,6 +963,7 @@ Cuentas bancarias y billeteras digitales de la empresa.
 | `tipo` | enum | `banco` o `billetera_digital` |
 | `subtipo` | varchar(50) nullable | `cuenta_corriente`, `caja_ahorro`, `mercadopago`, `uala`, `paypal`, `otro` |
 | `identificador_externo` | varchar(100) nullable | ID de la cuenta en el proveedor de pago externo (para MP = `user_id_externo`). Junto con `subtipo` forma la identidad unica de la cuenta. Nullable: las cuentas bancarias/manuales no lo usan. |
+| `conciliacion_automatica` | boolean | Default `false`. Si esta activa, el comando `conciliaciones:procesar` crea cada dia una corrida para el dia anterior (siempre queda pendiente de revision). Solo visible/editable para cuentas con `identificador_externo`. |
 | `banco` | varchar(100) nullable | Nombre del banco |
 | `numero_cuenta` | varchar(50) nullable | Numero de cuenta |
 | `cbu` | varchar(22) nullable | CBU |
@@ -992,7 +993,7 @@ Movimientos en cuentas bancarias/billeteras. Patron append-only con contraasient
 | `monto` | decimal(14,2) | Monto |
 | `saldo_anterior` | decimal(14,2) | Saldo antes |
 | `saldo_posterior` | decimal(14,2) | Saldo despues |
-| `origen_tipo` | varchar(50) nullable | `VentaPago`, `CobroPago`, `TransferenciaCuentaEmpresa`, `DepositoBancario`, `Manual`, `IntegracionPagoTransaccion` |
+| `origen_tipo` | varchar(50) nullable | `VentaPago`, `CobroPago`, `TransferenciaCuentaEmpresa`, `DepositoBancario`, `Manual`, `IntegracionPagoTransaccion`, `ConciliacionFila` |
 | `origen_id` | bigint nullable | ID del origen |
 | `usuario_id` | bigint FK | Usuario |
 | `sucursal_id` | bigint FK nullable | Sucursal |
@@ -1008,9 +1009,72 @@ Movimientos en cuentas bancarias/billeteras. Patron append-only con contraasient
 - `transferencia_entrada` / `transferencia_salida` — transferencias entre cuentas
 - `deposito_bancario` — deposito bancario confirmado
 - `cobro_integracion` — ingreso por cobro confirmado a traves de una integracion de pago (QR, Point u otro proveedor). Registrado por `CobroIntegracionService` al confirmar la transaccion. Origen polimórfico: `IntegracionPagoTransaccion`. Permite filtrar los ingresos de integraciones para conciliacion.
+- `comision_integracion` — egreso por comision cobrada por el proveedor sobre un cobro conciliado. Generado al aplicar una corrida de conciliacion (fila hija de tipo `comision`). Origen polimórfico: `ConciliacionFila`.
+- `retiro_integracion` — egreso por retiro a banco desde el proveedor. Generado al aplicar conciliacion. Origen polimórfico: `ConciliacionFila`.
+- `devolucion_integracion` — egreso por devolucion o contracargo registrado en el proveedor. Generado al aplicar conciliacion. Origen polimórfico: `ConciliacionFila`.
+- `acreditacion_integracion` — ingreso por acreditacion o rendicion registrada en el proveedor (cobros externos, transferencias recibidas). Generado al aplicar conciliacion. Origen polimórfico: `ConciliacionFila`.
+- `ajuste_conciliacion` — ingreso o egreso de ajuste por diferencia de saldo inicial al conciliar por primera vez una cuenta. Generado al aplicar conciliacion cuando se informa el saldo real inicial (RF-07). Origen polimórfico: `ConciliacionFila`.
 
 #### Tabla: `cuenta_empresa_sucursal`
 Pivot que vincula cuentas empresa con sucursales. Si no tiene sucursales asignadas, esta disponible en todas.
+
+#### Tabla: `conciliaciones_cuenta`
+Corridas de conciliacion de una `CuentaEmpresa` contra el proveedor de pago. Patron append-only: una corrida descartada o con error NO se edita, se crea una nueva.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `cuenta_empresa_id` | bigint FK | Cuenta conciliada |
+| `desde` | date | Inicio del periodo |
+| `hasta` | date | Fin del periodo |
+| `estado` | enum | `generando`, `pendiente_revision`, `aplicada`, `descartada`, `error` |
+| `origen` | enum | `manual` (usuario) o `programada` (comando automatico) |
+| `solicitud_reporte` | varchar(255) nullable | Identificador o rango de la solicitud al proveedor (para polling) |
+| `archivo_reporte` | varchar(255) nullable | Nombre del archivo descargado (auditoria) |
+| `saldo_sistema` | decimal(15,2) nullable | Snapshot del saldo del ledger al generar la corrida |
+| `total_matcheados` | int | Cantidad de filas clasificadas como `matcheado` |
+| `total_solo_proveedor` | int | Cantidad de filas `solo_proveedor` |
+| `total_solo_sistema` | int | Cantidad de filas `solo_sistema` |
+| `monto_propuesto_ingresos` | decimal(15,2) | Suma de ingresos propuestos (antes de aplicar) |
+| `monto_propuesto_egresos` | decimal(15,2) | Suma de egresos propuestos (antes de aplicar) |
+| `error_mensaje` | text nullable | Mensaje si estado = `error` |
+| `usuario_id` | bigint FK nullable | Quien la creo (NULL = generada por el comando) |
+| `aplicada_por` | bigint FK nullable | Quien aplico los ajustes |
+| `aplicada_en` | timestamp nullable | Cuando se aplico |
+| timestamps | | |
+
+Indices: KEY (`cuenta_empresa_id`, `estado`), KEY (`estado`).
+
+**Maquina de estados**: `generando` → `pendiente_revision` → `aplicada` o `descartada`. Terminal `error` (reintentable creando corrida nueva). Solo puede haber UNA corrida activa (`generando` o `pendiente_revision`) por cuenta a la vez.
+
+**Origen polimórfico**: los movimientos generados usan `origen_tipo='ConciliacionFila'` como string plano (igual que `IntegracionPagoTransaccion`) — NO requiere morphMap porque `movimientos_cuenta_empresa.origen_tipo/origen_id` no usa relaciones Eloquent morph.
+
+#### Tabla: `conciliacion_filas`
+Detalle de cada corrida. Una fila por movimiento del reporte del proveedor, mas filas hijas de comision y filas de ajuste inicial.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `conciliacion_cuenta_id` | bigint FK | Corrida |
+| `tipo` | enum | `cobro`, `comision`, `devolucion`, `contracargo`, `retiro`, `retiro_cancelado`, `acreditacion`, `ajuste_inicial`, `otro` |
+| `clasificacion` | enum | `matcheado`, `solo_proveedor`, `solo_sistema`, `ya_registrado` |
+| `id_externo` | varchar(100) nullable | ID de la operacion en el proveedor (MP: SOURCE_ID) |
+| `referencia` | varchar(255) nullable | Referencia externa que el sistema seteo al cobrar (MP: EXTERNAL_REFERENCE) |
+| `fecha` | datetime nullable | Fecha de la operacion en el proveedor |
+| `descripcion` | varchar(255) nullable | Descripcion legible |
+| `monto_bruto` | decimal(15,2) | Monto bruto |
+| `comision` | decimal(15,2) | Comision cobrada por el proveedor |
+| `monto_neto` | decimal(15,2) | Monto neto |
+| `accion` | enum | `generar_movimiento`, `ignorar`, `sin_accion`. Editable durante la revision; propuestas arrancan en `generar_movimiento` |
+| `tipo_movimiento` | enum nullable | `ingreso` o `egreso` del movimiento propuesto |
+| `concepto_codigo` | varchar(50) nullable | Codigo del concepto del movimiento propuesto |
+| `integracion_pago_transaccion_id` | bigint FK nullable | Transaccion matcheada (solo filas `matcheado`) |
+| `movimiento_cuenta_empresa_id` | bigint FK nullable | Movimiento generado al aplicar |
+| timestamps | | |
+
+Indices: KEY (`conciliacion_cuenta_id`, `clasificacion`), KEY (`id_externo`).
+
+**Idempotencia cross-corrida**: la unicidad no es un UNIQUE en la tabla (filas ignoradas o descartadas pueden repetirse legitimamente en corridas solapadas). La guarda es una query al aplicar: si ya existe un `MovimientoCuentaEmpresa` con origen `ConciliacionFila` de la misma cuenta y mismo `(tipo, id_externo)`, la fila se clasifica `ya_registrado` y no vuelve a proponer movimiento.
 
 ### 2.9 Compras
 
@@ -2378,6 +2442,58 @@ El metodo `pollearCobroIntegracion()` del concern tiene un short-circuit explici
 
 8. **Genericidad**: el unico codigo proveedor-especifico es `identidadCuentaEmpresa()` en cada clase gateway. El resto (columna, service de vinculo, movimiento, autocompletado) no menciona a ningun proveedor. Para agregar otro gateway, solo se implementa ese metodo.
 
+#### Reglas de negocio — conciliacion de cuenta con el proveedor (Paso 3)
+
+1. **Conciliacion por CuentaEmpresa, no por sucursal**: una cuenta MP compartida por N sucursales se concilia UNA sola vez. La corrida busca cualquier config prod activa cuya `identidadCuentaEmpresa()` coincida con la cuenta para obtener el access token.
+
+2. **Solo produccion**: no se pueden conciliar cuentas sin `identificador_externo` ni cuentas cuya unica config activa sea de modo test. Guard en `ConciliacionCuentaService::crearCorrida()`.
+
+3. **Una sola corrida activa por cuenta**: si ya existe una corrida en estado `generando` o `pendiente_revision` para la cuenta, `crearCorrida()` lanza excepcion. Reintentable creando una corrida nueva tras descartar o esperar a que la activa se resuelva.
+
+4. **Asincronico sin bloquear la UI**: el reporte de MP se genera de forma asincrona (202). La corrida avanza por estados via el comando `conciliaciones:procesar` (scheduler cada minuto). La UI usa `wire:poll` mientras el estado es `generando`. Timeout: >60 min en `generando` → `error`.
+
+5. **Match de cobros**: fila `tipo=cobro` del proveedor ↔ `IntegracionPagoTransaccion` confirmada por `referencia == transaccion.external_reference` o `id_externo == transaccion.external_id`. Tolerancia de ±1 dia por timezone al filtrar el periodo.
+
+6. **Comision granular**: si una fila `matcheado` tiene `comision > 0`, se genera una fila hija de `tipo=comision` clasificada `matcheado` con accion `generar_movimiento` (egreso, concepto `comision_integracion`). No hay un egreso global de comisiones: es uno por cobro.
+
+7. **Solo en el sistema = alerta, sin ajuste**: un `cobro_integracion` del periodo que no aparece en el reporte se marca `solo_sistema`. No se propone egreso automatico (puede ser diferencia de timing). Se muestra como alerta para que el usuario lo revise manualmente.
+
+8. **Idempotencia cross-corrida**: al clasificar filas del proveedor, si ya existe un `MovimientoCuentaEmpresa` con `origen_tipo='ConciliacionFila'` de la misma cuenta y mismo `(tipo, id_externo)`, la fila se marca `ya_registrado` y no propone nada. Esto permite re-conciliar periodos solapados sin duplicar movimientos.
+
+9. **Aplicar es idempotente**: guard de estado en `aplicar()` — si la corrida ya esta `aplicada`, la llamada es no-op. Protege contra doble click.
+
+10. **Append-only**: aplicar genera `MovimientoCuentaEmpresa` via `registrarMovimientoAutomatico()` con origen polimórfico `ConciliacionFila` y `sucursal_id = null` (la conciliacion es de comercio, no de sucursal). Nunca modifica ni anula movimientos existentes.
+
+11. **Corrida programada nunca auto-aplica**: la corrida creada por el comando (flag `conciliacion_automatica`) siempre queda `pendiente_revision`. La aplicacion siempre requiere accion humana.
+
+12. **Ajuste inicial (cierre de D11)**: si la cuenta no tiene ninguna corrida `aplicada` previa, la pantalla de revision ofrece el campo "Saldo real en el proveedor al inicio del periodo". Si se completa, se genera una fila de `tipo=ajuste_inicial` con movimiento `ajuste_conciliacion` (ingreso o egreso segun el signo de la diferencia) que se aplica junto con el resto.
+
+13. **Genericidad del gateway**: `solicitarReporteCuenta()` y `obtenerReporteCuenta()` son metodos del contrato `IntegracionPagoGatewayContract`. La implementacion MP-especifica (endpoints `/v1/account/settlement_report/*`, parseo de CSV, mapeo de TRANSACTION_TYPE a tipo normalizado) vive exclusivamente en `MercadoPagoGateway`. Un proveedor que no soporte reportes devuelve `null` en `solicitarReporteCuenta()`.
+
+**Mapeo de tipos MP → tipo normalizado:**
+| TRANSACTION_TYPE (CSV de MP) | tipo normalizado |
+|---|---|
+| `SETTLEMENT` | `cobro` |
+| `REFUND` | `devolucion` |
+| `CHARGEBACK`, `DISPUTE` | `contracargo` |
+| `WITHDRAWAL`, `PAYOUT` | `retiro` |
+| `WITHDRAWAL_CANCEL` | `retiro_cancelado` |
+| Creditos sin tipo conocido | `acreditacion` |
+| Resto | `otro` |
+
+**Mapeo de tipo normalizado → concepto propuesto:**
+| tipo | clasificacion | tipo movimiento | concepto |
+|---|---|---|---|
+| `comision` | `matcheado` | egreso | `comision_integracion` |
+| `retiro` | `solo_proveedor` | egreso | `retiro_integracion` |
+| `devolucion`, `contracargo` | `solo_proveedor` | egreso | `devolucion_integracion` |
+| `cobro` sin match, `acreditacion`, `retiro_cancelado` | `solo_proveedor` | ingreso | `acreditacion_integracion` |
+| `ajuste_inicial` | — | ingreso o egreso | `ajuste_conciliacion` |
+
+**Servicios:**
+- `ConciliacionCuentaService` — `app/Services/IntegracionesPago/ConciliacionCuentaService.php`: `crearCorrida()`, `procesarPendientes()` (motor del comando), `ejecutarMatch()`, `aplicar()`, `descartar()`, `resolverConfigParaCuenta()`.
+- Comando `conciliaciones:procesar` — `app/Console/Commands/ProcesarConciliacionesCommand.php`: itera comercios via TenantService manual, llama `procesarPendientes()`. Scheduler: cada minuto con `withoutOverlapping()`.
+
 #### Reglas de negocio criticas (Mercado Pago)
 
 1. **external_id NO en updates**: MP rechaza el campo `external_id` en las solicitudes PUT (Store y POS) con HTTP 400, porque valida unicidad incluso contra el propio recurso. Solo se envia al crear.
@@ -3402,6 +3518,74 @@ WHERE subtipo = 'mercadopago'
   AND activo = 1;
 ```
 
+#### Corridas de conciliacion por cuenta y estado
+
+```sql
+-- Corridas activas (generando o pendiente de revision) por cuenta
+SELECT id, estado, origen, desde, hasta, total_matcheados,
+       total_solo_proveedor, total_solo_sistema, created_at
+FROM {PREFIX}conciliaciones_cuenta
+WHERE cuenta_empresa_id = ?
+  AND estado IN ('generando', 'pendiente_revision')
+ORDER BY created_at DESC
+LIMIT 1;
+```
+
+```sql
+-- Historial de corridas de una cuenta (todas, para auditoria)
+SELECT cc.id, cc.estado, cc.origen, cc.desde, cc.hasta,
+       cc.monto_propuesto_ingresos, cc.monto_propuesto_egresos,
+       cc.aplicada_en, u.name AS aplicada_por
+FROM {PREFIX}conciliaciones_cuenta cc
+LEFT JOIN users u ON u.id = cc.aplicada_por
+WHERE cc.cuenta_empresa_id = ?
+ORDER BY cc.created_at DESC;
+```
+
+#### Movimientos generados por una corrida de conciliacion
+
+```sql
+-- Todos los movimientos generados al aplicar una corrida
+SELECT mce.id, mce.tipo, mce.monto, mce.concepto_descripcion,
+       mce.saldo_anterior, mce.saldo_posterior, mce.created_at
+FROM {PREFIX}movimientos_cuenta_empresa mce
+JOIN {PREFIX}conciliacion_filas cf ON cf.id = mce.origen_id
+WHERE mce.origen_tipo = 'ConciliacionFila'
+  AND cf.conciliacion_cuenta_id = ?
+  AND mce.estado = 'activo'
+ORDER BY mce.created_at ASC;
+```
+
+```sql
+-- Verificar idempotencia cross-corrida: buscar si ya existe movimiento
+-- para una combinacion (cuenta, tipo_fila, id_externo_proveedor)
+SELECT mce.id
+FROM {PREFIX}movimientos_cuenta_empresa mce
+JOIN {PREFIX}conciliacion_filas cf ON cf.id = mce.origen_id
+JOIN {PREFIX}conciliaciones_cuenta cc ON cc.id = cf.conciliacion_cuenta_id
+WHERE mce.origen_tipo = 'ConciliacionFila'
+  AND cc.cuenta_empresa_id = ?
+  AND cf.tipo = ?
+  AND cf.id_externo = ?
+  AND mce.estado = 'activo'
+LIMIT 1;
+```
+
+```sql
+-- Resumen de conciliaciones aplicadas: impacto en saldo por cuenta y periodo
+SELECT cc.desde, cc.hasta, cc.aplicada_en,
+       SUM(CASE WHEN mce.tipo = 'ingreso' THEN mce.monto ELSE 0 END) AS ingresos_aplicados,
+       SUM(CASE WHEN mce.tipo = 'egreso'  THEN mce.monto ELSE 0 END) AS egresos_aplicados
+FROM {PREFIX}conciliaciones_cuenta cc
+JOIN {PREFIX}conciliacion_filas cf ON cf.conciliacion_cuenta_id = cc.id
+JOIN {PREFIX}movimientos_cuenta_empresa mce ON mce.origen_id = cf.id
+  AND mce.origen_tipo = 'ConciliacionFila' AND mce.estado = 'activo'
+WHERE cc.cuenta_empresa_id = ?
+  AND cc.estado = 'aplicada'
+GROUP BY cc.id, cc.desde, cc.hasta, cc.aplicada_en
+ORDER BY cc.aplicada_en DESC;
+```
+
 ### 4.2 Convenciones de Datos
 
 **Estados posibles de cada entidad:**
@@ -3423,6 +3607,9 @@ WHERE subtipo = 'mercadopago'
 | ProvisionFondo | `pendiente`, `confirmado`, `cancelado` | |
 | DepositoBancario | `pendiente`, `confirmado`, `cancelado` | |
 | IntegracionPagoTransaccion | `pendiente`, `confirmado`, `confirmado_manual`, `cancelado`, `fallido`, `expirado` | `estaEnEstadoTerminal()` = true para todos menos `pendiente`. `estaConfirmada()` = true para `confirmado` y `confirmado_manual`. |
+| ConciliacionCuenta | `generando`, `pendiente_revision`, `aplicada`, `descartada`, `error` | `generando` y `pendiente_revision` son activos (solo uno por cuenta). `aplicada`/`descartada`/`error` son terminales. |
+| ConciliacionFila.clasificacion | `matcheado`, `solo_proveedor`, `solo_sistema`, `ya_registrado` | |
+| ConciliacionFila.accion | `generar_movimiento`, `ignorar`, `sin_accion` | `sin_accion` para filas `solo_sistema` y `ya_registrado`; propuestas arrancan en `generar_movimiento`. |
 
 **Formatos de fecha:**
 - Fechas se almacenan como `timestamp` o `date` en MySQL.
@@ -3454,7 +3641,7 @@ Las siguientes tablas usan soft delete (`deleted_at` no nulo = eliminado):
 Al consultar estas tablas, siempre agregar `AND deleted_at IS NULL` a menos que se quieran incluir registros eliminados.
 
 **Patron append-only (ledger):**
-Las tablas `movimientos_stock`, `movimientos_cuenta_corriente`, `movimientos_cuenta_empresa`, `venta_pagos` (para cambios de pago) e `integraciones_pago_eventos` siguen el patron append-only:
+Las tablas `movimientos_stock`, `movimientos_cuenta_corriente`, `movimientos_cuenta_empresa`, `venta_pagos` (para cambios de pago), `integraciones_pago_eventos` y `conciliaciones_cuenta`/`conciliacion_filas` siguen el patron append-only:
 - Los registros nunca se modifican ni eliminan.
 - Las anulaciones se hacen creando un **contraasiento** que invierte los montos (movimientos) o marcando el registro como `estado = 'anulado'` y creando uno nuevo (venta_pagos).
 - El original se vincula al contraasiento via `anulado_por_movimiento_id` (movimientos) o via `venta_pago_reemplazado_id` (venta_pagos).

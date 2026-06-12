@@ -252,8 +252,9 @@ Conceptos nuevos (seed idempotente por código + `ProvisionComercioCommand`, pat
 | `ajuste_conciliacion` | Ajuste por conciliación | ambos |
 
 > **Regenerar `database/sql/tenant_tables.sql`** tras las migraciones (sin `;`
-> en COMMENTs — incidente 2026-06-11). morphMap: agregar `ConciliacionFila` en
-> `AppServiceProvider` (patrón 'Articulo'/'Opcional').
+> en COMMENTs — incidente 2026-06-11). Nota de implementación (2026-06-12): NO
+> hace falta morphMap — `movimientos_cuenta_empresa.origen_tipo` es un string
+> plano sin relación Eloquent morph (igual que `IntegracionPagoTransaccion`).
 
 ---
 
@@ -356,28 +357,28 @@ Claves nuevas (es/en/pt, orden alfabético, `/traducir`). Principales:
 
 ## Plan de Implementación
 
-### Fase 1: BD + modelos + conceptos [PENDIENTE]
+### Fase 1: BD + modelos + conceptos [COMPLETO]
 1. Migraciones 1-3 (tablas, boolean, conceptos) + `ProvisionComercioCommand`.
 2. Modelos `ConciliacionCuenta` y `ConciliacionFila` (conexión tenant, casts, estados, relaciones, scopes) + morphMap.
 3. Regenerar `tenant_tables.sql`. Tests de modelo/scopes.
 
-### Fase 2: Contrato + gateway MP [PENDIENTE]
+### Fase 2: Contrato + gateway MP [COMPLETO]
 1. Métodos nuevos en el contrato + implementación MP (config reporte, solicitar, listar, descargar, parsear CSV, normalizar).
 2. Tests del gateway con Http::fake (CSV de ejemplo con todos los TRANSACTION_TYPE).
 
-### Fase 3: Service + comando [PENDIENTE]
+### Fase 3: Service + comando [COMPLETO]
 1. `ConciliacionCuentaService` completo (crear, procesar, match, aplicar, descartar, resolver config).
 2. Comando `conciliaciones:procesar` + registro en scheduler.
 3. Tests de service: máquina de estados, match (todas las clasificaciones), idempotencia, aplicar, ajuste inicial, corridas programadas, timeout.
 
-### Fase 4: UI [PENDIENTE]
+### Fase 4: UI [COMPLETO]
 1. Migración 4 (menú + permisos) + ruta + componente `ConciliacionesCuenta` (#[Lazy] + skeleton) + vistas (design system: header + filtros + cards móvil + tabla desktop, x-bcn-modal).
 2. Toggle conciliación automática + acceso "Conciliar" en `GestionCuentas`.
 3. Traducciones (es/en/pt). Tests Livewire (smoke + crear corrida + aplicar con permisos).
 
-### Fase 5: Cierre [PENDIENTE]
-1. Validación en vivo del usuario (cuenta MP real: pedir reporte, revisar match, aplicar).
-2. `/sdd-verify` → docs (`@docs-sync`) → PR.
+### Fase 5: Cierre [EN PROGRESO — implementación completa, falta validación en vivo]
+1. PENDIENTE: validación en vivo del usuario (cuenta MP real: pedir reporte, revisar match, aplicar). El parser CSV es tolerante a los dos dialectos documentados pero el formato real se confirma acá.
+2. ✅ Docs (`@docs-sync`) + PR (implementación 2026-06-12, fases 1-4 con 33 tests nuevos en verde).
 
 ---
 

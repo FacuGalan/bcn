@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-12
+> Version: 0.1.x | Ultima actualizacion: 2026-06-12 (conciliacion MP)
 
 ---
 
@@ -42,6 +42,7 @@
   - [9.2 Gestion de Cuentas](#92-gestion-de-cuentas)
   - [9.3 Movimientos](#93-movimientos)
   - [9.4 Transferencias](#94-transferencias)
+  - [9.5 Conciliaciones](#95-conciliaciones)
 - [10. Articulos](#10-articulos)
   - [10.1 Gestion de Articulos](#101-gestion-de-articulos)
     - [Importar y exportar articulos desde Excel](#importar-y-exportar-articulos-desde-excel)
@@ -1748,6 +1749,11 @@ Haga clic en **"Nueva Cuenta"** y complete el formulario:
 - **Editar**: Modifica los datos de la cuenta.
 - **Activar/Desactivar**: Cambia el estado de la cuenta.
 - **Eliminar**: Solo posible si la cuenta no tiene movimientos registrados. Si tiene movimientos, desactivela en su lugar.
+- **Conciliar** (solo cuentas vinculadas a proveedor): acceso directo a la pantalla de Conciliaciones con esa cuenta preseleccionada. Aparece unicamente en cuentas que tienen un identificador externo de proveedor (por ejemplo, cuentas de Mercado Pago vinculadas desde la configuracion de Integraciones de Pago).
+
+#### Conciliacion automatica diaria (cuentas vinculadas)
+
+Al editar una cuenta vinculada a un proveedor (con identificador externo), aparece el toggle **"Conciliacion automatica diaria"**. Si se activa, el sistema prepara automaticamente cada dia la conciliacion del dia anterior. La corrida queda siempre en estado "Pendiente de revision" para que un usuario la revise y aplique manualmente; nunca se aplica sola.
 
 ---
 
@@ -1805,6 +1811,60 @@ Permite transferir dinero entre cuentas bancarias o billeteras digitales.
 5. Haga clic en **"Transferir"**.
 
 El sistema genera dos movimientos: un egreso en la cuenta origen y un ingreso en la cuenta destino.
+
+---
+
+### 9.5 Conciliaciones
+
+Permite comparar el historial de movimientos registrado en el sistema contra los movimientos reales de la cuenta en el proveedor de pago (por ejemplo, Mercado Pago), detectar diferencias y registrar los ajustes necesarios (comisiones, retiros, devoluciones, acreditaciones) para que el saldo del sistema converja al saldo real del proveedor.
+
+Solo se pueden conciliar cuentas vinculadas a un proveedor (con identificador externo). Requiere el permiso **"Conciliaciones"** (ver y crear) y, para aplicar o descartar, el permiso adicional **"bancos.conciliaciones.aplicar"**.
+
+#### Que ve al entrar
+
+- Filtros por cuenta y por estado de corrida.
+- Listado de corridas de conciliacion: cuenta, periodo (desde / hasta), estado (badge), origen (manual o automatica), contadores de filas y fecha.
+- Boton **"Nueva conciliacion"**.
+
+#### Crear una conciliacion
+
+1. Haga clic en **"Nueva conciliacion"**.
+2. En el modal seleccione:
+   - **Cuenta**: solo aparecen las cuentas conciliables (con identificador de proveedor y configuracion de produccion activa).
+   - **Periodo**: fecha desde y hasta (por defecto los ultimos 7 dias).
+3. Confirme. El sistema crea la corrida en estado **"Generando reporte del proveedor..."** y comienza a solicitar el reporte de movimientos al proveedor de forma asincrona.
+4. La pantalla se refresca sola mientras el reporte se genera. Cuando el proveedor responde, el sistema matchea los movimientos y la corrida pasa a **"Pendiente de revision"**.
+
+> Si el proveedor tarda mas de 60 minutos en generar el reporte, la corrida pasa a estado **"Error"**. En ese caso puede crear una corrida nueva para el mismo periodo.
+
+> Solo puede haber una corrida activa (generando o pendiente de revision) por cuenta al mismo tiempo.
+
+#### Revisar y clasificar los movimientos
+
+Al abrir el detalle de una corrida en estado "Pendiente de revision" vera las filas del reporte del proveedor clasificadas en grupos:
+
+- **Conciliados**: cobros que el sistema ya registro y que aparecen en el reporte del proveedor. Si el proveedor cobro una comision por ese cobro, el sistema propone un egreso de comision por cada uno.
+- **Solo en el proveedor**: movimientos que estan en el proveedor pero el sistema no los tiene. Segun el tipo:
+  - Acreditaciones, rendiciones y cobros externos → el sistema propone un **ingreso**.
+  - Devoluciones, contracargos y retiros a banco → el sistema propone un **egreso**.
+- **Solo en el sistema**: cobros que el sistema registro pero no aparecen en el reporte del proveedor. Se muestran como alerta; el sistema no genera ajuste automatico (puede ser diferencia de timing del reporte).
+- **Ya registrado**: filas de corridas anteriores ya aplicadas. No se vuelven a proponer.
+
+Cada fila propuesta tiene un toggle **"Generar movimiento / Ignorar"** que puede cambiar individualmente o por grupo completo (acciones masivas). Por defecto todas las propuestas arrancan en "Generar movimiento".
+
+#### Ajuste inicial (primera conciliacion de una cuenta)
+
+Si la cuenta no tiene ninguna conciliacion aplicada anteriormente, aparece un campo opcional **"Saldo real en el proveedor al inicio del periodo"**. Si lo completa, el sistema calcula la diferencia entre ese saldo y el que tenia el ledger en esa fecha y propone un movimiento de ajuste (ingreso o egreso segun el signo) que se aplica junto con el resto.
+
+#### Aplicar los ajustes
+
+Haga clic en **"Aplicar ajustes"**. El sistema genera en el ledger un movimiento por cada fila que tenga la accion "Generar movimiento" (las filas en "Ignorar" no generan nada). Los movimientos quedan vinculados a la corrida de conciliacion como origen. La corrida pasa al estado **"Aplicada"**.
+
+> Hacer clic dos veces o recargar la pagina no duplica los movimientos: el sistema tiene guard de estado.
+
+#### Descartar una corrida
+
+Haga clic en **"Descartar"**. La corrida pasa al estado **"Descartada"** sin tocar el ledger. Puede crear una nueva corrida para el mismo periodo si lo necesita.
 
 ---
 
