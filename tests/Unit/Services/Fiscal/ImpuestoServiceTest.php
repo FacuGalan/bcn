@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Services\Fiscal;
 
+use App\Models\ConciliacionFila;
 use App\Models\CondicionIva;
 use App\Models\Cuit;
 use App\Models\CuitImpuestoConfig;
@@ -211,6 +212,49 @@ class ImpuestoServiceTest extends TestCase
         );
 
         $this->assertSame([], $tributos);
+    }
+
+    public function test_no_percibe_si_el_emisor_no_es_responsable_inscripto(): void
+    {
+        // Un monotributo NO puede ser agente de percepción aunque la config lo diga.
+        $emisor = Cuit::firstOrCreate(
+            ['numero_cuit' => '20222222223'],
+            [
+                'razon_social' => 'Monotributo SA',
+                'condicion_iva_id' => $this->condicion(CondicionIva::RESPONSABLE_MONOTRIBUTO)->id,
+                'entorno_afip' => 'testing',
+                'activo' => true,
+            ]
+        );
+        $imp = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
+        $this->config($emisor, $imp); // es_agente_percepcion = true (mal cargado)
+
+        $tributos = $this->service->calcularTributos(
+            $emisor,
+            $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
+            1000.0,
+            $this->sucursalCon('AR-B')
+        );
+
+        $this->assertSame([], $tributos);
+    }
+
+    public function test_respeta_la_fecha_de_la_operacion_para_la_vigencia(): void
+    {
+        $emisor = $this->cuit();
+        $imp = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
+        $this->config($emisor, $imp, ['alicuota' => 3.0, 'vigente_hasta' => '2026-03-31']);
+
+        $receptor = $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO);
+        $sucursal = $this->sucursalCon('AR-B');
+
+        // Operación dentro de la vigencia → percibe.
+        $dentro = $this->service->calcularTributos($emisor, $receptor, 1000.0, $sucursal, \Carbon\Carbon::parse('2026-03-15'));
+        $this->assertCount(1, $dentro);
+
+        // Operación posterior al vencimiento de la config → no percibe.
+        $fuera = $this->service->calcularTributos($emisor, $receptor, 1000.0, $sucursal, \Carbon\Carbon::parse('2026-12-15'));
+        $this->assertSame([], $fuera);
     }
 
     public function test_no_percibe_si_el_emisor_no_tiene_config_para_el_impuesto(): void
@@ -455,6 +499,95 @@ class ImpuestoServiceTest extends TestCase
 
         $this->expectException(Exception::class);
         $this->service->anularMovimientoFiscal($contra, 1);
+    }
+
+    // ==================== registrarDesdeConciliacion (RF-06, Fase 4a) ====================
+
+    protected function filaConciliacion(?int $impuestoId, float $montoNeto, string $fecha = '2026-03-10', int $id = 555): ConciliacionFila
+    {
+        $fila = new ConciliacionFila([
+            'conciliacion_cuenta_id' => 1,
+            'impuesto_id' => $impuestoId,
+            'monto_neto' => $montoNeto,
+            'fecha' => $fecha,
+        ]);
+        $fila->id = $id; // origen_id del movimiento fiscal (no se persiste la fila acá).
+
+        return $fila;
+    }
+
+    public function test_registrar_desde_conciliacion_crea_movimiento_sufrido_sin_base(): void
+    {
+        $cuit = $this->cuit();
+        $imp = $this->impuesto('perc_iibb_ar_s', Impuesto::TIPO_IIBB, 'percepcion', 'AR-S');
+        $fila = $this->filaConciliacion($imp->id, -25.00, '2026-03-10', 555);
+
+        $mov = $this->service->registrarDesdeConciliacion($fila, $cuit, 9);
+
+        $this->assertNotNull($mov);
+        $this->assertEquals(MovimientoFiscal::SENTIDO_SUFRIDO, $mov->sentido);
+        $this->assertEquals('percepcion', $mov->naturaleza);
+        $this->assertEquals($imp->id, $mov->impuesto_id);
+        $this->assertEquals(25.00, (float) $mov->monto); // monto siempre positivo
+        $this->assertEquals('2026-03', $mov->periodo_fiscal);
+        $this->assertEquals('ConciliacionFila', $mov->origen_tipo);
+        $this->assertEquals(555, $mov->origen_id);
+        $this->assertNull($mov->base_imponible); // 4b
+    }
+
+    public function test_registrar_desde_conciliacion_es_idempotente(): void
+    {
+        $cuit = $this->cuit();
+        $imp = $this->impuesto('perc_iibb_ar_s', Impuesto::TIPO_IIBB, 'percepcion', 'AR-S');
+        $fila = $this->filaConciliacion($imp->id, -25.00, '2026-03-10', 555);
+
+        $this->service->registrarDesdeConciliacion($fila, $cuit, 9);
+        $segundo = $this->service->registrarDesdeConciliacion($fila, $cuit, 9);
+
+        $this->assertNull($segundo);
+        $this->assertEquals(1, MovimientoFiscal::where('origen_tipo', 'ConciliacionFila')->where('origen_id', 555)->count());
+    }
+
+    public function test_registrar_desde_conciliacion_sin_impuesto_no_registra(): void
+    {
+        $cuit = $this->cuit();
+        $fila = $this->filaConciliacion(null, -25.00, '2026-03-10', 556);
+
+        $this->assertNull($this->service->registrarDesdeConciliacion($fila, $cuit, 9));
+        $this->assertEquals(0, MovimientoFiscal::query()->count());
+    }
+
+    // ==================== validarImpuestoSufrido (RF-06/D4, Fase 4a) ====================
+
+    public function test_validar_alerta_si_el_cuit_no_tiene_configurado_el_impuesto(): void
+    {
+        $cuit = $this->cuit();
+        $imp = $this->impuesto('perc_iibb_ar_s', Impuesto::TIPO_IIBB, 'percepcion', 'AR-S');
+        $fila = $this->filaConciliacion($imp->id, -25.00);
+
+        $alerta = $this->service->validarImpuestoSufrido($fila, $cuit);
+
+        $this->assertNotNull($alerta);
+        $this->assertStringContainsString($imp->nombre, $alerta);
+    }
+
+    public function test_validar_sin_alerta_si_el_cuit_tiene_el_impuesto_configurado(): void
+    {
+        $cuit = $this->cuit();
+        $imp = $this->impuesto('perc_iibb_ar_s', Impuesto::TIPO_IIBB, 'percepcion', 'AR-S');
+        $this->config($cuit, $imp); // inscripto = true
+
+        $fila = $this->filaConciliacion($imp->id, -25.00);
+
+        $this->assertNull($this->service->validarImpuestoSufrido($fila, $cuit));
+    }
+
+    public function test_validar_sin_impuesto_devuelve_null(): void
+    {
+        $cuit = $this->cuit();
+        $fila = $this->filaConciliacion(null, -25.00);
+
+        $this->assertNull($this->service->validarImpuestoSufrido($fila, $cuit));
     }
 
     // ==================== configVigente ====================

@@ -66,6 +66,19 @@ class MercadoPagoGatewayMapeoImpuestoTest extends TestCase
         }
     }
 
+    public function test_tax_detail_pelado_nombre_de_provincia(): void
+    {
+        // La doc oficial documenta que TAX_DETAIL puede traer solo la jurisdicción.
+        $r = $this->gateway->mapearImpuestoReporte('santa_fe');
+        $this->assertSame('perc_iibb_ar_s', $r['codigo']);
+        $this->assertSame('percepcion', $r['naturaleza']);
+        $this->assertSame('AR-S', $r['jurisdiccion']);
+
+        $r2 = $this->gateway->mapearImpuestoReporte('cordoba');
+        $this->assertSame('perc_iibb_ar_x', $r2['codigo']);
+        $this->assertSame('AR-X', $r2['jurisdiccion']);
+    }
+
     public function test_retencion_iibb_generica_no_se_mapea_aun(): void
     {
         // Sin jurisdicción en el código → queda genérico (resolución en 4b).

@@ -183,44 +183,96 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         ];
     }
 
+    /** Columnas del reporte account-money que pedimos para conciliar. */
+    private const COLUMNAS_REPORTE_BASE = [
+        'TRANSACTION_DATE', 'SOURCE_ID', 'EXTERNAL_REFERENCE', 'TRANSACTION_TYPE',
+        'TRANSACTION_AMOUNT', 'FEE_AMOUNT', 'SETTLEMENT_NET_AMOUNT', 'PAYMENT_METHOD',
+    ];
+
     /**
-     * Garantiza que la cuenta tenga configuración del reporte account-money.
-     * Solo la crea si no existe (no pisa una config que el usuario ya use
-     * para sus propios reportes). Sin config, MP responde 404 (sin detalle) a
-     * la generación, así que un fallo acá corta con error legible.
+     * Columnas del desglose fiscal (sistema-impositivo RF-06). Keys confirmadas
+     * válidas para el reporte account-money en la doc oficial de MP (vía MCP):
+     * TAXES_AMOUNT (monto, numeric 17,2), TAX_DETAIL (impuesto/jurisdicción,
+     * string 50) y TAXES_DISAGGREGATED (impuestos desagregados, JSON — el
+     * esquema interno NO está documentado: se conserva crudo en datos_extra
+     * hasta tener una fila real, ver REVISAR (4b) en mapearImpuestoReporte).
+     */
+    private const COLUMNAS_REPORTE_FISCALES = ['TAXES_AMOUNT', 'TAX_DETAIL', 'TAXES_DISAGGREGATED'];
+
+    /**
+     * Garantiza que la cuenta tenga configuración del reporte account-money,
+     * incluidas las columnas del desglose fiscal (RF-06).
+     *
+     * Sin config, MP responde 404 (sin detalle) a la generación → si no existe
+     * se crea con error legible. Si ya existe pero le faltan las columnas
+     * fiscales (caso de cuentas configuradas antes de este feature), se hace un
+     * PUT que MERGEA las columnas fiscales sobre las que ya tenía (respeta la
+     * config propia del usuario). El PUT es best-effort: si MP lo rechaza, la
+     * conciliación sigue funcionando con las columnas previas (degradación: sin
+     * desglose de impuestos), se loguea y no se corta el flujo validado.
      *
      * Payload validado contra la API real (2026-06-12): `file_name_prefix`,
      * `frequency` y `columns` son OBLIGATORIOS aunque no se use la
-     * programación del lado de MP (queda `scheduled: false` — la programación
-     * solo se activa con el endpoint /schedule, que no usamos). Las columnas
-     * válidas son las del dialecto TRANSACTION_* (las DATE/RECORD_TYPE/NET_*
-     * pertenecen al reporte de Liquidaciones, MP las rechaza acá con un 400
-     * genérico sin causa).
+     * programación del lado de MP. Las columnas válidas son las del dialecto
+     * TRANSACTION_* (+ las fiscales); las DATE/RECORD_TYPE/NET_* pertenecen al
+     * reporte de Liquidaciones, MP las rechaza acá con un 400 genérico sin causa.
      */
     private function asegurarConfigReporteCuenta(IntegracionPagoSucursal $config): void
     {
         $actual = $this->client($config)->get(self::API_BASE.'/v1/account/settlement_report/config');
+        $tieneConfig = $actual->successful() && ! empty($actual->json('columns'));
 
-        if ($actual->successful() && ! empty($actual->json('columns'))) {
+        // No hay config: crearla con base + fiscales (sin config MP no genera).
+        if (! $tieneConfig) {
+            $creacion = $this->client($config)->post(
+                self::API_BASE.'/v1/account/settlement_report/config',
+                $this->payloadConfigReporte(array_merge(self::COLUMNAS_REPORTE_BASE, self::COLUMNAS_REPORTE_FISCALES)),
+            );
+            $this->guardResponse($creacion, 'asegurarConfigReporteCuenta:crear');
+
             return;
         }
 
-        $creacion = $this->client($config)->post(self::API_BASE.'/v1/account/settlement_report/config', [
-            'file_name_prefix' => 'bcn-conciliacion',
-            'include_withdraw' => true,
-            'display_timezone' => 'GMT-03',
-            'header_language' => 'en',
-            'frequency' => ['hour' => 3, 'type' => 'daily', 'value' => 1],
-            'columns' => array_map(
-                fn (string $key) => ['key' => $key],
-                [
-                    'TRANSACTION_DATE', 'SOURCE_ID', 'EXTERNAL_REFERENCE', 'TRANSACTION_TYPE',
-                    'TRANSACTION_AMOUNT', 'FEE_AMOUNT', 'SETTLEMENT_NET_AMOUNT', 'PAYMENT_METHOD',
-                ]
-            ),
-        ]);
+        // Config existente: asegurar que tenga las columnas fiscales (RF-06).
+        $columnasActuales = collect($actual->json('columns'))->pluck('key')->filter()->values()->all();
+        $faltan = array_values(array_diff(self::COLUMNAS_REPORTE_FISCALES, $columnasActuales));
 
-        $this->guardResponse($creacion, 'asegurarConfigReporteCuenta');
+        if (empty($faltan)) {
+            return;
+        }
+
+        try {
+            $actualizacion = $this->client($config)->put(
+                self::API_BASE.'/v1/account/settlement_report/config',
+                $this->payloadConfigReporte(array_merge($columnasActuales, $faltan), $actual->json()),
+            );
+            $this->guardResponse($actualizacion, 'asegurarConfigReporteCuenta:actualizar');
+        } catch (\Throwable $e) {
+            Log::warning('MercadoPagoGateway: no se pudieron agregar las columnas fiscales al reporte (se concilia sin desglose)', [
+                'config_id' => $config->id,
+                'faltan' => $faltan,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Arma el payload de config del reporte con las columnas dadas, preservando
+     * los campos obligatorios de una config existente cuando se actualiza.
+     *
+     * @param  array<int, string>  $columnas
+     * @param  array<string, mixed>|null  $base  config actual (para no pisar ajustes del usuario en el PUT)
+     */
+    private function payloadConfigReporte(array $columnas, ?array $base = null): array
+    {
+        return [
+            'file_name_prefix' => $base['file_name_prefix'] ?? 'bcn-conciliacion',
+            'include_withdraw' => $base['include_withdraw'] ?? true,
+            'display_timezone' => $base['display_timezone'] ?? 'GMT-03',
+            'header_language' => $base['header_language'] ?? 'en',
+            'frequency' => $base['frequency'] ?? ['hour' => 3, 'type' => 'daily', 'value' => 1],
+            'columns' => array_map(fn (string $key) => ['key' => $key], array_values($columnas)),
+        ];
     }
 
     /**
@@ -299,9 +351,21 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         }
 
         $tipoCrudo = strtolower((string) ($valor(['TRANSACTION_TYPE', 'DESCRIPTION', 'RECORD_TYPE']) ?? ''));
+        $tipo = $this->normalizarTipoReporte($tipoCrudo, $neto);
+
+        // Desglose fiscal (sistema-impositivo RF-06): identificar QUÉ impuesto
+        // descontó MP. El código vive en TAX_DETAIL o en el tipo/descripción
+        // (formato ambiguo según la doc) → se prueba TAX_DETAIL primero y se cae
+        // al tipo crudo. Solo en filas de impuesto, para no mapear de más.
+        $taxDetail = $valor(['TAX_DETAIL']);
+        $impuesto = null;
+        if ($tipo === 'impuesto') { // ConciliacionFila::TIPO_IMPUESTO (el gateway usa literales)
+            $impuesto = ($taxDetail !== null ? $this->mapearImpuestoReporte((string) $taxDetail) : null)
+                ?? $this->mapearImpuestoReporte($tipoCrudo);
+        }
 
         return [
-            'tipo' => $this->normalizarTipoReporte($tipoCrudo, $neto),
+            'tipo' => $tipo,
             'id_externo' => $valor(['SOURCE_ID']) !== null ? (string) $valor(['SOURCE_ID']) : null,
             'referencia' => $valor(['EXTERNAL_REFERENCE']) !== null ? (string) $valor(['EXTERNAL_REFERENCE']) : null,
             'fecha' => $fecha,
@@ -312,6 +376,12 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
             'monto_bruto' => round($bruto, 2),
             'comision' => round($comision, 2),
             'monto_neto' => round($neto, 2),
+            // Desglose fiscal: código crudo + impuesto del catálogo (o null).
+            'tax_detail' => $taxDetail !== null ? (string) $taxDetail : null,
+            'impuesto' => $impuesto,
+            // Fila cruda del CSV (RF-06): trazabilidad y a prueba de columnas
+            // futuras; se persiste tal cual en conciliacion_filas.datos_extra.
+            'datos_extra' => $fila,
         ];
     }
 
@@ -399,7 +469,23 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
             return ['codigo' => 'imp_creditos_debitos', 'naturaleza' => 'tributo', 'jurisdiccion' => 'AR'];
         }
 
-        // Retención IIBB genérica / cancelaciones: sin código exacto (ver REVISAR 4b).
+        // TAX_DETAIL "pelado": la doc oficial de MP (account-money report-fields)
+        // documenta que TAX_DETAIL puede traer solo el nombre de la jurisdicción
+        // (cordoba, santa_fe, ...) → percepción IIBB de esa provincia.
+        $iso = $this->jurisdiccionIibbDesdeTaxDetail($d);
+        if ($iso !== null) {
+            return [
+                'codigo' => 'perc_iibb_'.strtolower(str_replace('-', '_', $iso)),
+                'naturaleza' => 'percepcion',
+                'jurisdiccion' => $iso,
+            ];
+        }
+
+        // REVISAR (4b): retención IIBB genérica/cancelaciones sin jurisdicción y,
+        // sobre todo, la BASE IMPONIBLE — vive en TAXES_DISAGGREGATED (JSON cuyo
+        // esquema interno MP no documenta). Hasta tener una fila real con
+        // impuestos, la base no se parsea: se conserva la fila cruda en
+        // datos_extra y el movimiento fiscal se registra sin base ni alícuota.
         return null;
     }
 

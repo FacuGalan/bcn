@@ -305,14 +305,25 @@ class ConciliacionesCuenta extends Component
         $detalle = $this->detalle;
         $filas = collect();
         $soloSistemaRecientes = 0;
+        $avisoCuentaSinCuit = false;
 
         if ($detalle) {
-            $filas = ConciliacionFila::where('conciliacion_cuenta_id', $detalle->id)
+            $filas = ConciliacionFila::with('impuesto')
+                ->where('conciliacion_cuenta_id', $detalle->id)
                 ->when($this->filtroClasificacion === self::FILTRO_NOVEDADES, fn ($q) => $q->whereIn('clasificacion', self::CLASIFICACIONES_NOVEDADES))
                 ->when($this->filtroClasificacion !== '' && $this->filtroClasificacion !== self::FILTRO_NOVEDADES, fn ($q) => $q->where('clasificacion', $this->filtroClasificacion))
                 ->orderByRaw("FIELD(clasificacion, 'solo_proveedor', 'matcheado', 'ya_registrado', 'solo_sistema')")
                 ->orderBy('fecha')
                 ->get();
+
+            // Aviso fiscal (RF-07): la cuenta no tiene CUIT asignado pero el
+            // reporte trae impuestos identificados → no se generará el ledger
+            // fiscal de esos impuestos hasta asignarle un CUIT a la cuenta.
+            if ($detalle->cuentaEmpresa && $detalle->cuentaEmpresa->cuit_id === null) {
+                $avisoCuentaSinCuit = ConciliacionFila::where('conciliacion_cuenta_id', $detalle->id)
+                    ->whereNotNull('impuesto_id')
+                    ->exists();
+            }
 
             // Hint del lag: cobros del sistema sin contraparte en el reporte
             // pero muy recientes — el pipeline de reportes del proveedor corre
@@ -336,6 +347,7 @@ class ConciliacionesCuenta extends Component
             'detalle' => $detalle,
             'filas' => $filas,
             'soloSistemaRecientes' => $soloSistemaRecientes,
+            'avisoCuentaSinCuit' => $avisoCuentaSinCuit,
         ]);
     }
 }

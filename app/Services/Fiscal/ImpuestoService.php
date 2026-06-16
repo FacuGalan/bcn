@@ -2,6 +2,7 @@
 
 namespace App\Services\Fiscal;
 
+use App\Models\ConciliacionFila;
 use App\Models\CondicionIva;
 use App\Models\Cuit;
 use App\Models\CuitImpuestoConfig;
@@ -210,21 +211,27 @@ class ImpuestoService
      * El IVA débito del comprobante NO se calcula acá (lo hace
      * ComprobanteFiscalIva); esto devuelve solo las percepciones extra.
      *
+     * @param  ?Carbon  $fecha  fecha de la operación (para la vigencia de la config); por defecto hoy
      * @return array<int, array{impuesto_id:int, codigo:string, tipo:string, jurisdiccion:?string, base_imponible:float, alicuota:float, monto:float}>
      */
-    public function calcularTributos(Cuit $emisor, ?CondicionIva $receptor, float $netoGravado, ?Sucursal $sucursal = null): array
+    public function calcularTributos(Cuit $emisor, ?CondicionIva $receptor, float $netoGravado, ?Sucursal $sucursal = null, ?Carbon $fecha = null): array
     {
         // REVISAR (Fable): la matriz es v1 conservador (ver "Revisión pendiente"
-        // en el spec). Puntos a auditar contra la normativa real:
-        //  - "solo RI" ignora regímenes que perciben a monotributo/exento según
-        //    jurisdicción; faltaría un "monto mínimo de percepción" (importe, no
-        //    solo base mínima); IIBB no contempla Convenio Multilateral ni padrón
-        //    del receptor (diferido a fase padrones).
-        //  - No se cruza la condición del EMISOR: un monotributista no debería
-        //    poder ser agente de percepción aunque la config lo diga.
-        //  - vigentes() usa now(); cuando se cablee en emisión (Fase 5) debería
-        //    usar la FECHA del comprobante, no la fecha actual.
+        // en el spec). Puntos que AÚN faltan auditar contra la normativa real:
+        //  - "solo RI" como receptor ignora regímenes que perciben también a
+        //    monotributo/exento según jurisdicción.
+        //  - Falta un "monto mínimo de percepción" (sobre el importe resultante)
+        //    y un "monto no sujeto" (se resta de la base); hoy solo
+        //    alicuota_minimo_base como umbral de base.
+        //  - IIBB no contempla Convenio Multilateral ni padrón del receptor
+        //    (diferido a fase padrones).
         if ($netoGravado <= 0) {
+            return [];
+        }
+
+        // Solo un Responsable Inscripto puede actuar como agente de percepción/
+        // retención (un monotributo/exento no puede, aunque la config lo diga).
+        if ($emisor->condicionIva?->codigo !== CondicionIva::RESPONSABLE_INSCRIPTO) {
             return [];
         }
 
@@ -237,7 +244,7 @@ class ImpuestoService
         $base = round($netoGravado, 2);
 
         $configs = $emisor->impuestoConfigs()
-            ->vigentes()
+            ->vigentes($fecha?->toDateString())
             ->where('inscripto', true)
             ->where('es_agente_percepcion', true)
             ->whereNotNull('alicuota')
@@ -299,6 +306,99 @@ class ImpuestoService
         }
 
         return $tributos;
+    }
+
+    /**
+     * Registra el movimiento fiscal SUFRIDO de una fila de conciliación cuyo
+     * impuesto ya fue identificado (RF-06). Se invoca al APLICAR la corrida.
+     *
+     * El impuesto y su naturaleza salen del catálogo (la fila ya tiene
+     * impuesto_id resuelto por el gateway). El monto es lo efectivamente
+     * descontado por el proveedor (monto_neto, en positivo). Imputado al CUIT
+     * de la cuenta (RF-07).
+     *
+     * REVISAR (4b): se registra SIN base imponible ni alícuota porque el formato
+     * de TAXES_DISAGGREGATED (de donde sale la base) todavía no está confirmado
+     * contra un reporte real. Cuando se tenga, poblar base_imponible/alicuota
+     * desde fila->datos_extra y activar la validación esperado-vs-real.
+     *
+     * Idempotente: si ya existe un movimiento fiscal activo con este origen, no
+     * duplica.
+     */
+    public function registrarDesdeConciliacion(ConciliacionFila $fila, Cuit $cuit, ?int $usuarioId = null): ?MovimientoFiscal
+    {
+        if ($fila->impuesto_id === null) {
+            return null; // Residuo genérico sin impuesto reconocido: no se registra.
+        }
+
+        $yaRegistrado = MovimientoFiscal::query()
+            ->activos()
+            ->where('origen_tipo', 'ConciliacionFila')
+            ->where('origen_id', $fila->id)
+            ->exists();
+
+        if ($yaRegistrado) {
+            return null;
+        }
+
+        $impuesto = $fila->impuesto ?? Impuesto::find($fila->impuesto_id);
+
+        if ($impuesto === null) {
+            return null;
+        }
+
+        $monto = round(abs((float) $fila->monto_neto), 2);
+
+        if ($monto <= 0) {
+            return null;
+        }
+
+        return $this->registrarMovimientoFiscal([
+            'cuit_id' => $cuit->id,
+            'impuesto_id' => $impuesto->id,
+            'sentido' => MovimientoFiscal::SENTIDO_SUFRIDO,
+            'naturaleza' => $impuesto->naturaleza_default,
+            'fecha' => $fila->fecha ?? now(),
+            'base_imponible' => null, // REVISAR (4b): pendiente formato TAXES_DISAGGREGATED.
+            'alicuota' => null,
+            'monto' => $monto,
+            'origen_tipo' => 'ConciliacionFila',
+            'origen_id' => $fila->id,
+            'observaciones' => __('Impuesto sufrido vía conciliación').' #'.$fila->conciliacion_cuenta_id,
+            'usuario_id' => $usuarioId,
+        ]);
+    }
+
+    /**
+     * Valida un impuesto sufrido de la conciliación contra la config del CUIT
+     * (RF-06/D4) y devuelve el texto de alerta a mostrar en la revisión, o null
+     * si todo está en orden.
+     *
+     * v1 (4a): sin la base imponible solo se puede chequear si el CUIT tiene
+     * configurado/alcanzado el impuesto que el proveedor descontó. La comparación
+     * de alícuota efectiva (monto/base) vs. la configurada queda para 4b.
+     *
+     * REVISAR (4b): cuando se tenga la base (TAXES_DISAGGREGATED), comparar la
+     * alícuota efectiva contra config->alicuota y alertar si difiere > tolerancia.
+     */
+    public function validarImpuestoSufrido(ConciliacionFila $fila, Cuit $cuit): ?string
+    {
+        if ($fila->impuesto_id === null) {
+            return null;
+        }
+
+        $fecha = $fila->fecha ? Carbon::parse($fila->fecha) : null;
+        $config = $this->configVigente($cuit, (int) $fila->impuesto_id, $fecha);
+
+        if ($config === null || ! $config->inscripto) {
+            $impuesto = $fila->impuesto ?? Impuesto::find($fila->impuesto_id);
+
+            return __('El proveedor descontó :impuesto pero el CUIT no lo tiene configurado: revisá si corresponde', [
+                'impuesto' => $impuesto?->nombre ?? __('un impuesto'),
+            ]);
+        }
+
+        return null;
     }
 
     /**

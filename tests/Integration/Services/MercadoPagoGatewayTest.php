@@ -960,8 +960,13 @@ class MercadoPagoGatewayTest extends TestCase
     {
         $config = $this->crearConfig();
 
+        // Config ya con las columnas fiscales → no se actualiza, solo se pide el rango.
         Http::fake([
-            '*/v1/account/settlement_report/config' => Http::response(['columns' => [['key' => 'DATE']]], 200),
+            '*/v1/account/settlement_report/config' => Http::response([
+                'columns' => array_map(fn ($k) => ['key' => $k], [
+                    'TRANSACTION_DATE', 'TRANSACTION_TYPE', 'TAXES_AMOUNT', 'TAX_DETAIL', 'TAXES_DISAGGREGATED',
+                ]),
+            ], 200),
             '*/v1/account/settlement_report' => Http::response([], 202),
         ]);
 
@@ -1003,6 +1008,53 @@ class MercadoPagoGatewayTest extends TestCase
         Http::assertSent(fn ($r) => $r->method() === 'POST'
             && str_ends_with($r->url(), '/settlement_report/config')
             && $r['include_withdraw'] === true);
+    }
+
+    public function test_solicitar_reporte_agrega_columnas_fiscales_via_put_si_faltan(): void
+    {
+        $config = $this->crearConfig();
+
+        // Config existente SIN columnas fiscales (cuenta configurada antes del feature).
+        Http::fake([
+            '*/v1/account/settlement_report/config' => Http::response([
+                'file_name_prefix' => 'mi-config',
+                'columns' => array_map(fn ($k) => ['key' => $k], ['TRANSACTION_DATE', 'TRANSACTION_TYPE', 'TRANSACTION_AMOUNT']),
+            ], 200),
+            '*/v1/account/settlement_report' => Http::response([], 202),
+        ]);
+
+        $this->gateway->solicitarReporteCuenta($config, new \DateTimeImmutable('2026-06-01'), new \DateTimeImmutable('2026-06-01'));
+
+        // PUT que mergea las fiscales sobre las existentes y preserva el prefijo del usuario.
+        Http::assertSent(function ($r) {
+            if ($r->method() !== 'PUT' || ! str_ends_with($r->url(), '/settlement_report/config')) {
+                return false;
+            }
+            $keys = array_column($r['columns'], 'key');
+
+            return $r['file_name_prefix'] === 'mi-config'
+                && in_array('TRANSACTION_DATE', $keys, true)
+                && in_array('TAXES_AMOUNT', $keys, true)
+                && in_array('TAX_DETAIL', $keys, true)
+                && in_array('TAXES_DISAGGREGATED', $keys, true);
+        });
+    }
+
+    public function test_solicitar_reporte_no_actualiza_config_si_ya_tiene_columnas_fiscales(): void
+    {
+        $config = $this->crearConfig();
+
+        Http::fake([
+            '*/v1/account/settlement_report/config' => Http::response([
+                'columns' => array_map(fn ($k) => ['key' => $k], ['TRANSACTION_DATE', 'TAXES_AMOUNT', 'TAX_DETAIL', 'TAXES_DISAGGREGATED']),
+            ], 200),
+            '*/v1/account/settlement_report' => Http::response([], 202),
+        ]);
+
+        $this->gateway->solicitarReporteCuenta($config, new \DateTimeImmutable('2026-06-01'), new \DateTimeImmutable('2026-06-01'));
+
+        Http::assertNotSent(fn ($r) => $r->method() === 'PUT');
+        Http::assertNotSent(fn ($r) => $r->method() === 'POST' && str_ends_with($r->url(), '/settlement_report/config'));
     }
 
     public function test_obtener_reporte_devuelve_null_si_no_esta_listo(): void
@@ -1088,6 +1140,41 @@ class MercadoPagoGatewayTest extends TestCase
         $this->assertEquals(41.00, $filas['777']['comision']);
         $this->assertSame('retiro', $filas['888']['tipo']);
         $this->assertEquals(-3000.00, $filas['888']['monto_neto']);
+    }
+
+    public function test_obtener_reporte_desglosa_impuesto_y_guarda_fila_cruda(): void
+    {
+        $config = $this->crearConfig();
+
+        // Fila tax con TAX_DETAIL: el gateway mapea el impuesto y guarda la fila
+        // cruda en datos_extra (sistema-impositivo RF-06, Fase 4a).
+        $csv = implode("\n", [
+            'TRANSACTION_TYPE,SOURCE_ID,EXTERNAL_REFERENCE,TRANSACTION_DATE,TRANSACTION_AMOUNT,FEE_AMOUNT,SETTLEMENT_NET_AMOUNT,TAX_DETAIL',
+            'TAX,777,,2026-06-02T10:00:00.000-04:00,-25.00,0,-25.00,tax_payment_iibb_cre_santa_fe',
+            'SETTLEMENT,111,BCN-TX-1,2026-06-02T10:00:00.000-04:00,1000.00,-41.00,959.00,',
+        ]);
+
+        Http::fake([
+            '*/v1/account/settlement_report/list' => Http::response([
+                ['file_name' => 'rep.csv', 'begin_date' => '2026-06-01T00:00:00Z', 'end_date' => '2026-06-10T23:59:59Z'],
+            ], 200),
+            '*/v1/account/settlement_report/rep.csv' => Http::response($csv, 200),
+        ]);
+
+        $filas = collect($this->gateway->obtenerReporteCuenta($config, '2026-06-01T00:00:00Z|2026-06-10T23:59:59Z')['filas'])
+            ->keyBy('id_externo');
+
+        // Fila de impuesto: tipo, mapeo y fila cruda.
+        $this->assertSame('impuesto', $filas['777']['tipo']);
+        $this->assertSame('tax_payment_iibb_cre_santa_fe', $filas['777']['tax_detail']);
+        $this->assertSame('perc_iibb_ar_s', $filas['777']['impuesto']['codigo']);
+        $this->assertSame('AR-S', $filas['777']['impuesto']['jurisdiccion']);
+        $this->assertSame('tax_payment_iibb_cre_santa_fe', $filas['777']['datos_extra']['TAX_DETAIL']);
+
+        // Cobro normal: sin impuesto identificado, pero igual conserva la fila cruda.
+        $this->assertNull($filas['111']['impuesto']);
+        $this->assertSame('cobro', $filas['111']['tipo']);
+        $this->assertSame('BCN-TX-1', $filas['111']['datos_extra']['EXTERNAL_REFERENCE']);
     }
 
     public function test_obtener_reporte_con_error_de_descarga_lanza_excepcion(): void
