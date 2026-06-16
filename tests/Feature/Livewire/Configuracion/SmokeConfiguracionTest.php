@@ -355,8 +355,10 @@ class SmokeConfiguracionTest extends TestCase
         $this->assertDatabaseMissing('cuit_impuesto_configs', ['id' => $config->id], 'pymes_tenant');
     }
 
-    public function test_cuit_impuestos_siembra_iva_por_defecto(): void
+    public function test_cuit_impuestos_abrir_no_resiembra_iva(): void
     {
+        // Regresión (2026-06-16): abrir un CUIT vacío NO debe re-sembrar IVA
+        // (antes re-creaba los impuestos que el usuario acababa de borrar).
         $condIva = \App\Models\CondicionIva::firstOrCreate(['codigo' => 1], ['nombre' => 'Responsable Inscripto']);
         $cuit = \App\Models\Cuit::firstOrCreate(
             ['numero_cuit' => '20111111113'],
@@ -372,10 +374,29 @@ class SmokeConfiguracionTest extends TestCase
 
         Livewire::test(CuitImpuestos::class)
             ->call('abrir', $cuit->id)
-            ->assertCount('filas', 2);
+            ->assertCount('filas', 0);
+
+        $this->assertEquals(0, \App\Models\CuitImpuestoConfig::where('cuit_id', $cuit->id)->count());
+    }
+
+    public function test_cuit_impuestos_seed_por_defecto_solo_al_crear(): void
+    {
+        $condIva = \App\Models\CondicionIva::firstOrCreate(['codigo' => 1], ['nombre' => 'Responsable Inscripto']);
+        $cuit = \App\Models\Cuit::firstOrCreate(
+            ['numero_cuit' => '20111111113'],
+            ['razon_social' => 'Test SA', 'condicion_iva_id' => $condIva->id, 'entorno_afip' => 'testing', 'activo' => true]
+        );
+        foreach (['iva_debito' => 'debito_fiscal', 'iva_credito' => 'credito_fiscal'] as $codigo => $naturaleza) {
+            \App\Models\Impuesto::create([
+                'codigo' => $codigo, 'nombre' => $codigo, 'tipo' => 'iva',
+                'naturaleza_default' => $naturaleza, 'jurisdiccion' => 'AR',
+                'es_sistema' => true, 'activo' => true,
+            ]);
+        }
+
+        CuitImpuestos::sembrarImpuestosPorDefecto($cuit->id);
 
         // Marcador sin alícuota: el IVA real sale por artículo (21/10,5).
-        $this->assertEquals(2, \App\Models\CuitImpuestoConfig::where('cuit_id', $cuit->id)->count());
         $this->assertEquals(2, \App\Models\CuitImpuestoConfig::where('cuit_id', $cuit->id)
             ->where('inscripto', true)->whereNull('alicuota')->count());
     }

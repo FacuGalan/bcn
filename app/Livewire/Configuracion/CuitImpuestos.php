@@ -93,23 +93,21 @@ class CuitImpuestos extends Component
         $this->mostrarFormCustom = false;
         $this->resetFormCustom();
 
-        // Default: un CUIT recién configurado arranca con IVA débito y crédito
-        // al 21% (la alícuota general). Editable/removible. OJO: el IVA real de
-        // cada comprobante sale por artículo (21/10,5) vía ComprobanteFiscalIva;
-        // esto es solo el default de referencia a nivel CUIT. Ver REVISAR (Fable).
-        if (CuitImpuestoConfig::where('cuit_id', $cuit->id)->count() === 0) {
-            $this->sembrarIvaPorDefecto();
-        }
-
+        // NO se siembra acá: el default de IVA se aplica una sola vez al CREAR el
+        // CUIT (ConfiguracionEmpresa::guardarCuit → sembrarImpuestosPorDefecto).
+        // Sembrar al abrir-vacío re-creaba los impuestos que el usuario acababa
+        // de borrar (bug 2026-06-16).
         $this->cargarFilas();
         $this->mostrarModal = true;
     }
 
     /**
-     * Crea las configs de IVA débito y crédito al 21% si el CUIT no tiene
-     * ninguna config aún (solo si el catálogo trae esos códigos).
+     * Siembra las configs de IVA débito y crédito (marcador, SIN alícuota: el IVA
+     * real sale por artículo) para un CUIT recién creado. Idempotente; solo si el
+     * catálogo trae esos códigos. Se llama UNA vez al crear el CUIT, nunca al abrir
+     * la pantalla, para no pelear con el borrado manual.
      */
-    private function sembrarIvaPorDefecto(): void
+    public static function sembrarImpuestosPorDefecto(int $cuitId): void
     {
         foreach (['iva_debito', 'iva_credito'] as $codigo) {
             $imp = Impuesto::activos()->porCodigo($codigo)->first();
@@ -119,14 +117,11 @@ class CuitImpuestos extends Component
             }
 
             CuitImpuestoConfig::firstOrCreate(
-                ['cuit_id' => $this->cuitId, 'impuesto_id' => $imp->id, 'vigente_desde' => null],
+                ['cuit_id' => $cuitId, 'impuesto_id' => $imp->id, 'vigente_desde' => null],
                 [
                     'inscripto' => true,
                     'es_agente_percepcion' => false,
                     'es_agente_retencion' => false,
-                    // Sin alícuota: el IVA débito/crédito real sale por artículo
-                    // (21/10,5) vía ComprobanteFiscalIva. Esto es solo el marcador
-                    // de que el CUIT está inscripto en IVA.
                     'alicuota' => null,
                     'origen_alicuota' => CuitImpuestoConfig::ORIGEN_MANUAL,
                 ]
