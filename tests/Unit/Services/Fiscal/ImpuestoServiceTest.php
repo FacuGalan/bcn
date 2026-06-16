@@ -2,6 +2,8 @@
 
 namespace Tests\Unit\Services\Fiscal;
 
+use App\Models\ComprobanteFiscal;
+use App\Models\ComprobanteFiscalIva;
 use App\Models\ConciliacionFila;
 use App\Models\CondicionIva;
 use App\Models\Cuit;
@@ -499,6 +501,94 @@ class ImpuestoServiceTest extends TestCase
 
         $this->expectException(Exception::class);
         $this->service->anularMovimientoFiscal($contra, 1);
+    }
+
+    // ==================== registrarDesdeComprobante (RF-04, Fase 5a) ====================
+
+    protected function comprobante(int $id, array $ivas, ?int $asociadoId = null, string $fecha = '2026-04-10', ?int $cuitId = null): ComprobanteFiscal
+    {
+        $c = new ComprobanteFiscal([
+            'cuit_id' => $cuitId ?? $this->cuit()->id,
+            'sucursal_id' => $this->sucursalId,
+            'fecha_emision' => $fecha,
+            'comprobante_asociado_id' => $asociadoId,
+            'usuario_id' => 1,
+        ]);
+        $c->id = $id; // origen_id (la factura no se persiste en este unit test).
+        $c->setRelation('detallesIva', collect($ivas)->map(fn ($i) => new ComprobanteFiscalIva($i)));
+
+        return $c;
+    }
+
+    public function test_registrar_desde_comprobante_genera_debito_fiscal_por_alicuota(): void
+    {
+        $iva = $this->impuesto('iva_debito', Impuesto::TIPO_IVA, 'debito_fiscal', 'AR');
+
+        $c = $this->comprobante(100, [
+            ['base_imponible' => 1000, 'alicuota' => 21, 'importe' => 210],
+            ['base_imponible' => 500, 'alicuota' => 10.5, 'importe' => 52.5],
+            ['base_imponible' => 300, 'alicuota' => 0, 'importe' => 0], // exento: no genera
+        ]);
+
+        $this->service->registrarDesdeComprobante($c, 7);
+
+        $movs = MovimientoFiscal::where('origen_tipo', 'ComprobanteFiscal')->where('origen_id', 100)->get();
+
+        $this->assertCount(2, $movs);
+        $this->assertTrue($movs->every(fn ($m) => $m->sentido === MovimientoFiscal::SENTIDO_APLICADO
+            && $m->naturaleza === MovimientoFiscal::NATURALEZA_DEBITO_FISCAL
+            && $m->impuesto_id === $iva->id));
+        $this->assertEquals('2026-04', $movs->first()->periodo_fiscal);
+        $this->assertEqualsCanonicalizing([210.0, 52.5], $movs->pluck('monto')->map(fn ($m) => (float) $m)->all());
+    }
+
+    public function test_registrar_desde_comprobante_es_idempotente(): void
+    {
+        $this->impuesto('iva_debito', Impuesto::TIPO_IVA, 'debito_fiscal', 'AR');
+        $c = $this->comprobante(100, [['base_imponible' => 1000, 'alicuota' => 21, 'importe' => 210]]);
+
+        $this->service->registrarDesdeComprobante($c, 7);
+        $this->service->registrarDesdeComprobante($c, 7);
+
+        $this->assertEquals(1, MovimientoFiscal::where('origen_tipo', 'ComprobanteFiscal')->where('origen_id', 100)->count());
+    }
+
+    public function test_no_genera_debito_fiscal_si_el_emisor_es_monotributo(): void
+    {
+        $this->impuesto('iva_debito', Impuesto::TIPO_IVA, 'debito_fiscal', 'AR');
+
+        $monotributo = Cuit::firstOrCreate(
+            ['numero_cuit' => '20222222223'],
+            [
+                'razon_social' => 'Monotributo SA',
+                'condicion_iva_id' => $this->condicion(CondicionIva::RESPONSABLE_MONOTRIBUTO)->id,
+                'entorno_afip' => 'testing',
+                'activo' => true,
+            ]
+        );
+
+        $c = $this->comprobante(200, [['base_imponible' => 1000, 'alicuota' => 0, 'importe' => 0]], cuitId: $monotributo->id);
+        // Aún si viniera con importe (config errónea), no debe generar débito.
+        $c->setRelation('detallesIva', collect([new ComprobanteFiscalIva(['base_imponible' => 1000, 'alicuota' => 21, 'importe' => 210])]));
+
+        $this->service->registrarDesdeComprobante($c, 7);
+
+        $this->assertEquals(0, MovimientoFiscal::where('origen_tipo', 'ComprobanteFiscal')->where('origen_id', 200)->count());
+    }
+
+    public function test_nota_de_credito_contraasienta_el_comprobante_original(): void
+    {
+        $this->impuesto('iva_debito', Impuesto::TIPO_IVA, 'debito_fiscal', 'AR');
+
+        $factura = $this->comprobante(100, [['base_imponible' => 1000, 'alicuota' => 21, 'importe' => 210]]);
+        $this->service->registrarDesdeComprobante($factura, 7);
+
+        $nc = $this->comprobante(101, [['base_imponible' => 1000, 'alicuota' => 21, 'importe' => 210]], asociadoId: 100);
+        $this->service->registrarDesdeComprobante($nc, 7);
+
+        // El débito del comprobante original queda anulado → la posición (solo activos) no lo cuenta.
+        $activos = MovimientoFiscal::activos()->where('origen_tipo', 'ComprobanteFiscal')->where('origen_id', 100)->count();
+        $this->assertEquals(0, $activos);
     }
 
     // ==================== registrarDesdeConciliacion (RF-06, Fase 4a) ====================

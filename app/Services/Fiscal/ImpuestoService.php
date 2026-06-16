@@ -2,6 +2,7 @@
 
 namespace App\Services\Fiscal;
 
+use App\Models\ComprobanteFiscal;
 use App\Models\ConciliacionFila;
 use App\Models\CondicionIva;
 use App\Models\Cuit;
@@ -306,6 +307,90 @@ class ImpuestoService
         }
 
         return $tributos;
+    }
+
+    /**
+     * Registra los movimientos fiscales de un comprobante autorizado (RF-04,
+     * Fase 5a). Se invoca DESPUÉS de obtener el CAE y de commitear el
+     * comprobante (un CAE ya emitido no se pierde si el ledger fallara).
+     *
+     * - Factura/comprobante: IVA débito fiscal por alícuota (sentido aplicado),
+     *   tomado del desglose ya calculado en ComprobanteFiscalIva — alimenta la
+     *   posición de IVA sin recalcular nada.
+     * - Nota de crédito (comprobante_asociado_id): contraasiento de los
+     *   movimientos del comprobante original (anulación; las NC de este sistema
+     *   son por el total). REVISAR (Fable): NC PARCIAL requeriría reversa
+     *   proporcional.
+     *
+     * Idempotente: si el comprobante ya tiene movimientos activos, no duplica.
+     * Las percepciones APLICADAS (caso agente, sentido aplicado naturaleza
+     * percepción) son Fase 5b (deben viajar a AFIP en el mismo acto).
+     */
+    public function registrarDesdeComprobante(ComprobanteFiscal $c, ?int $usuarioId = null): void
+    {
+        // Nota de crédito → contraasiento de los movimientos del original.
+        if ($c->comprobante_asociado_id !== null) {
+            $movimientos = MovimientoFiscal::query()
+                ->activos()
+                ->where('origen_tipo', 'ComprobanteFiscal')
+                ->where('origen_id', $c->comprobante_asociado_id)
+                ->get();
+
+            foreach ($movimientos as $movimiento) {
+                $this->anularMovimientoFiscal(
+                    $movimiento,
+                    $usuarioId ?? (int) ($c->usuario_id ?? 0),
+                    __('Nota de crédito #:id', ['id' => $c->id]),
+                );
+            }
+
+            return;
+        }
+
+        // Idempotencia: ya registrado para este comprobante.
+        $yaRegistrado = MovimientoFiscal::query()
+            ->activos()
+            ->where('origen_tipo', 'ComprobanteFiscal')
+            ->where('origen_id', $c->id)
+            ->exists();
+
+        if ($yaRegistrado) {
+            return;
+        }
+
+        // Solo un Responsable Inscripto genera IVA débito fiscal (Factura A/B/M).
+        // Un Monotributo/exento (Factura C) no discrimina ni debe IVA → su
+        // comprobante no alimenta la posición de IVA.
+        if ($c->cuit?->condicionIva?->codigo !== CondicionIva::RESPONSABLE_INSCRIPTO) {
+            return;
+        }
+
+        $ivaDebito = Impuesto::porCodigo('iva_debito')->first();
+
+        if ($ivaDebito === null) {
+            return;
+        }
+
+        foreach ($c->detallesIva as $iva) {
+            if (round((float) $iva->importe, 2) <= 0) {
+                continue; // Alícuota 0% / exento: no genera débito fiscal.
+            }
+
+            $this->registrarMovimientoFiscal([
+                'cuit_id' => $c->cuit_id,
+                'sucursal_id' => $c->sucursal_id,
+                'impuesto_id' => $ivaDebito->id,
+                'sentido' => MovimientoFiscal::SENTIDO_APLICADO,
+                'naturaleza' => MovimientoFiscal::NATURALEZA_DEBITO_FISCAL,
+                'fecha' => $c->fecha_emision,
+                'base_imponible' => $iva->base_imponible,
+                'alicuota' => $iva->alicuota,
+                'monto' => $iva->importe,
+                'origen_tipo' => 'ComprobanteFiscal',
+                'origen_id' => $c->id,
+                'usuario_id' => $usuarioId,
+            ]);
+        }
     }
 
     /**
