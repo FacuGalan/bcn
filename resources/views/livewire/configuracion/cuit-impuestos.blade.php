@@ -130,12 +130,19 @@
                                 </div>
 
                                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                    {{-- Alícuota --}}
+                                    {{-- Alícuota: el IVA débito/crédito sale por artículo, no se carga acá --}}
+                                    @php($ivaPorArticulo = in_array($fila['naturaleza'], ['debito_fiscal', 'credito_fiscal'], true))
                                     <div>
                                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Alícuota (%)') }}</label>
-                                        <input type="number" step="0.0001" min="0" max="100" wire:model="filas.{{ $i }}.alicuota"
-                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                        @error('filas.'.$i.'.alicuota') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                                        @if($ivaPorArticulo)
+                                            <input type="text" disabled value="{{ __('Según artículo') }}"
+                                                class="mt-1 block w-full rounded-md border-gray-200 bg-gray-100 text-gray-500 shadow-sm sm:text-sm dark:bg-gray-900/40 dark:border-gray-700 dark:text-gray-400 cursor-not-allowed">
+                                            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ __('21% / 10,5% según cada producto') }}</p>
+                                        @else
+                                            <input type="number" step="0.0001" min="0" max="100" wire:model="filas.{{ $i }}.alicuota"
+                                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                            @error('filas.'.$i.'.alicuota') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                                        @endif
                                     </div>
                                     {{-- Base mínima --}}
                                     <div>

@@ -348,10 +348,10 @@ class SmokeConfiguracionTest extends TestCase
             ->call('abrir', $cuit->id)
             ->assertCount('filas', 2);
 
-        $this->assertDatabaseHas('cuit_impuesto_configs', [
-            'cuit_id' => $cuit->id, 'alicuota' => 21.0000, 'inscripto' => 1,
-        ], 'pymes_tenant');
+        // Marcador sin alícuota: el IVA real sale por artículo (21/10,5).
         $this->assertEquals(2, \App\Models\CuitImpuestoConfig::where('cuit_id', $cuit->id)->count());
+        $this->assertEquals(2, \App\Models\CuitImpuestoConfig::where('cuit_id', $cuit->id)
+            ->where('inscripto', true)->whereNull('alicuota')->count());
     }
 
     public function test_roles_permisos_monta(): void

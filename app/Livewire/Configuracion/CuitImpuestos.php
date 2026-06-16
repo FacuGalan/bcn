@@ -31,13 +31,11 @@ use Livewire\Component;
  *    redundancia para IIBB. Definir cuál es la fuente de verdad.
  *  - Permisos: el componente no tiene gate propio; confía en que ConfiguracionEmpresa
  *    ya está protegido. Confirmar si necesita un permiso fiscal propio (RF-10/Fase 7).
- *  - Default IVA 21%: se siembran iva_debito/iva_credito al 21% al abrir un CUIT
- *    sin configs. Pero el IVA débito/crédito REAL es por artículo (21/10,5) y lo
- *    calcula ComprobanteFiscalIva/CompraService por línea → esta alícuota a nivel
- *    CUIT es solo referencia y NO debe usarse para calcular. Cuando Fase 5/6
- *    alimenten movimientos_fiscales de débito/crédito desde comprobantes/compras,
- *    revisar que NO lean esta alícuota fija. Quizás iva_debito/credito no deberían
- *    llevar alícuota a nivel CUIT (o marcarse como informativa/no-editable).
+ *  - IVA débito/crédito a nivel CUIT: se siembran como MARCADOR (inscripto, SIN
+ *    alícuota) al abrir un CUIT sin configs. El IVA real es por artículo (21/10,5)
+ *    vía ComprobanteFiscalIva/CompraService. Cuando Fase 5/6 alimenten
+ *    movimientos_fiscales de débito/crédito desde comprobantes/compras, deben tomar
+ *    la alícuota POR LÍNEA, nunca esta config (que no tiene alícuota a propósito).
  *
  * Ref: .claude/specs/sistema-impositivo.md (RF-02, Fase 3).
  */
@@ -123,7 +121,10 @@ class CuitImpuestos extends Component
                     'inscripto' => true,
                     'es_agente_percepcion' => false,
                     'es_agente_retencion' => false,
-                    'alicuota' => 21,
+                    // Sin alícuota: el IVA débito/crédito real sale por artículo
+                    // (21/10,5) vía ComprobanteFiscalIva. Esto es solo el marcador
+                    // de que el CUIT está inscripto en IVA.
+                    'alicuota' => null,
                     'origen_alicuota' => CuitImpuestoConfig::ORIGEN_MANUAL,
                 ]
             );
@@ -206,11 +207,15 @@ class CuitImpuestos extends Component
                     continue;
                 }
 
+                // El IVA débito/crédito no lleva alícuota a nivel CUIT (sale por
+                // artículo); se ignora cualquier valor que llegue.
+                $sinAlicuota = in_array($fila['naturaleza'], ['debito_fiscal', 'credito_fiscal'], true);
+
                 $config->update([
                     'inscripto' => (bool) $fila['inscripto'],
                     'es_agente_percepcion' => (bool) $fila['es_agente_percepcion'],
                     'es_agente_retencion' => (bool) $fila['es_agente_retencion'],
-                    'alicuota' => $fila['alicuota'] !== '' ? $fila['alicuota'] : null,
+                    'alicuota' => (! $sinAlicuota && $fila['alicuota'] !== '') ? $fila['alicuota'] : null,
                     'alicuota_minimo_base' => $fila['alicuota_minimo_base'] !== '' ? $fila['alicuota_minimo_base'] : null,
                     'numero_inscripcion' => $fila['numero_inscripcion'] ?: null,
                     'vigente_desde' => $fila['vigente_desde'] ?: null,
@@ -314,6 +319,7 @@ class CuitImpuestos extends Component
                 'codigo' => $c->impuesto?->codigo,
                 'nombre' => $c->impuesto?->nombre,
                 'tipo' => $c->impuesto?->tipo,
+                'naturaleza' => $c->impuesto?->naturaleza_default,
                 'jurisdiccion' => $c->impuesto?->jurisdiccion,
                 'inscripto' => (bool) $c->inscripto,
                 'es_agente_percepcion' => (bool) $c->es_agente_percepcion,
