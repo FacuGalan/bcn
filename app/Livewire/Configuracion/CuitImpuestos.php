@@ -93,40 +93,13 @@ class CuitImpuestos extends Component
         $this->mostrarFormCustom = false;
         $this->resetFormCustom();
 
-        // NO se siembra acá: el default de IVA se aplica una sola vez al CREAR el
-        // CUIT (ConfiguracionEmpresa::guardarCuit → sembrarImpuestosPorDefecto).
-        // Sembrar al abrir-vacío re-creaba los impuestos que el usuario acababa
-        // de borrar (bug 2026-06-16).
+        // El IVA débito/crédito NO se gestiona acá: lo determina la condición de
+        // IVA del CUIT (form del CUIT) y la posición se arma desde comprobantes/
+        // compras (Fases 5/6, que distinguen RI vs monotributo). Esta pantalla es
+        // solo para percepciones/retenciones/agente/otros. Por eso el combobox
+        // excluye las naturalezas debito_fiscal/credito_fiscal.
         $this->cargarFilas();
         $this->mostrarModal = true;
-    }
-
-    /**
-     * Siembra las configs de IVA débito y crédito (marcador, SIN alícuota: el IVA
-     * real sale por artículo) para un CUIT recién creado. Idempotente; solo si el
-     * catálogo trae esos códigos. Se llama UNA vez al crear el CUIT, nunca al abrir
-     * la pantalla, para no pelear con el borrado manual.
-     */
-    public static function sembrarImpuestosPorDefecto(int $cuitId): void
-    {
-        foreach (['iva_debito', 'iva_credito'] as $codigo) {
-            $imp = Impuesto::activos()->porCodigo($codigo)->first();
-
-            if (! $imp) {
-                continue;
-            }
-
-            CuitImpuestoConfig::firstOrCreate(
-                ['cuit_id' => $cuitId, 'impuesto_id' => $imp->id, 'vigente_desde' => null],
-                [
-                    'inscripto' => true,
-                    'es_agente_percepcion' => false,
-                    'es_agente_retencion' => false,
-                    'alicuota' => null,
-                    'origen_alicuota' => CuitImpuestoConfig::ORIGEN_MANUAL,
-                ]
-            );
-        }
     }
 
     public function cerrar(): void
@@ -151,6 +124,8 @@ class CuitImpuestos extends Component
 
         return Impuesto::activos()
             ->whereNotIn('id', $yaConfigurados)
+            // El IVA débito/crédito no se gestiona acá (lo da la condición del CUIT).
+            ->whereNotIn('naturaleza_default', ['debito_fiscal', 'credito_fiscal'])
             ->when($this->buscarImpuesto !== '', function ($q) {
                 $term = '%'.$this->buscarImpuesto.'%';
                 $q->where(fn ($sub) => $sub->where('nombre', 'like', $term)->orWhere('codigo', 'like', $term));
@@ -207,15 +182,11 @@ class CuitImpuestos extends Component
                     continue;
                 }
 
-                // El IVA débito/crédito no lleva alícuota a nivel CUIT (sale por
-                // artículo); se ignora cualquier valor que llegue.
-                $sinAlicuota = in_array($fila['naturaleza'], ['debito_fiscal', 'credito_fiscal'], true);
-
                 $config->update([
                     'inscripto' => (bool) $fila['inscripto'],
                     'es_agente_percepcion' => (bool) $fila['es_agente_percepcion'],
                     'es_agente_retencion' => (bool) $fila['es_agente_retencion'],
-                    'alicuota' => (! $sinAlicuota && $fila['alicuota'] !== '') ? $fila['alicuota'] : null,
+                    'alicuota' => $fila['alicuota'] !== '' ? $fila['alicuota'] : null,
                     'alicuota_minimo_base' => $fila['alicuota_minimo_base'] !== '' ? $fila['alicuota_minimo_base'] : null,
                     'numero_inscripcion' => $fila['numero_inscripcion'] ?: null,
                     'vigente_desde' => $fila['vigente_desde'] ?: null,
@@ -256,7 +227,8 @@ class CuitImpuestos extends Component
     public function crearImpuestoCustom(): void
     {
         $tipos = [Impuesto::TIPO_IVA, Impuesto::TIPO_IIBB, Impuesto::TIPO_GANANCIAS, Impuesto::TIPO_CREDITO_DEBITO, Impuesto::TIPO_OTRO];
-        $naturalezas = ['percepcion', 'retencion', 'debito_fiscal', 'credito_fiscal', 'tributo'];
+        // Esta pantalla no gestiona IVA débito/crédito (lo da la condición del CUIT).
+        $naturalezas = ['percepcion', 'retencion', 'tributo'];
 
         $this->validate([
             'customNombre' => 'required|string|max:150',
@@ -321,7 +293,6 @@ class CuitImpuestos extends Component
                 'codigo' => $c->impuesto?->codigo,
                 'nombre' => $c->impuesto?->nombre,
                 'tipo' => $c->impuesto?->tipo,
-                'naturaleza' => $c->impuesto?->naturaleza_default,
                 'jurisdiccion' => $c->impuesto?->jurisdiccion,
                 'inscripto' => (bool) $c->inscripto,
                 'es_agente_percepcion' => (bool) $c->es_agente_percepcion,

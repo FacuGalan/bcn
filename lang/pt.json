@@ -1161,6 +1161,7 @@
     "El email no es válido.": "O e-mail não é válido.",
     "el grupo": "o grupo",
     "El grupo y sus opciones serán marcados como eliminados. Podrás restaurarlos desde el filtro \"Eliminados\".": "O grupo e suas opções serão marcados como excluídos. Você pode restaurá-los a partir do filtro \"Excluídos\".",
+    "El IVA lo determina la condición de IVA del CUIT. Acá se configuran percepciones, retenciones y otros impuestos.": "O IVA é determinado pela condição de IVA do CUIT. Aqui você configura percepções, retenções e outros impostos.",
     "El límite debe ser un número.": "O limite deve ser um número.",
     "El límite no puede ser negativo.": "O limite não pode ser negativo.",
     "El mensaje no puede superar 500 caracteres.": "A mensagem não pode ultrapassar 500 caracteres.",

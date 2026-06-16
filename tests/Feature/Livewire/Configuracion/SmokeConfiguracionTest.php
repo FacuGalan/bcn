@@ -379,26 +379,29 @@ class SmokeConfiguracionTest extends TestCase
         $this->assertEquals(0, \App\Models\CuitImpuestoConfig::where('cuit_id', $cuit->id)->count());
     }
 
-    public function test_cuit_impuestos_seed_por_defecto_solo_al_crear(): void
+    public function test_cuit_impuestos_no_ofrece_iva_debito_credito_en_el_catalogo(): void
     {
         $condIva = \App\Models\CondicionIva::firstOrCreate(['codigo' => 1], ['nombre' => 'Responsable Inscripto']);
         $cuit = \App\Models\Cuit::firstOrCreate(
             ['numero_cuit' => '20111111113'],
             ['razon_social' => 'Test SA', 'condicion_iva_id' => $condIva->id, 'entorno_afip' => 'testing', 'activo' => true]
         );
-        foreach (['iva_debito' => 'debito_fiscal', 'iva_credito' => 'credito_fiscal'] as $codigo => $naturaleza) {
-            \App\Models\Impuesto::create([
-                'codigo' => $codigo, 'nombre' => $codigo, 'tipo' => 'iva',
-                'naturaleza_default' => $naturaleza, 'jurisdiccion' => 'AR',
-                'es_sistema' => true, 'activo' => true,
-            ]);
-        }
+        \App\Models\Impuesto::create([
+            'codigo' => 'iva_debito', 'nombre' => 'IVA Débito', 'tipo' => 'iva',
+            'naturaleza_default' => 'debito_fiscal', 'jurisdiccion' => 'AR', 'es_sistema' => true, 'activo' => true,
+        ]);
+        $percIibb = \App\Models\Impuesto::create([
+            'codigo' => 'perc_iibb_ar_b', 'nombre' => 'Percepción IIBB BA', 'tipo' => 'iibb',
+            'naturaleza_default' => 'percepcion', 'jurisdiccion' => 'AR-B', 'es_sistema' => true, 'activo' => true,
+        ]);
 
-        CuitImpuestos::sembrarImpuestosPorDefecto($cuit->id);
-
-        // Marcador sin alícuota: el IVA real sale por artículo (21/10,5).
-        $this->assertEquals(2, \App\Models\CuitImpuestoConfig::where('cuit_id', $cuit->id)
-            ->where('inscripto', true)->whereNull('alicuota')->count());
+        // El catálogo del combobox ofrece percepciones/retenciones pero NO el IVA débito/crédito.
+        Livewire::test(CuitImpuestos::class)
+            ->call('abrir', $cuit->id)
+            ->set('buscarImpuesto', 'iva')
+            ->assertViewHas('impuestosDisponibles', fn ($d) => $d->pluck('codigo')->doesntContain('iva_debito'))
+            ->set('buscarImpuesto', 'IIBB')
+            ->assertViewHas('impuestosDisponibles', fn ($d) => $d->pluck('codigo')->contains('perc_iibb_ar_b'));
     }
 
     public function test_roles_permisos_monta(): void

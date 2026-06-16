@@ -1161,6 +1161,7 @@
     "El email no es válido.": "El email no es válido.",
     "el grupo": "el grupo",
     "El grupo y sus opciones serán marcados como eliminados. Podrás restaurarlos desde el filtro \"Eliminados\".": "El grupo y sus opciones serán marcados como eliminados. Podrás restaurarlos desde el filtro \"Eliminados\".",
+    "El IVA lo determina la condición de IVA del CUIT. Acá se configuran percepciones, retenciones y otros impuestos.": "El IVA lo determina la condición de IVA del CUIT. Acá se configuran percepciones, retenciones y otros impuestos.",
     "El límite debe ser un número.": "El límite debe ser un número.",
     "El límite no puede ser negativo.": "El límite no puede ser negativo.",
     "El mensaje no puede superar 500 caracteres.": "El mensaje no puede superar 500 caracteres.",

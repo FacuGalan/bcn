@@ -1161,6 +1161,7 @@
     "El email no es válido.": "The email is not valid.",
     "el grupo": "the group",
     "El grupo y sus opciones serán marcados como eliminados. Podrás restaurarlos desde el filtro \"Eliminados\".": "The group and its options will be marked as deleted. You can restore them from the \"Deleted\" filter.",
+    "El IVA lo determina la condición de IVA del CUIT. Acá se configuran percepciones, retenciones y otros impuestos.": "VAT is determined by the CUIT's VAT condition. Here you configure perceptions, withholdings and other taxes.",
     "El límite debe ser un número.": "The limit must be a number.",
     "El límite no puede ser negativo.": "The limit cannot be negative.",
     "El mensaje no puede superar 500 caracteres.": "The message cannot exceed 500 characters.",
