@@ -329,6 +329,31 @@ class SmokeConfiguracionTest extends TestCase
         ], 'pymes_tenant');
     }
 
+    public function test_cuit_impuestos_siembra_iva_por_defecto(): void
+    {
+        $condIva = \App\Models\CondicionIva::firstOrCreate(['codigo' => 1], ['nombre' => 'Responsable Inscripto']);
+        $cuit = \App\Models\Cuit::firstOrCreate(
+            ['numero_cuit' => '20111111113'],
+            ['razon_social' => 'Test SA', 'condicion_iva_id' => $condIva->id, 'entorno_afip' => 'testing', 'activo' => true]
+        );
+        foreach (['iva_debito' => 'debito_fiscal', 'iva_credito' => 'credito_fiscal'] as $codigo => $naturaleza) {
+            \App\Models\Impuesto::create([
+                'codigo' => $codigo, 'nombre' => $codigo, 'tipo' => 'iva',
+                'naturaleza_default' => $naturaleza, 'jurisdiccion' => 'AR',
+                'es_sistema' => true, 'activo' => true,
+            ]);
+        }
+
+        Livewire::test(CuitImpuestos::class)
+            ->call('abrir', $cuit->id)
+            ->assertCount('filas', 2);
+
+        $this->assertDatabaseHas('cuit_impuesto_configs', [
+            'cuit_id' => $cuit->id, 'alicuota' => 21.0000, 'inscripto' => 1,
+        ], 'pymes_tenant');
+        $this->assertEquals(2, \App\Models\CuitImpuestoConfig::where('cuit_id', $cuit->id)->count());
+    }
+
     public function test_roles_permisos_monta(): void
     {
         Livewire::test(RolesPermisos::class)->assertOk();

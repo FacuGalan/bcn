@@ -3,7 +3,7 @@
         <x-bcn-modal
             :title="__('Impuestos de :cuit', ['cuit' => $cuitNombre])"
             color="bg-bcn-primary"
-            maxWidth="4xl"
+            maxWidth="6xl"
             onClose="cerrar"
             submit="guardar"
         >
@@ -18,14 +18,14 @@
                             type="text"
                             wire:model.live.debounce.250ms="buscarImpuesto"
                             @focus="open = true"
-                            @keydown="open = true"
                             data-enter-default
                             placeholder="{{ __('Buscar por nombre o código (ej: IIBB, percepción)') }}"
                             class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                             autocomplete="off"
                         >
+                        {{-- El listado solo se despliega cuando se tipea algo, para no tapar la vista --}}
                         <div
-                            x-show="open"
+                            x-show="open && ($wire.buscarImpuesto || '').length > 0"
                             x-transition
                             class="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto rounded-md bg-white dark:bg-gray-700 shadow-lg ring-1 ring-black/5 dark:ring-white/10"
                         >

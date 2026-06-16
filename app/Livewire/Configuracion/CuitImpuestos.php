@@ -31,6 +31,13 @@ use Livewire\Component;
  *    redundancia para IIBB. Definir cuál es la fuente de verdad.
  *  - Permisos: el componente no tiene gate propio; confía en que ConfiguracionEmpresa
  *    ya está protegido. Confirmar si necesita un permiso fiscal propio (RF-10/Fase 7).
+ *  - Default IVA 21%: se siembran iva_debito/iva_credito al 21% al abrir un CUIT
+ *    sin configs. Pero el IVA débito/crédito REAL es por artículo (21/10,5) y lo
+ *    calcula ComprobanteFiscalIva/CompraService por línea → esta alícuota a nivel
+ *    CUIT es solo referencia y NO debe usarse para calcular. Cuando Fase 5/6
+ *    alimenten movimientos_fiscales de débito/crédito desde comprobantes/compras,
+ *    revisar que NO lean esta alícuota fija. Quizás iva_debito/credito no deberían
+ *    llevar alícuota a nivel CUIT (o marcarse como informativa/no-editable).
  *
  * Ref: .claude/specs/sistema-impositivo.md (RF-02, Fase 3).
  */
@@ -84,8 +91,43 @@ class CuitImpuestos extends Component
         $this->buscarImpuesto = '';
         $this->mostrarFormCustom = false;
         $this->resetFormCustom();
+
+        // Default: un CUIT recién configurado arranca con IVA débito y crédito
+        // al 21% (la alícuota general). Editable/removible. OJO: el IVA real de
+        // cada comprobante sale por artículo (21/10,5) vía ComprobanteFiscalIva;
+        // esto es solo el default de referencia a nivel CUIT. Ver REVISAR (Fable).
+        if (CuitImpuestoConfig::where('cuit_id', $cuit->id)->count() === 0) {
+            $this->sembrarIvaPorDefecto();
+        }
+
         $this->cargarFilas();
         $this->mostrarModal = true;
+    }
+
+    /**
+     * Crea las configs de IVA débito y crédito al 21% si el CUIT no tiene
+     * ninguna config aún (solo si el catálogo trae esos códigos).
+     */
+    private function sembrarIvaPorDefecto(): void
+    {
+        foreach (['iva_debito', 'iva_credito'] as $codigo) {
+            $imp = Impuesto::activos()->porCodigo($codigo)->first();
+
+            if (! $imp) {
+                continue;
+            }
+
+            CuitImpuestoConfig::firstOrCreate(
+                ['cuit_id' => $this->cuitId, 'impuesto_id' => $imp->id, 'vigente_desde' => null],
+                [
+                    'inscripto' => true,
+                    'es_agente_percepcion' => false,
+                    'es_agente_retencion' => false,
+                    'alicuota' => 21,
+                    'origen_alicuota' => CuitImpuestoConfig::ORIGEN_MANUAL,
+                ]
+            );
+        }
     }
 
     public function cerrar(): void
@@ -177,8 +219,8 @@ class CuitImpuestos extends Component
             }
         });
 
-        $this->cargarFilas();
         $this->dispatch('notify', message: __('Configuración impositiva guardada'), type: 'success');
+        $this->cerrar();
     }
 
     /**
