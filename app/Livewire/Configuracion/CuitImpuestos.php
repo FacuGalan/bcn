@@ -47,6 +47,8 @@ class CuitImpuestos extends Component
 
     public string $cuitNombre = '';
 
+    public string $cuitNumero = '';
+
     /** Filas editables de configs del CUIT (espejo de cuit_impuesto_configs). */
     public array $filas = [];
 
@@ -86,6 +88,7 @@ class CuitImpuestos extends Component
 
         $this->cuitId = $cuit->id;
         $this->cuitNombre = $cuit->razon_social;
+        $this->cuitNumero = $cuit->numero_cuit;
         $this->buscarImpuesto = '';
         $this->mostrarFormCustom = false;
         $this->resetFormCustom();
@@ -134,7 +137,7 @@ class CuitImpuestos extends Component
     public function cerrar(): void
     {
         $this->mostrarModal = false;
-        $this->reset(['cuitId', 'cuitNombre', 'filas', 'buscarImpuesto', 'mostrarFormCustom']);
+        $this->reset(['cuitId', 'cuitNombre', 'cuitNumero', 'filas', 'buscarImpuesto', 'mostrarFormCustom']);
         $this->resetFormCustom();
         $this->resetErrorBag();
     }
@@ -201,9 +204,11 @@ class CuitImpuestos extends Component
 
         DB::connection('pymes_tenant')->transaction(function () {
             foreach ($this->filas as $fila) {
-                $config = CuitImpuestoConfig::find($fila['id']);
+                $config = CuitImpuestoConfig::where('cuit_id', $this->cuitId)
+                    ->whereKey($fila['id'])
+                    ->first();
 
-                if (! $config || $config->cuit_id !== $this->cuitId) {
+                if (! $config) {
                     continue;
                 }
 
@@ -233,11 +238,13 @@ class CuitImpuestos extends Component
      */
     public function quitarImpuesto(int $configId): void
     {
-        $config = CuitImpuestoConfig::find($configId);
-
-        if ($config && $config->cuit_id === $this->cuitId) {
-            $config->delete();
+        if ($this->cuitId === null) {
+            return;
         }
+
+        CuitImpuestoConfig::where('cuit_id', $this->cuitId)
+            ->whereKey($configId)
+            ->delete();
 
         $this->cargarFilas();
     }

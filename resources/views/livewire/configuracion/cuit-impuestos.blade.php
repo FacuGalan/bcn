@@ -8,6 +8,15 @@
             submit="guardar"
         >
             <x-slot:body>
+                {{-- CUIT sobre el que se está trabajando --}}
+                <div class="mb-4 px-3 py-2 rounded-md bg-bcn-primary/10 dark:bg-bcn-primary/20">
+                    <p class="text-sm text-gray-700 dark:text-gray-200">
+                        <span class="font-semibold">{{ __('CUIT') }}:</span>
+                        <span class="font-mono">{{ $cuitNumero }}</span>
+                        <span class="text-gray-500 dark:text-gray-400">· {{ $cuitNombre }}</span>
+                    </p>
+                </div>
+
                 {{-- Alta rápida: buscar en el catálogo --}}
                 <div class="mb-5" x-data="{ open: false }" @click.outside="open = false">
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

@@ -329,6 +329,32 @@ class SmokeConfiguracionTest extends TestCase
         ], 'pymes_tenant');
     }
 
+    public function test_cuit_impuestos_quitar_persiste(): void
+    {
+        $condIva = \App\Models\CondicionIva::firstOrCreate(['codigo' => 1], ['nombre' => 'Responsable Inscripto']);
+        $cuit = \App\Models\Cuit::firstOrCreate(
+            ['numero_cuit' => '20111111113'],
+            ['razon_social' => 'Test SA', 'condicion_iva_id' => $condIva->id, 'entorno_afip' => 'testing', 'activo' => true]
+        );
+        $imp = \App\Models\Impuesto::create([
+            'codigo' => 'perc_iibb_ar_b', 'nombre' => 'Percepción IIBB Buenos Aires',
+            'tipo' => 'iibb', 'naturaleza_default' => 'percepcion', 'jurisdiccion' => 'AR-B',
+            'es_sistema' => true, 'activo' => true,
+        ]);
+        $config = \App\Models\CuitImpuestoConfig::create([
+            'cuit_id' => $cuit->id, 'impuesto_id' => $imp->id, 'inscripto' => true,
+            'origen_alicuota' => 'manual',
+        ]);
+
+        Livewire::test(CuitImpuestos::class)
+            ->call('abrir', $cuit->id)
+            ->call('quitarImpuesto', $config->id)
+            ->assertCount('filas', 0);
+
+        // El borrado debe persistir en la BD (regresión: comparación === string/int).
+        $this->assertDatabaseMissing('cuit_impuesto_configs', ['id' => $config->id], 'pymes_tenant');
+    }
+
     public function test_cuit_impuestos_siembra_iva_por_defecto(): void
     {
         $condIva = \App\Models\CondicionIva::firstOrCreate(['codigo' => 1], ['nombre' => 'Responsable Inscripto']);
