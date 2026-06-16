@@ -285,8 +285,8 @@ Módulo completo nuevo (~40 claves es/en/pt vía /traducir en cada fase): nombre
 ### Fase 1: BD + Modelos + Catálogo [COMPLETO]
 Migraciones 1-6, modelos `Impuesto`, `CuitImpuestoConfig`, `MovimientoFiscal`, `ComprobanteFiscalTributo`, relaciones en Cuit/CuentaEmpresa/ConciliacionFila, seed catálogo, tenant_tables.sql, ProvisionComercioCommand.
 
-### Fase 2: ImpuestoService núcleo [PENDIENTE]
-registrar/anular/configVigente/calcularTributos + tests unitarios exhaustivos (matriz condición IVA × agente × receptor).
+### Fase 2: ImpuestoService núcleo [COMPLETO]
+registrar/anular/configVigente/calcularTributos + tests unitarios exhaustivos (matriz condición IVA × agente × receptor). `app/Services/Fiscal/ImpuestoService.php` + `tests/Unit/Services/Fiscal/ImpuestoServiceTest.php` (23 tests verdes). Los hooks `registrarDesde*`/`validarImpuestoSufrido` NO se incluyeron acá — se cablean en fases 4/5/6 cuando existan los orígenes.
 
 ### Fase 3: Config UI por CUIT [PENDIENTE]
 Tab impuestos en gestión de CUITs + traducciones + smoke test.
@@ -308,6 +308,27 @@ PosicionFiscalService + 2 pantallas + exports + menú/permisos del módulo.
 
 ---
 
+## Revisión pendiente (pasada de Fable)
+
+> El desarrollo se hizo con Opus mientras Fable está deshabilitado. Estos puntos
+> son simplificaciones o decisiones discutibles que se tomaron para avanzar y se
+> dejan marcadas para que Fable las audite/mejore. En código llevan el tag
+> `REVISAR (Fable)`. Aceptados como "correctos por ahora" por el usuario (2026-06-16).
+
+**Fase 2 — `ImpuestoService::calcularTributos` (lo de mayor riesgo fiscal):**
+- [ ] Matriz v1 conservador: percibe solo a Responsable Inscripto. Auditar contra normativa real — varios regímenes perciben también a monotributo/exento según jurisdicción.
+- [ ] No existe "monto mínimo de percepción" (importe resultante) ni "monto no sujeto" (se resta de la base). Solo se modela `alicuota_minimo_base` como umbral de base imponible. Confirmar si alcanza o falta agregar campos a `cuit_impuesto_configs`.
+- [ ] IIBB: jurisdicción de la operación = `sucursal.provincia`. No contempla Convenio Multilateral (la base puede repartirse entre jurisdicciones) ni el padrón del receptor (alícuota real por sujeto). Diferido a fase padrones — validar que el diferimiento sea aceptable.
+- [ ] No se cruza la **condición del emisor**: un Monotributo con `es_agente_percepcion=true` mal cargado percibiría. ¿Guardar contra eso o confiar en la config + UI?
+- [ ] `vigentes()` usa `now()`. Al cablear en emisión (Fase 5), debe usar la **fecha del comprobante**. La firma de `calcularTributos` no recibe fecha todavía.
+- [ ] Redondeo por tributo independiente (`round(base*alic/100, 2)`). Verificar contra cómo redondea ARCA/las agencias al informar el array de tributos.
+- [ ] Convención alícuota = porcentaje. Confirmar contra el formato exacto que espera el WS de ARCA (Fase 5, + mapeo `codigo_arca`).
+
+**Fase 2 — ledger / contraasiento:**
+- [ ] `anularMovimientoFiscal` es anulación TOTAL. RF-04 pide contraasientos **proporcionales** para la NC. Falta `revertirParcial()` o equivalente (Fase 5).
+- [ ] Contrato de posición: se asume que PosicionFiscalService (Fase 7) suma **solo `estado=activo`**. Validar que esa semántica (vs. un enfoque con signo) sea la mejor para todos los reportes, incluida la NC parcial.
+- [ ] `configVigente`: desempate "vigente_desde más reciente gana, NULL fallback". Revisar el caso de vigencias solapadas con `vigente_desde` distinto pero `vigente_hasta` que se pisan.
+
 ## Notas y Decisiones
 
 - 2026-06-12 (Fase 1): descubierto y reparado de paso un bug del PR #132 ya mergeado — la migración `140001_add_tipo_impuesto` alteraba `conciliaciones_filas` pero la tabla real es `conciliacion_filas` (singular): el try/catch tenant se tragó el error y el enum quedó sin `impuesto` en comercios existentes. Fix: migración `150006` re-aplica el ALTER con el nombre correcto. Lección: tras una migración tenant, verificar el efecto en la BD real (el patrón try/catch convierte errores en no-ops silenciosos).
@@ -319,3 +340,8 @@ PosicionFiscalService + 2 pantallas + exports + menú/permisos del módulo.
 - 2026-06-12: El formato exacto del Libro IVA Digital de ARCA queda para fase futura; fase 1 exporta CSV simplificado para el contador.
 - 2026-06-12: Padrones provinciales (ARBA/AGIP): estructura preparada (`origen_alicuota`), implementación fuera de alcance.
 - 2026-06-12 (D5, usuario): retenciones que aplican CLIENTES agentes al pagar → **alta manual (RF-08) por ahora**; si a futuro resulta frecuente se integra al flujo de cobranza como fase nueva.
+
+- 2026-06-16 (Fase 2, D6 usuario): `calcularTributos` v1 **conservador** — una percepción se aplica solo si el CUIT emisor es agente de percepción (config vigente, inscripto, con alícuota) Y el receptor es Responsable Inscripto. Percepción IVA nacional: sin condicionar jurisdicción. Percepción IIBB provincial: solo si `impuesto.jurisdiccion === sucursal.provincia` (la operación). El match fino por provincia del RECEPTOR queda para la fase de padrones (no tenemos ese dato confiable hoy). Consumidor final / monotributo / exento / receptor null → sin percepción. Respeta `alicuota_minimo_base`. Si a futuro alguna jurisdicción exige percibir a monotributistas, se amplía.
+- 2026-06-16 (Fase 2): convención de alícuota = **porcentaje** (ej. 3.0000 = 3%), consistente con ComprobanteFiscalIva → `monto = base * alicuota / 100`.
+- 2026-06-16 (Fase 2): contraasiento fiscal — el modelo NO tiene eje con signo (a diferencia de MovimientoCuentaEmpresa); `anular` marca el original `estado=anulado` y crea una reversa linkeada (`movimiento_anulado_id`, `estado=anulado`) como traza inmutable. La posición fiscal sumará **solo `estado=activo`** → la anulación saca limpio el original sin aritmética con signo (monto siempre positivo). Guarda contra doble anulación y contra anular un contraasiento.
+- 2026-06-16 (Fase 2): se agregaron `movimientos_fiscales`/`cuit_impuesto_configs`/`impuestos` a `WithTenant::$testTables` (limpieza entre tests). Las tablas fiscales ya estaban en `tenant_tables.sql` (Fase 1) pero el tenant de test persiste de antes → la primera corrida necesita `TEST_FORCE_RECREATE=1`.
