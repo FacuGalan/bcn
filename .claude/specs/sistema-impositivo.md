@@ -288,8 +288,8 @@ Migraciones 1-6, modelos `Impuesto`, `CuitImpuestoConfig`, `MovimientoFiscal`, `
 ### Fase 2: ImpuestoService núcleo [COMPLETO]
 registrar/anular/configVigente/calcularTributos + tests unitarios exhaustivos (matriz condición IVA × agente × receptor). `app/Services/Fiscal/ImpuestoService.php` + `tests/Unit/Services/Fiscal/ImpuestoServiceTest.php` (23 tests verdes). Los hooks `registrarDesde*`/`validarImpuestoSufrido` NO se incluyeron acá — se cablean en fases 4/5/6 cuando existan los orígenes.
 
-### Fase 3: Config UI por CUIT [PENDIENTE]
-Tab impuestos en gestión de CUITs + traducciones + smoke test.
+### Fase 3: Config UI por CUIT [COMPLETO]
+Componente embebido `App\Livewire\Configuracion\CuitImpuestos` (NO full-page, NO sucursal-aware), abierto vía evento `abrir-impuestos-cuit` desde un botón "Impuestos" en cada fila de CUIT (tab-cuits). Modal con: combobox de alta rápida sobre el catálogo, lista editable (alícuota, base mínima, N° inscripción, vigencia opcional, flags inscripto/agente perc/ret), alta de impuesto custom (es_sistema=false). v1: una config actual por impuesto (sin historial de vigencias). 27 traducciones es/en/pt. Smoke + test funcional abrir/agregar (2 tests verdes). Permisos: reusa el gate de ConfiguracionEmpresa (los `fiscal.*` finos son RF-10/Fase 7).
 
 ### Fase 4: Sufridos vía conciliación MP [PENDIENTE]
 Gateway (columnas nuevas + PUT config + validación de keys contra API real), datos_extra, mapa TAX_DETAIL, desglose + alerta en revisión, cuit_id en cuentas, movimientos fiscales al aplicar. Validación EN VIVO con la cuenta real del usuario.
@@ -323,6 +323,11 @@ PosicionFiscalService + 2 pantallas + exports + menú/permisos del módulo.
 - [ ] `vigentes()` usa `now()`. Al cablear en emisión (Fase 5), debe usar la **fecha del comprobante**. La firma de `calcularTributos` no recibe fecha todavía.
 - [ ] Redondeo por tributo independiente (`round(base*alic/100, 2)`). Verificar contra cómo redondea ARCA/las agencias al informar el array de tributos.
 - [ ] Convención alícuota = porcentaje. Confirmar contra el formato exacto que espera el WS de ARCA (Fase 5, + mapeo `codigo_arca`).
+
+**Fase 3 — config UI por CUIT:**
+- [ ] v1 edita una sola config por impuesto; el historial de vigencias del modelo no se gestiona en UI. Decidir si hace falta gestionarlo.
+- [ ] `numero_inscripcion` (cuit_impuesto_configs) vs `cuits.numero_iibb` existente: posible redundancia para IIBB. Definir fuente de verdad.
+- [ ] El componente embebido no tiene permiso propio (confía en ConfiguracionEmpresa). Confirmar contra los permisos `fiscal.*` (RF-10/Fase 7).
 
 **Fase 2 — ledger / contraasiento:**
 - [ ] `anularMovimientoFiscal` es anulación TOTAL. RF-04 pide contraasientos **proporcionales** para la NC. Falta `revertirParcial()` o equivalente (Fase 5).

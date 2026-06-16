@@ -71,6 +71,9 @@
             @include('livewire.configuracion.partials.modal-cuit')
         @endif
 
+        {{-- Configuración impositiva por CUIT (RF-02) --}}
+        <livewire:configuracion.cuit-impuestos />
+
         {{-- Modal Configuración Sucursal --}}
         @if($mostrarModalConfigSucursal)
             @include('livewire.configuracion.partials.modal-config-sucursal')

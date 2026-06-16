@@ -3,6 +3,7 @@
 namespace Tests\Feature\Livewire\Configuracion;
 
 use App\Livewire\Configuracion\ConfiguracionEmpresa;
+use App\Livewire\Configuracion\CuitImpuestos;
 use App\Livewire\Configuracion\FormasPagoSucursal;
 use App\Livewire\Configuracion\GestionarFormasPago;
 use App\Livewire\Configuracion\GestionMonedas;
@@ -294,6 +295,38 @@ class SmokeConfiguracionTest extends TestCase
     public function test_wizard_promocion_especial_monta(): void
     {
         Livewire::test(WizardPromocionEspecial::class)->assertOk();
+    }
+
+    public function test_cuit_impuestos_monta(): void
+    {
+        Livewire::test(CuitImpuestos::class)->assertOk();
+    }
+
+    public function test_cuit_impuestos_abrir_y_agregar_impuesto(): void
+    {
+        $condIva = \App\Models\CondicionIva::firstOrCreate(['codigo' => 1], ['nombre' => 'Responsable Inscripto']);
+        $cuit = \App\Models\Cuit::firstOrCreate(
+            ['numero_cuit' => '20111111113'],
+            ['razon_social' => 'Test SA', 'condicion_iva_id' => $condIva->id, 'entorno_afip' => 'testing', 'activo' => true]
+        );
+        $imp = \App\Models\Impuesto::create([
+            'codigo' => 'perc_iibb_ar_b', 'nombre' => 'Percepción IIBB Buenos Aires',
+            'tipo' => 'iibb', 'naturaleza_default' => 'percepcion', 'jurisdiccion' => 'AR-B',
+            'es_sistema' => true, 'activo' => true,
+        ]);
+
+        Livewire::test(CuitImpuestos::class)
+            ->call('abrir', $cuit->id)
+            ->assertSet('mostrarModal', true)
+            ->assertSet('cuitId', $cuit->id)
+            ->call('agregarImpuesto', $imp->id)
+            ->assertCount('filas', 1);
+
+        $this->assertDatabaseHas('cuit_impuesto_configs', [
+            'cuit_id' => $cuit->id,
+            'impuesto_id' => $imp->id,
+            'inscripto' => 1,
+        ], 'pymes_tenant');
     }
 
     public function test_roles_permisos_monta(): void
