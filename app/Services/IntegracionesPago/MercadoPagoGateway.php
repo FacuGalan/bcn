@@ -337,6 +337,84 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
     }
 
     /**
+     * Nombre normalizado de provincia (como lo escribe MP en TAX_DETAIL) → ISO 3166-2.
+     */
+    private const PROVINCIA_ISO = [
+        'caba' => 'AR-C', 'capital_federal' => 'AR-C', 'ciudad_de_buenos_aires' => 'AR-C', 'ciudad_autonoma_de_buenos_aires' => 'AR-C',
+        'buenos_aires' => 'AR-B', 'catamarca' => 'AR-K', 'chaco' => 'AR-H', 'chubut' => 'AR-U',
+        'cordoba' => 'AR-X', 'corrientes' => 'AR-W', 'entre_rios' => 'AR-E', 'formosa' => 'AR-P',
+        'jujuy' => 'AR-Y', 'la_pampa' => 'AR-L', 'la_rioja' => 'AR-F', 'mendoza' => 'AR-M',
+        'misiones' => 'AR-N', 'neuquen' => 'AR-Q', 'rio_negro' => 'AR-R', 'salta' => 'AR-A',
+        'san_juan' => 'AR-J', 'san_luis' => 'AR-D', 'santa_cruz' => 'AR-Z', 'santa_fe' => 'AR-S',
+        'santiago_del_estero' => 'AR-G', 'tierra_del_fuego' => 'AR-V', 'tucuman' => 'AR-T',
+    ];
+
+    /**
+     * Mapea un código TAX_DETAIL del reporte de MP a un impuesto del catálogo.
+     *
+     * Devuelve ['codigo','naturaleza','jurisdiccion'] o null si no se reconoce
+     * (en cuyo caso la fila queda como impuesto genérico, impuesto_id NULL).
+     * Códigos reales de la doc oficial de MP (ver memoria
+     * reference-mp-reporte-columnas-impuestos):
+     *  - tax_payment_iibb[_cre]_<provincia> → percepción IIBB de esa jurisdicción
+     *  - tax_iva / tax_iva_cre              → percepción IVA (nacional)
+     *  - tax_withholding_{payer,collector,payout,shipping} → impuesto créditos/débitos (ley 25.413)
+     *
+     * REVISAR (4b): la retención IIBB genérica (tax_withholding / tax_withdholding,
+     * sin jurisdicción en el código) queda sin mapear hasta confirmar de dónde sale
+     * la jurisdicción (probablemente TAXES_DISAGGREGATED) con un CSV real.
+     */
+    public function mapearImpuestoReporte(string $taxDetail): ?array
+    {
+        $d = strtolower(trim($taxDetail));
+        $d = str_replace('withdholding', 'withholding', $d); // typo documentado por MP
+
+        if ($d === '') {
+            return null;
+        }
+
+        // Percepción IIBB por jurisdicción.
+        if (str_contains($d, 'iibb') && str_contains($d, 'payment')) {
+            $iso = $this->jurisdiccionIibbDesdeTaxDetail($d);
+
+            if ($iso === null) {
+                return null;
+            }
+
+            return [
+                'codigo' => 'perc_iibb_'.strtolower(str_replace('-', '_', $iso)),
+                'naturaleza' => 'percepcion',
+                'jurisdiccion' => $iso,
+            ];
+        }
+
+        // Percepción IVA (régimen general o Mercado Crédito).
+        if (str_contains($d, 'iva')) {
+            return ['codigo' => 'perc_iva', 'naturaleza' => 'percepcion', 'jurisdiccion' => 'AR'];
+        }
+
+        // Impuesto a los créditos y débitos (ley 25.413) sobre pagos/cobros/retiros/envíos.
+        if (str_contains($d, 'withholding')
+            && (str_contains($d, 'payer') || str_contains($d, 'collector') || str_contains($d, 'payout') || str_contains($d, 'shipping'))) {
+            return ['codigo' => 'imp_creditos_debitos', 'naturaleza' => 'tributo', 'jurisdiccion' => 'AR'];
+        }
+
+        // Retención IIBB genérica / cancelaciones: sin código exacto (ver REVISAR 4b).
+        return null;
+    }
+
+    /**
+     * Extrae la jurisdicción ISO de un TAX_DETAIL de percepción IIBB.
+     */
+    private function jurisdiccionIibbDesdeTaxDetail(string $d): ?string
+    {
+        $provincia = preg_replace('/^.*iibb_(cre_)?/', '', $d);
+        $provincia = trim((string) $provincia, '_');
+
+        return self::PROVINCIA_ISO[$provincia] ?? null;
+    }
+
+    /**
      * Verifica las credenciales contra `GET /users/me`.
      *
      * Si responde 200 y el `id` del payload coincide con `user_id_externo`
