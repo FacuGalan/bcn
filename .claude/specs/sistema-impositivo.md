@@ -309,8 +309,13 @@ Motivo del corte: AFIP exige `ImpTotal = neto + IVA + tributos`, así que las pe
 
 **5b PENDIENTE (requiere homologación AFIP)**: `calcularTributos` en la emisión → `comprobante_fiscal_tributos` + campo `tributos` + array `Tributos` en `prepararDatosParaAFIP` (mapeo `codigo_arca`) + movimiento fiscal de la percepción aplicada (sentido aplicado), todo ATÓMICO con el total enviado a AFIP. Solo afecta a CUITs configurados como agente de percepción; la pyme típica (no agente) ya quedó 100% correcta con 5a (tributos 0, sin cambios).
 
-### Fase 6: Sufridos vía compras + alta manual [PENDIENTE]
-Hook CompraService, sección percepciones en form de compra, pantalla movimientos fiscales con alta manual y anulación.
+### Fase 6: Sufridos vía compras + alta manual [capa fiscal COMPLETA / módulo compras y alta manual PENDIENTES]
+
+**Capa fiscal de compras COMPLETA (desacoplada)**: migración `add_fiscal_a_compras` → `compras.cuit_id` (atribución fiscal, FK nullable ON DELETE SET NULL) + tabla `compra_percepciones` (desglose de percepciones/retenciones sufridas, paralelo a comprobante_fiscal_tributos). Modelo `CompraPercepcion` + relaciones `cuit`/`percepciones` en `Compra`. `ImpuestoService::registrarDesdeCompra(Compra, array $ivaCredito, ?usuarioId)`: IVA crédito fiscal por alícuota (sentido sufrido; SOLO Factura A lo provee el caller) + percepciones leídas de `compra->percepciones` → ledger sufrido con la naturaleza del impuesto. `anularDesdeCompra` → contraasiento al cancelar. Guard: sin cuit_id no genera. Idempotente. Tests +5. tenant_tables.sql regenerado.
+
+**HALLAZGO (2026-06-16)**: el módulo de compras está **inconsistente** — los modelos `Compra`/`CompraDetalle` y `CompraService` fueron rediseñados (esperan `numero_comprobante`, `total_iva`, `tipo_comprobante`, `precio_sin_iva`, `tipo_iva_id`…) pero **nunca se migraron**; las tablas reales son el baseline viejo (`numero`, `iva`, sin esos campos). `CompraService::crearCompra` hoy tiraría error. Por eso la capa fiscal se diseñó DESACOPLADA (recibe el desglose explícito, no lee columnas de compras/detalle) y **NO se cableó el hook en `CompraService`** (sería sobre código roto). El hook se agrega cuando se reconcilie/desarrolle compras de verdad: persistir las percepciones en `compra_percepciones`, calcular el IVA crédito (solo Factura A) y llamar a `registrarDesdeCompra`.
+
+**PENDIENTE**: módulo de compras funcional (reconciliar modelo↔tabla, UI con CUIT + sección percepciones + tipo de comprobante, stock/formato), hook al confirmar/cancelar, y la **pantalla de alta manual de movimientos fiscales (RF-08)** con anulación por contraasiento (permisos `func.fiscal.movimientos_*`).
 
 ### Fase 7: Posición fiscal + libros [PENDIENTE]
 PosicionFiscalService + 2 pantallas + exports + menú/permisos del módulo.

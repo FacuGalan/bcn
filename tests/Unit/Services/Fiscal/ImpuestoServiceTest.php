@@ -2,6 +2,8 @@
 
 namespace Tests\Unit\Services\Fiscal;
 
+use App\Models\Compra;
+use App\Models\CompraPercepcion;
 use App\Models\ComprobanteFiscal;
 use App\Models\ComprobanteFiscalIva;
 use App\Models\ConciliacionFila;
@@ -588,6 +590,107 @@ class ImpuestoServiceTest extends TestCase
 
         // El débito del comprobante original queda anulado → la posición (solo activos) no lo cuenta.
         $activos = MovimientoFiscal::activos()->where('origen_tipo', 'ComprobanteFiscal')->where('origen_id', 100)->count();
+        $this->assertEquals(0, $activos);
+    }
+
+    // ==================== registrarDesdeCompra (RF-05, Fase 6) ====================
+
+    protected function compra(int $id, ?int $cuitId, array $percepciones = [], string $fecha = '2026-05-10'): Compra
+    {
+        $c = new Compra([
+            'cuit_id' => $cuitId,
+            'sucursal_id' => $this->sucursalId,
+            'fecha' => $fecha,
+            'usuario_id' => 1,
+        ]);
+        $c->id = $id; // origen_id (la compra no se persiste; tabla compras inconsistente).
+        $c->setRelation('percepciones', collect($percepciones));
+
+        return $c;
+    }
+
+    protected function percepcion(Impuesto $impuesto, float $monto, array $extra = []): CompraPercepcion
+    {
+        $p = new CompraPercepcion(array_merge([
+            'impuesto_id' => $impuesto->id,
+            'monto' => $monto,
+        ], $extra));
+        $p->setRelation('impuesto', $impuesto);
+
+        return $p;
+    }
+
+    public function test_registrar_desde_compra_genera_credito_fiscal_por_alicuota(): void
+    {
+        $ivaCred = $this->impuesto('iva_credito', Impuesto::TIPO_IVA, 'credito_fiscal', 'AR');
+        $c = $this->compra(300, $this->cuit()->id);
+
+        $this->service->registrarDesdeCompra($c, [
+            ['base_imponible' => 1000, 'alicuota' => 21, 'monto' => 210],
+            ['base_imponible' => 500, 'alicuota' => 10.5, 'monto' => 52.5],
+        ], 7);
+
+        $movs = MovimientoFiscal::where('origen_tipo', 'Compra')->where('origen_id', 300)->get();
+
+        $this->assertCount(2, $movs);
+        $this->assertTrue($movs->every(fn ($m) => $m->sentido === MovimientoFiscal::SENTIDO_SUFRIDO
+            && $m->naturaleza === MovimientoFiscal::NATURALEZA_CREDITO_FISCAL
+            && $m->impuesto_id === $ivaCred->id));
+        $this->assertEquals('2026-05', $movs->first()->periodo_fiscal);
+        $this->assertEqualsCanonicalizing([210.0, 52.5], $movs->pluck('monto')->map(fn ($m) => (float) $m)->all());
+    }
+
+    public function test_registrar_desde_compra_genera_percepciones_sufridas(): void
+    {
+        $this->impuesto('iva_credito', Impuesto::TIPO_IVA, 'credito_fiscal', 'AR');
+        $percImp = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
+
+        $c = $this->compra(301, $this->cuit()->id, [
+            $this->percepcion($percImp, 30.0, ['base_imponible' => 1000, 'alicuota' => 3, 'certificado_numero' => 'X-1']),
+        ]);
+
+        $this->service->registrarDesdeCompra($c, [], 7);
+
+        $mov = MovimientoFiscal::where('origen_tipo', 'Compra')->where('origen_id', 301)->first();
+        $this->assertNotNull($mov);
+        $this->assertEquals(MovimientoFiscal::SENTIDO_SUFRIDO, $mov->sentido);
+        $this->assertEquals(MovimientoFiscal::NATURALEZA_PERCEPCION, $mov->naturaleza);
+        $this->assertEquals($percImp->id, $mov->impuesto_id);
+        $this->assertEquals(30.0, (float) $mov->monto);
+        $this->assertEquals('X-1', $mov->certificado_numero);
+    }
+
+    public function test_registrar_desde_compra_sin_cuit_no_genera(): void
+    {
+        $this->impuesto('iva_credito', Impuesto::TIPO_IVA, 'credito_fiscal', 'AR');
+        $c = $this->compra(302, null);
+
+        $this->service->registrarDesdeCompra($c, [['base_imponible' => 1000, 'alicuota' => 21, 'monto' => 210]], 7);
+
+        $this->assertEquals(0, MovimientoFiscal::where('origen_tipo', 'Compra')->count());
+    }
+
+    public function test_registrar_desde_compra_es_idempotente(): void
+    {
+        $this->impuesto('iva_credito', Impuesto::TIPO_IVA, 'credito_fiscal', 'AR');
+        $c = $this->compra(303, $this->cuit()->id);
+        $linea = [['base_imponible' => 1000, 'alicuota' => 21, 'monto' => 210]];
+
+        $this->service->registrarDesdeCompra($c, $linea, 7);
+        $this->service->registrarDesdeCompra($c, $linea, 7);
+
+        $this->assertEquals(1, MovimientoFiscal::where('origen_tipo', 'Compra')->where('origen_id', 303)->count());
+    }
+
+    public function test_anular_desde_compra_contraasienta(): void
+    {
+        $this->impuesto('iva_credito', Impuesto::TIPO_IVA, 'credito_fiscal', 'AR');
+        $c = $this->compra(304, $this->cuit()->id);
+        $this->service->registrarDesdeCompra($c, [['base_imponible' => 1000, 'alicuota' => 21, 'monto' => 210]], 7);
+
+        $this->service->anularDesdeCompra($c, 7);
+
+        $activos = MovimientoFiscal::activos()->where('origen_tipo', 'Compra')->where('origen_id', 304)->count();
         $this->assertEquals(0, $activos);
     }
 

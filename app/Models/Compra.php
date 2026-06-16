@@ -46,6 +46,7 @@ class Compra extends Model
     protected $fillable = [
         'sucursal_id',
         'proveedor_id',
+        'cuit_id',
         'caja_id',
         'usuario_id',
         'numero_comprobante',
@@ -77,6 +78,22 @@ class Compra extends Model
     public function proveedor(): BelongsTo
     {
         return $this->belongsTo(Proveedor::class, 'proveedor_id');
+    }
+
+    /**
+     * CUIT del comercio al que se imputa fiscalmente la compra (RF-05).
+     */
+    public function cuit(): BelongsTo
+    {
+        return $this->belongsTo(Cuit::class, 'cuit_id')->withTrashed();
+    }
+
+    /**
+     * Percepciones/retenciones sufridas en la factura del proveedor (RF-05).
+     */
+    public function percepciones(): HasMany
+    {
+        return $this->hasMany(CompraPercepcion::class, 'compra_id');
     }
 
     public function caja(): BelongsTo

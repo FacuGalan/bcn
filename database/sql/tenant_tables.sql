@@ -444,6 +444,7 @@ CREATE TABLE `{{PREFIX}}compras` (
   `numero` varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL,
   `sucursal_id` bigint(20) unsigned NOT NULL,
   `proveedor_id` bigint(20) unsigned NOT NULL,
+  `cuit_id` bigint(20) unsigned DEFAULT NULL COMMENT 'CUIT del comercio que realizo la compra (atribucion fiscal)',
   `caja_id` bigint(20) unsigned DEFAULT NULL,
   `usuario_id` bigint(20) unsigned NOT NULL,
   `fecha` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -459,9 +460,29 @@ CREATE TABLE `{{PREFIX}}compras` (
   KEY `idx_fecha` (`fecha`),
   KEY `{{PREFIX}}compras_proveedor_id_foreign` (`proveedor_id`),
   KEY `{{PREFIX}}compras_caja_id_foreign` (`caja_id`),
+  KEY `{{PREFIX}}fk_compras_cuit` (`cuit_id`),
   CONSTRAINT `{{PREFIX}}compras_caja_id_foreign` FOREIGN KEY (`caja_id`) REFERENCES `{{PREFIX}}cajas` (`id`),
   CONSTRAINT `{{PREFIX}}compras_proveedor_id_foreign` FOREIGN KEY (`proveedor_id`) REFERENCES `{{PREFIX}}proveedores` (`id`),
-  CONSTRAINT `{{PREFIX}}compras_sucursal_id_foreign` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`)
+  CONSTRAINT `{{PREFIX}}compras_sucursal_id_foreign` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`),
+  CONSTRAINT `{{PREFIX}}fk_compras_cuit` FOREIGN KEY (`cuit_id`) REFERENCES `{{PREFIX}}cuits` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `{{PREFIX}}compra_percepciones`;
+CREATE TABLE `{{PREFIX}}compra_percepciones` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `compra_id` bigint(20) unsigned NOT NULL,
+  `impuesto_id` bigint(20) unsigned NOT NULL,
+  `base_imponible` decimal(14,2) DEFAULT NULL,
+  `alicuota` decimal(6,4) DEFAULT NULL,
+  `monto` decimal(14,2) NOT NULL,
+  `certificado_numero` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}idx_cperc_compra` (`compra_id`),
+  KEY `{{PREFIX}}fk_cperc_impuesto` (`impuesto_id`),
+  CONSTRAINT `{{PREFIX}}fk_cperc_compra` FOREIGN KEY (`compra_id`) REFERENCES `{{PREFIX}}compras` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_cperc_impuesto` FOREIGN KEY (`impuesto_id`) REFERENCES `{{PREFIX}}impuestos` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}compras_detalle`;
 CREATE TABLE `{{PREFIX}}compras_detalle` (

@@ -2,6 +2,7 @@
 
 namespace App\Services\Fiscal;
 
+use App\Models\Compra;
 use App\Models\ComprobanteFiscal;
 use App\Models\ConciliacionFila;
 use App\Models\CondicionIva;
@@ -390,6 +391,120 @@ class ImpuestoService
                 'origen_id' => $c->id,
                 'usuario_id' => $usuarioId,
             ]);
+        }
+    }
+
+    /**
+     * Registra los movimientos fiscales de una compra (RF-05, Fase 6): IVA
+     * crédito fiscal + percepciones/retenciones sufridas, imputados al CUIT de
+     * la compra (`compras.cuit_id`).
+     *
+     * CONTRATO DESACOPLADO del módulo de compras (hoy inconsistente: el modelo
+     * espera columnas que la tabla no tiene). No depende de las columnas de
+     * compras/detalle ni persiste nada de compras: lee fuentes fiscales limpias.
+     *  - $ivaCredito: array de {base_imponible?, alicuota?, monto} — el crédito
+     *    fiscal de IVA discriminado por alícuota. SOLO Factura A da crédito (lo
+     *    decide el caller según el tipo de comprobante); vacío para B/C o
+     *    proveedor monotributo.
+     *  - Percepciones/retenciones: se leen de `$compra->percepciones`
+     *    (compra_percepciones, que el módulo de compras persiste al cargar la
+     *    factura) → ledger sentido sufrido con la naturaleza del impuesto.
+     *
+     * Guard: sin `cuit_id` no genera nada (compra sin atribución fiscal).
+     * Idempotente por origen. Cuando el módulo de compras se desarrolle, persiste
+     * las percepciones y llama acá con el IVA crédito; cancelar → anularDesdeCompra().
+     */
+    public function registrarDesdeCompra(Compra $compra, array $ivaCredito = [], ?int $usuarioId = null): void
+    {
+        if ($compra->cuit_id === null) {
+            return; // Sin atribución fiscal: no alimenta el ledger.
+        }
+
+        $yaRegistrado = MovimientoFiscal::query()
+            ->activos()
+            ->where('origen_tipo', 'Compra')
+            ->where('origen_id', $compra->id)
+            ->exists();
+
+        if ($yaRegistrado) {
+            return;
+        }
+
+        $fecha = $compra->fecha ?? now();
+
+        // IVA crédito fiscal por alícuota (sentido sufrido).
+        $impuestoIvaCredito = Impuesto::porCodigo('iva_credito')->first();
+
+        if ($impuestoIvaCredito !== null) {
+            foreach ($ivaCredito as $linea) {
+                $monto = round((float) ($linea['monto'] ?? 0), 2);
+
+                if ($monto <= 0) {
+                    continue;
+                }
+
+                $this->registrarMovimientoFiscal([
+                    'cuit_id' => $compra->cuit_id,
+                    'sucursal_id' => $compra->sucursal_id,
+                    'impuesto_id' => $impuestoIvaCredito->id,
+                    'sentido' => MovimientoFiscal::SENTIDO_SUFRIDO,
+                    'naturaleza' => MovimientoFiscal::NATURALEZA_CREDITO_FISCAL,
+                    'fecha' => $fecha,
+                    'base_imponible' => $linea['base_imponible'] ?? null,
+                    'alicuota' => $linea['alicuota'] ?? null,
+                    'monto' => $monto,
+                    'origen_tipo' => 'Compra',
+                    'origen_id' => $compra->id,
+                    'usuario_id' => $usuarioId,
+                ]);
+            }
+        }
+
+        // Percepciones/retenciones sufridas (ya persistidas en compra_percepciones).
+        foreach ($compra->percepciones as $percepcion) {
+            $impuesto = $percepcion->impuesto;
+            $monto = round((float) $percepcion->monto, 2);
+
+            if ($impuesto === null || $monto <= 0) {
+                continue;
+            }
+
+            $this->registrarMovimientoFiscal([
+                'cuit_id' => $compra->cuit_id,
+                'sucursal_id' => $compra->sucursal_id,
+                'impuesto_id' => $impuesto->id,
+                'sentido' => MovimientoFiscal::SENTIDO_SUFRIDO,
+                'naturaleza' => $impuesto->naturaleza_default,
+                'fecha' => $fecha,
+                'base_imponible' => $percepcion->base_imponible,
+                'alicuota' => $percepcion->alicuota,
+                'monto' => $monto,
+                'certificado_numero' => $percepcion->certificado_numero,
+                'origen_tipo' => 'Compra',
+                'origen_id' => $compra->id,
+                'usuario_id' => $usuarioId,
+            ]);
+        }
+    }
+
+    /**
+     * Contraasienta los movimientos fiscales de una compra al cancelarla
+     * (RF-05). Anula todos los movimientos activos con origen Compra.
+     */
+    public function anularDesdeCompra(Compra $compra, ?int $usuarioId = null): void
+    {
+        $movimientos = MovimientoFiscal::query()
+            ->activos()
+            ->where('origen_tipo', 'Compra')
+            ->where('origen_id', $compra->id)
+            ->get();
+
+        foreach ($movimientos as $movimiento) {
+            $this->anularMovimientoFiscal(
+                $movimiento,
+                $usuarioId ?? (int) ($compra->usuario_id ?? 0),
+                __('Cancelación de compra #:id', ['id' => $compra->id]),
+            );
         }
     }
 
