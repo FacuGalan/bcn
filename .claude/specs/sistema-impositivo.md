@@ -92,6 +92,22 @@ Este feature define la **estructura fiscal integral**: catálogo de impuestos, c
 ### RF-10: Permisos y menú
 - Módulo nuevo "Fiscal" (menú + permisos + traducciones + ProvisionComercioCommand): `fiscal.posicion`, `fiscal.libros`, `fiscal.movimientos`, `fiscal.configuracion` con sus `func.*`.
 
+### RF-11: Domicilios fiscales por CUIT y jurisdicción de la operación (agregado 2026-06-17)
+
+> Surge de revisar la fase de homologación: la jurisdicción que hoy se infiere de
+> la sucursal física es incorrecta cuando una caja factura con un PV cuyo CUIT
+> está domiciliado en otra provincia. AFIP modela esto con domicilios declarados
+> por CUIT, y cada punto de venta asociado a uno. **Es prerequisito de la Fase 5b**
+> (las percepciones aplicadas viajan a AFIP con la jurisdicción del PV).
+
+- **Domicilios por CUIT (espejo AFIP)**: cada CUIT declara N domicilios. Tabla nueva `cuit_domicilios`: tipo (fiscal/comercial/otro), provincia (ISO 3166-2), localidad (ref a `localidades` config), dirección, geo opcional (lat/lng), `es_principal`, activo. (CP diferido — ver decisión 2026-06-17.)
+- **PV → domicilio**: `puntos_venta.cuit_domicilio_id` (uno de los domicilios de SU CUIT). Refleja el alta de AFIP donde cada PV se da con un domicilio.
+- **Jurisdicción de la operación**: se deriva de `comprobante.puntoVenta.cuitDomicilio.provincia` (NO de `sucursal.provincia`). El comprobante ya guarda `punto_venta_id` (NOT NULL) → la cadena es confiable. Esto alimenta tanto el cálculo de percepciones IIBB aplicadas (Fase 5b) como la base imponible de IIBB de la posición (Fase 7).
+- **Sucursal con domicilio estructurado (STANDALONE)**: migrar `sucursales.localidad` de texto libre a `localidad_id` (ref soft a `localidades`), manteniendo `provincia` (ISO, ya existe) y lat/lng. La edición vive en la **config de sucursales** y es **independiente de tener CUIT o integración de pago**: un comercio puede dejar bien configurada provincia/localidad/geolocalización de una sucursal sin CUIT ni MP (casos de uso: tienda digital a futuro, logística, o simplemente correctitud de datos). MP conserva su modal pero lee/escribe los mismos campos; al activar CUIT/integraciones, los datos ya están y son compatibles.
+- **Formato de domicilio unificado y reutilizable**: un componente Blade/trait compartido (provincia → localidad dependiente + geo opcional) es la **capa de compatibilidad** — mismo formato para el domicilio físico de la sucursal, los domicilios fiscales del CUIT y desarrollos futuros. **Importante (decoupling)**: la dirección física de la sucursal NO es la fuente de la jurisdicción fiscal (esa sale del domicilio del PV); son dos direcciones con el MISMO formato pero distinta fuente. "Deberían coincidir", pero no se acoplan. Objetivo del usuario: compatibilidad bilateral y replicabilidad.
+- **Padrón de localidades**: reemplazar el dataset actual (CPs con errores) por una fuente oficial y actual (GeoRef Argentina / datos.gob.ar) para provincia→localidad confiables. **El CP NO se muestra** (dato no confiable); se difiere como campo editable por domicilio si a futuro se necesita imprimir/declarar.
+- **Migración de datos existentes**: el domicilio único actual de cada CUIT (`cuits.direccion` + `cuits.localidad_id`) → su `cuit_domicilios` `es_principal`; cada PV existente → el principal de su CUIT; sucursales → backfill de `localidad_id` best-effort desde el texto libre. Sin romper lo que ya factura.
+
 ---
 
 ## Modelo de Datos
@@ -175,6 +191,31 @@ Este feature define la **estructura fiscal integral**: catálogo de impuestos, c
 
 #### `compras` — Cambios
 - Sin columnas nuevas (las percepciones sufridas van directo a `movimientos_fiscales` origen Compra).
+
+#### `cuit_domicilios` — Tabla nueva (RF-11, tenant)
+| Campo | Tipo | Default | Descripción |
+|-------|------|---------|-------------|
+| `id` | bigint PK | auto | |
+| `cuit_id` | bigint FK cuits | — | |
+| `tipo` | enum(fiscal,comercial,otro) | fiscal | espejo de AFIP |
+| `provincia` | varchar(6) | — | ISO 3166-2 (`AR-B`...) — jurisdicción |
+| `localidad_id` | bigint NULL | NULL | ref soft a `localidades` (config, sin FK cross-DB, igual que `cuits.localidad_id`) |
+| `direccion` | varchar(255) | — | calle y número |
+| `codigo_postal` | varchar(10) NULL | NULL | columna creada pero NO usada en UI (diferido) |
+| `latitud` | decimal(10,7) NULL | NULL | geo opcional |
+| `longitud` | decimal(10,7) NULL | NULL | |
+| `es_principal` | boolean | false | domicilio fiscal principal del CUIT |
+| `activo` | boolean | true | |
+| timestamps + INDEX(cuit_id) | | | |
+
+#### `puntos_venta` — Cambios (RF-11)
+- Agregar: `cuit_domicilio_id` (bigint, NULL, FK `cuit_domicilios`) — el domicilio declarado del PV (uno de los de su CUIT). Backfill al principal del CUIT en la migración.
+
+#### `sucursales` — Cambios (RF-11)
+- Agregar: `localidad_id` (bigint, NULL, ref soft a `localidades`) — reemplaza la edición de `localidad` (texto libre, que queda como columna de transición / se backfillea). `provincia` (ISO) y lat/lng ya existen (agregadas para MP).
+
+#### `localidades` (config, compartida) — Reemplazo de datos (RF-11)
+- Reseed desde fuente oficial actual (GeoRef Argentina). **Riesgo**: `cuits.localidad_id` y futuros `*.localidad_id` referencian estos IDs → la migración debe **remapear por (provincia, nombre)** o preservar IDs, no truncar y recrear a ciegas. `codigo_postal` queda nullable y sin uso en UI.
 
 ### Seeds
 - Catálogo `impuestos`: IVA débito/crédito, percepción/retención IVA, percepción/retención IIBB × 24 jurisdicciones, retención ganancias, ley 25.413, SIRCREB, otro. (~55 filas, generadas desde array de jurisdicciones).
@@ -286,7 +327,7 @@ Módulo completo nuevo (~40 claves es/en/pt vía /traducir en cada fase): nombre
 Migraciones 1-6, modelos `Impuesto`, `CuitImpuestoConfig`, `MovimientoFiscal`, `ComprobanteFiscalTributo`, relaciones en Cuit/CuentaEmpresa/ConciliacionFila, seed catálogo, tenant_tables.sql, ProvisionComercioCommand.
 
 ### Fase 2: ImpuestoService núcleo [COMPLETO]
-registrar/anular/configVigente/calcularTributos + tests unitarios exhaustivos (matriz condición IVA × agente × receptor). `app/Services/Fiscal/ImpuestoService.php` + `tests/Unit/Services/Fiscal/ImpuestoServiceTest.php` (23 tests verdes). Los hooks `registrarDesde*`/`validarImpuestoSufrido` NO se incluyeron acá — se cablean en fases 4/5/6 cuando existan los orígenes.
+registrar/anular/configVigente/calcularTributos + tests unitarios exhaustivos (matriz condición IVA × agente × receptor). `app/Services/Fiscal/ImpuestoService.php` + `tests/Unit/Services/Fiscal/ImpuestoServiceTest.php` (23 tests verdes). Los hooks `registrarDesde*`/`validarImpuestoSufrido` NO se incluyeron acá — se cablean en fases 4/5/6 cuando existan los orígenes. **Pendiente Fase 9**: `calcularTributos` hoy recibe `Sucursal` para la jurisdicción IIBB; cambiará a recibir la jurisdicción del domicilio del PV (firma + tests). Aún no está wired a emisión (5b), así que el cambio es de bajo riesgo.
 
 ### Fase 3: Config UI por CUIT [COMPLETO]
 Componente embebido `App\Livewire\Configuracion\CuitImpuestos` (NO full-page, NO sucursal-aware), abierto vía evento `abrir-impuestos-cuit` desde un botón "Impuestos" en cada fila de CUIT (tab-cuits). Modal con: combobox de alta rápida sobre el catálogo, lista editable (alícuota, base mínima, N° inscripción, vigencia opcional, flags inscripto/agente perc/ret), alta de impuesto custom (es_sistema=false). v1: una config actual por impuesto (sin historial de vigencias). **El IVA débito/crédito NO se gestiona en esta pantalla** (decisión 2026-06-16): lo determina la condición de IVA del CUIT (form del CUIT) y la posición se arma desde comprobantes/compras en Fases 5/6 (que distinguen RI vs monotributo — el monotributo no lleva IVA). El combobox excluye naturalezas `debito_fiscal`/`credito_fiscal` y el alta custom solo permite percepción/retención/tributo. Traducciones es/en/pt. Smoke + tests funcionales (abrir/agregar, quitar persiste, no-resiembra, catálogo sin IVA) — 5 verdes. Permisos: reusa el gate de ConfiguracionEmpresa (los `fiscal.*` finos son RF-10/Fase 7).
@@ -307,7 +348,7 @@ Motivo del corte: AFIP exige `ImpTotal = neto + IVA + tributos`, así que las pe
 
 **5a COMPLETA**: `ImpuestoService::registrarDesdeComprobante(ComprobanteFiscal, ?usuarioId)` registra el IVA débito fiscal por alícuota (desde `ComprobanteFiscalIva`, sentido aplicado) y, para una nota de crédito (`comprobante_asociado_id`), contraasienta los movimientos del comprobante original. Guards de correctitud: **solo un Responsable Inscripto genera débito** (un Monotributo/Factura C no, aunque viniera importe), alícuota 0%/exento no genera, idempotente por origen. Cableado en `ComprobanteFiscalService` (factura + NC) **POST-COMMIT y best-effort** (`registrarFiscal()`): un CAE ya obtenido nunca se pierde por un fallo de ledger (se loguea y se puede backfillear). Tests +4 unit. REVISAR (Fable): la NC parcial requeriría reversa proporcional (hoy las NC del sistema son por el total).
 
-**5b PENDIENTE (requiere homologación AFIP)**: `calcularTributos` en la emisión → `comprobante_fiscal_tributos` + campo `tributos` + array `Tributos` en `prepararDatosParaAFIP` (mapeo `codigo_arca`) + movimiento fiscal de la percepción aplicada (sentido aplicado), todo ATÓMICO con el total enviado a AFIP. Solo afecta a CUITs configurados como agente de percepción; la pyme típica (no agente) ya quedó 100% correcta con 5a (tributos 0, sin cambios).
+**5b PENDIENTE (requiere homologación AFIP + Fase 9)**: `calcularTributos` en la emisión → `comprobante_fiscal_tributos` + campo `tributos` + array `Tributos` en `prepararDatosParaAFIP` (mapeo `codigo_arca`) + movimiento fiscal de la percepción aplicada (sentido aplicado), todo ATÓMICO con el total enviado a AFIP. **Depende de la Fase 9** (la jurisdicción de la percepción IIBB sale del domicilio fiscal del PV, no de la sucursal). Si hay percepción aplicada, también impacta visualmente en Nueva Venta (suma al total que paga el cliente). Solo afecta a CUITs configurados como agente de percepción; la pyme típica (no agente) ya quedó 100% correcta con 5a (tributos 0, sin cambios).
 
 ### Fase 6: Sufridos vía compras + alta manual [capa fiscal COMPLETA / módulo compras y alta manual PENDIENTES]
 
@@ -317,8 +358,43 @@ Motivo del corte: AFIP exige `ImpTotal = neto + IVA + tributos`, así que las pe
 
 **PENDIENTE**: módulo de compras funcional (reconciliar modelo↔tabla, UI con CUIT + sección percepciones + tipo de comprobante, stock/formato), hook al confirmar/cancelar, y la **pantalla de alta manual de movimientos fiscales (RF-08)** con anulación por contraasiento (permisos `func.fiscal.movimientos_*`).
 
-### Fase 7: Posición fiscal + libros [PENDIENTE]
-PosicionFiscalService + 2 pantallas + exports + menú/permisos del módulo.
+### Fase 7: Posición fiscal + libros [COMPLETO]
+`app/Services/Fiscal/PosicionFiscalService.php` (solo lectura): `posicionIva`
+(débito − crédito − percep/ret IVA SUFRIDAS = saldo; las percep/ret APLICADAS
+como agente se reportan aparte, no integran la posición), `posicionIibb` por
+jurisdicción ISO (a-cuenta desde el ledger + base imponible de ventas desde
+comprobantes por `sucursal.provincia`, que ya guarda el ISO → reconcilia con el
+ledger sin mapeo; **Fase 9 lo cambia a la jurisdicción del domicilio del PV**),
+`libroIvaVentas` (desde `comprobantes_fiscales` autorizados,
+fuente con detalle por comprobante/alícuota) + `totalesLibroVentas`,
+`libroIvaCompras` (desde el ledger `movimientos_fiscales` origen `Compra`, porque
+el módulo de compras sigue inconsistente; vacío en la práctica hasta reconciliar
+compras). 2 componentes full-page `App\Livewire\Fiscal\{PosicionFiscal,LibrosIva}`
+(`#[Lazy]` + skeleton + gate `func.fiscal.{posicion,libros}`) con export CSV
+(streamDownload, BOM UTF-8). Rutas `/fiscal/posicion` y `/fiscal/libros`.
+Migración `add_fiscal_menu_y_permisos` (pymes): menú top-level "Fiscal" + hijos
+"Posición fiscal"/"Libros IVA" (MenuItemObserver crea los `menu.*`) + 4 permisos
+funcionales RF-10 (`fiscal.posicion/libros/movimientos/configuracion`), asignados
+a Administrador/Super Admin en todos los tenants. Admin-only (no se tocó
+ProvisionComercioCommand: su `seedRolesYPermisos` es data-driven → comercios
+nuevos quedan provistos). 31 traducciones es/en/pt. Tests: 5 unit
+`PosicionFiscalServiceTest` (semántica de signos, saldo a favor, agrupamiento
+IIBB, libros) + 4 smoke `SmokeFiscalTest`; suite del área verde (69), Pint OK.
+NO se tocaron tablas tenant (no regenerar tenant_tables.sql).
+
+### Fase 9: Domicilios fiscales y jurisdicción de la operación [PENDIENTE] — PREREQUISITO DE 5b
+> Agregada 2026-06-17 (RF-11). Debe completarse ANTES de la Fase 5b, porque las
+> percepciones aplicadas viajan a AFIP con la jurisdicción del PV. Decisiones del
+> usuario en "Notas" (2026-06-17).
+
+Orden sugerido de implementación:
+1. **Padrón de localidades**: migración que reseed `localidades` (config) desde GeoRef Argentina (provincia→localidad correctas y actuales), **remapeando** `cuits.localidad_id` por (provincia, nombre) para no romper referencias. CP nullable sin uso en UI. Quitar el `(codigo_postal)` del label de `Localidad::paraSelect()` y de los selects (no mostrar dato incorrecto).
+2. **Tablas**: migración tenant `cuit_domicilios` + `puntos_venta.cuit_domicilio_id` + `sucursales.localidad_id`. Regenerar `tenant_tables.sql`. Modelos `CuitDomicilio` + relaciones (`Cuit hasMany domicilios`, `PuntoVenta belongsTo cuitDomicilio`, `Sucursal belongsTo localidad` soft).
+3. **Migración de datos**: por cada CUIT, crear su `cuit_domicilios` `es_principal` desde `cuits.direccion`+`localidad_id`; cada PV → ese principal; sucursales → backfill `localidad_id` best-effort desde el texto.
+4. **Componente de domicilio reutilizable**: trait/Blade compartido (select provincia ISO → select localidad dependiente + lat/lng opcional). Usado por domicilios del CUIT, sucursal y futuros.
+5. **UI**: (a) gestión de domicilios por CUIT en tab-cuits de `ConfiguracionEmpresa` (sección "Domicilios", CRUD, marcar principal); (b) selector de domicilio por PV (filtrado a los del CUIT del PV) en la gestión de puntos de venta; (c) **domicilio físico estructurado en la config de sucursales — editable SIN depender de CUIT ni de integración de pago** (provincia/localidad/geo como dato propio de la sucursal, para tienda digital / logística / correctitud); MP reusa los mismos campos vía el componente compartido. Gate: `func.fiscal.configuracion` (ya creado) o el de ConfiguracionEmpresa.
+6. **Cambio de jurisdicción en lo fiscal**: `ImpuestoService::calcularTributos` deja de recibir `Sucursal` y recibe la **jurisdicción de la operación** (ISO) resuelta desde el domicilio del PV — actualizar firma + tests (Fase 2). `PosicionFiscalService::posicionIibb` agrupa la base imponible por `comprobante->puntoVenta->cuitDomicilio->provincia` en vez de `sucursal->provincia` — actualizar método + test (Fase 7). Helper común para resolver la jurisdicción desde un comprobante/PV.
+7. Traducciones es/en/pt + smoke de las pantallas tocadas.
 
 ### Fase 8: Verificación + docs [PENDIENTE]
 /sdd-verify, @docs-sync, manual de usuario.
@@ -346,6 +422,12 @@ PosicionFiscalService + 2 pantallas + exports + menú/permisos del módulo.
 - [ ] `numero_inscripcion` (cuit_impuesto_configs) vs `cuits.numero_iibb` existente: posible redundancia para IIBB. Definir fuente de verdad.
 - [ ] El componente embebido no tiene permiso propio (confía en ConfiguracionEmpresa). Confirmar contra los permisos `fiscal.*` (RF-10/Fase 7).
 
+**Fase 7 — posición fiscal / libros:**
+- [ ] Base imponible de IIBB = `neto_gravado` de ventas. Varias jurisdicciones consideran ingresos brutos (gravado + no gravado + exento) y/o no computan ciertos rubros. Confirmar la definición con el contador.
+- [ ] IIBB sin Convenio Multilateral (la base no se reparte entre jurisdicciones) ni alícuota por padrón del sujeto. Diferido a la fase de padrones.
+- [ ] Libro IVA Ventas desde `comprobantes_fiscales`; posición desde `movimientos_fiscales`. Reconcilian por construcción (el débito del ledger se genera de esos comprobantes en 5a), pero solo para CUITs RI (un Monotributo no genera débito → su libro de ventas muestra comprobantes pero su posición de IVA es 0). Validar que la presentación sea clara.
+- [ ] Export CSV "simplificado" (no formato Libro IVA Digital de ARCA). El formato ARCA exacto queda para fase futura (ver Notas 2026-06-12).
+
 **Fase 2 — ledger / contraasiento:**
 - [ ] `anularMovimientoFiscal` es anulación TOTAL. RF-04 pide contraasientos **proporcionales** para la NC. Falta `revertirParcial()` o equivalente (Fase 5).
 - [ ] Contrato de posición: se asume que PosicionFiscalService (Fase 7) suma **solo `estado=activo`**. Validar que esa semántica (vs. un enfoque con signo) sea la mejor para todos los reportes, incluida la NC parcial.
@@ -358,7 +440,9 @@ PosicionFiscalService + 2 pantallas + exports + menú/permisos del módulo.
 - 2026-06-12 (Fase 1): el catálogo canónico de impuestos vive en `create_impuestos_table::catalogo()` (estático); ProvisionComercioCommand lo consume vía `require` para no duplicar las 56 filas.
 
 - 2026-06-12: D1-D4 decididas con el usuario (ver Contexto).
-- 2026-06-12: La jurisdicción de la operación se infiere de la PROVINCIA de la sucursal del comprobante. **Dependencia**: los campos provincia/localidad de sucursal están pendientes de propagar a ConfiguracionEmpresa (memoria del proyecto) — Fase 1 debe incluirlos si no llegaron antes.
+- 2026-06-12: ~~La jurisdicción de la operación se infiere de la PROVINCIA de la sucursal del comprobante.~~ **REVISADO 2026-06-17 (RF-11/Fase 9)**: la jurisdicción se infiere del **domicilio fiscal del punto de venta** del comprobante (`comprobante.puntoVenta.cuitDomicilio.provincia`), no de la sucursal física — una caja puede facturar con un PV cuyo CUIT está domiciliado en otra provincia.
+
+- 2026-06-17 (RF-11, con el usuario): se decide modelar **domicilios fiscales por CUIT** (espejo AFIP: N domicilios por CUIT, cada PV asignado a uno) ANTES de la Fase 5b. Decisiones: (1) la jurisdicción de la operación sale del domicilio del PV (física y fiscal "deberían coincidir", pero la fiscal manda). (2) Modelo AFIP completo (CUIT→N domicilios + PV→domicilio), no atajo de un domicilio por CUIT. (3) La palanca de "una caja factura con distintos CUITs" YA existe (pivot `punto_venta_caja` + PV→CUIT); no se toca. En AFIP un PV pertenece a UN solo CUIT. (4) Domicilio estructurado y un **componente reutilizable** compartido por CUIT/sucursal/futuros (no tabla polimórfica: `cuit_domicilios` propia + columnas estructuradas en sucursal + componente común). (5) **CP**: se quita del display (el padrón actual tiene errores, ej. Mercedes BA 6100 vs 6600 real); se difiere como campo editable por domicilio si a futuro hace falta imprimir/declarar. (6) Padrón `localidades` reemplazado por GeoRef Argentina (oficial/actual), remapeando referencias existentes. (7) Migrar el domicilio único actual de cada CUIT como su principal y asignar los PV existentes a él.
 - 2026-06-12: El formato exacto del Libro IVA Digital de ARCA queda para fase futura; fase 1 exporta CSV simplificado para el contador.
 - 2026-06-12: Padrones provinciales (ARBA/AGIP): estructura preparada (`origen_alicuota`), implementación fuera de alcance.
 - 2026-06-12 (D5, usuario): retenciones que aplican CLIENTES agentes al pagar → **alta manual (RF-08) por ahora**; si a futuro resulta frecuente se integra al flujo de cobranza como fase nueva.
