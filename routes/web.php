@@ -38,6 +38,8 @@ use App\Livewire\Configuracion\RolesPermisos;
 use App\Livewire\Configuracion\Usuarios;
 use App\Livewire\Cupones\GestionCupones;
 use App\Livewire\Dashboard\DashboardSucursal;
+use App\Livewire\Fiscal\LibrosIva;
+use App\Livewire\Fiscal\PosicionFiscal;
 use App\Livewire\Pedidos\PedidosMostrador;
 use App\Livewire\Puntos\ProgramaPuntos;
 use App\Livewire\Stock\InventarioGeneral;
@@ -203,6 +205,15 @@ Route::prefix('app')->group(function () {
             Route::get('movimientos', MovimientosCuenta::class)->name('movimientos');
             Route::get('transferencias', TransferenciasCuenta::class)->name('transferencias');
             Route::get('conciliaciones', ConciliacionesCuenta::class)->name('conciliaciones');
+        });
+
+        // =========================================
+        // FISCAL (sistema impositivo)
+        // =========================================
+
+        Route::prefix('fiscal')->name('fiscal.')->group(function () {
+            Route::get('posicion', PosicionFiscal::class)->name('posicion');
+            Route::get('libros', LibrosIva::class)->name('libros');
         });
 
         // =========================================
