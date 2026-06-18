@@ -142,6 +142,8 @@ class ProvisionComercioCommand extends Command
             $this->info('[12/14] Creando conceptos de movimiento de cuenta...');
             $this->seedConceptosMovimientoCuenta();
 
+            $this->seedImpuestos();
+
             // ── Paso 14: Seed — Catálogo de Integraciones de Pago ──
             $this->info('[13/14] Sembrando catálogo de integraciones de pago...');
             $this->seedIntegracionesPago();
@@ -718,6 +720,29 @@ class ProvisionComercioCommand extends Command
         }
 
         $this->info('    Conceptos de movimiento creados: '.count($conceptos));
+    }
+
+    /**
+     * Siembra el catálogo de impuestos argentinos (sistema-impositivo RF-01).
+     * El catálogo canónico vive en la migración create_impuestos_table.
+     */
+    protected function seedImpuestos(): void
+    {
+        $now = now();
+        $db = DB::connection('pymes_tenant');
+
+        $migracion = require database_path('migrations/2026_06_12_150000_create_impuestos_table.php');
+
+        foreach ($migracion::catalogo() as $impuesto) {
+            $db->table('impuestos')->insert(array_merge($impuesto, [
+                'es_sistema' => true,
+                'activo' => true,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]));
+        }
+
+        $this->info('    Impuestos del catálogo creados: '.count($migracion::catalogo()));
     }
 
     /**

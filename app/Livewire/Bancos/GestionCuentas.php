@@ -3,6 +3,7 @@
 namespace App\Livewire\Bancos;
 
 use App\Models\CuentaEmpresa;
+use App\Models\Cuit;
 use App\Models\Moneda;
 use App\Services\CatalogoCache;
 use App\Traits\SucursalAware;
@@ -47,6 +48,10 @@ class GestionCuentas extends Component
 
     public ?int $moneda_id = null;
 
+    // CUIT al que pertenece la cuenta (RF-07): de él salen los movimientos
+    // fiscales de los impuestos que el proveedor descuenta en la conciliación.
+    public ?int $cuit_id = null;
+
     public ?string $color = null;
 
     // Solo lectura en el modal: identifica la cuenta del proveedor de pago.
@@ -71,8 +76,14 @@ class GestionCuentas extends Component
             'alias' => 'nullable|string|max:50',
             'titular' => 'nullable|string|max:191',
             'moneda_id' => 'required|exists:pymes_tenant.monedas,id',
+            'cuit_id' => 'nullable|exists:pymes_tenant.cuits,id',
             'color' => 'nullable|string|max:7',
         ];
+    }
+
+    public function getCuitsProperty()
+    {
+        return Cuit::where('activo', true)->orderBy('razon_social')->get();
     }
 
     public function updatedSearch()
@@ -92,10 +103,15 @@ class GestionCuentas extends Component
 
     public function crear()
     {
-        $this->reset(['cuentaId', 'nombre', 'tipo', 'subtipo', 'banco', 'numero_cuenta', 'cbu', 'alias', 'titular', 'moneda_id', 'color', 'identificador_externo', 'conciliacion_automatica']);
+        $this->reset(['cuentaId', 'nombre', 'tipo', 'subtipo', 'banco', 'numero_cuenta', 'cbu', 'alias', 'titular', 'moneda_id', 'cuit_id', 'color', 'identificador_externo', 'conciliacion_automatica']);
         $this->tipo = 'banco';
         $monedaPrincipal = Moneda::obtenerPrincipal();
         $this->moneda_id = $monedaPrincipal?->id;
+        // Autocompletado (RF-07): si hay un solo CUIT activo, se asigna solo.
+        $cuits = $this->cuits;
+        if ($cuits->count() === 1) {
+            $this->cuit_id = $cuits->first()->id;
+        }
         $this->showModal = true;
     }
 
@@ -112,6 +128,7 @@ class GestionCuentas extends Component
         $this->alias = $cuenta->alias;
         $this->titular = $cuenta->titular;
         $this->moneda_id = $cuenta->moneda_id;
+        $this->cuit_id = $cuenta->cuit_id;
         $this->color = $cuenta->color;
         $this->identificador_externo = $cuenta->identificador_externo;
         $this->conciliacion_automatica = (bool) $cuenta->conciliacion_automatica;
@@ -132,6 +149,7 @@ class GestionCuentas extends Component
             'alias' => $this->alias,
             'titular' => $this->titular,
             'moneda_id' => $this->moneda_id,
+            'cuit_id' => $this->cuit_id,
             'color' => $this->color,
             // Solo tiene efecto en cuentas vinculadas a un proveedor (RF-08).
             'conciliacion_automatica' => $this->identificador_externo ? $this->conciliacion_automatica : false,

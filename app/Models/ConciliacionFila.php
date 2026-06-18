@@ -30,18 +30,22 @@ class ConciliacionFila extends Model
         'referencia',
         'fecha',
         'descripcion',
+        'datos_extra',
         'monto_bruto',
         'comision',
         'monto_neto',
         'accion',
         'tipo_movimiento',
         'concepto_codigo',
+        'impuesto_id',
+        'alerta_validacion',
         'integracion_pago_transaccion_id',
         'movimiento_cuenta_empresa_id',
     ];
 
     protected $casts = [
         'fecha' => 'datetime',
+        'datos_extra' => 'array',
         'monto_bruto' => 'decimal:2',
         'comision' => 'decimal:2',
         'monto_neto' => 'decimal:2',
@@ -99,6 +103,14 @@ class ConciliacionFila extends Model
     public function movimientoGenerado(): BelongsTo
     {
         return $this->belongsTo(MovimientoCuentaEmpresa::class, 'movimiento_cuenta_empresa_id');
+    }
+
+    /**
+     * Impuesto identificado en el desglose fiscal (sistema-impositivo RF-06).
+     */
+    public function impuesto(): BelongsTo
+    {
+        return $this->belongsTo(Impuesto::class);
     }
 
     // ==================== Scopes ====================

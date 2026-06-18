@@ -292,6 +292,19 @@
                         @error('moneda_id') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                     </div>
 
+                    {{-- CUIT (RF-07): a qué CUIT pertenece la cuenta, para los movimientos fiscales --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('CUIT') }}</label>
+                        <select wire:model="cuit_id" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
+                            <option value="">{{ __('Sin asignar') }}</option>
+                            @foreach($this->cuits as $cuit)
+                            <option value="{{ $cuit->id }}">{{ $cuit->numero_cuit }} - {{ $cuit->razon_social }}</option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ __('Para registrar los impuestos que el proveedor descuenta en la conciliación.') }}</p>
+                        @error('cuit_id') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                    </div>
+
                     {{-- Color --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Color') }}</label>

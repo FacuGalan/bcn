@@ -5,12 +5,17 @@ namespace Tests\Integration\Services;
 use App\Models\ConceptoMovimientoCuenta;
 use App\Models\ConciliacionCuenta;
 use App\Models\ConciliacionFila;
+use App\Models\CondicionIva;
 use App\Models\CuentaEmpresa;
+use App\Models\Cuit;
+use App\Models\CuitImpuestoConfig;
 use App\Models\FormaPago;
+use App\Models\Impuesto;
 use App\Models\IntegracionPago;
 use App\Models\IntegracionPagoSucursal;
 use App\Models\IntegracionPagoTransaccion;
 use App\Models\MovimientoCuentaEmpresa;
+use App\Models\MovimientoFiscal;
 use App\Services\CuentaEmpresaService;
 use App\Services\IntegracionesPago\ConciliacionCuentaService;
 use App\Services\IntegracionesPago\MercadoPagoGateway;
@@ -75,12 +80,15 @@ class ConciliacionCuentaServiceTest extends TestCase
 
     protected function tearDown(): void
     {
+        MovimientoFiscal::query()->delete();
+        CuitImpuestoConfig::query()->delete();
         ConciliacionFila::query()->delete();
         ConciliacionCuenta::query()->delete();
         IntegracionPagoTransaccion::query()->delete();
         IntegracionPagoSucursal::query()->delete();
         MovimientoCuentaEmpresa::query()->delete();
         CuentaEmpresa::query()->delete();
+        Cuit::query()->forceDelete(); // SoftDeletes: forzar para no bloquear numero_cuit único.
         $this->tearDownTenant();
         parent::tearDown();
     }
@@ -448,6 +456,112 @@ class ConciliacionCuentaServiceTest extends TestCase
         // Solo la comisión se propone: el saldo queda 800 (cobros) - 5 = 795.
         $this->service->aplicar($corrida, 7);
         $this->assertEquals(795.00, (float) $cuenta->fresh()->saldo_actual);
+    }
+
+    // ==================== Desglose fiscal (sistema-impositivo RF-06, Fase 4a) ====================
+
+    private function csvHeaderConTax(): string
+    {
+        return 'TRANSACTION_TYPE,SOURCE_ID,EXTERNAL_REFERENCE,TRANSACTION_DATE,TRANSACTION_AMOUNT,FEE_AMOUNT,SETTLEMENT_NET_AMOUNT,TAX_DETAIL';
+    }
+
+    private function csvUnaPercepcionIibb(): string
+    {
+        $fecha = now()->subDay()->format('Y-m-d\TH:i:s.000-04:00');
+
+        return implode("\n", [
+            $this->csvHeaderConTax(),
+            "TAX,777,,{$fecha},-25.00,0,-25.00,tax_payment_iibb_cre_santa_fe",
+        ]);
+    }
+
+    private function seedImpuesto(string $codigo, string $tipo, string $naturaleza, ?string $jur): Impuesto
+    {
+        return Impuesto::firstOrCreate(
+            ['codigo' => $codigo],
+            ['nombre' => $codigo, 'tipo' => $tipo, 'naturaleza_default' => $naturaleza, 'jurisdiccion' => $jur, 'es_sistema' => true, 'activo' => true],
+        );
+    }
+
+    private function crearCuitFiscal(): Cuit
+    {
+        $cond = CondicionIva::firstOrCreate(['codigo' => CondicionIva::RESPONSABLE_INSCRIPTO], ['nombre' => 'RI']);
+
+        return Cuit::firstOrCreate(
+            ['numero_cuit' => '20999888771'],
+            ['razon_social' => 'Cuenta MP SA', 'condicion_iva_id' => $cond->id, 'entorno_afip' => 'testing', 'activo' => true],
+        );
+    }
+
+    public function test_fila_de_impuesto_identificado_guarda_impuesto_id_y_datos_extra(): void
+    {
+        $this->crearConfigProd();
+        $cuenta = $this->crearCuentaVinculada();
+        $imp = $this->seedImpuesto('perc_iibb_ar_s', Impuesto::TIPO_IIBB, 'percepcion', 'AR-S');
+
+        $corrida = $this->conciliarConReporte($cuenta, $this->csvUnaPercepcionIibb());
+        $fila = ConciliacionFila::where('conciliacion_cuenta_id', $corrida->id)->where('id_externo', '777')->first();
+
+        $this->assertSame(ConciliacionFila::TIPO_IMPUESTO, $fila->tipo);
+        $this->assertSame($imp->id, $fila->impuesto_id);
+        $this->assertSame('tax_payment_iibb_cre_santa_fe', $fila->datos_extra['TAX_DETAIL']);
+    }
+
+    public function test_aplicar_genera_movimiento_fiscal_sufrido_si_la_cuenta_tiene_cuit(): void
+    {
+        $this->crearConfigProd();
+        $cuit = $this->crearCuitFiscal();
+        $cuenta = $this->crearCuentaVinculada();
+        $cuenta->update(['cuit_id' => $cuit->id]);
+        $imp = $this->seedImpuesto('perc_iibb_ar_s', Impuesto::TIPO_IIBB, 'percepcion', 'AR-S');
+        CuitImpuestoConfig::create([
+            'cuit_id' => $cuit->id,
+            'impuesto_id' => $imp->id,
+            'inscripto' => true,
+            'alicuota' => 3.0,
+            'origen_alicuota' => CuitImpuestoConfig::ORIGEN_MANUAL,
+        ]);
+
+        $corrida = $this->conciliarConReporte($cuenta, $this->csvUnaPercepcionIibb());
+        $this->service->aplicar($corrida, 7);
+
+        $mov = MovimientoFiscal::where('origen_tipo', 'ConciliacionFila')->first();
+        $this->assertNotNull($mov);
+        $this->assertSame($cuit->id, $mov->cuit_id);
+        $this->assertSame($imp->id, $mov->impuesto_id);
+        $this->assertSame(MovimientoFiscal::SENTIDO_SUFRIDO, $mov->sentido);
+        $this->assertEquals(25.00, (float) $mov->monto);
+        $this->assertNull($mov->base_imponible); // 4b
+
+        // Config presente → sin alerta.
+        $fila = ConciliacionFila::where('conciliacion_cuenta_id', $corrida->id)->where('id_externo', '777')->first();
+        $this->assertNull($fila->alerta_validacion);
+    }
+
+    public function test_sin_cuit_asignado_la_conciliacion_no_genera_movimiento_fiscal(): void
+    {
+        $this->crearConfigProd();
+        $cuenta = $this->crearCuentaVinculada(); // sin cuit_id
+        $this->seedImpuesto('perc_iibb_ar_s', Impuesto::TIPO_IIBB, 'percepcion', 'AR-S');
+
+        $corrida = $this->conciliarConReporte($cuenta, $this->csvUnaPercepcionIibb());
+        $this->service->aplicar($corrida, 7);
+
+        $this->assertSame(0, MovimientoFiscal::query()->count());
+    }
+
+    public function test_alerta_de_validacion_si_el_cuit_no_tiene_configurado_el_impuesto(): void
+    {
+        $this->crearConfigProd();
+        $cuit = $this->crearCuitFiscal();
+        $cuenta = $this->crearCuentaVinculada();
+        $cuenta->update(['cuit_id' => $cuit->id]);
+        $this->seedImpuesto('perc_iibb_ar_s', Impuesto::TIPO_IIBB, 'percepcion', 'AR-S'); // sin config para el CUIT
+
+        $corrida = $this->conciliarConReporte($cuenta, $this->csvUnaPercepcionIibb());
+        $fila = ConciliacionFila::where('conciliacion_cuenta_id', $corrida->id)->where('id_externo', '777')->first();
+
+        $this->assertNotNull($fila->alerta_validacion);
     }
 
     // ==================== Aplicar (RF-06) ====================

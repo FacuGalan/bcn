@@ -31,6 +31,7 @@ class CuentaEmpresa extends Model
         'tipo',
         'subtipo',
         'identificador_externo',
+        'cuit_id',
         'conciliacion_automatica',
         'banco',
         'numero_cuenta',
@@ -56,6 +57,15 @@ class CuentaEmpresa extends Model
     public function moneda(): BelongsTo
     {
         return $this->belongsTo(Moneda::class, 'moneda_id');
+    }
+
+    /**
+     * CUIT al que se imputan fiscalmente los impuestos que el proveedor de
+     * pago descuenta en esta cuenta (sistema-impositivo RF-07).
+     */
+    public function cuit(): BelongsTo
+    {
+        return $this->belongsTo(Cuit::class)->withTrashed();
     }
 
     public function sucursales(): BelongsToMany

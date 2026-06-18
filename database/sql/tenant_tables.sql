@@ -444,6 +444,7 @@ CREATE TABLE `{{PREFIX}}compras` (
   `numero` varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL,
   `sucursal_id` bigint(20) unsigned NOT NULL,
   `proveedor_id` bigint(20) unsigned NOT NULL,
+  `cuit_id` bigint(20) unsigned DEFAULT NULL COMMENT 'CUIT del comercio que realizo la compra (atribucion fiscal)',
   `caja_id` bigint(20) unsigned DEFAULT NULL,
   `usuario_id` bigint(20) unsigned NOT NULL,
   `fecha` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -459,9 +460,29 @@ CREATE TABLE `{{PREFIX}}compras` (
   KEY `idx_fecha` (`fecha`),
   KEY `{{PREFIX}}compras_proveedor_id_foreign` (`proveedor_id`),
   KEY `{{PREFIX}}compras_caja_id_foreign` (`caja_id`),
+  KEY `{{PREFIX}}fk_compras_cuit` (`cuit_id`),
   CONSTRAINT `{{PREFIX}}compras_caja_id_foreign` FOREIGN KEY (`caja_id`) REFERENCES `{{PREFIX}}cajas` (`id`),
   CONSTRAINT `{{PREFIX}}compras_proveedor_id_foreign` FOREIGN KEY (`proveedor_id`) REFERENCES `{{PREFIX}}proveedores` (`id`),
-  CONSTRAINT `{{PREFIX}}compras_sucursal_id_foreign` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`)
+  CONSTRAINT `{{PREFIX}}compras_sucursal_id_foreign` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`),
+  CONSTRAINT `{{PREFIX}}fk_compras_cuit` FOREIGN KEY (`cuit_id`) REFERENCES `{{PREFIX}}cuits` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `{{PREFIX}}compra_percepciones`;
+CREATE TABLE `{{PREFIX}}compra_percepciones` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `compra_id` bigint(20) unsigned NOT NULL,
+  `impuesto_id` bigint(20) unsigned NOT NULL,
+  `base_imponible` decimal(14,2) DEFAULT NULL,
+  `alicuota` decimal(6,4) DEFAULT NULL,
+  `monto` decimal(14,2) NOT NULL,
+  `certificado_numero` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}idx_cperc_compra` (`compra_id`),
+  KEY `{{PREFIX}}fk_cperc_impuesto` (`impuesto_id`),
+  CONSTRAINT `{{PREFIX}}fk_cperc_compra` FOREIGN KEY (`compra_id`) REFERENCES `{{PREFIX}}compras` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_cperc_impuesto` FOREIGN KEY (`impuesto_id`) REFERENCES `{{PREFIX}}impuestos` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}compras_detalle`;
 CREATE TABLE `{{PREFIX}}compras_detalle` (
@@ -574,6 +595,22 @@ CREATE TABLE `{{PREFIX}}comprobante_fiscal_iva` (
   KEY `idx_cfi_comprobante` (`comprobante_fiscal_id`),
   CONSTRAINT `{{PREFIX}}fk_cfi_comprobante` FOREIGN KEY (`comprobante_fiscal_id`) REFERENCES `{{PREFIX}}comprobantes_fiscales` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=169 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}comprobante_fiscal_tributos`;
+CREATE TABLE `{{PREFIX}}comprobante_fiscal_tributos` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `comprobante_fiscal_id` bigint(20) unsigned NOT NULL,
+  `impuesto_id` bigint(20) unsigned NOT NULL,
+  `base_imponible` decimal(14,2) NOT NULL,
+  `alicuota` decimal(6,4) NOT NULL,
+  `monto` decimal(14,2) NOT NULL,
+  `codigo_arca` smallint DEFAULT NULL COMMENT 'Código de tributo del WS de ARCA',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}idx_cft_comprobante` (`comprobante_fiscal_id`),
+  CONSTRAINT `{{PREFIX}}fk_cft_comprobante` FOREIGN KEY (`comprobante_fiscal_id`) REFERENCES `{{PREFIX}}comprobantes_fiscales` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_cft_impuesto` FOREIGN KEY (`impuesto_id`) REFERENCES `{{PREFIX}}impuestos` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}comprobante_fiscal_ventas`;
 CREATE TABLE `{{PREFIX}}comprobante_fiscal_ventas` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -631,12 +668,15 @@ CREATE TABLE `{{PREFIX}}conciliacion_filas` (
   `referencia` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Referencia que el sistema envió al cobrar (MP = EXTERNAL_REFERENCE)',
   `fecha` datetime DEFAULT NULL COMMENT 'Fecha de la operación en el proveedor',
   `descripcion` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `datos_extra` json DEFAULT NULL COMMENT 'Fila cruda del reporte del proveedor',
   `monto_bruto` decimal(15,2) NOT NULL DEFAULT '0.00',
   `comision` decimal(15,2) NOT NULL DEFAULT '0.00',
   `monto_neto` decimal(15,2) NOT NULL DEFAULT '0.00',
   `accion` enum('generar_movimiento','ignorar','sin_accion') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'sin_accion' COMMENT 'Editable en la revisión. Propuestas arrancan en generar_movimiento',
   `tipo_movimiento` enum('ingreso','egreso') COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Del movimiento propuesto',
   `concepto_codigo` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Concepto del movimiento propuesto',
+  `impuesto_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Impuesto identificado (desglose fiscal)',
+  `alerta_validacion` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Alerta esperado-vs-real contra la config del CUIT',
   `integracion_pago_transaccion_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Transacción del sistema matcheada',
   `movimiento_cuenta_empresa_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Movimiento generado al aplicar',
   `created_at` timestamp NULL DEFAULT NULL,
@@ -648,7 +688,8 @@ CREATE TABLE `{{PREFIX}}conciliacion_filas` (
   KEY `{{PREFIX}}fk_concf_movimiento` (`movimiento_cuenta_empresa_id`),
   CONSTRAINT `{{PREFIX}}fk_concf_corrida` FOREIGN KEY (`conciliacion_cuenta_id`) REFERENCES `{{PREFIX}}conciliaciones_cuenta` (`id`) ON DELETE CASCADE,
   CONSTRAINT `{{PREFIX}}fk_concf_movimiento` FOREIGN KEY (`movimiento_cuenta_empresa_id`) REFERENCES `{{PREFIX}}movimientos_cuenta_empresa` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `{{PREFIX}}fk_concf_transaccion` FOREIGN KEY (`integracion_pago_transaccion_id`) REFERENCES `{{PREFIX}}integraciones_pago_transacciones` (`id`) ON DELETE SET NULL
+  CONSTRAINT `{{PREFIX}}fk_concf_transaccion` FOREIGN KEY (`integracion_pago_transaccion_id`) REFERENCES `{{PREFIX}}integraciones_pago_transacciones` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_concf_impuesto` FOREIGN KEY (`impuesto_id`) REFERENCES `{{PREFIX}}impuestos` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}conciliaciones_cuenta`;
 CREATE TABLE `{{PREFIX}}conciliaciones_cuenta` (
@@ -742,6 +783,7 @@ CREATE TABLE `{{PREFIX}}cuentas_empresa` (
   `tipo` enum('banco','billetera_digital') COLLATE utf8mb4_unicode_ci NOT NULL,
   `subtipo` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `identificador_externo` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Id de la cuenta en el proveedor de pago externo (MP = user_id). Match: (subtipo, identificador_externo)',
+  `cuit_id` bigint(20) unsigned DEFAULT NULL COMMENT 'CUIT al que se imputan los impuestos de esta cuenta',
   `conciliacion_automatica` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Crear corrida de conciliación diaria automática (solo cuentas con identificador_externo)',
   `banco` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `numero_cuenta` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -760,7 +802,8 @@ CREATE TABLE `{{PREFIX}}cuentas_empresa` (
   KEY `{{PREFIX}}cuentas_empresa_tipo_idx` (`tipo`),
   KEY `{{PREFIX}}cuentas_empresa_activo_idx` (`activo`),
   KEY `{{PREFIX}}cuentas_empresa_moneda_fk` (`moneda_id`),
-  CONSTRAINT `{{PREFIX}}cuentas_empresa_moneda_fk` FOREIGN KEY (`moneda_id`) REFERENCES `{{PREFIX}}monedas` (`id`) ON DELETE SET NULL
+  CONSTRAINT `{{PREFIX}}cuentas_empresa_moneda_fk` FOREIGN KEY (`moneda_id`) REFERENCES `{{PREFIX}}monedas` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_ctaemp_cuit` FOREIGN KEY (`cuit_id`) REFERENCES `{{PREFIX}}cuits` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}cuenta_empresa_sucursal`;
 CREATE TABLE `{{PREFIX}}cuenta_empresa_sucursal` (
@@ -775,6 +818,47 @@ CREATE TABLE `{{PREFIX}}cuenta_empresa_sucursal` (
   KEY `{{PREFIX}}cuenta_emp_suc_sucursal_fk` (`sucursal_id`),
   CONSTRAINT `{{PREFIX}}cuenta_emp_suc_cuenta_fk` FOREIGN KEY (`cuenta_empresa_id`) REFERENCES `{{PREFIX}}cuentas_empresa` (`id`) ON DELETE CASCADE,
   CONSTRAINT `{{PREFIX}}cuenta_emp_suc_sucursal_fk` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}cuit_domicilios`;
+CREATE TABLE `{{PREFIX}}cuit_domicilios` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `cuit_id` bigint(20) unsigned NOT NULL,
+  `tipo` enum('fiscal','comercial','otro') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'fiscal',
+  `provincia` varchar(6) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'ISO 3166-2 - jurisdiccion',
+  `localidad_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Ref soft a localidades (config)',
+  `direccion` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `codigo_postal` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Diferido - no usado en UI',
+  `latitud` decimal(10,7) DEFAULT NULL,
+  `longitud` decimal(10,7) DEFAULT NULL,
+  `es_principal` tinyint(1) NOT NULL DEFAULT '0',
+  `activo` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}idx_cdom_cuit` (`cuit_id`),
+  CONSTRAINT `{{PREFIX}}fk_cdom_cuit` FOREIGN KEY (`cuit_id`) REFERENCES `{{PREFIX}}cuits` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}cuit_impuesto_configs`;
+CREATE TABLE `{{PREFIX}}cuit_impuesto_configs` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `cuit_id` bigint(20) unsigned NOT NULL,
+  `impuesto_id` bigint(20) unsigned NOT NULL,
+  `inscripto` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Alcanzado por este impuesto',
+  `numero_inscripcion` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `es_agente_percepcion` tinyint(1) NOT NULL DEFAULT '0',
+  `es_agente_retencion` tinyint(1) NOT NULL DEFAULT '0',
+  `alicuota` decimal(6,4) DEFAULT NULL COMMENT '% aplicable (que aplica o sufre)',
+  `alicuota_minimo_base` decimal(12,2) DEFAULT NULL COMMENT 'Base mínima para aplicar',
+  `origen_alicuota` enum('manual','padron') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'manual' COMMENT 'padron = integración futura ARBA/AGIP',
+  `vigente_desde` date DEFAULT NULL,
+  `vigente_hasta` date DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `{{PREFIX}}uq_cuitimp_cuit_imp_desde` (`cuit_id`,`impuesto_id`,`vigente_desde`),
+  KEY `{{PREFIX}}idx_cuitimp_cuit` (`cuit_id`),
+  CONSTRAINT `{{PREFIX}}fk_cuitimp_cuit` FOREIGN KEY (`cuit_id`) REFERENCES `{{PREFIX}}cuits` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_cuitimp_impuesto` FOREIGN KEY (`impuesto_id`) REFERENCES `{{PREFIX}}impuestos` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}cuits`;
 CREATE TABLE `{{PREFIX}}cuits` (
@@ -1170,6 +1254,21 @@ CREATE TABLE `{{PREFIX}}impresora_tipo_documento` (
   KEY `idx_itd_asignacion` (`impresora_sucursal_caja_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}listas_precios`;
+DROP TABLE IF EXISTS `{{PREFIX}}impuestos`;
+CREATE TABLE `{{PREFIX}}impuestos` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `codigo` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `nombre` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tipo` enum('iva','iibb','ganancias','credito_debito','otro') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `naturaleza_default` enum('percepcion','retencion','debito_fiscal','credito_fiscal','tributo') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `jurisdiccion` varchar(6) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'AR nacional o ISO 3166-2 provincial (AR-C, AR-B...)',
+  `es_sistema` tinyint(1) NOT NULL DEFAULT '1',
+  `activo` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `{{PREFIX}}uq_impuestos_codigo` (`codigo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}integraciones_pago`;
 CREATE TABLE `{{PREFIX}}integraciones_pago` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -1491,6 +1590,36 @@ CREATE TABLE `{{PREFIX}}movimientos_cuenta_empresa` (
   CONSTRAINT `{{PREFIX}}mov_cuenta_emp_anulado_fk` FOREIGN KEY (`anulado_por_movimiento_id`) REFERENCES `{{PREFIX}}movimientos_cuenta_empresa` (`id`) ON DELETE SET NULL,
   CONSTRAINT `{{PREFIX}}mov_cuenta_emp_concepto_fk` FOREIGN KEY (`concepto_movimiento_cuenta_id`) REFERENCES `{{PREFIX}}conceptos_movimiento_cuenta` (`id`) ON DELETE SET NULL,
   CONSTRAINT `{{PREFIX}}mov_cuenta_emp_cuenta_fk` FOREIGN KEY (`cuenta_empresa_id`) REFERENCES `{{PREFIX}}cuentas_empresa` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}movimientos_fiscales`;
+CREATE TABLE `{{PREFIX}}movimientos_fiscales` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `cuit_id` bigint(20) unsigned NOT NULL,
+  `sucursal_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Jurisdicción de la operación',
+  `impuesto_id` bigint(20) unsigned NOT NULL,
+  `sentido` enum('sufrido','aplicado') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `naturaleza` enum('percepcion','retencion','debito_fiscal','credito_fiscal','tributo') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `fecha` date NOT NULL,
+  `periodo_fiscal` char(7) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'YYYY-MM, calculado al registrar',
+  `base_imponible` decimal(14,2) DEFAULT NULL,
+  `alicuota` decimal(6,4) DEFAULT NULL,
+  `monto` decimal(14,2) NOT NULL COMMENT 'Siempre positivo - el signo lo da naturaleza+sentido',
+  `certificado_numero` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Constancia de retención',
+  `origen_tipo` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ComprobanteFiscal/Compra/ConciliacionFila/NULL=manual',
+  `origen_id` bigint(20) unsigned DEFAULT NULL,
+  `movimiento_anulado_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Contraasiento: apunta al movimiento que anula',
+  `estado` enum('activo','anulado') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'activo',
+  `observaciones` text COLLATE utf8mb4_unicode_ci,
+  `usuario_id` bigint(20) unsigned DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}idx_movfis_cuit_periodo` (`cuit_id`,`periodo_fiscal`),
+  KEY `{{PREFIX}}idx_movfis_origen` (`origen_tipo`,`origen_id`),
+  KEY `{{PREFIX}}idx_movfis_impuesto` (`impuesto_id`),
+  CONSTRAINT `{{PREFIX}}fk_movfis_cuit` FOREIGN KEY (`cuit_id`) REFERENCES `{{PREFIX}}cuits` (`id`),
+  CONSTRAINT `{{PREFIX}}fk_movfis_impuesto` FOREIGN KEY (`impuesto_id`) REFERENCES `{{PREFIX}}impuestos` (`id`),
+  CONSTRAINT `{{PREFIX}}fk_movfis_anulado` FOREIGN KEY (`movimiento_anulado_id`) REFERENCES `{{PREFIX}}movimientos_fiscales` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}movimientos_puntos`;
 CREATE TABLE `{{PREFIX}}movimientos_puntos` (
@@ -1861,6 +1990,7 @@ DROP TABLE IF EXISTS `{{PREFIX}}puntos_venta`;
 CREATE TABLE `{{PREFIX}}puntos_venta` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `cuit_id` bigint(20) unsigned NOT NULL,
+  `cuit_domicilio_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Domicilio declarado del PV',
   `numero` smallint(6) NOT NULL COMMENT 'Número de punto de venta (1-99999)',
   `nombre` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Descripción o alias del punto',
   `certificado_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Path al certificado encriptado',
@@ -1873,8 +2003,10 @@ CREATE TABLE `{{PREFIX}}puntos_venta` (
   UNIQUE KEY `uk_puntos_venta_cuit_numero` (`cuit_id`,`numero`),
   KEY `idx_puntos_venta_cuit` (`cuit_id`),
   KEY `idx_puntos_venta_activo` (`activo`),
+  KEY `{{PREFIX}}fk_pv_cdom` (`cuit_domicilio_id`),
+  CONSTRAINT `{{PREFIX}}fk_pv_cdom` FOREIGN KEY (`cuit_domicilio_id`) REFERENCES `{{PREFIX}}cuit_domicilios` (`id`) ON DELETE SET NULL,
   CONSTRAINT `{{PREFIX}}puntos_venta_cuit_id_foreign` FOREIGN KEY (`cuit_id`) REFERENCES `{{PREFIX}}cuits` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}punto_venta_caja`;
 CREATE TABLE `{{PREFIX}}punto_venta_caja` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -1994,10 +2126,11 @@ CREATE TABLE `{{PREFIX}}sucursales` (
   `nombre_publico` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Nombre comercial visible al público',
   `codigo` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Código único de la sucursal',
   `direccion` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Dirección física',
-  `latitud` decimal(10,7) DEFAULT NULL COMMENT 'Latitud para geolocalización (Mercado Pago + tienda online)',
-  `longitud` decimal(10,7) DEFAULT NULL COMMENT 'Longitud para geolocalización',
-  `localidad` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Localidad/ciudad (city_name en MP)',
-  `provincia` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Código ISO 3166-2 de la provincia (ej: AR-B). Se traduce al nombre al armar payloads externos',
+  `latitud` decimal(10,7) DEFAULT NULL,
+  `longitud` decimal(10,7) DEFAULT NULL,
+  `localidad` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `localidad_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Ref soft a localidades (config)',
+  `provincia` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `telefono` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Teléfono de contacto',
   `email` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Email de contacto',
   `logo_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -2026,8 +2159,8 @@ CREATE TABLE `{{PREFIX}}sucursales` (
   `mensaje_whatsapp_comanda` text COLLATE utf8mb4_unicode_ci COMMENT 'Mensaje adicional para WhatsApp al comandar',
   `envia_whatsapp_listo` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si envía WhatsApp cuando pedido está listo/en camino',
   `mensaje_whatsapp_listo` text COLLATE utf8mb4_unicode_ci COMMENT 'Mensaje adicional para WhatsApp pedido listo',
-  `mp_store_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ID numérico de la store en Mercado Pago (sincronización QR)',
-  `mp_store_external_id` varchar(60) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'external_id de la store en MP, formato BCN-{c}-{s}',
+  `mp_store_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `mp_store_external_id` varchar(60) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_codigo` (`codigo`),
   UNIQUE KEY `uniq_sucursales_mp_store_external_id` (`mp_store_external_id`),

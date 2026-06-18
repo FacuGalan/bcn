@@ -86,6 +86,19 @@ trait WithTenant
         'integraciones_pago_transacciones',
         'integraciones_pago_sucursales',
         'integraciones_pago',
+        // Comprobantes fiscales: deben limpiarse entre tests para no dejar filas
+        // huérfanas que bloqueen los forceDelete de cuits/puntos_venta en otros
+        // tests (FK comprobantes_fiscales → cuits/puntos_venta; en CI las FK están
+        // activas, el cleanup las salva con FOREIGN_KEY_CHECKS=0).
+        'comprobante_fiscal_tributos',
+        'comprobante_fiscal_iva',
+        'comprobante_fiscal_items',
+        'comprobante_fiscal_ventas',
+        'comprobantes_fiscales',
+        'movimientos_fiscales',
+        'cuit_impuesto_configs',
+        'cuit_domicilios',
+        'impuestos',
     ];
 
     protected function setUpTenant(): void

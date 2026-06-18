@@ -15,6 +15,7 @@ use App\Models\PuntoVenta;
 use App\Models\Sucursal;
 use App\Models\Venta;
 use App\Models\VentaPago;
+use App\Services\Fiscal\ImpuestoService;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\DB;
@@ -356,6 +357,11 @@ class ComprobanteFiscalService
                 'venta_id' => $venta->id,
             ]);
 
+            // Ledger fiscal (RF-04, Fase 5a): registrar el IVA débito fiscal del
+            // comprobante. POST-COMMIT y best-effort: un CAE ya obtenido no debe
+            // perderse si el ledger fallara (se puede backfillear).
+            $this->registrarFiscal($comprobante);
+
             return $comprobante->fresh();
 
         } catch (Exception $e) {
@@ -368,6 +374,24 @@ class ComprobanteFiscalService
             ]);
 
             throw $e;
+        }
+    }
+
+    /**
+     * Registra los movimientos fiscales de un comprobante autorizado en el
+     * ledger (RF-04, Fase 5a). Best-effort: cualquier fallo se loguea pero NO
+     * se propaga — el comprobante ya tiene CAE y está commiteado, y un movimiento
+     * faltante se puede backfillear; un CAE perdido no.
+     */
+    private function registrarFiscal(ComprobanteFiscal $comprobante): void
+    {
+        try {
+            app(ImpuestoService::class)->registrarDesdeComprobante($comprobante, $comprobante->usuario_id);
+        } catch (\Throwable $e) {
+            Log::error('No se pudo registrar el comprobante en el ledger fiscal (CAE OK, se puede backfillear)', [
+                'comprobante_id' => $comprobante->id,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -887,6 +911,10 @@ class ComprobanteFiscalService
                 'cae' => $notaCredito->cae,
                 'venta_id' => $venta->id,
             ]);
+
+            // Ledger fiscal (RF-04, Fase 5a): la NC contraasienta los movimientos
+            // del comprobante original. POST-COMMIT y best-effort.
+            $this->registrarFiscal($notaCredito);
 
             return $notaCredito->fresh();
 

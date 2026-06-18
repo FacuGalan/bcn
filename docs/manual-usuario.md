@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-12 (conciliacion MP)
+> Version: 0.1.x | Ultima actualizacion: 2026-06-18 (sistema impositivo)
 
 ---
 
@@ -68,14 +68,17 @@
   - [12.10 Impresoras](#1210-impresoras)
   - [12.11 Integraciones de Pago](#1211-integraciones-de-pago)
   - [12.12 Personalizar 2da Pantalla (por Sucursal)](#1212-personalizar-2da-pantalla-por-sucursal)
-- [13. Flujos de Trabajo Comunes](#13-flujos-de-trabajo-comunes)
-  - [13.1 Abrir el comercio por la manana](#131-abrir-el-comercio-por-la-manana)
-  - [13.2 Realizar una venta tipica](#132-realizar-una-venta-tipica)
-  - [13.3 Cobrar deuda de un cliente](#133-cobrar-deuda-de-un-cliente)
-  - [13.4 Cerrar caja al final del dia](#134-cerrar-caja-al-final-del-dia)
-  - [13.5 Hacer inventario fisico](#135-hacer-inventario-fisico)
-  - [13.6 Cambiar precios masivamente](#136-cambiar-precios-masivamente)
-  - [13.7 Crear una promocion](#137-crear-una-promocion)
+- [13. Fiscal](#13-fiscal)
+  - [13.1 Posicion Fiscal](#131-posicion-fiscal)
+  - [13.2 Libros IVA](#132-libros-iva)
+- [14. Flujos de Trabajo Comunes](#14-flujos-de-trabajo-comunes)
+  - [14.1 Abrir el comercio por la manana](#141-abrir-el-comercio-por-la-manana)
+  - [14.2 Realizar una venta tipica](#142-realizar-una-venta-tipica)
+  - [14.3 Cobrar deuda de un cliente](#143-cobrar-deuda-de-un-cliente)
+  - [14.4 Cerrar caja al final del dia](#144-cerrar-caja-al-final-del-dia)
+  - [14.5 Hacer inventario fisico](#145-hacer-inventario-fisico)
+  - [14.6 Cambiar precios masivamente](#146-cambiar-precios-masivamente)
+  - [14.7 Crear una promocion](#147-crear-una-promocion)
 - [Glosario](#glosario)
 
 ---
@@ -2298,7 +2301,7 @@ El boton **"Reporte de Antiguedad"** genera un informe de todas las deudas clasi
 
 ### 12.1 Datos de la Empresa
 
-La configuracion de la empresa se organiza en pestanas:
+La configuracion de la empresa se organiza en pestanas. La pestana activa se persiste en la URL (`?tab=cuits`, `?tab=sucursales`, etc.), por lo que al recargar la pagina o compartir el enlace se vuelve a la misma pestana.
 
 #### Pestana "Empresa"
 
@@ -2324,12 +2327,34 @@ Gestion de los CUITs fiscales del comercio (una empresa puede tener varios CUITs
 - Certificado digital y clave privada para facturacion electronica.
 - **Puntos de Venta**: Cada CUIT puede tener multiples puntos de venta numerados, necesarios para la emision de comprobantes fiscales.
 
+Cada CUIT en la lista expone tres botones de accion adicionales (accesibles desde el menu de acciones de la fila):
+
+**Boton "Impuestos"**: abre el modal de configuracion impositiva del CUIT. Permite:
+- Buscar impuestos del catalogo del sistema (percepciones y retenciones de IVA e IIBB por jurisdiccion, ganancias, creditos y debitos, SIRCREB) y agregarlos al CUIT.
+- Crear impuestos personalizados que no esten en el catalogo del sistema.
+- Para cada impuesto configurado, editar: alicuota (%), base minima (umbral de base imponible para aplicar la percepcion), numero de inscripcion, vigente desde, vigente hasta.
+- Marcar si el CUIT actua como agente de percepcion y/o agente de retencion para ese impuesto.
+- Quitar un impuesto de la configuracion del CUIT.
+- Nota: el IVA del CUIT no se gestiona aqui; lo determina la condicion de IVA asignada al CUIT.
+
+**Boton "Domicilios"**: abre el modal de domicilios fiscales del CUIT. Permite:
+- Ver la lista de domicilios declarados ante AFIP para ese CUIT.
+- Agregar nuevos domicilios indicando tipo (fiscal, comercial, otro), direccion, provincia (ISO 3166-2), localidad y coordenadas (latitud/longitud).
+- Editar y eliminar domicilios existentes.
+- Marcar un domicilio como principal.
+- La provincia del domicilio determina la jurisdiccion de IIBB para los comprobantes emitidos desde los puntos de venta asociados a ese domicilio.
+
+**Boton "Puntos de Venta"**: abre el modal de puntos de venta del CUIT. Permite:
+- Ver los puntos de venta numerados del CUIT.
+- Asignar a cada punto de venta un domicilio fiscal (de los cargados para ese CUIT). Esta asignacion es la que determina la jurisdiccion de Ingresos Brutos de cada comprobante.
+
 #### Pestana "Sucursales"
 
 Gestion de las sucursales del comercio:
 - Nombre de la sucursal.
 - Nombre publico (como se muestra en los comprobantes).
 - Direccion, telefono y email de la sucursal.
+- **Domicilio estructurado** (Fase 9): provincia (ISO 3166-2) y localidad seleccionable del padron GeoRef. Reemplaza progresivamente el texto libre de direccion/localidad para permitir referencias exactas. La localidad elegida queda vinculada como `localidad_id`.
 - Logo de la sucursal (opcional).
 - **Configuracion de la sucursal** (boton de engranaje):
   - Clave de autorizacion para operaciones sensibles.
@@ -2937,9 +2962,92 @@ La pantalla cliente y la app principal (BCN Pymes) tienen scopes de PWA distinto
 
 ---
 
-## 13. Flujos de Trabajo Comunes
+## 13. Fiscal
 
-### 13.1 Abrir el comercio por la manana
+El modulo Fiscal centraliza la informacion tributaria del comercio. Agrupa la posicion de IVA y los libros de IVA ventas/compras, consultables por CUIT y periodo mensual. Requiere permiso `func.fiscal.*` (asignado a Administrador y Super Administrador).
+
+Acceso desde el menu lateral: **Fiscal → Posicion fiscal** y **Fiscal → Libros IVA**.
+
+### 13.1 Posicion Fiscal
+
+**Ruta**: `/fiscal/posicion`
+
+Muestra el estado tributario del comercio para un CUIT y un periodo (mes/ano).
+
+#### Que ve al entrar
+
+- Selector de CUIT (desplegable con los CUITs del comercio).
+- Selector de periodo (mes y ano, con flechas de navegacion).
+- Dos paneles: **Posicion de IVA** y **Posicion de IIBB** (Ingresos Brutos).
+
+#### Panel de Posicion de IVA
+
+Presenta el calculo del saldo de IVA del periodo:
+
+| Campo | Descripcion |
+|---|---|
+| Debito fiscal | IVA facturado a clientes (suma de todos los comprobantes del periodo) |
+| Credito fiscal | IVA pagado en compras de facturas A |
+| Saldo tecnico | Debito menos credito fiscal |
+| Percepciones de IVA sufridas | Percepciones de IVA que retuvieron proveedores o el proveedor de pago (a cuenta de IVA) |
+| Retenciones de IVA sufridas | Retenciones de IVA sufridas (a cuenta) |
+| Total a cuenta | Suma de percepciones y retenciones sufridas |
+| Saldo | Saldo tecnico menos total a cuenta |
+| **IVA a pagar** | Si el saldo es positivo: monto a pagar a AFIP |
+| **Saldo a favor** | Si el saldo es negativo: saldo a favor del comercio |
+
+Las percepciones y retenciones que el CUIT aplica como agente (deuda a depositar) se informan por separado y NO forman parte del saldo de IVA propio.
+
+#### Panel de Posicion de IIBB
+
+Muestra el resumen por jurisdiccion (provincia). Para cada jurisdiccion:
+- Base imponible (ingresos netos gravados del periodo)
+- Percepciones sufridas a cuenta
+- Retenciones sufridas a cuenta
+- Total a cuenta
+- Percepciones y retenciones aplicadas como agente (deuda a depositar)
+
+La jurisdiccion surge del domicilio fiscal del punto de venta del comprobante, no de la ubicacion fisica de la sucursal.
+
+---
+
+### 13.2 Libros IVA
+
+**Ruta**: `/fiscal/libros`
+
+Subdiarios de IVA: el detalle de todos los comprobantes del periodo, ordenados por fecha y numero. Util para la preparacion de la declaracion jurada mensual.
+
+#### Que ve al entrar
+
+- Selector de CUIT y selector de periodo (igual que Posicion Fiscal).
+- Dos solapas: **Libro IVA Ventas** y **Libro IVA Compras**.
+
+#### Libro IVA Ventas
+
+Lista todos los comprobantes fiscales autorizados del CUIT en el periodo. Para cada comprobante muestra:
+- Fecha de emision.
+- Tipo y numero (ej: FA 00001-00000123).
+- Razon social del receptor.
+- Neto gravado, neto no gravado, neto exento.
+- IVA (suma de todas las alicuotas).
+- Otros tributos.
+- Total del comprobante.
+
+El pie de la tabla muestra los totales del periodo.
+
+**Exportar CSV**: boton "Exportar CSV" descarga un archivo compatible con planillas de calculo con una fila por comprobante.
+
+#### Libro IVA Compras
+
+Lista las compras con atribucion fiscal registradas en el periodo (aquellas que tienen un CUIT del comercio asignado y percepciones/retenciones cargadas). Muestra credito fiscal de IVA, percepciones y retenciones sufridas por cada compra.
+
+> El modulo de compras esta en desarrollo; este libro se completa a medida que se cargan percepciones en cada factura de proveedor.
+
+---
+
+## 14. Flujos de Trabajo Comunes
+
+### 14.1 Abrir el comercio por la manana
 
 1. Inicie sesion en el sistema.
 2. Verifique que la sucursal correcta este seleccionada en la barra superior.
@@ -2954,7 +3062,7 @@ La pantalla cliente y la app principal (BCN Pymes) tienen scopes de PWA distinto
 
 ---
 
-### 13.2 Realizar una venta tipica
+### 14.2 Realizar una venta tipica
 
 1. Vaya a **Ventas > Nueva Venta** (o haga clic en "Nueva Venta" desde el listado).
 2. Verifique que la caja este operativa (indicador verde).
@@ -2971,7 +3079,7 @@ La pantalla cliente y la app principal (BCN Pymes) tienen scopes de PWA distinto
 
 ---
 
-### 13.3 Cobrar deuda de un cliente
+### 14.3 Cobrar deuda de un cliente
 
 1. Vaya a **Clientes > Cobranzas**.
 2. Busque al cliente por nombre o CUIT.
@@ -2985,7 +3093,7 @@ La pantalla cliente y la app principal (BCN Pymes) tienen scopes de PWA distinto
 
 ---
 
-### 13.4 Cerrar caja al final del dia
+### 14.4 Cerrar caja al final del dia
 
 1. Vaya a **Cajas > Turno Actual**.
 2. Haga clic en **"Cerrar Turno"** en la caja que desea cerrar.
@@ -3002,7 +3110,7 @@ La pantalla cliente y la app principal (BCN Pymes) tienen scopes de PWA distinto
 
 ---
 
-### 13.5 Hacer inventario fisico
+### 14.5 Hacer inventario fisico
 
 **Para un inventario rapido (pocos articulos):**
 
@@ -3022,7 +3130,7 @@ La pantalla cliente y la app principal (BCN Pymes) tienen scopes de PWA distinto
 
 ---
 
-### 13.6 Cambiar precios masivamente
+### 14.6 Cambiar precios masivamente
 
 1. Vaya a **Articulos > Cambio Masivo de Precios**.
 2. **Paso 1**: Configure el ajuste:
@@ -3039,7 +3147,7 @@ La pantalla cliente y la app principal (BCN Pymes) tienen scopes de PWA distinto
 
 ---
 
-### 13.7 Crear una promocion
+### 14.7 Crear una promocion
 
 **Ejemplo: "10% de descuento en bebidas pagando en efectivo"**
 
@@ -3087,6 +3195,7 @@ La pantalla cliente y la app principal (BCN Pymes) tienen scopes de PWA distinto
 | **Grupo de cierre** | Conjunto de cajas que se cierran juntas al final del turno. |
 | **Grupo opcional** | Conjunto de opciones que se pueden agregar a un articulo (ej: tamano, ingredientes extra). |
 | **Inventario fisico** | Conteo real de la mercaderia y comparacion con el stock registrado en el sistema. |
+| **IIBB** | Ingresos Brutos. Impuesto provincial sobre los ingresos de la actividad comercial. |
 | **IVA** | Impuesto al Valor Agregado. |
 | **Lista de precios** | Conjunto de precios con ajustes (recargos o descuentos) sobre los precios base. |
 | **Materia prima** | Articulo que se usa como ingrediente en recetas pero que tipicamente no se vende directamente. |
@@ -3095,12 +3204,15 @@ La pantalla cliente y la app principal (BCN Pymes) tienen scopes de PWA distinto
 | **NxM** | Tipo de promocion: "Lleva N, paga M" (o bonifica la diferencia). |
 | **Opcional** | Opcion dentro de un grupo opcional que puede tener precio adicional y receta propia. |
 | **Produccion** | Proceso de fabricar un articulo a partir de sus ingredientes (segun receta). |
+| **Posicion fiscal** | Estado tributario de un CUIT en un periodo: cuanto debe de IVA e IIBB, descontando creditos y retenciones sufridas. |
 | **Punto de venta** | Numero habilitado ante ARCA para emitir comprobantes fiscales. |
 | **Receta** | Composicion de un articulo en terminos de ingredientes y cantidades. |
 | **Rendicion** | Proceso por el cual una caja entrega el efectivo del turno cerrado a tesoreria. |
 | **Saldo a favor** | Monto que el comercio le debe al cliente (por ejemplo, si pago de mas). |
 | **Sucursal** | Cada ubicacion fisica del comercio. |
 | **Tesoreria** | Caja fuerte central de la sucursal donde se resguarda el efectivo no asignado a cajas operativas. |
+| **Retencion** | Descuento que retiene un agente de retencion del pago a un proveedor, a cuenta de un impuesto. |
+| **Percepcion** | Importe adicional que cobra un agente de percepcion sobre una operacion, a cuenta de un impuesto. |
 | **Ticket** | Comprobante no fiscal de una venta. |
 | **Tipo de cambio** | Cotizacion de una moneda respecto a otra (tasa de compra y tasa de venta). |
 | **Turno** | Periodo operativo de una caja, desde su apertura hasta su cierre con arqueo. |

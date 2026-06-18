@@ -7,15 +7,15 @@ use App\Models\CondicionIva;
 use App\Models\Cuit;
 use App\Models\EmpresaConfig;
 use App\Models\GrupoCierre;
-use App\Models\Localidad;
 use App\Models\MovimientoCaja;
-use App\Models\Provincia;
 use App\Models\PuntoVenta;
 use App\Models\PuntoVentaCaja;
 use App\Models\Sucursal;
 use App\Services\CatalogoCache;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
+use Livewire\Attributes\On;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -23,9 +23,13 @@ use Livewire\WithFileUploads;
 #[Layout('layouts.app')]
 class ConfiguracionEmpresa extends Component
 {
+    use \App\Traits\ManejaDomicilio;
     use WithFileUploads;
 
     // ==================== TAB CONTROL ====================
+    // Persistido en la URL (?tab=sucursales) para que F5 mantenga la pestaña.
+    // 'empresa' es el default y se omite del query string.
+    #[Url(as: 'tab', except: 'empresa')]
     public string $tabActivo = 'empresa';
 
     // ==================== TAB EMPRESA ====================
@@ -55,12 +59,6 @@ class ConfiguracionEmpresa extends Component
 
     public $cuitNombreFantasia = '';
 
-    public $cuitDireccion = '';
-
-    public $cuitProvinciaId = null;
-
-    public $cuitLocalidadId = null;
-
     public $cuitCondicionIvaId = null;
 
     public $cuitNumeroIibb = '';
@@ -82,24 +80,10 @@ class ConfiguracionEmpresa extends Component
 
     public $cuitTieneClave = false;
 
-    // Puntos de venta
-    public $puntosVenta = [];
-
-    public $nuevoPuntoVentaNumero = '';
-
-    public $nuevoPuntoVentaNombre = '';
-
     // Confirmación de eliminación CUIT
     public $mostrarConfirmacionEliminarCuit = false;
 
     public $cuitEliminarId = null;
-
-    // Confirmación de eliminación Punto de Venta
-    public $mostrarConfirmacionEliminarPV = false;
-
-    public $pvEliminarId = null;
-
-    public $pvEliminarNumero = null;
 
     // ==================== TAB SUCURSALES ====================
     public $sucursalEditandoId = null;
@@ -227,9 +211,6 @@ class ConfiguracionEmpresa extends Component
 
     public $grupoEliminarId = null;
 
-    // ==================== DATOS DE REFERENCIA ====================
-    public $localidades = [];
-
     public function placeholder()
     {
         return <<<'HTML'
@@ -237,21 +218,30 @@ class ConfiguracionEmpresa extends Component
         HTML;
     }
 
+    /** Pestañas válidas (para sanear el valor que viene de la URL). */
+    public const TABS = ['empresa', 'cuits', 'sucursales', 'cajas'];
+
     public function mount()
     {
+        // Sanear el tab que llega por query string (?tab=...): si es inválido,
+        // volver al default para no romper la vista.
+        if (! in_array($this->tabActivo, self::TABS, true)) {
+            $this->tabActivo = 'empresa';
+        }
+
         $this->cargarDatosEmpresa();
     }
 
     public function cambiarTab($tab)
     {
-        $this->tabActivo = $tab;
+        $this->tabActivo = in_array($tab, self::TABS, true) ? $tab : 'empresa';
     }
 
     // ==================== GETTERS COMPUTADOS ====================
 
     public function getCuitsProperty()
     {
-        return Cuit::with(['puntosVenta', 'condicionIva', 'localidad.provincia'])
+        return Cuit::with(['puntosVenta', 'condicionIva', 'domicilios.localidad'])
             ->orderBy('razon_social')
             ->get();
     }
@@ -259,11 +249,6 @@ class ConfiguracionEmpresa extends Component
     public function getSucursalesProperty()
     {
         return CatalogoCache::sucursalesTodas();
-    }
-
-    public function getProvinciasProperty()
-    {
-        return Provincia::ordenadas()->get();
     }
 
     public function getCondicionesIvaProperty()
@@ -361,25 +346,13 @@ class ConfiguracionEmpresa extends Component
 
     public function editarCuit($id)
     {
-        $cuit = Cuit::with('puntosVenta')->findOrFail($id);
+        $cuit = Cuit::findOrFail($id);
 
         $this->cuitId = $cuit->id;
         $this->cuitNumeroCuit = $cuit->numero_cuit;
         $this->cuitRazonSocial = $cuit->razon_social;
         $this->cuitNombreFantasia = $cuit->nombre_fantasia ?? '';
-        $this->cuitDireccion = $cuit->direccion ?? '';
-
-        // Cargar localidades si hay provincia
-        if ($cuit->localidad) {
-            $this->cuitProvinciaId = $cuit->localidad->provincia_id;
-            $this->localidades = Localidad::porProvincia($this->cuitProvinciaId)->ordenadas()->get();
-            $this->cuitLocalidadId = $cuit->localidad_id;
-        } else {
-            $this->cuitProvinciaId = null;
-            $this->cuitLocalidadId = null;
-            $this->localidades = [];
-        }
-
+        // El domicilio fiscal se gestiona aparte (botón Domicilios → cuit_domicilios).
         $this->cuitCondicionIvaId = $cuit->condicion_iva_id;
         $this->cuitNumeroIibb = $cuit->numero_iibb ?? '';
         $this->cuitFechaInicioActividades = $cuit->fecha_inicio_actividades?->format('Y-m-d');
@@ -391,20 +364,18 @@ class ConfiguracionEmpresa extends Component
         $this->cuitTieneCertificado = ! empty($cuit->certificado_path);
         $this->cuitTieneClave = ! empty($cuit->clave_path);
 
-        $this->puntosVenta = $cuit->puntosVenta->toArray();
-
         $this->modoEdicionCuit = true;
         $this->mostrarModalCuit = true;
     }
 
-    public function updatedCuitProvinciaId($value)
+    /**
+     * Refresca el resumen de PV de la card de CUITs cuando el modal de puntos de
+     * venta los modifica (forzar re-render recomputa $this->cuits).
+     */
+    #[On('puntos-venta-actualizados')]
+    public function refrescarResumenCuits(): void
     {
-        if ($value) {
-            $this->localidades = Localidad::porProvincia($value)->ordenadas()->get();
-        } else {
-            $this->localidades = [];
-        }
-        $this->cuitLocalidadId = null;
+        // El listener basta para disparar el re-render; $this->cuits se recomputa.
     }
 
     public function guardarCuit()
@@ -413,7 +384,6 @@ class ConfiguracionEmpresa extends Component
             'cuitNumeroCuit' => 'required|digits:11',
             'cuitRazonSocial' => 'required|max:200',
             'cuitNombreFantasia' => 'nullable|max:200',
-            'cuitDireccion' => 'nullable|max:500',
             'cuitCondicionIvaId' => 'required|exists:config.condiciones_iva,id',
             'cuitNumeroIibb' => 'nullable|max:50',
             'cuitFechaInicioActividades' => 'nullable|date',
@@ -452,8 +422,6 @@ class ConfiguracionEmpresa extends Component
                 'numero_cuit' => preg_replace('/\D/', '', $this->cuitNumeroCuit),
                 'razon_social' => $this->cuitRazonSocial,
                 'nombre_fantasia' => $this->cuitNombreFantasia ?: null,
-                'direccion' => $this->cuitDireccion ?: null,
-                'localidad_id' => $this->cuitLocalidadId ?: null,
                 'condicion_iva_id' => $this->cuitCondicionIvaId,
                 'numero_iibb' => $this->cuitNumeroIibb ?: null,
                 'fecha_inicio_actividades' => $this->cuitFechaInicioActividades ?: null,
@@ -524,12 +492,14 @@ class ConfiguracionEmpresa extends Component
         try {
             $cuit = Cuit::findOrFail($this->cuitEliminarId);
 
-            // Eliminar puntos de venta y sus certificados
+            // Eliminar puntos de venta. Los certificados digitales se manejan a
+            // nivel de CUIT (no de PV), por eso solo se borra el PV.
             foreach ($cuit->puntosVenta as $pv) {
-                $pv->eliminarCertificados();
                 $pv->delete();
             }
 
+            // Eliminar los certificados del CUIT antes de borrarlo.
+            $cuit->eliminarCertificados();
             $cuit->delete();
 
             $this->mostrarConfirmacionEliminarCuit = false;
@@ -553,9 +523,6 @@ class ConfiguracionEmpresa extends Component
         $this->cuitNumeroCuit = '';
         $this->cuitRazonSocial = '';
         $this->cuitNombreFantasia = '';
-        $this->cuitDireccion = '';
-        $this->cuitProvinciaId = null;
-        $this->cuitLocalidadId = null;
         $this->cuitCondicionIvaId = null;
         $this->cuitNumeroIibb = '';
         $this->cuitFechaInicioActividades = null;
@@ -566,130 +533,11 @@ class ConfiguracionEmpresa extends Component
         $this->cuitClave = null;
         $this->cuitTieneCertificado = false;
         $this->cuitTieneClave = false;
-        $this->puntosVenta = [];
-        $this->localidades = [];
-        $this->resetFormularioPuntoVenta();
         $this->resetErrorBag();
     }
 
-    // ==================== PUNTOS DE VENTA ====================
-
-    public function agregarPuntoVenta()
-    {
-        if (! $this->cuitId) {
-            $this->dispatch('notify', message: __('Primero debe guardar el CUIT'), type: 'warning');
-
-            return;
-        }
-
-        $this->validate([
-            'nuevoPuntoVentaNumero' => 'required|integer|min:1|max:99999',
-            'nuevoPuntoVentaNombre' => 'nullable|max:100',
-        ], [
-            'nuevoPuntoVentaNumero.required' => __('El número de punto de venta es obligatorio.'),
-            'nuevoPuntoVentaNumero.integer' => __('El número debe ser un entero.'),
-            'nuevoPuntoVentaNumero.min' => __('El número debe ser al menos 1.'),
-            'nuevoPuntoVentaNumero.max' => __('El número no puede superar 99999.'),
-        ]);
-
-        try {
-            // Verificar si existe uno soft-deleted con el mismo número
-            $pvEliminado = PuntoVenta::withTrashed()
-                ->where('cuit_id', $this->cuitId)
-                ->where('numero', $this->nuevoPuntoVentaNumero)
-                ->whereNotNull('deleted_at')
-                ->first();
-
-            if ($pvEliminado) {
-                // Restaurar el punto de venta eliminado
-                $pvEliminado->restore();
-                $pvEliminado->update([
-                    'nombre' => $this->nuevoPuntoVentaNombre ?: $pvEliminado->nombre,
-                    'activo' => true,
-                ]);
-                $mensaje = __('Punto de venta restaurado');
-            } else {
-                // Verificar que no exista uno activo con el mismo número
-                $existe = PuntoVenta::where('cuit_id', $this->cuitId)
-                    ->where('numero', $this->nuevoPuntoVentaNumero)
-                    ->exists();
-
-                if ($existe) {
-                    $this->addError('nuevoPuntoVentaNumero', __('Este número de punto de venta ya existe para este CUIT.'));
-
-                    return;
-                }
-
-                PuntoVenta::create([
-                    'cuit_id' => $this->cuitId,
-                    'numero' => $this->nuevoPuntoVentaNumero,
-                    'nombre' => $this->nuevoPuntoVentaNombre ?: null,
-                    'activo' => true,
-                ]);
-                $mensaje = __('Punto de venta agregado');
-            }
-
-            $this->resetFormularioPuntoVenta();
-            $this->puntosVenta = Cuit::find($this->cuitId)->puntosVenta->toArray();
-
-            $this->dispatch('notify', message: $mensaje, type: 'success');
-        } catch (\Exception $e) {
-            $this->dispatch('notify', message: __('Error: ').$e->getMessage(), type: 'error');
-        }
-    }
-
-    public function togglePuntoVentaActivo($id)
-    {
-        $pv = PuntoVenta::findOrFail($id);
-        $pv->activo = ! $pv->activo;
-        $pv->save();
-
-        $this->puntosVenta = Cuit::find($this->cuitId)->puntosVenta->toArray();
-
-        $estado = $pv->activo ? __('activado') : __('desactivado');
-        $this->dispatch('notify', message: __('Punto de venta :numero :estado', ['numero' => $pv->numero_formateado, 'estado' => $estado]), type: 'success');
-    }
-
-    public function confirmarEliminarPuntoVenta($id)
-    {
-        $pv = PuntoVenta::findOrFail($id);
-        $this->pvEliminarId = $id;
-        $this->pvEliminarNumero = $pv->numero_formateado;
-        $this->mostrarConfirmacionEliminarPV = true;
-    }
-
-    public function eliminarPuntoVenta()
-    {
-        try {
-            $pv = PuntoVenta::findOrFail($this->pvEliminarId);
-            $numero = $pv->numero_formateado;
-            $pv->activo = false;
-            $pv->save();
-            $pv->delete();
-
-            $this->puntosVenta = Cuit::find($this->cuitId)->puntosVenta->toArray();
-            $this->mostrarConfirmacionEliminarPV = false;
-            $this->pvEliminarId = null;
-            $this->pvEliminarNumero = null;
-
-            $this->dispatch('notify', message: __('Punto de venta :numero eliminado', ['numero' => $numero]), type: 'success');
-        } catch (\Exception $e) {
-            $this->dispatch('notify', message: __('Error: ').$e->getMessage(), type: 'error');
-        }
-    }
-
-    public function cancelarEliminarPuntoVenta()
-    {
-        $this->mostrarConfirmacionEliminarPV = false;
-        $this->pvEliminarId = null;
-        $this->pvEliminarNumero = null;
-    }
-
-    protected function resetFormularioPuntoVenta()
-    {
-        $this->nuevoPuntoVentaNumero = '';
-        $this->nuevoPuntoVentaNombre = '';
-    }
+    // El ABM de puntos de venta se movió al componente embebido CuitPuntosVenta
+    // (RF-11, refactor UI: un botón por sección — Impuestos / Domicilios / Puntos).
 
     // ==================== TAB SUCURSALES ====================
 
@@ -703,11 +551,20 @@ class ConfiguracionEmpresa extends Component
         $this->sucursalDireccion = $sucursal->direccion ?? '';
         $this->sucursalTelefono = $sucursal->telefono ?? '';
         $this->sucursalEmail = $sucursal->email ?? '';
+
+        // Domicilio físico estructurado (RF-11): provincia (ISO) + localidad + geo.
+        // La dirección se mantiene en $sucursalDireccion (el partial la oculta acá).
+        $this->setDomicilioDesde([
+            'provincia' => $sucursal->provincia,
+            'localidad_id' => $sucursal->localidad_id,
+            'latitud' => $sucursal->latitud,
+            'longitud' => $sucursal->longitud,
+        ]);
     }
 
     public function guardarSucursal()
     {
-        $this->validate([
+        $this->validate(array_merge([
             'sucursalNombre' => 'required|max:100',
             'sucursalNombrePublico' => 'nullable|max:200',
             'sucursalDireccion' => 'nullable|max:500',
@@ -715,6 +572,13 @@ class ConfiguracionEmpresa extends Component
             'sucursalEmail' => 'nullable|email|max:100',
             'sucursalLogo' => 'nullable|image|max:2048',
         ], [
+            // La provincia del domicilio físico es opcional (la sucursal puede no
+            // tener el domicilio cargado todavía).
+            'domProvincia' => 'nullable|string|max:6',
+            'domLocalidadId' => 'nullable|integer',
+            'domLatitud' => 'nullable|numeric|between:-90,90',
+            'domLongitud' => 'nullable|numeric|between:-180,180',
+        ]), [
             'sucursalNombre.required' => __('El nombre interno es obligatorio.'),
             'sucursalEmail.email' => __('El email no es válido.'),
             'sucursalLogo.image' => __('El archivo debe ser una imagen.'),
@@ -729,6 +593,12 @@ class ConfiguracionEmpresa extends Component
             $sucursal->direccion = $this->sucursalDireccion ?: null;
             $sucursal->telefono = $this->sucursalTelefono ?: null;
             $sucursal->email = $this->sucursalEmail ?: null;
+
+            // Domicilio físico estructurado (RF-11, Fase 9).
+            $sucursal->provincia = $this->domProvincia ?: null;
+            $sucursal->localidad_id = $this->domLocalidadId ?: null;
+            $sucursal->latitud = $this->domLatitud !== null && $this->domLatitud !== '' ? $this->domLatitud : null;
+            $sucursal->longitud = $this->domLongitud !== null && $this->domLongitud !== '' ? $this->domLongitud : null;
 
             if ($this->sucursalLogo) {
                 $sucursal->updateLogo($this->sucursalLogo);
@@ -754,6 +624,7 @@ class ConfiguracionEmpresa extends Component
         $this->sucursalTelefono = '';
         $this->sucursalEmail = '';
         $this->sucursalLogo = null;
+        $this->resetDomicilio();
         $this->resetErrorBag();
     }
 

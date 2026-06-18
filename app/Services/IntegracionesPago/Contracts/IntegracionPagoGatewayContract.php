@@ -123,6 +123,10 @@ interface IntegracionPagoGatewayContract
      *   cada fila = ['tipo' => cobro|devolucion|contracargo|retiro|retiro_cancelado|acreditacion|otro,
      *   'id_externo', 'referencia', 'fecha' (Y-m-d H:i:s|null), 'descripcion',
      *   'monto_bruto', 'comision', 'monto_neto'].
+     *   Opcionales (desglose fiscal, sistema-impositivo RF-06): 'tax_detail'
+     *   (código crudo del proveedor|null), 'impuesto' (['codigo','naturaleza',
+     *   'jurisdiccion'] del catálogo|null) y 'datos_extra' (fila cruda del
+     *   reporte para trazabilidad|null).
      *
      * @return array{filas: array, archivo: string}|null
      *

@@ -84,6 +84,14 @@ class Cuit extends Model
     }
 
     /**
+     * Domicilios fiscales declarados del CUIT (RF-11, Fase 9)
+     */
+    public function domicilios(): HasMany
+    {
+        return $this->hasMany(CuitDomicilio::class);
+    }
+
+    /**
      * Relación con localidad (tabla en config)
      */
     public function localidad(): BelongsTo
@@ -97,6 +105,22 @@ class Cuit extends Model
     public function condicionIva(): BelongsTo
     {
         return $this->belongsTo(CondicionIva::class);
+    }
+
+    /**
+     * Configuración impositiva del CUIT (sistema-impositivo RF-02)
+     */
+    public function impuestoConfigs(): HasMany
+    {
+        return $this->hasMany(CuitImpuestoConfig::class);
+    }
+
+    /**
+     * Ledger fiscal del CUIT (sistema-impositivo RF-03)
+     */
+    public function movimientosFiscales(): HasMany
+    {
+        return $this->hasMany(MovimientoFiscal::class);
     }
 
     /**

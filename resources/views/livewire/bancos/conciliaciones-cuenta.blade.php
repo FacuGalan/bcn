@@ -116,6 +116,16 @@
                         </div>
                     @endif
 
+                    {{-- Aviso fiscal: la cuenta no tiene CUIT y hay impuestos identificados --}}
+                    @if($avisoCuentaSinCuit)
+                        <div class="flex items-start gap-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4 sm:mb-6">
+                            <svg class="w-5 h-5 flex-shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <p class="text-sm text-blue-800 dark:text-blue-200">
+                                {{ __('Esta cuenta no tiene un CUIT asignado, así que los impuestos que descontó el proveedor no se van a registrar en el libro fiscal. Asigná un CUIT a la cuenta en la configuración de cuentas de empresa para llevar la posición impositiva.') }}
+                            </p>
+                        </div>
+                    @endif
+
                     {{-- Filtro por clasificación + acciones --}}
                     <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-4 sm:mb-6">
                         <div class="p-4 sm:p-6">
@@ -158,6 +168,19 @@
                                         <div class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ $fila->descripcion ?: ($fila->referencia ?: $fila->id_externo) }}</div>
                                         @if($fila->fecha)
                                             <div class="text-xs text-gray-400 dark:text-gray-500">{{ $fila->fecha->format('d/m/Y H:i') }}</div>
+                                        @endif
+                                        @if($fila->impuesto)
+                                            <div class="mt-1">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                                                    {{ $fila->impuesto->nombre }}@if($fila->impuesto->esProvincial()) · {{ $fila->impuesto->jurisdiccion }}@endif
+                                                </span>
+                                            </div>
+                                        @endif
+                                        @if($fila->alerta_validacion)
+                                            <div class="mt-1 flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400">
+                                                <svg class="w-3.5 h-3.5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                                <span>{{ $fila->alerta_validacion }}</span>
+                                            </div>
                                         @endif
                                     </div>
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 {{ $clasificacionBadge[$fila->clasificacion] ?? '' }}">
@@ -210,6 +233,19 @@
                                                 <div class="max-w-xs truncate">{{ $fila->descripcion ?: '-' }}</div>
                                                 @if($fila->referencia || $fila->id_externo)
                                                     <div class="text-xs text-gray-400 dark:text-gray-500 font-mono">{{ $fila->referencia ?: $fila->id_externo }}</div>
+                                                @endif
+                                                @if($fila->impuesto)
+                                                    <div class="mt-1">
+                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                                                            {{ $fila->impuesto->nombre }}@if($fila->impuesto->esProvincial()) · {{ $fila->impuesto->jurisdiccion }}@endif
+                                                        </span>
+                                                    </div>
+                                                @endif
+                                                @if($fila->alerta_validacion)
+                                                    <div class="mt-1 flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400">
+                                                        <svg class="w-3.5 h-3.5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                                        <span>{{ $fila->alerta_validacion }}</span>
+                                                    </div>
                                                 @endif
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">

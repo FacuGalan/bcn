@@ -1069,6 +1069,7 @@ Detalle de cada corrida. Una fila por movimiento del reporte del proveedor, mas 
 | `tipo_movimiento` | enum nullable | `ingreso` o `egreso` del movimiento propuesto |
 | `concepto_codigo` | varchar(50) nullable | Codigo del concepto del movimiento propuesto |
 | `integracion_pago_transaccion_id` | bigint FK nullable | Transaccion matcheada (solo filas `matcheado`) |
+| `impuesto_id` | bigint FK nullable | Impuesto identificado por el gateway segun `TAX_DETAIL` del reporte del proveedor (Fase 4a, RF-06). Si no NULL, `ImpuestoService::registrarDesdeConciliacion()` lo registra en el ledger al aplicar. |
 | `movimiento_cuenta_empresa_id` | bigint FK nullable | Movimiento generado al aplicar |
 | timestamps | | |
 
@@ -1087,6 +1088,7 @@ Compras realizadas a proveedores.
 | `numero` | varchar(191) | Numero de comprobante |
 | `sucursal_id` | bigint FK | Sucursal |
 | `proveedor_id` | bigint FK | Proveedor |
+| `cuit_id` | bigint FK nullable | CUIT del comercio al que se imputa fiscalmente la compra (RF-05, Fase 6). ON DELETE SET NULL. Si NULL, la compra no alimenta el ledger fiscal. |
 | `caja_id` | bigint FK nullable | Caja de pago |
 | `usuario_id` | bigint FK | Usuario que registro |
 | `fecha` | timestamp | Fecha |
@@ -1142,7 +1144,8 @@ Ya descrita en seccion 1.2. Campos adicionales relevantes:
 - `agrupa_articulos_impresion` -- Si agrupa en impresion
 - `latitud` -- `decimal(10,7)` nullable. Coordenada geografica. Requerida por MP para crear Store.
 - `longitud` -- `decimal(10,7)` nullable. Coordenada geografica. Requerida por MP para crear Store.
-- `localidad` -- `varchar(100)` nullable. Localidad de la sucursal. Requerida por MP (`city_name`).
+- `localidad` -- `varchar(100)` nullable. Localidad de la sucursal (texto libre, en transicion). Requerida por MP (`city_name`).
+- `localidad_id` -- `bigint` nullable. Ref soft a `localidades` (config) para domicilio fisico estructurado (Fase 9, RF-11). Sin FK cross-DB. Relacion Eloquent `sucursal->localidad()` disponible.
 - `provincia` -- `varchar(100)` nullable. Codigo ISO 3166-2 de provincia argentina (ej: `AR-B`, `AR-C`). Se traduce a nombre oficial al armar payloads externos. Ver `Sucursal::PROVINCIAS_AR[]` y `Sucursal::provinciaNombre()`.
 - `mp_store_id` -- `varchar(50)` nullable. ID numerico devuelto por MP al crear la Store. Se usa para actualizar/eliminar. Indexado.
 - `mp_store_external_id` -- `varchar(60)` nullable. Identificador externo en MP. Formato: `BCN-{comercio_id}-{sucursal_id}`. Unico (UNIQUE INDEX). Solo se envia al **crear** la store; en updates MP lo rechaza por colision consigo mismo.
@@ -2529,6 +2532,134 @@ El metodo `pollearCobroIntegracion()` del concern tiene un short-circuit explici
 
 ---
 
+### 2.14 Sistema Impositivo
+
+Modulo de gestion fiscal (sistema-impositivo, Fases 1-9). Centraliza el catalogo de impuestos, la configuracion por CUIT, el ledger fiscal y los domicilios fiscales.
+
+#### Tabla: `impuestos`
+Catalogo de impuestos argentinos. Seeded por el sistema al crear un comercio. Extensible con impuestos custom del comercio (`es_sistema = false`).
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `codigo` | varchar(50) UNIQUE | Codigo del impuesto (ej: `iva_debito`, `perc_iibb_ar_b`, `ret_ganancias`) |
+| `nombre` | varchar(150) | Nombre legible |
+| `tipo` | enum | `iva`, `iibb`, `ganancias`, `credito_debito`, `otro` |
+| `naturaleza_default` | enum | `percepcion`, `retencion`, `debito_fiscal`, `credito_fiscal`, `tributo` |
+| `jurisdiccion` | varchar(6) nullable | `AR` = nacional; codigo ISO 3166-2 = provincial (ej: `AR-B`, `AR-C`). NULL para impuestos sin jurisdiccion |
+| `es_sistema` | boolean | true = seeded, false = custom del comercio |
+| `activo` | boolean | Si esta disponible para configurar |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+**Catalogo de impuestos del sistema** (seeded en la migracion y al provisionar comercios):
+- `iva_debito` / `iva_credito`: IVA debito y credito fiscal (tipo `iva`, jurisdiccion `AR`).
+- `perc_iva` / `ret_iva`: Percepcion y retencion de IVA (tipo `iva`, jurisdiccion `AR`).
+- `ret_ganancias`: Retencion de Ganancias (tipo `ganancias`, jurisdiccion `AR`).
+- `imp_creditos_debitos`: Impuesto Ley 25.413 (tipo `credito_debito`, jurisdiccion `AR`).
+- `ret_sircreb`: Retencion SIRCREB IIBB sobre acreditaciones (tipo `iibb`, jurisdiccion `AR`).
+- `perc_iibb_{iso}` / `ret_iibb_{iso}`: Percepcion y retencion de IIBB por cada provincia (24 pares, uno por jurisdiccion ISO 3166-2 argentina, ej: `perc_iibb_ar_b`, `ret_iibb_ar_c`).
+- `otro`: generico para tributos sin categoria.
+
+#### Tabla: `cuit_impuesto_configs`
+Configuracion impositiva de un CUIT: que impuestos lo alcanzan y con que condiciones.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `cuit_id` | bigint FK | CUIT del comercio |
+| `impuesto_id` | bigint FK | Impuesto del catalogo |
+| `inscripto` | boolean | Si el CUIT esta inscripto en este impuesto |
+| `numero_inscripcion` | varchar(30) nullable | N° de inscripcion (ej: N° de IIBB) |
+| `es_agente_percepcion` | boolean | Si actua como agente de percepcion |
+| `es_agente_retencion` | boolean | Si actua como agente de retencion |
+| `alicuota` | decimal(6,4) nullable | Alicuota porcentual (ej: `3.0000` = 3%) |
+| `alicuota_minimo_base` | decimal(14,2) nullable | Base imponible minima; si el neto es menor, no se percibe |
+| `origen_alicuota` | enum | `manual` (cargada a mano) o `padron` (de padron provincial — fase futura) |
+| `vigente_desde` | date nullable | Inicio de vigencia; NULL = siempre vigente |
+| `vigente_hasta` | date nullable | Fin de vigencia; NULL = sin fecha limite |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+**Scope `vigentes($fecha)`**: filtra configs activas en una fecha dada (respeta `vigente_desde` y `vigente_hasta`, NULL en cualquiera = sin limite en esa direccion).
+
+#### Tabla: `movimientos_fiscales`
+Ledger fiscal. Registro append-only de cada impuesto sufrido o aplicado. Unica puerta de escritura: `ImpuestoService`.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `cuit_id` | bigint FK | CUIT del comercio al que se imputa |
+| `sucursal_id` | bigint FK nullable | Sucursal de la operacion |
+| `impuesto_id` | bigint FK | Impuesto del catalogo |
+| `sentido` | enum | `sufrido` (el comercio paga/sufre) o `aplicado` (el comercio cobra/aplica como agente) |
+| `naturaleza` | enum | `percepcion`, `retencion`, `debito_fiscal`, `credito_fiscal`, `tributo` |
+| `fecha` | date | Fecha de la operacion |
+| `periodo_fiscal` | char(7) | `YYYY-MM` calculado al registrar desde `fecha`. Inmutable, nunca depende del timezone al consultar |
+| `base_imponible` | decimal(14,2) nullable | Base sobre la que se calcula el impuesto |
+| `alicuota` | decimal(6,4) nullable | Alicuota aplicada |
+| `monto` | decimal(14,2) | Monto del impuesto. **Siempre positivo**: el signo semantico lo dan `sentido` + `naturaleza` |
+| `certificado_numero` | varchar(50) nullable | N° de constancia de retencion |
+| `origen_tipo` | varchar(50) nullable | `ComprobanteFiscal`, `Compra`, `ConciliacionFila`, NULL = manual |
+| `origen_id` | bigint nullable | ID del origen |
+| `movimiento_anulado_id` | bigint FK nullable | Si es contraasiento: apunta al movimiento anulado |
+| `estado` | enum | `activo` o `anulado` |
+| `observaciones` | text nullable | Notas libres |
+| `usuario_id` | bigint FK nullable | Usuario que registro el movimiento |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+**Indices**: `(cuit_id, periodo_fiscal)`, `(origen_tipo, origen_id)`, `(impuesto_id)`.
+
+**Patron append-only**: la anulacion crea un contraasiento (fila nueva con `movimiento_anulado_id` apuntando al original y `estado = anulado`) y pasa el original a `estado = anulado`. La posicion fiscal solo suma movimientos `estado = activo`.
+
+#### Tabla: `compra_percepciones`
+Desglose de percepciones y retenciones sufridas en la factura de un proveedor (RF-05, Fase 6). Paralelo a `comprobante_fiscal_tributos` del lado de ventas.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `compra_id` | bigint FK | Compra (ON DELETE CASCADE) |
+| `impuesto_id` | bigint FK | Impuesto del catalogo |
+| `base_imponible` | decimal(14,2) nullable | Base imponible |
+| `alicuota` | decimal(6,4) nullable | Alicuota porcentual |
+| `monto` | decimal(14,2) | Monto de la percepcion/retencion |
+| `certificado_numero` | varchar(50) nullable | N° de constancia |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+#### Tabla: `cuit_domicilios`
+Domicilios fiscales declarados por un CUIT ante AFIP (RF-11, Fase 9). Cada CUIT puede tener N domicilios. La jurisdiccion de IIBB de una operacion surge de la `provincia` del domicilio asignado al punto de venta, no de la ubicacion fisica de la sucursal.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `cuit_id` | bigint FK (CASCADE) | CUIT al que pertenece |
+| `tipo` | enum | `fiscal`, `comercial`, `otro` |
+| `provincia` | varchar(6) | Codigo ISO 3166-2 — determina la jurisdiccion de IIBB (ej: `AR-B`, `AR-C`) |
+| `localidad_id` | bigint nullable | Ref soft a `localidades` (config); sin FK cross-DB |
+| `direccion` | varchar(255) | Calle y numero |
+| `codigo_postal` | varchar(10) nullable | Diferido, no usado en UI aun |
+| `latitud` | decimal(10,7) nullable | Coordenada |
+| `longitud` | decimal(10,7) nullable | Coordenada |
+| `es_principal` | boolean | Si es el domicilio principal del CUIT |
+| `activo` | boolean | Si esta activo |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+#### Columnas nuevas en tablas existentes
+
+**`compras.cuit_id`** (bigint FK nullable, Fase 6): CUIT del comercio al que se imputa fiscalmente la compra. Si es NULL, la compra no alimenta el ledger fiscal. FK con `ON DELETE SET NULL`.
+
+**`puntos_venta.cuit_domicilio_id`** (bigint FK nullable, Fase 9): domicilio fiscal declarado del punto de venta. Determina la jurisdiccion de IIBB de los comprobantes emitidos desde ese PV. FK con `ON DELETE SET NULL`. Helper `jurisdiccionFiscal(): ?string` devuelve `cuitDomicilio->provincia`.
+
+**`sucursales.localidad_id`** (bigint nullable, Fase 9): ref soft a `localidades` (config) para el domicilio fisico estructurado de la sucursal. Independiente de CUIT o integracion de pago.
+
+**`cuentas_empresa.cuit_id`** (Fase 4a): CUIT del comercio al que pertenece la cuenta bancaria/billetera. Se usa al registrar impuestos sufridos via conciliacion: el impuesto se imputa al CUIT de la cuenta conciliada.
+
+**`conciliacion_filas.impuesto_id`** (bigint FK nullable, Fase 4a): impuesto identificado en la fila de conciliacion segun el codigo `TAX_DETAIL` del reporte MP. Mapa de codigos MP → impuesto del catalogo:
+- `IVA` → `perc_iva`
+- `INCOME_TAX` → `ret_ganancias`
+- `SIRCREB` → `ret_sircreb`
+- `IIBB_{ISO}` → `ret_iibb_{iso}` (por jurisdiccion)
+
+---
+
 ## 3. Logica de Negocio
 
 ### 3.1 Flujo de Venta
@@ -3209,6 +3340,95 @@ Una venta o pago con cobro de integracion QR ya confirmado no puede anularse ni 
 
 **Que NO bloquea**: la anulacion de solo la parte fiscal (emision de nota de credito sobre el comprobante) no toca el cobro y sigue siendo posible. El bloqueo aplica solo a operaciones que reverterian el dinero cobrado.
 
+### 3.13 Sistema Impositivo
+
+#### Ledger fiscal (movimientos_fiscales)
+
+El ledger fiscal es **append-only**, igual que los otros ledgers del sistema. Unica puerta de escritura: `App\Services\Fiscal\ImpuestoService`. Livewire, reportes y otros services solo leen.
+
+Reglas de registro:
+- El campo `monto` es **siempre positivo**. El significado del importe lo da la combinacion `sentido + naturaleza`:
+  - `sentido=sufrido + naturaleza=percepcion` → percepcion sufrida (el comercio la pago a un proveedor o integrador).
+  - `sentido=aplicado + naturaleza=debito_fiscal` → IVA debito fiscal de una factura emitida.
+  - `sentido=sufrido + naturaleza=credito_fiscal` → IVA credito fiscal de una factura de proveedor (Factura A).
+  - etc.
+- El `periodo_fiscal` (YYYY-MM) se calcula **al registrar** desde la `fecha` del movimiento. Es inmutable y se usa como clave de particion para consultas; no depende del timezone en el momento de la consulta.
+- La **anulacion** crea un contraasiento: fila nueva con `movimiento_anulado_id` apuntando al original, ambos quedan con `estado = anulado`. La posicion fiscal solo suma `estado = activo`.
+- No existe un contraasiento parcial en v1: la anulacion es siempre total del movimiento original.
+
+#### Origenes de alimentacion del ledger
+
+| Origen | Metodo | Cuando se invoca |
+|---|---|---|
+| `ComprobanteFiscal` | `ImpuestoService::registrarDesdeComprobante()` | Despues de obtener el CAE (post-commit del comprobante). Solo CUIT Responsable Inscripto. Registra IVA debito fiscal por alicuota (sentido `aplicado`, naturaleza `debito_fiscal`). Una NC genera contraasientos de los movimientos del comprobante original. |
+| `Compra` | `ImpuestoService::registrarDesdeCompra()` | Al cargar una factura de proveedor con `cuit_id` asignado. Registra IVA credito fiscal (sentido `sufrido`, naturaleza `credito_fiscal`) y percepciones/retenciones sufridas (sentido `sufrido`, naturaleza segun el impuesto). |
+| `ConciliacionFila` | `ImpuestoService::registrarDesdeConciliacion()` | Al aplicar una corrida de conciliacion, para filas con `impuesto_id` identificado. Registra sentido `sufrido` con la naturaleza del impuesto. El importe es `abs(monto_neto)`. |
+| Manual | `ImpuestoService::registrarMovimientoFiscal()` | Carga manual por el usuario (Fase futura RF-08). |
+
+Todos los metodos son **idempotentes por origen**: si ya existe un movimiento activo con el mismo `(origen_tipo, origen_id)`, no duplican.
+
+#### Calculo de tributos (percepciones aplicadas)
+
+`ImpuestoService::calcularTributos(emisor, receptor, netoGravado, jurisdiccion, fecha)` implementa la matriz v1:
+
+1. El emisor debe ser Responsable Inscripto.
+2. El receptor debe ser Responsable Inscripto (v1 conservador).
+3. Para cada impuesto con config vigente `inscripto=true, es_agente_percepcion=true, alicuota != null`:
+   - Si el impuesto es IIBB: la jurisdiccion del impuesto debe coincidir con la jurisdiccion de la operacion (`jurisdiccion` parametro).
+   - Si `alicuota_minimo_base` esta definido y el neto es menor, no aplica.
+4. Devuelve array de `{impuesto_id, codigo, tipo, jurisdiccion, base_imponible, alicuota, monto}`.
+
+#### Posicion fiscal (PosicionFiscalService)
+
+Servicio de solo lectura. Calcula:
+
+**posicionIva(cuit, periodo)**:
+- `debito_fiscal` = suma de movimientos activos con `naturaleza = debito_fiscal`.
+- `credito_fiscal` = suma con `naturaleza = credito_fiscal`.
+- `saldo_tecnico` = debito - credito.
+- `percepciones_iva_sufridas` / `retenciones_iva_sufridas` = movimientos de IVA sufridos con naturaleza `percepcion`/`retencion`.
+- `a_cuenta` = percepciones + retenciones sufridas.
+- `saldo` = saldo_tecnico - a_cuenta. Positivo = a pagar; negativo = a favor.
+- Las percepciones/retenciones aplicadas como agente (`sentido = aplicado`) se informan separadas y NO restan del saldo propio.
+
+**posicionIibb(cuit, periodo)**:
+- Agrupa por jurisdiccion ISO 3166-2.
+- Para cada jurisdiccion: base imponible (neto gravado de comprobantes del periodo), percepciones/retenciones sufridas a cuenta, percepciones/retenciones aplicadas como agente.
+- La jurisdiccion de cada comprobante surge de: `puntoVenta.cuitDomicilio.provincia` (Fase 9) → fallback `sucursal.provincia` → fallback `AR`.
+
+**libroIvaVentas(cuit, periodo)**:
+- Fuente: `comprobantes_fiscales` autorizados del CUIT en el periodo.
+- Incluye desglose por alicuota (`detallesIva`), tributos y receptor.
+- Ordenados por `fecha_emision, punto_venta_numero, numero_comprobante`.
+
+**libroIvaCompras(cuit, periodo)**:
+- Fuente: `movimientos_fiscales` activos del periodo, sentido `sufrido`, origen `Compra`.
+- Agrupados por `origen_id` (compra). Muestra credito fiscal, percepciones y retenciones sufridas.
+
+#### Jurisdiccion de la operacion (RF-11)
+
+La jurisdiccion de IIBB de una operacion es la **provincia del domicilio fiscal declarado del punto de venta** (`puntos_venta.cuit_domicilio_id → cuit_domicilios.provincia`), no la ubicacion fisica de la sucursal. Esto permite que un CUIT domiciliado en CABA (`AR-C`) facture desde una sucursal en Buenos Aires sin que la jurisdiccion cambie por la ubicacion fisica.
+
+Si el PV no tiene domicilio asignado, se usa `sucursal.provincia` como fallback. Si tampoco tiene provincia, se asigna `AR` (sin jurisdiccion provincial).
+
+#### Permisos funcionales del modulo Fiscal
+
+| Permiso | Descripcion |
+|---|---|
+| `func.fiscal.posicion` | Ver posicion de IVA e IIBB por CUIT y periodo |
+| `func.fiscal.libros` | Ver y exportar libros de IVA ventas/compras |
+| `func.fiscal.movimientos` | Registrar y anular movimientos del ledger fiscal manualmente (fase futura RF-08) |
+| `func.fiscal.configuracion` | Configurar impuestos por CUIT desde Configuracion Empresa |
+
+Permisos de menu: `menu.fiscal`, `menu.fiscal-posicion`, `menu.fiscal-libros`. Todos asignados a Administrador y Super Administrador al provisionar o al ejecutar la migracion `add_fiscal_menu_y_permisos`.
+
+#### Rutas
+
+| Ruta | Nombre | Componente |
+|---|---|---|
+| `GET /fiscal/posicion` | `fiscal.posicion` | `App\Livewire\Fiscal\PosicionFiscal` |
+| `GET /fiscal/libros` | `fiscal.libros` | `App\Livewire\Fiscal\LibrosIva` |
+
 ---
 
 ## 4. Patrones de Consulta
@@ -3586,6 +3806,69 @@ GROUP BY cc.id, cc.desde, cc.hasta, cc.aplicada_en
 ORDER BY cc.aplicada_en DESC;
 ```
 
+#### Posicion de IVA de un CUIT en un periodo
+
+```sql
+-- Debito fiscal, credito fiscal y percepciones/retenciones sufridas de IVA.
+-- Usar: cuit_id = ? y periodo_fiscal = 'YYYY-MM'
+SELECT
+  mf.naturaleza,
+  mf.sentido,
+  SUM(mf.monto) AS total
+FROM {PREFIX}movimientos_fiscales mf
+JOIN {PREFIX}impuestos imp ON imp.id = mf.impuesto_id
+WHERE mf.cuit_id = ?
+  AND mf.periodo_fiscal = ?
+  AND mf.estado = 'activo'
+  AND imp.tipo = 'iva'
+GROUP BY mf.naturaleza, mf.sentido;
+```
+
+#### Percepciones de IIBB sufridas por jurisdiccion en un periodo
+
+```sql
+SELECT
+  imp.jurisdiccion,
+  mf.naturaleza,
+  SUM(mf.monto) AS total
+FROM {PREFIX}movimientos_fiscales mf
+JOIN {PREFIX}impuestos imp ON imp.id = mf.impuesto_id
+WHERE mf.cuit_id = ?
+  AND mf.periodo_fiscal = ?
+  AND mf.estado = 'activo'
+  AND mf.sentido = 'sufrido'
+  AND imp.tipo = 'iibb'
+GROUP BY imp.jurisdiccion, mf.naturaleza
+ORDER BY imp.jurisdiccion;
+```
+
+#### Movimientos fiscales de un comprobante especifico
+
+```sql
+SELECT mf.*, imp.codigo, imp.nombre
+FROM {PREFIX}movimientos_fiscales mf
+JOIN {PREFIX}impuestos imp ON imp.id = mf.impuesto_id
+WHERE mf.origen_tipo = 'ComprobanteFiscal'
+  AND mf.origen_id = ?
+  AND mf.estado = 'activo';
+```
+
+#### Configuracion impositiva vigente de un CUIT
+
+```sql
+-- Impuestos activos configurados para un CUIT a la fecha de hoy.
+SELECT imp.codigo, imp.nombre, imp.tipo, imp.jurisdiccion,
+  cfg.inscripto, cfg.es_agente_percepcion, cfg.es_agente_retencion,
+  cfg.alicuota, cfg.alicuota_minimo_base, cfg.vigente_desde, cfg.vigente_hasta
+FROM {PREFIX}cuit_impuesto_configs cfg
+JOIN {PREFIX}impuestos imp ON imp.id = cfg.impuesto_id
+WHERE cfg.cuit_id = ?
+  AND cfg.inscripto = 1
+  AND (cfg.vigente_desde IS NULL OR cfg.vigente_desde <= CURDATE())
+  AND (cfg.vigente_hasta IS NULL OR cfg.vigente_hasta >= CURDATE())
+ORDER BY imp.tipo, imp.jurisdiccion;
+```
+
 ### 4.2 Convenciones de Datos
 
 **Estados posibles de cada entidad:**
@@ -3601,6 +3884,7 @@ ORDER BY cc.aplicada_en DESC;
 | MovimientoStock | `activo`, `anulado` | Anulado = contraasiento |
 | MovimientoCuentaCorriente | `activo`, `anulado` | Anulado = contraasiento |
 | MovimientoCuentaEmpresa | `activo`, `anulado` | Anulado = contraasiento |
+| MovimientoFiscal | `activo`, `anulado` | Anulado = contraasiento. El monto es siempre positivo; el signo semantico lo dan `sentido` + `naturaleza`. |
 | Caja | `abierta`, `cerrada` | |
 | ComprobanteFiscal | `pendiente`, `autorizado`, `rechazado`, `anulado` | |
 | Produccion | `confirmado`, `anulado` | |
@@ -3641,7 +3925,7 @@ Las siguientes tablas usan soft delete (`deleted_at` no nulo = eliminado):
 Al consultar estas tablas, siempre agregar `AND deleted_at IS NULL` a menos que se quieran incluir registros eliminados.
 
 **Patron append-only (ledger):**
-Las tablas `movimientos_stock`, `movimientos_cuenta_corriente`, `movimientos_cuenta_empresa`, `venta_pagos` (para cambios de pago), `integraciones_pago_eventos` y `conciliaciones_cuenta`/`conciliacion_filas` siguen el patron append-only:
+Las tablas `movimientos_stock`, `movimientos_cuenta_corriente`, `movimientos_cuenta_empresa`, `movimientos_fiscales`, `venta_pagos` (para cambios de pago), `integraciones_pago_eventos` y `conciliaciones_cuenta`/`conciliacion_filas` siguen el patron append-only:
 - Los registros nunca se modifican ni eliminan.
 - Las anulaciones se hacen creando un **contraasiento** que invierte los montos (movimientos) o marcando el registro como `estado = 'anulado'` y creando uno nuevo (venta_pagos).
 - El original se vincula al contraasiento via `anulado_por_movimiento_id` (movimientos) o via `venta_pago_reemplazado_id` (venta_pagos).

@@ -5,10 +5,12 @@ namespace App\Services\IntegracionesPago;
 use App\Models\ConciliacionCuenta;
 use App\Models\ConciliacionFila;
 use App\Models\CuentaEmpresa;
+use App\Models\Impuesto;
 use App\Models\IntegracionPagoSucursal;
 use App\Models\IntegracionPagoTransaccion;
 use App\Models\MovimientoCuentaEmpresa;
 use App\Services\CuentaEmpresaService;
+use App\Services\Fiscal\ImpuestoService;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -51,6 +53,8 @@ class ConciliacionCuentaService
 
     /** Límite del proveedor: los reportes cubren hasta 60 días (doc MP). */
     private const MAX_DIAS_PERIODO = 60;
+
+    public function __construct(private ImpuestoService $impuestoService) {}
 
     /**
      * Crea una corrida de conciliación en estado `generando` (RF-03).
@@ -367,6 +371,13 @@ class ConciliacionCuentaService
     ): void {
         $tipo = $fila['tipo'] ?? ConciliacionFila::TIPO_OTRO;
         $idExterno = $fila['id_externo'] ?? null;
+
+        // Desglose fiscal (RF-06): el gateway ya mapeó TAX_DETAIL → impuesto del
+        // catálogo; acá solo resolvemos el id. La fila cruda viaja a datos_extra.
+        $impuestoId = ! empty($fila['impuesto']['codigo'])
+            ? Impuesto::porCodigo($fila['impuesto']['codigo'])->value('id')
+            : null;
+
         $base = [
             'conciliacion_cuenta_id' => $corrida->id,
             'tipo' => $tipo,
@@ -374,9 +385,11 @@ class ConciliacionCuentaService
             'referencia' => $fila['referencia'] ?? null,
             'fecha' => $fila['fecha'] ?? null,
             'descripcion' => $fila['descripcion'] ?? null,
+            'datos_extra' => $fila['datos_extra'] ?? null,
             'monto_bruto' => (float) ($fila['monto_bruto'] ?? 0),
             'comision' => (float) ($fila['comision'] ?? 0),
             'monto_neto' => (float) ($fila['monto_neto'] ?? 0),
+            'impuesto_id' => $impuestoId,
         ];
 
         // ¿Una corrida aplicada anterior ya materializó esta fila? (períodos solapados)
@@ -477,12 +490,22 @@ class ConciliacionCuentaService
             ? ConciliacionFila::ACCION_IGNORAR
             : ConciliacionFila::ACCION_GENERAR_MOVIMIENTO;
 
-        ConciliacionFila::create($base + [
+        $filaCreada = ConciliacionFila::create($base + [
             'clasificacion' => ConciliacionFila::CLASIFICACION_SOLO_PROVEEDOR,
             'accion' => abs($base['monto_neto']) > self::EPSILON ? $accion : ConciliacionFila::ACCION_IGNORAR,
             'tipo_movimiento' => $tipoMovimiento,
             'concepto_codigo' => $concepto,
         ]);
+
+        // Alerta esperado-vs-real (RF-06/D4): solo para impuestos identificados,
+        // si la cuenta tiene CUIT asignado. Se muestra en la revisión (badge).
+        if ($impuestoId !== null && ($cuit = $corrida->cuentaEmpresa?->cuit) !== null) {
+            $alerta = $this->impuestoService->validarImpuestoSufrido($filaCreada, $cuit);
+
+            if ($alerta !== null) {
+                $filaCreada->update(['alerta_validacion' => $alerta]);
+            }
+        }
     }
 
     /**
@@ -526,6 +549,7 @@ class ConciliacionCuentaService
             }
 
             $cuenta = $corrida->cuentaEmpresa;
+            $cuitFiscal = $cuenta->cuit; // RF-07: CUIT al que se imputan los impuestos sufridos.
 
             $filas = ConciliacionFila::where('conciliacion_cuenta_id', $corrida->id)
                 ->propuestas()
@@ -563,6 +587,15 @@ class ConciliacionCuentaService
                 );
 
                 $fila->update(['movimiento_cuenta_empresa_id' => $movimiento->id]);
+
+                // Ledger fiscal (RF-06): además del movimiento de cuenta, las
+                // filas de impuesto IDENTIFICADAS generan su movimiento fiscal
+                // sufrido, imputado al CUIT de la cuenta. Sin CUIT o sin
+                // impuesto reconocido no se genera (RF-07: el ledger no se
+                // bloquea, la corrida lo avisa en la revisión).
+                if ($cuitFiscal !== null && $fila->impuesto_id !== null && $fila->tipo === ConciliacionFila::TIPO_IMPUESTO) {
+                    $this->impuestoService->registrarDesdeConciliacion($fila, $cuitFiscal, $usuarioId);
+                }
             }
 
             // El ajuste va DESPUÉS de los movimientos: la diferencia se mide
