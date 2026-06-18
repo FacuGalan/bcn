@@ -521,6 +521,55 @@ XML;
     /**
      * Verifica el estado del servicio
      */
+    /**
+     * Consulta los tipos de tributo válidos del WSFEv1 (FEParamGetTiposTributos).
+     *
+     * Devuelve los códigos (Id) que AFIP acepta en el array `Tributos` de un
+     * comprobante. Es la fuente del `codigo_arca` del catálogo de impuestos
+     * (sistema impositivo, Fase 5b).
+     *
+     * @return array<int, array{id:string, desc:string, desde:?string, hasta:?string}>
+     */
+    public function obtenerTiposTributos(): array
+    {
+        $this->autenticar();
+
+        $client = $this->getWSFEClient();
+
+        try {
+            $result = $client->FEParamGetTiposTributos(['Auth' => $this->getAuthParams()]);
+            $res = $result->FEParamGetTiposTributosResult;
+
+            if (isset($res->Errors)) {
+                $error = is_array($res->Errors->Err) ? $res->Errors->Err[0] : $res->Errors->Err;
+                throw new Exception("Error AFIP: {$error->Code} - {$error->Msg}");
+            }
+
+            $lista = $res->ResultGet->TributoTipo ?? [];
+            if (! is_array($lista)) {
+                $lista = [$lista];
+            }
+
+            $tributos = [];
+            foreach ($lista as $t) {
+                $tributos[] = [
+                    'id' => (string) ($t->Id ?? ''),
+                    'desc' => (string) ($t->Desc ?? ''),
+                    'desde' => isset($t->FchDesde) ? (string) $t->FchDesde : null,
+                    'hasta' => isset($t->FchHasta) ? (string) $t->FchHasta : null,
+                ];
+            }
+
+            return $tributos;
+        } catch (SoapFault $e) {
+            Log::error('Error SOAP al consultar tipos de tributo', [
+                'error' => $e->getMessage(),
+                'cuit' => $this->cuit->numero_cuit,
+            ]);
+            throw new Exception('Error de comunicación con AFIP: '.$e->getMessage());
+        }
+    }
+
     public function verificarEstadoServicio(): array
     {
         try {
