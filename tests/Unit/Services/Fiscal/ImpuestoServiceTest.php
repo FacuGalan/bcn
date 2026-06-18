@@ -12,7 +12,6 @@ use App\Models\Cuit;
 use App\Models\CuitImpuestoConfig;
 use App\Models\Impuesto;
 use App\Models\MovimientoFiscal;
-use App\Models\Sucursal;
 use App\Services\Fiscal\ImpuestoService;
 use Exception;
 use Tests\TestCase;
@@ -95,12 +94,6 @@ class ImpuestoServiceTest extends TestCase
         ], $extra));
     }
 
-    protected function sucursalCon(?string $provincia): Sucursal
-    {
-        // calcularTributos solo lee ->provincia; un modelo no persistido alcanza.
-        return new Sucursal(['provincia' => $provincia]);
-    }
-
     // ==================== calcularTributos: percepción IIBB ====================
 
     public function test_percepcion_iibb_a_ri_en_la_jurisdiccion_de_la_sucursal(): void
@@ -113,7 +106,7 @@ class ImpuestoServiceTest extends TestCase
             $emisor,
             $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0,
-            $this->sucursalCon('AR-B')
+            'AR-B'
         );
 
         $this->assertCount(1, $tributos);
@@ -133,7 +126,7 @@ class ImpuestoServiceTest extends TestCase
             $emisor,
             $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0,
-            $this->sucursalCon('AR-C') // CABA, distinta jurisdicción
+            'AR-C' // CABA, distinta jurisdicción
         );
 
         $this->assertSame([], $tributos);
@@ -167,7 +160,7 @@ class ImpuestoServiceTest extends TestCase
             $emisor,
             $this->condicion(CondicionIva::CONSUMIDOR_FINAL),
             1000.0,
-            $this->sucursalCon('AR-B')
+            'AR-B'
         );
 
         $this->assertSame([], $tributos);
@@ -183,7 +176,7 @@ class ImpuestoServiceTest extends TestCase
             $emisor,
             $this->condicion(CondicionIva::RESPONSABLE_MONOTRIBUTO),
             1000.0,
-            $this->sucursalCon('AR-B')
+            'AR-B'
         );
 
         $this->assertSame([], $tributos);
@@ -195,7 +188,7 @@ class ImpuestoServiceTest extends TestCase
         $imp = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
         $this->config($emisor, $imp);
 
-        $tributos = $this->service->calcularTributos($emisor, null, 1000.0, $this->sucursalCon('AR-B'));
+        $tributos = $this->service->calcularTributos($emisor, null, 1000.0, 'AR-B');
 
         $this->assertSame([], $tributos);
     }
@@ -212,7 +205,7 @@ class ImpuestoServiceTest extends TestCase
             $emisor,
             $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0,
-            $this->sucursalCon('AR-B')
+            'AR-B'
         );
 
         $this->assertSame([], $tributos);
@@ -237,7 +230,7 @@ class ImpuestoServiceTest extends TestCase
             $emisor,
             $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0,
-            $this->sucursalCon('AR-B')
+            'AR-B'
         );
 
         $this->assertSame([], $tributos);
@@ -250,7 +243,7 @@ class ImpuestoServiceTest extends TestCase
         $this->config($emisor, $imp, ['alicuota' => 3.0, 'vigente_hasta' => '2026-03-31']);
 
         $receptor = $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO);
-        $sucursal = $this->sucursalCon('AR-B');
+        $sucursal = 'AR-B';
 
         // Operación dentro de la vigencia → percibe.
         $dentro = $this->service->calcularTributos($emisor, $receptor, 1000.0, $sucursal, \Carbon\Carbon::parse('2026-03-15'));
@@ -270,7 +263,7 @@ class ImpuestoServiceTest extends TestCase
             $emisor,
             $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0,
-            $this->sucursalCon('AR-B')
+            'AR-B'
         );
 
         $this->assertSame([], $tributos);
@@ -288,7 +281,7 @@ class ImpuestoServiceTest extends TestCase
             $emisor,
             $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
             2000.0,
-            $this->sucursalCon(null) // sin provincia: IVA nacional igual aplica
+            null // sin jurisdicción: IVA nacional igual aplica
         );
 
         $this->assertCount(1, $tributos);
@@ -308,7 +301,7 @@ class ImpuestoServiceTest extends TestCase
             $emisor,
             $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0, // < 5000
-            $this->sucursalCon('AR-B')
+            'AR-B'
         );
 
         $this->assertSame([], $tributos);
@@ -321,10 +314,10 @@ class ImpuestoServiceTest extends TestCase
         $this->config($emisor, $imp);
 
         $this->assertSame([], $this->service->calcularTributos(
-            $emisor, $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO), 0.0, $this->sucursalCon('AR-B')
+            $emisor, $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO), 0.0, 'AR-B'
         ));
         $this->assertSame([], $this->service->calcularTributos(
-            $emisor, $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO), -100.0, $this->sucursalCon('AR-B')
+            $emisor, $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO), -100.0, 'AR-B'
         ));
     }
 
@@ -338,7 +331,7 @@ class ImpuestoServiceTest extends TestCase
             $emisor,
             $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0,
-            $this->sucursalCon('AR-B')
+            'AR-B'
         );
 
         $this->assertSame([], $tributos);
@@ -356,7 +349,7 @@ class ImpuestoServiceTest extends TestCase
             $emisor,
             $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0,
-            $this->sucursalCon('AR-B')
+            'AR-B'
         );
 
         $this->assertCount(2, $tributos);

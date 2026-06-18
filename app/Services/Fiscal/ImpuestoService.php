@@ -10,7 +10,6 @@ use App\Models\Cuit;
 use App\Models\CuitImpuestoConfig;
 use App\Models\Impuesto;
 use App\Models\MovimientoFiscal;
-use App\Models\Sucursal;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\DB;
@@ -204,19 +203,21 @@ class ImpuestoService
      * inscripto, con alícuota cargada) Y el receptor es Responsable Inscripto.
      *  - Percepción IVA (nacional): sin condicionamiento por jurisdicción.
      *  - Percepción IIBB (provincial): solo si la jurisdicción del impuesto
-     *    coincide con la provincia de la SUCURSAL de la operación. El match fino
-     *    por provincia del receptor queda para la fase de padrones (D3): hoy no
-     *    tenemos ese dato confiable.
+     *    coincide con la jurisdicción de la operación. Esta sale del DOMICILIO
+     *    FISCAL del punto de venta del comprobante (RF-11, Fase 9), no de la
+     *    sucursal física. El match fino por provincia del receptor queda para la
+     *    fase de padrones (D3): hoy no tenemos ese dato confiable.
      * Respeta `alicuota_minimo_base` (si el neto gravado es menor → no percibe).
      * Consumidor final / monotributo / exento / receptor null → sin percepción.
      *
      * El IVA débito del comprobante NO se calcula acá (lo hace
      * ComprobanteFiscalIva); esto devuelve solo las percepciones extra.
      *
+     * @param  ?string  $jurisdiccion  ISO 3166-2 del domicilio del PV (jurisdicción de la operación); null = sin jurisdicción → no aplica IIBB provincial
      * @param  ?Carbon  $fecha  fecha de la operación (para la vigencia de la config); por defecto hoy
      * @return array<int, array{impuesto_id:int, codigo:string, tipo:string, jurisdiccion:?string, base_imponible:float, alicuota:float, monto:float}>
      */
-    public function calcularTributos(Cuit $emisor, ?CondicionIva $receptor, float $netoGravado, ?Sucursal $sucursal = null, ?Carbon $fecha = null): array
+    public function calcularTributos(Cuit $emisor, ?CondicionIva $receptor, float $netoGravado, ?string $jurisdiccion = null, ?Carbon $fecha = null): array
     {
         // REVISAR (Fable): la matriz es v1 conservador (ver "Revisión pendiente"
         // en el spec). Puntos que AÚN faltan auditar contra la normativa real:
@@ -242,7 +243,7 @@ class ImpuestoService
             return [];
         }
 
-        $jurisdiccionOperacion = $sucursal?->provincia;
+        $jurisdiccionOperacion = $jurisdiccion;
         $base = round($netoGravado, 2);
 
         $configs = $emisor->impuestoConfigs()
@@ -272,7 +273,7 @@ class ImpuestoService
             }
 
             // IIBB provincial: la jurisdicción del impuesto debe coincidir con
-            // la provincia de la sucursal de la operación.
+            // la jurisdicción de la operación (domicilio fiscal del PV).
             if ($impuesto->tipo === Impuesto::TIPO_IIBB) {
                 if ($jurisdiccionOperacion === null || $impuesto->jurisdiccion !== $jurisdiccionOperacion) {
                     continue;

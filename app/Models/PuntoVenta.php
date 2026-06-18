@@ -40,6 +40,7 @@ class PuntoVenta extends Model
      */
     protected $fillable = [
         'cuit_id',
+        'cuit_domicilio_id',
         'numero',
         'nombre',
         'activo',
@@ -50,6 +51,7 @@ class PuntoVenta extends Model
      */
     protected $casts = [
         'numero' => 'integer',
+        'cuit_domicilio_id' => 'integer',
         'activo' => 'boolean',
     ];
 
@@ -59,6 +61,25 @@ class PuntoVenta extends Model
     public function cuit(): BelongsTo
     {
         return $this->belongsTo(Cuit::class);
+    }
+
+    /**
+     * Domicilio fiscal declarado del PV (RF-11, Fase 9).
+     * Origen de la jurisdicción de la operación.
+     */
+    public function cuitDomicilio(): BelongsTo
+    {
+        return $this->belongsTo(CuitDomicilio::class);
+    }
+
+    /**
+     * Jurisdicción fiscal (ISO 3166-2) de la operación según el domicilio
+     * declarado del PV. Helper común (RF-11, Fase 9): de acá sale la jurisdicción
+     * de IIBB tanto para calcular percepciones aplicadas como para la posición.
+     */
+    public function jurisdiccionFiscal(): ?string
+    {
+        return $this->cuitDomicilio?->provincia;
     }
 
     /**

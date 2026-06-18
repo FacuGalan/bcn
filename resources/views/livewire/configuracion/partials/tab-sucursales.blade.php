@@ -63,6 +63,14 @@
                                     >
                                 </div>
 
+                                {{-- Domicilio físico estructurado: provincia + localidad + geo (RF-11) --}}
+                                <div class="pt-2 border-t border-gray-200 dark:border-gray-600">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                        {{ __('Ubicación de la sucursal (provincia, localidad y coordenadas). Útil para reportes, logística y tienda online; independiente de la facturación.') }}
+                                    </p>
+                                    @include('livewire.partials.domicilio-form', ['conTipo' => false, 'conDireccion' => false, 'idPrefix' => 'sucdom'])
+                                </div>
+
                                 {{-- Teléfono y Email --}}
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>

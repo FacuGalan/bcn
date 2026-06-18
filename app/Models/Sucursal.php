@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\TenantService;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
@@ -126,7 +127,7 @@ class Sucursal extends Model
         'pedido_mostrador_ultimo_numero', 'imprime_comanda_automatico',
         'pedido_conversion_automatica_al_entregar', 'usa_beepers',
         // Geolocalización + Mercado Pago Stores
-        'latitud', 'longitud', 'localidad', 'provincia',
+        'latitud', 'longitud', 'localidad', 'localidad_id', 'provincia',
         'mp_store_id', 'mp_store_external_id',
     ];
 
@@ -149,6 +150,7 @@ class Sucursal extends Model
         'usa_beepers' => 'boolean',
         'latitud' => 'decimal:7',
         'longitud' => 'decimal:7',
+        'localidad_id' => 'integer',
     ];
 
     public function tieneCoordenadas(): bool
@@ -173,6 +175,17 @@ class Sucursal extends Model
     }
 
     // Relaciones
+
+    /**
+     * Localidad del domicilio físico (tabla en config, ref soft sin FK cross-DB).
+     * Domicilio estructurado de la sucursal (RF-11, Fase 9), independiente de
+     * tener CUIT o integración de pago.
+     */
+    public function localidad(): BelongsTo
+    {
+        return $this->belongsTo(Localidad::class);
+    }
+
     public function stocks(): HasMany
     {
         return $this->hasMany(Stock::class, 'sucursal_id');

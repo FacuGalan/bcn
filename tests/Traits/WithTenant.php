@@ -88,6 +88,7 @@ trait WithTenant
         'integraciones_pago',
         'movimientos_fiscales',
         'cuit_impuesto_configs',
+        'cuit_domicilios',
         'impuestos',
     ];
 

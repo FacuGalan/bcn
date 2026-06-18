@@ -205,6 +205,31 @@ class PosicionFiscalServiceTest extends TestCase
         $this->assertEquals(10, $porIso['AR-C']['a_cuenta']);
     }
 
+    public function test_posicion_iibb_usa_la_jurisdiccion_del_domicilio_del_pv(): void
+    {
+        // RF-11, Fase 9: la jurisdicción de la base imponible sale del domicilio
+        // fiscal del PV, NO de la sucursal física.
+        $cuit = $this->cuit();
+
+        // Sucursal física en AR-C, pero el domicilio fiscal del PV está en AR-B.
+        Sucursal::find($this->sucursalId)->update(['provincia' => 'AR-C']);
+
+        $compId = $this->comprobante($cuit, ['neto_gravado' => 3000, 'total' => 3630, 'iva_total' => 630]);
+        $comp = \App\Models\ComprobanteFiscal::find($compId);
+
+        $dom = \App\Models\CuitDomicilio::create([
+            'cuit_id' => $cuit->id, 'tipo' => 'fiscal', 'provincia' => 'AR-B',
+            'direccion' => 'Dom B', 'es_principal' => true, 'activo' => true,
+        ]);
+        \App\Models\PuntoVenta::where('id', $comp->punto_venta_id)->update(['cuit_domicilio_id' => $dom->id]);
+
+        $porIso = collect($this->service->posicionIibb($cuit, $this->periodo))->keyBy('jurisdiccion');
+
+        // La base cae en AR-B (domicilio del PV), no en AR-C (sucursal física).
+        $this->assertEquals(3000, $porIso['AR-B']['base_imponible'] ?? 0);
+        $this->assertArrayNotHasKey('AR-C', $porIso->all());
+    }
+
     // ==================== libros ====================
 
     public function test_libro_iva_ventas_toma_solo_comprobantes_autorizados_del_periodo(): void

@@ -191,20 +191,24 @@ class PosicionFiscalService
             }
         }
 
-        // Base imponible de ventas por jurisdicción (provincia de la sucursal del
-        // comprobante; `sucursales.provincia` ya guarda el código ISO).
+        // Base imponible de ventas por jurisdicción. La jurisdicción sale del
+        // DOMICILIO FISCAL del punto de venta del comprobante (RF-11, Fase 9), no
+        // de la sucursal física: una caja puede facturar con un PV cuyo CUIT está
+        // domiciliado en otra provincia. Fallback a la provincia de la sucursal y,
+        // en última instancia, 'AR' (sin jurisdicción provincial definida).
         $comprobantes = ComprobanteFiscal::query()
             ->autorizados()
             ->where('cuit_id', $cuit->id)
             ->whereBetween('fecha_emision', [$desde, $hasta])
-            ->with('sucursal:id,provincia')
-            ->get(['id', 'tipo', 'sucursal_id', 'neto_gravado', 'comprobante_asociado_id']);
+            ->with(['puntoVenta.cuitDomicilio:id,provincia', 'sucursal:id,provincia'])
+            ->get(['id', 'tipo', 'punto_venta_id', 'sucursal_id', 'neto_gravado', 'comprobante_asociado_id']);
 
         foreach ($comprobantes as $comprobante) {
-            $iso = $comprobante->sucursal?->provincia;
+            $iso = $comprobante->puntoVenta?->cuitDomicilio?->provincia
+                ?: $comprobante->sucursal?->provincia;
 
             if (empty($iso)) {
-                $iso = 'AR'; // Sin jurisdicción definida (sucursal sin provincia).
+                $iso = 'AR'; // Sin jurisdicción definida.
             }
 
             $ensure($iso);

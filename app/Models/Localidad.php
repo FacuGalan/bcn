@@ -89,20 +89,16 @@ class Localidad extends Model
 
     /**
      * Obtiene localidades para select por provincia
+     *
+     * El código postal NO se muestra: el padrón GeoRef no lo provee de forma
+     * confiable (RF-11, Fase 9). El nombre de la localidad alcanza para el
+     * domicilio fiscal; la jurisdicción la determina la provincia.
      */
     public static function paraSelect(int $provinciaId): array
     {
         return static::porProvincia($provinciaId)
             ->ordenadas()
-            ->get()
-            ->mapWithKeys(function ($loc) {
-                $label = $loc->nombre;
-                if ($loc->codigo_postal) {
-                    $label .= " ({$loc->codigo_postal})";
-                }
-
-                return [$loc->id => $label];
-            })
+            ->pluck('nombre', 'id')
             ->toArray();
     }
 }

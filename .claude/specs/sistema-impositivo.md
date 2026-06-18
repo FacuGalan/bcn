@@ -382,7 +382,14 @@ nuevos quedan provistos). 31 traducciones es/en/pt. Tests: 5 unit
 IIBB, libros) + 4 smoke `SmokeFiscalTest`; suite del área verde (69), Pint OK.
 NO se tocaron tablas tenant (no regenerar tenant_tables.sql).
 
-### Fase 9: Domicilios fiscales y jurisdicción de la operación [PENDIENTE] — PREREQUISITO DE 5b
+### Fase 9: Domicilios fiscales y jurisdicción de la operación [COMPLETO] — PREREQUISITO DE 5b
+
+> Cerrada 2026-06-18. Los 7 pasos implementados + extras de UI pedidos por el usuario.
+> **Hecho**: (1) reseed `localidades` desde GeoRef (3873, con geo; remapeo de `cuits.localidad_id`; CP fuera de la UI) — `database/data/localidades_georef.json` + `LocalidadesSeeder` reescrito + migración `2026_06_18_000001`. (2) Tablas `cuit_domicilios` + `puntos_venta.cuit_domicilio_id` + `sucursales.localidad_id` (migración `..._000002`, tenant_tables.sql regenerado por mysqldump). Modelo `CuitDomicilio` + relaciones (`Cuit hasMany domicilios`, `PuntoVenta belongsTo cuitDomicilio` + helper `jurisdiccionFiscal()`, `Sucursal belongsTo localidad`, `ComprobanteFiscal::jurisdiccionFiscal()`). (3) Migración de datos `..._000003` (domicilio principal por CUIT, PV→principal, backfill localidad sucursal). (4) Trait reutilizable `ManejaDomicilio` + partial `livewire/partials/domicilio-form` (provincia ISO→localidad dependiente + geo). (5) UI: componentes embebidos `CuitDomicilios` + `CuitPuntosVenta` (botones por CUIT, mismo patrón que Impuestos) + domicilio físico de sucursal standalone; selector de domicilio por PV. (6) Jurisdicción fiscal desde el domicilio del PV en `calcularTributos` (ahora recibe `?string $jurisdiccion`) y `posicionIibb` (agrupa por `comprobante->puntoVenta->cuitDomicilio->provincia`, fallback sucursal→AR). (7) Traducciones es/en/pt (30 claves) + smoke tests (80 verdes: SmokeConfiguracion 34 + ImpuestoService + PosicionFiscal).
+> **Extras de UI (pedidos en la sesión)**: ABM de PV sacado del modal de alta/edición del CUIT → componente/botón aparte; domicilio fiscal sacado del modal del CUIT (fuente única = `cuit_domicilios`, la card muestra el principal); card de CUIT compactada; barra de botones homogénea y responsive (mobile sin overflow); `wire:confirm` nativo reemplazado por componente `<x-bcn-confirm>` (modal in-app, z-[60]); persistencia de tab por URL (`#[Url] tabActivo`, F5 mantiene pestaña); fix bug preexistente `PuntoVenta::eliminarCertificados()` al borrar CUIT.
+
+#### Implementación original (referencia)
+### Fase 9 (plan original): Domicilios fiscales y jurisdicción de la operación — PREREQUISITO DE 5b
 > Agregada 2026-06-17 (RF-11). Debe completarse ANTES de la Fase 5b, porque las
 > percepciones aplicadas viajan a AFIP con la jurisdicción del PV. Decisiones del
 > usuario en "Notas" (2026-06-17).
@@ -395,6 +402,17 @@ Orden sugerido de implementación:
 5. **UI**: (a) gestión de domicilios por CUIT en tab-cuits de `ConfiguracionEmpresa` (sección "Domicilios", CRUD, marcar principal); (b) selector de domicilio por PV (filtrado a los del CUIT del PV) en la gestión de puntos de venta; (c) **domicilio físico estructurado en la config de sucursales — editable SIN depender de CUIT ni de integración de pago** (provincia/localidad/geo como dato propio de la sucursal, para tienda digital / logística / correctitud); MP reusa los mismos campos vía el componente compartido. Gate: `func.fiscal.configuracion` (ya creado) o el de ConfiguracionEmpresa.
 6. **Cambio de jurisdicción en lo fiscal**: `ImpuestoService::calcularTributos` deja de recibir `Sucursal` y recibe la **jurisdicción de la operación** (ISO) resuelta desde el domicilio del PV — actualizar firma + tests (Fase 2). `PosicionFiscalService::posicionIibb` agrupa la base imponible por `comprobante->puntoVenta->cuitDomicilio->provincia` en vez de `sucursal->provincia` — actualizar método + test (Fase 7). Helper común para resolver la jurisdicción desde un comprobante/PV.
 7. Traducciones es/en/pt + smoke de las pantallas tocadas.
+
+### Fase 10: Perfil fiscal del cliente + padrones [PENDIENTE] — va junto con 5b
+> Agregada 2026-06-18. Surge de la pregunta del usuario: la percepción de IIBB
+> depende también del CLIENTE, no solo del agente (ver [[project-iibb-percepcion-depende-del-cliente]]).
+> El motor v1 usa solo la jurisdicción del agente (domicilio del PV) con alícuota
+> FIJA. Lo fino necesita el cliente, y su único consumidor es la emisión (5b), por
+> eso van juntas (cargar config sin 5b = config muerta).
+- **Jurisdicción del cliente**: agregar provincia/localidad estructurada al `Cliente` (reusar `ManejaDomicilio` + partial). Define destino de la operación y fallback de jurisdicción.
+- **Perfil fiscal del cliente (percepciones)**: si se le percibe y a qué alícuota. Distinguir **percepción** (al vender) de **retención** (al pagar): las retenciones que aplica el comercio son a PROVEEDORES (config por proveedor en compras), NO al cliente; las que un cliente nos hace son sufridas (conciliación/alta manual).
+- **Padrón ARBA/AGIP**: importar padrón por CUIT → alícuota por sujeto (`cuit_impuesto_configs.origen_alicuota = padron` ya previsto). Override manual por cliente para exentos / fuera de padrón.
+- Depende de 5b (emisión con `calcularTributos` cableado) para tener efecto real.
 
 ### Fase 8: Verificación + docs [PENDIENTE]
 /sdd-verify, @docs-sync, manual de usuario.

@@ -819,6 +819,25 @@ CREATE TABLE `{{PREFIX}}cuenta_empresa_sucursal` (
   CONSTRAINT `{{PREFIX}}cuenta_emp_suc_cuenta_fk` FOREIGN KEY (`cuenta_empresa_id`) REFERENCES `{{PREFIX}}cuentas_empresa` (`id`) ON DELETE CASCADE,
   CONSTRAINT `{{PREFIX}}cuenta_emp_suc_sucursal_fk` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}cuit_domicilios`;
+CREATE TABLE `{{PREFIX}}cuit_domicilios` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `cuit_id` bigint(20) unsigned NOT NULL,
+  `tipo` enum('fiscal','comercial','otro') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'fiscal',
+  `provincia` varchar(6) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'ISO 3166-2 - jurisdiccion',
+  `localidad_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Ref soft a localidades (config)',
+  `direccion` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `codigo_postal` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Diferido - no usado en UI',
+  `latitud` decimal(10,7) DEFAULT NULL,
+  `longitud` decimal(10,7) DEFAULT NULL,
+  `es_principal` tinyint(1) NOT NULL DEFAULT '0',
+  `activo` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}idx_cdom_cuit` (`cuit_id`),
+  CONSTRAINT `{{PREFIX}}fk_cdom_cuit` FOREIGN KEY (`cuit_id`) REFERENCES `{{PREFIX}}cuits` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}cuit_impuesto_configs`;
 CREATE TABLE `{{PREFIX}}cuit_impuesto_configs` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -1971,6 +1990,7 @@ DROP TABLE IF EXISTS `{{PREFIX}}puntos_venta`;
 CREATE TABLE `{{PREFIX}}puntos_venta` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `cuit_id` bigint(20) unsigned NOT NULL,
+  `cuit_domicilio_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Domicilio declarado del PV',
   `numero` smallint(6) NOT NULL COMMENT 'Número de punto de venta (1-99999)',
   `nombre` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Descripción o alias del punto',
   `certificado_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Path al certificado encriptado',
@@ -1983,8 +2003,10 @@ CREATE TABLE `{{PREFIX}}puntos_venta` (
   UNIQUE KEY `uk_puntos_venta_cuit_numero` (`cuit_id`,`numero`),
   KEY `idx_puntos_venta_cuit` (`cuit_id`),
   KEY `idx_puntos_venta_activo` (`activo`),
+  KEY `{{PREFIX}}fk_pv_cdom` (`cuit_domicilio_id`),
+  CONSTRAINT `{{PREFIX}}fk_pv_cdom` FOREIGN KEY (`cuit_domicilio_id`) REFERENCES `{{PREFIX}}cuit_domicilios` (`id`) ON DELETE SET NULL,
   CONSTRAINT `{{PREFIX}}puntos_venta_cuit_id_foreign` FOREIGN KEY (`cuit_id`) REFERENCES `{{PREFIX}}cuits` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}punto_venta_caja`;
 CREATE TABLE `{{PREFIX}}punto_venta_caja` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -2104,10 +2126,11 @@ CREATE TABLE `{{PREFIX}}sucursales` (
   `nombre_publico` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Nombre comercial visible al público',
   `codigo` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Código único de la sucursal',
   `direccion` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Dirección física',
-  `latitud` decimal(10,7) DEFAULT NULL COMMENT 'Latitud para geolocalización (Mercado Pago + tienda online)',
-  `longitud` decimal(10,7) DEFAULT NULL COMMENT 'Longitud para geolocalización',
-  `localidad` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Localidad/ciudad (city_name en MP)',
-  `provincia` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Código ISO 3166-2 de la provincia (ej: AR-B). Se traduce al nombre al armar payloads externos',
+  `latitud` decimal(10,7) DEFAULT NULL,
+  `longitud` decimal(10,7) DEFAULT NULL,
+  `localidad` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `localidad_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Ref soft a localidades (config)',
+  `provincia` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `telefono` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Teléfono de contacto',
   `email` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Email de contacto',
   `logo_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -2136,8 +2159,8 @@ CREATE TABLE `{{PREFIX}}sucursales` (
   `mensaje_whatsapp_comanda` text COLLATE utf8mb4_unicode_ci COMMENT 'Mensaje adicional para WhatsApp al comandar',
   `envia_whatsapp_listo` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si envía WhatsApp cuando pedido está listo/en camino',
   `mensaje_whatsapp_listo` text COLLATE utf8mb4_unicode_ci COMMENT 'Mensaje adicional para WhatsApp pedido listo',
-  `mp_store_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ID numérico de la store en Mercado Pago (sincronización QR)',
-  `mp_store_external_id` varchar(60) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'external_id de la store en MP, formato BCN-{c}-{s}',
+  `mp_store_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `mp_store_external_id` varchar(60) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_codigo` (`codigo`),
   UNIQUE KEY `uniq_sucursales_mp_store_external_id` (`mp_store_external_id`),

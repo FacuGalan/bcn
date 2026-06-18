@@ -87,6 +87,17 @@ class ComprobanteFiscal extends Model
         return $this->belongsTo(PuntoVenta::class);
     }
 
+    /**
+     * Jurisdicción fiscal (ISO 3166-2) de la operación (RF-11, Fase 9): sale del
+     * domicilio declarado del punto de venta; si no está, cae a la provincia de
+     * la sucursal física. Lo consumen el cálculo de percepciones IIBB aplicadas
+     * (Fase 5b) y la posición de IIBB (Fase 7).
+     */
+    public function jurisdiccionFiscal(): ?string
+    {
+        return $this->puntoVenta?->jurisdiccionFiscal() ?? $this->sucursal?->provincia;
+    }
+
     public function cuit(): BelongsTo
     {
         return $this->belongsTo(Cuit::class);

@@ -3,7 +3,9 @@
 namespace Tests\Feature\Livewire\Configuracion;
 
 use App\Livewire\Configuracion\ConfiguracionEmpresa;
+use App\Livewire\Configuracion\CuitDomicilios;
 use App\Livewire\Configuracion\CuitImpuestos;
+use App\Livewire\Configuracion\CuitPuntosVenta;
 use App\Livewire\Configuracion\FormasPagoSucursal;
 use App\Livewire\Configuracion\GestionarFormasPago;
 use App\Livewire\Configuracion\GestionMonedas;
@@ -402,6 +404,180 @@ class SmokeConfiguracionTest extends TestCase
             ->assertViewHas('impuestosDisponibles', fn ($d) => $d->pluck('codigo')->doesntContain('iva_debito'))
             ->set('buscarImpuesto', 'IIBB')
             ->assertViewHas('impuestosDisponibles', fn ($d) => $d->pluck('codigo')->contains('perc_iibb_ar_b'));
+    }
+
+    public function test_cuit_domicilios_monta(): void
+    {
+        Livewire::test(CuitDomicilios::class)->assertOk();
+    }
+
+    public function test_cuit_domicilios_abrir_y_guardar_domicilio(): void
+    {
+        $condIva = \App\Models\CondicionIva::firstOrCreate(['codigo' => 1], ['nombre' => 'Responsable Inscripto']);
+        $cuit = \App\Models\Cuit::firstOrCreate(
+            ['numero_cuit' => '20111111113'],
+            ['razon_social' => 'Test SA', 'condicion_iva_id' => $condIva->id, 'entorno_afip' => 'testing', 'activo' => true]
+        );
+
+        Livewire::test(CuitDomicilios::class)
+            ->call('abrir', $cuit->id)
+            ->assertSet('mostrarModal', true)
+            ->assertSet('cuitId', $cuit->id)
+            ->call('nuevoDomicilio')
+            ->set('domProvincia', 'AR-B')
+            ->set('domDireccion', 'Calle Falsa 123')
+            ->call('guardarDomicilio')
+            ->assertCount('domicilios', 1);
+
+        // El primer domicilio queda como principal.
+        $this->assertDatabaseHas('cuit_domicilios', [
+            'cuit_id' => $cuit->id,
+            'provincia' => 'AR-B',
+            'direccion' => 'Calle Falsa 123',
+            'es_principal' => 1,
+        ], 'pymes_tenant');
+    }
+
+    public function test_cuit_domicilios_marcar_principal_y_eliminar(): void
+    {
+        $condIva = \App\Models\CondicionIva::firstOrCreate(['codigo' => 1], ['nombre' => 'Responsable Inscripto']);
+        $cuit = \App\Models\Cuit::firstOrCreate(
+            ['numero_cuit' => '20111111113'],
+            ['razon_social' => 'Test SA', 'condicion_iva_id' => $condIva->id, 'entorno_afip' => 'testing', 'activo' => true]
+        );
+        $d1 = \App\Models\CuitDomicilio::create([
+            'cuit_id' => $cuit->id, 'tipo' => 'fiscal', 'provincia' => 'AR-B',
+            'direccion' => 'Dom 1', 'es_principal' => true, 'activo' => true,
+        ]);
+        $d2 = \App\Models\CuitDomicilio::create([
+            'cuit_id' => $cuit->id, 'tipo' => 'comercial', 'provincia' => 'AR-C',
+            'direccion' => 'Dom 2', 'es_principal' => false, 'activo' => true,
+        ]);
+
+        Livewire::test(CuitDomicilios::class)
+            ->call('abrir', $cuit->id)
+            ->call('marcarPrincipal', $d2->id)
+            ->call('confirmarEliminar', $d1->id)
+            ->assertSet('confirmandoEliminarId', $d1->id)
+            ->call('eliminarConfirmado')
+            ->assertSet('confirmandoEliminarId', null)
+            ->assertCount('domicilios', 1);
+
+        $this->assertDatabaseHas('cuit_domicilios', ['id' => $d2->id, 'es_principal' => 1], 'pymes_tenant');
+        $this->assertDatabaseMissing('cuit_domicilios', ['id' => $d1->id], 'pymes_tenant');
+    }
+
+    public function test_configuracion_empresa_tab_cuits_renderiza(): void
+    {
+        $condIva = \App\Models\CondicionIva::firstOrCreate(['codigo' => 1], ['nombre' => 'Responsable Inscripto']);
+        $cuit = \App\Models\Cuit::firstOrCreate(
+            ['numero_cuit' => '20111111113'],
+            ['razon_social' => 'Test SA', 'condicion_iva_id' => $condIva->id, 'entorno_afip' => 'testing', 'activo' => true]
+        );
+        \App\Models\CuitDomicilio::firstOrCreate(
+            ['cuit_id' => $cuit->id, 'es_principal' => true],
+            ['tipo' => 'fiscal', 'provincia' => 'AR-B', 'direccion' => 'Calle 1', 'activo' => true]
+        );
+
+        Livewire::test(ConfiguracionEmpresa::class)
+            ->set('tabActivo', 'cuits')
+            ->assertOk()
+            ->assertSee('Test SA');
+    }
+
+    public function test_configuracion_empresa_editar_cuit_monta(): void
+    {
+        $condIva = \App\Models\CondicionIva::firstOrCreate(['codigo' => 1], ['nombre' => 'Responsable Inscripto']);
+        $cuit = \App\Models\Cuit::firstOrCreate(
+            ['numero_cuit' => '20111111113'],
+            ['razon_social' => 'Test SA', 'condicion_iva_id' => $condIva->id, 'entorno_afip' => 'testing', 'activo' => true]
+        );
+
+        Livewire::test(ConfiguracionEmpresa::class)
+            ->call('editarCuit', $cuit->id)
+            ->assertOk()
+            ->assertSet('mostrarModalCuit', true);
+    }
+
+    public function test_configuracion_empresa_tab_se_sanea_si_es_invalido(): void
+    {
+        Livewire::withQueryParams(['tab' => 'inexistente'])
+            ->test(ConfiguracionEmpresa::class)
+            ->assertOk()
+            ->assertSet('tabActivo', 'empresa');
+    }
+
+    public function test_cuit_puntos_venta_monta(): void
+    {
+        Livewire::test(CuitPuntosVenta::class)->assertOk();
+    }
+
+    public function test_cuit_puntos_venta_abrir_agregar_y_asignar_domicilio(): void
+    {
+        $condIva = \App\Models\CondicionIva::firstOrCreate(['codigo' => 1], ['nombre' => 'Responsable Inscripto']);
+        $cuit = \App\Models\Cuit::firstOrCreate(
+            ['numero_cuit' => '20111111113'],
+            ['razon_social' => 'Test SA', 'condicion_iva_id' => $condIva->id, 'entorno_afip' => 'testing', 'activo' => true]
+        );
+        \App\Models\PuntoVenta::withTrashed()->where('cuit_id', $cuit->id)->forceDelete();
+        $dom = \App\Models\CuitDomicilio::create([
+            'cuit_id' => $cuit->id, 'tipo' => 'fiscal', 'provincia' => 'AR-B',
+            'direccion' => 'Av Siempre Viva 742', 'es_principal' => true, 'activo' => true,
+        ]);
+
+        $component = Livewire::test(CuitPuntosVenta::class)
+            ->call('abrir', $cuit->id)
+            ->assertSet('mostrarModal', true)
+            ->set('nuevoPuntoVentaNumero', 1)
+            ->call('agregarPuntoVenta')
+            ->assertCount('puntosVenta', 1);
+
+        $pv = \App\Models\PuntoVenta::where('cuit_id', $cuit->id)->where('numero', 1)->first();
+        $component->call('actualizarDomicilioPv', $pv->id, $dom->id);
+
+        $this->assertDatabaseHas('puntos_venta', [
+            'id' => $pv->id,
+            'cuit_domicilio_id' => $dom->id,
+        ], 'pymes_tenant');
+    }
+
+    public function test_cuit_puntos_venta_confirmar_y_eliminar(): void
+    {
+        $condIva = \App\Models\CondicionIva::firstOrCreate(['codigo' => 1], ['nombre' => 'Responsable Inscripto']);
+        $cuit = \App\Models\Cuit::firstOrCreate(
+            ['numero_cuit' => '20111111113'],
+            ['razon_social' => 'Test SA', 'condicion_iva_id' => $condIva->id, 'entorno_afip' => 'testing', 'activo' => true]
+        );
+        \App\Models\PuntoVenta::withTrashed()->where('cuit_id', $cuit->id)->forceDelete();
+        $pv = \App\Models\PuntoVenta::create(['cuit_id' => $cuit->id, 'numero' => 7, 'activo' => true]);
+
+        Livewire::test(CuitPuntosVenta::class)
+            ->call('abrir', $cuit->id)
+            ->call('confirmarEliminar', $pv->id)
+            ->assertSet('confirmandoEliminarId', $pv->id)
+            ->call('eliminarConfirmado')
+            ->assertSet('confirmandoEliminarId', null)
+            ->assertCount('puntosVenta', 0);
+
+        $this->assertSoftDeleted('puntos_venta', ['id' => $pv->id], 'pymes_tenant');
+    }
+
+    public function test_configuracion_empresa_editar_sucursal_guarda_domicilio_fisico(): void
+    {
+        $sucursal = \App\Models\Sucursal::find($this->sucursalId);
+
+        Livewire::test(ConfiguracionEmpresa::class)
+            ->call('editarSucursal', $sucursal->id)
+            ->assertOk()
+            ->assertSet('sucursalEditandoId', $sucursal->id)
+            ->set('domProvincia', 'AR-B')
+            ->set('domLatitud', '-34.6037')
+            ->set('domLongitud', '-58.3816')
+            ->call('guardarSucursal');
+
+        $fresca = \App\Models\Sucursal::find($sucursal->id);
+        $this->assertSame('AR-B', $fresca->provincia);
+        $this->assertSame('-34.6037000', (string) $fresca->latitud);
     }
 
     public function test_roles_permisos_monta(): void

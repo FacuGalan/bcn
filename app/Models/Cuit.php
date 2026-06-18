@@ -84,6 +84,14 @@ class Cuit extends Model
     }
 
     /**
+     * Domicilios fiscales declarados del CUIT (RF-11, Fase 9)
+     */
+    public function domicilios(): HasMany
+    {
+        return $this->hasMany(CuitDomicilio::class);
+    }
+
+    /**
      * Relación con localidad (tabla en config)
      */
     public function localidad(): BelongsTo
