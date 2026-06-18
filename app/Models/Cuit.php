@@ -345,6 +345,14 @@ class Cuit extends Model
     {
         $comercioId = app(TenantService::class)->getComercioId();
         $contenido = file_get_contents($file->getRealPath());
+
+        // Guard: no almacenar un archivo vacío/ilegible. Sin esto el certificado
+        // se guarda en 0 bytes y recién falla al emitir ("Certificados no
+        // configurados"), con la UI mostrando engañosamente "configurados".
+        if ($contenido === false || strlen(trim($contenido)) === 0) {
+            throw new \RuntimeException("El archivo de {$tipo} está vacío o no se pudo leer. Volvé a subirlo.");
+        }
+
         $contenidoEncriptado = encrypt($contenido);
 
         $directorio = "certificados/{$comercioId}/{$this->id}";
