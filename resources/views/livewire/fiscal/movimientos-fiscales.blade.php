@@ -187,7 +187,7 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('CUIT') }} <span class="text-red-500">*</span></label>
-                            <select wire:model="formCuitId"
+                            <select wire:model.live="formCuitId"
                                 class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
                                 <option value="">{{ __('Seleccionar') }}</option>
                                 @foreach($cuits as $c)
@@ -198,12 +198,29 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Impuesto') }} <span class="text-red-500">*</span></label>
+                            @php
+                                $impConfigurados = $impuestos->whereIn('id', $impuestoConfigIds);
+                                $impOtros = $impuestos->whereNotIn('id', $impuestoConfigIds);
+                            @endphp
                             <select wire:model.live="formImpuestoId"
                                 class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm">
                                 <option value="">{{ __('Seleccionar') }}</option>
-                                @foreach($impuestos as $imp)
-                                    <option value="{{ $imp->id }}">{{ $imp->nombre }}</option>
-                                @endforeach
+                                @if($impConfigurados->isNotEmpty())
+                                    <optgroup label="{{ __('Configurados para este CUIT') }}">
+                                        @foreach($impConfigurados as $imp)
+                                            <option value="{{ $imp->id }}">{{ $imp->nombre }}</option>
+                                        @endforeach
+                                    </optgroup>
+                                    <optgroup label="{{ __('Otros impuestos del catálogo') }}">
+                                        @foreach($impOtros as $imp)
+                                            <option value="{{ $imp->id }}">{{ $imp->nombre }}</option>
+                                        @endforeach
+                                    </optgroup>
+                                @else
+                                    @foreach($impOtros as $imp)
+                                        <option value="{{ $imp->id }}">{{ $imp->nombre }}</option>
+                                    @endforeach
+                                @endif
                             </select>
                             @error('formImpuestoId') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
                         </div>

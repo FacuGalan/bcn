@@ -7,6 +7,7 @@ use App\Livewire\Fiscal\MovimientosFiscales;
 use App\Livewire\Fiscal\PosicionFiscal;
 use App\Models\CondicionIva;
 use App\Models\Cuit;
+use App\Models\CuitImpuestoConfig;
 use App\Models\Impuesto;
 use App\Models\MovimientoFiscal;
 use App\Models\User;
@@ -146,6 +147,27 @@ class SmokeFiscalTest extends TestCase
             ->call('registrarMovimiento')
             ->assertHasErrors('formMonto')
             ->assertSet('mostrarModalAlta', true);
+    }
+
+    public function test_movimientos_fiscales_agrupa_impuestos_configurados(): void
+    {
+        $cuit = $this->cuit();
+        $imp = $this->impuesto();
+
+        CuitImpuestoConfig::create([
+            'cuit_id' => $cuit->id,
+            'impuesto_id' => $imp->id,
+            'inscripto' => true,
+            'es_agente_percepcion' => false,
+            'alicuota' => 1.5,
+            'origen_alicuota' => CuitImpuestoConfig::ORIGEN_MANUAL,
+        ]);
+
+        Livewire::test(MovimientosFiscales::class)
+            ->call('abrirModalAlta')
+            ->set('formCuitId', $cuit->id)
+            ->assertSee(__('Configurados para este CUIT'))
+            ->assertSee(__('Otros impuestos del catálogo'));
     }
 
     public function test_movimientos_fiscales_anula_por_contraasiento(): void

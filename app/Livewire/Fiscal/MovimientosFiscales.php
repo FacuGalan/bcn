@@ -3,6 +3,7 @@
 namespace App\Livewire\Fiscal;
 
 use App\Models\Cuit;
+use App\Models\CuitImpuestoConfig;
 use App\Models\Impuesto;
 use App\Models\MovimientoFiscal;
 use App\Services\Fiscal\ImpuestoService;
@@ -279,6 +280,14 @@ class MovimientosFiscales extends Component
         $cuits = Cuit::activos()->orderBy('razon_social')->get(['id', 'razon_social', 'numero_cuit']);
         $impuestos = Impuesto::activos()->orderBy('nombre')->get(['id', 'codigo', 'nombre', 'tipo', 'naturaleza_default']);
 
+        // Impuestos dados de alta en el CUIT del formulario: se priorizan en el
+        // selector (grupo "Configurados") para no bucear en el catálogo completo.
+        // No se filtra estricto: un impuesto sufrido (ej. retención de un cliente)
+        // puede no estar configurado y debe poder cargarse igual.
+        $impuestoConfigIds = $this->formCuitId
+            ? CuitImpuestoConfig::where('cuit_id', $this->formCuitId)->pluck('impuesto_id')->all()
+            : [];
+
         $movimientos = MovimientoFiscal::query()
             ->with(['impuesto:id,codigo,nombre', 'cuit:id,razon_social,numero_cuit'])
             ->when($this->cuitId, fn ($q) => $q->where('cuit_id', $this->cuitId))
@@ -293,6 +302,7 @@ class MovimientosFiscales extends Component
         return view('livewire.fiscal.movimientos-fiscales', [
             'cuits' => $cuits,
             'impuestos' => $impuestos,
+            'impuestoConfigIds' => $impuestoConfigIds,
             'movimientos' => $movimientos,
             'naturalezasManuales' => self::NATURALEZAS_MANUALES,
         ]);
