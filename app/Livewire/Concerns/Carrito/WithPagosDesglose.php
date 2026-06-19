@@ -591,23 +591,16 @@ trait WithPagosDesglose
         $sumaCalculada = round($totalNeto + $totalIva, 2);
         $diferencia = round($this->montoFacturaFiscal - $sumaCalculada, 2);
 
-        // Si hay diferencia, ajustar el neto de la última alícuota
+        // Forzar Σneto + Σiva == montoFacturaFiscal exacto: el IVA de la última
+        // alícuota absorbe el residuo de redondeo, manteniendo el neto. AFIP tolera
+        // que el IVA difiera ±0.01 de neto×alícuota, pero NO que ImpTotal != ImpNeto + ImpIVA.
         if ($diferencia != 0 && ! empty($porAlicuota)) {
             $lastIndex = count($porAlicuota) - 1;
-            $porcentajeUltimo = $porAlicuota[$lastIndex]['alicuota'];
+            $nuevoIva = round($porAlicuota[$lastIndex]['iva'] + $diferencia, 2);
 
-            // Ajustar el neto para que neto + iva = total
-            $nuevoSubtotal = $porAlicuota[$lastIndex]['subtotal'] + $diferencia;
-            $nuevoNeto = round($nuevoSubtotal / (1 + $porcentajeUltimo / 100), 2);
-            $nuevoIva = round($nuevoNeto * ($porcentajeUltimo / 100), 2);
-
-            // Recalcular totales
-            $totalNeto = $totalNeto - $porAlicuota[$lastIndex]['neto'] + $nuevoNeto;
-            $totalIva = $totalIva - $porAlicuota[$lastIndex]['iva'] + $nuevoIva;
-
-            $porAlicuota[$lastIndex]['neto'] = $nuevoNeto;
+            $totalIva = round($totalIva - $porAlicuota[$lastIndex]['iva'] + $nuevoIva, 2);
             $porAlicuota[$lastIndex]['iva'] = $nuevoIva;
-            $porAlicuota[$lastIndex]['subtotal'] = round($nuevoNeto + $nuevoIva, 2);
+            $porAlicuota[$lastIndex]['subtotal'] = round($porAlicuota[$lastIndex]['neto'] + $nuevoIva, 2);
         }
 
         $this->desgloseIvaFiscal = [
@@ -679,28 +672,16 @@ trait WithPagosDesglose
         $sumaCalculada = round($totalNeto + $totalIva, 2);
         $diferencia = round($this->montoFacturaFiscal - $sumaCalculada, 2);
 
-        // Si hay diferencia, ajustar el neto de la última alícuota
+        // Forzar Σneto + Σiva == montoFacturaFiscal exacto: el IVA de la última
+        // alícuota absorbe el residuo de redondeo, manteniendo el neto. AFIP tolera
+        // que el IVA difiera ±0.01 de neto×alícuota, pero NO que ImpTotal != ImpNeto + ImpIVA.
         if ($diferencia != 0 && ! empty($porAlicuota)) {
             $lastIndex = count($porAlicuota) - 1;
-            $porcentajeUltimo = $porAlicuota[$lastIndex]['alicuota'];
+            $nuevoIva = round($porAlicuota[$lastIndex]['iva'] + $diferencia, 2);
 
-            // Ajustar el neto para que neto + iva = total
-            // Si hay diferencia D, y tenemos neto + iva = subtotal
-            // Necesitamos nuevo_neto + nuevo_iva = subtotal + D
-            // Con nuevo_iva = nuevo_neto * p/100
-            // nuevo_neto * (1 + p/100) = subtotal + D
-            // nuevo_neto = (subtotal + D) / (1 + p/100)
-            $nuevoSubtotal = $porAlicuota[$lastIndex]['subtotal'] + $diferencia;
-            $nuevoNeto = round($nuevoSubtotal / (1 + $porcentajeUltimo / 100), 2);
-            $nuevoIva = round($nuevoNeto * ($porcentajeUltimo / 100), 2);
-
-            // Recalcular totales
-            $totalNeto = $totalNeto - $porAlicuota[$lastIndex]['neto'] + $nuevoNeto;
-            $totalIva = $totalIva - $porAlicuota[$lastIndex]['iva'] + $nuevoIva;
-
-            $porAlicuota[$lastIndex]['neto'] = $nuevoNeto;
+            $totalIva = round($totalIva - $porAlicuota[$lastIndex]['iva'] + $nuevoIva, 2);
             $porAlicuota[$lastIndex]['iva'] = $nuevoIva;
-            $porAlicuota[$lastIndex]['subtotal'] = round($nuevoNeto + $nuevoIva, 2);
+            $porAlicuota[$lastIndex]['subtotal'] = round($porAlicuota[$lastIndex]['neto'] + $nuevoIva, 2);
         }
 
         $this->desgloseIvaFiscal = [

@@ -769,16 +769,13 @@ class CambioFormaPagoService
             $sumaCalculada += $netoProp + $ivaProp;
         }
 
-        // Ajustar última alícuota por diferencia de redondeo
+        // Ajustar última alícuota por diferencia de redondeo: el IVA absorbe el
+        // residuo manteniendo el neto, para que ImpNeto + ImpIVA == ImpTotal exacto
+        // (AFIP error 10048). El IVA puede diferir ±0.01 de neto×alícuota, AFIP lo tolera.
         $diferencia = round($montoAFacturar - $sumaCalculada, 2);
         if ($diferencia != 0 && ! empty($porAlicuota)) {
             $last = count($porAlicuota) - 1;
-            $p = $porAlicuota[$last]['alicuota'];
-            $nuevoSubtotal = $porAlicuota[$last]['neto'] + $porAlicuota[$last]['iva'] + $diferencia;
-            $nuevoNeto = round($nuevoSubtotal / (1 + $p / 100), 2);
-            $nuevoIva = round($nuevoNeto * ($p / 100), 2);
-            $porAlicuota[$last]['neto'] = $nuevoNeto;
-            $porAlicuota[$last]['iva'] = $nuevoIva;
+            $porAlicuota[$last]['iva'] = round($porAlicuota[$last]['iva'] + $diferencia, 2);
         }
 
         return ['por_alicuota' => $porAlicuota];
