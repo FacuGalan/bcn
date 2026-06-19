@@ -458,7 +458,8 @@ Orden sugerido de implementación:
   | `alicuota_minimo_base` | decimal(12,2) NULL | umbral de base imponible |
   | `numero_padron` | varchar(30) NULL | N° de inscripción/constancia del sujeto |
   | `origen_alicuota` | enum('manual','padron') default 'manual' | |
-  | `vigente_desde` / `vigente_hasta` | date NULL | |
+  | `vigente_desde` / `vigente_hasta` | date NULL | del período del padrón en import |
+  | `datos_extra` | json NULL | fila cruda del padrón (trazabilidad, solo origen padrón) |
   | timestamps | | |
   | UNIQUE | (`cliente_id`,`impuesto_id`,`vigente_desde`) | igual que el espejo |
   - **Diferencias con `cuit_impuesto_configs`**: se quitan `es_agente_percepcion`/
@@ -554,6 +555,67 @@ Orden sugerido de implementación:
   `cliente_impuesto_configs` + cambio de firma de `calcularTributos` + lógica IIBB con
   lookup del cliente (D7 resuelto). Entrega el refinamiento de 5b sin depender de D8.
 - **10b (padrón)**: importador ARBA/AGIP (depende de D8 / archivo real).
+
+#### Puntos críticos (revisión 2026-06-19 contra el código real)
+> Pasada de revisión cruzando el spec con el código existente, antes de implementar.
+
+1. **El motor SOLO percibe IVA + IIBB.** `calcularTributos`
+   (`ImpuestoService.php:221`) filtra `impuesto->tipo IN [TIPO_IVA, TIPO_IIBB]` y
+   `naturaleza_default = percepcion`. Por lo tanto "los demás impuestos configurables
+   por cliente" = **IIBB** en v1 (no hay otra percepción que el motor calcule). El
+   `cliente_impuesto_configs` gobierna IIBB; soportar otras percepciones provinciales
+   exigiría extender el motor (fuera de alcance v1, anotar).
+2. **Cambio de firma — blast radius CONFIRMADO y acotado** (bajo riesgo):
+   - `ImpuestoService.php:221` firma `?CondicionIva` → `?Cliente`.
+   - `ImpuestoService.php:243` el gate del receptor: `$receptor->codigo` →
+     `$receptor->condicionIva?->codigo`.
+   - `ImpuestoService.php:331` wrapper `calcularPercepcionesComprobante`: pasar
+     `$cliente` directo (no `$cliente?->condicionIva`).
+   - `WithPagosDesglose::calcularTributosFiscales:342` y `NuevaVenta:1311` NO cambian
+     (van por el wrapper).
+   - **18 tests** en `ImpuestoServiceTest` a migrar (CondicionIva → helper `cliente()`);
+     el caso `null` (línea 191) queda igual. El test Livewire `PercepcionFiscalVentaTest`
+     NO cambia. Hacerlo en un solo commit con la firma.
+3. **Lookup del cliente = refinamiento, no trigger.** El motor itera las configs del
+   AGENTE (`emisor->impuestoConfigs`); para cada IIBB cuya jurisdicción matchea la
+   operación, busca en `cliente_impuesto_configs` por el **mismo `impuesto_id`**:
+   - `exento=true` ⇒ no percibe;
+   - con `alicuota` ⇒ usa la del cliente (padrón/manual) en vez de la del agente;
+   - sin config del cliente ⇒ aplica **D7** (`percibir_no_empadronados` del agente).
+   La percepción de IVA (tipo IVA) NO consulta al cliente (automática, comportamiento 5b).
+   `percibir_no_empadronados` aplica **solo a IIBB**.
+4. **Performance / N+1**: el motor corre reactivo en cada recálculo de venta. Hoy
+   `calcularTributosFiscales` hace `Cliente::find()` pelado. Al pasar `?Cliente`, cargar
+   con `Cliente::with(['condicionIva', 'impuestoConfigs.impuesto'])->find(...)` para
+   evitar N+1 en el loop de configs.
+5. **Gotcha FK string en el componente espejo**: `ClienteImpuestos` debe usar
+   `whereKey($id)` (no `where('id', $id)` con `===`) para update/delete, igual que
+   `CuitImpuestos:178,212` (ver [[project-gotcha-fk-string-comparacion]]).
+6. **Catálogo del selector (cliente)**: excluir naturalezas `debito_fiscal`/
+   `credito_fiscal` (como `CuitImpuestos:128`) **y además** `tipo = iva` (la percepción
+   de IVA es automática). Quedan IIBB y percepciones no-IVA.
+7. **Padrón (10b)**:
+   - Match por **CUIT normalizado** (sin guiones/espacios) contra `clientes.cuit`
+     (nullable); clientes sin CUIT no matchean (no son percibibles).
+   - `vigente_desde`/`vigente_hasta` salen del **período del padrón** (el usuario lo
+     elige al importar); el scope `vigentes()` del motor ya filtra por fecha.
+   - Agregar `datos_extra` (json null) a `cliente_impuesto_configs` para conservar la
+     fila cruda del padrón (trazabilidad, como `conciliacion_filas`).
+   - **Parser por agencia** (interface `PadronParser`); NO reusar el parser privado de
+     `MercadoPagoGateway` (acoplaría a MP) — sí reusar la TÉCNICA (str_getcsv, BOM,
+     detección de separador). Formato exacto = **D8** (archivo real).
+8. **Upsert idempotente del padrón**: `updateOrCreate` por
+   (`cliente_id`,`impuesto_id`,`vigente_desde`) con `origen_alicuota='padron'`; **NO
+   pisar filas `origen_alicuota='manual'`** (filtrarlas antes del upsert).
+9. **Limitación v1 conocida (REVISAR)**: no se modela la **exclusión de percepción de
+   IVA por cliente** (certificado de exclusión RG): el IVA es automático a todo RI. Un
+   cliente con certificado de no-percepción de IVA hoy requeriría corrección por alta
+   manual (RF-08). Anotar como deuda.
+10. **GestionarClientes es SucursalAware** pero el domicilio fiscal es atributo
+    **global** del cliente (tabla `clientes`, no el pivot `clientes_sucursales`). El
+    partial `domicilio-form` se inserta en su modal (después de "Dirección"). El alta
+    rápida del carrito (`WithBusquedaClientes::guardarClienteRapido`) NO incorpora
+    domicilio estructurado (queda con `direccion` texto).
 
 ### Fase 8: Verificación + docs [PENDIENTE]
 /sdd-verify, @docs-sync, manual de usuario.
