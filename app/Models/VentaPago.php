@@ -416,6 +416,23 @@ class VentaPago extends Model
     }
 
     /**
+     * Percepción fiscal (Fase 5b) incluida en este pago, derivada del desglose:
+     * monto_final = monto_base + monto_ajuste + recargo_cuotas + percepción.
+     * No se persiste como columna; el monto autoritativo del impuesto vive en
+     * comprobante_fiscal_tributos. Acá sólo se reconstruye para mostrar el detalle
+     * del cobro (que el cliente pagó la percepción dentro de este medio).
+     */
+    public function getPercepcionAttribute(): float
+    {
+        $percepcion = (float) $this->monto_final
+            - (float) $this->monto_base
+            - (float) $this->monto_ajuste
+            - (float) ($this->recargo_cuotas_monto ?? 0);
+
+        return $percepcion > 0.009 ? round($percepcion, 2) : 0.0;
+    }
+
+    /**
      * Obtiene una descripción del ajuste
      */
     public function getDescripcionAjusteAttribute(): string

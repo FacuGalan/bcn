@@ -1053,6 +1053,14 @@
                                                 </div>
                                             </div>
 
+                                            {{-- Percepción fiscal incluida en el cobro (Fase 5b) --}}
+                                            @if($pago->percepcion > 0)
+                                                <div class="flex items-center justify-between text-xs mb-2">
+                                                    <span class="text-[10px] uppercase text-gray-500 dark:text-gray-400">{{ __('Percepción') }}</span>
+                                                    <span class="font-medium text-amber-600 dark:text-amber-400">+$@precio($pago->percepcion)</span>
+                                                </div>
+                                            @endif
+
                                             {{-- Acciones --}}
                                             @if(!$pagoAnulado && !$ventaDetalle->estaCancelada() && auth()->user()?->hasPermissionTo('func.cambiar_forma_pago_venta'))
                                                 <div class="flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
@@ -1151,7 +1159,12 @@
                                                             <span class="text-gray-400">-</span>
                                                         @endif
                                                     </td>
-                                                    <td class="px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-white text-right">$@precio($pago->monto_final)</td>
+                                                    <td class="px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-white text-right">
+                                                        $@precio($pago->monto_final)
+                                                        @if($pago->percepcion > 0)
+                                                            <span class="block text-[10px] font-normal text-amber-600 dark:text-amber-400">{{ __('incl. percep.') }} +$@precio($pago->percepcion)</span>
+                                                        @endif
+                                                    </td>
                                                     <td class="px-4 py-2.5 text-center">
                                                         @if($pago->comprobante_fiscal_id)
                                                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
