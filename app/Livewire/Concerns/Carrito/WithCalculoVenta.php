@@ -503,6 +503,12 @@ trait WithCalculoVenta
         if ($this->formaPagoId) {
             $this->calcularAjusteFormaPago();
         }
+
+        // Recalcular percepciones fiscales (Fase 5b): dependen del neto gravado, que
+        // acaba de cambiar. calcularMontoFacturaFiscal recalcula monto fiscal + percepción.
+        if (method_exists($this, 'calcularMontoFacturaFiscal')) {
+            $this->calcularMontoFacturaFiscal();
+        }
     }
 
     /**

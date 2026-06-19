@@ -732,9 +732,11 @@ class ProvisionComercioCommand extends Command
         $db = DB::connection('pymes_tenant');
 
         $migracion = require database_path('migrations/2026_06_12_150000_create_impuestos_table.php');
+        $migracionArca = require database_path('migrations/2026_06_18_170000_add_codigo_arca_a_impuestos.php');
 
         foreach ($migracion::catalogo() as $impuesto) {
             $db->table('impuestos')->insert(array_merge($impuesto, [
+                'codigo_arca' => $migracionArca::codigoArcaPara($impuesto['codigo']),
                 'es_sistema' => true,
                 'activo' => true,
                 'created_at' => $now,

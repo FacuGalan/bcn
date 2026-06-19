@@ -168,6 +168,12 @@ trait WithBusquedaClientes
             $this->clienteCondicionIva = $cliente->condicionIva?->nombre ?? 'Consumidor Final';
             $this->determinarTipoFacturaCliente($cliente);
 
+            // Recalcular percepciones fiscales (Fase 5b): dependen de la condición
+            // de IVA del cliente recién seleccionado (solo se percibe a un RI).
+            if (method_exists($this, 'calcularMontoFacturaFiscal')) {
+                $this->calcularMontoFacturaFiscal();
+            }
+
             // Cargar saldo de puntos del cliente (RF-23)
             $this->cargarSaldoPuntosCliente($cliente);
 

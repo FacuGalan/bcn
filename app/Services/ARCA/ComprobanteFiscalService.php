@@ -7,6 +7,7 @@ use App\Models\Cliente;
 use App\Models\ComprobanteFiscal;
 use App\Models\ComprobanteFiscalItem;
 use App\Models\ComprobanteFiscalIva;
+use App\Models\ComprobanteFiscalTributo;
 use App\Models\ComprobanteFiscalVenta;
 use App\Models\CondicionIva;
 use App\Models\Cuit;
@@ -215,14 +216,34 @@ class ComprobanteFiscalService
                 'total_a_facturar' => $totalAFacturar,
                 'suma_neto_iva' => $netoTotal + $ivaTotal,
             ]);
-        } else {
-            // Calcular el desglose de IVA (para Factura C o cuando no viene del frontend)
-            $detallesIva = $this->calcularDetallesIva($venta, $tipoComprobante, $totalAFacturar);
+        }
+
+        // Percepciones aplicadas (Fase 5b). Se reciben YA CALCULADAS y COBRADAS en
+        // la venta vía opciones['tributos'] (garantiza cobrado == facturado). Si el
+        // caller no las pasa, no hay percepción (comportamiento idéntico a hoy): el
+        // motor NO autopercibe en silencio para no mandar ImpTrib sin haberlo
+        // cobrado. Como vienen incluidas en total_a_facturar, se descuentan para
+        // obtener la base gravada (neto/IVA se calculan sobre los bienes).
+        $tributos = $opciones['tributos'] ?? [];
+        $impTrib = round(array_sum(array_map(fn ($t) => (float) $t['monto'], $tributos)), 2);
+
+        // El desglose del frontend (rama de arriba) ya es la base de bienes sin
+        // percepción. Si no vino, se calcula acá descontando la percepción ya
+        // incluida en el total cobrado para no inflar el neto gravado.
+        if (! isset($detallesIva)) {
+            $baseGravada = round($totalAFacturar - $impTrib, 2);
+            $detallesIva = $this->calcularDetallesIva($venta, $tipoComprobante, $baseGravada);
         }
 
         DB::connection('pymes_tenant')->beginTransaction();
 
         try {
+            // Total del comprobante = total a facturar (la percepción, si existe, ya
+            // está incluida porque se cobró en la venta) → cobrado == facturado y se
+            // respeta ImpTotal = ImpNeto + ImpIVA + ImpTrib (AFIP), con
+            // ImpNeto+ImpIVA = base de bienes y ImpTrib = percepción.
+            $totalComprobante = round($totalAFacturar, 2);
+
             // Determinar si es por el total de la venta o parcial (mixto)
             $esTotalVenta = abs($totalAFacturar - $venta->total_final) < 0.01;
 
@@ -246,8 +267,8 @@ class ComprobanteFiscalService
                 'neto_no_gravado' => $detallesIva['neto_no_gravado'],
                 'neto_exento' => $detallesIva['neto_exento'],
                 'iva_total' => $detallesIva['iva_total'],
-                'tributos' => 0,
-                'total' => $totalAFacturar,
+                'tributos' => $impTrib,
+                'total' => $totalComprobante,
                 'estado' => 'pendiente',
                 'usuario_id' => $venta->usuario_id,
                 'es_total_venta' => $esTotalVenta,
@@ -261,6 +282,18 @@ class ComprobanteFiscalService
                     'alicuota' => $alicuota['porcentaje'],
                     'base_imponible' => $alicuota['base_imponible'],
                     'importe' => $alicuota['importe'],
+                ]);
+            }
+
+            // Guardar desglose de tributos (percepciones aplicadas, Fase 5b)
+            foreach ($tributos as $tributo) {
+                ComprobanteFiscalTributo::create([
+                    'comprobante_fiscal_id' => $comprobante->id,
+                    'impuesto_id' => $tributo['impuesto_id'],
+                    'base_imponible' => $tributo['base_imponible'],
+                    'alicuota' => $tributo['alicuota'],
+                    'monto' => $tributo['monto'],
+                    'codigo_arca' => $tributo['codigo_arca'] ?? null,
                 ]);
             }
 
@@ -293,7 +326,7 @@ class ComprobanteFiscalService
             // Solicitar CAE a AFIP
             $this->arcaService = new ARCAService($cuit);
 
-            $datosAFIP = $this->prepararDatosParaAFIP($comprobante, $detallesIva, $datosReceptor, $puntoVenta);
+            $datosAFIP = $this->prepararDatosParaAFIP($comprobante, $detallesIva, $datosReceptor, $puntoVenta, $tributos);
             $respuestaCAE = $this->arcaService->solicitarCAE($datosAFIP);
 
             // Actualizar comprobante con respuesta de AFIP
@@ -585,10 +618,12 @@ class ComprobanteFiscalService
         ComprobanteFiscal $comprobante,
         array $detallesIva,
         array $datosReceptor,
-        PuntoVenta $puntoVenta
+        PuntoVenta $puntoVenta,
+        array $tributos = []
     ): array {
         $tipoComprobanteAFIP = ARCAService::getTipoComprobanteAFIP($comprobante->tipo);
         $esFacturaC = str_ends_with($comprobante->tipo, '_c');
+        $impTrib = round(array_sum(array_map(fn ($t) => (float) $t['monto'], $tributos)), 2);
 
         // Para Factura C: todo va como neto, sin discriminar IVA
         if ($esFacturaC) {
@@ -602,10 +637,10 @@ class ComprobanteFiscalService
                 'fecha' => now()->format('Ymd'),
                 'imp_total' => $comprobante->total,
                 'imp_tot_conc' => 0,
-                'imp_neto' => $comprobante->total, // Todo el monto va como neto
+                'imp_neto' => round($comprobante->total - $impTrib, 2), // Neto = total menos tributos
                 'imp_op_ex' => 0,
                 'imp_iva' => 0,
-                'imp_trib' => 0,
+                'imp_trib' => $impTrib,
             ];
         } else {
             // Para Factura A/B: se discrimina IVA
@@ -622,7 +657,7 @@ class ComprobanteFiscalService
                 'imp_neto' => $detallesIva['neto_gravado'],
                 'imp_op_ex' => $detallesIva['neto_exento'],
                 'imp_iva' => $detallesIva['iva_total'],
-                'imp_trib' => 0,
+                'imp_trib' => $impTrib,
             ];
 
             // Agregar alícuotas de IVA
@@ -635,6 +670,27 @@ class ComprobanteFiscalService
                     ];
                 }, $detallesIva['alicuotas']);
             }
+        }
+
+        // Tributos (percepciones aplicadas, Fase 5b). Cada Tributo lleva el código
+        // de tipo de ARCA (FEParamGetTiposTributos) en Id; sin codigo_arca no se
+        // puede informar, así que se omite (defensivo).
+        $tributosAFIP = [];
+        foreach ($tributos as $tributo) {
+            $codigoArca = $tributo['codigo_arca'] ?? null;
+            if ($codigoArca === null) {
+                continue;
+            }
+            $tributosAFIP[] = [
+                'Id' => $codigoArca,
+                'BaseImp' => round((float) $tributo['base_imponible'], 2),
+                'Alic' => round((float) $tributo['alicuota'], 2),
+                'Importe' => round((float) $tributo['monto'], 2),
+            ];
+        }
+
+        if (! empty($tributosAFIP)) {
+            $datos['tributos'] = $tributosAFIP;
         }
 
         return $datos;
@@ -706,7 +762,7 @@ class ComprobanteFiscalService
         }
 
         // Cargar relaciones necesarias del comprobante original
-        $comprobanteOriginal->load(['detallesIva', 'items', 'sucursal', 'puntoVenta', 'cuit', 'cliente.condicionIva']);
+        $comprobanteOriginal->load(['detallesIva', 'tributosDetalle', 'items', 'sucursal', 'puntoVenta', 'cuit', 'cliente.condicionIva']);
 
         // Determinar tipo de nota de crédito según el comprobante original
         $tipoNC = str_replace('factura_', 'nota_credito_', $comprobanteOriginal->tipo);
@@ -749,6 +805,20 @@ class ComprobanteFiscalService
                 'porcentaje' => $iva->alicuota,
                 'base_imponible' => floatval($iva->base_imponible),
                 'importe' => floatval($iva->importe),
+            ];
+        }
+
+        // Recuperar los tributos (percepciones aplicadas) del comprobante original
+        // para reflejarlos en la NC (mismo monto, signo positivo en AFIP): así
+        // ImpTotal = ImpNeto + ImpIVA + ImpTrib también cierra en la NC.
+        $tributosNC = [];
+        foreach ($comprobanteOriginal->tributosDetalle as $tributo) {
+            $tributosNC[] = [
+                'impuesto_id' => $tributo->impuesto_id,
+                'codigo_arca' => $tributo->codigo_arca,
+                'base_imponible' => floatval($tributo->base_imponible),
+                'alicuota' => floatval($tributo->alicuota),
+                'monto' => floatval($tributo->monto),
             ];
         }
 
@@ -809,7 +879,7 @@ class ComprobanteFiscalService
                 'neto_no_gravado' => $detallesIva['neto_no_gravado'],
                 'neto_exento' => $detallesIva['neto_exento'],
                 'iva_total' => $detallesIva['iva_total'],
-                'tributos' => 0,
+                'tributos' => floatval($comprobanteOriginal->tributos),
                 'total' => floatval($comprobanteOriginal->total),
                 'estado' => 'pendiente',
                 'comprobante_asociado_id' => $comprobanteOriginal->id,
@@ -826,6 +896,18 @@ class ComprobanteFiscalService
                     'alicuota' => $alicuota['porcentaje'],
                     'base_imponible' => $alicuota['base_imponible'],
                     'importe' => $alicuota['importe'],
+                ]);
+            }
+
+            // Guardar desglose de tributos (copia del original, Fase 5b)
+            foreach ($tributosNC as $tributo) {
+                ComprobanteFiscalTributo::create([
+                    'comprobante_fiscal_id' => $notaCredito->id,
+                    'impuesto_id' => $tributo['impuesto_id'],
+                    'base_imponible' => $tributo['base_imponible'],
+                    'alicuota' => $tributo['alicuota'],
+                    'monto' => $tributo['monto'],
+                    'codigo_arca' => $tributo['codigo_arca'] ?? null,
                 ]);
             }
 
@@ -884,7 +966,8 @@ class ComprobanteFiscalService
                 $comprobanteOriginal,
                 $detallesIva,
                 $datosReceptor,
-                $puntoVenta
+                $puntoVenta,
+                $tributosNC
             );
 
             // DEBUG: Mostrar datos que se enviarán a AFIP
@@ -940,11 +1023,13 @@ class ComprobanteFiscalService
         ComprobanteFiscal $comprobanteOriginal,
         array $detallesIva,
         array $datosReceptor,
-        PuntoVenta $puntoVenta
+        PuntoVenta $puntoVenta,
+        array $tributos = []
     ): array {
         $tipoComprobanteAFIP = ARCAService::getTipoComprobanteAFIP($notaCredito->tipo);
         // Usar str_ends_with para verificar si termina en _c (no str_contains que matchea _credito)
         $esFacturaC = str_ends_with($notaCredito->tipo, '_c');
+        $impTrib = round(array_sum(array_map(fn ($t) => (float) $t['monto'], $tributos)), 2);
 
         // Datos base del comprobante
         if ($esFacturaC) {
@@ -958,10 +1043,10 @@ class ComprobanteFiscalService
                 'fecha' => now()->format('Ymd'),
                 'imp_total' => $notaCredito->total,
                 'imp_tot_conc' => 0,
-                'imp_neto' => $notaCredito->total,
+                'imp_neto' => round($notaCredito->total - $impTrib, 2),
                 'imp_op_ex' => 0,
                 'imp_iva' => 0,
-                'imp_trib' => 0,
+                'imp_trib' => $impTrib,
             ];
         } else {
             // Para Factura A/B: se discrimina IVA
@@ -983,7 +1068,7 @@ class ComprobanteFiscalService
                 'imp_neto' => $detallesIva['neto_gravado'],
                 'imp_op_ex' => $detallesIva['neto_exento'],
                 'imp_iva' => $detallesIva['iva_total'],
-                'imp_trib' => 0,
+                'imp_trib' => $impTrib,
             ];
 
             // Agregar alícuotas de IVA (obligatorio si hay neto gravado)
@@ -1019,6 +1104,25 @@ class ComprobanteFiscalService
                 'alicuotas_count' => count($datos['iva'] ?? []),
                 'alicuotas' => $datos['iva'] ?? [],
             ]);
+        }
+
+        // Tributos (percepciones aplicadas, Fase 5b): reflejar los del original.
+        $tributosAFIP = [];
+        foreach ($tributos as $tributo) {
+            $codigoArca = $tributo['codigo_arca'] ?? null;
+            if ($codigoArca === null) {
+                continue;
+            }
+            $tributosAFIP[] = [
+                'Id' => $codigoArca,
+                'BaseImp' => round((float) $tributo['base_imponible'], 2),
+                'Alic' => round((float) $tributo['alicuota'], 2),
+                'Importe' => round((float) $tributo['monto'], 2),
+            ];
+        }
+
+        if (! empty($tributosAFIP)) {
+            $datos['tributos'] = $tributosAFIP;
         }
 
         // Agregar comprobante asociado (OBLIGATORIO para NC)

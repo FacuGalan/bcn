@@ -106,6 +106,22 @@
                         @endif
                     </div>
 
+                    {{-- Percepción fiscal (Fase 5b): se cobra junto con la parte que se
+                         factura. Se muestra acá para que el cajero vea el total real. --}}
+                    @if(!$invitarTodo && ($percepcionMonto ?? 0) > 0)
+                        <div class="mt-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg p-3 flex justify-between items-center">
+                            <div class="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m-6 4h6m-6 4h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
+                                <span class="text-sm font-medium">{{ __('Percepción') }} ({{ __('se cobra con la parte fiscal') }}):</span>
+                            </div>
+                            <span class="text-base font-bold text-indigo-700 dark:text-indigo-300">+$@precio($percepcionMonto)</span>
+                        </div>
+                        <div class="mt-1 bg-indigo-600 rounded-lg p-3 flex justify-between items-center">
+                            <span class="text-sm font-medium text-white">{{ __('Total a pagar') }}:</span>
+                            <span class="text-xl font-bold text-white">$@precio($totalConAjustes + ($percepcionMonto ?? 0))</span>
+                        </div>
+                    @endif
+
                     {{-- Switch "Invitar pedido completo" — visible siempre que el
                         usuario tenga el permiso del canal correspondiente (computed en
                         el trait WithInvitaciones) y haya items. Al activarse oculta el

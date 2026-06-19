@@ -2,6 +2,7 @@
 
 namespace App\Services\Fiscal;
 
+use App\Models\Cliente;
 use App\Models\Compra;
 use App\Models\ComprobanteFiscal;
 use App\Models\ConciliacionFila;
@@ -300,6 +301,7 @@ class ImpuestoService
             $tributos[] = [
                 'impuesto_id' => $impuesto->id,
                 'codigo' => $impuesto->codigo,
+                'codigo_arca' => $impuesto->codigo_arca,
                 'tipo' => $impuesto->tipo,
                 'jurisdiccion' => $impuesto->jurisdiccion,
                 'base_imponible' => $base,
@@ -309,6 +311,24 @@ class ImpuestoService
         }
 
         return $tributos;
+    }
+
+    /**
+     * Percepciones aplicadas de un comprobante (Fase 5b). Wrapper sobre
+     * calcularTributos que resuelve el receptor desde el cliente de la venta —
+     * mismo origen de verdad para el cálculo en la venta (cobro) y en la emisión
+     * (ComprobanteFiscalService), garantizando cobrado == facturado.
+     *
+     * @return array<int,array<string,mixed>> tributos (ver calcularTributos)
+     */
+    public function calcularPercepcionesComprobante(
+        Cuit $emisor,
+        ?Cliente $cliente,
+        float $netoGravado,
+        ?string $jurisdiccion = null,
+        ?Carbon $fecha = null
+    ): array {
+        return $this->calcularTributos($emisor, $cliente?->condicionIva, $netoGravado, $jurisdiccion, $fecha);
     }
 
     /**
@@ -388,6 +408,31 @@ class ImpuestoService
                 'base_imponible' => $iva->base_imponible,
                 'alicuota' => $iva->alicuota,
                 'monto' => $iva->importe,
+                'origen_tipo' => 'ComprobanteFiscal',
+                'origen_id' => $c->id,
+                'usuario_id' => $usuarioId,
+            ]);
+        }
+
+        // Percepciones APLICADAS (Fase 5b): el comercio actúa como agente. Cada
+        // tributo del comprobante es deuda a depositar ante el fisco (sentido
+        // aplicado, naturaleza percepción) — NO integra la posición de IVA propia.
+        // La NC contraasienta estos movimientos junto con el débito (rama de arriba).
+        foreach ($c->tributosDetalle as $tributo) {
+            if (round((float) $tributo->monto, 2) <= 0) {
+                continue;
+            }
+
+            $this->registrarMovimientoFiscal([
+                'cuit_id' => $c->cuit_id,
+                'sucursal_id' => $c->sucursal_id,
+                'impuesto_id' => $tributo->impuesto_id,
+                'sentido' => MovimientoFiscal::SENTIDO_APLICADO,
+                'naturaleza' => MovimientoFiscal::NATURALEZA_PERCEPCION,
+                'fecha' => $c->fecha_emision,
+                'base_imponible' => $tributo->base_imponible,
+                'alicuota' => $tributo->alicuota,
+                'monto' => $tributo->monto,
                 'origen_tipo' => 'ComprobanteFiscal',
                 'origen_id' => $c->id,
                 'usuario_id' => $usuarioId,

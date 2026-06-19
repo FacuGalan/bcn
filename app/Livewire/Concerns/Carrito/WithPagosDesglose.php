@@ -18,6 +18,7 @@ use App\Models\TipoCambio;
 use App\Models\VentaPago;
 use App\Services\ARCA\ComprobanteFiscalService;
 use App\Services\CuentaEmpresaService;
+use App\Services\Fiscal\ImpuestoService;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -306,6 +307,48 @@ trait WithPagosDesglose
     }
 
     /**
+     * Percepciones fiscales aplicadas a la venta (Fase 5b). Se calcula ANTES de
+     * cobrar para que el cliente pague el total con la percepción incluida y el
+     * comprobante se emita con el mismo monto (cobrado == facturado). Sólo aplica
+     * si la venta va a emitir factura fiscal (gateado por el caller) y el CUIT del
+     * PV es agente de percepción frente a un cliente RI; en cualquier otro caso
+     * devuelve [] (pyme típica: sin cambios).
+     *
+     * @param  float  $netoGravado  base gravada (sin IVA) sobre la que se percibe
+     * @return array<int,array<string,mixed>> tributos (impuesto_id, codigo_arca, base_imponible, alicuota, monto)
+     */
+    protected function calcularTributosFiscales(float $netoGravado, ?int $cajaId): array
+    {
+        if ($netoGravado <= 0 || ! $this->clienteSeleccionado) {
+            return [];
+        }
+
+        $cliente = Cliente::find($this->clienteSeleccionado);
+
+        if (! $cliente) {
+            return [];
+        }
+
+        // CUIT y jurisdicción de la operación salen del punto de venta de la caja
+        // (el mismo que usará ComprobanteFiscalService al emitir).
+        $puntoVenta = $this->puntoVentaSeleccionadoId
+            ? PuntoVenta::find($this->puntoVentaSeleccionadoId)
+            : Caja::find($cajaId)?->puntoVentaDefecto();
+
+        if (! $puntoVenta || ! $puntoVenta->cuit) {
+            return [];
+        }
+
+        return app(ImpuestoService::class)->calcularPercepcionesComprobante(
+            $puntoVenta->cuit,
+            $cliente,
+            $netoGravado,
+            $puntoVenta->jurisdiccionFiscal(),
+            now(),
+        );
+    }
+
+    /**
      * Actualiza el checkbox de factura fiscal según la forma de pago seleccionada
      * Solo aplica si la sucursal NO tiene facturación automática
      */
@@ -379,14 +422,18 @@ trait WithPagosDesglose
                 $this->desgloseIvaFiscal = [];
             }
 
+            $this->aplicarPercepcionFiscal();
+
             return;
         }
 
-        // Para pagos mixtos: sumar los montos de las FP con factura_fiscal = true
+        // Para pagos mixtos: sumar los BIENES (monto_final menos la percepción ya
+        // distribuida) de las FP con factura_fiscal = true. La base de la percepción
+        // son los bienes, nunca el monto que ya la incluye (evita recursión).
         $montoFiscal = 0;
         foreach ($this->desglosePagos as $pago) {
             if ($pago['factura_fiscal'] ?? false) {
-                $montoFiscal += $pago['monto_final'] ?? $pago['monto_base'] ?? 0;
+                $montoFiscal += (float) ($pago['monto_final'] ?? $pago['monto_base'] ?? 0) - (float) ($pago['percepcion'] ?? 0);
             }
         }
 
@@ -397,6 +444,102 @@ trait WithPagosDesglose
             $this->recalcularDesgloseIvaFiscal();
         } else {
             $this->desgloseIvaFiscal = [];
+        }
+
+        $this->aplicarPercepcionFiscal();
+    }
+
+    /**
+     * Calcula la percepción fiscal (Fase 5b) sobre la base gravada de la porción
+     * que se va a facturar y la suma a `montoFacturaFiscal`. Deja el monto y el
+     * detalle en `percepcionMonto`/`percepcionTributos` para mostrarlos en el
+     * resumen y el modal de cobro (el cliente paga el total con la percepción) y
+     * para pasarlos al comprobante (cobrado == facturado). Sin factura / sin
+     * agente / cliente no-RI → percepción 0 (pyme típica: sin cambios).
+     */
+    protected function aplicarPercepcionFiscal(): void
+    {
+        $this->percepcionTributos = [];
+        $this->percepcionMonto = 0;
+
+        if (empty($this->desgloseIvaFiscal) || ($this->montoFacturaFiscal ?? 0) <= 0) {
+            return;
+        }
+
+        $netoGravado = (float) ($this->desgloseIvaFiscal['total_neto'] ?? 0);
+        $cajaId = $this->cajaSeleccionada ?? caja_activa();
+
+        $this->percepcionTributos = $this->calcularTributosFiscales($netoGravado, $cajaId);
+        $this->percepcionMonto = round(array_sum(array_column($this->percepcionTributos, 'monto')), 2);
+
+        // La percepción se suma al monto a facturar (y por ende al total cobrado):
+        // ImpTotal = neto + IVA (bienes) + ImpTrib (percepción).
+        if ($this->percepcionMonto > 0) {
+            $this->montoFacturaFiscal = round($this->montoFacturaFiscal + $this->percepcionMonto, 2);
+        }
+
+        // Distribuir la percepción en el monto_final de los pagos fiscales del
+        // desglose, para que cada medio cobre el monto correcto (con percepción).
+        $this->distribuirPercepcionEnDesglose();
+    }
+
+    /**
+     * Distribuye la percepción fiscal (Fase 5b) en el `monto_final` de los pagos
+     * marcados como fiscales, EN EL DESGLOSE (antes de cobrar). Así el monto que
+     * se cobra por cada medio (efectivo, MercadoPago, QR…) YA incluye la percepción
+     * que le corresponde: lo que se envía al proveedor == lo que registra el
+     * sistema == lo que se factura. Reparte proporcional a los bienes de cada pago.
+     *
+     * Idempotente: primero descuenta la percepción previa (`percepcion` por pago)
+     * para reconstruir la base de bienes, luego reparte la percepción actual. Se
+     * llama cada vez que cambia la composición fiscal del desglose.
+     */
+    protected function distribuirPercepcionEnDesglose(): void
+    {
+        if (empty($this->desglosePagos)) {
+            return;
+        }
+
+        // 1) Revertir la percepción previa → monto_final vuelve a bienes+ajuste.
+        foreach ($this->desglosePagos as $i => $pago) {
+            $previa = (float) ($pago['percepcion'] ?? 0);
+            if ($previa !== 0.0) {
+                $this->desglosePagos[$i]['monto_final'] = round((float) ($pago['monto_final'] ?? 0) - $previa, 2);
+            }
+            $this->desglosePagos[$i]['percepcion'] = 0.0;
+        }
+
+        $percepcion = round($this->percepcionMonto ?? 0, 2);
+        if ($percepcion <= 0) {
+            return;
+        }
+
+        // 2) Repartir la percepción entre los pagos fiscales (proporcional a bienes).
+        $fiscales = array_values(array_keys(array_filter(
+            $this->desglosePagos,
+            fn ($p) => (bool) ($p['factura_fiscal'] ?? false)
+        )));
+
+        if (empty($fiscales)) {
+            return; // defensivo: no hay pago fiscal donde imputar
+        }
+
+        $baseTotal = array_sum(array_map(fn ($i) => (float) ($this->desglosePagos[$i]['monto_final'] ?? 0), $fiscales));
+        $asignado = 0.0;
+        $ultimo = count($fiscales) - 1;
+
+        foreach ($fiscales as $pos => $i) {
+            if ($pos === $ultimo) {
+                $cuota = round($percepcion - $asignado, 2); // el último absorbe el redondeo
+            } else {
+                $cuota = $baseTotal > 0
+                    ? round($percepcion * ((float) $this->desglosePagos[$i]['monto_final'] / $baseTotal), 2)
+                    : 0.0;
+                $asignado += $cuota;
+            }
+
+            $this->desglosePagos[$i]['percepcion'] = $cuota;
+            $this->desglosePagos[$i]['monto_final'] = round((float) ($this->desglosePagos[$i]['monto_final'] ?? 0) + $cuota, 2);
         }
     }
 
@@ -748,7 +891,9 @@ trait WithPagosDesglose
             $totalVenta = $this->resultado['total_final'] ?? 0;
             $ajuste = $this->ajusteFormaPagoInfo['porcentaje'];
             $montoAjuste = round($totalVenta * ($ajuste / 100), 2);
-            $totalConAjuste = round($totalVenta + $montoAjuste, 2);
+            // El total a pagar incluye la percepción fiscal (Fase 5b): se inyecta en
+            // el pago al procesar, pero el cliente la paga ahora → mostrarla en el modal.
+            $totalConAjuste = round($totalVenta + $montoAjuste + ($this->percepcionMonto ?? 0), 2);
 
             $this->pagoMonedaExtranjera = [
                 'forma_pago_id' => $fp['id'],
@@ -775,7 +920,11 @@ trait WithPagosDesglose
         $totalBase = $this->resultado['total_final'] ?? 0;
         $ajuste = $this->ajusteFormaPagoInfo['porcentaje'];
         $montoAjuste = $this->ajusteFormaPagoInfo['monto'];
-        $montoFinal = $this->ajusteFormaPagoInfo['total_con_ajuste'];
+        // monto_final del PAGO = bienes + ajuste FP (la percepción se inyecta en los
+        // pagos fiscales al procesar). El TOTAL A PAGAR que ve/paga el cliente sí
+        // incluye la percepción (Fase 5b) → sobre él se calcula el vuelto.
+        $montoFinal = $this->ajusteFormaPagoInfo['total_con_ajuste'] ?? 0;
+        $totalAPagar = round($montoFinal + ($this->percepcionMonto ?? 0), 2);
 
         // Si permite vuelto y NO es cuenta corriente, abrir modal de cobro con vuelto
         $permiteVuelto = $fp['permite_vuelto'] ?? false;
@@ -785,8 +934,8 @@ trait WithPagosDesglose
             $this->pagoConVuelto = [
                 'forma_pago_id' => $fp['id'],
                 'nombre' => $fp['nombre'],
-                'total_a_pagar' => $montoFinal,
-                'monto_recibido' => $montoFinal,
+                'total_a_pagar' => $totalAPagar,
+                'monto_recibido' => $totalAPagar,
                 'vuelto' => 0,
             ];
             $this->mostrarModalVuelto = true;
@@ -1261,7 +1410,13 @@ trait WithPagosDesglose
      */
     protected function recalcularTotalConAjustes(): void
     {
-        $this->totalConAjustes = array_sum(array_column($this->desglosePagos, 'monto_final'));
+        // totalConAjustes = bienes + ajustes FP/cuotas, SIN la percepción (que se
+        // muestra como línea aparte y se suma en el "total a pagar"). Por eso se
+        // descuenta la percepción ya distribuida en cada monto_final.
+        $this->totalConAjustes = array_sum(array_map(
+            fn ($p) => (float) ($p['monto_final'] ?? 0) - (float) ($p['percepcion'] ?? 0),
+            $this->desglosePagos
+        ));
 
         // Recalcular el desglose de IVA con los ajustes de pagos mixtos
         $this->recalcularDesgloseIvaMixto();
@@ -1292,8 +1447,13 @@ trait WithPagosDesglose
         // El total base es la suma de monto_base de todos los pagos (sin ajustes de FP)
         $totalBase = array_sum(array_column($this->desglosePagos, 'monto_base'));
 
-        // El total final es la suma de monto_final (con ajustes de FP y recargos de cuotas)
-        $totalFinal = array_sum(array_column($this->desglosePagos, 'monto_final'));
+        // El total final es la suma de monto_final (con ajustes de FP y recargos de
+        // cuotas) EXCLUYENDO la percepción fiscal: la percepción no es un ajuste
+        // sobre los bienes y no debe prorratearse entre las alícuotas de IVA.
+        $totalFinal = array_sum(array_map(
+            fn ($p) => (float) ($p['monto_final'] ?? 0) - (float) ($p['percepcion'] ?? 0),
+            $this->desglosePagos
+        ));
 
         if ($totalBase <= 0) {
             return;
@@ -1526,7 +1686,8 @@ trait WithPagosDesglose
             'monto_base' => $totalBase,
             'ajuste_porcentaje' => $ajuste,
             'monto_ajuste' => $montoAjuste,
-            'monto_final' => $totalVenta,
+            // bienes + ajuste; la percepción (incluida en total_venta) se inyecta al procesar.
+            'monto_final' => round($totalBase + $montoAjuste, 2),
             'cuotas' => 1,
             'recargo_cuotas' => 0,
             'monto_recibido' => $equivalente,
@@ -1602,7 +1763,12 @@ trait WithPagosDesglose
         $cantidadCuotas = $this->ajusteFormaPagoInfo['cuotas'] ?? 1;
         $recargoCuotas = $this->ajusteFormaPagoInfo['recargo_cuotas_porcentaje'] ?? 0;
 
-        $this->crearDesglosePagoSimple($fp, $totalBase, $ajuste, $montoAjuste, $totalAPagar, $cantidadCuotas, $recargoCuotas, false, $montoRecibido, $vuelto);
+        // monto_final del pago = bienes + ajuste (sin percepción); la percepción se
+        // inyecta en el pago fiscal al procesar. El vuelto ya se calculó sobre el
+        // total_a_pagar que incluye la percepción.
+        $montoFinalPago = round($totalAPagar - ($this->percepcionMonto ?? 0), 2);
+
+        $this->crearDesglosePagoSimple($fp, $totalBase, $ajuste, $montoAjuste, $montoFinalPago, $cantidadCuotas, $recargoCuotas, false, $montoRecibido, $vuelto);
         $this->mostrarModalVuelto = false;
     }
 
@@ -1927,6 +2093,10 @@ trait WithPagosDesglose
             DB::connection('pymes_tenant')->beginTransaction();
 
             try {
+                // La percepción fiscal (Fase 5b) ya está distribuida en el monto_final
+                // de los pagos fiscales (distribuirPercepcionEnDesglose, al armar el
+                // desglose), así el monto cobrado por cada medio ya la incluye.
+
                 // Obtener desglose de IVA calculado
                 $desgloseIva = $this->resultado['desglose_iva'] ?? [];
 
@@ -2228,6 +2398,11 @@ trait WithPagosDesglose
                     if (! empty($this->desgloseIvaFiscal)) {
                         $opcionesFiscal['desglose_iva'] = $this->desgloseIvaFiscal;
                         $opcionesFiscal['total_a_facturar'] = $this->montoFacturaFiscal;
+                    }
+                    // Percepciones aplicadas (Fase 5b): ya cobradas en el total → se
+                    // pasan al comprobante para que cobrado == facturado (ImpTrib).
+                    if (! empty($this->percepcionTributos)) {
+                        $opcionesFiscal['tributos'] = $this->percepcionTributos;
                     }
                     if ($this->puntoVentaSeleccionadoId) {
                         $puntoVentaSeleccionado = PuntoVenta::with('cuit')->find($this->puntoVentaSeleccionadoId);

@@ -228,6 +228,11 @@ class NuevoPedidoMostrador extends Component
 
     public array $desgloseIvaFiscal = [];
 
+    /** Siempre 0/[]: el pedido no aplica percepciones (no emite comprobante). */
+    public float $percepcionMonto = 0;
+
+    public array $percepcionTributos = [];
+
     public bool $showPuntoVentaModal = false;
 
     public ?int $puntoVentaSeleccionadoId = null;
