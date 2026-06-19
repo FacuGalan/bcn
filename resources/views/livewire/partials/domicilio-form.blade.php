@@ -3,12 +3,16 @@
     Requiere el trait App\Traits\ManejaDomicilio en el componente host.
 
     Variables opcionales (vía @include):
-      - $conTipo (bool)     : muestra el selector fiscal/comercial/otro (default true)
-      - $conDireccion (bool): muestra el campo dirección (default true)
-      - $idPrefix (string)  : prefijo para los ids de los <label for> (default 'dom')
+      - $conTipo (bool)            : muestra el selector fiscal/comercial/otro (default true)
+      - $conDireccion (bool)       : muestra el campo dirección (default true)
+      - $conGeo (bool)             : muestra los campos latitud/longitud (default true)
+      - $provinciaRequerida (bool) : marca la provincia como obligatoria (default true)
+      - $idPrefix (string)         : prefijo para los ids de los <label for> (default 'dom')
 --}}
 @php($conTipo = $conTipo ?? true)
 @php($conDireccion = $conDireccion ?? true)
+@php($conGeo = $conGeo ?? true)
+@php($provinciaRequerida = $provinciaRequerida ?? true)
 @php($idPrefix = $idPrefix ?? 'dom')
 
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -26,7 +30,7 @@
 
     {{-- Provincia (ISO) --}}
     <div>
-        <label for="{{ $idPrefix }}-provincia" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Provincia') }} <span class="text-red-500">*</span></label>
+        <label for="{{ $idPrefix }}-provincia" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Provincia') }} @if($provinciaRequerida)<span class="text-red-500">*</span>@endif</label>
         <select id="{{ $idPrefix }}-provincia" wire:model.live="domProvincia"
             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
             <option value="">{{ __('Seleccionar...') }}</option>
@@ -60,16 +64,18 @@
     @endif
 
     {{-- Geo opcional --}}
-    <div>
-        <label for="{{ $idPrefix }}-lat" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Latitud') }} <span class="text-gray-400">({{ __('opcional') }})</span></label>
-        <input id="{{ $idPrefix }}-lat" type="number" step="0.0000001" wire:model="domLatitud" placeholder="-34.6037"
-            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-        @error('domLatitud') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
-    </div>
-    <div>
-        <label for="{{ $idPrefix }}-lng" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Longitud') }} <span class="text-gray-400">({{ __('opcional') }})</span></label>
-        <input id="{{ $idPrefix }}-lng" type="number" step="0.0000001" wire:model="domLongitud" placeholder="-58.3816"
-            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-        @error('domLongitud') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
-    </div>
+    @if($conGeo)
+        <div>
+            <label for="{{ $idPrefix }}-lat" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Latitud') }} <span class="text-gray-400">({{ __('opcional') }})</span></label>
+            <input id="{{ $idPrefix }}-lat" type="number" step="0.0000001" wire:model="domLatitud" placeholder="-34.6037"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            @error('domLatitud') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+        </div>
+        <div>
+            <label for="{{ $idPrefix }}-lng" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Longitud') }} <span class="text-gray-400">({{ __('opcional') }})</span></label>
+            <input id="{{ $idPrefix }}-lng" type="number" step="0.0000001" wire:model="domLongitud" placeholder="-58.3816"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            @error('domLongitud') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+        </div>
+    @endif
 </div>

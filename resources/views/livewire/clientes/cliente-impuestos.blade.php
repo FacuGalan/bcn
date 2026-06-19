@@ -1,30 +1,32 @@
 <div>
     @if($mostrarModal)
         <x-bcn-modal
-            :title="__('Impuestos de :cuit', ['cuit' => $cuitNombre])"
+            :title="__('Perfil fiscal de :cliente', ['cliente' => $clienteNombre])"
             color="bg-bcn-primary"
-            maxWidth="6xl"
+            maxWidth="5xl"
             onClose="cerrar"
             submit="guardar"
         >
             <x-slot:body>
-                {{-- CUIT sobre el que se está trabajando --}}
+                {{-- Cliente sobre el que se está trabajando --}}
                 <div class="mb-4 px-3 py-2 rounded-md bg-bcn-primary/10 dark:bg-bcn-primary/20">
                     <p class="text-sm text-gray-700 dark:text-gray-200">
-                        <span class="font-semibold">{{ __('CUIT') }}:</span>
-                        <span class="font-mono">{{ $cuitNumero }}</span>
-                        <span class="text-gray-500 dark:text-gray-400">· {{ $cuitNombre }}</span>
+                        <span class="font-semibold">{{ $clienteNombre }}</span>
+                        @if($clienteCuit)
+                            <span class="text-gray-500 dark:text-gray-400">· {{ __('CUIT') }} <span class="font-mono">{{ $clienteCuit }}</span></span>
+                        @endif
                     </p>
                 </div>
 
                 <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">
-                    {{ __('El IVA lo determina la condición de IVA del CUIT. Acá se configuran percepciones, retenciones y otros impuestos.') }}
+                    {{ __('La percepción de IVA es automática y no se configura acá. Este perfil define las percepciones provinciales (Ingresos Brutos) que se le aplican al cliente: exención o alícuota por sujeto (manual o de padrón).') }}
+                    <span class="block mt-1">{{ __('Agregá la jurisdicción del cliente desde el buscador y luego cargá su alícuota (o marcala como exenta).') }}</span>
                 </p>
 
                 {{-- Alta rápida: buscar en el catálogo --}}
                 <div class="mb-5" x-data="{ open: false }" @click.outside="open = false">
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        {{ __('Agregar impuesto') }}
+                        {{ __('Agregar percepción') }}
                     </label>
                     <div class="relative">
                         <input
@@ -61,61 +63,9 @@
                             @endforelse
                         </div>
                     </div>
-
-                    {{-- Alta de impuesto custom --}}
-                    <div class="mt-2">
-                        <button type="button" wire:click="toggleFormCustom"
-                            class="text-sm text-bcn-primary hover:underline">
-                            {{ $mostrarFormCustom ? __('Cancelar impuesto personalizado') : __('+ Crear impuesto personalizado') }}
-                        </button>
-                    </div>
-
-                    @if($mostrarFormCustom)
-                        <div class="mt-3 p-4 rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/40">
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div class="sm:col-span-2">
-                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} <span class="text-red-500">*</span></label>
-                                    <input type="text" wire:model="customNombre" data-enter-default
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                    @error('customNombre') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Tipo') }}</label>
-                                    <select wire:model="customTipo"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                        <option value="iva">{{ __('IVA') }}</option>
-                                        <option value="iibb">{{ __('Ingresos Brutos') }}</option>
-                                        <option value="ganancias">{{ __('Ganancias') }}</option>
-                                        <option value="credito_debito">{{ __('Créditos y Débitos') }}</option>
-                                        <option value="otro">{{ __('Otro') }}</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Naturaleza') }}</label>
-                                    <select wire:model="customNaturaleza"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                        <option value="percepcion">{{ __('Percepción') }}</option>
-                                        <option value="retencion">{{ __('Retención') }}</option>
-                                        <option value="tributo">{{ __('Tributo') }}</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Jurisdicción') }}</label>
-                                    <input type="text" wire:model="customJurisdiccion" data-enter-default maxlength="6" placeholder="AR / AR-B"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white font-mono">
-                                </div>
-                            </div>
-                            <div class="mt-3 flex justify-end">
-                                <button type="button" wire:click="crearImpuestoCustom"
-                                    class="inline-flex items-center px-3 py-1.5 bg-bcn-primary text-white text-sm font-medium rounded-md hover:bg-bcn-primary/90 transition-colors">
-                                    {{ __('Crear y agregar') }}
-                                </button>
-                            </div>
-                        </div>
-                    @endif
                 </div>
 
-                {{-- Lista de impuestos configurados --}}
+                {{-- Lista de percepciones configuradas --}}
                 @if(count($filas) > 0)
                     <div class="space-y-3">
                         @foreach($filas as $i => $fila)
@@ -128,6 +78,9 @@
                                             <span class="text-xs text-gray-500 dark:text-gray-400 font-mono">{{ $fila['codigo'] }}</span>
                                             @if($fila['jurisdiccion'])
                                                 <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-300 font-mono">{{ $fila['jurisdiccion'] }}</span>
+                                            @endif
+                                            @if($fila['origen_alicuota'] === 'padron')
+                                                <span class="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{{ __('Padrón') }}</span>
                                             @endif
                                         </div>
                                     </div>
@@ -144,20 +97,20 @@
                                     {{-- Alícuota --}}
                                     <div>
                                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Alícuota (%)') }}</label>
-                                        <input type="number" step="0.0001" min="0" max="100" wire:model="filas.{{ $i }}.alicuota"
-                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                        <input type="number" step="0.0001" min="0" max="100" wire:model="filas.{{ $i }}.alicuota" @disabled($fila['exento'])
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-60">
                                         @error('filas.'.$i.'.alicuota') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
                                     </div>
                                     {{-- Base mínima --}}
                                     <div>
                                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Base mínima') }}</label>
-                                        <input type="number" step="0.01" min="0" wire:model="filas.{{ $i }}.alicuota_minimo_base"
-                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                        <input type="number" step="0.01" min="0" wire:model="filas.{{ $i }}.alicuota_minimo_base" @disabled($fila['exento'])
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-60">
                                     </div>
-                                    {{-- N° inscripción --}}
+                                    {{-- N° padrón --}}
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('N° inscripción') }}</label>
-                                        <input type="text" wire:model="filas.{{ $i }}.numero_inscripcion" maxlength="30"
+                                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('N° padrón') }}</label>
+                                        <input type="text" wire:model="filas.{{ $i }}.numero_padron" maxlength="30"
                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                     </div>
                                     {{-- Vigencia desde --}}
@@ -175,49 +128,28 @@
                                     </div>
                                 </div>
 
-                                {{-- Flags --}}
+                                {{-- Flag exento --}}
                                 <div class="mt-3 flex flex-wrap items-center gap-4">
                                     <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                                        <input type="checkbox" wire:model="filas.{{ $i }}.inscripto"
+                                        <input type="checkbox" wire:model.live="filas.{{ $i }}.exento"
                                             class="rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700 dark:border-gray-600">
-                                        {{ __('Inscripto') }}
-                                    </label>
-                                    <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                                        <input type="checkbox" wire:model="filas.{{ $i }}.es_agente_percepcion"
-                                            class="rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700 dark:border-gray-600">
-                                        {{ __('Agente de percepción') }}
-                                    </label>
-                                    <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                                        <input type="checkbox" wire:model="filas.{{ $i }}.es_agente_retencion"
-                                            class="rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700 dark:border-gray-600">
-                                        {{ __('Agente de retención') }}
+                                        {{ __('Exento (no se le percibe este impuesto)') }}
                                     </label>
                                 </div>
-
-                                {{-- D7: solo IIBB. Percibir a clientes RI sin perfil fiscal/padrón. --}}
-                                @if($fila['tipo'] === 'iibb')
-                                    <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                                        <label class="inline-flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                                            <input type="checkbox" wire:model="filas.{{ $i }}.percibir_no_empadronados"
-                                                class="mt-0.5 rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700 dark:border-gray-600">
-                                            <span>
-                                                {{ __('Percibir a clientes no empadronados') }}
-                                                <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Si está activo, se percibe a la alícuota fija a todo cliente Responsable Inscripto sin perfil fiscal propio. Si no, sólo se percibe a los clientes con alícuota cargada (manual o padrón).') }}</span>
-                                            </span>
-                                        </label>
-                                    </div>
-                                @endif
                             </div>
                         @endforeach
                     </div>
 
                     <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                        {{ __('Las alícuotas se cargan manualmente. La actualización automática por padrón provincial estará disponible próximamente.') }}
+                        {{ __('La edición manual tiene prioridad: la importación de padrón no pisa lo cargado a mano.') }}
                     </p>
                 @else
                     <div class="text-center py-8">
                         <p class="text-sm text-gray-500 dark:text-gray-400">
-                            {{ __('Este CUIT no tiene impuestos configurados. Agregá uno desde el buscador.') }}
+                            {{ __('Este cliente no tiene percepciones configuradas.') }}
+                        </p>
+                        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                            {{ __('Buscá la jurisdicción del cliente arriba (ej: IIBB Buenos Aires) y agregala; después vas a poder cargar la alícuota o marcarla como exenta.') }}
                         </p>
                     </div>
                 @endif

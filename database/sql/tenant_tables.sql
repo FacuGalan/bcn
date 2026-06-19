@@ -284,6 +284,28 @@ CREATE TABLE `{{PREFIX}}cierre_turno_cajas` (
   CONSTRAINT `{{PREFIX}}cierre_turno_cajas_caja_id_foreign` FOREIGN KEY (`caja_id`) REFERENCES `{{PREFIX}}cajas` (`id`) ON DELETE CASCADE,
   CONSTRAINT `{{PREFIX}}cierre_turno_cajas_cierre_turno_id_foreign` FOREIGN KEY (`cierre_turno_id`) REFERENCES `{{PREFIX}}cierres_turno` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=44 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}cliente_impuesto_configs`;
+CREATE TABLE `{{PREFIX}}cliente_impuesto_configs` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `cliente_id` bigint(20) unsigned NOT NULL,
+  `impuesto_id` bigint(20) unsigned NOT NULL,
+  `exento` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si true, NO se le percibe este impuesto',
+  `alicuota` decimal(6,4) DEFAULT NULL COMMENT '% a percibir (override del fijo del agente)',
+  `alicuota_minimo_base` decimal(12,2) DEFAULT NULL COMMENT 'Umbral de base imponible',
+  `numero_padron` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'N de inscripcion/constancia del sujeto',
+  `origen_alicuota` enum('manual','padron') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'manual',
+  `vigente_desde` date DEFAULT NULL,
+  `vigente_hasta` date DEFAULT NULL,
+  `datos_extra` json DEFAULT NULL COMMENT 'Fila cruda del padron (trazabilidad, solo origen padron)',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `{{PREFIX}}uq_cliimp_cli_imp_desde` (`cliente_id`,`impuesto_id`,`vigente_desde`),
+  KEY `{{PREFIX}}idx_cliimp_cliente` (`cliente_id`),
+  KEY `{{PREFIX}}fk_cliimp_impuesto` (`impuesto_id`),
+  CONSTRAINT `{{PREFIX}}fk_cliimp_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `{{PREFIX}}clientes` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_cliimp_impuesto` FOREIGN KEY (`impuesto_id`) REFERENCES `{{PREFIX}}impuestos` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}clientes`;
 CREATE TABLE `{{PREFIX}}clientes` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -293,6 +315,8 @@ CREATE TABLE `{{PREFIX}}clientes` (
   `email` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `telefono` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `direccion` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `provincia` varchar(6) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ISO 3166-2 - jurisdiccion fiscal',
+  `localidad_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Ref soft a localidades (config)',
   `condicion_iva_id` int(10) unsigned DEFAULT NULL,
   `activo` tinyint(1) NOT NULL DEFAULT '1',
   `lista_precio_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Lista de precios asignada al cliente',
@@ -847,6 +871,7 @@ CREATE TABLE `{{PREFIX}}cuit_impuesto_configs` (
   `numero_inscripcion` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `es_agente_percepcion` tinyint(1) NOT NULL DEFAULT '0',
   `es_agente_retencion` tinyint(1) NOT NULL DEFAULT '0',
+  `percibir_no_empadronados` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'IIBB: percibir a RI sin config/padron (D7)',
   `alicuota` decimal(6,4) DEFAULT NULL COMMENT '% aplicable (que aplica o sufre)',
   `alicuota_minimo_base` decimal(12,2) DEFAULT NULL COMMENT 'Base mínima para aplicar',
   `origen_alicuota` enum('manual','padron') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'manual' COMMENT 'padron = integración futura ARBA/AGIP',

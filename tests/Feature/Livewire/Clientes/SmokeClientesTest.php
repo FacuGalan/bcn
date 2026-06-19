@@ -2,8 +2,10 @@
 
 namespace Tests\Feature\Livewire\Clientes;
 
+use App\Livewire\Clientes\ClienteImpuestos;
 use App\Livewire\Clientes\GestionarClientes;
 use App\Livewire\Clientes\GestionarCobranzas;
+use App\Models\Cliente;
 use App\Models\User;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -47,5 +49,24 @@ class SmokeClientesTest extends TestCase
     public function test_gestionar_cobranzas_monta(): void
     {
         Livewire::test(GestionarCobranzas::class)->assertOk();
+    }
+
+    public function test_cliente_impuestos_monta(): void
+    {
+        Livewire::test(ClienteImpuestos::class)->assertOk();
+    }
+
+    public function test_cliente_impuestos_abre_para_un_cliente(): void
+    {
+        $cliente = Cliente::create([
+            'nombre' => 'Cliente Fiscal',
+            'activo' => true,
+        ]);
+
+        Livewire::test(ClienteImpuestos::class)
+            ->call('abrir', $cliente->id)
+            ->assertSet('mostrarModal', true)
+            ->assertSet('clienteId', $cliente->id)
+            ->assertOk();
     }
 }

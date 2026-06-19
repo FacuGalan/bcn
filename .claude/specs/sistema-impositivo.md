@@ -412,7 +412,31 @@ Orden sugerido de implementación:
 6. **Cambio de jurisdicción en lo fiscal**: `ImpuestoService::calcularTributos` deja de recibir `Sucursal` y recibe la **jurisdicción de la operación** (ISO) resuelta desde el domicilio del PV — actualizar firma + tests (Fase 2). `PosicionFiscalService::posicionIibb` agrupa la base imponible por `comprobante->puntoVenta->cuitDomicilio->provincia` en vez de `sucursal->provincia` — actualizar método + test (Fase 7). Helper común para resolver la jurisdicción desde un comprobante/PV.
 7. Traducciones es/en/pt + smoke de las pantallas tocadas.
 
-### Fase 10: Perfil fiscal del cliente + padrones [EN REVISIÓN] — refina 5b
+### Fase 10: Perfil fiscal del cliente + padrones [10a VERIFICADA / 10b PENDIENTE] — refina 5b
+> **10a VERIFICADA (/sdd-verify APROBADO, 2026-06-19)**: 10/10 criterios en alcance con
+> test que pasó (57 tests verdes) + matriz completa validada EN VIVO por el usuario
+> (emisión AFIP homologación OK, exento/padrón/D7/consumidor final, mixto con 2 FP fiscales).
+> **Bug AFIP 10051 detectado y corregido durante la validación**: en facturas con descuento/
+> recargo por forma de pago, `formatearDesgloseParaAFIP`/`recalcularDesgloseIvaFiscal`
+> (WithPagosDesglose, código compartido Ventas+Pedidos) tomaban el `neto` SIN el ajuste FP
+> mientras el total SÍ lo incluía → el residuo deformaba el IVA (IVA ≠ neto×alícuota). Fix:
+> usar `neto_con_ajuste_fp`/`iva_con_ajuste_fp`. Era PREEXISTENTE de 5b (cualquier FC con
+> ajuste FP fallaba), la percepción solo lo hizo visible. + percepción visible en el listado
+> de ventas (accessor `VentaPago::percepcion` derivado, sin columna nueva).
+> **10a COMPLETA (2026-06-19)**, rama `feat/fiscal-fase10-perfil-cliente`. Implementado:
+> migraciones (`add_domicilio_fiscal_a_clientes`, `create_cliente_impuesto_configs_table`,
+> `add_percibir_no_empadronados_a_cuit_impuesto_configs`) + modelo `ClienteImpuestoConfig`
+> + relaciones `Cliente::impuestoConfigs()`/`localidad()` + domicilio fiscal en el form de
+> cliente (trait `ManejaDomicilio`, partial con flags `conGeo`/`provinciaRequerida` nuevos)
+> + componente embebido `Clientes\ClienteImpuestos` (evento `abrir-impuestos-cliente`, botón
+> por fila en móvil y desktop) + flag D7 `percibir_no_empadronados` en `CuitImpuestos` (Fase 3)
+> + **cambio de firma `calcularTributos(?CondicionIva → ?Cliente)`** con lógica IIBB por sujeto
+> (exento / alícuota override / D7) y base mínima del cliente. Tests: 6 nuevos en
+> `ImpuestoServiceTest` (49 verdes), 2 smoke `ClienteImpuestos`, `PercepcionFiscalVentaTest`
+> actualizado a D7. Traducciones es/en/pt (13 claves). `tenant_tables.sql` regenerado.
+> **10b PENDIENTE**: importador de padrón ARBA/AGIP (RF-14), bloqueado por D8 (archivo real).
+> **Pendiente verificación en vivo del usuario** + `/sdd-verify` + docs (Fase 8) + PR.
+
 > Agregada 2026-06-18, detallada 2026-06-19. Surge de la pregunta del usuario: la
 > percepción de IIBB depende también del CLIENTE, no solo del agente (ver
 > [[project-iibb-percepcion-depende-del-cliente]]). La Fase 5b (YA MERGEADA, PR #136)

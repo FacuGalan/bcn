@@ -11,6 +11,7 @@ use App\Models\Proveedor;
 use App\Models\Sucursal;
 use App\Services\ARCA\PadronARCAService;
 use App\Services\CatalogoCache;
+use App\Traits\ManejaDomicilio;
 use App\Traits\SucursalAware;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -30,7 +31,7 @@ use Livewire\WithPagination;
 #[Lazy]
 class GestionarClientes extends Component
 {
-    use SucursalAware, WithFileUploads, WithPagination;
+    use ManejaDomicilio, SucursalAware, WithFileUploads, WithPagination;
 
     // Propiedades de filtros
     public string $search = '';
@@ -188,6 +189,10 @@ class GestionarClientes extends Component
             'dias_credito' => 'integer|min:0|max:365',
             'tasa_interes_mensual' => 'numeric|min:0|max:100',
             'activo' => 'boolean',
+            // Domicilio fiscal (RF-12, Fase 10): provincia OPCIONAL en el cliente
+            // (consumidor final puede no tenerla); define la jurisdicción destino.
+            'domProvincia' => 'nullable|string|max:6',
+            'domLocalidadId' => 'nullable|integer',
         ];
 
         // Validar CUIT único si se está editando otro cliente
@@ -372,6 +377,8 @@ class GestionarClientes extends Component
         $this->consultaArcaDisponible = PadronARCAService::estaDisponible();
         $this->modoAlta = 'manual';
 
+        $this->resetDomicilio();
+
         $this->showModal = true;
     }
 
@@ -390,6 +397,11 @@ class GestionarClientes extends Component
         $this->telefono = $cliente->telefono ?? '';
         $this->direccion = $cliente->direccion ?? '';
         $this->condicion_iva_id = $cliente->condicion_iva_id;
+        // Domicilio fiscal estructurado (RF-12, Fase 10).
+        $this->setDomicilioDesde([
+            'provincia' => $cliente->provincia,
+            'localidad_id' => $cliente->localidad_id,
+        ]);
         $this->lista_precio_id = $cliente->lista_precio_id;
         $this->tiene_cuenta_corriente = $cliente->tiene_cuenta_corriente;
         $this->limite_credito = (float) $cliente->limite_credito;
@@ -650,6 +662,8 @@ class GestionarClientes extends Component
                 'email' => $this->email ?: null,
                 'telefono' => $this->telefono ?: null,
                 'direccion' => $this->direccion ?: null,
+                'provincia' => $this->domProvincia ?: null,
+                'localidad_id' => $this->domLocalidadId ?: null,
                 'condicion_iva_id' => $this->condicion_iva_id,
                 'lista_precio_id' => null, // La lista se configura por sucursal
                 'tiene_cuenta_corriente' => $this->tiene_cuenta_corriente,
@@ -1306,6 +1320,7 @@ class GestionarClientes extends Component
         $this->email = '';
         $this->telefono = '';
         $this->direccion = '';
+        $this->resetDomicilio();
         $this->condicion_iva_id = null;
         $this->tiene_cuenta_corriente = false;
         $this->limite_credito = 0;
