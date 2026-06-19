@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-19 (percepciones fiscales aplicadas en ventas)
+> Version: 0.1.x | Ultima actualizacion: 2026-06-19 (alta manual y anulacion de movimientos fiscales RF-08)
 
 ---
 
@@ -71,6 +71,7 @@
 - [13. Fiscal](#13-fiscal)
   - [13.1 Posicion Fiscal](#131-posicion-fiscal)
   - [13.2 Libros IVA](#132-libros-iva)
+  - [13.3 Movimientos Fiscales](#133-movimientos-fiscales)
 - [14. Flujos de Trabajo Comunes](#14-flujos-de-trabajo-comunes)
   - [14.1 Abrir el comercio por la manana](#141-abrir-el-comercio-por-la-manana)
   - [14.2 Realizar una venta tipica](#142-realizar-una-venta-tipica)
@@ -2988,9 +2989,9 @@ La pantalla cliente y la app principal (BCN Pymes) tienen scopes de PWA distinto
 
 ## 13. Fiscal
 
-El modulo Fiscal centraliza la informacion tributaria del comercio. Agrupa la posicion de IVA y los libros de IVA ventas/compras, consultables por CUIT y periodo mensual. Requiere permiso `func.fiscal.*` (asignado a Administrador y Super Administrador).
+El modulo Fiscal centraliza la informacion tributaria del comercio. Agrupa la posicion de IVA, los libros de IVA ventas/compras y el ledger de movimientos fiscales, consultables por CUIT y periodo mensual. Requiere permiso `func.fiscal.*` (asignado a Administrador y Super Administrador).
 
-Acceso desde el menu lateral: **Fiscal → Posicion fiscal** y **Fiscal → Libros IVA**.
+Acceso desde el menu lateral: **Fiscal → Posicion fiscal**, **Fiscal → Libros IVA** y **Fiscal → Movimientos fiscales**.
 
 ### 13.1 Posicion Fiscal
 
@@ -3066,6 +3067,71 @@ El pie de la tabla muestra los totales del periodo.
 Lista las compras con atribucion fiscal registradas en el periodo (aquellas que tienen un CUIT del comercio asignado y percepciones/retenciones cargadas). Muestra credito fiscal de IVA, percepciones y retenciones sufridas por cada compra.
 
 > El modulo de compras esta en desarrollo; este libro se completa a medida que se cargan percepciones en cada factura de proveedor.
+
+---
+
+### 13.3 Movimientos Fiscales
+
+**Ruta**: `/fiscal/movimientos` | **Permiso**: `func.fiscal.movimientos`
+
+Ledger fiscal del comercio: lista todos los impuestos sufridos y aplicados registrados para un CUIT y periodo. Permite dar de alta movimientos manualmente (retenciones o percepciones sufridas fuera de los flujos automaticos de ventas, compras o conciliacion de MercadoPago) y anularlos por contraasiento.
+
+#### Que ve al entrar
+
+La pantalla carga con el primer CUIT activo y el mes actual preseleccionados. Muestra una tabla (desktop) o tarjetas (movil) con los movimientos del periodo, ordenados por fecha descendente. Cada fila muestra:
+
+- Fecha del movimiento.
+- Nombre del impuesto.
+- Naturaleza (Percepcion, Retencion o Tributo).
+- Sentido (Sufrido / Aplicado).
+- Base imponible (si fue informada).
+- Monto.
+- Estado (Activo / Anulado).
+
+#### Filtros disponibles
+
+| Filtro | Descripcion |
+|---|---|
+| CUIT | Selecciona el CUIT del comercio a consultar |
+| Periodo | Mes y ano (campo tipo mes, formato AAAA-MM) |
+| Sentido | Todos / Sufrido / Aplicado |
+| Naturaleza | Todas / Percepcion / Retencion / Tributo / Debito fiscal / Credito fiscal |
+| Incluir anulados | Casilla de verificacion; por defecto oculta los movimientos anulados |
+
+Todos los filtros se sincronizan con la URL, de modo que la vista es compartible y recargable.
+
+#### Alta manual de un movimiento
+
+Boton **Alta manual** (esquina superior derecha). Se abre un modal con los siguientes campos:
+
+| Campo | Obligatorio | Descripcion |
+|---|---|---|
+| CUIT | Si | CUIT del comercio al que se imputa el movimiento. Se pre-carga con el CUIT del filtro activo |
+| Impuesto | Si | Selector agrupado: primero aparecen los impuestos ya configurados para ese CUIT, luego el resto del catalogo. Si se elige un impuesto con naturaleza default compatible, la naturaleza se pre-carga automaticamente |
+| Sentido | Si | Sufrido (el comercio lo pago) o Aplicado (el comercio lo cobro como agente) |
+| Naturaleza | Si | Percepcion, Retencion o Tributo (el debito/credito fiscal de IVA se genera solo desde comprobantes y compras, por eso no aparece en el alta manual) |
+| Fecha | Si | Fecha del comprobante o certificado. Determina el periodo fiscal AAAA-MM |
+| N° de certificado | No | Numero de certificado de retencion o percepcion. Hasta 50 caracteres |
+| Base imponible | No | Monto sobre el que se calcula el impuesto |
+| Alicuota (%) | No | Alicuota aplicada. Si se completan base y alicuota, el monto se sugiere automaticamente (base × alicuota / 100) pero es editable |
+| Monto | Si | Monto del impuesto. Debe ser mayor a cero |
+| Observaciones | No | Texto libre hasta 1000 caracteres |
+
+Luego de completar los datos, hacer clic en **Registrar** para guardar. El movimiento queda en estado Activo y se refleja en la Posicion Fiscal del periodo correspondiente.
+
+**Caso de uso tipico**: una empresa cliente que actua como agente de retencion de IIBB aplica una retencion al momento de pagar una factura. Esa retencion no llega por ningun flujo automatico del sistema, asi que se carga desde esta pantalla como Retencion sufrida.
+
+#### Anulacion de un movimiento
+
+Los movimientos en estado Activo tienen un boton **Anular** (texto en rojo en desktop, link al pie de la tarjeta en movil). Al hacer clic se abre un modal de confirmacion con un campo opcional de motivo. Al confirmar:
+
+- Se genera un **contraasiento** inmutable: una nueva fila en el ledger que cancela el movimiento original.
+- Tanto el movimiento original como el contraasiento quedan con estado Anulado.
+- La Posicion Fiscal del periodo se actualiza automaticamente (solo cuenta movimientos Activos).
+
+La anulacion es siempre total (no se puede anular parcialmente un movimiento).
+
+> Los movimientos originados automaticamente desde comprobantes, compras o conciliacion de MercadoPago tambien aparecen en esta pantalla y pueden anularse del mismo modo.
 
 ---
 
