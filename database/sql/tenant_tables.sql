@@ -1262,6 +1262,7 @@ CREATE TABLE `{{PREFIX}}impuestos` (
   `tipo` enum('iva','iibb','ganancias','credito_debito','otro') COLLATE utf8mb4_unicode_ci NOT NULL,
   `naturaleza_default` enum('percepcion','retencion','debito_fiscal','credito_fiscal','tributo') COLLATE utf8mb4_unicode_ci NOT NULL,
   `jurisdiccion` varchar(6) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'AR nacional o ISO 3166-2 provincial (AR-C, AR-B...)',
+  `codigo_arca` smallint DEFAULT NULL COMMENT 'Código de tributo del WS de ARCA (FEParamGetTiposTributos)',
   `es_sistema` tinyint(1) NOT NULL DEFAULT '1',
   `activo` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NULL DEFAULT NULL,

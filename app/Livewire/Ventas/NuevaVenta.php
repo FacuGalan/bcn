@@ -208,6 +208,12 @@ class NuevaVenta extends Component
     /** @var array Desglose de IVA para la factura fiscal (recalculado) */
     public $desgloseIvaFiscal = [];
 
+    /** @var float Monto de percepciones aplicadas (Fase 5b) que el cliente paga de más */
+    public $percepcionMonto = 0;
+
+    /** @var array Detalle de tributos/percepciones para pasar al comprobante fiscal */
+    public $percepcionTributos = [];
+
     // =========================================
     // PROPIEDADES DE SELECCIÓN DE PUNTO DE VENTA FISCAL
     // =========================================
@@ -730,6 +736,16 @@ class NuevaVenta extends Component
     {
         $this->actualizarPreciosItems();
         $this->calcularVenta();
+    }
+
+    /**
+     * Al togglear el checkbox de factura fiscal: recalcular el monto a facturar y
+     * la percepción (Fase 5b) para que el total a pagar refleje la percepción
+     * inmediatamente (el cliente paga el total con la percepción incluida).
+     */
+    public function updatedEmitirFacturaFiscal(): void
+    {
+        $this->calcularMontoFacturaFiscal();
     }
 
     public function updatedFormaPagoId()
@@ -1286,6 +1302,19 @@ class NuevaVenta extends Component
             // Una venta totalmente invitada nunca se factura: no hay base imponible (total=0).
             $debeFacturar = ! $esInvitacionCompleta && ($debeFacturarAutomatico || $debeFacturarManual);
 
+            // Percepciones aplicadas (Fase 5b): si la venta emite factura y el cliente
+            // es RI, el CUIT agente percibe. Se suma al total que paga el cliente y se
+            // pasa al comprobante para que cobrado == facturado. Sin agente/RI → [].
+            $tributosVenta = [];
+            if ($debeFacturar) {
+                $netoGravado = (float) ($this->resultado['desglose_iva']['total_neto'] ?? 0);
+                $tributosVenta = $this->calcularTributosFiscales($netoGravado, $cajaId);
+                $percepcionTotal = round(array_sum(array_column($tributosVenta, 'monto')), 2);
+                if ($percepcionTotal > 0) {
+                    $totalVenta = round($totalVenta + $percepcionTotal, 2);
+                }
+            }
+
             DB::connection('pymes_tenant')->beginTransaction();
 
             try {
@@ -1435,7 +1464,9 @@ class NuevaVenta extends Component
                 $comprobanteFiscal = null;
                 if ($debeFacturar) {
                     try {
-                        $comprobanteFiscal = $comprobanteFiscalService->crearComprobanteFiscal($venta);
+                        $comprobanteFiscal = $comprobanteFiscalService->crearComprobanteFiscal($venta, [
+                            'tributos' => $tributosVenta,
+                        ]);
 
                         Log::info('Comprobante fiscal emitido', [
                             'venta_id' => $venta->id,

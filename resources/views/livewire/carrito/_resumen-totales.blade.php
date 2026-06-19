@@ -104,15 +104,27 @@
             </div>
         @endif
 
+        {{-- Percepción fiscal (Fase 5b): se cobra de más cuando se factura a un RI
+             y el CUIT es agente de percepción. El cliente paga el total con ella. --}}
+        @if(($percepcionMonto ?? 0) > 0)
+            <div class="flex justify-between items-center text-indigo-600 dark:text-indigo-400">
+                <span class="text-xs flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m-6 4h6m-6 4h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
+                    {{ __('Percepción') }}@if(!empty($percepcionTributos) && isset($percepcionTributos[0]['alicuota'])) ({{ rtrim(rtrim(number_format($percepcionTributos[0]['alicuota'], 2, ',', '.'), '0'), ',') }}%)@endif:
+                </span>
+                <span class="text-sm font-medium">+$@precio($percepcionMonto)</span>
+            </div>
+        @endif
+
         {{-- Total a pagar --}}
         <div class="flex justify-between items-center text-lg font-bold border-t border-gray-200 dark:border-gray-700 pt-2 mt-1">
             <span class="text-gray-900 dark:text-white">TOTAL:</span>
             @if($ajusteFormaPagoInfo['es_mixta'] && count($desglosePagos) > 0 && $montoPendienteDesglose <= 0.01 && $totalConAjustes > 0)
-                <span class="text-purple-600">$@precio($totalConAjustes)</span>
+                <span class="text-purple-600">$@precio($totalConAjustes + ($percepcionMonto ?? 0))</span>
             @elseif(!$ajusteFormaPagoInfo['es_mixta'] && ($ajusteFormaPagoInfo['porcentaje'] != 0 || ($ajusteFormaPagoInfo['recargo_cuotas_porcentaje'] ?? 0) > 0))
-                <span class="{{ ($ajusteFormaPagoInfo['porcentaje'] > 0 || ($ajusteFormaPagoInfo['recargo_cuotas_porcentaje'] ?? 0) > 0) ? 'text-red-600' : 'text-green-600' }}">$@precio($ajusteFormaPagoInfo['total_con_ajuste'] ?? 0)</span>
+                <span class="{{ ($ajusteFormaPagoInfo['porcentaje'] > 0 || ($ajusteFormaPagoInfo['recargo_cuotas_porcentaje'] ?? 0) > 0) ? 'text-red-600' : 'text-green-600' }}">$@precio(($ajusteFormaPagoInfo['total_con_ajuste'] ?? 0) + ($percepcionMonto ?? 0))</span>
             @else
-                <span class="text-indigo-600">$@precio($resultado['total_final'] ?? 0)</span>
+                <span class="text-indigo-600">$@precio(($resultado['total_final'] ?? 0) + ($percepcionMonto ?? 0))</span>
             @endif
         </div>
 

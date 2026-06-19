@@ -1382,10 +1382,11 @@ Tasas de cambio entre monedas.
 
 - **`cuits`**: CUITs de la empresa con certificados AFIP. Campos: `numero_cuit`, `razon_social`, `condicion_iva_id`, `entorno_afip` (testing/produccion), `certificado_path`, `clave_path`.
 - **`puntos_venta`**: Puntos de venta fiscales. Cada uno tiene un CUIT asociado y un numero.
-- **`comprobantes_fiscales`**: Comprobantes emitidos ante AFIP. Tipos: factura_a/b/c/e/m, nota_credito_a/b/c/e/m, nota_debito_a/b/c/e/m, recibo_a/b/c. Incluye CAE, datos del receptor, totales desglosados por IVA.
+- **`comprobantes_fiscales`**: Comprobantes emitidos ante AFIP. Tipos: factura_a/b/c/e/m, nota_credito_a/b/c/e/m, nota_debito_a/b/c/e/m, recibo_a/b/c. Incluye CAE, datos del receptor, totales desglosados por IVA. Campo `tributos` (decimal): suma total de percepciones aplicadas informadas en `ImpTrib` de AFIP.
 - **`comprobante_fiscal_ventas`**: Pivot comprobante-venta (un comprobante puede cubrir una o mas ventas).
 - **`comprobante_fiscal_iva`**: Desglose de IVA por alicuota dentro de un comprobante.
 - **`comprobante_fiscal_items`**: Items detallados del comprobante fiscal.
+- **`comprobante_fiscal_tributos`**: Desglose de percepciones aplicadas dentro de un comprobante (Fase 5b). Una fila por impuesto percibido. Campos: `comprobante_fiscal_id`, `impuesto_id`, `base_imponible`, `alicuota`, `monto`, `codigo_arca` (codigo ARCA para el array `Tributos[]` de AFIP). Paralelo a `compra_percepciones` del lado de compras. La relacion desde `ComprobanteFiscal` es `tributosDetalle`.
 - **`cuit_sucursal`**: Asignacion de CUITs a sucursales.
 - **`punto_venta_caja`**: Asignacion de puntos de venta a cajas.
 
@@ -2547,6 +2548,7 @@ Catalogo de impuestos argentinos. Seeded por el sistema al crear un comercio. Ex
 | `tipo` | enum | `iva`, `iibb`, `ganancias`, `credito_debito`, `otro` |
 | `naturaleza_default` | enum | `percepcion`, `retencion`, `debito_fiscal`, `credito_fiscal`, `tributo` |
 | `jurisdiccion` | varchar(6) nullable | `AR` = nacional; codigo ISO 3166-2 = provincial (ej: `AR-B`, `AR-C`). NULL para impuestos sin jurisdiccion |
+| `codigo_arca` | smallint nullable | Codigo de tipo de tributo del WS de ARCA (`FEParamGetTiposTributos`). NULL = no viaja en el comprobante (retenciones, IVA debito/credito). Valores: `6` = Percepcion de IVA, `7` = Percepcion de IIBB, `99` = Otros. |
 | `es_sistema` | boolean | true = seeded, false = custom del comercio |
 | `activo` | boolean | Si esta disponible para configurar |
 | `created_at`, `updated_at` | timestamp | Timestamps |
@@ -2643,6 +2645,8 @@ Domicilios fiscales declarados por un CUIT ante AFIP (RF-11, Fase 9). Cada CUIT 
 | `created_at`, `updated_at` | timestamp | Timestamps |
 
 #### Columnas nuevas en tablas existentes
+
+**`impuestos.codigo_arca`** (smallint nullable, Fase 5b): codigo de tipo de tributo del WS de ARCA (`FEParamGetTiposTributos`). Se pobla automaticamente al provisionar un comercio nuevo y al correr la migracion `2026_06_18_170000_add_codigo_arca_a_impuestos`. Mapeo: `perc_iva` → 6, `perc_iibb_*` → 7, `otro` → 99. NULL para impuestos que no viajan en el comprobante (retenciones, IVA debito/credito). Sin `codigo_arca`, el tributo se calcula y se cobra pero no se informa en el array `Tributos[]` de AFIP (comportamiento defensivo).
 
 **`compras.cuit_id`** (bigint FK nullable, Fase 6): CUIT del comercio al que se imputa fiscalmente la compra. Si es NULL, la compra no alimenta el ledger fiscal. FK con `ON DELETE SET NULL`.
 
@@ -2956,6 +2960,43 @@ Flujo de compra (via `CompraService`):
 3. Se envia a AFIP via webservice (entorno testing o produccion segun configuracion del CUIT)
 4. AFIP devuelve CAE y fecha de vencimiento
 5. Se almacena el comprobante con la respuesta completa
+
+#### Percepciones aplicadas en ventas (Fase 5b)
+
+Cuando el CUIT del punto de venta actua como **agente de percepcion** (`cuit_impuesto_configs.es_agente_percepcion = true`) y el receptor es **Responsable Inscripto**, el sistema calcula y cobra percepciones (IIBB y/o IVA) que el comercio debe depositar ante el fisco.
+
+**Cuándo se percibe**:
+- La venta va a emitir comprobante fiscal (automatico o manual).
+- El cliente tiene condicion IVA = Responsable Inscripto.
+- El CUIT del PV tiene al menos un impuesto configurado como agente de percepcion con alicuota vigente y base imponible superior al minimo configurado (`alicuota_minimo_base`).
+
+**Flujo (venta directa — `NuevaVenta`):**
+1. Al seleccionar un cliente RI, tildar el checkbox de factura fiscal o modificar el carrito, `WithCalculoVenta` y `WithBusquedaClientes` llaman a `calcularMontoFacturaFiscal()`.
+2. `aplicarPercepcionFiscal()` llama a `ImpuestoService::calcularPercepcionesComprobante()`, que a su vez llama a `calcularTributos()` con el CUIT del PV y la condicion IVA del cliente.
+3. El monto de percepcion (`percepcionMonto`) se suma al `montoFacturaFiscal` y se distribuye proporcionalmente entre los pagos fiscales del desglose (`distribuirPercepcionEnDesglose`).
+4. Al confirmar la venta, los tributos calculados se pasan como `opciones['tributos']` a `ComprobanteFiscalService::crearComprobanteFiscal()`.
+5. El service persiste el desglose en `comprobante_fiscal_tributos`, ajusta `comprobantes_fiscales.tributos` e informa `ImpTrib` a AFIP.
+6. Post-CAE, `ImpuestoService::registrarDesdeComprobante()` crea en `movimientos_fiscales` un movimiento por cada tributo del comprobante con `sentido = aplicado` y `naturaleza = percepcion`.
+
+**Flujo (pago mixto con desglose):**
+- La percepcion se distribuye proporcionalmente entre los pagos marcados con `factura_fiscal = true`, modificando su `monto_final`.
+- El campo `percepcion` en cada entrada del desglose registra la cuota asignada (permite recalculos idempotentes).
+- La base para calcular el monto a facturar descuenta la percepcion ya distribuida en los `monto_final` fiscales (evita recursion: la base gravada son los bienes, no los bienes + percepcion).
+
+**Invariante cobrado == facturado**: el total que paga el cliente (incluyendo la percepcion) es exactamente el `ImpTotal` que se informa a AFIP (`ImpNeto + ImpIVA + ImpTrib`). El motor nunca autopercibe si no cobro la percepcion previamente.
+
+**Notas de credito**: `crearNotaCredito()` carga `tributosDetalle` del comprobante original y replica el desglose de tributos en la NC. El `ImpTrib` de la NC refleja el mismo monto de percepciones que el comprobante original.
+
+**Redondeo fiscal**: el IVA de la ultima alicuota absorbe el residuo de redondeo para garantizar `Σneto + Σiva == montoFacturaFiscal` exacto. AFIP tolera que el IVA difiera ±0.01 de `neto × alicuota`, pero no que `ImpTotal != ImpNeto + ImpIVA + ImpTrib`. El neto de cada alicuota no se modifica.
+
+**Registro en ledger**: los movimientos de percepcion aplicada NO integran la posicion de IVA propia del comercio. Aparecen como deuda a depositar ante el fisco en la posicion de IIBB/IVA (panel "percepciones aplicadas como agente").
+
+**Metodo en ImpuestoService**:
+- `calcularPercepcionesComprobante(Cuit, ?Cliente, float $netoGravado, ?string $jurisdiccion, ?Carbon $fecha): array` — wrapper sobre `calcularTributos` que resuelve el receptor desde el cliente de la venta. Garantiza mismo origen de verdad en el cobro y en la emision.
+
+**Propiedades de estado en NuevaVenta / WithPagosDesglose**:
+- `percepcionMonto` (float): suma total de percepciones del comprobante actual.
+- `percepcionTributos` (array): detalle por impuesto (`impuesto_id`, `codigo_arca`, `base_imponible`, `alicuota`, `monto`). Se pasa como `opciones['tributos']` al service.
 
 ### 3.10 Cambio de Forma de Pago en Ventas Registradas
 

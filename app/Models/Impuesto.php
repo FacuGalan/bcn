@@ -27,11 +27,13 @@ class Impuesto extends Model
         'tipo',
         'naturaleza_default',
         'jurisdiccion',
+        'codigo_arca',
         'es_sistema',
         'activo',
     ];
 
     protected $casts = [
+        'codigo_arca' => 'integer',
         'es_sistema' => 'boolean',
         'activo' => 'boolean',
     ];

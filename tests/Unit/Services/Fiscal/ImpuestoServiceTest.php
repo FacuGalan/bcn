@@ -586,6 +586,78 @@ class ImpuestoServiceTest extends TestCase
         $this->assertEquals(0, $activos);
     }
 
+    // ==================== Fase 5b: percepciones aplicadas en comprobantes ====================
+
+    public function test_calcular_tributos_incluye_codigo_arca(): void
+    {
+        $emisor = $this->cuit();
+        $imp = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
+        $imp->update(['codigo_arca' => 7]);
+        $this->config($emisor, $imp, ['alicuota' => 3.0]);
+
+        $tributos = $this->service->calcularTributos(
+            $emisor,
+            $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
+            1000.0,
+            'AR-B'
+        );
+
+        $this->assertCount(1, $tributos);
+        $this->assertSame(7, $tributos[0]['codigo_arca']);
+    }
+
+    public function test_registrar_desde_comprobante_genera_percepcion_aplicada(): void
+    {
+        $this->impuesto('iva_debito', Impuesto::TIPO_IVA, 'debito_fiscal', 'AR');
+        $percIibb = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
+
+        $c = $this->comprobante(300, [['base_imponible' => 1000, 'alicuota' => 21, 'importe' => 210]]);
+        $c->setRelation('tributosDetalle', collect([
+            new \App\Models\ComprobanteFiscalTributo([
+                'impuesto_id' => $percIibb->id,
+                'base_imponible' => 1000,
+                'alicuota' => 3,
+                'monto' => 30,
+                'codigo_arca' => 7,
+            ]),
+        ]));
+
+        $this->service->registrarDesdeComprobante($c, 7);
+
+        $percepciones = MovimientoFiscal::where('origen_tipo', 'ComprobanteFiscal')
+            ->where('origen_id', 300)
+            ->where('naturaleza', MovimientoFiscal::NATURALEZA_PERCEPCION)
+            ->get();
+
+        $this->assertCount(1, $percepciones);
+        $this->assertEquals($percIibb->id, $percepciones->first()->impuesto_id);
+        $this->assertEquals(MovimientoFiscal::SENTIDO_APLICADO, $percepciones->first()->sentido);
+        $this->assertEquals(30.0, (float) $percepciones->first()->monto);
+    }
+
+    public function test_nota_de_credito_contraasienta_tambien_los_tributos(): void
+    {
+        $this->impuesto('iva_debito', Impuesto::TIPO_IVA, 'debito_fiscal', 'AR');
+        $percIibb = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
+
+        $factura = $this->comprobante(300, [['base_imponible' => 1000, 'alicuota' => 21, 'importe' => 210]]);
+        $factura->setRelation('tributosDetalle', collect([
+            new \App\Models\ComprobanteFiscalTributo([
+                'impuesto_id' => $percIibb->id, 'base_imponible' => 1000, 'alicuota' => 3, 'monto' => 30, 'codigo_arca' => 7,
+            ]),
+        ]));
+        $this->service->registrarDesdeComprobante($factura, 7);
+
+        // 2 movimientos activos: débito IVA + percepción.
+        $this->assertEquals(2, MovimientoFiscal::activos()->where('origen_id', 300)->where('origen_tipo', 'ComprobanteFiscal')->count());
+
+        $nc = $this->comprobante(301, [['base_imponible' => 1000, 'alicuota' => 21, 'importe' => 210]], asociadoId: 300);
+        $this->service->registrarDesdeComprobante($nc, 7);
+
+        // Tras la NC ninguno queda activo (débito + percepción contraasentados).
+        $this->assertEquals(0, MovimientoFiscal::activos()->where('origen_id', 300)->where('origen_tipo', 'ComprobanteFiscal')->count());
+    }
+
     // ==================== registrarDesdeCompra (RF-05, Fase 6) ====================
 
     protected function compra(int $id, ?int $cuitId, array $percepciones = [], string $fecha = '2026-05-10'): Compra
