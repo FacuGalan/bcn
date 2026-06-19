@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-18 (sistema impositivo)
+> Version: 0.1.x | Ultima actualizacion: 2026-06-19 (percepciones fiscales aplicadas en ventas)
 
 ---
 
@@ -339,6 +339,12 @@ Si selecciona una forma de pago de tipo "Mixta", al presionar el boton de cobro 
 5. El sistema calculara automaticamente los ajustes (recargos/descuentos) de cada forma de pago.
 6. Cuando el monto pendiente llegue a cero, podra confirmar la venta.
 
+Si aplica una percepcion fiscal (CUIT agente + cliente RI), el modal de pago mixto muestra ademas:
+- Una linea **"Percepcion (se cobra con la parte fiscal): +$Y"** en azul.
+- Un recuadro **"Total a pagar"** con el monto final incluyendo la percepcion.
+
+La percepcion se distribuye automaticamente entre los pagos del desglose que tienen factura fiscal habilitada, en proporcion a los bienes de cada pago. El monto que se envia al proveedor de pago (por ejemplo, MercadoPago QR) ya incluye la percepcion que le corresponde: lo cobrado por cada medio coincide exactamente con lo facturado.
+
 **Pago mixto con QR MercadoPago**: si el desglose incluye una forma de pago con integracion QR (por ejemplo, parte en efectivo + parte con QR Mercado Pago), el sistema solo cobra la porcion de integracion a traves del QR. El flujo es el siguiente:
 
 1. Arme el desglose con todas las formas de pago. La porcion con QR indica el monto exacto a cobrar por esa via.
@@ -355,6 +361,21 @@ Si la sucursal tiene facturacion fiscal habilitada, la venta puede generar autom
 
 Puede activar o desactivar la emision de factura fiscal mediante un checkbox en el resumen de totales. Si la sucursal esta configurada para facturacion automatica, la factura se emitira por defecto.
 
+#### Percepciones fiscales aplicadas
+
+Cuando el CUIT configurado en el punto de venta de la caja actua como **agente de percepcion** y el cliente es **Responsable Inscripto**, el sistema calcula automaticamente la percepcion (IIBB y/o IVA) sobre la base gravada de la venta. Esta percepcion:
+
+- Se suma al total que el cliente debe pagar (lo que cobra el cajero == lo que se factura a AFIP).
+- Se muestra como una linea adicional **"Percepcion (X%): +$Y"** en el resumen de totales, debajo de los descuentos y ajustes de forma de pago.
+- Se informa a AFIP en el campo `Tributos[]` del comprobante fiscal.
+- Se registra automaticamente en el ledger fiscal del comercio como percepcion aplicada (deuda a depositar ante el fisco).
+
+Si el cliente no es Responsable Inscripto, o si el CUIT del punto de venta no esta configurado como agente de percepcion, no se calcula ningun adicional y el flujo es el habitual.
+
+**Reactividad**: la percepcion se recalcula automaticamente al seleccionar o cambiar el cliente, al tildar o destildar el checkbox de factura fiscal, y al modificar el carrito o la forma de pago.
+
+**Notas de credito**: si se anula una venta que tenia percepcion aplicada, la nota de credito incluye el mismo desglose de tributos del comprobante original.
+
 #### Resumen de totales
 
 En la parte inferior de la columna derecha se muestra el resumen:
@@ -364,7 +385,8 @@ En la parte inferior de la columna derecha se muestra el resumen:
 - **Total productos**: Subtotal menos descuentos.
 - **Recargo/Descuento por forma de pago**: Si la forma de pago tiene un ajuste asociado.
 - **Recargo por cuotas**: Si se seleccionaron cuotas con recargo.
-- **TOTAL**: Monto final a cobrar.
+- **Percepcion (X%)**: Solo aparece si el CUIT del punto de venta actua como agente de percepcion y el cliente es Responsable Inscripto. Muestra el monto adicional que se percibe y se suma al total.
+- **TOTAL**: Monto final a cobrar (incluye la percepcion si corresponde).
 - **Desglose de IVA**: Puede expandir esta seccion para ver el detalle de IVA.
 
 #### Proceso de cobro
@@ -2336,6 +2358,8 @@ Cada CUIT en la lista expone tres botones de accion adicionales (accesibles desd
 - Marcar si el CUIT actua como agente de percepcion y/o agente de retencion para ese impuesto.
 - Quitar un impuesto de la configuracion del CUIT.
 - Nota: el IVA del CUIT no se gestiona aqui; lo determina la condicion de IVA asignada al CUIT.
+
+> **Percepcion automatica en ventas**: si marca el CUIT como agente de percepcion para un impuesto (por ejemplo, percepcion de IIBB provincial o percepcion de IVA), el sistema calculara y cobrara automaticamente esa percepcion al facturar a clientes Responsables Inscriptos desde los puntos de venta de ese CUIT. La alicuota configurada aqui es la que se aplica. Los impuestos del catalogo ya tienen asignado su codigo de tributo AFIP (campo interno `codigo_arca`) para informarlo correctamente en el comprobante electronico.
 
 **Boton "Domicilios"**: abre el modal de domicilios fiscales del CUIT. Permite:
 - Ver la lista de domicilios declarados ante AFIP para ese CUIT.
