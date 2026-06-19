@@ -412,17 +412,141 @@ Orden sugerido de implementación:
 6. **Cambio de jurisdicción en lo fiscal**: `ImpuestoService::calcularTributos` deja de recibir `Sucursal` y recibe la **jurisdicción de la operación** (ISO) resuelta desde el domicilio del PV — actualizar firma + tests (Fase 2). `PosicionFiscalService::posicionIibb` agrupa la base imponible por `comprobante->puntoVenta->cuitDomicilio->provincia` en vez de `sucursal->provincia` — actualizar método + test (Fase 7). Helper común para resolver la jurisdicción desde un comprobante/PV.
 7. Traducciones es/en/pt + smoke de las pantallas tocadas.
 
-### Fase 10: Perfil fiscal del cliente + padrones [PENDIENTE] — va junto con 5b
-> Agregada 2026-06-18. Surge de la pregunta del usuario: la percepción de IIBB
-> depende también del CLIENTE, no solo del agente (ver [[project-iibb-percepcion-depende-del-cliente]]).
-> El motor v1 usa solo la jurisdicción del agente (domicilio del PV) con alícuota
-> FIJA. Lo fino necesita el cliente, y su único consumidor es la emisión (5b), por
-> eso van juntas (cargar config sin 5b = config muerta).
-- **Jurisdicción del cliente**: agregar provincia/localidad estructurada al `Cliente` (hoy solo tiene `cuit` + `direccion` texto). Reusar `ManejaDomicilio` + partial → columnas `clientes.provincia` (ISO) + `clientes.localidad_id` (igual que sucursal). Define destino de la operación y fallback de jurisdicción.
-- **Perfil fiscal del cliente (percepciones)**: si se le percibe y a qué alícuota. Distinguir **percepción** (al vender) de **retención** (al pagar): las retenciones que aplica el comercio son a PROVEEDORES (config por proveedor en compras), NO al cliente; las que un cliente nos hace son sufridas (conciliación/alta manual). Tabla nueva tipo `cliente_impuesto_configs` (espejo de `cuit_impuesto_configs` pero por cliente) o tabla de padrón; el override manual cubre exentos / fuera de padrón.
-- **Padrón ARBA/AGIP**: importar padrón por CUIT → alícuota por sujeto (`cuit_impuesto_configs.origen_alicuota = padron` ya previsto como flag). Override manual por cliente para exentos / fuera de padrón.
-- **Acople con el motor**: el consumidor es `calcularTributos`. Hoy recibe `?CondicionIva $receptor`; en Fase 10 debe recibir la **identidad del cliente (CUIT + jurisdicción)** para resolver la alícuota por padrón/perfil en vez de la fija del emisor. Por eso 5b y Fase 10 se diseñan JUNTAS (cambiar la firma una sola vez). Ver [[project-iibb-percepcion-depende-del-cliente]].
-- Depende de 5b (emisión con `calcularTributos` cableado) para tener efecto real → config sin 5b = config muerta.
+### Fase 10: Perfil fiscal del cliente + padrones [EN REVISIÓN] — refina 5b
+> Agregada 2026-06-18, detallada 2026-06-19. Surge de la pregunta del usuario: la
+> percepción de IIBB depende también del CLIENTE, no solo del agente (ver
+> [[project-iibb-percepcion-depende-del-cliente]]). La Fase 5b (YA MERGEADA, PR #136)
+> percibe con **alícuota fija** por jurisdicción del agente, a todo RI → riesgo de
+> **sobre-percibir** a clientes exentos o con alícuota de padrón menor. Fase 10 mete
+> al cliente en la ecuación: provincia/localidad del cliente + perfil de percepción
+> por sujeto (manual + padrón ARBA/AGIP). Consumidor único: `calcularTributos` (la
+> emisión de 5b, ya cableada).
+
+**Decisión de alcance (2026-06-19, con el usuario):**
+- **Percepción de IVA = AUTOMÁTICA**, NO se configura por cliente (igual que en
+  `cuit_impuesto_configs` el IVA débito/crédito no se gestiona: lo determina la
+  condición de IVA). La alícuota de percepción de IVA es nacional y fija; se aplica
+  a RI según la config del agente. Queda EXCLUIDA del perfil del cliente.
+- **IIBB y demás percepciones provinciales = CONFIGURABLES por cliente** (dependen
+  de jurisdicción + padrón + exención del sujeto).
+- **Varios impuestos por cliente** (no un solo porcentaje): un cliente puede tener
+  percepción de IIBB de una jurisdicción y otra percepción a la vez.
+- Alcance COMPLETO: override **manual** + **importador de padrón** ARBA/AGIP.
+
+#### RF-12: Domicilio fiscal del cliente
+- Columnas nuevas en `clientes` (tenant): `provincia` (varchar(6) NULL, ISO 3166-2) +
+  `localidad_id` (bigint unsigned NULL, ref soft a `localidades` config). Hoy el
+  cliente solo tiene `cuit` (string) + `direccion` (texto libre) — ver
+  `app/Models/Cliente.php` fillable.
+- Reusar el trait `App\Traits\ManejaDomicilio` + partial
+  `resources/views/livewire/partials/domicilio-form.blade.php` (ya probados en CUIT
+  y sucursal en Fase 9) en el form de alta/edición de clientes.
+- Define la **jurisdicción destino** de la operación (para el match de IIBB) y el
+  fallback cuando el padrón no resuelve.
+
+#### RF-13: Perfil fiscal del cliente (`cliente_impuesto_configs`)
+- Tabla nueva tenant `cliente_impuesto_configs`, **espejo** de `cuit_impuesto_configs`
+  (`database/migrations/2026_06_12_150001_create_cuit_impuesto_configs_table.php`)
+  pero por cliente y con semántica de SUJETO PERCIBIDO (no de agente):
+  | Campo | Tipo | Notas |
+  |-------|------|-------|
+  | `id` | bigint PK | |
+  | `cliente_id` | bigint FK→clientes ON DELETE CASCADE | |
+  | `impuesto_id` | bigint FK→impuestos | |
+  | `exento` | tinyint(1) default 0 | si true ⇒ NO se le percibe este impuesto |
+  | `alicuota` | decimal(6,4) NULL | % a percibir (override del fijo del agente) |
+  | `alicuota_minimo_base` | decimal(12,2) NULL | umbral de base imponible |
+  | `numero_padron` | varchar(30) NULL | N° de inscripción/constancia del sujeto |
+  | `origen_alicuota` | enum('manual','padron') default 'manual' | |
+  | `vigente_desde` / `vigente_hasta` | date NULL | |
+  | timestamps | | |
+  | UNIQUE | (`cliente_id`,`impuesto_id`,`vigente_desde`) | igual que el espejo |
+  - **Diferencias con `cuit_impuesto_configs`**: se quitan `es_agente_percepcion`/
+    `es_agente_retencion` (el cliente no es agente en nuestro sistema) y se agrega
+    `exento` (marca explícita de no-percibir, para exentos / con certificado).
+  - Modelo `App\Models\ClienteImpuestoConfig` (conexión tenant) + scope `vigentes()`
+    (copiar el de `CuitImpuestoConfig:74`) + relaciones `cliente()`/`impuesto()`.
+  - Relación `Cliente::impuestoConfigs(): HasMany`.
+
+#### RF-14: Importador de padrón ARBA/AGIP
+- Pantalla/acción de importación de archivos de padrón (CSV/TXT). Parseo con el patrón
+  del proyecto (`str_getcsv` + `preg_split`, detección dinámica de separador — ver
+  `MercadoPagoGateway::parsearCsvReporteCuenta`), **un parser por agencia** (ARBA,
+  AGIP; extensible). Estrategia/interface `PadronParser` con impl por agencia.
+- Flujo: archivo → filas normalizadas `[cuit, impuesto/jurisdicción, alícuota_percepción,
+  vigencia]` → match por CUIT contra `clientes` del comercio → **upsert** en
+  `cliente_impuesto_configs` con `origen_alicuota='padron'`.
+- **Precedencia: el override manual gana.** La importación NO pisa filas con
+  `origen_alicuota='manual'` (solo crea/actualiza las `padron`).
+- El padrón trae tasas de percepción Y retención por sujeto; **acá solo se usa la de
+  percepción** (la retención IIBB a proveedores es del lado compras, fuera de alcance).
+- Idempotente por (cliente_id, impuesto_id, vigente_desde). Log de filas sin match
+  (CUIT no es cliente) sin abortar la corrida.
+
+#### RF-15: Acople con el motor (`calcularTributos`)
+- **Cambio de firma (una sola vez)**: `calcularTributos(Cuit $emisor, ?CondicionIva
+  $receptor, ...)` → `calcularTributos(Cuit $emisor, ?Cliente $receptor, ...)`
+  (`app/Services/Fiscal/ImpuestoService.php:221`). Internamente usa
+  `$receptor?->condicionIva` para el gate RI. Actualizar el caller de 5b
+  (`calcularPercepcionesComprobante` ya recibe `Cliente` — pasa a delegar directo) y
+  los tests de `ImpuestoServiceTest` (hoy pasan `CondicionIva`).
+- **Lógica por impuesto:**
+  - **Percepción de IVA**: automática — si el emisor es agente de `perc_iva` y el
+    receptor es RI ⇒ aplica la alícuota fija del agente (comportamiento 5b actual,
+    sin tocar). NO mira `cliente_impuesto_configs`.
+  - **Percepción de IIBB**: resolver contra `cliente_impuesto_configs` del receptor
+    para el impuesto de la jurisdicción de la operación:
+    - config con `exento=true` ⇒ NO percibe.
+    - config con `alicuota` (manual o padrón) ⇒ usa esa (alícuota por sujeto).
+    - sin config ⇒ **DECISIÓN ABIERTA D7** (ver abajo).
+  - Respeta `alicuota_minimo_base` (del cliente si está, si no del agente).
+
+#### Pantallas UI (Fase 10)
+- **Domicilio en el form de cliente**: incluir el partial `domicilio-form` (provincia
+  ISO → localidad dependiente) en el alta/edición de clientes.
+- **Impuestos del cliente**: componente/modal espejo de `CuitImpuestos` (Fase 3),
+  abierto desde un botón "Impuestos" por fila de cliente. Combobox de alta sobre el
+  catálogo **excluyendo tipo IVA y naturalezas débito/crédito fiscal** (solo IIBB y
+  otras percepciones); lista editable (exento, alícuota, base mínima, N° padrón,
+  vigencia, origen). Permiso: reusa el gate de gestión de clientes o
+  `func.fiscal.configuracion`.
+- **Importador de padrón**: pantalla bajo Fiscal (o Configuración) con upload de
+  archivo + selección de agencia (ARBA/AGIP) + período/vigencia + resumen de la
+  corrida (filas importadas, sin match, actualizadas). Permiso `func.fiscal.configuracion`.
+
+#### Migraciones (Fase 10, orden)
+1. `add_domicilio_fiscal_a_clientes`: `clientes.provincia` + `clientes.localidad_id` (tenant). Regenerar `tenant_tables.sql`.
+2. `create_cliente_impuesto_configs_table` (tenant). Regenerar `tenant_tables.sql`.
+3. (sin migración de menú si el importador va dentro de un componente ya enrutado; si es pantalla nueva → item de menú + permiso, como RF-08).
+
+#### Decisiones ABIERTAS (resolver durante la implementación)
+- **D7 — cliente sin entrada en padrón ni config manual**: ¿NO percibir IIBB
+  (conservador, evita sobre-percibir) o percibir a una tasa default del agente
+  (comportamiento 5b actual)? Proponer: **flag por `cuit_impuesto_configs` del agente**
+  (`percibir_no_empadronados` + alícuota default) para que el usuario lo decida por
+  jurisdicción. Default seguro = no percibir si hay padrón cargado para esa jurisdicción.
+- **D8 — formato real de los archivos de padrón ARBA/AGIP**: como pasó con el CSV de
+  MP (TAXES_DISAGGREGATED), el layout exacto (columnas, encoding, separador, formato
+  de CUIT y alícuota) se confirma con un **archivo real** de cada agencia. El parser se
+  ajusta ahí; hasta entonces se implementa contra el layout documentado y se deja la
+  fila cruda accesible. Posible blocker de la sub-fase "padrón" (la parte manual NO
+  depende de esto y se puede entregar antes).
+
+#### Criterios de aceptación (Fase 10)
+- Un cliente RI con domicilio en AR-B y `cliente_impuesto_configs` exento de perc IIBB
+  AR-B ⇒ una venta facturada NO le percibe IIBB (pero sí percepción de IVA si aplica).
+- Un cliente con alícuota de padrón 1.5% (origen padrón) ⇒ se percibe 1.5%, no la fija
+  del agente.
+- Importar un padrón no pisa las configs manuales existentes.
+- Cambiar la firma de `calcularTributos` no rompe 5b (comprobantes siguen cerrando) ni
+  los tests existentes (actualizados).
+- Percepción de IVA sigue siendo automática (no aparece en el perfil del cliente).
+
+#### Sub-fases de implementación (corte sugerido)
+- **10a (manual, sin padrón)**: migraciones + modelo + domicilio en cliente + UI de
+  `cliente_impuesto_configs` + cambio de firma de `calcularTributos` + lógica IIBB con
+  lookup del cliente (D7 resuelto). Entrega el refinamiento de 5b sin depender de D8.
+- **10b (padrón)**: importador ARBA/AGIP (depende de D8 / archivo real).
 
 ### Fase 8: Verificación + docs [PENDIENTE]
 /sdd-verify, @docs-sync, manual de usuario.
