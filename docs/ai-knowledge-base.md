@@ -3404,7 +3404,7 @@ Reglas de registro:
 | `ComprobanteFiscal` | `ImpuestoService::registrarDesdeComprobante()` | Despues de obtener el CAE (post-commit del comprobante). Solo CUIT Responsable Inscripto. Registra IVA debito fiscal por alicuota (sentido `aplicado`, naturaleza `debito_fiscal`). Una NC genera contraasientos de los movimientos del comprobante original. |
 | `Compra` | `ImpuestoService::registrarDesdeCompra()` | Al cargar una factura de proveedor con `cuit_id` asignado. Registra IVA credito fiscal (sentido `sufrido`, naturaleza `credito_fiscal`) y percepciones/retenciones sufridas (sentido `sufrido`, naturaleza segun el impuesto). |
 | `ConciliacionFila` | `ImpuestoService::registrarDesdeConciliacion()` | Al aplicar una corrida de conciliacion, para filas con `impuesto_id` identificado. Registra sentido `sufrido` con la naturaleza del impuesto. El importe es `abs(monto_neto)`. |
-| Manual | `ImpuestoService::registrarMovimientoFiscal()` | Carga manual por el usuario (Fase futura RF-08). |
+| Manual | `ImpuestoService::registrarMovimientoFiscal()` | Carga manual por el usuario desde `MovimientosFiscales` (RF-08). `origen_tipo = NULL`. Permite naturalezas `percepcion`, `retencion`, `tributo` en cualquier sentido. Debito/credito fiscal NO se admiten en carga manual para evitar doble conteo con los origenes automaticos. |
 
 Todos los metodos son **idempotentes por origen**: si ya existe un movimiento activo con el mismo `(origen_tipo, origen_id)`, no duplican.
 
@@ -3458,10 +3458,10 @@ Si el PV no tiene domicilio asignado, se usa `sucursal.provincia` como fallback.
 |---|---|
 | `func.fiscal.posicion` | Ver posicion de IVA e IIBB por CUIT y periodo |
 | `func.fiscal.libros` | Ver y exportar libros de IVA ventas/compras |
-| `func.fiscal.movimientos` | Registrar y anular movimientos del ledger fiscal manualmente (fase futura RF-08) |
+| `func.fiscal.movimientos` | Registrar y anular movimientos del ledger fiscal manualmente (RF-08, implementado) |
 | `func.fiscal.configuracion` | Configurar impuestos por CUIT desde Configuracion Empresa |
 
-Permisos de menu: `menu.fiscal`, `menu.fiscal-posicion`, `menu.fiscal-libros`. Todos asignados a Administrador y Super Administrador al provisionar o al ejecutar la migracion `add_fiscal_menu_y_permisos`.
+Permisos de menu: `menu.fiscal`, `menu.fiscal-posicion`, `menu.fiscal-libros`, `menu.fiscal-movimientos`. Los tres primeros se crean en la migracion `add_fiscal_menu_y_permisos`; `menu.fiscal-movimientos` se crea en `add_fiscal_movimientos_menu` (RF-08). Todos asignados a Administrador y Super Administrador al provisionar o al ejecutar la migracion correspondiente.
 
 #### Rutas
 
@@ -3469,6 +3469,30 @@ Permisos de menu: `menu.fiscal`, `menu.fiscal-posicion`, `menu.fiscal-libros`. T
 |---|---|---|
 | `GET /fiscal/posicion` | `fiscal.posicion` | `App\Livewire\Fiscal\PosicionFiscal` |
 | `GET /fiscal/libros` | `fiscal.libros` | `App\Livewire\Fiscal\LibrosIva` |
+| `GET /fiscal/movimientos` | `fiscal.movimientos` | `App\Livewire\Fiscal\MovimientosFiscales` |
+
+#### Componente MovimientosFiscales (RF-08)
+
+`App\Livewire\Fiscal\MovimientosFiscales` — pantalla de administracion del ledger fiscal.
+
+- **Scope**: global (no es SucursalAware). Filtra por CUIT seleccionado.
+- **Permiso**: `func.fiscal.movimientos` verificado en `mount()` y en cada accion de escritura.
+- **Paginacion**: 15 registros por pagina, ordenados por `fecha DESC, id DESC`.
+- **Filtros con `#[Url]`**: `cuitId`, `periodo` (YYYY-MM), `filtroSentido`, `filtroNaturaleza`. El checkbox `incluirAnulados` no se persiste en URL.
+- **Carga inicial**: primer CUIT activo por razon social y mes actual.
+
+**Alta manual** (`abrirModalAlta` / `registrarMovimiento`):
+- Naturalezas permitidas: `percepcion`, `retencion`, `tributo` (constante `NATURALEZAS_MANUALES`).
+- Naturalezas prohibidas en alta manual: `debito_fiscal`, `credito_fiscal` (se generan solos desde comprobantes/compras para evitar doble conteo).
+- El selector de impuesto agrupa: "Configurados para este CUIT" (`cuit_impuesto_configs` del `formCuitId`) y "Otros impuestos del catalogo". No se filtra estricto: permite cargar impuestos no configurados (ej. retenciones que hacen clientes al pagar).
+- Al elegir impuesto, si su `naturaleza_default` es una naturaleza manual valida, se pre-carga en `formNaturaleza`.
+- Si se informan `formBaseImponible` y `formAlicuota`, el campo `formMonto` se sugiere como `base × alicuota / 100` (editable).
+- Delega a `ImpuestoService::registrarMovimientoFiscal()` con `origen_tipo = NULL` (marca de carga manual).
+
+**Anulacion** (`abrirModalAnulacion` / `confirmarAnulacion`):
+- Solo disponible para movimientos con `estado = activo` y `movimiento_anulado_id = NULL` (no es ya un contraasiento).
+- Delega a `ImpuestoService::anularMovimientoFiscal($movimiento, $usuarioId, $motivo)`.
+- El service crea el contraasiento append-only; el componente no escribe directamente en la tabla.
 
 ---
 
