@@ -39,6 +39,7 @@ use App\Livewire\Configuracion\Usuarios;
 use App\Livewire\Cupones\GestionCupones;
 use App\Livewire\Dashboard\DashboardSucursal;
 use App\Livewire\Fiscal\LibrosIva;
+use App\Livewire\Fiscal\MovimientosFiscales;
 use App\Livewire\Fiscal\PosicionFiscal;
 use App\Livewire\Pedidos\PedidosMostrador;
 use App\Livewire\Puntos\ProgramaPuntos;
@@ -214,6 +215,7 @@ Route::prefix('app')->group(function () {
         Route::prefix('fiscal')->name('fiscal.')->group(function () {
             Route::get('posicion', PosicionFiscal::class)->name('posicion');
             Route::get('libros', LibrosIva::class)->name('libros');
+            Route::get('movimientos', MovimientosFiscales::class)->name('movimientos');
         });
 
         // =========================================
