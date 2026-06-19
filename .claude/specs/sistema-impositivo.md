@@ -520,11 +520,18 @@ Orden sugerido de implementación:
 3. (sin migración de menú si el importador va dentro de un componente ya enrutado; si es pantalla nueva → item de menú + permiso, como RF-08).
 
 #### Decisiones ABIERTAS (resolver durante la implementación)
-- **D7 — cliente sin entrada en padrón ni config manual**: ¿NO percibir IIBB
-  (conservador, evita sobre-percibir) o percibir a una tasa default del agente
-  (comportamiento 5b actual)? Proponer: **flag por `cuit_impuesto_configs` del agente**
-  (`percibir_no_empadronados` + alícuota default) para que el usuario lo decida por
-  jurisdicción. Default seguro = no percibir si hay padrón cargado para esa jurisdicción.
+- **D7 — cliente sin entrada en padrón ni config manual** → **RESUELTA (2026-06-19,
+  usuario): flag configurable por agente.** Agregar a `cuit_impuesto_configs` (la
+  config del AGENTE) la columna `percibir_no_empadronados` (tinyint(1) default 0).
+  Semántica en `calcularTributos`, percepción IIBB, receptor RI sin
+  `cliente_impuesto_configs` para ese impuesto:
+  - agente con `percibir_no_empadronados=true` ⇒ percibe a su `alicuota` fija (la del
+    agente, comportamiento 5b).
+  - agente con `percibir_no_empadronados=false` (DEFAULT seguro) ⇒ NO percibe.
+  Así el usuario decide por CUIT/jurisdicción si quiere percibir a no empadronados. La
+  alícuota default es la `alicuota` ya existente del agente (no se agrega otra). Requiere
+  migración que agregue la columna a `cuit_impuesto_configs` + casteo en el modelo +
+  exponerla en la UI de `CuitImpuestos` (Fase 3).
 - **D8 — formato real de los archivos de padrón ARBA/AGIP**: como pasó con el CSV de
   MP (TAXES_DISAGGREGATED), el layout exacto (columnas, encoding, separador, formato
   de CUIT y alícuota) se confirma con un **archivo real** de cada agencia. El parser se
