@@ -68,6 +68,8 @@ class Cliente extends Model
         'email',
         'telefono',
         'direccion',
+        'provincia',
+        'localidad_id',
         'condicion_iva_id',
         'lista_precio_id',
         'activo',
@@ -122,6 +124,23 @@ class Cliente extends Model
     public function listaPrecio(): BelongsTo
     {
         return $this->belongsTo(ListaPrecio::class, 'lista_precio_id');
+    }
+
+    /**
+     * Localidad del domicilio fiscal (ref soft a localidades de config).
+     */
+    public function localidad(): BelongsTo
+    {
+        return $this->belongsTo(Localidad::class, 'localidad_id');
+    }
+
+    /**
+     * Perfil fiscal del cliente: percepciones de IIBB por sujeto (RF-13, Fase 10a).
+     * Lo consume ImpuestoService::calcularTributos para refinar la percepción 5b.
+     */
+    public function impuestoConfigs(): HasMany
+    {
+        return $this->hasMany(ClienteImpuestoConfig::class, 'cliente_id');
     }
 
     public function sucursales(): BelongsToMany

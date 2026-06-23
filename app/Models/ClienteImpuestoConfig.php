@@ -6,48 +6,47 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Configuración impositiva de un CUIT (RF-02 sistema-impositivo).
+ * Perfil fiscal de un cliente (RF-13 sistema-impositivo, Fase 10a).
  *
- * Define si el CUIT está alcanzado por un impuesto del catálogo, con qué
- * alícuota (origen manual; padrón provincial = fase futura, D3), si actúa
- * como agente de percepción/retención, y la vigencia. La condición de IVA
- * vive en cuits.condicion_iva_id.
+ * Espejo de CuitImpuestoConfig pero por CLIENTE y con semántica de SUJETO
+ * PERCIBIDO (no de agente): define la percepción de IIBB que se le aplica a este
+ * cliente — exención, alícuota por sujeto (override manual o del padrón ARBA/AGIP),
+ * N° de inscripción/constancia y vigencia.
  *
- * Ref: .claude/specs/sistema-impositivo.md (RF-02).
+ * Consumidor único: ImpuestoService::calcularTributos (refina la percepción 5b
+ * que hoy aplica alícuota fija por jurisdicción del agente a todo RI).
+ *
+ * Ref: .claude/specs/sistema-impositivo.md (RF-13, Fase 10a).
  */
-class CuitImpuestoConfig extends Model
+class ClienteImpuestoConfig extends Model
 {
     protected $connection = 'pymes_tenant';
 
-    protected $table = 'cuit_impuesto_configs';
+    protected $table = 'cliente_impuesto_configs';
 
     protected $fillable = [
-        'cuit_id',
+        'cliente_id',
         'impuesto_id',
-        'inscripto',
-        'numero_inscripcion',
-        'es_agente_percepcion',
-        'es_agente_retencion',
-        'percibir_no_empadronados',
+        'exento',
         'alicuota',
         'alicuota_minimo_base',
+        'numero_padron',
         'origen_alicuota',
         'vigente_desde',
         'vigente_hasta',
+        'datos_extra',
     ];
 
     protected $casts = [
-        'inscripto' => 'boolean',
-        'es_agente_percepcion' => 'boolean',
-        'es_agente_retencion' => 'boolean',
-        'percibir_no_empadronados' => 'boolean',
+        'exento' => 'boolean',
         'alicuota' => 'decimal:4',
         'alicuota_minimo_base' => 'decimal:2',
         'vigente_desde' => 'date',
         'vigente_hasta' => 'date',
+        'datos_extra' => 'array',
     ];
 
-    // Orígenes de alícuota (D3: padrón = integración futura ARBA/AGIP).
+    // Orígenes de alícuota (padrón = importador ARBA/AGIP, Fase 10b).
     public const ORIGEN_MANUAL = 'manual';
 
     public const ORIGEN_PADRON = 'padron';
@@ -56,9 +55,9 @@ class CuitImpuestoConfig extends Model
     // RELACIONES
     // ==================
 
-    public function cuit(): BelongsTo
+    public function cliente(): BelongsTo
     {
-        return $this->belongsTo(Cuit::class)->withTrashed();
+        return $this->belongsTo(Cliente::class);
     }
 
     public function impuesto(): BelongsTo
@@ -86,8 +85,8 @@ class CuitImpuestoConfig extends Model
     // HELPERS
     // ==================
 
-    public function estaInscripto(): bool
+    public function estaExento(): bool
     {
-        return $this->inscripto === true;
+        return $this->exento === true;
     }
 }

@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-19 (alta manual y anulacion de movimientos fiscales RF-08)
+> Version: 0.1.x | Ultima actualizacion: 2026-06-19 (perfil fiscal del cliente — percepciones IIBB por sujeto, Fase 10a)
 
 ---
 
@@ -655,6 +655,8 @@ Permite dividir un pago existente de una venta ya registrada en uno o varios pag
 #### Desglose de pagos en el detalle de venta
 
 En el modal de detalle de venta, la seccion de pagos muestra los pagos en formato card (en movil) o tabla (en escritorio). Cada pago activo tiene un **boton lapiz azul** (Modificar). Los pagos anulados o con cobros CC aplicados muestran el boton deshabilitado con un tooltip explicando el motivo.
+
+Si el pago incluye una percepcion fiscal (cliente RI, CUIT agente), el detalle del cobro muestra una linea adicional **"Percepcion: +$Y"** en amarillo debajo del monto base. En la vista movil aparece como linea separada dentro de la card del pago; en escritorio aparece como texto secundario bajo el monto final de la columna importe.
 
 Badges de estado de facturacion por pago:
 - **Facturado**: el pago tiene comprobante fiscal emitido (con numero de comprobante).
@@ -2249,6 +2251,7 @@ Complete el formulario con:
   - Limite de credito.
   - Dias de credito.
   - Tasa de interes mensual.
+- **Domicilio fiscal**: Seccion opcional que define la jurisdiccion del cliente para las percepciones de Ingresos Brutos. Permite seleccionar la provincia (codigo ISO 3166-2) y la localidad. Si no se completa, el sistema aplica la logica del flag "Percibir a clientes no empadronados" configurado en el CUIT agente (ver Configuracion → CUIT → Impuestos).
 - Sucursales donde esta habilitado el cliente.
 - Tambien es proveedor: Si el cliente es tambien proveedor, puede vincularlo o crear un nuevo proveedor automaticamente.
 
@@ -2258,6 +2261,12 @@ Ingrese el CUIT y el sistema consultara automaticamente el padron de ARCA para c
 #### Acciones disponibles
 
 - **Editar**: Modifica los datos del cliente.
+- **Perfil fiscal**: Abre un modal para configurar las percepciones provinciales (Ingresos Brutos) que se le aplican a ese cliente en particular. Disponible en movil y escritorio.
+  - Se listan las jurisdicciones ya configuradas con su alicuota, base minima, numero de padron y vigencia.
+  - Boton **"Agregar jurisdiccion"**: busca y selecciona un impuesto de IIBB del catalogo del sistema. Una vez agregado, se puede cargar: alicuota (%), base minima, numero de padron/constancia, vigente desde/hasta, y marcar al cliente como **Exento** para esa jurisdiccion.
+  - Si el cliente esta marcado como Exento para un IIBB, no se le percibe ese impuesto aunque el CUIT sea agente.
+  - Si el cliente tiene alicuota cargada (manual o proveniente de padron), esa alicuota pisa la alicuota fija configurada en el CUIT agente.
+  - La percepcion de IVA es automatica y NO se configura aqui; aplica a todo Responsable Inscripto sin excepcion.
 - **Configurar sucursales**: Permite asignar listas de precios diferentes por sucursal para el mismo cliente.
 - **Ver historial**: Muestra el historial de ventas del cliente.
 - **Activar/Desactivar**: Cambia el estado del cliente.
@@ -2357,10 +2366,14 @@ Cada CUIT en la lista expone tres botones de accion adicionales (accesibles desd
 - Crear impuestos personalizados que no esten en el catalogo del sistema.
 - Para cada impuesto configurado, editar: alicuota (%), base minima (umbral de base imponible para aplicar la percepcion), numero de inscripcion, vigente desde, vigente hasta.
 - Marcar si el CUIT actua como agente de percepcion y/o agente de retencion para ese impuesto.
+- Para los impuestos de tipo IIBB, aparece ademas el flag **"Percibir a clientes no empadronados"**: si esta activo, el sistema percibe la alicuota fija del agente a todo cliente Responsable Inscripto que no tenga perfil fiscal propio cargado para ese IIBB; si esta desactivado (valor por defecto), solo se percibe a los clientes que tienen alicuota cargada manualmente o proveniente de padron.
 - Quitar un impuesto de la configuracion del CUIT.
 - Nota: el IVA del CUIT no se gestiona aqui; lo determina la condicion de IVA asignada al CUIT.
 
-> **Percepcion automatica en ventas**: si marca el CUIT como agente de percepcion para un impuesto (por ejemplo, percepcion de IIBB provincial o percepcion de IVA), el sistema calculara y cobrara automaticamente esa percepcion al facturar a clientes Responsables Inscriptos desde los puntos de venta de ese CUIT. La alicuota configurada aqui es la que se aplica. Los impuestos del catalogo ya tienen asignado su codigo de tributo AFIP (campo interno `codigo_arca`) para informarlo correctamente en el comprobante electronico.
+> **Percepcion automatica en ventas**: si marca el CUIT como agente de percepcion para un impuesto (por ejemplo, percepcion de IIBB provincial o percepcion de IVA), el sistema calculara y cobrara automaticamente esa percepcion al facturar a clientes Responsables Inscriptos desde los puntos de venta de ese CUIT.
+> - Para **IVA**: la alicuota fija del agente aplica a todo RI sin excepcion (percepcion automatica).
+> - Para **IIBB provincial**: la alicuota se refina por el perfil fiscal del cliente (ver accion "Perfil fiscal" en el modulo Clientes). Si el cliente tiene alicuota propia, pisa la fija del agente; si esta exento, no se percibe; si no tiene perfil, el comportamiento depende del flag "Percibir a clientes no empadronados" del agente.
+> Los impuestos del catalogo ya tienen asignado su codigo de tributo AFIP (campo interno `codigo_arca`) para informarlo correctamente en el comprobante electronico.
 
 **Boton "Domicilios"**: abre el modal de domicilios fiscales del CUIT. Permite:
 - Ver la lista de domicilios declarados ante AFIP para ese CUIT.

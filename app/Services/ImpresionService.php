@@ -118,6 +118,7 @@ class ImpresionService
         $comprobante->load([
             'items',
             'detallesIva',
+            'tributosDetalle.impuesto', // Percepciones aplicadas (Fase 5b/10a) para mostrar desglose
             'cuit',
             'puntoVenta',
             'cliente',

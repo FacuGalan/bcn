@@ -2,6 +2,8 @@
 
 namespace Tests\Unit\Services\Fiscal;
 
+use App\Models\Cliente;
+use App\Models\ClienteImpuestoConfig;
 use App\Models\Compra;
 use App\Models\CompraPercepcion;
 use App\Models\ComprobanteFiscal;
@@ -69,6 +71,32 @@ class ImpuestoServiceTest extends TestCase
         );
     }
 
+    /**
+     * Cliente receptor con la condición de IVA dada (RF-15, Fase 10: el receptor
+     * de calcularTributos pasó de CondicionIva a Cliente).
+     */
+    protected function cliente(int $condicionCodigo = CondicionIva::RESPONSABLE_INSCRIPTO): Cliente
+    {
+        return Cliente::create([
+            'nombre' => 'Cliente '.$condicionCodigo,
+            'condicion_iva_id' => $this->condicion($condicionCodigo)->id,
+            'activo' => true,
+        ]);
+    }
+
+    /**
+     * Perfil fiscal del cliente para un impuesto (cliente_impuesto_configs).
+     */
+    protected function clienteConfig(Cliente $cliente, Impuesto $imp, array $extra = []): ClienteImpuestoConfig
+    {
+        return ClienteImpuestoConfig::create(array_merge([
+            'cliente_id' => $cliente->id,
+            'impuesto_id' => $imp->id,
+            'exento' => false,
+            'origen_alicuota' => ClienteImpuestoConfig::ORIGEN_MANUAL,
+        ], $extra));
+    }
+
     protected function impuesto(string $codigo, string $tipo, string $naturaleza, ?string $jurisdiccion): Impuesto
     {
         return Impuesto::create([
@@ -89,6 +117,10 @@ class ImpuestoServiceTest extends TestCase
             'impuesto_id' => $imp->id,
             'inscripto' => true,
             'es_agente_percepcion' => true,
+            // Por defecto el agente percibe a RI aunque no tengan perfil fiscal
+            // (D7): así los tests de "el agente percibe IIBB" siguen valiendo. Los
+            // tests específicos de D7 lo bajan a false explícitamente.
+            'percibir_no_empadronados' => true,
             'alicuota' => 3.0,
             'origen_alicuota' => CuitImpuestoConfig::ORIGEN_MANUAL,
         ], $extra));
@@ -104,7 +136,7 @@ class ImpuestoServiceTest extends TestCase
 
         $tributos = $this->service->calcularTributos(
             $emisor,
-            $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
+            $this->cliente(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0,
             'AR-B'
         );
@@ -124,7 +156,7 @@ class ImpuestoServiceTest extends TestCase
 
         $tributos = $this->service->calcularTributos(
             $emisor,
-            $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
+            $this->cliente(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0,
             'AR-C' // CABA, distinta jurisdicción
         );
@@ -140,7 +172,7 @@ class ImpuestoServiceTest extends TestCase
 
         $tributos = $this->service->calcularTributos(
             $emisor,
-            $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
+            $this->cliente(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0,
             null
         );
@@ -158,7 +190,7 @@ class ImpuestoServiceTest extends TestCase
 
         $tributos = $this->service->calcularTributos(
             $emisor,
-            $this->condicion(CondicionIva::CONSUMIDOR_FINAL),
+            $this->cliente(CondicionIva::CONSUMIDOR_FINAL),
             1000.0,
             'AR-B'
         );
@@ -174,7 +206,7 @@ class ImpuestoServiceTest extends TestCase
 
         $tributos = $this->service->calcularTributos(
             $emisor,
-            $this->condicion(CondicionIva::RESPONSABLE_MONOTRIBUTO),
+            $this->cliente(CondicionIva::RESPONSABLE_MONOTRIBUTO),
             1000.0,
             'AR-B'
         );
@@ -203,7 +235,7 @@ class ImpuestoServiceTest extends TestCase
 
         $tributos = $this->service->calcularTributos(
             $emisor,
-            $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
+            $this->cliente(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0,
             'AR-B'
         );
@@ -228,7 +260,7 @@ class ImpuestoServiceTest extends TestCase
 
         $tributos = $this->service->calcularTributos(
             $emisor,
-            $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
+            $this->cliente(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0,
             'AR-B'
         );
@@ -242,7 +274,7 @@ class ImpuestoServiceTest extends TestCase
         $imp = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
         $this->config($emisor, $imp, ['alicuota' => 3.0, 'vigente_hasta' => '2026-03-31']);
 
-        $receptor = $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO);
+        $receptor = $this->cliente(CondicionIva::RESPONSABLE_INSCRIPTO);
         $sucursal = 'AR-B';
 
         // Operación dentro de la vigencia → percibe.
@@ -261,7 +293,7 @@ class ImpuestoServiceTest extends TestCase
 
         $tributos = $this->service->calcularTributos(
             $emisor,
-            $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
+            $this->cliente(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0,
             'AR-B'
         );
@@ -279,7 +311,7 @@ class ImpuestoServiceTest extends TestCase
 
         $tributos = $this->service->calcularTributos(
             $emisor,
-            $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
+            $this->cliente(CondicionIva::RESPONSABLE_INSCRIPTO),
             2000.0,
             null // sin jurisdicción: IVA nacional igual aplica
         );
@@ -299,7 +331,7 @@ class ImpuestoServiceTest extends TestCase
 
         $tributos = $this->service->calcularTributos(
             $emisor,
-            $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
+            $this->cliente(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0, // < 5000
             'AR-B'
         );
@@ -314,10 +346,10 @@ class ImpuestoServiceTest extends TestCase
         $this->config($emisor, $imp);
 
         $this->assertSame([], $this->service->calcularTributos(
-            $emisor, $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO), 0.0, 'AR-B'
+            $emisor, $this->cliente(CondicionIva::RESPONSABLE_INSCRIPTO), 0.0, 'AR-B'
         ));
         $this->assertSame([], $this->service->calcularTributos(
-            $emisor, $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO), -100.0, 'AR-B'
+            $emisor, $this->cliente(CondicionIva::RESPONSABLE_INSCRIPTO), -100.0, 'AR-B'
         ));
     }
 
@@ -329,7 +361,7 @@ class ImpuestoServiceTest extends TestCase
 
         $tributos = $this->service->calcularTributos(
             $emisor,
-            $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
+            $this->cliente(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0,
             'AR-B'
         );
@@ -347,7 +379,7 @@ class ImpuestoServiceTest extends TestCase
 
         $tributos = $this->service->calcularTributos(
             $emisor,
-            $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
+            $this->cliente(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0,
             'AR-B'
         );
@@ -356,6 +388,102 @@ class ImpuestoServiceTest extends TestCase
         $montosPorCodigo = collect($tributos)->pluck('monto', 'codigo');
         $this->assertEquals(30.0, $montosPorCodigo['perc_iibb_ar_b']);
         $this->assertEquals(15.0, $montosPorCodigo['perc_iva']);
+    }
+
+    // ==================== Fase 10: perfil fiscal del cliente (RF-15) ====================
+
+    public function test_cliente_exento_no_se_le_percibe_iibb(): void
+    {
+        $emisor = $this->cuit();
+        $imp = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
+        $this->config($emisor, $imp, ['alicuota' => 3.0]);
+
+        $cliente = $this->cliente();
+        $this->clienteConfig($cliente, $imp, ['exento' => true]);
+
+        $tributos = $this->service->calcularTributos($emisor, $cliente, 1000.0, 'AR-B');
+
+        $this->assertSame([], $tributos);
+    }
+
+    public function test_usa_la_alicuota_del_cliente_si_tiene_override(): void
+    {
+        $emisor = $this->cuit();
+        $imp = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
+        $this->config($emisor, $imp, ['alicuota' => 3.0]); // fija del agente
+
+        $cliente = $this->cliente();
+        $this->clienteConfig($cliente, $imp, [
+            'alicuota' => 1.5, // alícuota de padrón menor a la fija
+            'origen_alicuota' => ClienteImpuestoConfig::ORIGEN_PADRON,
+        ]);
+
+        $tributos = $this->service->calcularTributos($emisor, $cliente, 1000.0, 'AR-B');
+
+        $this->assertCount(1, $tributos);
+        $this->assertEquals(1.5, $tributos[0]['alicuota']);
+        $this->assertEquals(15.0, $tributos[0]['monto']); // 1000 * 1.5%, no la fija 3%
+    }
+
+    public function test_d7_no_percibe_a_no_empadronado_si_el_agente_no_lo_habilita(): void
+    {
+        $emisor = $this->cuit();
+        $imp = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
+        $this->config($emisor, $imp, ['alicuota' => 3.0, 'percibir_no_empadronados' => false]);
+
+        $cliente = $this->cliente(); // sin perfil fiscal para este impuesto
+
+        $tributos = $this->service->calcularTributos($emisor, $cliente, 1000.0, 'AR-B');
+
+        $this->assertSame([], $tributos);
+    }
+
+    public function test_d7_percibe_a_no_empadronado_si_el_agente_lo_habilita(): void
+    {
+        $emisor = $this->cuit();
+        $imp = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
+        $this->config($emisor, $imp, ['alicuota' => 3.0, 'percibir_no_empadronados' => true]);
+
+        $cliente = $this->cliente(); // sin perfil fiscal → aplica la fija del agente
+
+        $tributos = $this->service->calcularTributos($emisor, $cliente, 1000.0, 'AR-B');
+
+        $this->assertCount(1, $tributos);
+        $this->assertEquals(30.0, $tributos[0]['monto']); // 1000 * 3%
+    }
+
+    public function test_percepcion_iva_no_depende_del_perfil_del_cliente(): void
+    {
+        // Un cliente exento de IIBB igual sufre la percepción de IVA (automática).
+        $emisor = $this->cuit();
+        $iibb = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
+        $iva = $this->impuesto('perc_iva', Impuesto::TIPO_IVA, 'percepcion', 'AR');
+        $this->config($emisor, $iibb, ['alicuota' => 3.0]);
+        $this->config($emisor, $iva, ['alicuota' => 1.5]);
+
+        $cliente = $this->cliente();
+        $this->clienteConfig($cliente, $iibb, ['exento' => true]);
+
+        $tributos = $this->service->calcularTributos($emisor, $cliente, 1000.0, 'AR-B');
+
+        $this->assertCount(1, $tributos);
+        $this->assertEquals('perc_iva', $tributos[0]['codigo']);
+        $this->assertEquals(15.0, $tributos[0]['monto']);
+    }
+
+    public function test_respeta_la_base_minima_del_cliente_sobre_la_del_agente(): void
+    {
+        $emisor = $this->cuit();
+        $imp = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
+        $this->config($emisor, $imp, ['alicuota' => 3.0]); // agente sin base mínima
+
+        $cliente = $this->cliente();
+        $this->clienteConfig($cliente, $imp, ['alicuota' => 3.0, 'alicuota_minimo_base' => 5000.0]);
+
+        // Neto 1000 < base mínima del cliente (5000) → no percibe.
+        $tributos = $this->service->calcularTributos($emisor, $cliente, 1000.0, 'AR-B');
+
+        $this->assertSame([], $tributos);
     }
 
     // ==================== registrarMovimientoFiscal ====================
@@ -597,7 +725,7 @@ class ImpuestoServiceTest extends TestCase
 
         $tributos = $this->service->calcularTributos(
             $emisor,
-            $this->condicion(CondicionIva::RESPONSABLE_INSCRIPTO),
+            $this->cliente(CondicionIva::RESPONSABLE_INSCRIPTO),
             1000.0,
             'AR-B'
         );

@@ -202,23 +202,29 @@ class ImpuestoService
      * Matriz v1 conservador (decisión del usuario, 2026-06-16): una percepción
      * se aplica solo si el CUIT emisor es agente de percepción (config vigente,
      * inscripto, con alícuota cargada) Y el receptor es Responsable Inscripto.
-     *  - Percepción IVA (nacional): sin condicionamiento por jurisdicción.
+     *  - Percepción IVA (nacional): AUTOMÁTICA, sin condicionamiento por
+     *    jurisdicción ni por cliente — alícuota fija del agente a todo RI.
      *  - Percepción IIBB (provincial): solo si la jurisdicción del impuesto
      *    coincide con la jurisdicción de la operación. Esta sale del DOMICILIO
      *    FISCAL del punto de venta del comprobante (RF-11, Fase 9), no de la
-     *    sucursal física. El match fino por provincia del receptor queda para la
-     *    fase de padrones (D3): hoy no tenemos ese dato confiable.
-     * Respeta `alicuota_minimo_base` (si el neto gravado es menor → no percibe).
+     *    sucursal física. Además se REFINA por el perfil fiscal del receptor
+     *    (RF-15, Fase 10): `cliente_impuesto_configs` del cliente para el mismo
+     *    impuesto define exención / alícuota por sujeto (manual o padrón). Sin
+     *    config del cliente decide la flag `percibir_no_empadronados` del agente
+     *    (D7): true ⇒ alícuota fija del agente; false (default) ⇒ no percibe.
+     * Respeta `alicuota_minimo_base` (del cliente si está, si no del agente; si el
+     * neto gravado es menor → no percibe).
      * Consumidor final / monotributo / exento / receptor null → sin percepción.
      *
      * El IVA débito del comprobante NO se calcula acá (lo hace
      * ComprobanteFiscalIva); esto devuelve solo las percepciones extra.
      *
+     * @param  ?Cliente  $receptor  cliente percibido (su condición de IVA gatea el RI y su perfil fiscal refina el IIBB)
      * @param  ?string  $jurisdiccion  ISO 3166-2 del domicilio del PV (jurisdicción de la operación); null = sin jurisdicción → no aplica IIBB provincial
      * @param  ?Carbon  $fecha  fecha de la operación (para la vigencia de la config); por defecto hoy
      * @return array<int, array{impuesto_id:int, codigo:string, tipo:string, jurisdiccion:?string, base_imponible:float, alicuota:float, monto:float}>
      */
-    public function calcularTributos(Cuit $emisor, ?CondicionIva $receptor, float $netoGravado, ?string $jurisdiccion = null, ?Carbon $fecha = null): array
+    public function calcularTributos(Cuit $emisor, ?Cliente $receptor, float $netoGravado, ?string $jurisdiccion = null, ?Carbon $fecha = null): array
     {
         // REVISAR (Fable): la matriz es v1 conservador (ver "Revisión pendiente"
         // en el spec). Puntos que AÚN faltan auditar contra la normativa real:
@@ -240,7 +246,7 @@ class ImpuestoService
         }
 
         // v1: solo se percibe a Responsables Inscriptos.
-        if ($receptor === null || $receptor->codigo !== CondicionIva::RESPONSABLE_INSCRIPTO) {
+        if ($receptor === null || $receptor->condicionIva?->codigo !== CondicionIva::RESPONSABLE_INSCRIPTO) {
             return [];
         }
 
@@ -254,6 +260,13 @@ class ImpuestoService
             ->whereNotNull('alicuota')
             ->with('impuesto')
             ->get();
+
+        // Perfil fiscal del receptor (RF-15, Fase 10): refina el IIBB por sujeto.
+        // Se carga una sola vez, keyed por impuesto_id (evita N+1 en el loop).
+        $configsCliente = $receptor->impuestoConfigs()
+            ->vigentes($fecha?->toDateString())
+            ->get()
+            ->keyBy('impuesto_id');
 
         $tributos = [];
 
@@ -273,10 +286,38 @@ class ImpuestoService
                 continue;
             }
 
+            // Por defecto se usa la config del AGENTE (alícuota fija + base mínima).
+            $alicuota = (float) $config->alicuota;
+            $minimoBase = $config->alicuota_minimo_base !== null ? (float) $config->alicuota_minimo_base : null;
+
             // IIBB provincial: la jurisdicción del impuesto debe coincidir con
-            // la jurisdicción de la operación (domicilio fiscal del PV).
+            // la jurisdicción de la operación (domicilio fiscal del PV) y se refina
+            // por el perfil fiscal del receptor (RF-15, Fase 10). La percepción de
+            // IVA NO consulta al cliente (automática, comportamiento 5b).
             if ($impuesto->tipo === Impuesto::TIPO_IIBB) {
                 if ($jurisdiccionOperacion === null || $impuesto->jurisdiccion !== $jurisdiccionOperacion) {
+                    continue;
+                }
+
+                $configCliente = $configsCliente->get($impuesto->id);
+
+                if ($configCliente !== null) {
+                    // Exento explícito (certificado / no alcanzado) ⇒ no se percibe.
+                    if ($configCliente->exento) {
+                        continue;
+                    }
+                    // Alícuota por sujeto (manual o padrón) ⇒ pisa la fija del agente.
+                    if ($configCliente->alicuota !== null) {
+                        $alicuota = (float) $configCliente->alicuota;
+                    }
+                    // Base mínima del cliente si está cargada; si no, la del agente.
+                    if ($configCliente->alicuota_minimo_base !== null) {
+                        $minimoBase = (float) $configCliente->alicuota_minimo_base;
+                    }
+                } elseif (! $config->percibir_no_empadronados) {
+                    // D7: receptor RI sin perfil fiscal para este IIBB. Solo se
+                    // percibe (a la alícuota fija del agente) si el agente activó
+                    // explícitamente "percibir a no empadronados"; default seguro: no.
                     continue;
                 }
             }
@@ -287,11 +328,10 @@ class ImpuestoService
             // regímenes definen además un "monto mínimo de percepción" (sobre el
             // importe resultante) y/o un "monto no sujeto" que se resta de la
             // base. Hoy no se modela ninguno de esos dos.
-            if ($config->alicuota_minimo_base !== null && $base < (float) $config->alicuota_minimo_base) {
+            if ($minimoBase !== null && $base < $minimoBase) {
                 continue;
             }
 
-            $alicuota = (float) $config->alicuota;
             $monto = round($base * $alicuota / 100, 2);
 
             if ($monto <= 0) {
@@ -328,7 +368,7 @@ class ImpuestoService
         ?string $jurisdiccion = null,
         ?Carbon $fecha = null
     ): array {
-        return $this->calcularTributos($emisor, $cliente?->condicionIva, $netoGravado, $jurisdiccion, $fecha);
+        return $this->calcularTributos($emisor, $cliente, $netoGravado, $jurisdiccion, $fecha);
     }
 
     /**

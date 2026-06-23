@@ -254,6 +254,16 @@
                                 </svg>
                             </button>
                             @endif
+                            <button
+                                type="button"
+                                wire:click="$dispatch('abrir-impuestos-cliente', { clienteId: {{ $cliente->id }} })"
+                                class="inline-flex items-center justify-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150"
+                                title="{{ __('Perfil fiscal') }}"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m-6 4h6m-6 4h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/>
+                                </svg>
+                            </button>
                         @endif
                     </div>
                 </div>
@@ -421,6 +431,16 @@
                                                 </svg>
                                             </button>
                                             @endif
+                                            <button
+                                                type="button"
+                                                wire:click="$dispatch('abrir-impuestos-cliente', { clienteId: {{ $cliente->id }} })"
+                                                class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150"
+                                                title="{{ __('Perfil fiscal') }}"
+                                            >
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m-6 4h6m-6 4h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/>
+                                                </svg>
+                                            </button>
                                             <button
                                                 wire:click="edit({{ $cliente->id }})"
                                                 class="inline-flex items-center px-3 py-2 border border-bcn-primary rounded-md text-bcn-primary hover:bg-bcn-primary hover:text-white transition-colors duration-150"
@@ -638,6 +658,20 @@
                                     placeholder="{{ __('Dirección completa') }}"
                                 />
                             </div>
+                        </div>
+
+                        {{-- Domicilio fiscal estructurado (RF-12, Fase 10): define la
+                             jurisdicción destino para la percepción de IIBB. --}}
+                        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                            <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-1">{{ __('Domicilio fiscal') }}</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ __('Define la jurisdicción del cliente para las percepciones de Ingresos Brutos.') }}</p>
+                            @include('livewire.partials.domicilio-form', [
+                                'conTipo' => false,
+                                'conDireccion' => false,
+                                'conGeo' => false,
+                                'provinciaRequerida' => false,
+                                'idPrefix' => 'cliente-dom',
+                            ])
                         </div>
 
                         <!-- Configuración fiscal -->
@@ -1439,5 +1473,9 @@
                 </x-slot:footer>
             </x-bcn-modal>
         @endif
+
+        {{-- Perfil fiscal del cliente (RF-13/RF-15, Fase 10): modal embebido,
+             abierto vía evento abrir-impuestos-cliente desde la fila del cliente. --}}
+        <livewire:clientes.cliente-impuestos />
     </div>
 </div>

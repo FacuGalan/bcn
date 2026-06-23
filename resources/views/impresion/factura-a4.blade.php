@@ -349,7 +349,19 @@
                     <td>${{ number_format($iva->importe, 2, ',', '.') }}</td>
                 </tr>
             @endforeach
-            @if($comprobante->tributos > 0)
+            @if($comprobante->tributosDetalle->isNotEmpty())
+                @foreach($comprobante->tributosDetalle as $tributo)
+                    @php
+                        $tribAlic = (float) ($tributo->alicuota ?? 0);
+                        $tribAlicFmt = rtrim(rtrim(number_format($tribAlic, 2, '.', ''), '0'), '.');
+                        $tribNombre = $tributo->impuesto->nombre ?? 'Percepción';
+                    @endphp
+                    <tr>
+                        <td>{{ $tribNombre }}{{ $tribAlic > 0 ? ' ('.$tribAlicFmt.'%)' : '' }}:</td>
+                        <td>${{ number_format($tributo->monto, 2, ',', '.') }}</td>
+                    </tr>
+                @endforeach
+            @elseif($comprobante->tributos > 0)
                 <tr>
                     <td>Otros Tributos:</td>
                     <td>${{ number_format($comprobante->tributos, 2, ',', '.') }}</td>

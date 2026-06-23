@@ -338,6 +338,8 @@ Clientes del comercio.
 | `email` | varchar(191) nullable | Email |
 | `telefono` | varchar(50) nullable | Telefono |
 | `direccion` | varchar(255) nullable | Direccion |
+| `provincia` | varchar(6) nullable | Codigo ISO 3166-2 — jurisdiccion fiscal del cliente para IIBB (ej: `AR-B`, `AR-C`) |
+| `localidad_id` | bigint nullable | Ref soft a `localidades` (config); sin FK cross-DB |
 | `condicion_iva_id` | int FK nullable | Condicion IVA (FK a `config.condiciones_iva`) |
 | `lista_precio_id` | bigint FK nullable | Lista de precios asignada al cliente |
 | `activo` | boolean | Si esta activo |
@@ -353,6 +355,32 @@ Clientes del comercio.
 | `created_at`, `updated_at`, `deleted_at` | timestamp | Timestamps + soft delete |
 
 **Indices**: `nombre`, `cuit`, `lista_precio_id`, `tiene_cuenta_corriente`, `saldo_deudor_cache`, `bloqueado_por_mora`.
+
+**Relaciones del modelo `Cliente`**:
+- `localidad()`: BelongsTo `Localidad` via `localidad_id`. Ref soft a `localidades` (config); sin FK cross-DB.
+- `impuestoConfigs()`: HasMany `ClienteImpuestoConfig` via `cliente_id`. Perfil fiscal del cliente: percepciones de IIBB por sujeto (RF-13, Fase 10a). Lo consume `ImpuestoService::calcularTributos` para refinar la percepcion.
+
+#### Tabla: `cliente_impuesto_configs`
+Perfil fiscal del cliente: espejo de `cuit_impuesto_configs` con semantica de sujeto percibido (RF-13, Fase 10a). Una fila por cliente + impuesto IIBB + vigencia. Permite exencion explicita o alicuota override que pisa la alicuota fija del agente.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `cliente_id` | bigint FK (CASCADE) | Cliente |
+| `impuesto_id` | bigint FK | Impuesto del catalogo (debe ser tipo IIBB) |
+| `exento` | boolean | Si true, no se percibe este impuesto al cliente aunque el CUIT sea agente |
+| `alicuota` | decimal(6,4) nullable | Alicuota porcentual override (pisa la fija del agente si no NULL) |
+| `alicuota_minimo_base` | decimal(12,2) nullable | Umbral de base imponible; si NULL, se usa el del agente |
+| `numero_padron` | varchar(30) nullable | N° de inscripcion o constancia del sujeto |
+| `origen_alicuota` | enum | `manual` (cargada a mano) o `padron` (de padron provincial — Fase 10b futura) |
+| `vigente_desde` | date nullable | Inicio de vigencia; NULL = siempre vigente |
+| `vigente_hasta` | date nullable | Fin de vigencia; NULL = sin fecha limite |
+| `datos_extra` | json nullable | Fila cruda del padron (trazabilidad, solo para `origen_alicuota = padron`) |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+**Unique**: `(cliente_id, impuesto_id, vigente_desde)`.
+
+**Scope `vigentes($fecha)`**: filtra configs activas en una fecha dada (mismo comportamiento que `cuit_impuesto_configs`).
 
 #### Tabla: `clientes_sucursales`
 Tabla pivot que vincula clientes con sucursales. Permite configuracion por sucursal.
@@ -2574,6 +2602,7 @@ Configuracion impositiva de un CUIT: que impuestos lo alcanzan y con que condici
 | `numero_inscripcion` | varchar(30) nullable | N° de inscripcion (ej: N° de IIBB) |
 | `es_agente_percepcion` | boolean | Si actua como agente de percepcion |
 | `es_agente_retencion` | boolean | Si actua como agente de retencion |
+| `percibir_no_empadronados` | boolean | Solo IIBB. Si true, percibe a todo RI sin perfil fiscal propio a la alicuota fija; si false (default), solo a clientes con alicuota cargada (manual o padron) |
 | `alicuota` | decimal(6,4) nullable | Alicuota porcentual (ej: `3.0000` = 3%) |
 | `alicuota_minimo_base` | decimal(14,2) nullable | Base imponible minima; si el neto es menor, no se percibe |
 | `origen_alicuota` | enum | `manual` (cargada a mano) o `padron` (de padron provincial — fase futura) |
@@ -2653,6 +2682,12 @@ Domicilios fiscales declarados por un CUIT ante AFIP (RF-11, Fase 9). Cada CUIT 
 **`puntos_venta.cuit_domicilio_id`** (bigint FK nullable, Fase 9): domicilio fiscal declarado del punto de venta. Determina la jurisdiccion de IIBB de los comprobantes emitidos desde ese PV. FK con `ON DELETE SET NULL`. Helper `jurisdiccionFiscal(): ?string` devuelve `cuitDomicilio->provincia`.
 
 **`sucursales.localidad_id`** (bigint nullable, Fase 9): ref soft a `localidades` (config) para el domicilio fisico estructurado de la sucursal. Independiente de CUIT o integracion de pago.
+
+**`clientes.provincia`** (varchar(6) nullable, Fase 10a): jurisdiccion fiscal del cliente expresada como ISO 3166-2 (ej: `AR-B`, `AR-C`). Define el destino geografico de las percepciones de IIBB. Opcional: consumidor final puede no tenerla.
+
+**`clientes.localidad_id`** (bigint nullable, Fase 10a): ref soft a `localidades` (config). Complementa la provincia para el domicilio fiscal estructurado del cliente.
+
+**`cuit_impuesto_configs.percibir_no_empadronados`** (tinyint, default 0, Fase 10a): flag D7. Solo aplica a impuestos IIBB. Cuando true, el CUIT agente percibe a la alicuota fija a todo cliente RI que no tenga perfil fiscal propio (`cliente_impuesto_configs`) para ese impuesto. Cuando false (default conservador), sin perfil fiscal del cliente no se percibe.
 
 **`cuentas_empresa.cuit_id`** (Fase 4a): CUIT del comercio al que pertenece la cuenta bancaria/billetera. Se usa al registrar impuestos sufridos via conciliacion: el impuesto se imputa al CUIT de la cuenta conciliada.
 
@@ -2989,14 +3024,26 @@ Cuando el CUIT del punto de venta actua como **agente de percepcion** (`cuit_imp
 
 **Redondeo fiscal**: el IVA de la ultima alicuota absorbe el residuo de redondeo para garantizar `Σneto + Σiva == montoFacturaFiscal` exacto. AFIP tolera que el IVA difiera ±0.01 de `neto × alicuota`, pero no que `ImpTotal != ImpNeto + ImpIVA + ImpTrib`. El neto de cada alicuota no se modifica.
 
+**Fix AFIP 10051 — desglose IVA con forma de pago con ajuste (Fase 10a)**: `formatearDesgloseParaAFIP` y `recalcularDesgloseIvaFiscal` (en `WithPagosDesglose`) ahora usan `neto_con_ajuste_fp` e `iva_con_ajuste_fp` en lugar de `neto` e `iva` cuando estan presentes. Esto garantiza que `AlicIVA = neto_ajustado × alicuota` cuando la forma de pago tiene descuento o recargo, evitando el rechazo AFIP 10051 ("IVA no coincide con base imponible").
+
 **Registro en ledger**: los movimientos de percepcion aplicada NO integran la posicion de IVA propia del comercio. Aparecen como deuda a depositar ante el fisco en la posicion de IIBB/IVA (panel "percepciones aplicadas como agente").
 
 **Metodo en ImpuestoService**:
-- `calcularPercepcionesComprobante(Cuit, ?Cliente, float $netoGravado, ?string $jurisdiccion, ?Carbon $fecha): array` — wrapper sobre `calcularTributos` que resuelve el receptor desde el cliente de la venta. Garantiza mismo origen de verdad en el cobro y en la emision.
+- `calcularPercepcionesComprobante(Cuit, ?Cliente, float $netoGravado, ?string $jurisdiccion, ?Carbon $fecha): array` — wrapper sobre `calcularTributos` que recibe el cliente directamente (Fase 10a). Garantiza mismo origen de verdad en el cobro y en la emision.
 
 **Propiedades de estado en NuevaVenta / WithPagosDesglose**:
 - `percepcionMonto` (float): suma total de percepciones del comprobante actual.
 - `percepcionTributos` (array): detalle por impuesto (`impuesto_id`, `codigo_arca`, `base_imponible`, `alicuota`, `monto`). Se pasa como `opciones['tributos']` al service.
+
+**Accessor `VentaPago::percepcion` (Fase 10a)**:
+Accessor derivado (no persiste columna) que reconstruye el monto de percepcion incluido en el pago:
+```
+percepcion = monto_final - monto_base - monto_ajuste - recargo_cuotas_monto
+```
+Devuelve 0.0 si el resultado es menor a 0.009 (umbral anti-ruido de redondeo). Usado por la vista de detalle de venta para mostrar la linea "incl. percep." en cards moviles y tabla desktop. El monto autoritativo del impuesto vive en `comprobante_fiscal_tributos`; este accessor solo sirve para mostrar al usuario cuanto de ese pago corresponde a percepcion.
+
+**Componente embebido `App\Livewire\Clientes\ClienteImpuestos` (Fase 10a)**:
+Modal embebido en la vista de Clientes. Se abre via evento `abrir-impuestos-cliente` con `{ clienteId: N }`. Gestiona el CRUD de `ClienteImpuestoConfig` para un cliente dado. No es SucursalAware (el perfil fiscal es global al cliente, no por sucursal).
 
 ### 3.10 Cambio de Forma de Pago en Ventas Registradas
 
@@ -3410,14 +3457,24 @@ Todos los metodos son **idempotentes por origen**: si ya existe un movimiento ac
 
 #### Calculo de tributos (percepciones aplicadas)
 
-`ImpuestoService::calcularTributos(emisor, receptor, netoGravado, jurisdiccion, fecha)` implementa la matriz v1:
+`ImpuestoService::calcularTributos(Cuit $emisor, ?Cliente $receptor, float $netoGravado, ?string $jurisdiccion, ?Carbon $fecha)` implementa la matriz v1 (Fase 10a):
 
+**Firma**: el parametro `$receptor` es ahora `?Cliente` (antes era `?CondicionIva`). `calcularPercepcionesComprobante` recibe el cliente directamente y delega sin extraer la condicion IVA.
+
+**Logica**:
 1. El emisor debe ser Responsable Inscripto.
-2. El receptor debe ser Responsable Inscripto (v1 conservador).
-3. Para cada impuesto con config vigente `inscripto=true, es_agente_percepcion=true, alicuota != null`:
-   - Si el impuesto es IIBB: la jurisdiccion del impuesto debe coincidir con la jurisdiccion de la operacion (`jurisdiccion` parametro).
-   - Si `alicuota_minimo_base` esta definido y el neto es menor, no aplica.
-4. Devuelve array de `{impuesto_id, codigo, tipo, jurisdiccion, base_imponible, alicuota, monto}`.
+2. El receptor (cliente) debe ser Responsable Inscripto (`receptor->condicionIva->codigo === CondicionIva::RESPONSABLE_INSCRIPTO`). Si es NULL, CF, monotributo o exento, devuelve array vacio.
+3. Se carga una vez el perfil fiscal del receptor: `$receptor->impuestoConfigs()->vigentes($fecha)->get()->keyBy('impuesto_id')` (evita N+1 en el loop).
+4. Para cada impuesto del agente con config vigente `inscripto=true, es_agente_percepcion=true, alicuota != null`:
+   - **Percepcion IVA**: automatica, no consulta al cliente. Se aplica la alicuota fija del agente a todo RI.
+   - **Percepcion IIBB**: requiere que la jurisdiccion del impuesto coincida con `$jurisdiccion` (domicilio fiscal del PV). Ademas se refina por el perfil del receptor:
+     - Si el cliente tiene `ClienteImpuestoConfig` vigente para ese impuesto:
+       - `exento = true` → `continue` (no percibe).
+       - `alicuota != null` → pisa la alicuota fija del agente.
+       - `alicuota_minimo_base != null` → pisa la base minima del agente.
+     - Sin config del cliente: si `cuit_impuesto_config.percibir_no_empadronados = false` (default) → `continue`. Si `= true` → aplica alicuota fija del agente.
+   - Si la base imponible es menor a `alicuota_minimo_base` efectiva, no aplica.
+5. Devuelve array de `{impuesto_id, codigo, tipo, jurisdiccion, base_imponible, alicuota, monto}`.
 
 #### Posicion fiscal (PosicionFiscalService)
 

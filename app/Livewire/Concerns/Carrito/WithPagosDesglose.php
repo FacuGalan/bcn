@@ -323,7 +323,10 @@ trait WithPagosDesglose
             return [];
         }
 
-        $cliente = Cliente::find($this->clienteSeleccionado);
+        // Eager-load de la condición de IVA: el gate RI de calcularTributos la
+        // consulta (el perfil fiscal del cliente lo carga el propio service con
+        // su scope de vigencia).
+        $cliente = Cliente::with('condicionIva')->find($this->clienteSeleccionado);
 
         if (! $cliente) {
             return [];
@@ -570,8 +573,12 @@ trait WithPagosDesglose
 
             $porcentaje = $alicuota['alicuota'] ?? $alicuota['porcentaje'] ?? 21;
 
-            // Redondear neto a 2 decimales
-            $netoAlicuota = round($alicuota['neto'] ?? 0, 2);
+            // Usar el neto YA ajustado por la forma de pago (descuento/recargo) si
+            // existe; si no, el neto post-promociones. Tomar el `neto` pelado
+            // ignoraría el ajuste FP — pero montoFacturaFiscal SÍ lo incluye — y el
+            // residuo de abajo terminaría deformando el IVA (IVA != neto×alícuota →
+            // AFIP 10051) en toda factura con descuento/recargo por forma de pago.
+            $netoAlicuota = round($alicuota['neto_con_ajuste_fp'] ?? $alicuota['neto'] ?? 0, 2);
 
             // AFIP requiere que IVA = neto * porcentaje / 100 exactamente
             $ivaAlicuota = round($netoAlicuota * ($porcentaje / 100), 2);
@@ -651,8 +658,13 @@ trait WithPagosDesglose
 
             $porcentaje = $alicuota['alicuota'] ?? $alicuota['porcentaje'] ?? 21;
 
+            // Base = neto YA ajustado por la forma de pago (descuento/recargo) si
+            // existe; si no, el neto post-promociones. (Ver nota en
+            // formatearDesgloseParaAFIP: usar el `neto` pelado rompe AlicIVA.)
+            $netoBase = $alicuota['neto_con_ajuste_fp'] ?? $alicuota['neto'] ?? 0;
+
             // Calcular neto proporcional (redondeado a 2 decimales)
-            $netoAlicuota = round(($alicuota['neto'] ?? 0) * $proporcion, 2);
+            $netoAlicuota = round($netoBase * $proporcion, 2);
 
             // AFIP requiere que IVA = neto * porcentaje / 100 exactamente
             $ivaAlicuota = round($netoAlicuota * ($porcentaje / 100), 2);

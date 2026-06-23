@@ -82,7 +82,7 @@ class PercepcionFiscalVentaTest extends TestCase
     /**
      * Configura el PV por defecto de la caja como agente de percepción IIBB AR-B 3%.
      */
-    private function configurarAgentePercepcion(): void
+    private function configurarAgentePercepcion(float $alicuota = 3.0): void
     {
         $cuit = Cuit::create([
             'numero_cuit' => (string) random_int(20000000000, 29999999999),
@@ -133,7 +133,10 @@ class PercepcionFiscalVentaTest extends TestCase
             'impuesto_id' => $impuesto->id,
             'inscripto' => true,
             'es_agente_percepcion' => true,
-            'alicuota' => 3.0,
+            // El agente percibe a RI aunque el cliente no tenga perfil fiscal
+            // cargado (D7, Fase 10); si no, un RI sin config no se percibe.
+            'percibir_no_empadronados' => true,
+            'alicuota' => $alicuota,
             'origen_alicuota' => CuitImpuestoConfig::ORIGEN_MANUAL,
         ]);
     }
@@ -176,6 +179,116 @@ class PercepcionFiscalVentaTest extends TestCase
         $this->assertSame(7, $tributos[0]['codigo_arca']);
         $this->assertSame('AR-B', $tributos[0]['jurisdiccion']);
         $this->assertSame(3.0, (float) $tributos[0]['alicuota']);
+    }
+
+    /**
+     * Reproductor del bug 10051: la percepción NO debe inflar el neto gravado del
+     * desglose fiscal (la base de la percepción son los bienes, no un valor que ya
+     * la incluye). Antes: neto = 826.45 / (1 - 0.10) = 918.28 (punto fijo de la
+     * recursión) y el IVA quedaba deformado → AlicIVA inválido para AFIP.
+     */
+    public function test_la_percepcion_no_infla_el_neto_gravado_del_desglose(): void
+    {
+        $this->configurarAgentePercepcion(10.0); // 10% IIBB AR-B
+        $cliente = $this->crearClienteRI();
+        // Artículo $1000 IVA 21% incluido → neto 826.45, IVA 173.55.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevaVenta::class)
+            ->set('cajaSeleccionada', $this->cajaId)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('seleccionarCliente', $cliente->id)
+            ->set('emitirFacturaFiscal', true);
+
+        $desglose = $componente->get('desgloseIvaFiscal');
+        $netoGravado = (float) ($desglose['total_neto'] ?? 0);
+
+        // El neto gravado debe ser el de los BIENES (826.45), nunca inflado por la percepción.
+        $this->assertEqualsWithDelta(826.45, $netoGravado, 0.02, 'El neto gravado se infló con la percepción');
+
+        // La percepción es 10% del neto de bienes (no de un neto inflado).
+        $this->assertEqualsWithDelta(82.65, (float) $componente->get('percepcionMonto'), 0.02);
+
+        // Invariante AFIP: en cada alícuota, IVA == neto × % (lo que valida 10051).
+        foreach ($desglose['por_alicuota'] ?? [] as $ali) {
+            $esperado = round($ali['neto'] * $ali['alicuota'] / 100, 2);
+            $this->assertEqualsWithDelta($esperado, (float) $ali['iva'], 0.02,
+                "AlicIVA inconsistente: neto {$ali['neto']} × {$ali['alicuota']}% != IVA {$ali['iva']}");
+        }
+
+        // Recursión: recalcular varias veces (simula los ciclos reactivos del modal
+        // de cobro/vuelto). El neto y la percepción NO deben crecer cada vuelta.
+        for ($i = 0; $i < 5; $i++) {
+            $componente->call('calcularMontoFacturaFiscal');
+        }
+
+        $desglose2 = $componente->get('desgloseIvaFiscal');
+        $this->assertEqualsWithDelta(826.45, (float) ($desglose2['total_neto'] ?? 0), 0.02,
+            'El neto gravado se infló tras recálculos reactivos repetidos (recursión)');
+        $this->assertEqualsWithDelta(82.65, (float) $componente->get('percepcionMonto'), 0.02,
+            'La percepción se infló tras recálculos repetidos');
+    }
+
+    /**
+     * Regresión del bug AFIP 10051 (datos reales del log 2026-06-19): una factura
+     * fiscal con DESCUENTO por forma de pago debe armar el AlicIVA con el neto YA
+     * ajustado (neto_con_ajuste_fp), no con el neto pelado. Antes:
+     * formatearDesgloseParaAFIP tomaba neto=538.48 mientras montoFacturaFiscal=586.40
+     * → el residuo deformaba el IVA a 47.92 (≠ 538.48×21%) → AFIP 10051.
+     */
+    public function test_desglose_fiscal_usa_el_neto_con_ajuste_de_forma_de_pago(): void
+    {
+        // resultado tal como lo deja recalcularTotales con un descuento FP del 10%
+        // (réplica exacta del log que rechazó AFIP).
+        $resultado = [
+            'total_final' => 651.56,
+            'subtotal' => 685.85,
+            'total_descuentos' => 34.29,
+            'items' => [],
+            'articulos_canjeados_monto' => 0,
+            'promociones_comunes_aplicadas' => [],
+            'promociones_especiales_aplicadas' => [],
+            'desglose_iva' => [
+                'por_alicuota' => [[
+                    'codigo' => 5,
+                    'nombre' => 'IVA 21%',
+                    'porcentaje' => 21,
+                    'neto' => 538.479,
+                    'iva' => 113.081,
+                    'subtotal' => 651.56,
+                    'neto_con_ajuste_fp' => 484.628,
+                    'iva_con_ajuste_fp' => 101.772,
+                    'subtotal_con_ajuste_fp' => 586.40,
+                ]],
+                'total_neto' => 538.479,
+                'total_iva' => 113.081,
+                'total' => 651.56,
+                'descuento_aplicado' => 34.29,
+                'ajuste_forma_pago' => -65.16,
+                'recargo_cuotas' => 0,
+                'total_neto_con_ajuste_fp' => 484.628,
+                'total_iva_con_ajuste_fp' => 101.772,
+                'total_con_ajuste_fp' => 586.40,
+            ],
+        ];
+
+        $componente = Livewire::test(NuevaVenta::class)
+            ->set('cajaSeleccionada', $this->cajaId)
+            ->set('resultado', $resultado)
+            ->set('emitirFacturaFiscal', true)
+            ->call('calcularMontoFacturaFiscal');
+
+        $desglose = $componente->get('desgloseIvaFiscal');
+
+        // El neto del desglose fiscal debe ser el de bienes CON el descuento FP (484.63).
+        $this->assertEqualsWithDelta(484.63, (float) ($desglose['total_neto'] ?? 0), 0.02);
+
+        // Invariante AFIP 10051: en cada alícuota IVA == neto × % (lo que antes fallaba).
+        foreach ($desglose['por_alicuota'] ?? [] as $ali) {
+            $esperado = round($ali['neto'] * $ali['alicuota'] / 100, 2);
+            $this->assertEqualsWithDelta($esperado, (float) $ali['iva'], 0.02,
+                "AlicIVA inconsistente: neto {$ali['neto']} × {$ali['alicuota']}% != IVA {$ali['iva']}");
+        }
     }
 
     public function test_sin_cliente_consumidor_final_no_percibe(): void
