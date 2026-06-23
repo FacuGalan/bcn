@@ -65,7 +65,10 @@ return [
 
     'temporary_file_upload' => [
         'disk' => null,        // Example: 'local', 's3'              | Default: 'default'
-        'rules' => null,       // Example: ['file', 'mimes:png,jpg']  | Default: ['required', 'file', 'max:12288'] (12MB)
+        // Techo global de subida temporal a 100MB: los padrones ARBA/AGIP (Fase 10b)
+        // pueden ser grandes. Cada componente sigue validando su propio max (las
+        // imágenes con max:2048, etc.) — esto solo levanta el límite exterior.
+        'rules' => ['required', 'file', 'max:102400'],
         'directory' => null,   // Example: 'tmp'                      | Default: 'livewire-tmp'
         'middleware' => null,  // Example: 'throttle:5,1'             | Default: 'throttle:60,1'
         'preview_mimes' => [   // Supported file types for temporary pre-signed file URLs...

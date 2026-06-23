@@ -97,6 +97,7 @@ trait WithTenant
         'comprobantes_fiscales',
         'movimientos_fiscales',
         'cuit_impuesto_configs',
+        'cliente_impuesto_configs',
         'cuit_domicilios',
         'impuestos',
     ];
