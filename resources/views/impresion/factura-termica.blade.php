@@ -335,6 +335,14 @@
                 @endphp
                 <div>IVA {{ $ivaFormateado }}%: ${{ number_format($iva->importe, 2, ',', '.') }}</div>
             @endforeach
+            @foreach($comprobante->tributosDetalle ?? [] as $tributo)
+                @php
+                    $tribAlic = (float) ($tributo->alicuota ?? 0);
+                    $tribAlicFmt = rtrim(rtrim(number_format($tribAlic, 2, '.', ''), '0'), '.');
+                    $tribNombre = $tributo->impuesto->nombre ?? 'Percepción';
+                @endphp
+                <div>{{ $tribNombre }}{{ $tribAlic > 0 ? ' ('.$tribAlicFmt.'%)' : '' }}: ${{ number_format($tributo->monto, 2, ',', '.') }}</div>
+            @endforeach
         </div>
     @endif
 
