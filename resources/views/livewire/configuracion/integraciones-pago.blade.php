@@ -661,7 +661,7 @@
                         {{ __('Elegí provincia y localidad, y ubicá la sucursal en el mapa. Mercado Pago usa estos datos para registrar la sucursal (store).') }}
                     </p>
 
-                    @include('livewire.partials.domicilio-form', ['conTipo' => false, 'conDireccion' => true, 'idPrefix' => 'mpdom'])
+                    @include('livewire.partials.domicilio-form', ['conTipo' => false, 'conDireccion' => true, 'idPrefix' => 'mpdom', 'direccionLabel' => __('Dirección pública')])
                 </div>
             </x-slot:body>
 

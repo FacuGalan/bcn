@@ -51,10 +51,10 @@
                                     @enderror
                                 </div>
 
-                                {{-- Dirección --}}
+                                {{-- Dirección pública (texto libre, distinta del domicilio estructurado del catálogo) --}}
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        {{ __('Dirección') }}
+                                        {{ __('Dirección pública') }}
                                     </label>
                                     <input
                                         type="text"
