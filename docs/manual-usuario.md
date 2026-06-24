@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-24 (picker Google Maps para domicilio de sucursal; logo uploader modernizado)
+> Version: 0.1.x | Ultima actualizacion: 2026-06-24 (picker Google Maps para domicilio de sucursal; logo uploader modernizado; picker Google Maps en modal de direccion de Integraciones de pago)
 
 ---
 
@@ -2841,11 +2841,15 @@ Haga clic en **"Configurar"** junto a Mercado Pago - QR:
 
 Mercado Pago requiere coordenadas geograficas, localidad y provincia para registrar la sucursal como "Store". Si la sucursal aun no tiene estos datos, vera un aviso y el boton **"Editar Direccion"**.
 
-En el modal de direccion complete:
+El modal usa el mismo picker de Google Maps disponible en Configuracion → Sucursales (Fase 9): primero se elige la provincia, luego la localidad del catalogo GeoRef, y finalmente se ubica el punto en el mapa. Las coordenadas se obtienen automaticamente al colocar o arrastrar el marcador, o al usar el boton **"Usar mi ubicacion"**. No es necesario tipear latitud y longitud manualmente.
+
+Los campos obligatorios para poder sincronizar con Mercado Pago son:
 - Direccion (calle y numero).
-- Localidad.
-- Provincia (seleccione de la lista de provincias argentinas).
-- Latitud y Longitud (coordenadas decimales).
+- Provincia (selector con provincias argentinas).
+- Localidad (del catalogo GeoRef, dependiente de la provincia elegida).
+- Coordenadas (latitud y longitud, obtenidas desde el mapa).
+
+> Para mas detalle sobre el funcionamiento del picker (autocomplete, arrastre del marcador, "Usar mi ubicacion"), consulte la seccion **12.2 Sucursales**.
 
 ##### Sincronizar la sucursal con Mercado Pago
 
