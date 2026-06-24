@@ -98,37 +98,78 @@
                                     </div>
                                 </div>
 
-                                {{-- Logo --}}
+                                {{-- Logo (dropzone moderno, estilo imágenes de artículos; sin focal point) --}}
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        {{ __('Logo') }}
-                                    </label>
-                                    <div class="flex items-center gap-4">
-                                        <div class="w-16 h-16 rounded-lg bg-gray-200 dark:bg-gray-600 flex items-center justify-center overflow-hidden">
-                                            @if($sucursalLogo)
-                                                <img src="{{ $sucursalLogo->temporaryUrl() }}" alt="{{ __('Preview') }}" class="w-full h-full object-cover">
-                                            @elseif($sucursal->hasLogo())
-                                                <img src="{{ $sucursal->logo_url }}" alt="{{ __('Logo') }}" class="w-full h-full object-cover">
-                                            @else
-                                                <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                                </svg>
-                                            @endif
-                                        </div>
-                                        <label class="cursor-pointer inline-flex items-center px-3 py-1.5 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-600 transition-colors">
-                                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                                            </svg>
-                                            {{ __('Cambiar') }}
-                                            <input type="file" wire:model="sucursalLogo" accept="image/*" class="hidden">
-                                        </label>
-                                        <div wire:loading wire:target="sucursalLogo" class="text-sm text-bcn-primary">
-                                            {{ __('Subiendo...') }}
-                                        </div>
+                                    <label for="sucursalLogoUpload" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Logo') }}</label>
+
+                                    {{-- Input file oculto. Cualquier <label for="sucursalLogoUpload"> abre el selector. --}}
+                                    <input type="file" id="sucursalLogoUpload" wire:model="sucursalLogo" accept="image/jpeg,image/png,image/webp" class="sr-only">
+
+                                    @php
+                                        $logoPreview = $sucursalLogo
+                                            ? $sucursalLogo->temporaryUrl()
+                                            : ($sucursal->hasLogo() ? '/storage/'.ltrim($sucursal->logo_path, '/') : null);
+                                    @endphp
+
+                                    <div class="relative group w-full max-w-[160px]" wire:loading.class="opacity-60" wire:target="sucursalLogo">
+                                        @if($logoPreview)
+                                            {{-- Con logo: preview contenido (sin recorte) + acciones en hover --}}
+                                            <div class="relative aspect-square w-full bg-gray-100 dark:bg-gray-800 rounded-md overflow-hidden border-2 border-gray-200 dark:border-gray-700 group-hover:border-bcn-primary transition-colors">
+                                                <img src="{{ $logoPreview }}" alt="{{ __('Logo') }}" class="w-full h-full object-contain p-2 select-none" draggable="false">
+                                            </div>
+                                            <div class="absolute top-1.5 right-1.5 flex gap-1">
+                                                <label for="sucursalLogoUpload" title="{{ __('Cambiar logo') }}"
+                                                    class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/95 text-gray-700 hover:bg-white hover:text-bcn-primary shadow-md transition-colors cursor-pointer">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                                                    </svg>
+                                                </label>
+                                                @if($sucursalLogo)
+                                                    <button type="button" wire:click="$set('sucursalLogo', null)" title="{{ __('Descartar selección') }}"
+                                                        class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/95 text-gray-700 hover:bg-white hover:text-red-600 shadow-md transition-colors cursor-pointer">
+                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                                                        </svg>
+                                                    </button>
+                                                @elseif($sucursal->hasLogo())
+                                                    <button type="button" wire:click="eliminarLogoSucursal({{ $sucursal->id }})" title="{{ __('Quitar logo') }}"
+                                                        class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/95 text-gray-700 hover:bg-red-600 hover:text-white shadow-md transition-colors cursor-pointer">
+                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/>
+                                                        </svg>
+                                                    </button>
+                                                @endif
+                                            </div>
+                                        @else
+                                            {{-- Sin logo: dropzone clickable --}}
+                                            <label for="sucursalLogoUpload"
+                                                class="block cursor-pointer rounded-md overflow-hidden border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-bcn-primary hover:bg-bcn-primary/5 dark:hover:bg-bcn-primary/10 bg-gray-50 dark:bg-gray-700/50 transition-colors">
+                                                <div class="aspect-square w-full flex flex-col items-center justify-center gap-1 px-3 text-gray-500 dark:text-gray-400 group-hover:text-bcn-primary">
+                                                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                                                    </svg>
+                                                    <span class="text-xs font-medium">{{ __('Subir logo') }}</span>
+                                                    <span class="text-[10px] text-center opacity-80">{{ __('PNG, JPG o WebP · máx. 2MB') }}</span>
+                                                </div>
+                                            </label>
+                                        @endif
                                     </div>
-                                    @error('sucursalLogo')
-                                        <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
-                                    @enderror
+
+                                    {{-- Recomendación de proporción --}}
+                                    <p class="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400 max-w-[260px] leading-snug">
+                                        {{ __('Recomendado: imagen cuadrada (1:1), preferentemente PNG con fondo transparente, mínimo 400×400 px.') }}
+                                    </p>
+
+                                    {{-- Carga + errores --}}
+                                    <div class="mt-1 text-[11px] space-y-1 max-w-[200px]">
+                                        <div wire:loading wire:target="sucursalLogo" class="text-bcn-primary inline-flex items-center gap-1">
+                                            <svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                            </svg>
+                                            {{ __('Cargando...') }}
+                                        </div>
+                                        @error('sucursalLogo') <span class="text-red-600 block">{{ $message }}</span> @enderror
+                                    </div>
                                 </div>
 
                                 {{-- Botones --}}
@@ -159,7 +200,7 @@
                             <div class="flex-shrink-0">
                                 <div class="w-20 h-20 rounded-lg bg-gray-200 dark:bg-gray-600 flex items-center justify-center overflow-hidden">
                                     @if($sucursal->hasLogo())
-                                        <img src="{{ $sucursal->logo_url }}" alt="{{ __('Logo') }} {{ $sucursal->nombre }}" class="w-full h-full object-cover">
+                                        <img src="/storage/{{ ltrim($sucursal->logo_path, '/') }}" alt="{{ __('Logo') }} {{ $sucursal->nombre }}" class="w-full h-full object-cover">
                                     @else
                                         <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
@@ -254,17 +295,6 @@
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/>
                                             </svg>
                                             {{ __('Personalizar 2da pantalla') }}
-                                        </button>
-                                    @endif
-                                    @if($sucursal->hasLogo())
-                                        <button
-                                            wire:click="eliminarLogoSucursal({{ $sucursal->id }})"
-                                            class="inline-flex items-center px-3 py-1.5 text-red-700 bg-white border border-red-300 text-sm font-medium rounded-md hover:bg-red-50 dark:bg-gray-700 dark:text-red-400 dark:border-red-600 dark:hover:bg-red-900/20 transition-colors"
-                                        >
-                                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                                            </svg>
-                                            {{ __('Quitar Logo') }}
                                         </button>
                                     @endif
                                 </div>

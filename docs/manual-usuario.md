@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-24 (importador de padron ARBA/AGIP — percepcion IIBB por padron, Fase 10b)
+> Version: 0.1.x | Ultima actualizacion: 2026-06-24 (picker Google Maps para domicilio de sucursal; logo uploader modernizado)
 
 ---
 
@@ -2395,7 +2395,22 @@ Gestion de las sucursales del comercio:
 - Nombre publico (como se muestra en los comprobantes).
 - Direccion, telefono y email de la sucursal.
 - **Domicilio estructurado** (Fase 9): provincia (ISO 3166-2) y localidad seleccionable del padron GeoRef. Reemplaza progresivamente el texto libre de direccion/localidad para permitir referencias exactas. La localidad elegida queda vinculada como `localidad_id`.
-- Logo de la sucursal (opcional).
+- **Picker de Google Maps** (requiere API key configurada): permite ubicar geograficamente el domicilio de la sucursal. Aparece en el formulario de edicion como un boton **"Abrir mapa"**. El mapa NO se carga al entrar al formulario; recien se carga al pulsar ese boton (evitando costos de API si no se necesita). Una vez abierto, el domicilio se puede ubicar de cuatro formas:
+  1. **Autocomplete de direccion**: escribir la calle y numero en el buscador interno del mapa. El buscador queda restringido a Argentina y, cuando se eligio localidad, al area de esa localidad (~20 km a la redonda).
+  2. **Clic en el mapa**: clic sobre cualquier punto del mapa para colocar el marcador ahi.
+  3. **Arrastre del marcador**: arrastrar el pin naranja (con el icono BCN) al punto exacto.
+  4. **Usar mi ubicacion actual**: boton que lee la ubicacion GPS del dispositivo.
+  - El flujo invertido implica que elegir primero la **Provincia** y luego la **Localidad** centra y acota el mapa automaticamente a esa zona antes de abrir el buscador de calles.
+  - Una vez ubicado el punto, las **coordenadas** (latitud y longitud) se muestran debajo del mapa y se guardan junto con el domicilio.
+  - El boton **"Ocultar mapa"** cierra el panel del mapa sin perder las coordenadas ya guardadas.
+  - El enlace **"Ingresar coordenadas manualmente"** permite tipear lat/lng numericos directamente (util si el mapa ya esta abierto y se prefiere precision decimal).
+  - **Sin API key** configurada: el campo del mapa no aparece; se muestran dos inputs de texto simples para latitud y longitud (comportamiento original).
+- **Logo de la sucursal**: dropzone moderno con preview. Acciones disponibles:
+  - **Sin logo**: area punteada con icono de subida y texto "Subir logo". Clic (o arrastre) para seleccionar el archivo.
+  - **Con logo**: muestra preview de la imagen. Al pasar el cursor aparecen dos botones: **cambiar logo** (subir uno nuevo) y **quitar logo** (eliminar el actual); si se selecciono un archivo nuevo aun sin guardar, el segundo boton descarta esa seleccion y vuelve al logo guardado.
+  - Formatos aceptados: PNG, JPG o WebP. Tamano maximo: 2 MB.
+  - Recomendacion de proporcion: **imagen cuadrada (1:1)**, preferentemente PNG con fondo transparente, minimo 400x400 px.
+  - Al guardar la sucursal (nombre, domicilio o logo), el cache de catalogos se invalida automaticamente para que los cambios se reflejen de inmediato en toda la aplicacion.
 - **Configuracion de la sucursal** (boton de engranaje):
   - Clave de autorizacion para operaciones sensibles.
   - Tipo de impresion de factura (termica, A4, ambos).

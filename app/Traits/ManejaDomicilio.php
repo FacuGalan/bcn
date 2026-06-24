@@ -41,6 +41,13 @@ trait ManejaDomicilio
     public array $domLocalidades = [];
 
     /**
+     * Centro geográfico de la localidad elegida (['lat'=>, 'lng'=>] o null).
+     * Lo consume el picker de Google Maps (JS) para centrar y ACOTAR el mapa a
+     * la localidad. Se entabla con Alpine vía $wire. Ver spec domicilio-google-maps.
+     */
+    public ?array $domLocalidadCentro = null;
+
+    /**
      * Reglas de validación del domicilio. El host las compone con sus propias
      * reglas. La localidad es opcional (puede no estar en el padrón).
      */
@@ -63,7 +70,45 @@ trait ManejaDomicilio
     public function updatedDomProvincia(): void
     {
         $this->domLocalidadId = null;
+        $this->domLocalidadCentro = null;
         $this->cargarLocalidadesDomicilio();
+    }
+
+    /**
+     * Hook de Livewire: al cambiar la localidad, resolver su centro geográfico
+     * para que el mapa se centre/acote ahí (flujo invertido localidad → mapa).
+     */
+    public function updatedDomLocalidadId(): void
+    {
+        $this->domLocalidadCentro = Localidad::centro($this->domLocalidadId);
+    }
+
+    /**
+     * Recibe las coordenadas elegidas desde el mapa (autocomplete / marcador
+     * arrastrable / "usar mi ubicación"). Invocado por el JS vía $wire.
+     * Valida rango; ignora valores inválidos para no romper el form.
+     */
+    public function setCoordenadasDesdeMapa($lat, $lng): void
+    {
+        if (! is_numeric($lat) || ! is_numeric($lng)) {
+            return;
+        }
+
+        $lat = (float) $lat;
+        $lng = (float) $lng;
+
+        if ($lat < -90 || $lat > 90 || $lng < -180 || $lng > 180) {
+            return;
+        }
+
+        $this->domLatitud = (string) round($lat, 7);
+        $this->domLongitud = (string) round($lng, 7);
+    }
+
+    /** ¿Hay API key de Google Maps configurada? Decide map vs inputs manuales. */
+    public function mapsHabilitado(): bool
+    {
+        return filled(config('services.google_maps.key'));
     }
 
     /**
@@ -103,6 +148,7 @@ trait ManejaDomicilio
         $this->domLatitud = isset($datos['latitud']) ? (string) $datos['latitud'] : null;
         $this->domLongitud = isset($datos['longitud']) ? (string) $datos['longitud'] : null;
         $this->cargarLocalidadesDomicilio();
+        $this->domLocalidadCentro = Localidad::centro($this->domLocalidadId);
     }
 
     /**
@@ -134,5 +180,6 @@ trait ManejaDomicilio
         $this->domLatitud = null;
         $this->domLongitud = null;
         $this->domLocalidades = [];
+        $this->domLocalidadCentro = null;
     }
 }

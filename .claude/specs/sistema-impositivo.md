@@ -5,10 +5,14 @@
 > Spec creado y aprobado el 2026-06-12 (decisiones D1-D5 con el usuario).
 > Implementación por fases vía /sdd-apply en rama feat/sistema-impositivo.
 >
-> **Consolidación 2026-06-23**: todo lo codeable sin bloqueo externo está
-> COMPLETO, mergeado y verde (132 tests fiscales verdes). Fases 1, 2, 3, 5a,
-> 5b, 6 (capa fiscal), 7, 9, 10a + RF-08 mergeadas. Lo que resta está
-> **bloqueado por dato externo, no por falta de trabajo**:
+> **Consolidación 2026-06-23 / actualizado 2026-06-24**: todo lo codeable sin
+> bloqueo externo está COMPLETO, mergeado y verde. Fases 1, 2, 3, 5a, 5b, 6
+> (capa fiscal), 7, 9, 10a + 10b + RF-08 mergeadas. **10b mergeada (PR #139,
+> 2026-06-24)**: importador de padrón ARBA/AGIP validado en vivo con archivo
+> real, subida solo comprimida (.zip/.gz, detección por bytes mágicos +
+> descompresión por streaming), comando artisan `fiscal:importar-padron` de
+> operación, fix `parseFecha` (cero inicial de ARBA como espacio). Lo que resta
+> está **bloqueado por dato externo, no por falta de trabajo**:
 > - **4b** (base imponible de impuestos sufridos vía MP): necesita UNA fila
 >   real con impuestos. **Evaluado y descartado el camino MCP/testing**: el
 >   sandbox de MP NO genera retenciones (dependen del padrón fiscal real, no
@@ -17,7 +21,6 @@
 >   Diseño ya preparado: la fila cruda se conserva en `datos_extra` → la
 >   primera fila real de CUALQUIER comercio destraba el parseo como drop-in.
 >   NO escribir parser especulativo (sería deuda no testeable).
-> - **10b** (padrones ARBA/AGIP): bloqueada por D8 (archivo real de cada agencia).
 > - **Fase 6 (módulo compras funcional)**: NO avanzar — depende del modelo de
 >   costos/precios de proveedor aún sin definir (merece su propio SDD).
 > - **Auditoría fiscal "REVISAR (Fable)"**: mayormente preguntas normativas

@@ -411,6 +411,19 @@ class SmokeConfiguracionTest extends TestCase
         Livewire::test(CuitDomicilios::class)->assertOk();
     }
 
+    public function test_set_coordenadas_desde_mapa_valida_rango(): void
+    {
+        // Bridge del picker de Google Maps (trait ManejaDomicilio): setea lat/lng
+        // válidas e ignora fuera de rango / no numéricas, sin romper el form.
+        Livewire::test(CuitDomicilios::class)
+            ->call('setCoordenadasDesdeMapa', -34.6037, -58.3816)
+            ->assertSet('domLatitud', '-34.6037')
+            ->assertSet('domLongitud', '-58.3816')
+            ->call('setCoordenadasDesdeMapa', 999, 'abc') // inválidas → no pisan
+            ->assertSet('domLatitud', '-34.6037')
+            ->assertSet('domLongitud', '-58.3816');
+    }
+
     public function test_cuit_domicilios_abrir_y_guardar_domicilio(): void
     {
         $condIva = \App\Models\CondicionIva::firstOrCreate(['codigo' => 1], ['nombre' => 'Responsable Inscripto']);

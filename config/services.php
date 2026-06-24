@@ -35,4 +35,17 @@ return [
         ],
     ],
 
+    /*
+     * Google Maps Platform — una sola key global (de BCN, no por comercio).
+     * Habilita el picker de domicilio (autocomplete + mapa). Sin key, el form
+     * de domicilio cae a los inputs de lat/lng manuales. Restringir la key por
+     * dominio/HTTP referrer en Google Cloud. APIs: Maps JavaScript, Places, Geocoding.
+     */
+    'google_maps' => [
+        'key' => env('GOOGLE_MAPS_API_KEY'),
+        // Map ID requerido por los Advanced Markers. 'DEMO_MAP_ID' sirve para
+        // desarrollo; en producción crear uno propio en Google Cloud para estilo.
+        'map_id' => env('GOOGLE_MAPS_MAP_ID', 'DEMO_MAP_ID'),
+    ],
+
 ];

@@ -607,6 +607,11 @@ class ConfiguracionEmpresa extends Component
 
             $sucursal->save();
 
+            // Invalidar el caché de catálogos para que las cards reflejen los
+            // cambios (logo, nombre, domicilio) al instante; si no, leen la
+            // colección cacheada (TTL 1h) y parecería que "no se guardó".
+            CatalogoCache::clear();
+
             $this->cancelarEdicionSucursal();
 
             $this->dispatch('notify', message: __('Sucursal actualizada correctamente'), type: 'success');
@@ -632,6 +637,9 @@ class ConfiguracionEmpresa extends Component
     {
         $sucursal = Sucursal::findOrFail($id);
         $sucursal->deleteLogo();
+
+        // Invalidar caché para que la card/preview deje de mostrar el logo borrado.
+        CatalogoCache::clear();
 
         $this->dispatch('notify', message: __('Logo eliminado'), type: 'success');
     }

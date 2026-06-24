@@ -37,6 +37,8 @@ class Localidad extends Model
         'provincia_id',
         'codigo_postal',
         'nombre',
+        'latitud',
+        'longitud',
     ];
 
     /**
@@ -100,5 +102,26 @@ class Localidad extends Model
             ->ordenadas()
             ->pluck('nombre', 'id')
             ->toArray();
+    }
+
+    /**
+     * Centro geográfico de una localidad para acotar/centrar el mapa
+     * (picker de Google Maps del domicilio). Null si no se conoce.
+     *
+     * @return array{lat: float, lng: float}|null
+     */
+    public static function centro(?int $localidadId): ?array
+    {
+        if (! $localidadId) {
+            return null;
+        }
+
+        $loc = static::query()->find($localidadId, ['latitud', 'longitud']);
+
+        if (! $loc || $loc->latitud === null || $loc->longitud === null) {
+            return null;
+        }
+
+        return ['lat' => (float) $loc->latitud, 'lng' => (float) $loc->longitud];
     }
 }
