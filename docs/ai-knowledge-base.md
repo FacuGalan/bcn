@@ -29,7 +29,7 @@ BCN Pymes utiliza un modelo multi-tenant con **3 conexiones de base de datos**:
 - `comercios` -- Comercios/PYMEs registrados
 - `comercio_user` -- Pivot usuarios-comercios (un usuario puede acceder a multiples comercios)
 - `condiciones_iva` -- Catalogo de condiciones IVA de AFIP (Responsable Inscripto, Monotributista, Consumidor Final, etc.)
-- `localidades`, `provincias` -- Datos geograficos
+- `localidades`, `provincias` -- Datos geograficos. `localidades` tiene columnas `latitud` / `longitud` (`decimal(10,7)` nullable) populadas desde el dataset GeoRef; sirven para centrar el picker de Google Maps en la localidad elegida. Ver `Localidad::centro(?int $id): ?array`.
 
 **Tablas en `pymes` (compartidas, sin prefijo):**
 - `menu_items` -- Items del menu de navegacion
@@ -1170,10 +1170,10 @@ Ya descrita en seccion 1.2. Campos adicionales relevantes:
 - `facturacion_fiscal_automatica` -- Si emite factura automaticamente
 - `agrupa_articulos_venta` -- Si agrupa articulos repetidos en pantalla de venta
 - `agrupa_articulos_impresion` -- Si agrupa en impresion
-- `latitud` -- `decimal(10,7)` nullable. Coordenada geografica. Requerida por MP para crear Store.
-- `longitud` -- `decimal(10,7)` nullable. Coordenada geografica. Requerida por MP para crear Store.
+- `latitud` -- `decimal(10,7)` nullable. Coordenada geografica. Requerida por MP para crear Store. Se puede fijar via picker de Google Maps (ver trait `ManejaDomicilio`).
+- `longitud` -- `decimal(10,7)` nullable. Idem latitud.
 - `localidad` -- `varchar(100)` nullable. Localidad de la sucursal (texto libre, en transicion). Requerida por MP (`city_name`).
-- `localidad_id` -- `bigint` nullable. Ref soft a `localidades` (config) para domicilio fisico estructurado (Fase 9, RF-11). Sin FK cross-DB. Relacion Eloquent `sucursal->localidad()` disponible.
+- `localidad_id` -- `bigint` nullable. Ref soft a `localidades` (config) para domicilio fisico estructurado (Fase 9, RF-11). Sin FK cross-DB. Relacion Eloquent `sucursal->localidad()` disponible. Al cambiar `localidad_id`, el trait `ManejaDomicilio` resuelve el centro geografico de esa localidad y lo expone como `$domLocalidadCentro` para acotar el mapa.
 - `provincia` -- `varchar(100)` nullable. Codigo ISO 3166-2 de provincia argentina (ej: `AR-B`, `AR-C`). Se traduce a nombre oficial al armar payloads externos. Ver `Sucursal::PROVINCIAS_AR[]` y `Sucursal::provinciaNombre()`.
 - `mp_store_id` -- `varchar(50)` nullable. ID numerico devuelto por MP al crear la Store. Se usa para actualizar/eliminar. Indexado.
 - `mp_store_external_id` -- `varchar(60)` nullable. Identificador externo en MP. Formato: `BCN-{comercio_id}-{sucursal_id}`. Unico (UNIQUE INDEX). Solo se envia al **crear** la store; en updates MP lo rechaza por colision consigo mismo.
@@ -2683,6 +2683,8 @@ Domicilios fiscales declarados por un CUIT ante AFIP (RF-11, Fase 9). Cada CUIT 
 
 **`sucursales.localidad_id`** (bigint nullable, Fase 9): ref soft a `localidades` (config) para el domicilio fisico estructurado de la sucursal. Independiente de CUIT o integracion de pago.
 
+**`localidades.latitud` / `localidades.longitud`** (`decimal(10,7)` nullable, Fase 9 — picker Google Maps): centro geografico de la localidad. Se usa para centrar y acotar el picker de Google Maps cuando el usuario elige provincia+localidad antes de abrir el mapa. Backfill desde `database/data/localidades_georef.json` via migracion `2026_06_24_120000_add_geo_to_localidades`. `Localidad::centro(?int $id): ?array` devuelve `['lat'=>float,'lng'=>float]` o `null` si no hay dato.
+
 **`clientes.provincia`** (varchar(6) nullable, Fase 10a): jurisdiccion fiscal del cliente expresada como ISO 3166-2 (ej: `AR-B`, `AR-C`). Define el destino geografico de las percepciones de IIBB. Opcional: consumidor final puede no tenerla.
 
 **`clientes.localidad_id`** (bigint nullable, Fase 10a): ref soft a `localidades` (config). Complementa la provincia para el domicilio fiscal estructurado del cliente.
@@ -2775,6 +2777,57 @@ WHERE i.codigo = 'perc_iibb_ar_b'  -- o 'perc_iibb_ar_c'
   AND cic.origen_alicuota = 'padron'
 ORDER BY cic.updated_at DESC;
 ```
+
+#### Trait ManejaDomicilio y picker de Google Maps (Fase 9, RF-11)
+
+**Trait**: `App\Traits\ManejaDomicilio`. Se incluye en cualquier componente Livewire que tenga un formulario de domicilio (sucursales, clientes, CUITs). Expone:
+
+| Propiedad / Metodo | Descripcion |
+|---|---|
+| `$domProvincia` | Codigo ISO 3166-2 seleccionado (ej: `AR-B`) |
+| `$domLocalidadId` | ID de la localidad en `config.localidades` |
+| `$domLocalidades` | Array `[id => nombre]` para el select dependiente |
+| `$domLocalidadCentro` | `['lat'=>float,'lng'=>float]` o `null`. Se resuelve con `Localidad::centro()` cada vez que cambia `domLocalidadId`. Lo lee el JS del picker via `$wire.$watch`. |
+| `$domLatitud`, `$domLongitud` | Coordenadas guardadas (string, 7 decimales) |
+| `setCoordenadasDesdeMapa($lat, $lng)` | Recibe las coords desde el mapa (autocomplete / marcador / geolocalizacion). Valida rango; ignora valores invalidos. Invocado por el JS via `$wire`. |
+| `mapsHabilitado(): bool` | `true` si `services.google_maps.key` esta configurada. Decide si se muestra el picker o los inputs manuales. |
+| `updatedDomProvincia()` | Hook: resetea localidad y centro al cambiar provincia. |
+| `updatedDomLocalidadId()` | Hook: resuelve `$domLocalidadCentro` via `Localidad::centro()`. |
+| `setDomicilioDesde(array $datos)` | Hidrata todas las propiedades del domicilio desde un array (nombre, provincia, localidad_id, latitud, longitud). Tambien resuelve `$domLocalidadCentro`. |
+| `resetDomicilio()` | Blanquea todas las propiedades incluyendo `$domLocalidadCentro`. |
+
+**Flujo invertido (provincia → localidad → mapa)**:
+1. El usuario elige provincia (ISO) → `updatedDomProvincia()` carga las localidades.
+2. El usuario elige localidad → `updatedDomLocalidadId()` resuelve el centro geografico y lo escribe en `$domLocalidadCentro`.
+3. Al abrir el mapa (boton "Abrir mapa"), el JS Alpine (`domicilioMapa`) lee `$wire.get('domLocalidadCentro')` y centra/acota el mapa ahi.
+4. El usuario ubica el punto (autocomplete / clic / arrastre / geolocalizacion) → el JS llama `$wire.setCoordenadasDesdeMapa(lat, lng)` → el trait persiste las coords.
+
+**Configuracion** (`config/services.php`):
+
+```php
+'google_maps' => [
+    'key'    => env('GOOGLE_MAPS_API_KEY'),
+    'map_id' => env('GOOGLE_MAPS_MAP_ID', 'DEMO_MAP_ID'),
+],
+```
+
+- `key`: API key de Google Cloud. APIs requeridas: Maps JavaScript API, Places API (nueva), Geocoding API. Restringir por dominio/HTTP referrer en Google Cloud. Sin key, el partial muestra inputs manuales de lat/lng.
+- `map_id`: Map ID de Advanced Markers. `'DEMO_MAP_ID'` sirve para desarrollo local; en produccion crear uno propio en Google Cloud Console.
+
+**Componente Alpine `domicilioMapa`** (`resources/js/domicilio-mapa.js`): registrado en `alpine:init`. Recibe `{key, mapId, txtGeoError}`. Carga perezosa: `init()` no hace nada; el SDK se carga en `abrir()` la primera vez. El mapa se construye una sola vez; llamadas sucesivas a `abrir()` solo recentran. Usa `PlaceAutocompleteElement` (API Places nueva, vigente para clientes nuevos desde 2025; el widget legacy `Autocomplete` fue discontinuado).
+
+**Gotcha: `Alpine.raw()` con librerias que hacen comparacion de identidad**
+
+`AdvancedMarkerElement` (Google Maps) verifica internamente que el objeto pasado como `map` sea la instancia real del `Map`, no un `Proxy`. Alpine envuelve todas las propiedades publicas en `Proxy` reactivos; pasar `this.map` directamente hace que el marcador no se renderice (`isConnected = false`). Solucion:
+
+```js
+this.marker = new this.AdvancedMarkerElement({
+    map: window.Alpine.raw(this.map),  // instancia cruda, sin Proxy
+    ...
+});
+```
+
+Aplicar `Alpine.raw(obj)` siempre que se pase un objeto reactivo Alpine a una libreria JS de terceros que realice comparaciones de identidad (`===`) sobre el objeto (ej: objetos DOM, instancias de clases de terceros).
 
 ---
 
@@ -4148,3 +4201,11 @@ Componentes donde se aplico este patron: `WizardListaPrecio` (paso 2, opciones d
 ### 5.2 Scope `conStock` en MovimientosStock
 
 El componente `MovimientosStock` ejecuta busquedas de articulos via un scope del modelo. El scope debe existir en el modelo `Articulo`; de lo contrario lanza `BadMethodCallException: Call to undefined method conStock()`. El fix consiste en asegurarse de invocar el metodo de busqueda correcto disponible en el modelo (ej: `buscarPorNombreOCodigo` o equivalente) en lugar de un scope inexistente.
+
+### 5.3 Invalidar CatalogoCache al guardar sucursal
+
+`CatalogoCache` almacena la coleccion de sucursales con TTL de 1 hora. Si se guarda la sucursal (nombre, domicilio, logo) sin invalidar el cache, la UI seguira mostrando los datos viejos hasta que expire el TTL. El metodo `ConfiguracionEmpresa::guardarSucursal()` y `eliminarLogoSucursal()` llaman a `CatalogoCache::clear()` despues de persistir para garantizar consistencia inmediata. Cualquier otra operacion que modifique campos de la sucursal visibles en el catalogo debe hacer lo mismo.
+
+### 5.4 Alpine.raw() con librerias JS que hacen comparacion de identidad
+
+Ver seccion "Gotcha: Alpine.raw() con librerias que hacen comparacion de identidad" en el bloque del trait `ManejaDomicilio` (al final de la seccion 2 — Sistema Impositivo). Resumen: pasar `window.Alpine.raw(obj)` en lugar de `obj` directo cuando la libreria de terceros verifica identidad de instancia con `===` (ej: `AdvancedMarkerElement` de Google Maps verifica que `map` sea la instancia real de `Map`, no un `Proxy` de Alpine).
