@@ -13,6 +13,9 @@ window.Sortable = Sortable;
 // Componente Alpine kanbanBoard (registrado en alpine:init)
 import './kanban.js';
 
+// Componente Alpine domicilioMapa (picker de Google Maps del domicilio)
+import './domicilio-mapa.js';
+
 // Modulo de impresion QZ Tray
 import './qz-integration.js';
 
