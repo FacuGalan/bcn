@@ -1,9 +1,27 @@
 # Sistema Impositivo Argentino - Especificación
 
-## Estado: APROBADO — EN IMPLEMENTACIÓN
+## Estado: APROBADO — PUNTO DE DESCANSO LIMPIO (2026-06-23)
 
 > Spec creado y aprobado el 2026-06-12 (decisiones D1-D5 con el usuario).
 > Implementación por fases vía /sdd-apply en rama feat/sistema-impositivo.
+>
+> **Consolidación 2026-06-23**: todo lo codeable sin bloqueo externo está
+> COMPLETO, mergeado y verde (132 tests fiscales verdes). Fases 1, 2, 3, 5a,
+> 5b, 6 (capa fiscal), 7, 9, 10a + RF-08 mergeadas. Lo que resta está
+> **bloqueado por dato externo, no por falta de trabajo**:
+> - **4b** (base imponible de impuestos sufridos vía MP): necesita UNA fila
+>   real con impuestos. **Evaluado y descartado el camino MCP/testing**: el
+>   sandbox de MP NO genera retenciones (dependen del padrón fiscal real, no
+>   del flujo de pago); la cuenta del comercio no sufre impuestos por su
+>   condición de IVA; y MP NO documenta el esquema de `TAXES_DISAGGREGATED`.
+>   Diseño ya preparado: la fila cruda se conserva en `datos_extra` → la
+>   primera fila real de CUALQUIER comercio destraba el parseo como drop-in.
+>   NO escribir parser especulativo (sería deuda no testeable).
+> - **10b** (padrones ARBA/AGIP): bloqueada por D8 (archivo real de cada agencia).
+> - **Fase 6 (módulo compras funcional)**: NO avanzar — depende del modelo de
+>   costos/precios de proveedor aún sin definir (merece su propio SDD).
+> - **Auditoría fiscal "REVISAR (Fable)"**: mayormente preguntas normativas
+>   para el contador (no código). Checklist abierto más abajo.
 
 ---
 
@@ -412,7 +430,18 @@ Orden sugerido de implementación:
 6. **Cambio de jurisdicción en lo fiscal**: `ImpuestoService::calcularTributos` deja de recibir `Sucursal` y recibe la **jurisdicción de la operación** (ISO) resuelta desde el domicilio del PV — actualizar firma + tests (Fase 2). `PosicionFiscalService::posicionIibb` agrupa la base imponible por `comprobante->puntoVenta->cuitDomicilio->provincia` en vez de `sucursal->provincia` — actualizar método + test (Fase 7). Helper común para resolver la jurisdicción desde un comprobante/PV.
 7. Traducciones es/en/pt + smoke de las pantallas tocadas.
 
-### Fase 10: Perfil fiscal del cliente + padrones [10a VERIFICADA / 10b PENDIENTE] — refina 5b
+### Fase 10: Perfil fiscal del cliente + padrones [10a VERIFICADA / 10b IMPLEMENTADA] — refina 5b
+> **10b IMPLEMENTADA (2026-06-23, rama `feat/fiscal-fase10b-padrones`)** — D8 RESUELTO con
+> los diseños de registro oficiales de ARBA y AGIP (ver [[reference_padron_arba_agip_formato]]).
+> Parsers `app/Services/Fiscal/Padron/{PadronParser,AbstractPadronParser,ArbaPadronParser,AgipPadronParser,PadronFila,ResumenImportacion}`
+> + `PadronImportService` (streaming `fgets`, filtra por CUIT de clientes, upsert idempotente
+> por (cliente,impuesto,vigente_desde), respeta `origen='manual'`, exención conservadora
+> 0,00/baja⇒exento) + componente full-page `Fiscal\PadronImport` (upload + selector agencia +
+> resumen, **panel de aclaraciones en la UI**) bajo `fiscal.padrones` (permiso reusa
+> `func.fiscal.configuracion`, menú nuevo). Mapeo: ARBA→`perc_iibb_ar_b`, AGIP→`perc_iibb_ar_c`.
+> Tests: 9 unit parsers + 5 integración service + 2 smoke (16 verdes; 122 en el área fiscal).
+> Traducciones es/en/pt (23 claves). Techo de upload Livewire subido a 100MB. **Pendiente:
+> validación en vivo del usuario con archivos reales de cada agencia + docs (Fase 8) + PR.**
 > **10a VERIFICADA (/sdd-verify APROBADO, 2026-06-19)**: 10/10 criterios en alcance con
 > test que pasó (57 tests verdes) + matriz completa validada EN VIVO por el usuario
 > (emisión AFIP homologación OK, exento/padrón/D7/consumidor final, mixto con 2 FP fiscales).
@@ -557,12 +586,13 @@ Orden sugerido de implementación:
   alícuota default es la `alicuota` ya existente del agente (no se agrega otra). Requiere
   migración que agregue la columna a `cuit_impuesto_configs` + casteo en el modelo +
   exponerla en la UI de `CuitImpuestos` (Fase 3).
-- **D8 — formato real de los archivos de padrón ARBA/AGIP**: como pasó con el CSV de
-  MP (TAXES_DISAGGREGATED), el layout exacto (columnas, encoding, separador, formato
-  de CUIT y alícuota) se confirma con un **archivo real** de cada agencia. El parser se
-  ajusta ahí; hasta entonces se implementa contra el layout documentado y se deja la
-  fila cruda accesible. Posible blocker de la sub-fase "padrón" (la parte manual NO
-  depende de esto y se puede entregar antes).
+- **D8 — formato real de los archivos de padrón ARBA/AGIP** → **RESUELTA (2026-06-23)**:
+  se obtuvieron los **diseños de registro oficiales** de ambas agencias (PDF). Ambos son
+  `;`-separados, CUIT 11 díg sin guiones, alícuota `9,99` (coma decimal), fechas `DDMMAAAA`.
+  ARBA: archivos percepción/retención separados (`PadronRGSPerMMAAAA.txt`), 10 campos, campo
+  Régimen R/P. AGIP: padrón unificado, 12 campos, ambas alícuotas + razón social. Layout
+  completo en [[reference_padron_arba_agip_formato]]. La fila cruda se conserva en
+  `datos_extra` para trazabilidad. Falta solo confirmar contra archivos reales en vivo.
 
 #### Criterios de aceptación (Fase 10)
 - Un cliente RI con domicilio en AR-B y `cliente_impuesto_configs` exento de perc IIBB

@@ -4,7 +4,10 @@ namespace Tests\Feature\Livewire\Fiscal;
 
 use App\Livewire\Fiscal\LibrosIva;
 use App\Livewire\Fiscal\MovimientosFiscales;
+use App\Livewire\Fiscal\PadronImport;
 use App\Livewire\Fiscal\PosicionFiscal;
+use App\Models\Cliente;
+use App\Models\ClienteImpuestoConfig;
 use App\Models\CondicionIva;
 use App\Models\Cuit;
 use App\Models\CuitImpuestoConfig;
@@ -12,6 +15,7 @@ use App\Models\Impuesto;
 use App\Models\MovimientoFiscal;
 use App\Models\User;
 use App\Services\Fiscal\ImpuestoService;
+use Illuminate\Http\UploadedFile;
 use Livewire\Livewire;
 use Tests\TestCase;
 use Tests\Traits\WithSucursal;
@@ -168,6 +172,59 @@ class SmokeFiscalTest extends TestCase
             ->set('formCuitId', $cuit->id)
             ->assertSee(__('Configurados para este CUIT'))
             ->assertSee(__('Otros impuestos del catálogo'));
+    }
+
+    public function test_padron_import_monta(): void
+    {
+        Livewire::test(PadronImport::class)
+            ->assertOk()
+            ->assertSet('agencia', 'arba');
+    }
+
+    public function test_padron_import_actualiza_cliente_que_matchea(): void
+    {
+        $cond = CondicionIva::firstOrCreate(['codigo' => CondicionIva::RESPONSABLE_INSCRIPTO], ['nombre' => 'RI']);
+        $cliente = Cliente::create([
+            'nombre' => 'Cliente padrón',
+            'cuit' => '20123456789',
+            'condicion_iva_id' => $cond->id,
+            'activo' => true,
+        ]);
+        $imp = Impuesto::firstOrCreate(
+            ['codigo' => 'perc_iibb_ar_b'],
+            [
+                'nombre' => 'Percepción IIBB Buenos Aires',
+                'tipo' => Impuesto::TIPO_IIBB,
+                'naturaleza_default' => MovimientoFiscal::NATURALEZA_PERCEPCION,
+                'jurisdiccion' => 'AR-B',
+                'es_sistema' => true,
+                'activo' => true,
+            ]
+        );
+
+        $contenido = "P;01062026;01062026;30062026;20123456789;D;S;N;1,50;00;\n";
+
+        // El padrón se sube comprimido (.zip), como en producción.
+        $base = tempnam(sys_get_temp_dir(), 'padron');
+        $zipPath = $base.'.zip';
+        $zip = new \ZipArchive;
+        $zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+        $zip->addFromString('PadronRGSPer062026.txt', $contenido);
+        $zip->close();
+        $zipBinario = file_get_contents($zipPath);
+        @unlink($zipPath);
+        @unlink($base);
+
+        Livewire::test(PadronImport::class)
+            ->set('agencia', 'arba')
+            ->set('archivo', UploadedFile::fake()->createWithContent('PadronRGSPer062026.zip', $zipBinario))
+            ->call('importar')
+            ->assertHasNoErrors();
+
+        $this->assertSame(
+            ClienteImpuestoConfig::ORIGEN_PADRON,
+            ClienteImpuestoConfig::where('cliente_id', $cliente->id)->where('impuesto_id', $imp->id)->value('origen_alicuota')
+        );
     }
 
     public function test_movimientos_fiscales_anula_por_contraasiento(): void

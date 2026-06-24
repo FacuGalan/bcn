@@ -372,10 +372,10 @@ Perfil fiscal del cliente: espejo de `cuit_impuesto_configs` con semantica de su
 | `alicuota` | decimal(6,4) nullable | Alicuota porcentual override (pisa la fija del agente si no NULL) |
 | `alicuota_minimo_base` | decimal(12,2) nullable | Umbral de base imponible; si NULL, se usa el del agente |
 | `numero_padron` | varchar(30) nullable | N° de inscripcion o constancia del sujeto |
-| `origen_alicuota` | enum | `manual` (cargada a mano) o `padron` (de padron provincial — Fase 10b futura) |
+| `origen_alicuota` | enum | `manual` (cargada a mano) o `padron` (importado desde padron ARBA/AGIP — Fase 10b) |
 | `vigente_desde` | date nullable | Inicio de vigencia; NULL = siempre vigente |
 | `vigente_hasta` | date nullable | Fin de vigencia; NULL = sin fecha limite |
-| `datos_extra` | json nullable | Fila cruda del padron (trazabilidad, solo para `origen_alicuota = padron`) |
+| `datos_extra` | json nullable | Trazabilidad del padron: `{ agencia: "arba"\|"agip", linea: "<fila cruda>" }`. Solo para `origen_alicuota = padron` |
 | `created_at`, `updated_at` | timestamp | Timestamps |
 
 **Unique**: `(cliente_id, impuesto_id, vigente_desde)`.
@@ -2563,7 +2563,7 @@ El metodo `pollearCobroIntegracion()` del concern tiene un short-circuit explici
 
 ### 2.14 Sistema Impositivo
 
-Modulo de gestion fiscal (sistema-impositivo, Fases 1-9). Centraliza el catalogo de impuestos, la configuracion por CUIT, el ledger fiscal y los domicilios fiscales.
+Modulo de gestion fiscal (sistema-impositivo, Fases 1-10b). Centraliza el catalogo de impuestos, la configuracion por CUIT, el ledger fiscal, los domicilios fiscales, el perfil fiscal del cliente y el importador de padron de percepcion IIBB (ARBA/AGIP).
 
 #### Tabla: `impuestos`
 Catalogo de impuestos argentinos. Seeded por el sistema al crear un comercio. Extensible con impuestos custom del comercio (`es_sistema = false`).
@@ -2605,7 +2605,7 @@ Configuracion impositiva de un CUIT: que impuestos lo alcanzan y con que condici
 | `percibir_no_empadronados` | boolean | Solo IIBB. Si true, percibe a todo RI sin perfil fiscal propio a la alicuota fija; si false (default), solo a clientes con alicuota cargada (manual o padron) |
 | `alicuota` | decimal(6,4) nullable | Alicuota porcentual (ej: `3.0000` = 3%) |
 | `alicuota_minimo_base` | decimal(14,2) nullable | Base imponible minima; si el neto es menor, no se percibe |
-| `origen_alicuota` | enum | `manual` (cargada a mano) o `padron` (de padron provincial — fase futura) |
+| `origen_alicuota` | enum | `manual` (cargada a mano) o `padron` (importado desde padron ARBA/AGIP — Fase 10b) |
 | `vigente_desde` | date nullable | Inicio de vigencia; NULL = siempre vigente |
 | `vigente_hasta` | date nullable | Fin de vigencia; NULL = sin fecha limite |
 | `created_at`, `updated_at` | timestamp | Timestamps |
@@ -2696,6 +2696,85 @@ Domicilios fiscales declarados por un CUIT ante AFIP (RF-11, Fase 9). Cada CUIT 
 - `INCOME_TAX` → `ret_ganancias`
 - `SIRCREB` → `ret_sircreb`
 - `IIBB_{ISO}` → `ret_iibb_{iso}` (por jurisdiccion)
+
+#### Importador de padron ARBA/AGIP (Fase 10b, RF-14)
+
+Componente: `App\Livewire\Fiscal\PadronImport` (ruta `fiscal.padrones`, permiso `func.fiscal.configuracion`). Global (no SucursalAware). Lazy con skeleton `page-form`.
+
+Service principal: `App\Services\Fiscal\PadronImportService`. Metodo publico: `importar(string $rutaArchivo, string $agencia): ResumenImportacion`.
+
+**Parsers** (namespace `App\Services\Fiscal\Padron\`):
+
+| Clase | Agencia | Impuesto | Formato de archivo |
+|---|---|---|---|
+| `ArbaPadronParser` | `arba` | `perc_iibb_ar_b` | `PadronRGSPerMMAAAA.txt`, separado por `;`, solo filas regimen `P` (percepcion) |
+| `AgipPadronParser` | `agip` | `perc_iibb_ar_c` | Padron unificado, separado por `;`, ambas alicuotas; solo se usa campo 7 (percepcion) |
+
+**Formatos de campo comun (ARBA y AGIP)**:
+- Alicuota: `9,99` (coma decimal). Ejemplo: `"1,50"` → `1.5`.
+- Fecha: `DDMMAAAA`. ARBA rinde el cero inicial como espacio en algunos campos (ej: `" 1102014"` = 01/10/2014). El parser extrae solo los digitos y pad-left a 8 con ceros antes de parsear; con `checkdate()` valida la fecha.
+- CUIT: 11 digitos. El parser normaliza eliminando no-digitos y rechaza si el resultado no tiene exactamente 11.
+
+**Layout ARBA** (campos separados por `;`):
+`0 Regimen(R/P)  1 FechaPubl  2 VigDesde  3 VigHasta  4 CUIT  5 Tipo  6 MarcaAltaBaja(S/B)  7 MarcaCambioAlic  8 Alicuota  9 NroGrupo`
+
+**Layout AGIP** (campos separados por `;`):
+`0 FechaPubl  1 VigDesde  2 VigHasta  3 CUIT  4 Tipo  5 MarcaAlta(S/N/B)  6 MarcaAlic  7 AlicPercep  8 AlicReten  9 GrupoPerc  10 GrupoReten  11 RazonSocial`
+
+**DTO de salida del parser**: `PadronFila` (readonly): `cuit` (11 dig), `exento` (bool), `alicuota` (?float, null si exento), `vigenteDesde` (?string Y-m-d), `vigenteHasta` (?string Y-m-d), `lineaCruda` (string).
+
+**Reglas de negocio**:
+1. **Streaming**: `fgets` linea a linea; los CUIT que no son clientes se descartan al vuelo (memoria acotada independientemente del tamano del padron).
+2. **Exencion conservadora**: alicuota `<= 0.0` o marca de baja (`B`) → `exento = true`, `alicuota = null`. No se asume percepcion ante la duda.
+3. **Precedencia del manual**: si la fila existente tiene `origen_alicuota = 'manual'`, se incrementa `omitidasManual` y se retorna sin update. El override manual nunca se pisa.
+4. **Idempotente**: unique `(cliente_id, impuesto_id, vigente_desde)`. Reimportar el mismo padron actualiza (no duplica) las filas de padron existentes.
+5. **Transaccion tenant**: todo el upsert corre dentro de `DB::connection('pymes_tenant')->transaction()`.
+6. **Mapa de clientes**: se construye una vez al inicio (`[cuit_normalizado => cliente_id]`) con `chunk(500)` sobre clientes con CUIT no nulo.
+
+**Deteccion de formato comprimido**: `PadronImportService::abrirPadron()` detecta el formato por bytes magicos (no por extension, porque el temporal de Livewire no la conserva):
+- `PK\x03\x04` / `PK\x05\x06` / `PK\x07\x08` → ZIP: abre con `zip://{ruta}#{primera_entrada_txt}` via `ZipArchive`.
+- `\x1f\x8b` → GZIP: abre con `compress.zlib://{ruta}`.
+- Otro → texto plano: `fopen` directo.
+El archivo nunca se vuelca a disco; se descomprime y lee por streaming.
+
+**Validacion en el componente Livewire**:
+- `extensions:zip,gz` + `mimetypes:application/zip,...,application/gzip,...` + `max:102400` (100 MB comprimido).
+- Mensajes de error explicitos: "El padron debe subirse comprimido (.zip o .gz)."
+- `updatedArchivo()` valida solo el campo archivo (`validateOnly`); `importar()` valida el formulario completo.
+
+**ResumenImportacion** (clase en `App\Services\Fiscal\Padron\ResumenImportacion`):
+
+| Campo | Descripcion |
+|---|---|
+| `totalFilas` | Lineas leidas del archivo |
+| `filasPadron` | Lineas validas de percepcion parseadas |
+| `creadas` | Configs nuevas creadas con origen padron |
+| `actualizadas` | Configs de padron actualizadas |
+| `omitidasManual` | No pisadas por tener override manual |
+| `sinMatch` | CUIT del padron que no son clientes del comercio |
+| `impactadas()` | `creadas + actualizadas` |
+
+**Comando artisan de fallback**: `fiscal:importar-padron {archivo} {--agencia=arba} {--comercio=1}` (`App\Console\Commands\ImportarPadronCommand`). Acepta `.txt`, `.zip` o `.gz` desde ruta del servidor. CLI configura el contexto tenant manualmente via `TenantService::setComercio()`. Util cuando el padron completo es demasiado grande para subir por la web o cuando se automatiza la importacion periodica.
+
+**Consulta SQL util — clientes actualizados por un padron**:
+```sql
+SELECT
+    c.id,
+    c.razon_social,
+    c.cuit,
+    cic.alicuota,
+    cic.exento,
+    cic.origen_alicuota,
+    cic.vigente_desde,
+    cic.vigente_hasta,
+    cic.datos_extra->>'$.agencia' AS agencia
+FROM {PREFIX}clientes c
+JOIN {PREFIX}cliente_impuesto_configs cic ON cic.cliente_id = c.id
+JOIN {PREFIX}impuestos i ON i.id = cic.impuesto_id
+WHERE i.codigo = 'perc_iibb_ar_b'  -- o 'perc_iibb_ar_c'
+  AND cic.origen_alicuota = 'padron'
+ORDER BY cic.updated_at DESC;
+```
 
 ---
 
