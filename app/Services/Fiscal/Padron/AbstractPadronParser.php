@@ -26,11 +26,16 @@ abstract class AbstractPadronParser implements PadronParser
     /** "DDMMAAAA" → "AAAA-MM-DD" ; formato inválido → null. */
     protected function parseFecha(string $raw): ?string
     {
-        $raw = trim($raw);
+        // ARBA escribe el campo de fecha con ancho fijo de 8 y rinde el cero
+        // inicial como espacio (ej: " 1102014" = 01/10/2014). Nos quedamos solo
+        // con los dígitos y reponemos a la izquierda los que falten.
+        $digitos = preg_replace('/\D/', '', $raw);
 
-        if (! preg_match('/^\d{8}$/', $raw)) {
+        if ($digitos === '' || strlen($digitos) > 8) {
             return null;
         }
+
+        $raw = str_pad($digitos, 8, '0', STR_PAD_LEFT);
 
         $dia = substr($raw, 0, 2);
         $mes = substr($raw, 2, 2);

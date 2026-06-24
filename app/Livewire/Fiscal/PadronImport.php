@@ -45,10 +45,49 @@ class PadronImport extends Component
         HTML;
     }
 
+    /**
+     * Reglas de validación de la subida.
+     *
+     * Seguridad (defensa en profundidad): solo se acepta el padrón COMPRIMIDO
+     * tal cual lo baja el usuario de la agencia (.zip oficial de ARBA/AGIP, o
+     * .gz) — el .txt plano pesa demasiado para subirlo por la web. Solo esas
+     * extensiones + MIMEs, más el techo de tamaño. El `accept` del input es solo
+     * una pista del navegador y se puede saltear; esta es la barrera real del
+     * lado servidor. El archivo nunca se ejecuta ni se incluye: se descomprime y
+     * lee por streaming (fgets) y se descarta lo que no parsea como fila.
+     */
+    protected function rules(): array
+    {
+        return [
+            'agencia' => 'required|in:'.PadronImportService::AGENCIA_ARBA.','.PadronImportService::AGENCIA_AGIP,
+            'archivo' => [
+                'required',
+                'file',
+                'extensions:zip,gz',
+                'mimetypes:application/zip,application/x-zip-compressed,application/gzip,application/x-gzip,application/octet-stream',
+                'max:102400',
+            ],
+        ];
+    }
+
+    /** Mensajes claros en vez de los `validation.*` por defecto. */
+    protected function messages(): array
+    {
+        return [
+            'agencia.required' => __('Elegí una agencia (ARBA o AGIP).'),
+            'agencia.in' => __('La agencia seleccionada no es válida.'),
+            'archivo.required' => __('Seleccioná el archivo comprimido del padrón.'),
+            'archivo.file' => __('No se pudo leer el archivo subido. Probá de nuevo.'),
+            'archivo.extensions' => __('El padrón debe subirse comprimido (.zip o .gz).'),
+            'archivo.mimetypes' => __('El padrón debe subirse comprimido (.zip o .gz).'),
+            'archivo.max' => __('El archivo supera el tamaño máximo permitido (100 MB).'),
+        ];
+    }
+
     public function updatedArchivo(): void
     {
         $this->resumen = null;
-        $this->validate(['archivo' => 'file|max:102400']);
+        $this->validateOnly('archivo');
     }
 
     public function updatedAgencia(): void
@@ -64,10 +103,7 @@ class PadronImport extends Component
             return;
         }
 
-        $this->validate([
-            'agencia' => 'required|in:'.PadronImportService::AGENCIA_ARBA.','.PadronImportService::AGENCIA_AGIP,
-            'archivo' => 'required|file|max:102400',
-        ]);
+        $this->validate();
 
         try {
             $resumen = app(PadronImportService::class)->importar(

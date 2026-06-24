@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-19 (perfil fiscal del cliente — percepciones IIBB por sujeto, Fase 10a)
+> Version: 0.1.x | Ultima actualizacion: 2026-06-24 (importador de padron ARBA/AGIP — percepcion IIBB por padron, Fase 10b)
 
 ---
 
@@ -72,6 +72,7 @@
   - [13.1 Posicion Fiscal](#131-posicion-fiscal)
   - [13.2 Libros IVA](#132-libros-iva)
   - [13.3 Movimientos Fiscales](#133-movimientos-fiscales)
+  - [13.4 Importar Padron](#134-importar-padron)
 - [14. Flujos de Trabajo Comunes](#14-flujos-de-trabajo-comunes)
   - [14.1 Abrir el comercio por la manana](#141-abrir-el-comercio-por-la-manana)
   - [14.2 Realizar una venta tipica](#142-realizar-una-venta-tipica)
@@ -2262,10 +2263,11 @@ Ingrese el CUIT y el sistema consultara automaticamente el padron de ARCA para c
 
 - **Editar**: Modifica los datos del cliente.
 - **Perfil fiscal**: Abre un modal para configurar las percepciones provinciales (Ingresos Brutos) que se le aplican a ese cliente en particular. Disponible en movil y escritorio.
-  - Se listan las jurisdicciones ya configuradas con su alicuota, base minima, numero de padron y vigencia.
+  - Se listan las jurisdicciones ya configuradas con su alicuota, base minima, numero de padron y vigencia. Cada fila indica el **origen** de la alicuota: "Manual" (cargada a mano) o "Padron" (proveniente del importador de padron ARBA/AGIP).
   - Boton **"Agregar jurisdiccion"**: busca y selecciona un impuesto de IIBB del catalogo del sistema. Una vez agregado, se puede cargar: alicuota (%), base minima, numero de padron/constancia, vigente desde/hasta, y marcar al cliente como **Exento** para esa jurisdiccion.
   - Si el cliente esta marcado como Exento para un IIBB, no se le percibe ese impuesto aunque el CUIT sea agente.
-  - Si el cliente tiene alicuota cargada (manual o proveniente de padron), esa alicuota pisa la alicuota fija configurada en el CUIT agente.
+  - Si el cliente tiene alicuota cargada (manual o proveniente del padron importado), esa alicuota pisa la alicuota fija configurada en el CUIT agente.
+  - Los perfiles con origen "Manual" tienen prioridad maxima: el importador de padron (Fiscal → Importar padron) nunca los pisa.
   - La percepcion de IVA es automatica y NO se configura aqui; aplica a todo Responsable Inscripto sin excepcion.
 - **Configurar sucursales**: Permite asignar listas de precios diferentes por sucursal para el mismo cliente.
 - **Ver historial**: Muestra el historial de ventas del cliente.
@@ -3002,9 +3004,9 @@ La pantalla cliente y la app principal (BCN Pymes) tienen scopes de PWA distinto
 
 ## 13. Fiscal
 
-El modulo Fiscal centraliza la informacion tributaria del comercio. Agrupa la posicion de IVA, los libros de IVA ventas/compras y el ledger de movimientos fiscales, consultables por CUIT y periodo mensual. Requiere permiso `func.fiscal.*` (asignado a Administrador y Super Administrador).
+El modulo Fiscal centraliza la informacion tributaria del comercio. Agrupa la posicion de IVA, los libros de IVA ventas/compras, el ledger de movimientos fiscales y el importador de padron de percepcion IIBB, consultables por CUIT y periodo mensual. Requiere permiso `func.fiscal.*` (asignado a Administrador y Super Administrador).
 
-Acceso desde el menu lateral: **Fiscal → Posicion fiscal**, **Fiscal → Libros IVA** y **Fiscal → Movimientos fiscales**.
+Acceso desde el menu lateral: **Fiscal → Posicion fiscal**, **Fiscal → Libros IVA**, **Fiscal → Movimientos fiscales** y **Fiscal → Importar padron**.
 
 ### 13.1 Posicion Fiscal
 
@@ -3145,6 +3147,71 @@ Los movimientos en estado Activo tienen un boton **Anular** (texto en rojo en de
 La anulacion es siempre total (no se puede anular parcialmente un movimiento).
 
 > Los movimientos originados automaticamente desde comprobantes, compras o conciliacion de MercadoPago tambien aparecen en esta pantalla y pueden anularse del mismo modo.
+
+---
+
+### 13.4 Importar Padron
+
+**Ruta**: `/fiscal/padrones` | **Permiso**: `func.fiscal.configuracion`
+
+Pantalla para importar el padron oficial de percepcion de Ingresos Brutos de ARBA (Buenos Aires) o AGIP (CABA) y actualizar automaticamente el perfil fiscal de los clientes del comercio segun la alicuota que les corresponde en el padron.
+
+> Esta pantalla es de uso administrativo y no afecta el flujo de ventas directamente. Una vez importado el padron, las percepciones de IIBB en ventas se calculan automaticamente usando las alicuotas del padron.
+
+#### Que ve al entrar
+
+Una pantalla de dos paneles:
+
+- **Panel izquierdo (indicaciones)**: explica como funciona el padron, que archivos acepta y las reglas de precedencia (el ajuste manual no se pisa).
+- **Panel derecho (controles)**: selector de agencia, campo para subir el archivo comprimido y boton de importar.
+
+Debajo de los paneles, luego de una importacion exitosa, aparece un **resumen de resultados** con cuatro metricas:
+
+| Metrica | Descripcion |
+|---|---|
+| Clientes actualizados | Total de perfiles de clientes creados o actualizados (nuevo + actualizado) |
+| Nuevos perfiles | Clientes que no tenian perfil fiscal para ese impuesto y lo recibieron |
+| Perfiles actualizados | Clientes que ya tenian perfil de padron y se actualizo la alicuota/vigencia |
+| Omitidos (carga manual) | Clientes que tenian ajuste manual: no se pisaron |
+
+Al pie del resumen se informa ademas cuantas filas totales tenia el padron, cuantas eran de percepcion validas y cuantos CUIT del padron no son clientes del comercio.
+
+#### Como importar el padron paso a paso
+
+1. Descargue el padron oficial del sitio de la agencia (ARBA o AGIP). El archivo descargado viene comprimido (`.zip`).
+2. En la pantalla, seleccione la **Agencia** correspondiente:
+   - **ARBA — Buenos Aires**: para percepcion de IIBB de la Provincia de Buenos Aires (`perc_iibb_ar_b`).
+   - **AGIP — CABA**: para percepcion de IIBB de la Ciudad Autonoma de Buenos Aires (`perc_iibb_ar_c`).
+3. Haga clic en el campo de archivo y seleccione el archivo `.zip` tal cual lo descargo de la agencia. **No hace falta descomprimirlo**. Tambien se acepta `.gz`. El sistema descomprime automaticamente por streaming.
+4. Durante la subida se muestra una **barra de progreso** con el porcentaje completado.
+5. Una vez subido el archivo, haga clic en **Importar padron**.
+6. El sistema procesa el archivo (puede demorar segun el tamano del padron) y muestra el resumen de resultados.
+
+#### Reglas que aplica el sistema al importar
+
+- **Solo percepcion**: el padron de ARBA contiene filas de percepcion (P) y de retencion (R). El sistema solo procesa las de percepcion; la retencion es del lado de compras y se ignora. AGIP incluye ambas alicuotas en el mismo archivo; solo se usa la alicuota de percepcion.
+- **Exencion conservadora**: si la alicuota del padron es 0,00 o si la fila indica una baja del sujeto, el cliente queda marcado como exento para ese impuesto (no se le percibe). Nunca se asume percepcion ante la duda.
+- **El ajuste manual tiene prioridad**: si el perfil de un cliente fue cargado a mano desde la pantalla Clientes → Perfil fiscal, el padron no lo pisa. Ese cliente aparece en el contador "Omitidos (carga manual)".
+- **Idempotente**: importar el mismo padron dos veces no duplica perfiles. La clave de unicidad es cliente + impuesto + fecha de vigencia desde.
+- **Solo clientes del comercio**: el padron incluye toda la provincia o CABA. El sistema descarta al vuelo todos los CUIT que no sean clientes registrados del comercio; solo actualiza los que coinciden.
+
+#### Restricciones del archivo
+
+- Solo se aceptan archivos comprimidos: `.zip` (formato oficial de las agencias) o `.gz`.
+- El archivo `.txt` plano del padron completo (~92 MB) no se acepta por la web; debe subirse comprimido (~7 MB).
+- Tamano maximo: 100 MB (comprimido).
+- Si se sube un archivo con extension incorrecta, el sistema muestra el mensaje: "El padron debe subirse comprimido (.zip o .gz)."
+
+#### Mensajes de validacion
+
+| Situacion | Mensaje |
+|---|---|
+| No se selecciono archivo | "Selecciona el archivo comprimido del padron." |
+| Formato incorrecto (no .zip ni .gz) | "El padron debe subirse comprimido (.zip o .gz)." |
+| Archivo supera 100 MB | "El archivo supera el tamano maximo permitido (100 MB)." |
+| El impuesto no esta en el catalogo | Error con detalle del problema |
+
+> **Alternativa via servidor**: si el archivo es muy grande o la subida web no es practica, el administrador del servidor puede usar el comando artisan `php artisan fiscal:importar-padron /ruta/al/archivo --agencia=arba --comercio=ID` que acepta `.txt`, `.zip` o `.gz` directamente desde el servidor.
 
 ---
 

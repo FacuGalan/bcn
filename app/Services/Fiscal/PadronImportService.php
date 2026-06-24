@@ -23,6 +23,10 @@ use Illuminate\Support\Facades\Log;
  * Reglas (spec RF-14):
  *  - El padrón trae TODA la provincia/CABA → se hace STREAMING (fgets) y se
  *    descartan al vuelo las filas cuyo CUIT no sea cliente (memoria acotada).
+ *  - Acepta el archivo COMPRIMIDO tal cual lo bajan de la agencia: .zip (formato
+ *    oficial de ARBA/AGIP) o .gz, además del .txt plano. Se detecta el formato
+ *    por los bytes mágicos (no por extensión, porque el temporal de Livewire no
+ *    la conserva) y se descomprime por streaming, sin volcar a disco.
  *  - **Precedencia: el override manual gana.** No se pisan filas
  *    `origen_alicuota='manual'`.
  *  - Idempotente por (cliente_id, impuesto_id, vigente_desde).
@@ -63,11 +67,7 @@ class PadronImportService
         $mapaClientes = $this->mapaClientesPorCuit();
         $resumen = new ResumenImportacion;
 
-        $handle = fopen($rutaArchivo, 'r');
-
-        if ($handle === false) {
-            throw new \InvalidArgumentException("No se pudo abrir el archivo de padrón: {$rutaArchivo}");
-        }
+        $handle = $this->abrirPadron($rutaArchivo);
 
         try {
             DB::connection('pymes_tenant')->transaction(function () use ($handle, $parser, $impuesto, $mapaClientes, $resumen) {
@@ -162,6 +162,104 @@ class PadronImportService
         ] + $datos);
 
         $resumen->creadas++;
+    }
+
+    /**
+     * Abre el padrón devolviendo un handle de lectura por streaming, soportando
+     * .txt plano, .gz y .zip. El formato se detecta por bytes mágicos (el
+     * temporal de Livewire no conserva la extensión).
+     *
+     * @return resource
+     */
+    private function abrirPadron(string $ruta)
+    {
+        $handle = match ($this->detectarFormato($ruta)) {
+            'zip' => $this->abrirZip($ruta),
+            'gzip' => @fopen('compress.zlib://'.$ruta, 'r'),
+            default => @fopen($ruta, 'r'),
+        };
+
+        if ($handle === false) {
+            throw new \InvalidArgumentException("No se pudo abrir el archivo de padrón: {$ruta}");
+        }
+
+        return $handle;
+    }
+
+    /** 'zip' | 'gzip' | 'texto' según los primeros bytes del archivo. */
+    private function detectarFormato(string $ruta): string
+    {
+        $f = @fopen($ruta, 'rb');
+
+        if ($f === false) {
+            return 'texto';
+        }
+
+        $magic = (string) fread($f, 4);
+        fclose($f);
+
+        // ZIP: "PK\x03\x04" (normal) | "PK\x05\x06" (vacío) | "PK\x07\x08" (spanned).
+        if (str_starts_with($magic, "PK\x03\x04") || str_starts_with($magic, "PK\x05\x06") || str_starts_with($magic, "PK\x07\x08")) {
+            return 'zip';
+        }
+
+        // GZIP: "\x1f\x8b".
+        if (strlen($magic) >= 2 && $magic[0] === "\x1f" && $magic[1] === "\x8b") {
+            return 'gzip';
+        }
+
+        return 'texto';
+    }
+
+    /**
+     * Abre por streaming la primera entrada de texto de un .zip (la primera
+     * .txt; si no hay, la primera entrada de archivo). No vuelca a disco.
+     *
+     * @return resource
+     */
+    private function abrirZip(string $ruta)
+    {
+        if (! class_exists(\ZipArchive::class)) {
+            throw new \RuntimeException('El servidor no tiene habilitada la extensión zip de PHP.');
+        }
+
+        $zip = new \ZipArchive;
+
+        if ($zip->open($ruta) !== true) {
+            throw new \InvalidArgumentException("No se pudo abrir el .zip del padrón: {$ruta}");
+        }
+
+        $entrada = null;
+
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $nombre = $zip->getNameIndex($i);
+
+            // Saltar directorios y entradas vacías.
+            if ($nombre === false || $nombre === '' || str_ends_with($nombre, '/')) {
+                continue;
+            }
+
+            if (str_ends_with(strtolower($nombre), '.txt')) {
+                $entrada = $nombre;
+                break;
+            }
+
+            $entrada ??= $nombre; // fallback: primera entrada de archivo
+        }
+
+        $zip->close();
+
+        if ($entrada === null) {
+            throw new \InvalidArgumentException('El .zip del padrón no contiene ningún archivo.');
+        }
+
+        $handle = @fopen('zip://'.$ruta.'#'.$entrada, 'r');
+
+        if ($handle === false) {
+            throw new \InvalidArgumentException("No se pudo leer la entrada '{$entrada}' del .zip del padrón.");
+        }
+
+        return $handle;
     }
 
     private function parserPara(string $agencia): PadronParser

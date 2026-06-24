@@ -82,6 +82,33 @@ class PadronImportServiceTest extends TestCase
         return $path;
     }
 
+    /** Escribe un .gz temporal con las líneas dadas (padrón comprimido). */
+    private function archivoArbaGz(array $lineas): string
+    {
+        $base = tempnam(sys_get_temp_dir(), 'padron');
+        $path = $base.'.gz';
+        file_put_contents($path, gzencode(implode("\n", $lineas)."\n"));
+        $this->archivos[] = $base;
+        $this->archivos[] = $path;
+
+        return $path;
+    }
+
+    /** Escribe un .zip temporal con el .txt del padrón adentro. */
+    private function archivoArbaZip(array $lineas): string
+    {
+        $base = tempnam(sys_get_temp_dir(), 'padron');
+        $path = $base.'.zip';
+        $zip = new \ZipArchive;
+        $zip->open($path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+        $zip->addFromString('PadronRGSPer.txt', implode("\n", $lineas)."\n");
+        $zip->close();
+        $this->archivos[] = $base;
+        $this->archivos[] = $path;
+
+        return $path;
+    }
+
     private function lineaArba(string $cuit, string $alicuota, string $marca = 'S'): string
     {
         return "P;01062026;01062026;30062026;{$cuit};D;{$marca};N;{$alicuota};00;";
@@ -173,6 +200,36 @@ class PadronImportServiceTest extends TestCase
             1,
             ClienteImpuestoConfig::where('cliente_id', $cliente->id)->where('impuesto_id', $imp->id)->count()
         );
+    }
+
+    public function test_importa_desde_zip_comprimido(): void
+    {
+        $imp = $this->impuestoArba();
+        $cliente = $this->cliente('20123456789');
+
+        // El usuario sube el .zip tal cual lo baja de ARBA (sin descomprimir).
+        $path = $this->archivoArbaZip([
+            $this->lineaArba('20123456789', '1,50'),
+            $this->lineaArba('27999999990', '2,00'),
+        ]);
+
+        $resumen = $this->service()->importar($path, PadronImportService::AGENCIA_ARBA);
+
+        $this->assertSame(1, $resumen->creadas);
+        $this->assertSame('1.5000', ClienteImpuestoConfig::where('cliente_id', $cliente->id)->value('alicuota'));
+    }
+
+    public function test_importa_desde_gz_comprimido(): void
+    {
+        $imp = $this->impuestoArba();
+        $cliente = $this->cliente('20123456789');
+
+        $path = $this->archivoArbaGz([$this->lineaArba('20123456789', '2,50')]);
+
+        $resumen = $this->service()->importar($path, PadronImportService::AGENCIA_ARBA);
+
+        $this->assertSame(1, $resumen->creadas);
+        $this->assertSame('2.5000', ClienteImpuestoConfig::where('cliente_id', $cliente->id)->value('alicuota'));
     }
 
     public function test_matchea_normalizando_cuit_con_guiones(): void

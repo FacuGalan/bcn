@@ -29,6 +29,18 @@ class PadronParserTest extends TestCase
         $this->assertSame('2026-06-30', $fila->vigenteHasta);
     }
 
+    public function test_arba_parsea_fecha_con_cero_inicial_como_espacio(): void
+    {
+        $parser = new ArbaPadronParser;
+        // ARBA rinde el cero inicial del campo fecha (ancho 8) como espacio:
+        // " 1102014" = 01/10/2014. Formato real del padrón de percepción.
+        $fila = $parser->parseLinea('P;23092014; 1102014;31102014;20000000028;D;N;N;6,00;15;');
+
+        $this->assertNotNull($fila);
+        $this->assertSame('2014-10-01', $fila->vigenteDesde);
+        $this->assertSame('2014-10-31', $fila->vigenteHasta);
+    }
+
     public function test_arba_ignora_regimen_retencion(): void
     {
         $parser = new ArbaPadronParser;

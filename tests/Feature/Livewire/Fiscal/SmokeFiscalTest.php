@@ -204,9 +204,20 @@ class SmokeFiscalTest extends TestCase
 
         $contenido = "P;01062026;01062026;30062026;20123456789;D;S;N;1,50;00;\n";
 
+        // El padrón se sube comprimido (.zip), como en producción.
+        $base = tempnam(sys_get_temp_dir(), 'padron');
+        $zipPath = $base.'.zip';
+        $zip = new \ZipArchive;
+        $zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+        $zip->addFromString('PadronRGSPer062026.txt', $contenido);
+        $zip->close();
+        $zipBinario = file_get_contents($zipPath);
+        @unlink($zipPath);
+        @unlink($base);
+
         Livewire::test(PadronImport::class)
             ->set('agencia', 'arba')
-            ->set('archivo', UploadedFile::fake()->createWithContent('PadronRGSPer062026.txt', $contenido))
+            ->set('archivo', UploadedFile::fake()->createWithContent('PadronRGSPer062026.zip', $zipBinario))
             ->call('importar')
             ->assertHasNoErrors();
 
