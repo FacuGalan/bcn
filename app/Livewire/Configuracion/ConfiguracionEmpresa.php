@@ -7,6 +7,7 @@ use App\Models\CondicionIva;
 use App\Models\Cuit;
 use App\Models\EmpresaConfig;
 use App\Models\GrupoCierre;
+use App\Models\Localidad;
 use App\Models\MovimientoCaja;
 use App\Models\PuntoVenta;
 use App\Models\PuntoVentaCaja;
@@ -597,6 +598,9 @@ class ConfiguracionEmpresa extends Component
             // Domicilio físico estructurado (RF-11, Fase 9).
             $sucursal->provincia = $this->domProvincia ?: null;
             $sucursal->localidad_id = $this->domLocalidadId ?: null;
+            // Mantener el string `localidad` en sync con el catálogo: lo consume el
+            // sync de Mercado Pago (city_name) y el estado en integraciones de pago.
+            $sucursal->localidad = $this->domLocalidadId ? Localidad::find($this->domLocalidadId)?->nombre : null;
             $sucursal->latitud = $this->domLatitud !== null && $this->domLatitud !== '' ? $this->domLatitud : null;
             $sucursal->longitud = $this->domLongitud !== null && $this->domLongitud !== '' ? $this->domLongitud : null;
 

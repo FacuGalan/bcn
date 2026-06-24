@@ -93,6 +93,50 @@ class SmokeConfiguracionTest extends TestCase
         Livewire::test(IntegracionesPago::class)->assertOk();
     }
 
+    public function test_integraciones_pago_modal_direccion_valida_campos_requeridos(): void
+    {
+        // El modal usa el trait ManejaDomicilio (picker). MP exige provincia,
+        // localidad de catálogo, dirección y coordenadas: todas obligatorias acá.
+        Livewire::test(IntegracionesPago::class)
+            ->call('abrirModalDireccion')
+            ->assertSet('mostrarModalDireccion', true)
+            ->set('domProvincia', '')
+            ->set('domLocalidadId', null)
+            ->set('domDireccion', '')
+            ->set('domLatitud', null)
+            ->set('domLongitud', null)
+            ->call('guardarDireccion')
+            ->assertHasErrors(['domProvincia', 'domLocalidadId', 'domDireccion', 'domLatitud', 'domLongitud']);
+    }
+
+    public function test_integraciones_pago_guardar_direccion_sincroniza_localidad_catalogo(): void
+    {
+        $localidad = \App\Models\Localidad::query()->first();
+        if (! $localidad) {
+            $this->markTestSkipped('Catálogo de localidades no sembrado en config_test.');
+        }
+        $codigoProv = \App\Models\Provincia::query()->whereKey($localidad->provincia_id)->value('codigo');
+
+        Livewire::test(IntegracionesPago::class)
+            ->call('abrirModalDireccion')
+            ->set('domProvincia', $codigoProv)
+            ->set('domLocalidadId', $localidad->id)
+            ->set('domDireccion', 'Av. Siempreviva 742')
+            ->set('domLatitud', '-34.6037')
+            ->set('domLongitud', '-58.3816')
+            ->call('guardarDireccion')
+            ->assertHasNoErrors()
+            ->assertSet('mostrarModalDireccion', false);
+
+        $sucursal = \App\Models\Sucursal::find($this->sucursalId);
+        $this->assertSame((int) $localidad->id, (int) $sucursal->localidad_id);
+        // El string `localidad` se sincroniza con el nombre del catálogo (lo usa MP).
+        $this->assertSame($localidad->nombre, $sucursal->localidad);
+        $this->assertSame('Av. Siempreviva 742', $sucursal->direccion);
+        $this->assertEquals(-34.6037, (float) $sucursal->latitud);
+        $this->assertEquals(-58.3816, (float) $sucursal->longitud);
+    }
+
     public function test_integraciones_pago_abrir_config_para_integracion_existente(): void
     {
         // Asegurar catálogo MP sembrado (puede o no estarlo según el contexto).

@@ -657,52 +657,11 @@
         >
             <x-slot:body>
                 <div class="space-y-4">
-                    <div class="p-3 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-xs text-blue-800 dark:text-blue-200">
-                        {{ __('Por ahora las coordenadas se cargan manualmente. Para obtenerlas: abrí Google Maps, buscá la dirección, hacé click derecho sobre el punto exacto y copiá las coordenadas que aparecen primero (formato: -34.123456, -58.654321).') }}
-                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ __('Elegí provincia y localidad, y ubicá la sucursal en el mapa. Mercado Pago usa estos datos para registrar la sucursal (store).') }}
+                    </p>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Dirección') }} *</label>
-                        <input type="text" wire:model="direccion"
-                               placeholder="Ej: Av. Corrientes 1234"
-                               class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
-                        @error('direccion') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Localidad') }} *</label>
-                            <input type="text" wire:model="localidad" placeholder="Ej: CABA"
-                                   class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
-                            @error('localidad') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Provincia') }} *</label>
-                            <select wire:model="provincia"
-                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                <option value="">{{ __('Seleccione una provincia') }}</option>
-                                @foreach (\App\Models\Sucursal::PROVINCIAS_AR as $codigo => $nombre)
-                                    <option value="{{ $codigo }}">{{ $nombre }}</option>
-                                @endforeach
-                            </select>
-                            @error('provincia') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Latitud') }} *</label>
-                            <input type="text" wire:model="latitud" placeholder="-34.6037"
-                                   class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
-                            @error('latitud') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Longitud') }} *</label>
-                            <input type="text" wire:model="longitud" placeholder="-58.3816"
-                                   class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
-                            @error('longitud') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-                        </div>
-                    </div>
+                    @include('livewire.partials.domicilio-form', ['conTipo' => false, 'conDireccion' => true, 'idPrefix' => 'mpdom'])
                 </div>
             </x-slot:body>
 
