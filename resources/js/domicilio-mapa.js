@@ -105,29 +105,57 @@ document.addEventListener('alpine:init', () => {
         marker: null,
         autocomplete: null,
         AdvancedMarkerElement: null,
-        cargando: true,
+        abierto: false,
+        cargando: false,
         error: false,
         geoError: '',
         manual: false,
         tieneCentro: false,
         coords: null,
 
-        async init() {
-            if (!this.key) {
-                this.cargando = false;
+        init() {
+            // Carga PEREZOSA: no cargamos el SDK ni construimos el mapa al montar.
+            // Recién al tocar "Abrir mapa" (abrir()) se llama a la API de Google.
+            // Así, si el usuario solo edita otros datos de la sucursal, no se hace
+            // ninguna llamada (ni costo) de mapas.
+        },
+
+        /** Carga el SDK y construye el mapa la primera vez; reabre si ya existe. */
+        async abrir() {
+            this.abierto = true;
+
+            // Si ya estaba construido, solo re-mostramos y reacomodamos el centro
+            // (estuvo display:none, conviene reencuadrar).
+            if (this.map) {
+                await this.$nextTick();
+                const c = this.coordActual() || this.centroLocalidad();
+                if (c) {
+                    this.map.setCenter(c);
+                }
 
                 return;
             }
 
+            if (!this.key) {
+                return;
+            }
+
+            this.cargando = true;
             try {
+                // Esperamos a que el contenedor sea visible (tiene alto definido)
+                // antes de instanciar el mapa, si no Google lo pinta gris.
+                await this.$nextTick();
                 await cargarGoogleMaps(this.key);
                 await this.construir();
             } catch (e) {
                 console.error('[domicilio-mapa]', e);
                 this.error = true;
             }
-
             this.cargando = false;
+        },
+
+        cerrar() {
+            this.abierto = false;
         },
 
         async construir() {
@@ -140,7 +168,7 @@ document.addEventListener('alpine:init', () => {
             const coord = this.coordActual();
             const centro = this.centroLocalidad();
             const inicio = coord || centro || CENTRO_AR;
-            const zoom = coord ? 16 : centro ? 13 : 5;
+            const zoom = coord ? 16 : centro ? 12 : 5;
 
             this.map = new Map(this.$refs.mapa, {
                 center: inicio,
@@ -225,20 +253,47 @@ document.addEventListener('alpine:init', () => {
                 // guardar coords aún: el usuario lo arrastra o busca la dirección).
                 this.mostrarMarker(centro);
                 this.map.setCenter(centro);
-                this.map.setZoom(13);
+                this.map.setZoom(12);
             }
         },
 
-        /** Pin con estilos inline (inmune al reset CSS global). */
+        /**
+         * Pin de marca con forma clásica de marcador (globo + punta) en naranja, con
+         * el ícono BCN de la PWA chico adentro, sobre un disco blanco para que
+         * contraste. El cuerpo es un SVG (forma de gota precisa); la punta del SVG
+         * cae en el bottom-center del contenido, que es donde AdvancedMarkerElement
+         * ancla la posición geográfica. Estilos inline a propósito (ganan al preflight
+         * de Tailwind, que con `img { height:auto }` rompería el tamaño del ícono).
+         */
         crearPin() {
-            const el = document.createElement('div');
-            el.style.cssText =
-                'width:22px;height:22px;border-radius:50% 50% 50% 0;' +
-                'background:#2563eb;border:2px solid #ffffff;' +
-                'box-shadow:0 1px 4px rgba(0,0,0,.5);transform:rotate(-45deg);' +
-                'transform-origin:center;cursor:grab;box-sizing:border-box;';
+            const wrap = document.createElement('div');
+            wrap.style.cssText =
+                'position:relative;width:40px;height:51px;cursor:grab;' +
+                'filter:drop-shadow(0 2px 3px rgba(0,0,0,.4));';
 
-            return el;
+            // Cuerpo del pin: gota clásica, cabeza redonda (centro 20,17 r16) y punta en (20,50).
+            wrap.innerHTML =
+                '<svg width="40" height="51" viewBox="0 0 40 51" xmlns="http://www.w3.org/2000/svg">' +
+                '<path d="M20 50 C14 38 4 27 4 17 A16 16 0 1 1 36 17 C36 27 26 38 20 50 Z" ' +
+                'fill="#FFAF22" stroke="#ffffff" stroke-width="2"/></svg>';
+
+            // Disco blanco para separar el ícono del cuerpo naranja.
+            const disco = document.createElement('div');
+            disco.style.cssText =
+                'position:absolute;top:4px;left:7px;width:26px;height:26px;' +
+                'border-radius:50%;background:#ffffff;box-sizing:border-box;';
+            wrap.appendChild(disco);
+
+            // Ícono BCN de la PWA, centrado dentro de la cabeza.
+            const icon = document.createElement('img');
+            icon.src = '/pwa-icons/icon-192x192.png';
+            icon.alt = '';
+            icon.style.cssText =
+                'position:absolute;top:5px;left:8px;width:24px;height:24px;' +
+                'border-radius:50%;object-fit:cover;display:block;';
+            wrap.appendChild(icon);
+
+            return wrap;
         },
 
         /** Crea (o recrea) el marcador en una posición y lo muestra. */
@@ -251,8 +306,12 @@ document.addEventListener('alpine:init', () => {
                 this.marker.map = null;
             }
 
+            // Alpine envuelve `this.map` en un Proxy reactivo. AdvancedMarkerElement
+            // hace una comparación de identidad interna contra la instancia REAL del
+            // mapa para adjuntarse a su overlay; con el Proxy nunca lo hace y el pin
+            // no se renderiza (isConnected=false). Pasamos el mapa crudo con Alpine.raw.
             this.marker = new this.AdvancedMarkerElement({
-                map: this.map,
+                map: window.Alpine.raw(this.map),
                 position: pos,
                 gmpDraggable: true,
                 content: this.crearPin(),
