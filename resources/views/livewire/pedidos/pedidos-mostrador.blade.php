@@ -301,7 +301,7 @@
                             <div class="flex items-center gap-2 flex-wrap">
                                 <span class="text-base font-bold text-bcn-secondary dark:text-white">
                                     @if($pedido->numero)
-                                        #{{ $pedido->numero }}
+                                        #{{ $pedido->numero_visible }}
                                     @else
                                         <span class="italic text-gray-500">{{ __('Borrador') }}</span>
                                     @endif
@@ -437,7 +437,7 @@
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <div class="text-sm font-bold text-bcn-secondary dark:text-white">
                                         @if($pedido->numero)
-                                            #{{ $pedido->numero }}
+                                            #{{ $pedido->numero_visible }}
                                         @else
                                             <span class="italic text-gray-500 text-xs">{{ __('Borrador') }}</span>
                                         @endif
@@ -636,7 +636,7 @@
                                         <div class="flex items-center gap-1.5 min-w-0">
                                             <span class="font-bold text-base text-bcn-secondary dark:text-white">
                                                 @if($pedido->numero)
-                                                    #{{ $pedido->numero }}
+                                                    #{{ $pedido->numero_visible }}
                                                 @else
                                                     <span class="italic text-gray-500 text-sm">{{ __('S/N') }}</span>
                                                 @endif
@@ -841,7 +841,7 @@
     {{-- ==================== MODAL: DETALLE ==================== --}}
     @if($showDetalleModal && $pedidoDetalle)
         <x-bcn-modal
-            :title="__('Pedido') . ' ' . ($pedidoDetalle->numero ? '#' . $pedidoDetalle->numero : __('(Borrador)'))"
+            :title="__('Pedido') . ' ' . ($pedidoDetalle->numero ? '#' . $pedidoDetalle->numero_visible : __('(Borrador)'))"
             color="bg-bcn-secondary"
             maxWidth="4xl"
             onClose="cerrarDetalle"

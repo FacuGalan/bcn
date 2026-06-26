@@ -158,18 +158,26 @@ async function iniciar(token) {
         aplicarConfig(data);
         renderSnapshot(data.pedidos || {});
         elVincular.style.display = 'none';
-        elPantalla.style.display = '';
-        suscribir(token);
+        elPantalla.style.display = 'flex';
     } catch (err) {
         // Token inválido/regenerado: olvidarlo y volver a la vinculación.
         localStorage.removeItem(STORAGE_KEY);
         mostrarVinculacion();
+        return;
+    }
+
+    // Tiempo real best-effort: un fallo de WS no debe tapar la pantalla ya
+    // renderizada (el snapshot inicial ya está en pantalla).
+    try {
+        suscribir(token);
+    } catch (e) {
+        // se reintenta al recargar; el snapshot inicial sigue visible
     }
 }
 
 function mostrarVinculacion() {
     elPantalla.style.display = 'none';
-    elVincular.style.display = '';
+    elVincular.style.display = 'flex';
 }
 
 async function canjearCodigo(codigo) {

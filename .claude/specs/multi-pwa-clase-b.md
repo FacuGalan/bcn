@@ -1,6 +1,6 @@
 # Multi-PWA Clase B — Pantallas auxiliares remotas - Especificación
 
-## Estado: EN PROGRESO (Fases 1-2 ✅ — Fases 3-5 pendientes)
+## Estado: EN PROGRESO (Fases 1-2 + 3b ✅ — Fases 3, 4, 5 pendientes)
 
 > NOTA: los íconos PWA del llamador (`pwa-icons/llamador-*.png`) son placeholder
 > (copia de pantalla-cliente). Reemplazar por diseño propio. La URL corta tipeable
@@ -67,6 +67,20 @@ Ambas son **públicas y de solo lectura**, instalables como PWA independientes, 
 - **Seguridad del código corto**: el canje código→token está **rate-limited** (anti fuerza bruta) y el código es **rotable**. El código corto solo habilita ver una pantalla pública de solo-lectura y baja sensibilidad (números + nombre / precios públicos); el **canal de Reverb y los endpoints de datos siguen usando el token largo inadivinable**, nunca el código corto.
 - La ruta genérica sirve un **shell neutro** (sin datos sensibles); la personalización (título/logo/colores) y los datos se cargan client-side vía los **endpoints acotados al token** una vez resuelto desde `localStorage`.
 
+### RF-03b: Numeración de display (turno) — número amigable reseteable
+> Agregado 2026-06-26 tras validar el monitor: el correlativo permanente crece sin fin (1387…) y queda feo en el monitor/comanda. Se separa el **número visible** del **ID permanente**.
+
+- **Dos numeraciones, una protagonista**:
+  - `pedidos_mostrador.numero` (actual) → pasa a ser **ID interno/de referencia** (permanencia, búsqueda, reportes). NO se muestra grande.
+  - `pedidos_mostrador.numero_display` (nuevo) → **el número que ve todo el mundo**: monitor, comanda impresa, tarjeta del kanban. Chico, reseteable.
+- En toda UI cara-al-público se muestra `numero_display ?? numero` (si la sucursal no usa numeración de display, cae al permanente). El `numero` permanente solo aparece como dato interno en el detalle/reportes/búsqueda.
+- **Asignación atómica** en el mismo momento que `numero` (al confirmar el pedido), con `lockForUpdate` sobre el contador de la sucursal.
+- **Reset configurable por sucursal**:
+  - `nunca` (= `usa_numeracion_display=false`): `numero_display` queda null, se usa el permanente.
+  - `diario`: reset por **uno o más horarios por día** (lista, ej. `[6, 18]` → resetea a las 6am y a las 18pm, así el turno mañana y el turno tarde arrancan de 0). Default `[6]` (una sola jornada de 6am a 6am → resuelve el turno 22h→1h sin partirse). Los horarios dividen el día en **segmentos**; al asignar, si el segmento actual avanzó respecto del último registrado, el contador se reinicia a 1.
+  - `manual`: botón **"Reiniciar numeración"** (con permiso) que pone el contador en 0; cubre el caso "por turno/tanda" sin modelar turnos de caja.
+- **Toggle de monitor**: `sucursales.usa_llamador` (on/off) — gobierna la visibilidad del monitor en la config (RF-07). El broadcast público se emite igual (idempotente/inofensivo).
+
 ### RF-03: Monitor llamador de pedidos (`/llamador/{token}`) — DOS COLUMNAS
 - Pantalla pública full-screen, dividida en dos columnas:
   - **Izquierda — "En preparación"**: pedidos en estado **`EN_PREPARACION`** de la sucursal. El cliente ve que su pedido se está preparando (anticipación). Muestra número (+ alias corto si existe).
@@ -131,6 +145,17 @@ Fuente de verdad para resolver el tenant sin sesión (patrón `MercadoPagoCollec
 - Agregar `config_llamador` (json, nullable) — personalización del monitor llamador (título, logo, colores, sonido on/off).
 - Agregar `config_consultor_precios` (json, nullable) — personalización del consultor.
   - **PUNTO DE DECISIÓN A** ✅ RESUELTO: columnas separadas `config_llamador`/`config_consultor_precios` por claridad y defaults independientes (modelo `Sucursal::CONFIG_*_DEFAULTS`).
+
+#### `sucursales` (tenant) — Numeración de display + toggle monitor (RF-03b)
+- `usa_llamador` (bool, default 0) — si la sucursal usa el monitor llamador.
+- `usa_numeracion_display` (bool, default 0) — si usa numeración de display aparte (si no, monitor/comanda muestran el `numero` permanente).
+- `numeracion_display_modo` (enum `diario`|`manual`, default `diario`).
+- `numeracion_display_horas` (json, nullable) — lista de horas de reset 0-23 para modo `diario`, ej `[6,18]`. Null ⇒ `[6]`.
+- `pedido_display_ultimo_numero` (int unsigned, default 0) — contador del display (espejo de `pedido_mostrador_ultimo_numero`).
+- `pedido_display_segmento_at` (datetime, nullable) — inicio del segmento (turno) del contador actual, para detectar el cruce de horario en modo `diario`.
+
+#### `pedidos_mostrador` (tenant) — Numeración de display (RF-03b)
+- `numero_display` (int unsigned, nullable) AFTER `numero` — número amigable mostrado en monitor/comanda/kanban. Se asigna junto a `numero` al confirmar. Null si la sucursal no usa numeración de display.
 
 > El token y las configs de personalización viven en `sucursales` (patrón `config_pantalla_cliente`); el **mapeo global token/código → comercio+sucursal** vive en `pantalla_publica_tokens` (config). Regenerar `database/sql/tenant_tables.sql` tras la migración tenant.
 
@@ -257,9 +282,17 @@ Claves nuevas (es/en/pt), entre otras:
 2. Vista `/precios` (genérico + `/precios/{token}` para QR) + JS de búsqueda (incl. lector de código) + pantalla de vinculación.
 3. PWA: `manifest-consultor-precios.json` (`start_url` genérico), íconos, SW.
 
+### Fase 3b: Numeración de display (turno) [COMPLETO] — RF-03b
+1. ✅ Migración tenant: columnas de display en `sucursales` + `numero_display` en `pedidos_mostrador`. `tenant_tables.sql` regenerado.
+2. ✅ `PedidoMostradorService::siguienteNumeroDisplay` (asignación atómica al confirmar, junto a `siguienteNumero`, con reset por **N horarios** — segmentos, overnight OK) + `reiniciarNumeracionDisplay` (modo manual).
+3. ✅ Mostrar `numero_visible` (= `numero_display ?? numero`): monitor (snapshot + broadcast), kanban (`pedidos-mostrador.blade.php`), comanda (`PlantillasComanda`).
+4. ⏭️ Permiso + botón de reinicio manual + **toggles/config UI** (usa_llamador, usa_numeracion_display, modo, horas) → se hacen en la **Fase 4** (config).
+5. ✅ Tests: `NumeracionDisplayTest` (null si no usa, manual, reset diario por segmento + overnight, default [6], reinicio, accessor). 6/6.
+
 ### Fase 4: Configuración + personalización [PENDIENTE]
 1. Tarjeta en Configuración: URLs + QR + copiar + regenerar token + edición de personalización por pantalla.
-2. Defaults de personalización en el modelo `Sucursal`.
+2. Toggles por sucursal: `usa_llamador`, `usa_numeracion_display` + modo/hora de corte (RF-03b).
+3. Defaults de personalización en el modelo `Sucursal`.
 
 ### Fase 5: Tests + docs [PENDIENTE]
 1. Tests (middleware, service, broadcast, smoke vistas). 

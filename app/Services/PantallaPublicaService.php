@@ -157,7 +157,7 @@ class PantallaPublicaService
     public function pedidosParaLlamador(Sucursal $sucursal): array
     {
         $mapear = static fn (PedidoMostrador $p): array => [
-            'numero' => (int) $p->numero,
+            'numero' => (int) $p->numero_visible,
             'nombre' => $p->nombreLlamador(),
         ];
 
