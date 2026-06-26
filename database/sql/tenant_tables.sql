@@ -2164,6 +2164,9 @@ CREATE TABLE `{{PREFIX}}sucursales` (
   `datos_fiscales_id` bigint(20) unsigned DEFAULT NULL COMMENT 'Si factura con datos propios',
   `configuracion` text COLLATE utf8mb4_unicode_ci COMMENT 'Configuraciones específicas (JSON)',
   `config_pantalla_cliente` text COLLATE utf8mb4_unicode_ci COMMENT 'Personalizacion de la segunda pantalla (pantalla cliente) - JSON',
+  `token_publico` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `config_llamador` json DEFAULT NULL,
+  `config_consultor_precios` json DEFAULT NULL,
   `activa` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Si la sucursal está activa',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
@@ -2189,6 +2192,7 @@ CREATE TABLE `{{PREFIX}}sucursales` (
   `mp_store_external_id` varchar(60) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_codigo` (`codigo`),
+  UNIQUE KEY `sucursales_token_publico_unique` (`token_publico`),
   UNIQUE KEY `uniq_sucursales_mp_store_external_id` (`mp_store_external_id`),
   KEY `idx_activa` (`activa`),
   KEY `idx_sucursales_mp_store_id` (`mp_store_id`)

@@ -84,6 +84,23 @@ Route::middleware(['auth'])->group(function () {
 });
 
 /**
+ * Pantallas Clase B — remotas, SIN sesión (llamador de pedidos, consultor de
+ * precios). Corren en dispositivos sin login (TV, tablet pública). Resuelven el
+ * tenant por token de la URL contra el índice global (middleware `pantalla.token`).
+ *
+ * Fase 1: solo el endpoint de vinculación (canje de código corto → token). Las
+ * vistas de las pantallas se agregan en las fases 2 y 3.
+ * Ref: .claude/specs/multi-pwa-clase-b.md (RF-02, RF-02b)
+ */
+Route::prefix('clase-b')->group(function () {
+    // Canje del código corto (tipeado en TV) por el token largo. GET read-only
+    // (sin CSRF) + rate limit anti fuerza bruta.
+    Route::get('vincular/{codigo}', [\App\Http\Controllers\PantallaPublica\VinculacionController::class, 'canjear'])
+        ->middleware('throttle:10,1')
+        ->name('clase-b.vincular');
+});
+
+/**
  * Aplicación principal — PWA con scope "/app".
  *
  * Incluye el login (Opción B): así, al abrir la PWA (start_url "/app") el
