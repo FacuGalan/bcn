@@ -6,9 +6,12 @@ use App\Models\Caja;
 use App\Models\Comercio;
 use App\Models\IntegracionPago;
 use App\Models\IntegracionPagoSucursal;
+use App\Models\Localidad;
 use App\Models\Sucursal;
+use App\Services\CatalogoCache;
 use App\Services\IntegracionesPago\IntegracionPagoSucursalService;
 use App\Services\IntegracionesPago\SincronizacionMercadoPagoService;
+use App\Traits\ManejaDomicilio;
 use App\Traits\SucursalAware;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
@@ -27,6 +30,7 @@ use Livewire\Component;
 #[Layout('layouts.app')]
 class IntegracionesPago extends Component
 {
+    use ManejaDomicilio;
     use SucursalAware;
 
     // ==================== Modal ====================
@@ -62,18 +66,10 @@ class IntegracionesPago extends Component
     public bool $activo = true;
 
     // ==================== Modal: dirección de sucursal ====================
+    // Usa el trait ManejaDomicilio (mismo picker de Google Maps que Sucursales):
+    // provincia (ISO) → localidad (catálogo) → mapa. Ver domicilio-form.blade.php.
 
     public bool $mostrarModalDireccion = false;
-
-    public ?string $direccion = null;
-
-    public ?string $localidad = null;
-
-    public ?string $provincia = null;
-
-    public ?string $latitud = null;
-
-    public ?string $longitud = null;
 
     // ==================== Terminales Point ====================
 
@@ -271,11 +267,13 @@ class IntegracionesPago extends Component
         }
 
         $this->resetValidation();
-        $this->direccion = $sucursal->direccion;
-        $this->localidad = $sucursal->localidad;
-        $this->provincia = $sucursal->provincia;
-        $this->latitud = $sucursal->latitud !== null ? (string) $sucursal->latitud : null;
-        $this->longitud = $sucursal->longitud !== null ? (string) $sucursal->longitud : null;
+        $this->setDomicilioDesde([
+            'provincia' => $sucursal->provincia,
+            'localidad_id' => $sucursal->localidad_id,
+            'direccion' => $sucursal->direccion,
+            'latitud' => $sucursal->latitud,
+            'longitud' => $sucursal->longitud,
+        ]);
         $this->mostrarModalDireccion = true;
     }
 
@@ -287,20 +285,22 @@ class IntegracionesPago extends Component
             return;
         }
 
-        $this->validate([
-            'direccion' => 'required|string|max:255',
-            'localidad' => 'required|string|max:100',
-            'provincia' => 'required|string|max:100',
-            'latitud' => 'required|numeric|between:-90,90',
-            'longitud' => 'required|numeric|between:-180,180',
-        ], [
-            'direccion.required' => __('Ingrese la dirección de la sucursal'),
-            'localidad.required' => __('Ingrese la localidad'),
-            'provincia.required' => __('Ingrese la provincia'),
-            'latitud.required' => __('Ingrese la latitud'),
-            'latitud.between' => __('La latitud debe estar entre -90 y 90'),
-            'longitud.required' => __('Ingrese la longitud'),
-            'longitud.between' => __('La longitud debe estar entre -180 y 180'),
+        // Mercado Pago exige dirección, localidad, provincia y coordenadas para
+        // registrar la sucursal (store), así que reforzamos las reglas del trait
+        // (que de base permiten localidad/coords vacías) haciéndolas obligatorias.
+        $this->validate(array_merge(
+            $this->reglasDomicilio(direccionRequerida: true),
+            [
+                'domLocalidadId' => 'required|integer',
+                'domLatitud' => 'required|numeric|between:-90,90',
+                'domLongitud' => 'required|numeric|between:-180,180',
+            ]
+        ), [
+            'domProvincia.required' => __('Seleccione la provincia'),
+            'domLocalidadId.required' => __('Seleccione la localidad'),
+            'domDireccion.required' => __('Ingrese la dirección de la sucursal'),
+            'domLatitud.required' => __('Ubique la sucursal en el mapa para obtener las coordenadas'),
+            'domLongitud.required' => __('Ubique la sucursal en el mapa para obtener las coordenadas'),
         ]);
 
         $sucursal = $this->sucursalActivaModel();
@@ -308,13 +308,21 @@ class IntegracionesPago extends Component
             return;
         }
 
+        $datos = $this->datosDomicilio();
+
+        // Mercado Pago arma `city_name` desde el string `localidad`; lo poblamos
+        // con el nombre de la localidad del catálogo para mantener el sync.
         $sucursal->update([
-            'direccion' => $this->direccion,
-            'localidad' => $this->localidad,
-            'provincia' => $this->provincia,
-            'latitud' => $this->latitud,
-            'longitud' => $this->longitud,
+            'direccion' => $datos['direccion'],
+            'provincia' => $datos['provincia'],
+            'localidad_id' => $datos['localidad_id'],
+            'localidad' => Localidad::find($datos['localidad_id'])?->nombre,
+            'latitud' => $datos['latitud'],
+            'longitud' => $datos['longitud'],
         ]);
+
+        // La sucursal activa se lee de CatalogoCache; invalidar para reflejar el cambio.
+        CatalogoCache::clear();
 
         $this->mostrarModalDireccion = false;
         $this->dispatch('notify', message: __('Dirección y coordenadas guardadas'), type: 'success');
@@ -323,11 +331,7 @@ class IntegracionesPago extends Component
     public function cerrarModalDireccion(): void
     {
         $this->mostrarModalDireccion = false;
-        $this->direccion = null;
-        $this->localidad = null;
-        $this->provincia = null;
-        $this->latitud = null;
-        $this->longitud = null;
+        $this->resetDomicilio();
         $this->resetValidation();
     }
 

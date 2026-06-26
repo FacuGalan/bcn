@@ -14,6 +14,7 @@
 @php($conGeo = $conGeo ?? true)
 @php($provinciaRequerida = $provinciaRequerida ?? true)
 @php($idPrefix = $idPrefix ?? 'dom')
+@php($direccionLabel = $direccionLabel ?? __('Dirección'))
 
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
     @if($conTipo)
@@ -56,7 +57,7 @@
     {{-- Dirección --}}
     @if($conDireccion)
         <div class="sm:col-span-2">
-            <label for="{{ $idPrefix }}-direccion" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Dirección') }}</label>
+            <label for="{{ $idPrefix }}-direccion" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ $direccionLabel }}</label>
             <input id="{{ $idPrefix }}-direccion" type="text" wire:model="domDireccion" maxlength="255" placeholder="{{ __('Calle y número') }}"
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
             @error('domDireccion') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
@@ -121,21 +122,22 @@
                             <span class="tabular-nums" x-text="coords ? (Number(coords.lat).toFixed(6) + ', ' + Number(coords.lng).toFixed(6)) : ''"></span>
                         </p>
                     </div>
+                </div>
 
-                    <button type="button" @click="manual = !manual" class="mt-2 text-xs text-bcn-primary hover:underline">{{ __('Ingresar coordenadas manualmente') }}</button>
-                    <div x-show="manual" x-cloak class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
-                        <div>
-                            <label for="{{ $mapsLat }}" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Latitud') }}</label>
-                            <input id="{{ $mapsLat }}" type="number" step="0.0000001" wire:model="domLatitud" placeholder="-34.6037"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                            @error('domLatitud') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label for="{{ $mapsLng }}" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Longitud') }}</label>
-                            <input id="{{ $mapsLng }}" type="number" step="0.0000001" wire:model="domLongitud" placeholder="-58.3816"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                            @error('domLongitud') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
-                        </div>
+                {{-- Coordenadas manuales: SIEMPRE disponibles (no hace falta abrir el mapa) --}}
+                <button type="button" @click="manual = !manual" class="mt-2 text-xs text-bcn-primary hover:underline">{{ __('Ingresar coordenadas manualmente') }}</button>
+                <div x-show="manual" x-cloak class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                    <div>
+                        <label for="{{ $mapsLat }}" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Latitud') }}</label>
+                        <input id="{{ $mapsLat }}" type="number" step="0.0000001" wire:model="domLatitud" placeholder="-34.6037"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        @error('domLatitud') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label for="{{ $mapsLng }}" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Longitud') }}</label>
+                        <input id="{{ $mapsLng }}" type="number" step="0.0000001" wire:model="domLongitud" placeholder="-58.3816"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        @error('domLongitud') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
                     </div>
                 </div>
             </div>

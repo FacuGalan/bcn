@@ -1172,7 +1172,7 @@ Ya descrita en seccion 1.2. Campos adicionales relevantes:
 - `agrupa_articulos_impresion` -- Si agrupa en impresion
 - `latitud` -- `decimal(10,7)` nullable. Coordenada geografica. Requerida por MP para crear Store. Se puede fijar via picker de Google Maps (ver trait `ManejaDomicilio`).
 - `longitud` -- `decimal(10,7)` nullable. Idem latitud.
-- `localidad` -- `varchar(100)` nullable. Localidad de la sucursal (texto libre, en transicion). Requerida por MP (`city_name`).
+- `localidad` -- `varchar(100)` nullable. String legado que MP consume directamente como `city_name` al crear/actualizar la Store. Se mantiene sincronizado con el nombre de la localidad del catalogo (`localidad_id`) al guardar desde cualquier formulario que use el trait `ManejaDomicilio` (tanto `ConfiguracionEmpresa::guardarSucursal()` como `IntegracionesPago::guardarDireccion()`): ambos resuelven `Localidad::find($datos['localidad_id'])?->nombre` y lo escriben aqui.
 - `localidad_id` -- `bigint` nullable. Ref soft a `localidades` (config) para domicilio fisico estructurado (Fase 9, RF-11). Sin FK cross-DB. Relacion Eloquent `sucursal->localidad()` disponible. Al cambiar `localidad_id`, el trait `ManejaDomicilio` resuelve el centro geografico de esa localidad y lo expone como `$domLocalidadCentro` para acotar el mapa.
 - `provincia` -- `varchar(100)` nullable. Codigo ISO 3166-2 de provincia argentina (ej: `AR-B`, `AR-C`). Se traduce a nombre oficial al armar payloads externos. Ver `Sucursal::PROVINCIAS_AR[]` y `Sucursal::provinciaNombre()`.
 - `mp_store_id` -- `varchar(50)` nullable. ID numerico devuelto por MP al crear la Store. Se usa para actualizar/eliminar. Indexado.
@@ -2386,6 +2386,15 @@ Campo `rubro varchar(50) nullable` agregado a la tabla `comercios` de la conexio
 - **`CuentaEmpresaService::findOrCreateParaIntegracion(IntegracionPagoSucursal $config): ?CuentaEmpresa`** (nuevo): resuelve la cuenta real del proveedor para una config de integracion. Solo aplica en modo `produccion`; no-op en `test`. Pide la identidad al gateway via `identidadCuentaEmpresa()` (unico codigo por-proveedor). Lookup en cascada: (a) match exacto por `(subtipo, identificador_externo)` → reutilizar; (b) si hay UNA UNICA cuenta del subtipo sin identificador → completarla; (c) crear nueva (`tipo=billetera_digital`, `activo=true`). Idempotente: ante carrera de creacion concurrente captura la excepcion del UNIQUE y re-busca el match exacto.
 - **`CuentaEmpresaService::buscarParaIntegracion(IntegracionPagoSucursal $config): ?CuentaEmpresa`** (nuevo): variante solo-lectura de `findOrCreateParaIntegracion`. Devuelve la cuenta ya vinculada sin crear ni completar nada. La usa la UI de Formas de Pago para sugerir el `cuenta_empresa_id` default sin efectos secundarios.
 - **`IntegracionPagoGatewayContract::identidadCuentaEmpresa(IntegracionPagoSucursal $config): ?array`** (nuevo metodo del contrato): cada gateway puede declarar su identidad de cuenta. Devuelve `['subtipo' => string, 'identificador_externo' => string, 'nombre_sugerido' => string]` o `null` si el proveedor no se mapea a una cuenta conciliable (o le faltan datos). `MercadoPagoGateway` lo implementa con `subtipo='mercadopago'`, `identificador_externo=$config->user_id_externo`, `nombre_sugerido='Mercado Pago '.$user_id_externo`; devuelve `null` si `user_id_externo` esta vacio. Futuros gateways lo implementan o heredan el default `null` (sin vinculo).
+
+#### Componente Livewire: `IntegracionesPago`
+
+`App\Livewire\Configuracion\IntegracionesPago`. Usa el trait `ManejaDomicilio` (igual que `ConfiguracionEmpresa`) para el modal "Direccion y coordenadas de la sucursal". El flujo del modal es identico al picker de Sucursales: provincia (ISO 3166-2) → localidad del catalogo GeoRef → mapa con marcador arrastrable y opcion "Usar mi ubicacion".
+
+Diferencias respecto al formulario de Sucursales:
+- Las reglas de validacion del trait se extienden via `array_merge($this->reglasDomicilio(...), [...])` para hacer obligatorios `domLocalidadId`, `domLatitud` y `domLongitud` (MP los exige todos para crear la Store).
+- Al guardar, `guardarDireccion()` resuelve `Localidad::find($datos['localidad_id'])?->nombre` y lo escribe en `sucursales.localidad` (string legado que MP usa como `city_name`) ademas de `localidad_id`. Esto mantiene ambos campos sincronizados.
+- Despues de persistir llama a `CatalogoCache::clear()` para invalidar el cache de sucursales (mismo patron que `ConfiguracionEmpresa`).
 
 #### Catalogo de integraciones — codigos vigentes
 
