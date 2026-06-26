@@ -3,6 +3,7 @@
 namespace Tests\Feature\Livewire\Ventas;
 
 use App\Livewire\Ventas\NuevaVenta;
+use App\Livewire\Ventas\ReportesVentas;
 use App\Livewire\Ventas\Ventas;
 use App\Models\User;
 use App\Models\Venta;
@@ -69,6 +70,64 @@ class SmokeVentasTest extends TestCase
     public function test_nueva_venta_monta(): void
     {
         Livewire::test(NuevaVenta::class)->assertOk();
+    }
+
+    public function test_reportes_ventas_monta(): void
+    {
+        Livewire::test(ReportesVentas::class)->assertOk();
+    }
+
+    public function test_normaliza_ceros_negativos_evita_checksum_corrupto(): void
+    {
+        // Regresión: un float -0.0 en $this->resultado (lo producían restas del
+        // desglose al invitar un ítem que integraba una promo compartida) rompía
+        // el checksum de Livewire al cobrar — PHP serializa json_encode(-0.0) como
+        // "-0" pero el runtime JS lo reenvía como "0" → CorruptComponentPayloadException.
+        // El hook dehydrateWithCalculoVenta() fuerza +0.0.
+        $componente = new NuevaVenta;
+        $metodo = new \ReflectionMethod($componente, 'normalizarCerosNegativos');
+        $metodo->setAccessible(true);
+
+        $entrada = ['a' => -0.0, 'anidado' => ['b' => -0.0, 'c' => 5.5], 'entero' => 0];
+        $salida = $metodo->invoke($componente, $entrada);
+
+        $this->assertStringNotContainsString('-0', json_encode($salida),
+            'El JSON serializado no debe contener ningún cero negativo');
+        $this->assertSame(0.0, $salida['a']);
+        $this->assertSame(0.0, $salida['anidado']['b']);
+        $this->assertSame(5.5, $salida['anidado']['c'], 'Los valores no-cero quedan intactos');
+    }
+
+    public function test_reporte_cortesias_refleja_venta_invitada(): void
+    {
+        // End-to-end: una venta marcada como cortesía total debe aparecer en el
+        // reporte de cortesías con su monto, comprobante y desglose por usuario.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevaVenta::class)
+            ->set('cajaSeleccionada', $this->cajaId)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirModalInvitarTodo')
+            ->set('motivoInvitacionTotal', 'Cortesía reporte')
+            ->call('confirmarInvitarTodo')
+            ->call('confirmarInvitacionTotal');
+
+        $this->assertSame(1, Venta::count());
+
+        $componente = Livewire::test(ReportesVentas::class)
+            ->set('tipoReporte', 'cortesias')
+            ->set('fechaDesde', now()->startOfMonth()->format('Y-m-d'))
+            ->set('fechaHasta', now()->format('Y-m-d'))
+            ->call('generarReporte')
+            ->assertSet('generado', true);
+
+        $resultado = $componente->get('resultado');
+        $this->assertGreaterThan(0, $resultado['kpis']['monto_total']);
+        $this->assertSame(1, $resultado['kpis']['cantidad_comprobantes']);
+        $this->assertGreaterThanOrEqual(1, $resultado['kpis']['cantidad_renglones']);
+        $this->assertNotEmpty($resultado['por_usuario']);
+        $this->assertNotEmpty($resultado['por_articulo']);
+        $this->assertNotEmpty($resultado['detalle']);
     }
 
     public function test_agregar_por_codigo_inexistente_dispatch_toast(): void
