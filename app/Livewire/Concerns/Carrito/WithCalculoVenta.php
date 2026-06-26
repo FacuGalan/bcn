@@ -512,6 +512,53 @@ trait WithCalculoVenta
     }
 
     /**
+     * Hook de lifecycle de Livewire (trait): corre justo antes de serializar el
+     * componente, después de TODAS las mutaciones de `$this->resultado`
+     * (incluido el recálculo del ajuste por forma de pago).
+     *
+     * Normaliza el CERO NEGATIVO (-0.0) que pueden producir las restas de floats
+     * del desglose — p.ej. al invitar un ítem que integraba una promoción
+     * compartida, su contribución a un bucket queda en `-0.0`. PHP serializa
+     * `json_encode(-0.0)` como `-0`, pero el runtime JS de Livewire lo reenvía
+     * como `0`; el checksum del snapshot deja de coincidir y se lanza
+     * `CorruptComponentPayloadException` al cobrar. Forzar `+0.0` deja ambos
+     * lados (PHP/JS) serializando idéntico.
+     */
+    public function dehydrateWithCalculoVenta(): void
+    {
+        if (is_array($this->resultado)) {
+            $this->resultado = $this->normalizarCerosNegativos($this->resultado);
+        }
+    }
+
+    /**
+     * Reemplaza recursivamente cualquier float `-0.0` por `0.0` (cero positivo)
+     * dentro de una estructura, para evitar divergencias de serialización
+     * PHP/JS que rompen el checksum de Livewire. Los enteros y demás valores
+     * quedan intactos.
+     *
+     * @param  mixed  $valor
+     * @return mixed
+     */
+    protected function normalizarCerosNegativos($valor)
+    {
+        if (is_array($valor)) {
+            foreach ($valor as $clave => $sub) {
+                $valor[$clave] = $this->normalizarCerosNegativos($sub);
+            }
+
+            return $valor;
+        }
+
+        // -0.0 == 0.0 es true: cualquier cero flotante se fuerza a +0.0 literal.
+        if (is_float($valor) && $valor == 0.0) {
+            return 0.0;
+        }
+
+        return $valor;
+    }
+
+    /**
      * Calcula el desglose de IVA por alícuota
      *
      * Los precios de los items ya incluyen IVA, por lo que:
