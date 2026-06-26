@@ -1,6 +1,10 @@
 # Multi-PWA Clase B — Pantallas auxiliares remotas - Especificación
 
-## Estado: EN PROGRESO (Fase 1 ✅ — Fases 2-5 pendientes)
+## Estado: EN PROGRESO (Fases 1-2 ✅ — Fases 3-5 pendientes)
+
+> NOTA: los íconos PWA del llamador (`pwa-icons/llamador-*.png`) son placeholder
+> (copia de pantalla-cliente). Reemplazar por diseño propio. La URL corta tipeable
+> en TV es `/ll/{codigo}`; el QR apunta a `/llamador/{token}`.
 
 > Spec creado el 2026-06-26 vía flujo SDD. Define el framework **Clase B** (pantallas en dispositivos remotos sin sesión) + dos casos de uso: **monitor llamador de pedidos** y **consultor de precios**. Pendiente: aprobación del usuario sobre los PUNTOS DE DECISIÓN antes de `/sdd-apply`.
 
@@ -242,7 +246,7 @@ Claves nuevas (es/en/pt), entre otras:
 5. Middleware `ResolvePublicTokenMiddleware` (resuelve por índice global → `usarComercioParaProceso`). Grupo de rutas públicas Clase B fuera de `/app` + endpoint de canje de código corto (rate-limited).
 6. **Spike temprano**: probar un canal público de Reverb end-to-end (Echo en página sin sesión) antes de construir vistas — es infra nueva (hoy `pantalla-cliente` usa BroadcastChannel, no Reverb).
 
-### Fase 2: Monitor llamador [PENDIENTE]
+### Fase 2: Monitor llamador [COMPLETO]
 1. Evento público `PedidoLlamadorPublicoBroadcast` (`ShouldBroadcastNow`) + emitirlo al entrar/salir de `EN_PREPARACION`/`LISTO` (en `PedidoMostradorService::cambiarEstado`, junto al broadcast privado existente).
 2. Canal público `llamador.{token}` (sin auth).
 3. Endpoint snapshot `pedidosParaLlamador` + vista `/llamador` (genérico + `/llamador/{token}` para QR) + JS Reverb + pantalla de vinculación + audio unlock simple.

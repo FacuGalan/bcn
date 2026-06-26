@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\PantallaPublicaToken;
+use App\Models\PedidoMostrador;
 use App\Models\Sucursal;
 use Illuminate\Support\Facades\Log;
 
@@ -143,5 +144,40 @@ class PantallaPublicaService
         $sucursal->update(['token_publico' => $token]);
 
         return $index;
+    }
+
+    /**
+     * Snapshot de pedidos para el cold start del monitor llamador: las dos
+     * columnas (en preparación / listo) con payload mínimo {numero, nombre}.
+     * "En preparación" ordenada por número ascendente (FIFO); "Listo" por número
+     * descendente (el último llamado, arriba).
+     *
+     * @return array{en_preparacion: list<array{numero:int, nombre:?string}>, listo: list<array{numero:int, nombre:?string}>}
+     */
+    public function pedidosParaLlamador(Sucursal $sucursal): array
+    {
+        $mapear = static fn (PedidoMostrador $p): array => [
+            'numero' => (int) $p->numero,
+            'nombre' => $p->nombreLlamador(),
+        ];
+
+        $enPreparacion = PedidoMostrador::query()
+            ->where('sucursal_id', $sucursal->id)
+            ->where('estado_pedido', PedidoMostrador::ESTADO_EN_PREPARACION)
+            ->with('cliente:id,nombre')
+            ->orderBy('numero')
+            ->get();
+
+        $listo = PedidoMostrador::query()
+            ->where('sucursal_id', $sucursal->id)
+            ->where('estado_pedido', PedidoMostrador::ESTADO_LISTO)
+            ->with('cliente:id,nombre')
+            ->orderByDesc('numero')
+            ->get();
+
+        return [
+            'en_preparacion' => $enPreparacion->map($mapear)->all(),
+            'listo' => $listo->map($mapear)->all(),
+        ];
     }
 }

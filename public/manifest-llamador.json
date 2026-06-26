@@ -1,0 +1,35 @@
+{
+    "id": "/llamador",
+    "name": "Llamador de Pedidos",
+    "short_name": "Llamador",
+    "description": "Monitor de pedidos en preparación y listos para retirar",
+    "start_url": "/llamador",
+    "display": "standalone",
+    "display_override": ["fullscreen", "standalone", "minimal-ui"],
+    "background_color": "#0f172a",
+    "theme_color": "#0f172a",
+    "orientation": "landscape",
+    "scope": "/llamador",
+    "icons": [
+        {
+            "src": "/pwa-icons/llamador-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/pwa-icons/llamador-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/pwa-icons/llamador-maskable-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ],
+    "categories": ["business"],
+    "lang": "es-AR"
+}

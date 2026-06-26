@@ -371,6 +371,22 @@ class PedidoMostrador extends Model
         return $this->cliente?->nombre ?? $this->nombre_cliente_temporal;
     }
 
+    /**
+     * Nombre para el monitor llamador público (Clase B): SOLO el primer nombre
+     * (nunca apellido) para llamar al cliente sin sobre-exponer datos en una
+     * pantalla pública. Usa el nombre temporal o el del cliente registrado.
+     */
+    public function nombreLlamador(): ?string
+    {
+        $nombre = trim((string) $this->nombre_cliente_final);
+
+        if ($nombre === '') {
+            return null;
+        }
+
+        return explode(' ', $nombre)[0];
+    }
+
     public function getTelefonoClienteFinalAttribute(): ?string
     {
         return $this->cliente?->telefono ?? $this->telefono_cliente_temporal;

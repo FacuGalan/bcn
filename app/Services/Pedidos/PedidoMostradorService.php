@@ -309,6 +309,7 @@ class PedidoMostradorService
                 usuarioId: (int) auth()->id() ?: $pedido->usuario_id,
             ));
             $this->dispatchBroadcast($pedido, PedidoMostradorBroadcast::TIPO_ESTADO_CAMBIADO);
+            $this->dispatchLlamadorPublico($pedido, $nuevoEstado, $anterior);
         });
 
         // Conversión automática post-commit si está configurada.
@@ -1806,6 +1807,43 @@ class PedidoMostradorService
             Log::warning('No se pudo broadcastear PedidoMostradorBroadcast', [
                 'pedido_id' => $pedido->id,
                 'tipo' => $tipo,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Broadcast PÚBLICO para el monitor llamador (pantalla Clase B remota). Se
+     * emite solo si el cambio afecta a las columnas del llamador (en preparación
+     * / listo). Canal público acotado al token de la sucursal; NO usa toOthers()
+     * porque las pantallas son de solo-lectura y todas deben recibir el evento.
+     *
+     * Best-effort: si falla (Reverb caído, sucursal sin token) se loggea pero no
+     * rompe el flujo del pedido.
+     */
+    private function dispatchLlamadorPublico(PedidoMostrador $pedido, string $estadoNuevo, string $estadoAnterior): void
+    {
+        $relevantes = [PedidoMostrador::ESTADO_EN_PREPARACION, PedidoMostrador::ESTADO_LISTO];
+
+        if (! in_array($estadoNuevo, $relevantes, true) && ! in_array($estadoAnterior, $relevantes, true)) {
+            return;
+        }
+
+        try {
+            $token = Sucursal::where('id', $pedido->sucursal_id)->value('token_publico');
+            if (! $token) {
+                return;
+            }
+
+            broadcast(new \App\Events\Broadcasting\PedidoLlamadorPublicoBroadcast(
+                $token,
+                (int) $pedido->numero,
+                $pedido->nombreLlamador(),
+                $estadoNuevo,
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo broadcastear PedidoLlamadorPublicoBroadcast', [
+                'pedido_id' => $pedido->id,
                 'error' => $e->getMessage(),
             ]);
         }

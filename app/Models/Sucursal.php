@@ -68,6 +68,19 @@ class Sucursal extends Model
     ];
 
     /**
+     * Valores por defecto de la personalización del monitor llamador (pantalla
+     * Clase B). Se mergean con lo guardado en `config_llamador`.
+     */
+    public const CONFIG_LLAMADOR_DEFAULTS = [
+        'titulo' => 'Pedidos',
+        'mostrar_logo' => true,
+        'color_fondo' => '#0f172a',
+        'color_preparacion' => '#f59e0b', // ámbar (columna "En preparación")
+        'color_listo' => '#22c55e',       // verde (columna "Listo / Retirar")
+        'sonido' => true,                 // chime al pasar un pedido a "Listo"
+    ];
+
+    /**
      * Provincias de Argentina con código ISO 3166-2 → nombre oficial.
      *
      * Se guarda el código en `sucursales.provincia` (ej. 'AR-B') y se traduce
@@ -290,6 +303,17 @@ class Sucursal extends Model
         $guardada = is_array($this->config_pantalla_cliente) ? $this->config_pantalla_cliente : [];
 
         return array_merge(self::CONFIG_PANTALLA_CLIENTE_DEFAULTS, $guardada);
+    }
+
+    /**
+     * Personalización del monitor llamador (pantalla Clase B) con los DEFAULTS
+     * mergeados para garantizar todas las keys.
+     */
+    public function getConfigLlamador(): array
+    {
+        $guardada = is_array($this->config_llamador) ? $this->config_llamador : [];
+
+        return array_merge(self::CONFIG_LLAMADOR_DEFAULTS, $guardada);
     }
 
     /**
