@@ -605,6 +605,33 @@ class SmokePedidosTest extends TestCase
             ->assertNotDispatched('cerrar-cobro-rapido');
     }
 
+    public function test_cobro_rapido_invitacion_total_marca_pagado_sin_error(): void
+    {
+        // Regresión: desde el listado, "cobrar"/"marcar como venta" de un pedido
+        // pendiente sin cobro planificado + tildar "invitar pedido entero" abría
+        // el desglose vacío y abortaba con "No hay pagos en el desglose". Ahora la
+        // invitación total se persiste vía actualizarPedido (estado_pago=pagado).
+        $pedido = $this->crearPedidoConfirmado();
+        $this->assertSame(PedidoMostrador::ESTADO_PAGO_PENDIENTE, $pedido->estado_pago);
+
+        $componente = Livewire::test(NuevoPedidoMostrador::class, [
+            'pedidoId' => $pedido->id,
+            'modoCobroRapido' => true,
+        ])->assertOk()
+            ->call('toggleInvitarTodo')
+            ->set('motivoInvitacionTotal', 'Cortesía — reclamo')
+            ->call('confirmarInvitacionTotal');
+
+        $componente->assertNotDispatched('toast-error')
+            ->assertDispatched('cobro-rapido-completado');
+
+        $pedido->refresh();
+        $this->assertSame(PedidoMostrador::ESTADO_PAGO_PAGADO, $pedido->estado_pago);
+        $this->assertTrue((bool) $pedido->es_invitacion_total);
+        $this->assertEqualsWithDelta(0.0, (float) $pedido->total_final, 0.01);
+        $this->assertSame(0, $pedido->pagos()->count(), 'La invitación total no agrega pagos');
+    }
+
     public function test_nuevo_pedido_mostrador_modo_cobro_rapido_monta_sobre_pedido_confirmado(): void
     {
         // Smoke test del modo cobro rapido: el componente debe montar sin
