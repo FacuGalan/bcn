@@ -52,6 +52,7 @@ use App\Livewire\Stock\StockInventario;
 use App\Livewire\Tesoreria\GestionTesoreria;
 use App\Livewire\Tesoreria\ReportesTesoreria;
 use App\Livewire\Ventas\NuevaVenta;
+use App\Livewire\Ventas\ReportesVentas;
 use App\Livewire\Ventas\Ventas;
 use Illuminate\Support\Facades\Route;
 
@@ -131,6 +132,7 @@ Route::prefix('app')->group(function () {
 
         Route::get('configuracion/puntos', ProgramaPuntos::class)->name('configuracion.puntos');
         Route::get('ventas/cupones', GestionCupones::class)->name('ventas.cupones');
+        Route::get('ventas/reportes', ReportesVentas::class)->name('ventas.reportes');
 
         /**
          * Pedidos por Mostrador

@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-24 (picker Google Maps para domicilio de sucursal; logo uploader modernizado; picker Google Maps en modal de direccion de Integraciones de pago)
+> Version: 0.1.x | Ultima actualizacion: 2026-06-26 (reporte de corteisas en Ventas)
 
 ---
 
@@ -15,6 +15,7 @@
   - [3.3 Programa de Puntos](#33-programa-de-puntos)
   - [3.4 Cupones](#34-cupones)
   - [3.5 Modificar Pagos en Ventas Registradas](#35-modificar-pagos-en-ventas-registradas)
+  - [3.6 Reportes de Ventas](#36-reportes-de-ventas)
 - [4. Pedidos por Mostrador](#4-pedidos-por-mostrador)
   - [4.1 Vistas: Lista y Kanban](#41-vistas-lista-y-kanban)
   - [4.2 Vista Lista](#42-vista-lista)
@@ -727,6 +728,46 @@ Al final del modal de detalle de la venta aparece la seccion colapsable **"Histo
 - Motivo ingresado.
 - Links a NC o FC generadas si aplica.
 - Badge "Post-cierre" si afecto un turno cerrado.
+
+### 3.6 Reportes de Ventas
+
+**Ruta**: Ventas → Reportes
+**Permiso requerido**: `func.ver_reportes_ventas`
+
+Pantalla de analisis de ventas acotada a la sucursal activa. Permite generar reportes sobre el historico de ventas por periodo. Arranca con el reporte de Corteisas; el selector de tipo queda preparado para futuros reportes bajo el mismo modulo.
+
+> Al cambiar de sucursal o de tipo de reporte, los resultados previos se limpian automaticamente.
+
+#### Filtros
+
+| Filtro | Descripcion |
+|---|---|
+| Tipo de reporte | Selector del reporte a generar. Actualmente: "Corteisas (invitaciones)" |
+| Desde | Fecha de inicio del periodo (por defecto: primer dia del mes actual) |
+| Hasta | Fecha de fin del periodo (por defecto: hoy) |
+
+Luego de configurar los filtros, hacer clic en **"Generar Reporte"** para ejecutar el analisis.
+
+#### Reporte de Corteisas (invitaciones)
+
+Muestra todas las cortesias (renglones marcados como invitacion con precio $0) registradas en el periodo y sucursal activos. No incluye ventas anuladas.
+
+**KPIs de cabecera** (4 tarjetas):
+
+| KPI | Descripcion |
+|---|---|
+| Total invitado | Suma monetaria de todos los montos regalados en el periodo |
+| Comprobantes | Cantidad de ventas distintas que contienen al menos una cortesia |
+| Renglones | Total de lineas individuales marcadas como cortesia |
+| Articulos | Suma de unidades (cantidad) de items invitados |
+
+Si no hay cortesias en el periodo, se muestra un estado vacio en lugar de los desgloses.
+
+**Desglose por usuario que invita**: tabla ordenada de mayor a menor por monto invitado. Columnas: Usuario, Monto invitado, Renglones, Comprobantes. Si el usuario fue dado de baja del sistema aparece como "Usuario eliminado".
+
+**Desglose por articulo invitado**: tabla ordenada de mayor a menor por monto invitado. Columnas: Articulo, Cantidad, Monto invitado, Renglones. Los conceptos libres (sin articulo del catalogo asociado) se agrupan bajo "Concepto libre".
+
+**Listado detallado**: tabla renglon por renglon con todas las cortesias del periodo. Columnas: Fecha, Comprobante, Articulo, Cantidad, Monto, Motivo, Usuario.
 
 ---
 

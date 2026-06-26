@@ -1864,6 +1864,34 @@ JOIN {PREFIX}ventas_detalle vd ON vd.id = ms.origen_id AND ms.origen_tipo = 'ven
 WHERE vd.es_invitacion = 1;
 ```
 
+#### Service: `ReporteCortesiasService`
+
+`app/Services/ReporteCortesiasService.php`
+
+Service de **solo lectura** (no abre transacciones ni muta datos). Genera el reporte de cortesias sobre ventas para una sucursal y rango de fechas. Fuente canonica: `ventas_detalle` con `es_invitacion = true`; excluye ventas anuladas (`anulado_at IS NOT NULL`). Opera exclusivamente sobre la tabla `ventas` (no `pedidos_mostrador`): las cortesias de pedidos ya convertidos quedan propagadas a `ventas_detalle`, evitando duplicar el conteo.
+
+**Metodo publico:**
+
+- `generar(int $sucursalId, Carbon $desde, Carbon $hasta): array` — Retorna un array con cuatro claves: `kpis`, `por_usuario`, `por_articulo`, `detalle`.
+
+**Metodos privados (internos):**
+
+- `obtenerRenglonesInvitados(sucursalId, desde, hasta): Collection` — Consulta `ventas_detalle` con `es_invitacion = true`, eager-loads `venta` y `articulo`, filtra por sucursal, rango de fechas y `ventas.anulado_at IS NULL`. Ordena por fecha de la venta.
+- `calcularKpis(Collection): array` — Calcula `monto_total` (suma de `monto_invitado`), `cantidad_renglones`, `cantidad_comprobantes` (ventas unicas) y `cantidad_articulos` (suma de `cantidad`).
+- `agruparPorUsuario(Collection): array` — Agrupa por `invitado_por_usuario_id`, resuelve nombres en una sola consulta a `config.users`, ordena por `monto` desc. Campos por fila: `usuario_id`, `usuario`, `monto`, `renglones`, `comprobantes`. Usuarios eliminados aparecen como "Usuario eliminado"; renglones sin usuario como "Sin usuario".
+- `agruparPorArticulo(Collection): array` — Agrupa por `articulo_id`, ordena por `monto` desc. Campos: `articulo_id`, `articulo`, `cantidad`, `monto`, `renglones`. Renglones sin `articulo_id` (conceptos libres) se agrupan bajo "Concepto libre".
+- `armarDetalle(Collection): array` — Listado plano renglon a renglon. Campos: `fecha` (formato `d/m/Y H:i`), `comprobante`, `articulo` (via `VentaDetalle::obtenerNombre()`), `cantidad`, `monto`, `motivo`, `usuario`.
+- `resolverNombresUsuarios(Collection $ids): Collection` — Una sola query `User::whereIn('id', $ids)->pluck('name', 'id')` a la BD `config` para resolver todos los nombres a la vez.
+
+**Reglas de negocio:**
+
+- El monto canonico regalado por linea es `ventas_detalle.monto_invitado` (cache precalculado = `cantidad * precio_unitario_original`). No se recomputan precios.
+- Las ventas `anulado_at IS NOT NULL` se excluyen en la clausula `whereHas` sobre `venta`.
+- La fuente es siempre `ventas_detalle` (no `pedidos_mostrador_detalle`); las cortesias de pedidos convertidos quedan propagadas a ventas por `mapearDetalleAArrayVenta()` en el service de pedidos.
+- El reporte esta acotado a la sucursal activa del operador; no hay vista consolidada multi-sucursal.
+
+**Componente Livewire:** `App\Livewire\Ventas\ReportesVentas` (ruta `ventas.reportes`). Usa `SucursalAware`; al cambiar sucursal limpia `$resultado`. El tipo de reporte es `'cortesias'` por defecto; el selector `$tipoReporte` esta preparado para futuros reportes. Gate de permiso: `func.ver_reportes_ventas` (verificado en `mount()`).
+
 #### Service: `PedidoMostradorService`
 
 `app/Services/Pedidos/PedidoMostradorService.php`
@@ -4218,3 +4246,13 @@ El componente `MovimientosStock` ejecuta busquedas de articulos via un scope del
 ### 5.4 Alpine.raw() con librerias JS que hacen comparacion de identidad
 
 Ver seccion "Gotcha: Alpine.raw() con librerias que hacen comparacion de identidad" en el bloque del trait `ManejaDomicilio` (al final de la seccion 2 — Sistema Impositivo). Resumen: pasar `window.Alpine.raw(obj)` en lugar de `obj` directo cuando la libreria de terceros verifica identidad de instancia con `===` (ej: `AdvancedMarkerElement` de Google Maps verifica que `map` sea la instancia real de `Map`, no un `Proxy` de Alpine).
+
+### 5.5 Cero negativo (-0.0) y checksum de Livewire
+
+PHP puede producir `-0.0` al restar floats en ciertas condiciones (ej: distribuir el descuento de una promo compartida entre items cuando uno de los participantes se invita — su contribucion al bucket queda en `-0.0`). El problema surge porque `json_encode(-0.0)` en PHP produce la cadena `-0`, pero el runtime JS de Livewire lo reenvía como `0` en el siguiente request; el checksum del snapshot deja de coincidir y Livewire lanza `CorruptComponentPayloadException`.
+
+**Solucion implementada** en el trait `WithCalculoVenta` mediante el hook de lifecycle `dehydrateWithCalculoVenta()`: justo antes de serializar el componente, el array `$this->resultado` se recorre recursivamente y cualquier float cuyo valor sea `== 0.0` se fuerza a `+0.0` literal. La condicion `-0.0 == 0.0` es `true` en PHP (igualdad de valor, no de bit), por lo que el cast captura el cero negativo sin afectar otros valores.
+
+**Regla general**: si un componente Livewire expone propiedades publicas con floats calculados mediante restas (especialmente desgloses de IVA, descuentos o ajustes prorateados) y el usuario experimenta `CorruptComponentPayloadException` al cobrar o al enviar el formulario, verificar si algun float puede ser `-0.0`. Aplicar normalizacion recursiva con la condicion `is_float($v) && $v == 0.0 ? 0.0 : $v` antes de devolver el estado al frontend.
+
+Componentes que aplican este patron: `NuevaVenta` y `NuevoPedidoMostrador` (ambos usan `WithCalculoVenta`).
