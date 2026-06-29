@@ -740,6 +740,8 @@
                             mostrarLogo: @entangle('cpMostrarLogo'),
                             colorFondo: @entangle('cpColorFondo'),
                             colorAcento: @entangle('cpColorAcento'),
+                            mensaje: @entangle('cpMensajeIdle'),
+                            duracion: @entangle('cpDuracion'),
                             copiado: '',
                             copiar(texto, key) {
                                 navigator.clipboard.writeText(texto).then(() => {
@@ -839,6 +841,24 @@
                                     </label>
                                 @endif
 
+                                {{-- Mensaje en espera (orientado a scanner) --}}
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Mensaje en espera') }}</label>
+                                    <input type="text" x-model="mensaje" maxlength="60"
+                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-cyan-500 focus:ring-cyan-500 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                        placeholder="{{ __('Escanee un artículo') }}">
+                                    @error('cpMensajeIdle') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                                </div>
+
+                                {{-- Duración del resultado --}}
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Duración del resultado (segundos)') }}</label>
+                                    <input type="number" x-model="duracion" min="1" max="60"
+                                        class="block w-32 rounded-md border-gray-300 shadow-sm focus:border-cyan-500 focus:ring-cyan-500 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Tiempo que el precio queda en pantalla antes de volver a esperar otro escaneo.') }}</p>
+                                    @error('cpDuracion') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                                </div>
+
                                 {{-- Colores --}}
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
@@ -853,22 +873,17 @@
                                     </div>
                                 </div>
 
-                                {{-- Preview --}}
+                                {{-- Preview: pantalla con resultado escaneado --}}
                                 <div>
                                     <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">{{ __('Vista previa') }}</p>
-                                    <div class="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600 shadow-inner aspect-[4/3] p-3 flex flex-col"
+                                    <div class="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600 shadow-inner aspect-[4/3] p-3 flex flex-col items-center justify-center text-center"
                                         :style="`background-color: ${colorFondo};`">
-                                        <div class="flex items-center justify-center gap-2 mb-2">
-                                            @if($cpLogoUrl)
-                                                <img src="{{ $cpLogoUrl }}" alt="logo" class="h-5 object-contain" x-show="mostrarLogo" x-cloak>
-                                            @endif
-                                            <p class="text-center text-xs font-bold text-white/90" x-text="titulo || '{{ __('Consultá tu precio') }}'"></p>
-                                        </div>
-                                        <div class="rounded-lg px-3 py-2 mb-2 text-xs text-white/40" style="background: rgba(255,255,255,.08);">{{ __('Buscar artículo o escanear código') }}</div>
-                                        <div class="flex items-center justify-between rounded-lg px-3 py-2 flex-1" style="background: rgba(255,255,255,.06);">
-                                            <span class="text-sm font-semibold text-white/90">{{ __('Artículo') }}</span>
-                                            <span class="text-2xl font-extrabold" :style="`color: ${colorAcento};`">$1.234</span>
-                                        </div>
+                                        @if($cpLogoUrl)
+                                            <img src="{{ $cpLogoUrl }}" alt="logo" class="h-6 object-contain mb-2" x-show="mostrarLogo" x-cloak>
+                                        @endif
+                                        <p class="text-sm font-bold text-white/90 leading-tight">{{ __('Artículo') }}</p>
+                                        <p class="text-3xl font-extrabold leading-tight" :style="`color: ${colorAcento};`">$1.234</p>
+                                        <p class="mt-1 text-[10px] uppercase tracking-wide text-white/40">{{ __('Promociones activas') }}</p>
                                     </div>
                                 </div>
                             </div>

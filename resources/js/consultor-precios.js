@@ -1,12 +1,13 @@
 /**
  * Consultor de precios público (pantalla Clase B remota, sin sesión).
  *
- * - Resuelve el token: de la URL (QR), del código corto (TV/tablet) o de localStorage.
- * - Carga la personalización vía el endpoint de config acotado al token.
- * - Busca artículos (nombre o código de barras) contra el endpoint público y
- *   muestra el precio de lista base + las promos vigentes (solo nombres).
+ * Orientado a SCANNER de código de barras: el input está oculto y siempre
+ * enfocado, así el escaneo (que se comporta como un teclado) entra ahí. Al
+ * escanear se muestra, grande y centrado, el nombre + precio + promociones
+ * activas del artículo, durante N segundos (configurable), y vuelve a la frase
+ * de espera para el siguiente escaneo.
  *
- * No usa Reverb: es búsqueda a demanda (request/response), no tiempo real.
+ * No usa Reverb: es búsqueda a demanda (request/response).
  *
  * Ref: .claude/specs/multi-pwa-clase-b.md (RF-02b, RF-05).
  */
@@ -19,9 +20,19 @@ const $ = (sel) => document.querySelector(sel);
 const elVincular = $('#vincular');
 const elPantalla = $('#pantalla');
 const elInput = $('#cp-input');
-const elResultados = $('#cp-resultados');
+const elIdle = $('#cp-idle');
+const elResult = $('#cp-result');
+const elNotFound = $('#cp-notfound');
+const elNombre = $('#cp-nombre');
+const elPrecio = $('#cp-precio');
+const elPromosTitulo = $('#cp-promos-titulo');
+const elPromos = $('#cp-promos');
+const elNfCod = $('#cp-nf-cod');
 
 let tokenActivo = null;
+let focoActivo = false;
+let duracionMs = 5000;
+let timerResultado = null;
 const money = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
 
 // ───────────────────────── Personalización ─────────────────────────
@@ -33,14 +44,15 @@ function aplicarConfig(data) {
 
     const titulo = $('#cp-titulo');
     if (titulo) titulo.textContent = cfg.titulo || 'Consultor de precios';
-    const sucursal = $('#cp-sucursal');
-    if (sucursal) sucursal.textContent = data.sucursal?.nombre || '';
+    if (elIdle) elIdle.textContent = cfg.mensaje_idle || 'Escanee un artículo';
+
+    const dur = parseInt(cfg.duracion_resultado, 10);
+    duracionMs = (Number.isFinite(dur) && dur > 0 ? dur : 5) * 1000;
 
     const logo = $('#cp-logo');
     if (logo) {
         if (cfg.mostrar_logo && data.logo) {
             logo.src = data.logo;
-            // 'block' explícito: '' revertiría al CSS (display:none).
             logo.style.display = 'block';
         } else {
             logo.style.display = 'none';
@@ -48,61 +60,84 @@ function aplicarConfig(data) {
     }
 }
 
-// ───────────────────────── Render de resultados ─────────────────────────
-function estado(texto) {
-    elResultados.innerHTML = '';
-    const div = document.createElement('div');
-    div.className = 'cp-estado';
-    div.textContent = texto;
-    elResultados.appendChild(div);
+// ───────────────────────── Estados de la pantalla ─────────────────────────
+function mostrarIdle() {
+    elResult.style.display = 'none';
+    elNotFound.style.display = 'none';
+    elIdle.style.display = 'block';
 }
 
-function renderResultados(items) {
-    if (!items.length) {
-        estado(I18N.sinResultados || 'Sin resultados');
-        return;
+function mostrarResultado(item) {
+    elIdle.style.display = 'none';
+    elNotFound.style.display = 'none';
+
+    elNombre.textContent = item.nombre;
+    elPrecio.textContent = item.precio != null ? money.format(item.precio) : (I18N.sinPrecio || '');
+
+    elPromos.innerHTML = '';
+    const promos = Array.isArray(item.promos) ? item.promos : [];
+    if (promos.length) {
+        elPromosTitulo.style.display = 'block';
+        promos.forEach((p) => {
+            const chip = document.createElement('span');
+            chip.className = 'cp-promo';
+            chip.textContent = p;
+            elPromos.appendChild(chip);
+        });
+    } else {
+        elPromosTitulo.style.display = 'none';
     }
 
-    elResultados.innerHTML = '';
-    items.forEach((it) => {
-        const item = document.createElement('div');
-        item.className = 'cp-item';
+    elResult.style.display = 'flex';
+    programarVueltaAIdle();
+}
 
-        const info = document.createElement('div');
-        info.className = 'cp-item-info';
+function mostrarNoEncontrado(codigo) {
+    elIdle.style.display = 'none';
+    elResult.style.display = 'none';
+    if (elNfCod) elNfCod.textContent = codigo || '';
+    elNotFound.style.display = 'flex';
+    programarVueltaAIdle();
+}
 
-        const nombre = document.createElement('div');
-        nombre.className = 'cp-item-nombre';
-        nombre.textContent = it.nombre;
-        info.appendChild(nombre);
+function programarVueltaAIdle() {
+    clearTimeout(timerResultado);
+    timerResultado = setTimeout(mostrarIdle, duracionMs);
+}
 
-        if (it.unidad) {
-            const unidad = document.createElement('div');
-            unidad.className = 'cp-item-unidad';
-            unidad.textContent = it.unidad;
-            info.appendChild(unidad);
+// ───────────────────────── Búsqueda (por escaneo) ─────────────────────────
+let buscarSeq = 0;
+async function buscar(codigo) {
+    const q = codigo.trim();
+    if (q.length < 2) return;
+
+    const seq = ++buscarSeq;
+    try {
+        const resp = await fetch(`/clase-b/precios/${tokenActivo}/buscar?q=${encodeURIComponent(q)}`, {
+            headers: { Accept: 'application/json' },
+        });
+        if (!resp.ok) throw new Error('buscar_error');
+        const data = await resp.json();
+        if (seq !== buscarSeq) return; // llegó un escaneo más nuevo
+
+        const resultados = data.resultados || [];
+        if (resultados.length) {
+            mostrarResultado(resultados[0]);
+        } else {
+            mostrarNoEncontrado(q);
         }
+    } catch (e) {
+        if (seq === buscarSeq) mostrarNoEncontrado(q);
+    }
+}
 
-        if (Array.isArray(it.promos) && it.promos.length) {
-            const promos = document.createElement('div');
-            promos.className = 'cp-promos';
-            it.promos.forEach((p) => {
-                const chip = document.createElement('span');
-                chip.className = 'cp-promo';
-                chip.textContent = p;
-                promos.appendChild(chip);
-            });
-            info.appendChild(promos);
-        }
-
-        const precio = document.createElement('div');
-        precio.className = 'cp-item-precio';
-        precio.textContent = it.precio != null ? money.format(it.precio) : (I18N.sinPrecio || '—');
-
-        item.appendChild(info);
-        item.appendChild(precio);
-        elResultados.appendChild(item);
-    });
+// ───────────────────────── Foco del scanner ─────────────────────────
+// El input debe estar SIEMPRE enfocado para capturar el escaneo. Si pierde el
+// foco (toque accidental, etc.) lo recuperamos.
+function reenfocar() {
+    if (focoActivo && elInput && document.activeElement !== elInput) {
+        elInput.focus({ preventScroll: true });
+    }
 }
 
 // ───────────────────────── Conexión ─────────────────────────
@@ -115,39 +150,6 @@ async function cargarConfig(token) {
     return resp.json();
 }
 
-let buscarSeq = 0;
-async function buscar(q) {
-    const query = q.trim();
-    if (query.length < 2) {
-        estado(I18N.inicial || '');
-        return;
-    }
-
-    const seq = ++buscarSeq;
-    estado(I18N.buscando || '…');
-
-    try {
-        const resp = await fetch(`/clase-b/precios/${tokenActivo}/buscar?q=${encodeURIComponent(query)}`, {
-            headers: { Accept: 'application/json' },
-        });
-        if (!resp.ok) throw new Error('buscar_error');
-        const data = await resp.json();
-        // Ignorar respuestas viejas (el usuario siguió tipeando).
-        if (seq !== buscarSeq) return;
-        renderResultados(data.resultados || []);
-    } catch (e) {
-        if (seq === buscarSeq) estado(I18N.sinResultados || '');
-    }
-}
-
-// Debounce para no pegarle al server en cada tecla; un escáner de código de
-// barras tipea rápido y termina con Enter (se busca igual por el debounce).
-let debounceId = null;
-function buscarDebounced(q) {
-    clearTimeout(debounceId);
-    debounceId = setTimeout(() => buscar(q), 300);
-}
-
 async function iniciar(token) {
     try {
         const data = await cargarConfig(token);
@@ -156,10 +158,12 @@ async function iniciar(token) {
         aplicarConfig(data);
         elVincular.style.display = 'none';
         elPantalla.style.display = 'flex';
-        estado(I18N.inicial || '');
-        if (elInput) elInput.focus();
+        mostrarIdle();
+        focoActivo = true;
+        reenfocar();
     } catch (err) {
         localStorage.removeItem(STORAGE_KEY);
+        focoActivo = false;
         mostrarVinculacion();
     }
 }
@@ -181,14 +185,29 @@ async function canjearCodigo(codigo) {
 // ───────────────────────── Arranque ─────────────────────────
 async function arrancar() {
     if (elInput) {
-        elInput.addEventListener('input', (e) => buscarDebounced(e.target.value));
+        // El scanner termina con Enter (sufijo más común). Como fallback, si no
+        // hay Enter, un pequeño silencio tras el último carácter cierra el código.
+        let idleId = null;
+        const procesar = () => {
+            const val = elInput.value;
+            elInput.value = '';
+            if (val) buscar(val);
+        };
         elInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                clearTimeout(debounceId);
-                buscar(elInput.value);
+                clearTimeout(idleId);
+                procesar();
             }
         });
+        elInput.addEventListener('input', () => {
+            clearTimeout(idleId);
+            idleId = setTimeout(procesar, 120);
+        });
+        // Mantener el foco en el input del scanner.
+        elInput.addEventListener('blur', () => setTimeout(reenfocar, 50));
+        document.addEventListener('click', reenfocar);
+        document.addEventListener('keydown', reenfocar);
     }
 
     const form = $('#vincular-form');
@@ -207,7 +226,7 @@ async function arrancar() {
         });
     }
 
-    // Prioridad de bootstrap: token de URL (QR) > código de URL (TV) > localStorage.
+    // Prioridad de bootstrap: token de URL (QR) > código de URL > localStorage.
     if (boot.token) {
         iniciar(boot.token);
         return;

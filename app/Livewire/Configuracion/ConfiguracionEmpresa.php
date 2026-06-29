@@ -264,6 +264,10 @@ class ConfiguracionEmpresa extends Component
 
     public string $cpColorAcento = '#22d3ee';
 
+    public string $cpMensajeIdle = 'Escanee un artículo';
+
+    public int $cpDuracion = 5;
+
     // ==================== TAB CAJAS - GRUPOS DE CIERRE ====================
     public $mostrarModalGrupoCierre = false;
 
@@ -1191,6 +1195,8 @@ class ConfiguracionEmpresa extends Component
         $this->cpMostrarLogo = (bool) $config['mostrar_logo'];
         $this->cpColorFondo = $config['color_fondo'];
         $this->cpColorAcento = $config['color_acento'];
+        $this->cpMensajeIdle = $config['mensaje_idle'] ?? Sucursal::CONFIG_CONSULTOR_PRECIOS_DEFAULTS['mensaje_idle'];
+        $this->cpDuracion = (int) ($config['duracion_resultado'] ?? 5);
 
         $this->mostrarModalConsultor = true;
     }
@@ -1201,6 +1207,8 @@ class ConfiguracionEmpresa extends Component
             'cpTitulo' => ['nullable', 'string', 'max:40'],
             'cpColorFondo' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'cpColorAcento' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'cpMensajeIdle' => ['nullable', 'string', 'max:60'],
+            'cpDuracion' => ['required', 'integer', 'min:1', 'max:60'],
         ], [
             'cpColorFondo.regex' => __('El color de fondo debe ser un código hexadecimal válido.'),
             'cpColorAcento.regex' => __('El color debe ser un código hexadecimal válido.'),
@@ -1216,6 +1224,8 @@ class ConfiguracionEmpresa extends Component
                     'mostrar_logo' => (bool) $this->cpMostrarLogo,
                     'color_fondo' => $this->cpColorFondo,
                     'color_acento' => $this->cpColorAcento,
+                    'mensaje_idle' => trim((string) $this->cpMensajeIdle) ?: Sucursal::CONFIG_CONSULTOR_PRECIOS_DEFAULTS['mensaje_idle'],
+                    'duracion_resultado' => $this->cpDuracion,
                 ],
             ]);
 

@@ -17,9 +17,8 @@
             'token' => $bootstrapToken,
             'codigo' => $bootstrapCodigo,
             'i18n' => [
-                'buscando' => __('Buscando...'),
-                'sinResultados' => __('Sin resultados'),
-                'inicial' => __('Buscá un artículo para ver su precio'),
+                'sinResultados' => __('No se encontró el artículo'),
+                'promosActivas' => __('Promociones activas'),
                 'codigoInvalido' => __('Código inválido'),
                 'sinPrecio' => __('Sin precio'),
             ],
@@ -39,6 +38,13 @@
             color: #fff;
             font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
             overflow: hidden;
+        }
+
+        /* Input del scanner: presente y enfocable pero invisible en pantalla. */
+        .cp-scanner-input {
+            position: fixed; bottom: 0; left: 0; width: 1px; height: 1px;
+            opacity: 0; border: 0; padding: 0; background: transparent; color: transparent;
+            pointer-events: none;
         }
 
         /* ===== Vinculación ===== */
@@ -64,49 +70,40 @@
         .cp-pantalla { display: none; height: 100%; flex-direction: column; }
         .cp-header {
             display: flex; align-items: center; gap: 1rem; padding: 1rem 1.5rem;
-            border-bottom: 1px solid rgba(255,255,255,.08);
         }
         .cp-header img { max-height: 3rem; display: none; }
-        .cp-header .cp-titulo { font-size: clamp(1.1rem, 2.6vw, 1.75rem); font-weight: 800; }
-        .cp-header .cp-sucursal { margin-left: auto; opacity: .6; font-size: clamp(.85rem, 1.5vw, 1.1rem); }
+        .cp-header .cp-titulo { font-size: clamp(1rem, 2.2vw, 1.5rem); font-weight: 700; opacity: .8; }
 
-        /* Buscador */
-        .cp-buscador { padding: 1.5rem; }
-        .cp-buscador input {
-            width: 100%; font-size: clamp(1.25rem, 3vw, 2rem); font-weight: 600;
-            padding: 1rem 1.25rem; border-radius: 1rem; border: 2px solid rgba(255,255,255,.18);
-            background: rgba(255,255,255,.06); color: #fff;
+        /* Zona central (idle / resultado / no encontrado) */
+        .cp-display {
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; padding: 2rem; min-height: 0; gap: .5rem;
         }
-        .cp-buscador input::placeholder { color: rgba(255,255,255,.4); }
-        .cp-buscador input:focus { outline: none; border-color: var(--cp-acento); }
 
-        /* Resultados */
-        .cp-resultados {
-            flex: 1; overflow-y: auto; padding: 0 1.5rem 1.5rem;
-            display: flex; flex-direction: column; gap: 1rem;
+        /* Idle: frase de espera */
+        .cp-idle { font-size: clamp(1.75rem, 6vw, 4.5rem); font-weight: 800; opacity: .55; }
+
+        /* Resultado */
+        .cp-result { display: none; flex-direction: column; align-items: center; gap: .75rem; animation: cp-pop .25s ease; }
+        .cp-nombre { font-size: clamp(2rem, 6vw, 5rem); font-weight: 800; line-height: 1.05; }
+        .cp-precio { font-size: clamp(3.5rem, 14vw, 11rem); font-weight: 900; line-height: 1; color: var(--cp-acento); }
+        .cp-promos-titulo {
+            margin-top: 1rem; font-size: clamp(.9rem, 2vw, 1.4rem); font-weight: 700;
+            text-transform: uppercase; letter-spacing: .08em; opacity: .65;
         }
-        .cp-item {
-            display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-            padding: 1.25rem 1.5rem; border-radius: 1rem;
-            background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
-        }
-        .cp-item-info { min-width: 0; }
-        .cp-item-nombre { font-size: clamp(1.1rem, 2.6vw, 1.9rem); font-weight: 700; }
-        .cp-item-unidad { opacity: .5; font-size: clamp(.8rem, 1.4vw, 1rem); }
-        .cp-promos { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+        .cp-promos { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: center; margin-top: .5rem; }
         .cp-promo {
-            font-size: clamp(.7rem, 1.3vw, .95rem); font-weight: 600; padding: .2rem .6rem;
-            border-radius: 999px; background: color-mix(in srgb, var(--cp-acento) 22%, transparent);
-            color: var(--cp-acento); border: 1px solid var(--cp-acento);
+            font-size: clamp(1rem, 2.4vw, 1.75rem); font-weight: 700; padding: .35rem 1rem;
+            border-radius: 999px; background: color-mix(in srgb, var(--cp-acento) 20%, transparent);
+            color: var(--cp-acento); border: 2px solid var(--cp-acento);
         }
-        .cp-item-precio {
-            font-size: clamp(1.6rem, 5vw, 3.5rem); font-weight: 900; line-height: 1; white-space: nowrap;
-            color: var(--cp-acento);
-        }
-        .cp-estado {
-            flex: 1; display: flex; align-items: center; justify-content: center;
-            text-align: center; opacity: .5; font-size: clamp(1rem, 2.2vw, 1.5rem); padding: 2rem;
-        }
+
+        /* No encontrado */
+        .cp-notfound { display: none; flex-direction: column; align-items: center; gap: .5rem; }
+        .cp-notfound .cp-nf-msg { font-size: clamp(1.5rem, 5vw, 3.5rem); font-weight: 800; opacity: .7; }
+        .cp-notfound .cp-nf-cod { font-size: clamp(1rem, 2.2vw, 1.5rem); opacity: .4; font-family: ui-monospace, monospace; }
+
+        @keyframes cp-pop { from { transform: scale(.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
         /* Footer */
         .cp-footer {
@@ -129,25 +126,41 @@
         </form>
     </div>
 
-    {{-- Consultor --}}
+    {{-- Consultor (orientado a scanner) --}}
     <div id="pantalla" class="cp-pantalla">
         <header class="cp-header">
             <img id="cp-logo" alt="">
             <span class="cp-titulo" id="cp-titulo">{{ __('Consultor de precios') }}</span>
-            <span class="cp-sucursal" id="cp-sucursal"></span>
         </header>
-        <div class="cp-buscador">
-            <input id="cp-input" type="search" inputmode="search" autocomplete="off" autofocus
-                placeholder="{{ __('Buscar artículo o escanear código') }}">
+
+        <div class="cp-display">
+            {{-- Idle: frase de espera configurable --}}
+            <div class="cp-idle" id="cp-idle">{{ __('Escanee un artículo') }}</div>
+
+            {{-- Resultado del escaneo --}}
+            <div class="cp-result" id="cp-result">
+                <div class="cp-nombre" id="cp-nombre"></div>
+                <div class="cp-precio" id="cp-precio"></div>
+                <div class="cp-promos-titulo" id="cp-promos-titulo" style="display:none;">{{ __('Promociones activas') }}</div>
+                <div class="cp-promos" id="cp-promos"></div>
+            </div>
+
+            {{-- No encontrado --}}
+            <div class="cp-notfound" id="cp-notfound">
+                <div class="cp-nf-msg">{{ __('No se encontró el artículo') }}</div>
+                <div class="cp-nf-cod" id="cp-nf-cod"></div>
+            </div>
         </div>
-        <div class="cp-resultados" id="cp-resultados">
-            <div class="cp-estado" id="cp-estado">{{ __('Buscá un artículo para ver su precio') }}</div>
-        </div>
-        {{-- Footer: Powered by BCNSOFT (sutil, siempre presente) --}}
+
+        {{-- Footer: Powered by BCNSOFT --}}
         <div class="cp-footer">
             <span>{{ __('Powered by') }}</span>
             <img src="{{ asset('banner_bcn.png') }}" alt="BCNSOFT">
         </div>
     </div>
+
+    {{-- Input invisible que recibe el escaneo (scanner = teclado). --}}
+    <input id="cp-input" class="cp-scanner-input" type="text" autocomplete="off" autocapitalize="off"
+        autocorrect="off" spellcheck="false" aria-hidden="true" tabindex="-1">
 </body>
 </html>

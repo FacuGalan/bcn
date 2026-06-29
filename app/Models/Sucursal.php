@@ -90,6 +90,8 @@ class Sucursal extends Model
         'mostrar_logo' => true,
         'color_fondo' => '#0f172a',
         'color_acento' => '#22d3ee',      // cian (precio destacado)
+        'mensaje_idle' => 'Escanee un artículo',  // frase en espera (orientado a scanner)
+        'duracion_resultado' => 5,        // segundos que el resultado queda en pantalla antes de volver a idle
     ];
 
     /**

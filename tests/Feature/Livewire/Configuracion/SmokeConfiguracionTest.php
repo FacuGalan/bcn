@@ -721,13 +721,18 @@ class SmokeConfiguracionTest extends TestCase
             ->set('cpUsaConsultor', true)
             ->set('cpTitulo', 'Precios')
             ->set('cpColorAcento', '#0ea5e9')
+            ->set('cpMensajeIdle', 'Pasá tu producto')
+            ->set('cpDuracion', 8)
             ->call('guardarConsultorPrecios')
             ->assertSet('mostrarModalConsultor', false);
 
         $fresca = \App\Models\Sucursal::find($sucursal->id);
         $this->assertTrue((bool) $fresca->usa_consultor_precios);
-        $this->assertSame('Precios', $fresca->getConfigConsultorPrecios()['titulo']);
-        $this->assertSame('#0ea5e9', $fresca->getConfigConsultorPrecios()['color_acento']);
+        $config = $fresca->getConfigConsultorPrecios();
+        $this->assertSame('Precios', $config['titulo']);
+        $this->assertSame('#0ea5e9', $config['color_acento']);
+        $this->assertSame('Pasá tu producto', $config['mensaje_idle']);
+        $this->assertSame(8, $config['duracion_resultado']);
         $this->assertNotNull($fresca->token_publico);
     }
 
