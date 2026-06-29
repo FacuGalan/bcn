@@ -78,19 +78,26 @@
         }
         .llm-col-prep .llm-col-head { background: var(--llm-prep); }
         .llm-col-listo .llm-col-head { background: var(--llm-listo); }
+        /* Escala combinada: densidad elegida en config (--llm-base) × reducción
+           automática para que entren todos sin scroll (--llm-fit, lo setea el JS
+           por columna). En una TV no se puede scrollear, así que NO hay overflow. */
         .llm-list {
-            flex: 1; overflow-y: auto; padding: 1rem;
-            display: flex; flex-wrap: wrap; gap: 1rem; align-content: flex-start; justify-content: center;
+            --llm-base: 1; --llm-fit: 1;
+            flex: 1; overflow: hidden; padding: calc(1rem * var(--llm-fit));
+            display: flex; flex-wrap: wrap; gap: calc(1rem * var(--llm-base) * var(--llm-fit));
+            align-content: flex-start; justify-content: center;
         }
 
         /* Tarjeta de pedido */
         .llm-card {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            min-width: clamp(7rem, 14vw, 12rem); padding: 1rem 1.5rem; border-radius: 1rem;
+            min-width: calc(clamp(7rem, 14vw, 12rem) * var(--llm-base) * var(--llm-fit));
+            padding: calc(1rem * var(--llm-base) * var(--llm-fit)) calc(1.5rem * var(--llm-base) * var(--llm-fit));
+            border-radius: 1rem;
             background: rgba(255,255,255,.06); border: 2px solid rgba(255,255,255,.1);
         }
-        .llm-num { font-size: clamp(3rem, 9vw, 7rem); font-weight: 900; line-height: 1; }
-        .llm-nombre { margin-top: .5rem; font-size: clamp(1rem, 2.6vw, 2rem); opacity: .85; }
+        .llm-num { font-size: calc(clamp(3rem, 9vw, 7rem) * var(--llm-base) * var(--llm-fit)); font-weight: 900; line-height: 1; }
+        .llm-nombre { margin-top: .5rem; font-size: calc(clamp(1rem, 2.6vw, 2rem) * var(--llm-base) * var(--llm-fit)); opacity: .85; }
 
         /* La columna "Listo" resalta sus tarjetas */
         .llm-col-listo .llm-card {
@@ -99,6 +106,14 @@
             animation: llm-pop .4s ease;
         }
         @keyframes llm-pop { from { transform: scale(.85); } to { transform: scale(1); } }
+
+        /* Footer: Powered by BCNSOFT (sutil, igual que la pantalla cliente) */
+        .llm-footer {
+            display: flex; align-items: center; justify-content: center; gap: .5rem;
+            padding: .4rem; opacity: .4; pointer-events: none;
+        }
+        .llm-footer span { font-size: .8rem; }
+        .llm-footer img { height: 1rem; object-fit: contain; }
     </style>
 </head>
 <body>
@@ -134,6 +149,11 @@
                 <div class="llm-col-head">{{ __('Listo / Retirar') }}</div>
                 <div class="llm-list" id="col-listo"></div>
             </section>
+        </div>
+        {{-- Footer: Powered by BCNSOFT (sutil, siempre presente) --}}
+        <div class="llm-footer">
+            <span>{{ __('Powered by') }}</span>
+            <img src="{{ asset('banner_bcn.png') }}" alt="BCNSOFT">
         </div>
     </div>
 </body>

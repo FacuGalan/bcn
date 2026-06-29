@@ -1,6 +1,6 @@
 # Multi-PWA Clase B — Pantallas auxiliares remotas - Especificación
 
-## Estado: EN PROGRESO (Fases 1-2 + 3b ✅ — Fases 3, 4, 5 pendientes)
+## Estado: EN PROGRESO (Fases 1-2 + 3b + 4 ✅ — Fases 3, 5 pendientes)
 
 > NOTA: los íconos PWA del llamador (`pwa-icons/llamador-*.png`) son placeholder
 > (copia de pantalla-cliente). Reemplazar por diseño propio. La URL corta tipeable
@@ -79,7 +79,8 @@ Ambas son **públicas y de solo lectura**, instalables como PWA independientes, 
   - `nunca` (= `usa_numeracion_display=false`): `numero_display` queda null, se usa el permanente.
   - `diario`: reset por **uno o más horarios por día** (lista, ej. `[6, 18]` → resetea a las 6am y a las 18pm, así el turno mañana y el turno tarde arrancan de 0). Default `[6]` (una sola jornada de 6am a 6am → resuelve el turno 22h→1h sin partirse). Los horarios dividen el día en **segmentos**; al asignar, si el segmento actual avanzó respecto del último registrado, el contador se reinicia a 1.
   - `manual`: botón **"Reiniciar numeración"** (con permiso) que pone el contador en 0; cubre el caso "por turno/tanda" sin modelar turnos de caja.
-- **Toggle de monitor**: `sucursales.usa_llamador` (on/off) — gobierna la visibilidad del monitor en la config (RF-07). El broadcast público se emite igual (idempotente/inofensivo).
+- **Toggle de monitor**: `sucursales.usa_llamador` (on/off) — gobierna la visibilidad del monitor en la config (RF-07) **y gatea la emisión del broadcast público** (ver nota de eficiencia abajo).
+  - ⚡ **Eficiencia (revisado 2026-06-29):** el broadcast NO se emite si `usa_llamador=false`. El evento es `ShouldBroadcastNow` → cada publicación es un HTTP **síncrono** al servidor Reverb que bloquea el request del POS, aun sin pantallas conectadas (Reverb lo descartaría igual por no haber suscriptores). Gatear en `PedidoMostradorService::dispatchLlamadorPublico` evita ese costo en los comercios que usan el mostrador pero no el llamador. (Corrige la decisión original de "emitir igual porque es inofensivo": el publish no es gratis aunque el fan-out sí se evite solo.)
 
 ### RF-03: Monitor llamador de pedidos (`/llamador/{token}`) — DOS COLUMNAS
 - Pantalla pública full-screen, dividida en dos columnas:
@@ -289,10 +290,15 @@ Claves nuevas (es/en/pt), entre otras:
 4. ⏭️ Permiso + botón de reinicio manual + **toggles/config UI** (usa_llamador, usa_numeracion_display, modo, horas) → se hacen en la **Fase 4** (config).
 5. ✅ Tests: `NumeracionDisplayTest` (null si no usa, manual, reset diario por segmento + overnight, default [6], reinicio, accessor). 6/6.
 
-### Fase 4: Configuración + personalización [PENDIENTE]
-1. Tarjeta en Configuración: URLs + QR + copiar + regenerar token + edición de personalización por pantalla.
-2. Toggles por sucursal: `usa_llamador`, `usa_numeracion_display` + modo/hora de corte (RF-03b).
-3. Defaults de personalización en el modelo `Sucursal`.
+### Fase 4: Configuración + personalización [COMPLETO — llamador]
+> Hecho 2026-06-29 para el LLAMADOR. El consultor de precios (Fase 3) replicará el mismo patrón cuando se implemente.
+1. ✅ Modal **"Llamador"** dedicado por sucursal (`ConfiguracionEmpresa`, tab Sucursales, botón teal): toggle `usa_llamador`, **URL larga + QR** (SVG vía `simple-qrcode`), **URL corta + código** (tipear en TV) con botón copiar (Alpine clipboard), **regenerar token** (`wire:confirm`, desvincula dispositivos) y **personalización** (`config_llamador`: título, mostrar_logo, colores fondo/preparación/listo, sonido) con preview en vivo.
+2. ✅ Numeración de display en el modal **"Configurar Sucursal"** existente: toggle `usa_numeracion_display` + modo (`diario`/`manual`) + chips de **horarios de reinicio** (agregar/quitar) + botón **"Reiniciar numeración"** (modo manual, `wire:confirm`).
+3. ✅ Defaults de personalización ya en `Sucursal::CONFIG_LLAMADOR_DEFAULTS`.
+4. ✅ Gate de eficiencia: broadcast solo si `usa_llamador=true` (ver RF-03b).
+5. ✅ Tests: 3 en `SmokeConfiguracionTest` (abrir/guardar llamador + asegura token, regenerar token, numeración guarda/agrega/quita/reinicia) + `test_sin_usa_llamador_no_emite_evento`. Traducciones es/en/pt. Pint verde.
+6. ✅ Ajustes post-validación (2026-06-29): (a) color del modal/botón = `teal-600` requería **recompilar CSS** (se había buildeado antes de existir las clases → en dark se veía transparente); (b) **logo no aparecía** — bug en `llamador.js`: `logo.style.display=''` revertía al CSS `display:none`, fix `='block'`; además se agrega el logo al preview del modal; (c) **tamaño configurable + auto-fit**: `config_llamador.tamano` (compacto/normal/grande) como densidad base + escalado automático en el monitor (`--llm-base` × `--llm-fit` por columna) que reduce el tamaño hasta que entren todos los pedidos sin scroll (una TV no se puede scrollear). `.llm-list` pasó a `overflow:hidden`.
+7. ⏳ Pendiente: validación en vivo del usuario.
 
 ### Fase 5: Tests + docs [PENDIENTE]
 1. Tests (middleware, service, broadcast, smoke vistas). 

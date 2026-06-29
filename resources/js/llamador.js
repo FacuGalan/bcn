@@ -36,7 +36,22 @@ function unlockAudio() {
     } catch (e) {
         audioCtx = null;
     }
+    // El mismo gesto que desbloquea el audio entra a pantalla completa (no se
+    // puede disparar F11 desde JS, pero sí la Fullscreen API dentro de un click).
+    entrarPantallaCompleta();
     if (elAudioUnlock) elAudioUnlock.style.display = 'none';
+}
+
+function entrarPantallaCompleta() {
+    if (document.fullscreenElement) return;
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) {
+        try {
+            const r = req.call(el);
+            if (r && r.catch) r.catch(() => {});
+        } catch (e) { /* el navegador puede bloquearlo: best-effort */ }
+    }
 }
 
 function playChime() {
@@ -84,6 +99,7 @@ function renderSnapshot(pedidos) {
     colListo.innerHTML = '';
     (pedidos.en_preparacion || []).forEach((p) => colPrep.appendChild(tarjeta(p)));
     (pedidos.listo || []).forEach((p) => colListo.appendChild(tarjeta(p)));
+    ajustarFit();
 }
 
 // Aplica un evento de cambio de estado: reubica la tarjeta y suena si entra a "Listo".
@@ -99,9 +115,13 @@ function aplicarEvento(data) {
         if (!estabaEnListo) playChime();
     }
     // Otros estados (entregado/cancelado/…): la tarjeta ya quedó removida.
+    ajustarFit();
 }
 
 // ───────────────────────── Personalización ─────────────────────────
+// Densidad base elegida en config. El auto-fit (--llm-fit) reduce desde acá.
+const BASE_TAMANO = { compacto: 0.72, normal: 1, grande: 1.3 };
+
 function aplicarConfig(data) {
     const cfg = data.config || {};
     sonidoHabilitado = cfg.sonido !== false;
@@ -109,6 +129,10 @@ function aplicarConfig(data) {
     if (cfg.color_fondo) root.style.setProperty('--llm-bg', cfg.color_fondo);
     if (cfg.color_preparacion) root.style.setProperty('--llm-prep', cfg.color_preparacion);
     if (cfg.color_listo) root.style.setProperty('--llm-listo', cfg.color_listo);
+
+    // Densidad base por columna (las dos listas comparten el mismo valor).
+    const base = BASE_TAMANO[cfg.tamano] ?? 1;
+    [colPrep, colListo].forEach((c) => c && c.style.setProperty('--llm-base', base));
 
     const titulo = $('#llm-titulo');
     if (titulo) titulo.textContent = cfg.titulo || 'Pedidos';
@@ -119,11 +143,38 @@ function aplicarConfig(data) {
     if (logo) {
         if (cfg.mostrar_logo && data.logo) {
             logo.src = data.logo;
-            logo.style.display = '';
+            // 'block' explícito: setear '' revierte al CSS (display:none) y el logo no aparecería.
+            logo.style.display = 'block';
         } else {
             logo.style.display = 'none';
         }
     }
+}
+
+// ───────────────────────── Auto-fit (sin scroll) ─────────────────────────
+// Una TV no se puede scrollear: si los pedidos no entran, reducimos la escala
+// de la columna (--llm-fit) hasta que entren todos o se llegue al mínimo.
+function ajustarFitCol(lista) {
+    if (!lista) return;
+    lista.style.setProperty('--llm-fit', '1');
+    let fit = 1;
+    let guard = 0;
+    while (lista.scrollHeight > lista.clientHeight + 1 && fit > 0.35 && guard < 16) {
+        fit -= 0.07;
+        lista.style.setProperty('--llm-fit', fit.toFixed(3));
+        guard++;
+    }
+}
+
+let fitPendiente = false;
+function ajustarFit() {
+    if (fitPendiente) return;
+    fitPendiente = true;
+    requestAnimationFrame(() => {
+        fitPendiente = false;
+        ajustarFitCol(colPrep);
+        ajustarFitCol(colListo);
+    });
 }
 
 // ───────────────────────── Conexión ─────────────────────────
@@ -149,6 +200,25 @@ function suscribir(token) {
     });
     // Canal PÚBLICO: no pega a /broadcasting/auth. El token es el secreto.
     echo.channel(`llamador.${token}`).listen('.PedidoLlamador', (e) => aplicarEvento(e));
+
+    // Resiliencia: si el WS se cae (blip de red, la TV se suspende), pusher-js
+    // reconecta solo, pero los eventos perdidos durante la caída NO se reproducen.
+    // En una TV encendida horas/días eso deja el tablero pegado. Al RECONECTAR
+    // (no en la conexión inicial, que ya trae el snapshot) re-sincronizamos.
+    try {
+        let primeraConexion = true;
+        echo.connector.pusher.connection.bind('connected', () => {
+            if (primeraConexion) {
+                primeraConexion = false;
+                return;
+            }
+            cargarSnapshot(token)
+                .then((data) => renderSnapshot(data.pedidos || {}))
+                .catch(() => {});
+        });
+    } catch (e) {
+        // bind no disponible: el snapshot inicial sigue visible, se reintenta al recargar
+    }
 }
 
 async function iniciar(token) {
@@ -194,6 +264,9 @@ async function arrancar() {
     if (elAudioUnlock) elAudioUnlock.addEventListener('click', unlockAudio, { once: true });
     // Cualquier gesto desbloquea el audio (por si la capa ya no está).
     document.addEventListener('click', unlockAudio, { once: true });
+
+    // Reajustar el tamaño si cambia el viewport (rotación, resize de ventana).
+    window.addEventListener('resize', ajustarFit);
 
     // Form de vinculación manual (tipear el código).
     const form = $('#vincular-form');

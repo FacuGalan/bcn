@@ -637,6 +637,78 @@ class SmokeConfiguracionTest extends TestCase
         $this->assertSame('-34.6037000', (string) $fresca->latitud);
     }
 
+    public function test_configuracion_llamador_abre_asegura_token_y_guarda(): void
+    {
+        $sucursal = \App\Models\Sucursal::find($this->sucursalId);
+
+        Livewire::test(ConfiguracionEmpresa::class)
+            ->call('abrirLlamador', $sucursal->id)
+            ->assertOk()
+            ->assertSet('mostrarModalLlamador', true)
+            ->assertSet('llSucursalId', $sucursal->id)
+            ->set('llUsaLlamador', true)
+            ->set('llTitulo', 'Retiro')
+            ->set('llColorListo', '#10b981')
+            ->call('guardarLlamador')
+            ->assertSet('mostrarModalLlamador', false);
+
+        $fresca = \App\Models\Sucursal::find($sucursal->id);
+        $this->assertTrue((bool) $fresca->usa_llamador);
+        $this->assertSame('Retiro', $fresca->getConfigLlamador()['titulo']);
+        $this->assertSame('#10b981', $fresca->getConfigLlamador()['color_listo']);
+        // asegurarToken dejó token + código en el índice global (config).
+        $this->assertNotNull($fresca->token_publico);
+        $this->assertDatabaseHas('pantalla_publica_tokens', [
+            'comercio_id' => $this->comercio->id,
+            'sucursal_id' => $sucursal->id,
+        ], 'config');
+    }
+
+    public function test_configuracion_llamador_regenera_token(): void
+    {
+        $sucursal = \App\Models\Sucursal::find($this->sucursalId);
+
+        $component = Livewire::test(ConfiguracionEmpresa::class)
+            ->call('abrirLlamador', $sucursal->id);
+
+        $tokenViejo = $component->get('llToken');
+
+        $component->call('regenerarTokenLlamador');
+
+        $this->assertNotSame($tokenViejo, $component->get('llToken'));
+        $this->assertSame($component->get('llToken'), \App\Models\Sucursal::find($sucursal->id)->token_publico);
+    }
+
+    public function test_configuracion_sucursal_numeracion_display_guarda_y_reinicia(): void
+    {
+        $sucursal = \App\Models\Sucursal::find($this->sucursalId);
+
+        Livewire::test(ConfiguracionEmpresa::class)
+            ->call('abrirConfigSucursal', $sucursal->id)
+            ->assertOk()
+            ->set('configUsaNumeracionDisplay', true)
+            ->set('configNumeracionDisplayModo', 'diario')
+            ->set('configNumeracionDisplayHoras', [6])
+            ->set('configNumeracionNuevaHora', 18)
+            ->call('agregarHoraNumeracion')
+            ->assertSet('configNumeracionDisplayHoras', [6, 18])
+            ->call('quitarHoraNumeracion', 6)
+            ->assertSet('configNumeracionDisplayHoras', [18])
+            ->call('guardarConfigSucursal');
+
+        $fresca = \App\Models\Sucursal::find($sucursal->id);
+        $this->assertTrue((bool) $fresca->usa_numeracion_display);
+        $this->assertSame('diario', $fresca->numeracion_display_modo);
+        $this->assertSame([18], $fresca->horasResetDisplay());
+
+        // Reinicio manual deja el contador en 0.
+        \App\Models\Sucursal::where('id', $sucursal->id)->update(['pedido_display_ultimo_numero' => 7]);
+        Livewire::test(ConfiguracionEmpresa::class)
+            ->call('abrirConfigSucursal', $sucursal->id)
+            ->call('reiniciarNumeracionDisplay');
+        $this->assertSame(0, (int) \App\Models\Sucursal::find($sucursal->id)->pedido_display_ultimo_numero);
+    }
+
     public function test_roles_permisos_monta(): void
     {
         Livewire::test(RolesPermisos::class)->assertOk();

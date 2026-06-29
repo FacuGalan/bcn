@@ -123,7 +123,7 @@ class PantallaPublicaLlamadorTest extends TestCase
 
     public function test_cambiar_estado_a_listo_emite_evento_publico(): void
     {
-        Sucursal::find($this->sucursalId)->update(['token_publico' => 'TOKDESUC']);
+        Sucursal::find($this->sucursalId)->update(['token_publico' => 'TOKDESUC', 'usa_llamador' => true]);
         $pedido = $this->crearPedido(PedidoMostrador::ESTADO_EN_PREPARACION, 30, 'Lucía Fernández');
 
         Event::fake([PedidoLlamadorPublicoBroadcast::class]);
@@ -136,5 +136,19 @@ class PantallaPublicaLlamadorTest extends TestCase
                 && $e->nombre === 'Lucía'
                 && $e->estado === 'listo';
         });
+    }
+
+    public function test_sin_usa_llamador_no_emite_evento(): void
+    {
+        // Sucursal con token pero llamador DESACTIVADO: no debe publicarse nada
+        // (evita el HTTP síncrono a Reverb en cada cambio de estado).
+        Sucursal::find($this->sucursalId)->update(['token_publico' => 'TOKDESUC', 'usa_llamador' => false]);
+        $pedido = $this->crearPedido(PedidoMostrador::ESTADO_EN_PREPARACION, 31, 'Mara');
+
+        Event::fake([PedidoLlamadorPublicoBroadcast::class]);
+
+        app(PedidoMostradorService::class)->cambiarEstado($pedido, PedidoMostrador::ESTADO_LISTO);
+
+        Event::assertNotDispatched(PedidoLlamadorPublicoBroadcast::class);
     }
 }

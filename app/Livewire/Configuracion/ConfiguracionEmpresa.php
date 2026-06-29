@@ -13,12 +13,16 @@ use App\Models\PuntoVenta;
 use App\Models\PuntoVentaCaja;
 use App\Models\Sucursal;
 use App\Services\CatalogoCache;
+use App\Services\PantallaPublicaService;
+use App\Services\Pedidos\PedidoMostradorService;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 #[Lazy]
 #[Layout('layouts.app')]
@@ -144,6 +148,16 @@ class ConfiguracionEmpresa extends Component
 
     public bool $configImprimeComandaAutomatico = false;
 
+    // Numeración de display (turno) — se edita dentro del modal Configurar Sucursal
+    public bool $configUsaNumeracionDisplay = false;
+
+    public string $configNumeracionDisplayModo = 'diario';
+
+    /** @var list<int> horas de reset 0-23 para modo diario */
+    public array $configNumeracionDisplayHoras = [6];
+
+    public $configNumeracionNuevaHora = '';
+
     // ==================== TAB CAJAS ====================
     // Edición de puntos de venta
     public $cajaEditandoPuntosId = null;
@@ -191,6 +205,38 @@ class ConfiguracionEmpresa extends Component
     public $pcMensajeIdle = 'Listo para cobrar';
 
     public $pcTamanoLogo = 'md';
+
+    // ==================== MONITOR LLAMADOR (pantalla Clase B) ====================
+    public bool $mostrarModalLlamador = false;
+
+    public ?int $llSucursalId = null;
+
+    public string $llSucursalNombre = '';
+
+    public bool $llUsaLlamador = false;
+
+    public ?string $llToken = null;
+
+    public ?string $llCodigo = null;
+
+    public bool $llLogoActual = false;
+
+    public ?string $llLogoUrl = null;
+
+    // Personalización del llamador (config_llamador)
+    public string $llTitulo = 'Pedidos';
+
+    public bool $llMostrarLogo = true;
+
+    public string $llColorFondo = '#0f172a';
+
+    public string $llColorPreparacion = '#f59e0b';
+
+    public string $llColorListo = '#22c55e';
+
+    public bool $llSonido = true;
+
+    public string $llTamano = 'normal';
 
     // ==================== TAB CAJAS - GRUPOS DE CIERRE ====================
     public $mostrarModalGrupoCierre = false;
@@ -675,8 +721,56 @@ class ConfiguracionEmpresa extends Component
         $this->configPedidoConversionAutomaticaAlEntregar = (bool) ($sucursal->pedido_conversion_automatica_al_entregar ?? false);
         $this->configUsaBeepers = (bool) ($sucursal->usa_beepers ?? false);
         $this->configImprimeComandaAutomatico = (bool) ($sucursal->imprime_comanda_automatico ?? false);
+        $this->configUsaNumeracionDisplay = (bool) ($sucursal->usa_numeracion_display ?? false);
+        $this->configNumeracionDisplayModo = $sucursal->numeracion_display_modo ?? 'diario';
+        $this->configNumeracionDisplayHoras = $sucursal->horasResetDisplay();
+        $this->configNumeracionNuevaHora = '';
 
         $this->mostrarModalConfigSucursal = true;
+    }
+
+    /**
+     * Agrega una hora de reset (0-23) a la numeración de display, evitando
+     * duplicados y manteniendo la lista ordenada.
+     */
+    public function agregarHoraNumeracion(): void
+    {
+        $hora = (int) $this->configNumeracionNuevaHora;
+
+        if ($this->configNumeracionNuevaHora === '' || $hora < 0 || $hora > 23) {
+            return;
+        }
+
+        $horas = $this->configNumeracionDisplayHoras;
+        $horas[] = $hora;
+        $horas = array_values(array_unique($horas));
+        sort($horas);
+
+        $this->configNumeracionDisplayHoras = $horas;
+        $this->configNumeracionNuevaHora = '';
+    }
+
+    public function quitarHoraNumeracion(int $hora): void
+    {
+        $this->configNumeracionDisplayHoras = array_values(
+            array_filter($this->configNumeracionDisplayHoras, fn ($h) => (int) $h !== $hora)
+        );
+    }
+
+    /**
+     * Reinicia manualmente el contador de numeración de display de la sucursal en
+     * edición (modo manual: por turno/tanda). Append-only: el `numero` permanente
+     * no se toca, solo el contador del número visible.
+     */
+    public function reiniciarNumeracionDisplay(PedidoMostradorService $service): void
+    {
+        if (! $this->configSucursalId) {
+            return;
+        }
+
+        $service->reiniciarNumeracionDisplay((int) $this->configSucursalId, (int) auth()->id());
+
+        $this->dispatch('notify', message: __('Numeración reiniciada. El próximo pedido arranca de 1.'), type: 'success');
     }
 
     public function updatedConfigAgrupaArticulosVenta($value)
@@ -694,12 +788,20 @@ class ConfiguracionEmpresa extends Component
             'configTipoImpresionFactura' => 'required|in:solo_datos,solo_logo,ambos',
             'configMensajeWhatsappComanda' => 'nullable|max:500',
             'configMensajeWhatsappListo' => 'nullable|max:500',
+            'configNumeracionDisplayModo' => 'required|in:diario,manual',
         ], [
             'configClaveAutorizacion.required' => __('Debe ingresar una clave de autorización.'),
             'configClaveAutorizacion.min' => __('La clave debe tener al menos 4 caracteres.'),
             'configMensajeWhatsappComanda.max' => __('El mensaje no puede superar 500 caracteres.'),
             'configMensajeWhatsappListo.max' => __('El mensaje no puede superar 500 caracteres.'),
         ]);
+
+        // Numeración de display: en modo diario garantizamos al menos una hora (default 6am).
+        $horas = array_values(array_unique(array_map('intval', $this->configNumeracionDisplayHoras)));
+        sort($horas);
+        if ($this->configNumeracionDisplayModo === 'diario' && empty($horas)) {
+            $horas = [6];
+        }
 
         try {
             $sucursal = Sucursal::findOrFail($this->configSucursalId);
@@ -725,6 +827,9 @@ class ConfiguracionEmpresa extends Component
                 'pedido_conversion_automatica_al_entregar' => $this->configPedidoConversionAutomaticaAlEntregar,
                 'usa_beepers' => $this->configUsaBeepers,
                 'imprime_comanda_automatico' => $this->configImprimeComandaAutomatico,
+                'usa_numeracion_display' => $this->configUsaNumeracionDisplay,
+                'numeracion_display_modo' => $this->configNumeracionDisplayModo,
+                'numeracion_display_horas' => $horas,
             ]);
 
             $this->cerrarModalConfigSucursal();
@@ -757,6 +862,10 @@ class ConfiguracionEmpresa extends Component
         $this->configPedidoConversionAutomaticaAlEntregar = false;
         $this->configUsaBeepers = false;
         $this->configImprimeComandaAutomatico = false;
+        $this->configUsaNumeracionDisplay = false;
+        $this->configNumeracionDisplayModo = 'diario';
+        $this->configNumeracionDisplayHoras = [6];
+        $this->configNumeracionNuevaHora = '';
         $this->resetErrorBag();
     }
 
@@ -903,6 +1012,131 @@ class ConfiguracionEmpresa extends Component
         $this->pcSucursalNombre = '';
         $this->pcLogoUrl = null;
         $this->resetErrorBag();
+    }
+
+    // --- Modal Monitor Llamador (pantalla Clase B remota) ---
+
+    /**
+     * Abre el modal del llamador: asegura que la sucursal tenga token + código en
+     * el índice global (los genera si faltan) y carga el toggle + la
+     * personalización (config_llamador con defaults mergeados).
+     */
+    public function abrirLlamador($sucursalId, PantallaPublicaService $service)
+    {
+        $sucursal = Sucursal::findOrFail($sucursalId);
+
+        $index = $service->asegurarToken($sucursal);
+        $config = $sucursal->getConfigLlamador();
+
+        $this->llSucursalId = $sucursal->id;
+        $this->llSucursalNombre = $sucursal->nombre;
+        $this->llUsaLlamador = (bool) $sucursal->usa_llamador;
+        $this->llToken = $index->token;
+        $this->llCodigo = $index->codigo_corto;
+        $this->llLogoUrl = $sucursal->logoPantallaClienteUrl();
+        $this->llLogoActual = (bool) $this->llLogoUrl;
+
+        $this->llTitulo = $config['titulo'];
+        $this->llMostrarLogo = (bool) $config['mostrar_logo'];
+        $this->llColorFondo = $config['color_fondo'];
+        $this->llColorPreparacion = $config['color_preparacion'];
+        $this->llColorListo = $config['color_listo'];
+        $this->llSonido = (bool) $config['sonido'];
+        $this->llTamano = $config['tamano'] ?? 'normal';
+
+        $this->mostrarModalLlamador = true;
+    }
+
+    public function guardarLlamador()
+    {
+        $this->validate([
+            'llTitulo' => ['nullable', 'string', 'max:40'],
+            'llColorFondo' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'llColorPreparacion' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'llColorListo' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'llTamano' => ['required', 'in:compacto,normal,grande'],
+        ], [
+            'llColorFondo.regex' => __('El color de fondo debe ser un código hexadecimal válido.'),
+            'llColorPreparacion.regex' => __('El color debe ser un código hexadecimal válido.'),
+            'llColorListo.regex' => __('El color debe ser un código hexadecimal válido.'),
+        ]);
+
+        try {
+            $sucursal = Sucursal::findOrFail($this->llSucursalId);
+
+            $sucursal->update([
+                'usa_llamador' => $this->llUsaLlamador,
+                'config_llamador' => [
+                    'titulo' => trim((string) $this->llTitulo) ?: Sucursal::CONFIG_LLAMADOR_DEFAULTS['titulo'],
+                    'mostrar_logo' => (bool) $this->llMostrarLogo,
+                    'color_fondo' => $this->llColorFondo,
+                    'color_preparacion' => $this->llColorPreparacion,
+                    'color_listo' => $this->llColorListo,
+                    'sonido' => (bool) $this->llSonido,
+                    'tamano' => $this->llTamano,
+                ],
+            ]);
+
+            $this->cerrarModalLlamador();
+            $this->dispatch('notify', message: __('Configuración del llamador guardada'), type: 'success');
+        } catch (\Exception $e) {
+            $this->dispatch('notify', message: __('Error: ').$e->getMessage(), type: 'error');
+        }
+    }
+
+    /**
+     * Regenera el token + código corto de la sucursal (rotación). Invalida las
+     * URLs/QR viejos y desvincula los dispositivos ya vinculados (vuelven a la
+     * pantalla de vinculación).
+     */
+    public function regenerarTokenLlamador(PantallaPublicaService $service)
+    {
+        if (! $this->llSucursalId) {
+            return;
+        }
+
+        $sucursal = Sucursal::findOrFail($this->llSucursalId);
+        $nuevo = $service->regenerarToken($sucursal);
+
+        $this->llToken = $nuevo['token'];
+        $this->llCodigo = $nuevo['codigo_corto'];
+
+        $this->dispatch('notify', message: __('Token regenerado. Los dispositivos vinculados deberán volver a vincularse.'), type: 'success');
+    }
+
+    public function cerrarModalLlamador()
+    {
+        $this->mostrarModalLlamador = false;
+        $this->llSucursalId = null;
+        $this->llSucursalNombre = '';
+        $this->llToken = null;
+        $this->llCodigo = null;
+        $this->resetErrorBag();
+    }
+
+    /** URL larga (QR / tablets que escanean): /llamador/{token}. */
+    #[Computed]
+    public function llUrlLarga(): string
+    {
+        return $this->llToken ? route('llamador.token', $this->llToken) : '';
+    }
+
+    /** URL corta tipeable en TV: /ll/{codigo}. */
+    #[Computed]
+    public function llUrlCorta(): string
+    {
+        return $this->llCodigo ? route('llamador.codigo', $this->llCodigo) : '';
+    }
+
+    /** SVG del QR de la URL larga (no se serializa: es computed). */
+    #[Computed]
+    public function llQrSvg(): string
+    {
+        if (! $this->llToken) {
+            return '';
+        }
+
+        return (string) QrCode::format('svg')->size(180)->margin(1)->generate($this->llUrlLarga());
     }
 
     // --- Edición de Puntos de Venta ---

@@ -1941,13 +1941,20 @@ class PedidoMostradorService
         }
 
         try {
-            $token = Sucursal::where('id', $pedido->sucursal_id)->value('token_publico');
-            if (! $token) {
+            $suc = Sucursal::where('id', $pedido->sucursal_id)
+                ->first(['usa_llamador', 'token_publico']);
+
+            // Si la sucursal no usa el monitor llamador, NO se publica nada. El
+            // evento es ShouldBroadcastNow → cada publicación es un HTTP síncrono
+            // al servidor Reverb que bloquea el request del POS, aunque no haya
+            // pantallas conectadas (Reverb lo descartaría igual). Gatear acá evita
+            // ese costo en los comercios que usan el mostrador pero no el llamador.
+            if (! $suc || ! $suc->usa_llamador || ! $suc->token_publico) {
                 return;
             }
 
             broadcast(new \App\Events\Broadcasting\PedidoLlamadorPublicoBroadcast(
-                $token,
+                $suc->token_publico,
                 (int) $pedido->numero_visible,
                 $pedido->nombreLlamador(),
                 $estadoNuevo,

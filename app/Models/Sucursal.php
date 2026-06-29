@@ -78,6 +78,7 @@ class Sucursal extends Model
         'color_preparacion' => '#f59e0b', // ámbar (columna "En preparación")
         'color_listo' => '#22c55e',       // verde (columna "Listo / Retirar")
         'sonido' => true,                 // chime al pasar un pedido a "Listo"
+        'tamano' => 'normal',             // compacto | normal | grande (densidad base; el auto-fit achica si no entran)
     ];
 
     /**
