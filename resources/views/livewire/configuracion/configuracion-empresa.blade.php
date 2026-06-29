@@ -827,7 +827,6 @@
                                     </div>
                                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Se ingresa en la pantalla luego de abrir la dirección.') }}</p>
                                 </div>
-                                </div>
 
                                 {{-- Regenerar token --}}
                                 <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
