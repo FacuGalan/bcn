@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-26 (reporte de corteisas en Ventas)
+> Version: 0.1.x | Ultima actualizacion: 2026-06-29 (pantallas auxiliares Clase B: llamador de pedidos, consultor de precios y numeracion de display)
 
 ---
 
@@ -69,6 +69,8 @@
   - [12.10 Impresoras](#1210-impresoras)
   - [12.11 Integraciones de Pago](#1211-integraciones-de-pago)
   - [12.12 Personalizar 2da Pantalla (por Sucursal)](#1212-personalizar-2da-pantalla-por-sucursal)
+  - [12.13 Monitor Llamador de Pedidos (por Sucursal)](#1213-monitor-llamador-de-pedidos-por-sucursal)
+  - [12.14 Consultor de Precios (por Sucursal)](#1214-consultor-de-precios-por-sucursal)
 - [13. Fiscal](#13-fiscal)
   - [13.1 Posicion Fiscal](#131-posicion-fiscal)
   - [13.2 Libros IVA](#132-libros-iva)
@@ -850,6 +852,8 @@ Para quitar el resaltado de un pedido puntual, **haga click sobre la fila o la c
 
 Cada fila muestra: numero de pedido, identificador/beeper, cliente, fecha/hora, estado del pedido (badge de color), estado del pago (badge de color), badge verde "Cortesia" si el pedido es una invitacion total, y acciones.
 
+> Cuando la sucursal tiene activa la **numeracion de display** (turno), el numero visible del pedido en la fila es el numero de turno (corto y reseteable), no el correlativo permanente. El correlativo permanente sigue disponible como referencia interna pero no se muestra en la fila de la lista.
+
 #### Acciones por fila
 
 Las acciones disponibles dependen del estado del pedido y los permisos del usuario. En dispositivos moviles se muestran solo como iconos; en escritorio incluyen texto.
@@ -1049,7 +1053,7 @@ Al igual que la Vista Lista, el Kanban filtra automaticamente por caja activa cu
 #### Cards del Kanban
 
 Cada card muestra:
-- Numero del pedido
+- Numero del pedido (si la sucursal usa numeracion de display, muestra el numero de turno; caso contrario, el correlativo permanente)
 - Numero de beeper (si el pedido tiene uno asignado)
 - Nombre del cliente (o indicador de cliente temporal)
 - Total del pedido
@@ -2459,8 +2463,11 @@ Gestion de las sucursales del comercio:
   - Control de stock en ventas: Bloquea (no permite vender sin stock), Advierte (avisa pero permite), No controla.
   - Control de stock en produccion: Igual al anterior.
   - Facturacion fiscal automatica.
+  - **Numeracion de pedidos (turno)**: activa un numero de display reseteable (independiente del correlativo permanente) para mostrar en el monitor llamador, la comanda y el kanban. Modos de reinicio: "Automatico por horario" (configurable con una o varias horas de reset diario, por defecto 06:00) o "Manual" (boton reiniciar cuando empieza una nueva tanda). Al reiniciar manualmente se requiere confirmacion.
   - Configuracion de WhatsApp (envio de comandas y notificaciones).
 - **Personalizar 2da pantalla** (visible solo si alguna caja de la sucursal tiene "Usa pantalla orientada al cliente" activado): abre el modal de personalizacion de la pantalla cliente. Ver seccion 12.12.
+- **Llamador**: abre el modal de configuracion del monitor llamador de pedidos (pantalla publica). Siempre visible. Ver seccion 12.13.
+- **Consultor de precios**: abre el modal de configuracion del consultor de precios (pantalla publica de scanner). Siempre visible. Ver seccion 12.14.
 
 #### Pestana "Cajas"
 
@@ -3059,6 +3066,113 @@ El boton esta disponible siempre en el desplegable de perfil (no se oculta aunqu
 La pantalla cliente y la app principal (BCN Pymes) tienen scopes de PWA distintos y no superpuestos, por lo que pueden instalarse como apps separadas al mismo tiempo en el mismo navegador.
 
 > **Flujo recomendado con la app principal instalada**: instale ambas apps. El sistema principal corre bajo `/app`; la pantalla cliente, bajo `/pantalla-cliente`. Una vez instaladas, el cajero abre la pantalla cliente desde su icono; la deteccion es automatica.
+
+---
+
+### 12.13 Monitor Llamador de Pedidos (por Sucursal)
+
+Pantalla publica full-screen pensada para TV o tablet fija en el salon: muestra en dos columnas los pedidos **En preparacion** (ambar) y **Listo / Retirar** (verde) y se actualiza en tiempo real sin requerir login.
+
+#### Abrir el modal de configuracion
+
+En **Configuracion → Empresa → Sucursales**, localice la tarjeta de la sucursal y haga clic en **"Llamador"**. Se abre el modal con las opciones de vinculacion y personalizacion.
+
+#### Activar o desactivar el llamador
+
+El toggle **"Usar monitor llamador"** en la parte superior del modal activa la pantalla publica. Cuando esta apagado, ningun evento se emite (los cambios de estado de pedidos no llegan al monitor). Al guardar con el toggle en "apagado", la pantalla mostrara un aviso de que la funcion no esta activa.
+
+#### Vincular un dispositivo
+
+La seccion izquierda del modal muestra tres formas equivalentes de vincular un dispositivo (TV, tablet, celular):
+
+| Metodo | Como usarlo |
+|---|---|
+| **Escanear QR** | Abra la camara o un lector QR en el dispositivo y escanee. El dispositivo navegara a la URL exacta del llamador. |
+| **URL de pantalla publica** | Copie la URL y abra manualmente en el navegador del dispositivo. |
+| **Para tipear a mano** | URL corta generica (ej: `midominio.com/ll`) mas el **codigo de vinculacion** de 6 caracteres que se ingresa en pantalla. Util para tipear en el control remoto de una TV. |
+
+El **codigo de vinculacion** (6 caracteres en alfabeto sin ambiguedades) se muestra en el modal y puede copiarse. Al abrir la URL corta generica, la pantalla pide el codigo; al ingresarlo, el dispositivo queda vinculado y guarda el token en su almacenamiento local para sesiones futuras.
+
+#### Regenerar token
+
+El boton **"Regenerar token"** genera nuevas credenciales. Todos los dispositivos vinculados anteriormente pierden acceso y deben vincularse de nuevo ingresando el nuevo codigo. Usarlo solo si la URL se filtro. El token es compartido entre el llamador y el consultor de precios de la misma sucursal: regenerar aqui invalida ambas pantallas.
+
+#### Personalizacion
+
+La columna derecha del modal permite personalizar:
+
+| Opcion | Descripcion |
+|---|---|
+| Titulo | Texto que aparece en el encabezado del monitor (ej: "Pedidos", "Turnos"). Maximo 40 caracteres. |
+| Mostrar logo | Solo visible si la sucursal tiene logo cargado. |
+| Sonido al pasar a "Listo" | Emite un chime cuando un pedido llega a la columna "Listo / Retirar". |
+| Tamano de los pedidos | Compacto / Normal / Grande (densidad base). Si hay muchos pedidos, el tamano se reduce automaticamente para que entren todos sin scroll. |
+| Color de fondo | Color hex del fondo de la pantalla. |
+| Color columna "En preparacion" | Color del encabezado de la columna izquierda. |
+| Color columna "Listo / Retirar" | Color del encabezado de la columna derecha. |
+
+#### Comportamiento de la pantalla llamador
+
+- Al abrir la URL por primera vez, la pantalla pide el codigo de vinculacion. Una vez ingresado, el token queda guardado y no vuelve a pedirse.
+- La pantalla carga el estado inicial de los pedidos (cold start) y luego recibe actualizaciones en tiempo real via WebSocket (Reverb).
+- Al pasar un pedido a "Listo / Retirar", suena el chime si el sonido esta activado.
+- **Desbloqueo de audio**: la primera vez que el monitor se carga, aparece una pantalla de toque para habilitar el audio del navegador (los navegadores bloquean el audio sin interaccion del usuario). Al tocar, el audio queda habilitado y la pantalla pasa al monitor.
+- **Pantalla completa**: al tocar la pantalla, intenta activar el modo fullscreen del navegador.
+- **Auto-fit**: si los pedidos no entran en la pantalla al tamano configurado, el sistema los achica hasta que entren todos sin scroll.
+- **Instalable como PWA**: la URL del llamador tiene manifest propio. Desde Chrome o Edge se puede instalar como app independiente (icono en el escritorio o barra de apps del sistema).
+
+#### Rutas del llamador
+
+| URL | Descripcion |
+|---|---|
+| `/llamador/{token}` | Acceso directo con el token ya resuelto (generado por QR o URL larga). |
+| `/llamador` o `/ll` | URL generica: pide el codigo de vinculacion en pantalla. |
+| `/ll/{codigo}` | URL con el codigo incluido; la pantalla lo canjea automaticamente. |
+
+---
+
+### 12.14 Consultor de Precios (por Sucursal)
+
+Pantalla publica orientada a un **scanner de codigo de barras** conectado a una PC o tablet en el mostrador. El cliente puede acercar un producto al scanner y ver instantaneamente su nombre, precio y promociones activas.
+
+#### Abrir el modal de configuracion
+
+En **Configuracion → Empresa → Sucursales**, localice la tarjeta de la sucursal y haga clic en **"Consultor de precios"**. Se abre el modal con las opciones de vinculacion y personalizacion.
+
+#### Activar o desactivar el consultor
+
+El toggle **"Usar consultor de precios"** activa la pantalla. Cuando esta apagado, los endpoints de busqueda devuelven 404 (no se expone informacion de precios).
+
+#### Vincular un dispositivo
+
+Identico al llamador: QR, URL larga, URL corta + codigo. El **codigo de vinculacion es el mismo** que el del llamador (token compartido por sucursal). Regenerar el token desde cualquiera de los dos modales invalida ambas pantallas.
+
+#### Personalizacion
+
+| Opcion | Descripcion |
+|---|---|
+| Titulo | Texto en el encabezado (ej: "Consultá tu precio"). Maximo 40 caracteres. |
+| Mostrar logo | Solo si la sucursal tiene logo. |
+| Color de fondo | Color hex del fondo. |
+| Color de acento | Color del precio destacado y los bordes de resultado. |
+| Mensaje en espera | Frase que se muestra cuando no hay ninguna busqueda activa (ej: "Escanee un articulo"). |
+| Duracion del resultado | Segundos que el resultado permanece en pantalla antes de volver a la frase de espera (1-60 s). |
+
+#### Comportamiento de la pantalla consultor
+
+- La pantalla mantiene un **campo de texto invisible siempre enfocado** que captura lo que escribe el scanner. Cuando el scanner envia un codigo de barras (o el usuario tipea texto y presiona Enter), el sistema busca el articulo.
+- Si el articulo se encuentra, muestra: nombre, unidad de medida, precio en grande y la lista de promociones activas en las que participa (tanto promociones normales como promociones especiales NxM/combo/menu). Luego de N segundos (configurables), la pantalla vuelve a la frase de espera.
+- Si el articulo no se encuentra, muestra "No se encontro el articulo" brevemente.
+- La busqueda funciona por codigo de barras exacto, codigo interno exacto o por nombre (parcial).
+- **Instalable como PWA**: la URL del consultor tiene manifest propio con icono independiente.
+
+#### Rutas del consultor
+
+| URL | Descripcion |
+|---|---|
+| `/precios/{token}` | Acceso directo con el token. |
+| `/precios` o `/pr` | URL generica: pide el codigo de vinculacion en pantalla. |
+| `/pr/{codigo}` | URL con codigo incluido; se canjea automaticamente. |
 
 ---
 
