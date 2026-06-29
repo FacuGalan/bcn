@@ -1158,6 +1158,13 @@ class ConfiguracionEmpresa extends Component
         return $this->llCodigo ? route('llamador.codigo', $this->llCodigo) : '';
     }
 
+    /** URL corta genérica para tipear a mano (pide el código en pantalla): /ll. */
+    #[Computed]
+    public function llUrlGenerica(): string
+    {
+        return route('llamador.short');
+    }
+
     /** SVG del QR de la URL larga (no se serializa: es computed). */
     #[Computed]
     public function llQrSvg(): string
@@ -1277,6 +1284,13 @@ class ConfiguracionEmpresa extends Component
     public function cpUrlCorta(): string
     {
         return $this->cpCodigo ? route('precios.codigo', $this->cpCodigo) : '';
+    }
+
+    /** URL corta genérica para tipear a mano (pide el código en pantalla): /pr. */
+    #[Computed]
+    public function cpUrlGenerica(): string
+    {
+        return route('precios.short');
     }
 
     /** SVG del QR de la URL larga del consultor (computed, no se serializa). */

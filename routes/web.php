@@ -96,12 +96,15 @@ Route::middleware(['auth'])->group(function () {
 // token de localStorage / URL / código). start_url de las PWAs = rutas genéricas.
 Route::get('llamador', [\App\Http\Controllers\PantallaPublica\LlamadorController::class, 'index'])->name('llamador');
 Route::get('llamador/{token}', [\App\Http\Controllers\PantallaPublica\LlamadorController::class, 'porToken'])->name('llamador.token');
-// URL corta tipeable en TV (un mismo código sirve para ambas pantallas con prefijo distinto).
+// URL corta genérica para tipear a mano (pide el código de vinculación en pantalla).
+Route::get('ll', [\App\Http\Controllers\PantallaPublica\LlamadorController::class, 'index'])->name('llamador.short');
+// URL corta tipeable en TV con el código incluido (un mismo código sirve para ambas pantallas con prefijo distinto).
 Route::get('ll/{codigo}', [\App\Http\Controllers\PantallaPublica\LlamadorController::class, 'porCodigo'])->name('llamador.codigo');
 
 // Consultor de precios (Clase B): mismas reglas, prefijo de URL corta `pr`.
 Route::get('precios', [\App\Http\Controllers\PantallaPublica\ConsultorPreciosController::class, 'index'])->name('precios');
 Route::get('precios/{token}', [\App\Http\Controllers\PantallaPublica\ConsultorPreciosController::class, 'porToken'])->name('precios.token');
+Route::get('pr', [\App\Http\Controllers\PantallaPublica\ConsultorPreciosController::class, 'index'])->name('precios.short');
 Route::get('pr/{codigo}', [\App\Http\Controllers\PantallaPublica\ConsultorPreciosController::class, 'porCodigo'])->name('precios.codigo');
 
 Route::prefix('clase-b')->group(function () {

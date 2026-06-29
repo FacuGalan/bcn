@@ -590,21 +590,32 @@
                                     </div>
                                 </div>
 
-                                {{-- URL corta + código (TV) --}}
+                                {{-- URL genérica para tipear a mano --}}
                                 <div>
-                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{{ __('Para una TV: tipear esta dirección') }}</label>
+                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{{ __('Para tipear a mano') }}</label>
                                     <div class="flex items-center gap-2">
-                                        <input type="text" readonly value="{{ $this->llUrlCorta }}"
+                                        <input type="text" readonly value="{{ $this->llUrlGenerica }}"
                                             class="flex-1 rounded-md border-gray-300 bg-gray-50 text-xs shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
-                                        <button type="button" @click="copiar('{{ $this->llUrlCorta }}', 'corta')"
+                                        <button type="button" @click="copiar('{{ $this->llUrlGenerica }}', 'corta')"
                                             class="inline-flex items-center px-2.5 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                                             <span x-show="copiado !== 'corta'"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></span>
                                             <span x-show="copiado === 'corta'" x-cloak class="text-teal-600 dark:text-teal-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg></span>
                                         </button>
                                     </div>
-                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Código de vinculación') }}:
-                                        <span class="font-mono font-bold tracking-widest text-gray-800 dark:text-gray-100">{{ $llCodigo }}</span>
-                                    </p>
+                                </div>
+
+                                {{-- Código de vinculación (se ingresa en la pantalla) --}}
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{{ __('Código de vinculación') }}</label>
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex-1 rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-center font-mono font-bold text-lg tracking-[0.3em] text-gray-800 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100">{{ $llCodigo }}</div>
+                                        <button type="button" @click="copiar('{{ $llCodigo }}', 'codigo')"
+                                            class="inline-flex items-center px-2.5 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                            <span x-show="copiado !== 'codigo'"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></span>
+                                            <span x-show="copiado === 'codigo'" x-cloak class="text-teal-600 dark:text-teal-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg></span>
+                                        </button>
+                                    </div>
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Se ingresa en la pantalla luego de abrir la dirección.') }}</p>
                                 </div>
 
                                 {{-- Regenerar token --}}
@@ -789,21 +800,33 @@
                                     </div>
                                 </div>
 
-                                {{-- URL corta + código --}}
+                                {{-- URL genérica para tipear a mano --}}
                                 <div>
-                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{{ __('Para una TV: tipear esta dirección') }}</label>
+                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{{ __('Para tipear a mano') }}</label>
                                     <div class="flex items-center gap-2">
-                                        <input type="text" readonly value="{{ $this->cpUrlCorta }}"
+                                        <input type="text" readonly value="{{ $this->cpUrlGenerica }}"
                                             class="flex-1 rounded-md border-gray-300 bg-gray-50 text-xs shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
-                                        <button type="button" @click="copiar('{{ $this->cpUrlCorta }}', 'corta')"
+                                        <button type="button" @click="copiar('{{ $this->cpUrlGenerica }}', 'corta')"
                                             class="inline-flex items-center px-2.5 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                                             <span x-show="copiado !== 'corta'"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></span>
                                             <span x-show="copiado === 'corta'" x-cloak class="text-cyan-600 dark:text-cyan-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg></span>
                                         </button>
                                     </div>
-                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Código de vinculación') }}:
-                                        <span class="font-mono font-bold tracking-widest text-gray-800 dark:text-gray-100">{{ $cpCodigo }}</span>
-                                    </p>
+                                </div>
+
+                                {{-- Código de vinculación (se ingresa en la pantalla) --}}
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{{ __('Código de vinculación') }}</label>
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex-1 rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-center font-mono font-bold text-lg tracking-[0.3em] text-gray-800 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100">{{ $cpCodigo }}</div>
+                                        <button type="button" @click="copiar('{{ $cpCodigo }}', 'codigo')"
+                                            class="inline-flex items-center px-2.5 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                            <span x-show="copiado !== 'codigo'"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></span>
+                                            <span x-show="copiado === 'codigo'" x-cloak class="text-cyan-600 dark:text-cyan-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg></span>
+                                        </button>
+                                    </div>
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Se ingresa en la pantalla luego de abrir la dirección.') }}</p>
+                                </div>
                                 </div>
 
                                 {{-- Regenerar token --}}
