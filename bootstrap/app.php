@@ -17,6 +17,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // Registrar middleware de Tenant con alias
         $middleware->alias([
             'tenant' => TenantMiddleware::class,
+            // Resuelve el tenant de pantallas públicas Clase B por token (sin sesión)
+            'pantalla.token' => \App\Http\Middleware\ResolvePublicTokenMiddleware::class,
         ]);
 
         // IMPORTANTE: Configurar el tenant en TODOS los requests web

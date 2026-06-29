@@ -84,6 +84,52 @@ Route::middleware(['auth'])->group(function () {
 });
 
 /**
+ * Pantallas Clase B — remotas, SIN sesión (llamador de pedidos, consultor de
+ * precios). Corren en dispositivos sin login (TV, tablet pública). Resuelven el
+ * tenant por token de la URL contra el índice global (middleware `pantalla.token`).
+ *
+ * Fase 1: solo el endpoint de vinculación (canje de código corto → token). Las
+ * vistas de las pantallas se agregan en las fases 2 y 3.
+ * Ref: .claude/specs/multi-pwa-clase-b.md (RF-02, RF-02b)
+ */
+// Páginas (shell neutro, sin sesión ni middleware de token: el JS resuelve el
+// token de localStorage / URL / código). start_url de las PWAs = rutas genéricas.
+Route::get('llamador', [\App\Http\Controllers\PantallaPublica\LlamadorController::class, 'index'])->name('llamador');
+Route::get('llamador/{token}', [\App\Http\Controllers\PantallaPublica\LlamadorController::class, 'porToken'])->name('llamador.token');
+// URL corta genérica para tipear a mano (pide el código de vinculación en pantalla).
+Route::get('ll', [\App\Http\Controllers\PantallaPublica\LlamadorController::class, 'index'])->name('llamador.short');
+// URL corta tipeable en TV con el código incluido (un mismo código sirve para ambas pantallas con prefijo distinto).
+Route::get('ll/{codigo}', [\App\Http\Controllers\PantallaPublica\LlamadorController::class, 'porCodigo'])->name('llamador.codigo');
+
+// Consultor de precios (Clase B): mismas reglas, prefijo de URL corta `pr`.
+Route::get('precios', [\App\Http\Controllers\PantallaPublica\ConsultorPreciosController::class, 'index'])->name('precios');
+Route::get('precios/{token}', [\App\Http\Controllers\PantallaPublica\ConsultorPreciosController::class, 'porToken'])->name('precios.token');
+Route::get('pr', [\App\Http\Controllers\PantallaPublica\ConsultorPreciosController::class, 'index'])->name('precios.short');
+Route::get('pr/{codigo}', [\App\Http\Controllers\PantallaPublica\ConsultorPreciosController::class, 'porCodigo'])->name('precios.codigo');
+
+Route::prefix('clase-b')->group(function () {
+    // Canje del código corto (tipeado en TV) por el token largo. GET read-only
+    // (sin CSRF) + rate limit anti fuerza bruta.
+    Route::get('vincular/{codigo}', [\App\Http\Controllers\PantallaPublica\VinculacionController::class, 'canjear'])
+        ->middleware('throttle:10,1')
+        ->name('clase-b.vincular');
+
+    // Snapshot del llamador acotado al token (cold start + personalización).
+    Route::get('llamador/{token}/snapshot', [\App\Http\Controllers\PantallaPublica\LlamadorController::class, 'snapshot'])
+        ->middleware(['pantalla.token', 'throttle:60,1'])
+        ->name('clase-b.llamador.snapshot');
+
+    // Consultor de precios: config (cold start) + búsqueda. Ambos gateados por
+    // usa_consultor_precios en el controller (404 si la pantalla está apagada).
+    Route::get('precios/{token}/config', [\App\Http\Controllers\PantallaPublica\ConsultorPreciosController::class, 'config'])
+        ->middleware(['pantalla.token', 'throttle:60,1'])
+        ->name('clase-b.precios.config');
+    Route::get('precios/{token}/buscar', [\App\Http\Controllers\PantallaPublica\ConsultorPreciosController::class, 'buscar'])
+        ->middleware(['pantalla.token', 'throttle:120,1'])
+        ->name('clase-b.precios.buscar');
+});
+
+/**
  * Aplicación principal — PWA con scope "/app".
  *
  * Incluye el login (Opción B): así, al abrir la PWA (start_url "/app") el

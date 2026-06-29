@@ -2244,14 +2244,56 @@ class NuevoPedidoMostrador extends Component
     protected function procesarCobroRapido(): void
     {
         try {
-            if (empty($this->desglosePagos)) {
-                $this->dispatch('toast-error', message: __('No hay pagos en el desglose'));
+            if (! $this->pedidoId) {
+                $this->dispatch('toast-error', message: __('Pedido no encontrado'));
 
                 return;
             }
 
-            if (! $this->pedidoId) {
-                $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+            // Invitación total de un pedido existente: no hay nada que cobrar, así
+            // que en vez de agregar pagos aplicamos la cortesía al pedido vía
+            // actualizarPedido (total_final=0 + recalcularEstadoPago → pagado).
+            // Sin esto, el desglose queda vacío y abortaba con "No hay pagos en el
+            // desglose".
+            $totalFinalActual = (float) ($this->resultado['total_final'] ?? 0);
+            $esInvitacionCompleta = $this->esInvitacionTotal && $totalFinalActual <= 0.005;
+
+            if ($esInvitacionCompleta) {
+                $pedido = PedidoMostrador::find($this->pedidoId);
+                if (! $pedido) {
+                    $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+
+                    return;
+                }
+
+                // En cobro rápido, iniciarCobroRapido() dejó
+                // ajusteFormaPagoInfo.total_con_ajuste = saldo del pedido; sin
+                // limpiarlo, construirDataPedido() lo preferiría sobre el total
+                // invitado (0) y persistiría total_final con el saldo. La
+                // invitación total no cobra nada → reseteamos el estado de cobro.
+                $this->desglosePagos = [];
+                $this->ajusteFormaPagoInfo['monto'] = 0;
+                $this->ajusteFormaPagoInfo['total_con_ajuste'] = 0;
+
+                $this->calcularVenta();
+                $this->pedidoService->actualizarPedido(
+                    $pedido,
+                    $this->construirDataPedido(),
+                    $this->construirDetallesPedido(),
+                );
+
+                $this->asociarCobroIntegracionAlCobrable($pedido);
+                $this->resetCobroIntegracion();
+
+                $this->dispatch('toast-success', message: __('Pedido cobrado'));
+                $this->mostrarModalPago = false;
+                $this->dispatch('cobro-rapido-completado');
+
+                return;
+            }
+
+            if (empty($this->desglosePagos)) {
+                $this->dispatch('toast-error', message: __('No hay pagos en el desglose'));
 
                 return;
             }

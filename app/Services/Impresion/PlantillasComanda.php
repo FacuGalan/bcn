@@ -51,7 +51,7 @@ class PlantillasComanda
         $out .= self::ALIGN_CENTER.self::BOLD_ON.self::SIZE_DOUBLE;
         $out .= mb_strtoupper((string) ($sucursal->nombre_publico ?? $sucursal->nombre ?? 'COMANDA')).self::LF;
         $out .= self::SIZE_NORMAL.self::BOLD_OFF;
-        $out .= 'Pedido #'.($pedido->numero ?? '-').self::LF;
+        $out .= 'Pedido #'.($pedido->numero_visible ?? '-').self::LF;
         $out .= optional($pedido->fecha)->format('d/m/Y H:i').self::LF;
         $out .= str_repeat('-', 32).self::LF;
 
@@ -118,7 +118,7 @@ class PlantillasComanda
         $sucursal = $pedido->sucursal ?? Sucursal::find($pedido->sucursal_id);
 
         $titulo = e($sucursal->nombre_publico ?? $sucursal->nombre ?? 'Comanda');
-        $numero = e((string) ($pedido->numero ?? '-'));
+        $numero = e((string) ($pedido->numero_visible ?? '-'));
         $fecha = e(optional($pedido->fecha)->format('d/m/Y H:i'));
 
         $beeperBlock = '';
@@ -190,7 +190,7 @@ HTML;
         $out .= mb_strtoupper((string) ($sucursal->nombre_publico ?? $sucursal->nombre ?? 'PRECUENTA')).self::LF;
         $out .= self::SIZE_NORMAL.self::BOLD_OFF;
         $out .= 'PRECUENTA — NO VÁLIDO COMO FACTURA'.self::LF;
-        $out .= 'Pedido #'.($pedido->numero ?? '-').self::LF;
+        $out .= 'Pedido #'.($pedido->numero_visible ?? '-').self::LF;
         $out .= optional($pedido->fecha)->format('d/m/Y H:i').self::LF;
         $out .= str_repeat('-', 32).self::LF;
         $out .= self::ALIGN_LEFT;
@@ -230,7 +230,7 @@ HTML;
         $sucursal = $pedido->sucursal ?? Sucursal::find($pedido->sucursal_id);
 
         $titulo = e($sucursal->nombre_publico ?? $sucursal->nombre ?? 'Precuenta');
-        $numero = e((string) ($pedido->numero ?? '-'));
+        $numero = e((string) ($pedido->numero_visible ?? '-'));
         $fecha = e(optional($pedido->fecha)->format('d/m/Y H:i'));
 
         $items = '';

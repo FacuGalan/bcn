@@ -297,6 +297,24 @@
                                             {{ __('Personalizar 2da pantalla') }}
                                         </button>
                                     @endif
+                                    <button
+                                        wire:click="abrirLlamador({{ $sucursal->id }})"
+                                        class="inline-flex items-center px-3 py-1.5 bg-teal-600 border border-transparent text-white text-sm font-medium rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors"
+                                    >
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
+                                        </svg>
+                                        {{ __('Llamador') }}
+                                    </button>
+                                    <button
+                                        wire:click="abrirConsultorPrecios({{ $sucursal->id }})"
+                                        class="inline-flex items-center px-3 py-1.5 bg-cyan-600 border border-transparent text-white text-sm font-medium rounded-md hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 transition-colors"
+                                    >
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                        </svg>
+                                        {{ __('Consultor de precios') }}
+                                    </button>
                                 </div>
                             </div>
                         </div>

@@ -112,6 +112,7 @@ class PedidoMostrador extends Model
 
     protected $fillable = [
         'numero',
+        'numero_display',
         'identificador',
         'numero_beeper',
         'sucursal_id',
@@ -369,6 +370,31 @@ class PedidoMostrador extends Model
     public function getNombreClienteFinalAttribute(): ?string
     {
         return $this->cliente?->nombre ?? $this->nombre_cliente_temporal;
+    }
+
+    /**
+     * Número a mostrar cara-al-público (monitor, comanda, kanban): el de display
+     * (turno) si existe, si no el correlativo permanente.
+     */
+    public function getNumeroVisibleAttribute(): ?int
+    {
+        return $this->numero_display ?? $this->numero;
+    }
+
+    /**
+     * Nombre para el monitor llamador público (Clase B): SOLO el primer nombre
+     * (nunca apellido) para llamar al cliente sin sobre-exponer datos en una
+     * pantalla pública. Usa el nombre temporal o el del cliente registrado.
+     */
+    public function nombreLlamador(): ?string
+    {
+        $nombre = trim((string) $this->nombre_cliente_final);
+
+        if ($nombre === '') {
+            return null;
+        }
+
+        return explode(' ', $nombre)[0];
     }
 
     public function getTelefonoClienteFinalAttribute(): ?string

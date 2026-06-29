@@ -68,6 +68,33 @@ class Sucursal extends Model
     ];
 
     /**
+     * Valores por defecto de la personalización del monitor llamador (pantalla
+     * Clase B). Se mergean con lo guardado en `config_llamador`.
+     */
+    public const CONFIG_LLAMADOR_DEFAULTS = [
+        'titulo' => 'Pedidos',
+        'mostrar_logo' => true,
+        'color_fondo' => '#0f172a',
+        'color_preparacion' => '#f59e0b', // ámbar (columna "En preparación")
+        'color_listo' => '#22c55e',       // verde (columna "Listo / Retirar")
+        'sonido' => true,                 // chime al pasar un pedido a "Listo"
+        'tamano' => 'normal',             // compacto | normal | grande (densidad base; el auto-fit achica si no entran)
+    ];
+
+    /**
+     * Valores por defecto de la personalización del consultor de precios
+     * (pantalla Clase B). Se mergean con lo guardado en `config_consultor_precios`.
+     */
+    public const CONFIG_CONSULTOR_PRECIOS_DEFAULTS = [
+        'titulo' => 'Consultá tu precio',
+        'mostrar_logo' => true,
+        'color_fondo' => '#0f172a',
+        'color_acento' => '#22d3ee',      // cian (precio destacado)
+        'mensaje_idle' => 'Escanee un artículo',  // frase en espera (orientado a scanner)
+        'duracion_resultado' => 5,        // segundos que el resultado queda en pantalla antes de volver a idle
+    ];
+
+    /**
      * Provincias de Argentina con código ISO 3166-2 → nombre oficial.
      *
      * Se guarda el código en `sucursales.provincia` (ej. 'AR-B') y se traduce
@@ -117,6 +144,11 @@ class Sucursal extends Model
     protected $fillable = [
         'nombre', 'nombre_publico', 'codigo', 'direccion', 'telefono', 'email', 'logo_path',
         'es_principal', 'datos_fiscales_id', 'activa', 'configuracion', 'config_pantalla_cliente',
+        // Pantallas públicas Clase B (llamador de pedidos, consultor de precios)
+        'token_publico', 'config_llamador', 'config_consultor_precios',
+        // Numeración de display (turno) + toggles de pantallas Clase B
+        'usa_llamador', 'usa_consultor_precios', 'usa_numeracion_display', 'numeracion_display_modo',
+        'numeracion_display_horas', 'pedido_display_ultimo_numero', 'pedido_display_segmento_at',
         // Campos de configuración
         'usa_clave_autorizacion', 'clave_autorizacion', 'tipo_impresion_factura',
         'imprime_encabezado_comanda', 'agrupa_articulos_venta', 'agrupa_articulos_impresion',
@@ -136,6 +168,13 @@ class Sucursal extends Model
         'activa' => 'boolean',
         'configuracion' => 'array',
         'config_pantalla_cliente' => 'array',
+        'config_llamador' => 'array',
+        'config_consultor_precios' => 'array',
+        'usa_llamador' => 'boolean',
+        'usa_consultor_precios' => 'boolean',
+        'usa_numeracion_display' => 'boolean',
+        'numeracion_display_horas' => 'array',
+        'pedido_display_segmento_at' => 'datetime',
         'usa_clave_autorizacion' => 'boolean',
         'imprime_encabezado_comanda' => 'boolean',
         'agrupa_articulos_venta' => 'boolean',
@@ -286,6 +325,48 @@ class Sucursal extends Model
         $guardada = is_array($this->config_pantalla_cliente) ? $this->config_pantalla_cliente : [];
 
         return array_merge(self::CONFIG_PANTALLA_CLIENTE_DEFAULTS, $guardada);
+    }
+
+    /**
+     * Personalización del monitor llamador (pantalla Clase B) con los DEFAULTS
+     * mergeados para garantizar todas las keys.
+     */
+    public function getConfigLlamador(): array
+    {
+        $guardada = is_array($this->config_llamador) ? $this->config_llamador : [];
+
+        return array_merge(self::CONFIG_LLAMADOR_DEFAULTS, $guardada);
+    }
+
+    /**
+     * Personalización del consultor de precios (pantalla Clase B) con los DEFAULTS
+     * mergeados para garantizar todas las keys.
+     */
+    public function getConfigConsultorPrecios(): array
+    {
+        $guardada = is_array($this->config_consultor_precios) ? $this->config_consultor_precios : [];
+
+        return array_merge(self::CONFIG_CONSULTOR_PRECIOS_DEFAULTS, $guardada);
+    }
+
+    /**
+     * Horas de reset diario de la numeración de display (0-23), ordenadas y sin
+     * duplicados. Default `[6]` (una sola jornada de 6am a 6am).
+     *
+     * @return list<int>
+     */
+    public function horasResetDisplay(): array
+    {
+        $horas = is_array($this->numeracion_display_horas) ? $this->numeracion_display_horas : [];
+
+        $horas = array_values(array_unique(array_filter(
+            array_map('intval', $horas),
+            fn ($h) => $h >= 0 && $h <= 23
+        )));
+
+        sort($horas);
+
+        return $horas ?: [6];
     }
 
     /**

@@ -116,7 +116,7 @@ class ProvisionComercioCommand extends Command
 
             // ── Paso 7: Seed — Sucursal ──
             $this->info('[6/13] Creando sucursal principal...');
-            $sucursalId = $this->seedSucursal();
+            $sucursalId = $this->seedSucursal($comercioId);
 
             // ── Paso 8: Seed — Lista de Precios Base ──
             $this->info('[7/13] Creando lista de precios base...');
@@ -250,20 +250,36 @@ class ProvisionComercioCommand extends Command
     /**
      * Crea la sucursal principal
      */
-    protected function seedSucursal(): int
+    protected function seedSucursal(int $comercioId): int
     {
         $now = now();
+
+        // Token público + código corto para las pantallas Clase B (llamador,
+        // consultor de precios). Se escriben en la columna tenant Y en el índice
+        // global config para resolver el tenant sin sesión.
+        $token = \App\Models\PantallaPublicaToken::generarTokenUnico();
+        $codigo = \App\Models\PantallaPublicaToken::generarCodigoUnico();
 
         DB::connection('pymes_tenant')->table('sucursales')->insert([
             'nombre' => 'Sucursal Principal',
             'codigo' => 'SUC001',
             'es_principal' => true,
             'activa' => true,
+            'token_publico' => $token,
             'created_at' => $now,
             'updated_at' => $now,
         ]);
 
-        return (int) DB::connection('pymes_tenant')->getPdo()->lastInsertId();
+        $sucursalId = (int) DB::connection('pymes_tenant')->getPdo()->lastInsertId();
+
+        \App\Models\PantallaPublicaToken::create([
+            'token' => $token,
+            'codigo_corto' => $codigo,
+            'comercio_id' => $comercioId,
+            'sucursal_id' => $sucursalId,
+        ]);
+
+        return $sucursalId;
     }
 
     /**

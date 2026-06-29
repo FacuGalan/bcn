@@ -305,6 +305,96 @@
                     </div>
                 </div>
 
+                {{-- SECCION: Numeracion de pedidos (turno) --}}
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-4 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/>
+                        </svg>
+                        {{ __('Numeración de pedidos (turno)') }}
+                    </h4>
+
+                    <div class="flex items-start">
+                        <div class="flex items-center h-5">
+                            <input
+                                type="checkbox"
+                                id="usaNumeracionDisplay"
+                                wire:model.live="configUsaNumeracionDisplay"
+                                class="h-4 w-4 text-bcn-primary focus:ring-bcn-primary border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600"
+                            >
+                        </div>
+                        <div class="ml-3 text-sm">
+                            <label for="usaNumeracionDisplay" class="font-medium text-gray-700 dark:text-gray-300">
+                                {{ __('Usar numeración de display reseteable') }}
+                            </label>
+                            <p class="text-gray-500 dark:text-gray-400 text-xs">{{ __('Un número corto y amigable para el monitor y la comanda, que se reinicia. El número permanente sigue como referencia interna.') }}</p>
+                        </div>
+                    </div>
+
+                    @if($configUsaNumeracionDisplay)
+                        <div class="mt-4 ml-7 space-y-4">
+                            {{-- Modo de reinicio --}}
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Reinicio') }}</label>
+                                <select
+                                    wire:model.live="configNumeracionDisplayModo"
+                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                >
+                                    <option value="diario">{{ __('Automático por horario') }}</option>
+                                    <option value="manual">{{ __('Manual (por turno/tanda)') }}</option>
+                                </select>
+                            </div>
+
+                            @if($configNumeracionDisplayModo === 'diario')
+                                {{-- Horarios de reinicio --}}
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Horarios de reinicio') }}</label>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ __('A cada hora indicada el contador vuelve a 1. Ej: 6 y 18 para turno mañana y tarde.') }}</p>
+                                    <div class="flex flex-wrap gap-2 mb-2">
+                                        @forelse($configNumeracionDisplayHoras as $hora)
+                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-bcn-primary/10 text-bcn-primary text-sm font-medium dark:bg-bcn-primary/20">
+                                                {{ str_pad($hora, 2, '0', STR_PAD_LEFT) }}:00
+                                                <button type="button" wire:click="quitarHoraNumeracion({{ $hora }})" class="text-bcn-primary hover:text-red-600 dark:hover:text-red-400">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                </button>
+                                            </span>
+                                        @empty
+                                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ __('Sin horarios: por defecto reinicia a las 06:00.') }}</span>
+                                        @endforelse
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <select
+                                            wire:model="configNumeracionNuevaHora"
+                                            class="rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                        >
+                                            <option value="">{{ __('Hora...') }}</option>
+                                            @for($h = 0; $h < 24; $h++)
+                                                <option value="{{ $h }}">{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}:00</option>
+                                            @endfor
+                                        </select>
+                                        <button type="button" wire:click="agregarHoraNumeracion"
+                                            class="inline-flex items-center px-3 py-1.5 bg-bcn-primary/10 border border-bcn-primary/30 text-bcn-primary text-sm font-medium rounded-md hover:bg-bcn-primary/20 dark:bg-bcn-primary/20 dark:border-bcn-primary/40">
+                                            {{ __('Agregar') }}
+                                        </button>
+                                    </div>
+                                </div>
+                            @else
+                                {{-- Reinicio manual --}}
+                                <div>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ __('Reiniciá el contador manualmente cuando empieza un nuevo turno o tanda.') }}</p>
+                                    <button type="button"
+                                        wire:click="reiniciarNumeracionDisplay"
+                                        wire:confirm="{{ __('¿Reiniciar la numeración? El próximo pedido arrancará de 1.') }}"
+                                        class="inline-flex items-center px-3 py-1.5 bg-amber-500 border border-transparent text-white text-sm font-medium rounded-md hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-400">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                        {{ __('Reiniciar numeración') }}
+                                    </button>
+                                </div>
+                            @endif
+                        </div>
+                    @endif
+                </div>
+
                 {{-- SECCION: WhatsApp --}}
                 <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 flex-1">
                     <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-4 flex items-center">

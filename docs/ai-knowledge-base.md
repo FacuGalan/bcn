@@ -30,6 +30,7 @@ BCN Pymes utiliza un modelo multi-tenant con **3 conexiones de base de datos**:
 - `comercio_user` -- Pivot usuarios-comercios (un usuario puede acceder a multiples comercios)
 - `condiciones_iva` -- Catalogo de condiciones IVA de AFIP (Responsable Inscripto, Monotributista, Consumidor Final, etc.)
 - `localidades`, `provincias` -- Datos geograficos. `localidades` tiene columnas `latitud` / `longitud` (`decimal(10,7)` nullable) populadas desde el dataset GeoRef; sirven para centrar el picker de Google Maps en la localidad elegida. Ver `Localidad::centro(?int $id): ?array`.
+- `pantalla_publica_tokens` -- Indice global que mapea token/codigo publico → comercio + sucursal para las pantallas auxiliares Clase B (llamador de pedidos, consultor de precios). Permite resolver el tenant SIN sesion a partir del token de la URL, sin escanear las N BDs tenant. Ver seccion 2.15.
 
 **Tablas en `pymes` (compartidas, sin prefijo):**
 - `menu_items` -- Items del menu de navegacion
@@ -1178,6 +1179,16 @@ Ya descrita en seccion 1.2. Campos adicionales relevantes:
 - `mp_store_id` -- `varchar(50)` nullable. ID numerico devuelto por MP al crear la Store. Se usa para actualizar/eliminar. Indexado.
 - `mp_store_external_id` -- `varchar(60)` nullable. Identificador externo en MP. Formato: `BCN-{comercio_id}-{sucursal_id}`. Unico (UNIQUE INDEX). Solo se envia al **crear** la store; en updates MP lo rechaza por colision consigo mismo.
 - `config_pantalla_cliente` -- `json` nullable, cast `array`. Configuracion de personalizacion de la pantalla orientada al cliente. Se mergea con `Sucursal::CONFIG_PANTALLA_CLIENTE_DEFAULTS` antes de usarse. Ver helpers en el modelo `Sucursal`.
+- `token_publico` -- `varchar(40)` nullable UNIQUE. Copia del token largo en la tabla tenant. La resolucion sin sesion usa el indice global `pantalla_publica_tokens`; esta columna es para la UI de configuracion (no se usa en el middleware). Se genera en la migracion y se mantiene sincronizado con el indice via `PantallaPublicaService`.
+- `config_llamador` -- `json` nullable, cast `array`. Personalizacion del monitor llamador. Se mergea con `Sucursal::CONFIG_LLAMADOR_DEFAULTS`.
+- `config_consultor_precios` -- `json` nullable, cast `array`. Personalizacion del consultor de precios. Se mergea con `Sucursal::CONFIG_CONSULTOR_PRECIOS_DEFAULTS`.
+- `usa_llamador` -- `boolean` default `false`. Si el monitor llamador esta activo. Cuando es `false`, `PedidoMostradorService` no emite `PedidoLlamadorPublicoBroadcast` al cambiar estados.
+- `usa_consultor_precios` -- `boolean` default `false`. Si el consultor de precios esta activo. Cuando es `false`, el endpoint `/clase-b/precios/{token}/buscar` retorna 404.
+- `usa_numeracion_display` -- `boolean` default `false`. Si la sucursal asigna un numero de turno (display) aparte del correlativo permanente.
+- `numeracion_display_modo` -- `enum('diario','manual')` default `'diario'`. `diario` = reset automatico a las horas configuradas; `manual` = solo al presionar el boton.
+- `numeracion_display_horas` -- `json` nullable, cast `array`. Lista de horas de reset diario (0-23). Si null o vacio, el helper `horasResetDisplay()` asume `[6]` (reset a las 06:00). Ej: `[6, 18]` para turno manana y tarde.
+- `pedido_display_ultimo_numero` -- `int unsigned` default 0. Contador atomico del numero de display del segmento actual. Se incrementa con `DB::connection('pymes_tenant')->statement("UPDATE ... SET pedido_display_ultimo_numero = pedido_display_ultimo_numero + 1 ...")` via lock de fila para serializar accesos concurrentes.
+- `pedido_display_segmento_at` -- `datetime` nullable, cast `datetime`. Inicio del segmento (jornada/turno) actual del contador display. Se usa para determinar si corresponde reiniciar el contador en modo diario.
 
 **Defaults de `config_pantalla_cliente`** (`Sucursal::CONFIG_PANTALLA_CLIENTE_DEFAULTS`):
 
@@ -1192,8 +1203,34 @@ Ya descrita en seccion 1.2. Campos adicionales relevantes:
 | `mensaje_idle` | string | `""` (usa texto por defecto en el frontend) |
 | `tamano_logo` | `sm` / `md` / `lg` | `md` |
 
+**Defaults de `config_llamador`** (`Sucursal::CONFIG_LLAMADOR_DEFAULTS`):
+
+| Clave | Tipo / Valores | Default |
+|---|---|---|
+| `titulo` | string | `"Pedidos"` |
+| `mostrar_logo` | bool | `true` |
+| `color_fondo` | hex string | `#0f172a` |
+| `color_preparacion` | hex string | `#f59e0b` (ambar, columna "En preparacion") |
+| `color_listo` | hex string | `#22c55e` (verde, columna "Listo / Retirar") |
+| `sonido` | bool | `true` (chime al pasar a "Listo") |
+| `tamano` | `compacto` / `normal` / `grande` | `normal` (densidad base; el auto-fit achica si no entran) |
+
+**Defaults de `config_consultor_precios`** (`Sucursal::CONFIG_CONSULTOR_PRECIOS_DEFAULTS`):
+
+| Clave | Tipo / Valores | Default |
+|---|---|---|
+| `titulo` | string | `"Consultá tu precio"` |
+| `mostrar_logo` | bool | `true` |
+| `color_fondo` | hex string | `#0f172a` |
+| `color_acento` | hex string | `#22d3ee` (cian, precio destacado) |
+| `mensaje_idle` | string | `"Escanee un artículo"` |
+| `duracion_resultado` | int (segundos) | `5` |
+
 **Helpers en el modelo `Sucursal`**:
 - `getConfigPantallaCliente(): array` — merge de `config_pantalla_cliente` (DB) con `CONFIG_PANTALLA_CLIENTE_DEFAULTS`. Garantiza que nunca falten claves aunque la columna este NULL o incompleta.
+- `getConfigLlamador(): array` — merge de `config_llamador` (DB) con `CONFIG_LLAMADOR_DEFAULTS`.
+- `getConfigConsultorPrecios(): array` — merge de `config_consultor_precios` (DB) con `CONFIG_CONSULTOR_PRECIOS_DEFAULTS`.
+- `horasResetDisplay(): array` — lista de horas de reset diario (0-23), ordenadas y sin duplicados. Fallback `[6]` si la columna es null/vacia.
 - `logoPantallaClienteUrl(): string|null` — devuelve la URL del logo a mostrar: logo de la sucursal si existe, logo de la empresa como fallback. Usa `asset()`.
 - `nombrePantallaCliente(): string` — nombre a mostrar: `nombre_publico` ?? `nombre` ?? nombre de la empresa.
 - `usaPantallaCliente(): bool` — true si al menos una caja de la sucursal tiene `usa_pantalla_cliente = 1`.
@@ -1495,7 +1532,8 @@ Documento operativo principal del modulo.
 | Columna | Tipo | Descripcion |
 |---|---|---|
 | `id` | bigint PK | ID unico |
-| `numero` | int unsigned nullable | Numero correlativo por sucursal. NULL en borradores. |
+| `numero` | int unsigned nullable | Numero correlativo permanente por sucursal. NULL en borradores. |
+| `numero_display` | int unsigned nullable | Numero de turno amigable mostrado en monitor/comanda/kanban. NULL = la sucursal no usa numeracion de display (cae al `numero` permanente). Se asigna en `PedidoMostradorService::siguienteNumeroDisplay()` al confirmar. |
 | `identificador` | varchar(100) nullable | Texto libre: nombre del cliente, numero de mesa, etc. |
 | `numero_beeper` | varchar(20) nullable | Numero de beeper si la sucursal usa sistema de beepers |
 | `sucursal_id` | bigint FK | Sucursal donde se tomo el pedido |
@@ -1577,6 +1615,10 @@ Documento operativo principal del modulo.
 - `total_cobrado`: suma de `monto_final` de pagos con `estado = activo`.
 - `total_planificado`: suma de `monto_final` de pagos con `estado = planificado`.
 - `estado_comanda`: calcula el estado de comanda derivado de la coleccion `detalles`. Si la relacion ya esta cargada la usa; si no, la consulta. Fallback `no_comandado` si el pedido no tiene detalles. Implementado como accessor PHP: `getEstadoComandaAttribute(): string`.
+- `numero_visible`: devuelve `numero_display ?? numero`. Es el numero que se muestra cara-al-publico (monitor llamador, comanda, kanban). Implementado como accessor PHP: `getNumeroVisibleAttribute(): ?int`.
+
+**Metodo de negocio**:
+- `nombreLlamador(): ?string` -- nombre para el monitor llamador publico: SOLO el primer nombre del cliente (nunca apellido) para no sobre-exponer datos en una pantalla publica. Usa `nombre_cliente_final`; si esta vacio, retorna `null`.
 
 #### Tabla: `pedidos_mostrador_detalle`
 Items del pedido. Espejo de `ventas_detalle`.
@@ -1712,7 +1754,8 @@ Los roles Administrador y Super Administrador reciben todos estos permisos autom
 
 #### Campos agregados a tablas existentes
 
-- **`sucursales`**: `pedido_mostrador_activo` (boolean, habilita el modulo por sucursal), `imprime_comanda_automatico` (boolean default 1, si es true al confirmar un pedido se llama `comandarPedido($pedido, 'todos')` automaticamente -- marca todos los detalles con `comandado_at = now()` y avanza el estado a `en_preparacion`), `pedido_mostrador_ultimo_numero` (int unsigned, contador atomico del numero correlativo).
+- **`sucursales`**: `pedido_mostrador_activo` (boolean, habilita el modulo por sucursal), `imprime_comanda_automatico` (boolean default 1, si es true al confirmar un pedido se llama `comandarPedido($pedido, 'todos')` automaticamente -- marca todos los detalles con `comandado_at = now()` y avanza el estado a `en_preparacion`), `pedido_mostrador_ultimo_numero` (int unsigned, contador atomico del numero correlativo). Columnas agregadas en Clase B: `usa_llamador`, `usa_numeracion_display`, `numeracion_display_modo`, `numeracion_display_horas`, `pedido_display_ultimo_numero`, `pedido_display_segmento_at` (ver seccion 2.10).
+- **`pedidos_mostrador`**: `numero_display` (int unsigned nullable, numero de turno amigable mostrado publicamente; NULL si la sucursal no usa numeracion de display).
 
 #### Feature: Invitaciones / Cortesias
 
@@ -2865,6 +2908,106 @@ this.marker = new this.AdvancedMarkerElement({
 ```
 
 Aplicar `Alpine.raw(obj)` siempre que se pase un objeto reactivo Alpine a una libreria JS de terceros que realice comparaciones de identidad (`===`) sobre el objeto (ej: objetos DOM, instancias de clases de terceros).
+
+---
+
+### 2.15 Pantallas Auxiliares Clase B (Llamador de Pedidos y Consultor de Precios)
+
+Pantallas publicas remotas SIN sesion (TV en salon, tablet en mostrador) que resuelven el tenant a partir de un token de la URL contra el indice global `pantalla_publica_tokens` (DB config), sin escanear los N tenants. Mismo patron que `MercadoPagoCollectorIndex`.
+
+#### Tabla: `pantalla_publica_tokens` (conexion `config`, sin prefijo)
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `token` | varchar(40) UNIQUE | Token largo no adivinable. Nombra el canal Reverb (`llamador.{token}`) y autoriza los endpoints. Se guarda en localStorage del dispositivo. |
+| `codigo_corto` | varchar(8) UNIQUE | 6 caracteres del alfabeto sin ambiguedades (sin 0/O, 1/I/L). Credencial humana para vincular TVs tipando la URL corta. Se canjea por el token via `/clase-b/vincular/{codigo}`. |
+| `comercio_id` | bigint FK | ID del comercio (referencia a `comercios`). |
+| `sucursal_id` | bigint | FK logica cross-DB a `{prefix}sucursales.id` (sin FK real por ser cross-DB). |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+**Indice unico**: `(comercio_id, sucursal_id)` — un solo registro por sucursal de cada comercio.
+
+**Constantes del modelo `PantallaPublicaToken`**:
+- `ALFABETO_CODIGO = '23456789ABCDEFGHJKMNPQRSTUVWXYZ'` (31 simbolos sin ambiguedades)
+- `LARGO_TOKEN = 40`
+- `LARGO_CODIGO = 6`
+
+#### Service: `PantallaPublicaService`
+
+`app/Services/PantallaPublicaService.php`
+
+Unico punto de entrada para operaciones de las pantallas Clase B. Requiere inyeccion de `TenantService` y `PrecioService`.
+
+**Metodos principales**:
+- `resolverPorToken(string $token): ?array` — busca el token en el indice global, configura el tenant via `TenantService::usarComercioParaProceso()` y devuelve `['comercio', 'sucursal', 'index']`. Retorna `null` si el token no existe o la sucursal fue eliminada. Lo llama el middleware `pantalla.token` (ver rutas).
+- `canjearCodigoCorto(string $codigo): ?string` — canjea el codigo corto (tipeado en TV) por el token largo. Retorna `null` si el codigo no existe. Rate-limited a 10 req/min en la ruta.
+- `regenerarToken(Sucursal $sucursal): array` — genera nuevo `token` + `codigo_corto`, actualiza el indice global y la columna `sucursales.token_publico`. Invalida todos los dispositivos vinculados. Retorna `['token', 'codigo_corto']`. Requiere tenant configurado (se llama con sesion desde Configuracion).
+- `asegurarToken(Sucursal $sucursal): PantallaPublicaToken` — garantiza que la sucursal tenga registro en el indice. Si no lo tiene (sucursal creada antes del feature), lo genera. Sincroniza `sucursales.token_publico` si difiere. Llamado al abrir los modales de configuracion.
+- `pedidosParaLlamador(Sucursal $sucursal): array` — snapshot cold start del monitor llamador: dos listas `{numero, nombre}` con pedidos `en_preparacion` (FIFO por numero) y `listo` (LIFO por numero). Usa `PedidoMostrador::numero_visible` (que devuelve `numero_display ?? numero`).
+- `buscarPreciosPublico(Sucursal $sucursal, string $q, int $limite = 20): array` — busca articulos activos en la sucursal por nombre (parcial), codigo o codigo de barras exactos. Devuelve `[{nombre, unidad, precio, promos}]`. Payload minimo: NO expone costo, margen, stock ni listas internas. `promos` incluye nombres de ambos sistemas de promociones (normales y especiales NxM/combo/menu).
+
+#### Evento broadcast: `PedidoLlamadorPublicoBroadcast`
+
+`app/Events/Broadcasting/PedidoLlamadorPublicoBroadcast.php`
+
+- **Implements**: `ShouldBroadcastNow` (sincronico, sin cola).
+- **Canal**: `llamador.{token}` (canal PUBLICO — los dispositivos se suscriben sin autenticacion de broadcasting).
+- **Nombre de evento** (`broadcastAs()`): `PedidoLlamador`.
+- **Payload**: `{numero, nombre, estado, at}`.
+  - `numero`: `PedidoMostrador::numero_visible` (turno si existe, sino correlativo).
+  - `nombre`: `PedidoMostrador::nombreLlamador()` (primer nombre solamente).
+  - `estado`: `'en_preparacion'` o `'listo'` o `'cancelado'` / `'facturado'` (para remover del monitor).
+- **Se emite** desde `PedidoMostradorService::cambiarEstado()` cuando la sucursal tiene `usa_llamador = true` y el nuevo o viejo estado es `en_preparacion` o `listo`.
+- **No se emite** si `usa_llamador = false` (ahorro de recursos, sin eventos vacios).
+
+**Diferencia con `PedidoMostradorBroadcast`** (canal privado del comercio, para el POS con sesion): `PedidoLlamadorPublicoBroadcast` usa canal publico, payload minimo y no requiere autenticacion de broadcasting. Ambos eventos coexisten y se emiten de forma independiente.
+
+#### Rutas publicas (sin sesion ni autenticacion)
+
+```
+GET  /llamador                → LlamadorController::index()    — shell generico (sin token)
+GET  /llamador/{token}        → LlamadorController::porToken() — shell con token en URL
+GET  /ll                      → alias de /llamador
+GET  /ll/{codigo}             → LlamadorController::porCodigo() — URL tipeable con codigo
+
+GET  /precios                 → ConsultorPreciosController::index()
+GET  /precios/{token}         → ConsultorPreciosController::porToken()
+GET  /pr                      → alias de /precios
+GET  /pr/{codigo}             → ConsultorPreciosController::porCodigo()
+
+GET  /clase-b/vincular/{codigo}              → VinculacionController::canjear()   throttle:10,1
+GET  /clase-b/llamador/{token}/snapshot      → LlamadorController::snapshot()    throttle:60,1  middleware:pantalla.token
+GET  /clase-b/precios/{token}/config         → ConsultorPreciosController::config() throttle:60,1  middleware:pantalla.token
+GET  /clase-b/precios/{token}/buscar         → ConsultorPreciosController::buscar() throttle:120,1 middleware:pantalla.token
+```
+
+El middleware `pantalla.token` (`ResolvePublicTokenMiddleware`) resuelve el token via `PantallaPublicaService::resolverPorToken()` y lleva `sucursal` y `comercio` al request. Si el token no existe, devuelve 404 generico (sin indicar que el token fue incorrecto — anti-enumeracion).
+
+#### Numeracion de display (turno)
+
+`PedidoMostradorService::siguienteNumeroDisplay(int $sucursalId): ?int`
+
+- Retorna `null` si `sucursal.usa_numeracion_display = false`.
+- Si `numeracion_display_modo = 'diario'`: verifica si la hora actual corresponde a un nuevo segmento (segun `numeracion_display_horas`). Si el segmento cambio desde `pedido_display_segmento_at`, reinicia el contador a 0 y actualiza `pedido_display_segmento_at = now()`.
+- Incrementa `pedido_display_ultimo_numero` con un `UPDATE ... SET pedido_display_ultimo_numero = pedido_display_ultimo_numero + 1` con `LOCK IN SHARE MODE` (serializa accesos concurrentes) y retorna el nuevo valor.
+- El numero asignado a `pedidos_mostrador.numero_display` es el resultado de esta funcion.
+
+`PedidoMostradorService::reiniciarNumeracionDisplay(int $sucursalId): void`
+
+- Modo manual: reinicia `pedido_display_ultimo_numero = 0` y `pedido_display_segmento_at = now()` atomicamente.
+
+#### Seguridad
+
+- Los endpoints publicos tienen rate limiting individual.
+- El `codigo_corto` (credencial humana) se usa solo para el intercambio inicial; el token largo se guarda en localStorage y nunca viaja en la URL de la pantalla operativa.
+- Canal Reverb publico = solo suscripcion (el cliente no puede publicar ni susurrar).
+- Los endpoints de datos (`/snapshot`, `/config`, `/buscar`) responden 404 si el token no existe (sin distinguir "token invalido" de "token correcto con sucursal desactivada" — anti-enumeracion).
+- El endpoint de busqueda de precios (`/buscar`) no expone costo, margen, stock ni listas de precios internas. Solo nombre, unidad, precio base y nombres de promociones activas.
+
+#### PWAs
+
+El llamador y el consultor tienen manifests y conjuntos de iconos propios (`/manifest-llamador.json`, `/manifest-consultor-precios.json`). Pueden instalarse como apps independientes en el navegador, separadas de la app principal (scope `/app`) y de la pantalla cliente (scope `/pantalla-cliente`).
 
 ---
 
