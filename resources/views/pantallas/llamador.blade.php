@@ -111,11 +111,11 @@
 
         /* Footer: Powered by BCNSOFT (sutil, igual que la pantalla cliente) */
         .llm-footer {
-            display: flex; align-items: center; justify-content: center; gap: .5rem;
-            padding: .4rem; opacity: .4; pointer-events: none;
+            display: flex; align-items: center; justify-content: center; gap: .6rem;
+            padding: .75rem; opacity: .45; pointer-events: none;
         }
-        .llm-footer span { font-size: .8rem; }
-        .llm-footer img { height: 1rem; object-fit: contain; }
+        .llm-footer span { font-size: .95rem; }
+        .llm-footer img { height: 1.5rem; object-fit: contain; }
     </style>
 </head>
 <body>
