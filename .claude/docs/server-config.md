@@ -128,17 +128,29 @@ composer require predis/predis
 
 ### Post-deploy
 
-El flujo de deploy en producción debería ser:
+El flujo de deploy en producción debe ser:
 
 ```bash
 git pull
 composer install --no-dev --optimize-autoloader
-php artisan optimize
-php artisan view:cache
-sudo systemctl reload php*-fpm
+php artisan migrate --force          # migraciones tenant (iteran todos los comercios)
+npm ci && npm run build              # public/build está gitignored → se compila acá
+php artisan view:cache               # caches SEGURAS (NO config:cache)
+php artisan route:cache
+php artisan event:cache
+sudo systemctl reload php*-fpm       # solo si OPcache tiene validate_timestamps=0
 ```
 
-El hook `post-merge` ejecuta `php artisan optimize` automáticamente tras `git pull`. El reload de FPM debe hacerse manualmente (requiere sudo).
+**Importante:**
+- El hook `post-merge` ejecuta `php artisan optimize:clear` (NO `optimize`): limpia
+  caches sin recachear config, para no envenenar los tests (incidente 2026-05-04).
+  Por eso `migrate`, `build` y el warm de caches **NO están automatizados** — corrélos a mano.
+- **NO usar `php artisan optimize`** (incluye `config:cache`). Warmear solo las tres
+  caches seguras: `view`, `route`, `event`.
+- El reload de FPM es manual (requiere sudo) y solo si `validate_timestamps=0`.
+
+> **Gotchas de deploy** (Volt mount lento, PWA sirviendo vistas viejas, cómo
+> diagnosticar lentitud): ver `.claude/docs/deploy-playbook.md`.
 
 ---
 

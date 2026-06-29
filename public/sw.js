@@ -1,4 +1,11 @@
-const CACHE_NAME = 'bcn-pymes-v5';
+// Versión del cache atada al build: el SW se registra como /sw.js?v=<hash del
+// manifest de Vite>. Cada deploy cambia ese hash → el navegador instala un SW
+// nuevo cuyo CACHE_NAME difiere → el handler 'activate' purga TODOS los caches
+// viejos (HTML y assets stale incluidos) y toma control al instante (skipWaiting
+// + clients.claim). Sin esto, tras un deploy se servía markup/JS viejo contra el
+// server nuevo → la vista "se veía mal". Ref: .claude/docs/deploy-playbook.md (PWA).
+const SW_VERSION = new URL(self.location.href).searchParams.get('v') || 'dev';
+const CACHE_NAME = 'bcn-pymes-' + SW_VERSION;
 const OFFLINE_URL = '/offline.html';
 
 // Recursos para cachear inmediatamente.
