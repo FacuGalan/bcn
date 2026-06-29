@@ -4,11 +4,13 @@ namespace Tests\Feature\Services;
 
 use App\Models\PantallaPublicaToken;
 use App\Models\Sucursal;
+use App\Models\TipoIva;
 use App\Services\PantallaPublicaService;
 use App\Services\TenantService;
 use Tests\TestCase;
 use Tests\Traits\WithSucursal;
 use Tests\Traits\WithTenant;
+use Tests\Traits\WithVentaHelpers;
 
 /**
  * Multi-PWA Clase B — Fase 1: resolución de tenant por token vía índice global,
@@ -19,7 +21,7 @@ use Tests\Traits\WithTenant;
  */
 class PantallaPublicaServiceTest extends TestCase
 {
-    use WithSucursal, WithTenant;
+    use WithSucursal, WithTenant, WithVentaHelpers;
 
     protected function setUp(): void
     {
@@ -115,5 +117,53 @@ class PantallaPublicaServiceTest extends TestCase
     {
         $this->get(route('clase-b.vincular', ['codigo' => 'NOPE12']))
             ->assertNotFound();
+    }
+
+    // ── Consultor de precios (Fase 3) ──
+
+    public function test_buscar_precios_requiere_al_menos_dos_caracteres(): void
+    {
+        $sucursal = Sucursal::find($this->sucursalId);
+
+        $this->assertSame([], $this->service()->buscarPreciosPublico($sucursal, 'a'));
+        $this->assertSame([], $this->service()->buscarPreciosPublico($sucursal, ' '));
+    }
+
+    public function test_buscar_precios_devuelve_articulo_activo_con_precio(): void
+    {
+        TipoIva::firstOrCreate(['codigo' => 5], ['nombre' => 'IVA 21%', 'porcentaje' => 21.00, 'activo' => true]);
+
+        $this->crearArticuloConStock($this->sucursalId, 10, 'ninguno', [
+            'nombre' => 'Coca Cola Test '.uniqid(),
+            'precio_base' => 1500.00,
+        ]);
+
+        $resultados = $this->service()->buscarPreciosPublico(Sucursal::find($this->sucursalId), 'Coca');
+
+        $this->assertNotEmpty($resultados);
+        $this->assertStringContainsString('Coca Cola', $resultados[0]['nombre']);
+        $this->assertNotNull($resultados[0]['precio']);
+        $this->assertArrayHasKey('promos', $resultados[0]);
+        // Payload mínimo: NO expone costo/stock/listas internas.
+        $this->assertSame(['nombre', 'unidad', 'precio', 'promos'], array_keys($resultados[0]));
+    }
+
+    public function test_endpoints_consultor_gateados_por_usa_consultor_precios(): void
+    {
+        $index = $this->crearToken();
+
+        // Apagado → 404 (los precios no quedan consultables).
+        Sucursal::where('id', $this->sucursalId)->update(['usa_consultor_precios' => false]);
+        $this->get(route('clase-b.precios.config', ['token' => $index->token]))->assertNotFound();
+        $this->get(route('clase-b.precios.buscar', ['token' => $index->token, 'q' => 'coca']))->assertNotFound();
+
+        // Encendido → 200.
+        Sucursal::where('id', $this->sucursalId)->update(['usa_consultor_precios' => true]);
+        $this->get(route('clase-b.precios.config', ['token' => $index->token]))
+            ->assertOk()
+            ->assertJsonStructure(['sucursal' => ['nombre'], 'config' => ['titulo', 'color_acento']]);
+        $this->get(route('clase-b.precios.buscar', ['token' => $index->token, 'q' => 'x']))
+            ->assertOk()
+            ->assertJsonStructure(['resultados']);
     }
 }

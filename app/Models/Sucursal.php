@@ -82,6 +82,17 @@ class Sucursal extends Model
     ];
 
     /**
+     * Valores por defecto de la personalización del consultor de precios
+     * (pantalla Clase B). Se mergean con lo guardado en `config_consultor_precios`.
+     */
+    public const CONFIG_CONSULTOR_PRECIOS_DEFAULTS = [
+        'titulo' => 'Consultá tu precio',
+        'mostrar_logo' => true,
+        'color_fondo' => '#0f172a',
+        'color_acento' => '#22d3ee',      // cian (precio destacado)
+    ];
+
+    /**
      * Provincias de Argentina con código ISO 3166-2 → nombre oficial.
      *
      * Se guarda el código en `sucursales.provincia` (ej. 'AR-B') y se traduce
@@ -133,8 +144,8 @@ class Sucursal extends Model
         'es_principal', 'datos_fiscales_id', 'activa', 'configuracion', 'config_pantalla_cliente',
         // Pantallas públicas Clase B (llamador de pedidos, consultor de precios)
         'token_publico', 'config_llamador', 'config_consultor_precios',
-        // Numeración de display (turno) + toggle monitor
-        'usa_llamador', 'usa_numeracion_display', 'numeracion_display_modo',
+        // Numeración de display (turno) + toggles de pantallas Clase B
+        'usa_llamador', 'usa_consultor_precios', 'usa_numeracion_display', 'numeracion_display_modo',
         'numeracion_display_horas', 'pedido_display_ultimo_numero', 'pedido_display_segmento_at',
         // Campos de configuración
         'usa_clave_autorizacion', 'clave_autorizacion', 'tipo_impresion_factura',
@@ -158,6 +169,7 @@ class Sucursal extends Model
         'config_llamador' => 'array',
         'config_consultor_precios' => 'array',
         'usa_llamador' => 'boolean',
+        'usa_consultor_precios' => 'boolean',
         'usa_numeracion_display' => 'boolean',
         'numeracion_display_horas' => 'array',
         'pedido_display_segmento_at' => 'datetime',
@@ -322,6 +334,17 @@ class Sucursal extends Model
         $guardada = is_array($this->config_llamador) ? $this->config_llamador : [];
 
         return array_merge(self::CONFIG_LLAMADOR_DEFAULTS, $guardada);
+    }
+
+    /**
+     * Personalización del consultor de precios (pantalla Clase B) con los DEFAULTS
+     * mergeados para garantizar todas las keys.
+     */
+    public function getConfigConsultorPrecios(): array
+    {
+        $guardada = is_array($this->config_consultor_precios) ? $this->config_consultor_precios : [];
+
+        return array_merge(self::CONFIG_CONSULTOR_PRECIOS_DEFAULTS, $guardada);
     }
 
     /**

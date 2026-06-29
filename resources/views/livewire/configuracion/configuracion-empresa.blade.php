@@ -722,5 +722,172 @@
             </x-bcn-modal>
         @endif
 
+        {{-- Modal Consultor de Precios (pantalla Clase B) --}}
+        @if($mostrarModalConsultor)
+            <x-bcn-modal
+                show
+                :title="__('Consultor de precios') . ' — ' . $cpSucursalNombre"
+                color="bg-cyan-600"
+                maxWidth="4xl"
+                submit="guardarConsultorPrecios"
+                onClose="cerrarModalConsultor"
+            >
+                <x-slot:body>
+                    <div
+                        x-data="{
+                            usa: @entangle('cpUsaConsultor'),
+                            titulo: @entangle('cpTitulo'),
+                            mostrarLogo: @entangle('cpMostrarLogo'),
+                            colorFondo: @entangle('cpColorFondo'),
+                            colorAcento: @entangle('cpColorAcento'),
+                            copiado: '',
+                            copiar(texto, key) {
+                                navigator.clipboard.writeText(texto).then(() => {
+                                    this.copiado = key;
+                                    setTimeout(() => { this.copiado = ''; }, 1500);
+                                });
+                            }
+                        }"
+                        class="space-y-6"
+                    >
+                        {{-- Toggle de activación --}}
+                        <label class="flex items-start gap-3 cursor-pointer bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                            <input type="checkbox" x-model="usa"
+                                class="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-cyan-600 focus:ring-cyan-500 dark:bg-gray-700">
+                            <span class="text-sm">
+                                <span class="font-medium text-gray-900 dark:text-white">{{ __('Usar consultor de precios') }}</span>
+                                <span class="block text-gray-500 dark:text-gray-400 text-xs">{{ __('Activa la pantalla pública de consulta de precios. Si está apagado, la pantalla no muestra datos.') }}</span>
+                            </span>
+                        </label>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {{-- Columna: Vinculación de dispositivos --}}
+                            <div class="space-y-4">
+                                <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Vincular un dispositivo') }}</h4>
+
+                                {{-- QR --}}
+                                <div class="flex flex-col items-center bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                                    <div class="w-44 h-44 [&>svg]:w-full [&>svg]:h-full">
+                                        {!! $this->cpQrSvg !!}
+                                    </div>
+                                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">{{ __('Escaneá con una tablet/celular para vincular.') }}</p>
+                                </div>
+
+                                {{-- URL larga --}}
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{{ __('URL de pantalla pública') }}</label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="text" readonly value="{{ $this->cpUrlLarga }}"
+                                            class="flex-1 rounded-md border-gray-300 bg-gray-50 text-xs shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
+                                        <button type="button" @click="copiar('{{ $this->cpUrlLarga }}', 'larga')"
+                                            class="inline-flex items-center px-2.5 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                            <span x-show="copiado !== 'larga'"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></span>
+                                            <span x-show="copiado === 'larga'" x-cloak class="text-cyan-600 dark:text-cyan-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg></span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {{-- URL corta + código --}}
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{{ __('Para una TV: tipear esta dirección') }}</label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="text" readonly value="{{ $this->cpUrlCorta }}"
+                                            class="flex-1 rounded-md border-gray-300 bg-gray-50 text-xs shadow-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
+                                        <button type="button" @click="copiar('{{ $this->cpUrlCorta }}', 'corta')"
+                                            class="inline-flex items-center px-2.5 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                            <span x-show="copiado !== 'corta'"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg></span>
+                                            <span x-show="copiado === 'corta'" x-cloak class="text-cyan-600 dark:text-cyan-400"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg></span>
+                                        </button>
+                                    </div>
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Código de vinculación') }}:
+                                        <span class="font-mono font-bold tracking-widest text-gray-800 dark:text-gray-100">{{ $cpCodigo }}</span>
+                                    </p>
+                                </div>
+
+                                {{-- Regenerar token --}}
+                                <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
+                                    <button type="button"
+                                        wire:click="regenerarTokenConsultor"
+                                        wire:confirm="{{ __('¿Regenerar el token? Afecta también al llamador: ambas pantallas deberán volver a vincularse.') }}"
+                                        class="inline-flex items-center text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                        {{ __('Regenerar token') }}
+                                    </button>
+                                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ __('El token es compartido con el llamador de esta sucursal.') }}</p>
+                                </div>
+                            </div>
+
+                            {{-- Columna: Personalización + preview --}}
+                            <div class="space-y-4">
+                                <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Personalización') }}</h4>
+
+                                {{-- Título --}}
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Título') }}</label>
+                                    <input type="text" x-model="titulo" maxlength="40"
+                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-cyan-500 focus:ring-cyan-500 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                        placeholder="{{ __('Consultá tu precio') }}">
+                                    @error('cpTitulo') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                                </div>
+
+                                {{-- Toggle logo --}}
+                                @if($cpLogoActual)
+                                    <label class="flex items-center gap-3 cursor-pointer">
+                                        <input type="checkbox" x-model="mostrarLogo"
+                                            class="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-cyan-600 focus:ring-cyan-500 dark:bg-gray-700">
+                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Mostrar logo') }}</span>
+                                    </label>
+                                @endif
+
+                                {{-- Colores --}}
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Fondo') }}</label>
+                                        <input type="color" x-model="colorFondo" class="h-9 w-full rounded border border-gray-300 dark:border-gray-600 bg-transparent cursor-pointer p-0.5">
+                                        @error('cpColorFondo') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Color de acento') }}</label>
+                                        <input type="color" x-model="colorAcento" class="h-9 w-full rounded border border-gray-300 dark:border-gray-600 bg-transparent cursor-pointer p-0.5">
+                                        @error('cpColorAcento') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                                    </div>
+                                </div>
+
+                                {{-- Preview --}}
+                                <div>
+                                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">{{ __('Vista previa') }}</p>
+                                    <div class="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600 shadow-inner aspect-[4/3] p-3 flex flex-col"
+                                        :style="`background-color: ${colorFondo};`">
+                                        <div class="flex items-center justify-center gap-2 mb-2">
+                                            @if($cpLogoUrl)
+                                                <img src="{{ $cpLogoUrl }}" alt="logo" class="h-5 object-contain" x-show="mostrarLogo" x-cloak>
+                                            @endif
+                                            <p class="text-center text-xs font-bold text-white/90" x-text="titulo || '{{ __('Consultá tu precio') }}'"></p>
+                                        </div>
+                                        <div class="rounded-lg px-3 py-2 mb-2 text-xs text-white/40" style="background: rgba(255,255,255,.08);">{{ __('Buscar artículo o escanear código') }}</div>
+                                        <div class="flex items-center justify-between rounded-lg px-3 py-2 flex-1" style="background: rgba(255,255,255,.06);">
+                                            <span class="text-sm font-semibold text-white/90">{{ __('Artículo') }}</span>
+                                            <span class="text-2xl font-extrabold" :style="`color: ${colorAcento};`">$1.234</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </x-slot:body>
+
+                <x-slot:footer>
+                    <button type="button" wire:click="cerrarModalConsultor"
+                        class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500">
+                        {{ __('Cancelar') }}
+                    </button>
+                    <button type="submit"
+                        class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-cyan-600 text-sm font-medium text-white hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500">
+                        {{ __('Guardar') }}
+                    </button>
+                </x-slot:footer>
+            </x-bcn-modal>
+        @endif
+
     </div>
 </div>

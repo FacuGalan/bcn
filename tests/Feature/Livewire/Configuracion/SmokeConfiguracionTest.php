@@ -709,6 +709,28 @@ class SmokeConfiguracionTest extends TestCase
         $this->assertSame(0, (int) \App\Models\Sucursal::find($sucursal->id)->pedido_display_ultimo_numero);
     }
 
+    public function test_configuracion_consultor_precios_abre_y_guarda(): void
+    {
+        $sucursal = \App\Models\Sucursal::find($this->sucursalId);
+
+        Livewire::test(ConfiguracionEmpresa::class)
+            ->call('abrirConsultorPrecios', $sucursal->id)
+            ->assertOk()
+            ->assertSet('mostrarModalConsultor', true)
+            ->assertSet('cpSucursalId', $sucursal->id)
+            ->set('cpUsaConsultor', true)
+            ->set('cpTitulo', 'Precios')
+            ->set('cpColorAcento', '#0ea5e9')
+            ->call('guardarConsultorPrecios')
+            ->assertSet('mostrarModalConsultor', false);
+
+        $fresca = \App\Models\Sucursal::find($sucursal->id);
+        $this->assertTrue((bool) $fresca->usa_consultor_precios);
+        $this->assertSame('Precios', $fresca->getConfigConsultorPrecios()['titulo']);
+        $this->assertSame('#0ea5e9', $fresca->getConfigConsultorPrecios()['color_acento']);
+        $this->assertNotNull($fresca->token_publico);
+    }
+
     public function test_roles_permisos_monta(): void
     {
         Livewire::test(RolesPermisos::class)->assertOk();

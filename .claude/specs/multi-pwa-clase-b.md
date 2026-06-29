@@ -1,6 +1,6 @@
 # Multi-PWA Clase B — Pantallas auxiliares remotas - Especificación
 
-## Estado: EN PROGRESO (Fases 1-2 + 3b + 4 ✅ — Fases 3, 5 pendientes)
+## Estado: EN PROGRESO (Fases 1-2-3-3b-4 ✅ — Fase 5 pendiente: docs + PR)
 
 > NOTA: los íconos PWA del llamador (`pwa-icons/llamador-*.png`) son placeholder
 > (copia de pantalla-cliente). Reemplazar por diseño propio. La URL corta tipeable
@@ -278,10 +278,12 @@ Claves nuevas (es/en/pt), entre otras:
 3. Endpoint snapshot `pedidosParaLlamador` + vista `/llamador` (genérico + `/llamador/{token}` para QR) + JS Reverb + pantalla de vinculación + audio unlock simple.
 4. PWA: `manifest-llamador.json` (`start_url` genérico), íconos, registro en SW.
 
-### Fase 3: Consultor de precios [PENDIENTE]
-1. `PantallaPublicaService::buscarPreciosPublico` (reusa `obtenerPrecioBase` + `obtenerPromocionesActivas`) + endpoint `/api/precios/{token}/buscar` con rate limit.
-2. Vista `/precios` (genérico + `/precios/{token}` para QR) + JS de búsqueda (incl. lector de código) + pantalla de vinculación.
-3. PWA: `manifest-consultor-precios.json` (`start_url` genérico), íconos, SW.
+### Fase 3: Consultor de precios [COMPLETO — 2026-06-29]
+1. ✅ `PantallaPublicaService::buscarPreciosPublico` (reusa `obtenerPrecioBase` + `obtenerPromocionesActivas`, filtra activos en sucursal por pivote `articulos_sucursales.activo`, payload mínimo `{nombre,unidad,precio,promos}`, min 2 chars, límite 20). Endpoints `clase-b/precios/{token}/config` (throttle:60) + `clase-b/precios/{token}/buscar` (throttle:120), ambos gateados por `usa_consultor_precios` (404 si off).
+2. ✅ Controller `ConsultorPreciosController` (index/porToken/porCodigo + config + buscar). Rutas `precios`, `precios/{token}`, `pr/{codigo}`. Vista `pantallas/consultor-precios.blade.php` (buscador + resultados con precio destacado + chips de promos + estados, footer BCNSOFT) + `consultor-precios.js` (debounce, soporte lector de código por Enter, vinculación localStorage; sin Reverb). Personalización `config_consultor_precios` (título, logo, color_fondo, color_acento) en `Sucursal::CONFIG_CONSULTOR_PRECIOS_DEFAULTS`.
+3. ✅ PWA: `manifest-consultor-precios.json` (`start_url` `/precios`, orientation portrait), íconos placeholder (copia llamador). Entry en vite.config.js.
+4. ✅ Toggle nuevo `usa_consultor_precios` (migración tenant `2026_06_29_120000`, regenerado tenant_tables.sql + fix `;` en comment de numeracion_display_horas que rompía TEST_FORCE_RECREATE). Config UI: modal "Consultor de precios" (cyan) en `ConfiguracionEmpresa` (toggle + URLs/QR/código con prefijo `pr` + regenerar [token compartido con llamador] + personalización + preview).
+5. ✅ Tests: service (búsqueda con artículo real, min 2 chars, gating endpoints) + smoke del modal. Traducciones es/en/pt. Pint verde.
 
 ### Fase 3b: Numeración de display (turno) [COMPLETO] — RF-03b
 1. ✅ Migración tenant: columnas de display en `sucursales` + `numero_display` en `pedidos_mostrador`. `tenant_tables.sql` regenerado.

@@ -1,0 +1,35 @@
+{
+    "id": "/precios",
+    "name": "Consultor de Precios",
+    "short_name": "Precios",
+    "description": "Consulta pública de precios de artículos",
+    "start_url": "/precios",
+    "display": "standalone",
+    "display_override": ["fullscreen", "standalone", "minimal-ui"],
+    "background_color": "#0f172a",
+    "theme_color": "#0f172a",
+    "orientation": "portrait",
+    "scope": "/precios",
+    "icons": [
+        {
+            "src": "/pwa-icons/consultor-precios-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/pwa-icons/consultor-precios-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/pwa-icons/consultor-precios-maskable-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ],
+    "categories": ["business", "shopping"],
+    "lang": "es-AR"
+}

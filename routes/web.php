@@ -99,6 +99,11 @@ Route::get('llamador/{token}', [\App\Http\Controllers\PantallaPublica\LlamadorCo
 // URL corta tipeable en TV (un mismo código sirve para ambas pantallas con prefijo distinto).
 Route::get('ll/{codigo}', [\App\Http\Controllers\PantallaPublica\LlamadorController::class, 'porCodigo'])->name('llamador.codigo');
 
+// Consultor de precios (Clase B): mismas reglas, prefijo de URL corta `pr`.
+Route::get('precios', [\App\Http\Controllers\PantallaPublica\ConsultorPreciosController::class, 'index'])->name('precios');
+Route::get('precios/{token}', [\App\Http\Controllers\PantallaPublica\ConsultorPreciosController::class, 'porToken'])->name('precios.token');
+Route::get('pr/{codigo}', [\App\Http\Controllers\PantallaPublica\ConsultorPreciosController::class, 'porCodigo'])->name('precios.codigo');
+
 Route::prefix('clase-b')->group(function () {
     // Canje del código corto (tipeado en TV) por el token largo. GET read-only
     // (sin CSRF) + rate limit anti fuerza bruta.
@@ -110,6 +115,15 @@ Route::prefix('clase-b')->group(function () {
     Route::get('llamador/{token}/snapshot', [\App\Http\Controllers\PantallaPublica\LlamadorController::class, 'snapshot'])
         ->middleware(['pantalla.token', 'throttle:60,1'])
         ->name('clase-b.llamador.snapshot');
+
+    // Consultor de precios: config (cold start) + búsqueda. Ambos gateados por
+    // usa_consultor_precios en el controller (404 si la pantalla está apagada).
+    Route::get('precios/{token}/config', [\App\Http\Controllers\PantallaPublica\ConsultorPreciosController::class, 'config'])
+        ->middleware(['pantalla.token', 'throttle:60,1'])
+        ->name('clase-b.precios.config');
+    Route::get('precios/{token}/buscar', [\App\Http\Controllers\PantallaPublica\ConsultorPreciosController::class, 'buscar'])
+        ->middleware(['pantalla.token', 'throttle:120,1'])
+        ->name('clase-b.precios.buscar');
 });
 
 /**

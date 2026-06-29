@@ -238,6 +238,32 @@ class ConfiguracionEmpresa extends Component
 
     public string $llTamano = 'normal';
 
+    // ==================== CONSULTOR DE PRECIOS (pantalla Clase B) ====================
+    public bool $mostrarModalConsultor = false;
+
+    public ?int $cpSucursalId = null;
+
+    public string $cpSucursalNombre = '';
+
+    public bool $cpUsaConsultor = false;
+
+    public ?string $cpToken = null;
+
+    public ?string $cpCodigo = null;
+
+    public bool $cpLogoActual = false;
+
+    public ?string $cpLogoUrl = null;
+
+    // Personalización del consultor (config_consultor_precios)
+    public string $cpTitulo = 'Consultá tu precio';
+
+    public bool $cpMostrarLogo = true;
+
+    public string $cpColorFondo = '#0f172a';
+
+    public string $cpColorAcento = '#22d3ee';
+
     // ==================== TAB CAJAS - GRUPOS DE CIERRE ====================
     public $mostrarModalGrupoCierre = false;
 
@@ -1137,6 +1163,121 @@ class ConfiguracionEmpresa extends Component
         }
 
         return (string) QrCode::format('svg')->size(180)->margin(1)->generate($this->llUrlLarga());
+    }
+
+    // --- Modal Consultor de Precios (pantalla Clase B remota) ---
+
+    /**
+     * Abre el modal del consultor: asegura token + código (comparte el mismo token
+     * de la sucursal con el llamador) y carga el toggle + la personalización
+     * (config_consultor_precios con defaults mergeados).
+     */
+    public function abrirConsultorPrecios($sucursalId, PantallaPublicaService $service)
+    {
+        $sucursal = Sucursal::findOrFail($sucursalId);
+
+        $index = $service->asegurarToken($sucursal);
+        $config = $sucursal->getConfigConsultorPrecios();
+
+        $this->cpSucursalId = $sucursal->id;
+        $this->cpSucursalNombre = $sucursal->nombre;
+        $this->cpUsaConsultor = (bool) $sucursal->usa_consultor_precios;
+        $this->cpToken = $index->token;
+        $this->cpCodigo = $index->codigo_corto;
+        $this->cpLogoUrl = $sucursal->logoPantallaClienteUrl();
+        $this->cpLogoActual = (bool) $this->cpLogoUrl;
+
+        $this->cpTitulo = $config['titulo'];
+        $this->cpMostrarLogo = (bool) $config['mostrar_logo'];
+        $this->cpColorFondo = $config['color_fondo'];
+        $this->cpColorAcento = $config['color_acento'];
+
+        $this->mostrarModalConsultor = true;
+    }
+
+    public function guardarConsultorPrecios()
+    {
+        $this->validate([
+            'cpTitulo' => ['nullable', 'string', 'max:40'],
+            'cpColorFondo' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'cpColorAcento' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+        ], [
+            'cpColorFondo.regex' => __('El color de fondo debe ser un código hexadecimal válido.'),
+            'cpColorAcento.regex' => __('El color debe ser un código hexadecimal válido.'),
+        ]);
+
+        try {
+            $sucursal = Sucursal::findOrFail($this->cpSucursalId);
+
+            $sucursal->update([
+                'usa_consultor_precios' => $this->cpUsaConsultor,
+                'config_consultor_precios' => [
+                    'titulo' => trim((string) $this->cpTitulo) ?: Sucursal::CONFIG_CONSULTOR_PRECIOS_DEFAULTS['titulo'],
+                    'mostrar_logo' => (bool) $this->cpMostrarLogo,
+                    'color_fondo' => $this->cpColorFondo,
+                    'color_acento' => $this->cpColorAcento,
+                ],
+            ]);
+
+            $this->cerrarModalConsultor();
+            $this->dispatch('notify', message: __('Configuración del consultor de precios guardada'), type: 'success');
+        } catch (\Exception $e) {
+            $this->dispatch('notify', message: __('Error: ').$e->getMessage(), type: 'error');
+        }
+    }
+
+    /**
+     * Regenera el token + código (rotación). Como el token es ÚNICO por sucursal,
+     * afecta también al llamador: ambas pantallas deberán volver a vincularse.
+     */
+    public function regenerarTokenConsultor(PantallaPublicaService $service)
+    {
+        if (! $this->cpSucursalId) {
+            return;
+        }
+
+        $sucursal = Sucursal::findOrFail($this->cpSucursalId);
+        $nuevo = $service->regenerarToken($sucursal);
+
+        $this->cpToken = $nuevo['token'];
+        $this->cpCodigo = $nuevo['codigo_corto'];
+
+        $this->dispatch('notify', message: __('Token regenerado. Los dispositivos vinculados deberán volver a vincularse.'), type: 'success');
+    }
+
+    public function cerrarModalConsultor()
+    {
+        $this->mostrarModalConsultor = false;
+        $this->cpSucursalId = null;
+        $this->cpSucursalNombre = '';
+        $this->cpToken = null;
+        $this->cpCodigo = null;
+        $this->resetErrorBag();
+    }
+
+    /** URL larga (QR / tablets que escanean): /precios/{token}. */
+    #[Computed]
+    public function cpUrlLarga(): string
+    {
+        return $this->cpToken ? route('precios.token', $this->cpToken) : '';
+    }
+
+    /** URL corta tipeable: /pr/{codigo}. */
+    #[Computed]
+    public function cpUrlCorta(): string
+    {
+        return $this->cpCodigo ? route('precios.codigo', $this->cpCodigo) : '';
+    }
+
+    /** SVG del QR de la URL larga del consultor (computed, no se serializa). */
+    #[Computed]
+    public function cpQrSvg(): string
+    {
+        if (! $this->cpToken) {
+            return '';
+        }
+
+        return (string) QrCode::format('svg')->size(180)->margin(1)->generate($this->cpUrlLarga());
     }
 
     // --- Edición de Puntos de Venta ---

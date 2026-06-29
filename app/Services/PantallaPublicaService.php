@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Articulo;
 use App\Models\PantallaPublicaToken;
 use App\Models\PedidoMostrador;
 use App\Models\Sucursal;
@@ -21,7 +22,10 @@ use Illuminate\Support\Facades\Log;
  */
 class PantallaPublicaService
 {
-    public function __construct(private TenantService $tenant) {}
+    public function __construct(
+        private TenantService $tenant,
+        private PrecioService $precios,
+    ) {}
 
     /**
      * Resuelve un token largo: busca en el índice global, configura el tenant y
@@ -179,5 +183,54 @@ class PantallaPublicaService
             'en_preparacion' => $enPreparacion->map($mapear)->all(),
             'listo' => $listo->map($mapear)->all(),
         ];
+    }
+
+    /**
+     * Búsqueda pública del consultor de precios: artículos ACTIVOS en la sucursal
+     * que matcheen por nombre, código o código de barras. Devuelve el precio de
+     * lista base (vía PrecioService) + los NOMBRES de las promociones vigentes en
+     * las que participa (sin calcular el precio promocional). Payload mínimo: NO
+     * expone costo, margen, stock ni listas internas.
+     *
+     * @return list<array{nombre:string, unidad:?string, precio:?float, promos:list<string>}>
+     */
+    public function buscarPreciosPublico(Sucursal $sucursal, string $q, int $limite = 20): array
+    {
+        $q = trim($q);
+
+        if (mb_strlen($q) < 2) {
+            return [];
+        }
+
+        $articulos = Articulo::query()
+            ->activos()
+            ->whereHas('sucursales', function ($s) use ($sucursal) {
+                $s->where('sucursal_id', $sucursal->id)->where('articulos_sucursales.activo', true);
+            })
+            ->where(function ($w) use ($q) {
+                $w->where('nombre', 'like', "%{$q}%")
+                    ->orWhere('codigo', $q)
+                    ->orWhere('codigo_barras', $q);
+            })
+            ->orderBy('nombre')
+            ->limit($limite)
+            ->get(['id', 'nombre', 'unidad_medida']);
+
+        return $articulos->map(function (Articulo $a) use ($sucursal) {
+            $precio = $this->precios->obtenerPrecioBase($a->id, $sucursal->id);
+
+            $promos = $a->obtenerPromocionesActivas($sucursal->id)
+                ->pluck('nombre')
+                ->filter()
+                ->values()
+                ->all();
+
+            return [
+                'nombre' => $a->nombre,
+                'unidad' => $a->unidad_medida,
+                'precio' => $precio ? round((float) $precio['precio'], 2) : null,
+                'promos' => $promos,
+            ];
+        })->all();
     }
 }
