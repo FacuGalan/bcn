@@ -148,6 +148,64 @@ class PantallaPublicaServiceTest extends TestCase
         $this->assertSame(['nombre', 'unidad', 'precio', 'promos'], array_keys($resultados[0]));
     }
 
+    public function test_buscar_precios_incluye_promo_especial_nxm_por_lista(): void
+    {
+        TipoIva::firstOrCreate(['codigo' => 5], ['nombre' => 'IVA 21%', 'porcentaje' => 21.00, 'activo' => true]);
+
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 10, 'ninguno', [
+            'nombre' => 'Coca NxM Test '.uniqid(),
+            'precio_base' => 1000.00,
+        ]);
+
+        \App\Models\PromocionEspecial::create([
+            'sucursal_id' => $this->sucursalId,
+            'nombre' => 'Bebidas 3x2 Test',
+            'tipo' => \App\Models\PromocionEspecial::TIPO_NXM,
+            'nxm_lleva' => 3, 'nxm_paga' => 2, 'nxm_bonifica' => 1,
+            'beneficio_tipo' => \App\Models\PromocionEspecial::BENEFICIO_GRATIS,
+            'nxm_articulos_ids' => [$articulo->id],
+            'prioridad' => 1, 'modo_aplicacion' => 'automatica',
+            'activo' => true, 'usos_actuales' => 0,
+        ]);
+
+        $resultados = $this->service()->buscarPreciosPublico(Sucursal::find($this->sucursalId), 'Coca NxM');
+
+        $this->assertNotEmpty($resultados);
+        $this->assertContains('Bebidas 3x2 Test', $resultados[0]['promos']);
+    }
+
+    public function test_buscar_precios_incluye_combo_por_grupo(): void
+    {
+        TipoIva::firstOrCreate(['codigo' => 5], ['nombre' => 'IVA 21%', 'porcentaje' => 21.00, 'activo' => true]);
+
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 10, 'ninguno', [
+            'nombre' => 'Coca Combo Test '.uniqid(),
+            'precio_base' => 1000.00,
+        ]);
+
+        $combo = \App\Models\PromocionEspecial::create([
+            'sucursal_id' => $this->sucursalId,
+            'nombre' => 'Coca + Alfajor Test',
+            'tipo' => \App\Models\PromocionEspecial::TIPO_COMBO,
+            'precio_tipo' => \App\Models\PromocionEspecial::PRECIO_FIJO,
+            'precio_valor' => 1500,
+            'prioridad' => 1, 'modo_aplicacion' => 'automatica',
+            'activo' => true, 'usos_actuales' => 0,
+        ]);
+
+        $grupo = \App\Models\PromocionEspecialGrupo::create([
+            'promocion_especial_id' => $combo->id,
+            'nombre' => 'Bebida', 'cantidad' => 1,
+            'es_trigger' => true, 'es_reward' => false, 'orden' => 1,
+        ]);
+        $grupo->articulos()->attach($articulo->id);
+
+        $resultados = $this->service()->buscarPreciosPublico(Sucursal::find($this->sucursalId), 'Coca Combo');
+
+        $this->assertNotEmpty($resultados);
+        $this->assertContains('Coca + Alfajor Test', $resultados[0]['promos']);
+    }
+
     public function test_endpoints_consultor_gateados_por_usa_consultor_precios(): void
     {
         $index = $this->crearToken();

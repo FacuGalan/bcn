@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Articulo;
 use App\Models\PantallaPublicaToken;
 use App\Models\PedidoMostrador;
+use App\Models\PromocionEspecial;
 use App\Models\Sucursal;
 use Illuminate\Support\Facades\Log;
 
@@ -219,18 +220,53 @@ class PantallaPublicaService
         return $articulos->map(function (Articulo $a) use ($sucursal) {
             $precio = $this->precios->obtenerPrecioBase($a->id, $sucursal->id);
 
-            $promos = $a->obtenerPromocionesActivas($sucursal->id)
-                ->pluck('nombre')
-                ->filter()
-                ->values()
-                ->all();
-
             return [
                 'nombre' => $a->nombre,
                 'unidad' => $a->unidad_medida,
                 'precio' => $precio ? round((float) $precio['precio'], 2) : null,
-                'promos' => $promos,
+                'promos' => $this->promosDelArticulo($a, $sucursal->id),
             ];
         })->all();
+    }
+
+    /**
+     * Nombres de TODAS las promociones vigentes en las que participa el artículo,
+     * de los DOS sistemas del proyecto:
+     *  - Promociones normales (descuentos, escalas) → Articulo::obtenerPromocionesActivas.
+     *  - Promociones especiales (NxM, combos, menús) → participación por artículo,
+     *    categoría (ambos como campo simple o lista json) o por estar en un grupo
+     *    trigger/reward del combo.
+     *
+     * Solo nombres, sin calcular el beneficio (es info para el cliente).
+     *
+     * @return list<string>
+     */
+    private function promosDelArticulo(Articulo $articulo, int $sucursalId): array
+    {
+        $normales = $articulo->obtenerPromocionesActivas($sucursalId)->pluck('nombre');
+
+        $especiales = PromocionEspecial::query()
+            ->where('sucursal_id', $sucursalId)
+            ->activas()
+            ->vigentes()
+            ->where(function ($q) use ($articulo) {
+                $q->where('nxm_articulo_id', $articulo->id)
+                    ->orWhereJsonContains('nxm_articulos_ids', $articulo->id)
+                    ->orWhereJsonContains('nxm_articulos_ids', (string) $articulo->id)
+                    ->orWhereHas('grupos.articulos', fn ($g) => $g->where('articulo_id', $articulo->id));
+
+                if ($articulo->categoria_id) {
+                    $q->orWhere('nxm_categoria_id', $articulo->categoria_id)
+                        ->orWhereJsonContains('nxm_categorias_ids', $articulo->categoria_id)
+                        ->orWhereJsonContains('nxm_categorias_ids', (string) $articulo->categoria_id);
+                }
+            })
+            ->pluck('nombre');
+
+        return $normales->merge($especiales)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 }
