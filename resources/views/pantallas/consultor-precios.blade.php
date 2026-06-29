@@ -107,11 +107,11 @@
 
         /* Footer */
         .cp-footer {
-            display: flex; align-items: center; justify-content: center; gap: .5rem;
-            padding: .4rem; opacity: .4; pointer-events: none;
+            display: flex; align-items: center; justify-content: center; gap: .6rem;
+            padding: .75rem; opacity: .45; pointer-events: none;
         }
-        .cp-footer span { font-size: .8rem; }
-        .cp-footer img { height: 1rem; object-fit: contain; }
+        .cp-footer span { font-size: .95rem; }
+        .cp-footer img { height: 1.5rem; object-fit: contain; }
     </style>
 </head>
 <body>

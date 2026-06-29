@@ -35,6 +35,58 @@ let duracionMs = 5000;
 let timerResultado = null;
 const money = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
 
+// ───────────────────────── Audio + pantalla completa ─────────────────────────
+// Política de autoplay: el AudioContext se crea/reanuda recién con un gesto del
+// usuario (toque o el primer escaneo, que llega como keydown real). El mismo
+// gesto entra a pantalla completa (no se puede disparar F11 desde JS, pero sí la
+// Fullscreen API dentro de un gesto). Se hace una sola vez.
+let audioCtx = null;
+let interaccionLista = false;
+
+function activarInteraccion() {
+    if (interaccionLista) return;
+    interaccionLista = true;
+    try {
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) {
+        audioCtx = null;
+    }
+    entrarPantallaCompleta();
+}
+
+function entrarPantallaCompleta() {
+    if (document.fullscreenElement) return;
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) {
+        try {
+            const r = req.call(el);
+            if (r && r.catch) r.catch(() => {});
+        } catch (e) { /* el navegador puede bloquearlo: best-effort */ }
+    }
+}
+
+// Chime de "éxito": arpegio ascendente (Do–Mi–Sol) breve y luminoso, distinto
+// del chime de atención del llamador. Suena al encontrar un precio.
+function playSuccess() {
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    [523.25, 659.25, 783.99].forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        const t = now + i * 0.085;
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.32, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.36);
+    });
+}
+
 // ───────────────────────── Personalización ─────────────────────────
 function aplicarConfig(data) {
     const cfg = data.config || {};
@@ -89,6 +141,7 @@ function mostrarResultado(item) {
     }
 
     elResult.style.display = 'flex';
+    playSuccess();
     programarVueltaAIdle();
 }
 
@@ -184,6 +237,12 @@ async function canjearCodigo(codigo) {
 
 // ───────────────────────── Arranque ─────────────────────────
 async function arrancar() {
+    // Primera interacción (toque o el primer escaneo): desbloquea el audio y
+    // entra a pantalla completa. El scanner llega como keydown, así que también
+    // cuenta como gesto válido para reanudar el AudioContext.
+    document.addEventListener('pointerdown', activarInteraccion);
+    document.addEventListener('keydown', activarInteraccion);
+
     if (elInput) {
         // El scanner termina con Enter (sufijo más común). Como fallback, si no
         // hay Enter, un pequeño silencio tras el último carácter cierra el código.

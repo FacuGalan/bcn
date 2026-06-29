@@ -3009,6 +3009,16 @@ El middleware `pantalla.token` (`ResolvePublicTokenMiddleware`) resuelve el toke
 
 El llamador y el consultor tienen manifests y conjuntos de iconos propios (`/manifest-llamador.json`, `/manifest-consultor-precios.json`). Pueden instalarse como apps independientes en el navegador, separadas de la app principal (scope `/app`) y de la pantalla cliente (scope `/pantalla-cliente`).
 
+Cada pantalla tiene su propio set de iconos bajo `public/pwa-icons/`:
+- **Llamador**: campana (icono de notificacion) en naranja `#FFAF22` sobre fondo navy. Archivos: `llamador-192x192.png`, `llamador-512x512.png`, `llamador-maskable-512x512.png`.
+- **Consultor de precios**: codigo de barras en naranja `#FFAF22` sobre fondo navy. Archivos: `consultor-precios-192x192.png`, `consultor-precios-512x512.png`, `consultor-precios-maskable-512x512.png`.
+
+#### Comportamiento JS del consultor de precios (`resources/js/consultor-precios.js`)
+
+- **Fullscreen automatico**: en la primera interaccion del usuario (`pointerdown` o `keydown`) se invoca la Fullscreen API (`documentElement.requestFullscreen()`). Los navegadores solo permiten entrar a fullscreen desde un gesto del usuario; el scanner llega como `keydown` real, por lo que el primer escaneo tambien desbloquea el fullscreen. Se hace una sola vez (flag `interaccionLista`).
+- **AudioContext**: se crea y reanuda en la misma primera interaccion (politica de autoplay). Si el navegador bloquea la creacion, `audioCtx` queda en `null` y el sonido se omite silenciosamente.
+- **Sonido de exito (`playSuccess`)**: arpegio ascendente Do (523 Hz) → Mi (659 Hz) → Sol (784 Hz) con osciladores `triangle`, separados 85 ms, envolvente exponencial rapida (ataque 20 ms, caida 320 ms). Se dispara en `mostrarResultado()` cada vez que se encuentra un articulo. Distinto del chime de atencion del llamador (que usa una sola nota y canal distinto).
+
 ---
 
 ## 3. Logica de Negocio
