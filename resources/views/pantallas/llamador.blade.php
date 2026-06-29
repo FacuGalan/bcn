@@ -32,10 +32,12 @@
             overflow: hidden;
         }
 
-        /* ===== Capa de desbloqueo de audio ===== */
+        /* ===== Capa de desbloqueo de audio =====
+           Arranca oculta; el JS la muestra solo con el monitor activo (no debe
+           tapar la pantalla de vinculación). */
         .llm-overlay {
             position: fixed; inset: 0; z-index: 50;
-            display: flex; align-items: center; justify-content: center;
+            display: none; align-items: center; justify-content: center;
             background: rgba(0,0,0,.78); cursor: pointer; text-align: center;
         }
         .llm-overlay span { font-size: clamp(1.5rem, 4vw, 2.75rem); font-weight: 700; opacity: .9; }

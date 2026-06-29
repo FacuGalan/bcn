@@ -234,7 +234,14 @@ async function arrancar() {
     if (boot.codigo) {
         try {
             iniciar(await canjearCodigo(boot.codigo));
+            return;
         } catch (e) {
+            // Código de la URL inválido: caer al token ya vinculado si existe.
+        }
+        const guardado = localStorage.getItem(STORAGE_KEY);
+        if (guardado) {
+            iniciar(guardado);
+        } else {
             mostrarVinculacion();
         }
         return;

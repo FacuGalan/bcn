@@ -25,6 +25,7 @@ const colListo = $('#col-listo');
 
 let audioCtx = null;
 let sonidoHabilitado = true;
+let audioUnlocked = false;
 
 // ───────────────────────── Audio (chime) ─────────────────────────
 // Política de autoplay: el AudioContext se crea recién tras un gesto del
@@ -36,6 +37,7 @@ function unlockAudio() {
     } catch (e) {
         audioCtx = null;
     }
+    audioUnlocked = true;
     // El mismo gesto que desbloquea el audio entra a pantalla completa (no se
     // puede disparar F11 desde JS, pero sí la Fullscreen API dentro de un click).
     entrarPantallaCompleta();
@@ -229,6 +231,12 @@ async function iniciar(token) {
         renderSnapshot(data.pedidos || {});
         elVincular.style.display = 'none';
         elPantalla.style.display = 'flex';
+        // La capa "tocá para activar el sonido" (autoplay + fullscreen) se muestra
+        // SOLO con el monitor activo, si el sonido está activo y aún no se
+        // desbloqueó. Así no tapa la pantalla de vinculación.
+        if (sonidoHabilitado && ! audioUnlocked && elAudioUnlock) {
+            elAudioUnlock.style.display = 'flex';
+        }
     } catch (err) {
         // Token inválido/regenerado: olvidarlo y volver a la vinculación.
         localStorage.removeItem(STORAGE_KEY);
@@ -246,6 +254,8 @@ async function iniciar(token) {
 }
 
 function mostrarVinculacion() {
+    // La capa de audio no debe tapar la vinculación (debe verse el campo del código).
+    if (elAudioUnlock) elAudioUnlock.style.display = 'none';
     elPantalla.style.display = 'none';
     elVincular.style.display = 'flex';
 }
@@ -261,7 +271,11 @@ async function canjearCodigo(codigo) {
 
 // ───────────────────────── Arranque ─────────────────────────
 async function arrancar() {
-    if (elAudioUnlock) elAudioUnlock.addEventListener('click', unlockAudio, { once: true });
+    // La capa de audio arranca oculta; se muestra recién con el monitor activo.
+    if (elAudioUnlock) {
+        elAudioUnlock.style.display = 'none';
+        elAudioUnlock.addEventListener('click', unlockAudio, { once: true });
+    }
     // Cualquier gesto desbloquea el audio (por si la capa ya no está).
     document.addEventListener('click', unlockAudio, { once: true });
 
@@ -293,7 +307,14 @@ async function arrancar() {
     if (boot.codigo) {
         try {
             iniciar(await canjearCodigo(boot.codigo));
+            return;
         } catch (e) {
+            // Código de la URL inválido: caer al token ya vinculado si existe.
+        }
+        const guardado = localStorage.getItem(STORAGE_KEY);
+        if (guardado) {
+            iniciar(guardado);
+        } else {
             mostrarVinculacion();
         }
         return;
