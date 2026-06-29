@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-29 (pantallas auxiliares Clase B: llamador de pedidos, consultor de precios y numeracion de display)
+> Version: 0.1.x | Ultima actualizacion: 2026-06-29 (pantallas auxiliares Clase B: iconos de marca propios, fullscreen automatico y sonido de exito en consultor de precios)
 
 ---
 
@@ -3119,7 +3119,7 @@ La columna derecha del modal permite personalizar:
 - **Desbloqueo de audio**: la primera vez que el monitor se carga, aparece una pantalla de toque para habilitar el audio del navegador (los navegadores bloquean el audio sin interaccion del usuario). Al tocar, el audio queda habilitado y la pantalla pasa al monitor.
 - **Pantalla completa**: al tocar la pantalla, intenta activar el modo fullscreen del navegador.
 - **Auto-fit**: si los pedidos no entran en la pantalla al tamano configurado, el sistema los achica hasta que entren todos sin scroll.
-- **Instalable como PWA**: la URL del llamador tiene manifest propio. Desde Chrome o Edge se puede instalar como app independiente (icono en el escritorio o barra de apps del sistema).
+- **Instalable como PWA**: la URL del llamador tiene manifest propio con icono de marca propio (campana en naranja `#FFAF22` sobre fondo navy). Desde Chrome o Edge se puede instalar como app independiente (icono en el escritorio o barra de apps del sistema).
 
 #### Rutas del llamador
 
@@ -3164,7 +3164,9 @@ Identico al llamador: QR, URL larga, URL corta + codigo. El **codigo de vinculac
 - Si el articulo se encuentra, muestra: nombre, unidad de medida, precio en grande y la lista de promociones activas en las que participa (tanto promociones normales como promociones especiales NxM/combo/menu). Luego de N segundos (configurables), la pantalla vuelve a la frase de espera.
 - Si el articulo no se encuentra, muestra "No se encontro el articulo" brevemente.
 - La busqueda funciona por codigo de barras exacto, codigo interno exacto o por nombre (parcial).
-- **Instalable como PWA**: la URL del consultor tiene manifest propio con icono independiente.
+- **Pantalla completa automatica**: en la primera interaccion (toque en pantalla o primer escaneo), la pantalla entra a modo fullscreen sin requerir accion adicional del operador.
+- **Sonido de exito**: al encontrar un precio se reproduce un arpegio ascendente breve (Do-Mi-Sol). Es distinto del chime de atencion del llamador de pedidos.
+- **Instalable como PWA**: la URL del consultor tiene manifest propio con icono de marca propio (codigo de barras en naranja `#FFAF22` sobre fondo navy).
 
 #### Rutas del consultor
 
