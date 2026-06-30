@@ -84,11 +84,13 @@ class PantallaPublicaLlamadorTest extends TestCase
 
     public function test_endpoint_snapshot_devuelve_config_y_pedidos(): void
     {
+        Sucursal::find($this->sucursalId)->update(['usa_llamador' => true]);
         $index = $this->token();
         $this->crearPedido(PedidoMostrador::ESTADO_LISTO, 20, 'Pedro');
 
         $this->get(route('clase-b.llamador.snapshot', ['token' => $index->token]))
             ->assertOk()
+            ->assertJsonPath('activo', true)
             ->assertJsonStructure([
                 'sucursal' => ['nombre'],
                 'config' => ['titulo', 'color_listo', 'sonido'],
@@ -96,6 +98,19 @@ class PantallaPublicaLlamadorTest extends TestCase
             ])
             ->assertJsonPath('pedidos.listo.0.numero', 20)
             ->assertJsonPath('pedidos.listo.0.nombre', 'Pedro');
+    }
+
+    public function test_endpoint_snapshot_inactivo_devuelve_activo_false(): void
+    {
+        Sucursal::find($this->sucursalId)->update(['usa_llamador' => false]);
+        $index = $this->token();
+
+        // No 404: la pantalla necesita la respuesta para mostrar el cartel de
+        // "desactivado". Sin pedidos (no se computan con el llamador apagado).
+        $this->get(route('clase-b.llamador.snapshot', ['token' => $index->token]))
+            ->assertOk()
+            ->assertJsonPath('activo', false)
+            ->assertJsonPath('pedidos', []);
     }
 
     public function test_endpoint_snapshot_404_con_token_invalido(): void

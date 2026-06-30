@@ -126,6 +126,12 @@
         </form>
     </div>
 
+    {{-- Pantalla desactivada: la sucursal tiene apagado el consultor de precios --}}
+    <div id="desactivado" class="cp-vincular" style="display:none;">
+        <h1>{{ __('Consultor desactivado') }}</h1>
+        <p>{{ __('El consultor de precios está desactivado para esta sucursal.') }}</p>
+    </div>
+
     {{-- Consultor (orientado a scanner) --}}
     <div id="pantalla" class="cp-pantalla">
         <header class="cp-header">

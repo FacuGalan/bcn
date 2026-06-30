@@ -135,6 +135,12 @@
         </form>
     </div>
 
+    {{-- Pantalla desactivada: la sucursal tiene apagado el uso del llamador --}}
+    <div id="desactivado" class="llm-vincular" style="display:none;">
+        <h1>{{ __('Llamador desactivado') }}</h1>
+        <p>{{ __('El uso del llamador de pedidos está desactivado para esta sucursal.') }}</p>
+    </div>
+
     {{-- Monitor --}}
     <div id="pantalla" class="llm-pantalla">
         <header class="llm-header">
