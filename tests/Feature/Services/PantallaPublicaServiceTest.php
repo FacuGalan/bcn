@@ -210,15 +210,20 @@ class PantallaPublicaServiceTest extends TestCase
     {
         $index = $this->crearToken();
 
-        // Apagado → 404 (los precios no quedan consultables).
+        // Apagado → config responde 200 con activo:false (la pantalla muestra el
+        // cartel de "desactivado"), pero buscar sigue 404 (los precios NO se
+        // consultan salvo activación explícita — RF-08).
         Sucursal::where('id', $this->sucursalId)->update(['usa_consultor_precios' => false]);
-        $this->get(route('clase-b.precios.config', ['token' => $index->token]))->assertNotFound();
+        $this->get(route('clase-b.precios.config', ['token' => $index->token]))
+            ->assertOk()
+            ->assertJsonPath('activo', false);
         $this->get(route('clase-b.precios.buscar', ['token' => $index->token, 'q' => 'coca']))->assertNotFound();
 
         // Encendido → 200.
         Sucursal::where('id', $this->sucursalId)->update(['usa_consultor_precios' => true]);
         $this->get(route('clase-b.precios.config', ['token' => $index->token]))
             ->assertOk()
+            ->assertJsonPath('activo', true)
             ->assertJsonStructure(['sucursal' => ['nombre'], 'config' => ['titulo', 'color_acento']]);
         $this->get(route('clase-b.precios.buscar', ['token' => $index->token, 'q' => 'x']))
             ->assertOk()
