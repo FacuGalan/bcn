@@ -24,10 +24,9 @@ php artisan migrate --force
 #    Los VITE_* (REVERB, etc.) se hornean acá: el .env debe estar correcto ANTES.
 npm ci && npm run build
 
-# 3) Warm de caches SEGURAS (NO config:cache — ver más abajo)
-php artisan view:cache
-php artisan route:cache
-php artisan event:cache
+# 3) Warm de caches SEGURAS (NO config:cache). Un solo comando que bundlea
+#    view + route + event + icons (imposible olvidarse icons:cache → ver Gotcha 3).
+php artisan deploy:warm
 
 # 4) Recargar FPM. En PRODUCCIÓN es OBLIGATORIO y NO opcional:
 #    el server tiene opcache.validate_timestamps=0, así que OPcache NO relee
@@ -161,6 +160,31 @@ deploy corra `npm run build`** (paso 2 del flujo) para que el hash cambie.
   Con el fix, se auto-sana al primer load tras el deploy.
 
 ---
+
+## Gotcha 3 — blade-icons escanea ~1200 SVGs por request si no hay `icons:cache`
+
+**Qué pasó:** el paquete `blade-ui-kit/blade-heroicons` registra el set de Heroicons
+(~1200 SVGs). Sin el manifest cacheado, blade-icons **escanea el filesystem en CADA
+request** durante el boot de providers → **~600 ms por request**, en TODO el sistema
+(páginas y acciones Livewire por igual). Mismo patrón que el Volt mount, en otro paquete.
+
+**Cómo se detectó (2026-06-30):** probe que parte el request en `boot` vs `handle`.
+Con `icons:cache`: `boot_ms` ~50 ms. Sin él: `boot_ms` ~650 ms. DB era ~40 ms en
+ambos (NO era la base). Aislado limpiando solo el manifest de icons.
+
+**Fix:** `php artisan icons:cache` en el warm de cada deploy (paso 3 del flujo). Genera
+`storage/framework/cache/...`/manifest que blade-icons lee en vez de escanear. Es una
+**caché segura** (no toca config). Alivio inmediato en prod sin re-deploy completo:
+
+```bash
+php artisan icons:cache
+sudo systemctl reload php*-fpm   # para que OPcache tome el cambio (validate_timestamps=0)
+```
+
+**Importante:** `optimize:clear` (hook post-merge) NO borra el manifest de icons, pero
+un deploy en server nuevo —o tras `icons:clear`— sí lo necesita. Por eso va explícito
+en el flujo. Detector: si `boot` domina el request y DB es bajo, sospechar de un
+provider que escanea FS (icons, Volt) — medir, no asumir.
 
 ## Diagnóstico (cuándo "va lento")
 
