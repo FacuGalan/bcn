@@ -20,7 +20,7 @@ new class extends Component
      */
     public function toggleDarkMode(): void
     {
-        $this->darkMode = !$this->darkMode;
+        $this->darkMode = ! $this->darkMode;
 
         $user = Auth::user();
         $user->dark_mode = $this->darkMode;

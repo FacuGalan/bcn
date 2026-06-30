@@ -10,10 +10,15 @@ new #[Layout('layouts.guest')] class extends Component
     public LoginForm $form;
 
     public bool $showConfirmationModal = false;
+
     public int $sessionsToClose = 0;
+
     public array $sessionsInfo = [];
+
     public int $maxSessions = 1;
+
     public array $selectedSessions = [];
+
     public string $selectionError = '';
 
     /**
@@ -33,6 +38,7 @@ new #[Layout('layouts.guest')] class extends Component
             $this->maxSessions = $result['maxSessions'];
             $this->selectedSessions = []; // Limpiar selección previa
             $this->selectionError = '';
+
             return;
         }
 
@@ -42,6 +48,7 @@ new #[Layout('layouts.guest')] class extends Component
         // Si es System Admin, redirigir al selector de comercios
         if ($result['isSystemAdmin'] ?? false) {
             $this->redirect(route('comercio.selector'), navigate: true);
+
             return;
         }
 
@@ -55,8 +62,9 @@ new #[Layout('layouts.guest')] class extends Component
     {
         // Validar que se hayan seleccionado suficientes sesiones
         if (count($this->selectedSessions) < $this->sessionsToClose) {
-            $this->selectionError = __('Debes seleccionar al menos') . " {$this->sessionsToClose} " .
-                ($this->sessionsToClose === 1 ? __('sesión') : __('sesiones')) . ' ' . __('para cerrar') . '.';
+            $this->selectionError = __('Debes seleccionar al menos')." {$this->sessionsToClose} ".
+                ($this->sessionsToClose === 1 ? __('sesión') : __('sesiones')).' '.__('para cerrar').'.';
+
             return;
         }
 
@@ -72,6 +80,7 @@ new #[Layout('layouts.guest')] class extends Component
         // Si es System Admin, redirigir al selector de comercios
         if ($result['isSystemAdmin'] ?? false) {
             $this->redirect(route('comercio.selector'), navigate: true);
+
             return;
         }
 
