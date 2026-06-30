@@ -1,5 +1,4 @@
-<div wire:poll.60s>
-<div class="h-[calc(100vh-5.5rem)] flex flex-col overflow-hidden px-3 sm:px-4 lg:px-6 py-2"
+<div wire:poll.60s class="h-[calc(100vh-5.5rem)] flex flex-col overflow-hidden px-3 sm:px-4 lg:px-6 py-2"
     x-data="{
         vista: localStorage.getItem('pedidos_vista_preferida') || 'lista',
         destacados: new Set(),
@@ -1557,5 +1556,4 @@
     {{-- Modal "Esperando pago" (QR) para materializar pagos planificados con
          forma de pago integrada desde "Cobrar pendiente". --}}
     @include('livewire.carrito._modal-esperando-pago-integracion')
-</div>
 </div>
