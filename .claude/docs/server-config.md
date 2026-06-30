@@ -138,9 +138,8 @@ git pull
 composer install --no-dev --optimize-autoloader
 php artisan migrate --force          # migraciones tenant (iteran todos los comercios)
 npm ci && npm run build              # public/build está gitignored → se compila acá
-php artisan view:cache               # caches SEGURAS (NO config:cache)
-php artisan route:cache
-php artisan event:cache
+php artisan deploy:warm              # caches SEGURAS en un comando: view+route+event+icons (NO config:cache)
+                                     # icons:cache es CRÍTICO: sin él blade-icons escanea ~1200 SVGs/request (~600ms)
 sudo systemctl reload php*-fpm       # OBLIGATORIO en prod (validate_timestamps=0):
                                      # sin esto OPcache sigue corriendo el código viejo
 ```

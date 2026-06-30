@@ -169,10 +169,33 @@ Después de CADA implementación, verificar:
 
 ---
 
+## Deploy a producción (LEER al deployar — incluido el Claude del lado del server)
+
+Secuencia OBLIGATORIA tras `git pull` en el server. Saltarse un paso reintroduce lentitud o sirve vistas viejas:
+
+```bash
+git pull origin master
+composer install --no-dev --optimize-autoloader
+php artisan migrate --force        # incluye tenant (itera todos los comercios)
+npm ci && npm run build            # public/build gitignored → se compila acá; cambia el hash del SW
+php artisan deploy:warm            # cachés SEGURAS: view+route+event+ICONS (un comando, ver abajo)
+sudo systemctl reload php8.2-fpm   # OBLIGATORIO: OPcache (validate_timestamps=0) NO toma el código/cachés nuevos sin esto
+```
+
+**Reglas que NO se negocian (cada una causó un problema real):**
+- **SIEMPRE `php artisan deploy:warm`** (bundlea `view:cache` + `route:cache` + `event:cache` + **`icons:cache`**). El `icons:cache` es CRÍTICO: sin él, blade-icons escanea ~1200 SVGs de heroicons **en cada request** → ~600 ms de lentitud sistémica en TODO el sistema. Mismo patrón que el Volt mount.
+- **NUNCA `php artisan optimize`** ni `config:cache`: serializa el `.env` real → riesgo de envenenar tests (incidente 2026-05-04). El hook `post-merge` corre `optimize:clear` a propósito.
+- **El `reload php-fpm` es el paso que hace efectivo el deploy.** Sin él, OPcache sigue ejecutando el código viejo y "deployás pero no cambia nada". El SAPI web es `php8.2-fpm` (el CLI es 8.3).
+- Si una vista "se ve mal" tras deploy: es caché del Service Worker del cliente, se auto-sana al primer load (o probar en incógnito). Requiere que el deploy haya corrido `npm run build`.
+- Playbook completo + diagnóstico de lentitud: `.claude/docs/deploy-playbook.md`. Config de server: `.claude/docs/server-config.md`.
+
+---
+
 ## Comandos Útiles
 - `php artisan comercio:provision --nombre= --database= --mail=`
 - `php artisan menu:create` (interactivo)
 - `php artisan optimize:clear`
+- `php artisan deploy:warm` (warm de cachés seguras tras deploy: view+route+event+icons; NO config:cache)
 - `php artisan test` / `php artisan test --filter=NombreTest`
 - `php artisan precios:procesar-programados` (scheduler, cada minuto)
 
