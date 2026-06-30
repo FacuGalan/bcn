@@ -91,7 +91,7 @@
         <script>
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('/sw.js')
+                    navigator.serviceWorker.register('/sw.js?v={{ \Illuminate\Support\Facades\Vite::manifestHash() ?? 'dev' }}')
                         .then((registration) => {
                             console.log('SW registrado:', registration.scope);
                         })

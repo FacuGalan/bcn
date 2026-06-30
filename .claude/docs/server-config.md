@@ -48,13 +48,16 @@ APP_DEBUG=true
 
 ### Post-deploy
 
-Tras cada `git pull`, el hook `post-merge` ejecuta `php artisan optimize` automáticamente.
-Si el hook no está configurado, ejecutar manualmente:
+Tras cada `git pull`, el hook `post-merge` ejecuta **`php artisan optimize:clear`**
+(limpia caches, NO los recachea — evita envenenar los tests, incidente 2026-05-04).
+Si el hook no está configurado:
 
 ```bash
 git config core.hooksPath .githooks
-php artisan optimize
 ```
+
+El warm de caches y migraciones NO los hace el hook — correrlos a mano (ver el
+flujo de Producción más abajo). **Nunca `php artisan optimize`** (incluye `config:cache`).
 
 ---
 
@@ -94,17 +97,17 @@ opcache.interned_strings_buffer=16
 opcache.save_comments=1
 ```
 
-**Importante:** Con `validate_timestamps=0`, OPcache no detecta cambios en archivos. Después de cada deploy ejecutar:
+**CRÍTICO:** Con `validate_timestamps=0`, OPcache **nunca** relee los `.php` cambiados
+hasta un reload de FPM. Por eso, después de CADA deploy (obligatorio, no opcional):
 
 ```bash
 sudo systemctl reload php*-fpm
 ```
 
-O agregar al script de deploy:
-```bash
-php artisan optimize
-sudo systemctl reload php*-fpm
-```
+Si lo omitís, el código nuevo está en disco pero OPcache sigue ejecutando el bytecode
+viejo → un fix de performance (p.ej. `VoltServiceProvider`) "deployado" pero sin efecto.
+Es la causa #1 de "deployé y sigue igual de lento". **No usar `php artisan optimize`**
+(incluye `config:cache`); warmear sólo `view`/`route`/`event` (ver flujo de deploy abajo).
 
 ### `.env` (valores específicos de producción)
 
@@ -128,17 +131,31 @@ composer require predis/predis
 
 ### Post-deploy
 
-El flujo de deploy en producción debería ser:
+El flujo de deploy en producción debe ser:
 
 ```bash
 git pull
 composer install --no-dev --optimize-autoloader
-php artisan optimize
-php artisan view:cache
-sudo systemctl reload php*-fpm
+php artisan migrate --force          # migraciones tenant (iteran todos los comercios)
+npm ci && npm run build              # public/build está gitignored → se compila acá
+php artisan view:cache               # caches SEGURAS (NO config:cache)
+php artisan route:cache
+php artisan event:cache
+sudo systemctl reload php*-fpm       # OBLIGATORIO en prod (validate_timestamps=0):
+                                     # sin esto OPcache sigue corriendo el código viejo
 ```
 
-El hook `post-merge` ejecuta `php artisan optimize` automáticamente tras `git pull`. El reload de FPM debe hacerse manualmente (requiere sudo).
+**Importante:**
+- El hook `post-merge` ejecuta `php artisan optimize:clear` (NO `optimize`): limpia
+  caches sin recachear config, para no envenenar los tests (incidente 2026-05-04).
+  Por eso `migrate`, `build` y el warm de caches **NO están automatizados** — corrélos a mano.
+- **NO usar `php artisan optimize`** (incluye `config:cache`). Warmear solo las tres
+  caches seguras: `view`, `route`, `event`.
+- El reload de FPM es manual (requiere sudo) y en prod es **obligatorio**
+  (`validate_timestamps=0`): es lo que hace que el código nuevo realmente se ejecute.
+
+> **Gotchas de deploy** (Volt mount lento, PWA sirviendo vistas viejas, cómo
+> diagnosticar lentitud): ver `.claude/docs/deploy-playbook.md`.
 
 ---
 
@@ -163,8 +180,8 @@ servidor debe garantizar.
   pago confirmado llega al navegador del cajero por `wss://<DOMINIO>/app/{key}`. En
   `.env`: `BROADCAST_CONNECTION=reverb` + `REVERB_*`; en el build del front:
   `VITE_REVERB_HOST/PORT/SCHEME`. Si se tocan las `VITE_*`, hace falta `npm run build`.
-- **Caches tras deploy**: `php artisan optimize` (incluye `route:cache`; sin esto la
-  ruta del webhook puede dar 404).
+- **Caches tras deploy**: `php artisan route:cache` (sin esto la ruta del webhook
+  puede dar 404). NO `php artisan optimize` (incluye `config:cache`, prohibido).
 - **Panel de MP**: por cada sucursal/aplicación, registrar la misma URL del webhook,
   tópico **Órdenes** (Orders API, NO "Pagos"), y cargar el signing secret en
   Configuración → Integraciones de Pago (campo `webhook_secret`, se guarda encriptado).
@@ -219,16 +236,27 @@ mysql -e "SHOW VARIABLES LIKE 'wait_timeout';"
 
 ## XAMPP (Windows, solo desarrollo local)
 
-En XAMPP, OPcache viene deshabilitado por defecto. Activar en `C:\xampp\php\php.ini`:
+En XAMPP, OPcache viene deshabilitado por defecto (`zend_extension=opcache` comenteado).
+Sin OPcache, PHP recompila TODO el proyecto en cada request → ~1 s extra por página.
+Activar en `C:\xampp\php\php.ini`:
 
 ```ini
 zend_extension=opcache
 opcache.enable=1
+opcache.enable_cli=1          ; ⚠️ IMPRESCINDIBLE: `php artisan serve` usa PHP CLI.
+                              ;    Sin enable_cli, serve NO toma OPcache (medido 2026-06-30).
 opcache.memory_consumption=128
 opcache.max_accelerated_files=10000
-opcache.revalidate_freq=2
-opcache.validate_timestamps=1
+opcache.validate_timestamps=1 ; detectar cambios de código sin reiniciar
+opcache.revalidate_freq=0     ; revalidar en cada request → tus ediciones se ven al toque
 opcache.interned_strings_buffer=8
 ```
 
-Reiniciar Apache desde el panel de XAMPP después de cambiar `php.ini`.
+**Reiniciar el SAPI tras cambiar `php.ini`:**
+- Si servís con `php artisan serve`: **cortar (Ctrl+C) y volver a levantarlo** — el
+  proceso CLI viejo no toma el ini nuevo. (Reiniciar Apache NO alcanza para serve.)
+- Si servís con Apache (mod_php): reiniciar Apache desde el panel de XAMPP.
+
+Verificar: `php -r "echo extension_loaded('Zend OPcache')?'OK':'FALTA';"`
+
+Medido en este proyecto (página `/`, mismo código): **sin OPcache ~1.0 s → con OPcache ~0.27 s** (~3.7×).
