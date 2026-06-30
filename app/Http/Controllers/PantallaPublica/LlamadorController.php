@@ -48,12 +48,17 @@ class LlamadorController extends Controller
         /** @var Sucursal $sucursal */
         $sucursal = $request->attributes->get('pantalla_sucursal');
         $config = $sucursal->getConfigLlamador();
+        $activo = (bool) $sucursal->usa_llamador;
 
         return response()->json([
+            // Si la sucursal apagó el llamador, la pantalla muestra un cartel de
+            // "desactivado" en vez de un tablero vacío que parece roto. No 404:
+            // el cliente necesita la respuesta para saber que está apagado.
+            'activo' => $activo,
             'sucursal' => ['nombre' => $sucursal->nombrePantallaCliente()],
             'config' => $config,
             'logo' => ! empty($config['mostrar_logo']) ? $sucursal->logoPantallaClienteUrl() : null,
-            'pedidos' => $service->pedidosParaLlamador($sucursal),
+            'pedidos' => $activo ? $service->pedidosParaLlamador($sucursal) : [],
         ]);
     }
 }

@@ -19,6 +19,7 @@ const I18N = boot.i18n || {};
 const $ = (sel) => document.querySelector(sel);
 const elVincular = $('#vincular');
 const elPantalla = $('#pantalla');
+const elDesactivado = $('#desactivado');
 const elInput = $('#cp-input');
 const elIdle = $('#cp-idle');
 const elResult = $('#cp-result');
@@ -208,8 +209,18 @@ async function iniciar(token) {
         const data = await cargarConfig(token);
         tokenActivo = token;
         localStorage.setItem(STORAGE_KEY, token);
+
+        // La sucursal apagó el consultor: cartel claro en vez de quedar colgado
+        // tras vincular. No habilitamos el foco/escáner (buscar() está 404).
+        if (data.activo === false) {
+            focoActivo = false;
+            mostrarDesactivado();
+            return;
+        }
+
         aplicarConfig(data);
         elVincular.style.display = 'none';
+        if (elDesactivado) elDesactivado.style.display = 'none';
         elPantalla.style.display = 'flex';
         mostrarIdle();
         focoActivo = true;
@@ -223,7 +234,14 @@ async function iniciar(token) {
 
 function mostrarVinculacion() {
     elPantalla.style.display = 'none';
+    if (elDesactivado) elDesactivado.style.display = 'none';
     elVincular.style.display = 'flex';
+}
+
+function mostrarDesactivado() {
+    elPantalla.style.display = 'none';
+    elVincular.style.display = 'none';
+    if (elDesactivado) elDesactivado.style.display = 'flex';
 }
 
 async function canjearCodigo(codigo) {

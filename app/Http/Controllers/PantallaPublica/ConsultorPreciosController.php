@@ -48,14 +48,18 @@ class ConsultorPreciosController extends Controller
         /** @var Sucursal $sucursal */
         $sucursal = $request->attributes->get('pantalla_sucursal');
 
-        abort_unless((bool) $sucursal->usa_consultor_precios, 404);
-
+        // No 404 si está apagado: el cliente necesita saberlo para mostrar el
+        // cartel de "desactivado" (en vez de quedar colgado tras vincular). Los
+        // PRECIOS siguen protegidos en buscar() (404). El nombre/branding de la
+        // sucursal no es sensible.
+        $activo = (bool) $sucursal->usa_consultor_precios;
         $config = $sucursal->getConfigConsultorPrecios();
 
         return response()->json([
+            'activo' => $activo,
             'sucursal' => ['nombre' => $sucursal->nombrePantallaCliente()],
             'config' => $config,
-            'logo' => ! empty($config['mostrar_logo']) ? $sucursal->logoPantallaClienteUrl() : null,
+            'logo' => $activo && ! empty($config['mostrar_logo']) ? $sucursal->logoPantallaClienteUrl() : null,
         ]);
     }
 

@@ -19,6 +19,7 @@ const boot = window.__LLAMADOR__ || {};
 const $ = (sel) => document.querySelector(sel);
 const elVincular = $('#vincular');
 const elPantalla = $('#pantalla');
+const elDesactivado = $('#desactivado');
 const elAudioUnlock = $('#audio-unlock');
 const colPrep = $('#col-preparacion');
 const colListo = $('#col-listo');
@@ -227,9 +228,18 @@ async function iniciar(token) {
     try {
         const data = await cargarSnapshot(token);
         localStorage.setItem(STORAGE_KEY, token);
+
+        // La sucursal apagó el llamador: cartel claro en vez de un tablero vacío
+        // que parece colgado. No nos suscribimos a Reverb (no llegan eventos).
+        if (data.activo === false) {
+            mostrarDesactivado();
+            return;
+        }
+
         aplicarConfig(data);
         renderSnapshot(data.pedidos || {});
         elVincular.style.display = 'none';
+        if (elDesactivado) elDesactivado.style.display = 'none';
         elPantalla.style.display = 'flex';
         // La capa "tocá para activar el sonido" (autoplay + fullscreen) se muestra
         // SOLO con el monitor activo, si el sonido está activo y aún no se
@@ -257,7 +267,15 @@ function mostrarVinculacion() {
     // La capa de audio no debe tapar la vinculación (debe verse el campo del código).
     if (elAudioUnlock) elAudioUnlock.style.display = 'none';
     elPantalla.style.display = 'none';
+    if (elDesactivado) elDesactivado.style.display = 'none';
     elVincular.style.display = 'flex';
+}
+
+function mostrarDesactivado() {
+    if (elAudioUnlock) elAudioUnlock.style.display = 'none';
+    elVincular.style.display = 'none';
+    elPantalla.style.display = 'none';
+    if (elDesactivado) elDesactivado.style.display = 'flex';
 }
 
 async function canjearCodigo(codigo) {
