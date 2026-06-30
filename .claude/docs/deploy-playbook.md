@@ -29,10 +29,22 @@ php artisan view:cache
 php artisan route:cache
 php artisan event:cache
 
-# 4) Recargar FPM si OPcache tiene validate_timestamps=0 (ver server-config.md).
-#    Si validate_timestamps=On (revalidate_freq bajo), no hace falta.
+# 4) Recargar FPM. En PRODUCCIÓN es OBLIGATORIO y NO opcional:
+#    el server tiene opcache.validate_timestamps=0, así que OPcache NO relee
+#    los .php cambiados hasta este reload. Sin esto, un fix de CÓDIGO (p.ej. el
+#    VoltServiceProvider) deployás pero NO surte efecto: OPcache sigue corriendo
+#    la versión vieja compilada. → "deployé y sigue igual de lento" = falta este paso.
 sudo systemctl reload php*-fpm
 ```
+
+> ### ⚠️ Si deployaste un fix de performance y "no mejoró nada"
+> Casi siempre es el **paso 4 omitido**. Con `validate_timestamps=0` (producción),
+> OPcache cachea el bytecode compilado y lo sirve hasta que reciba un `reload`/`restart`
+> de FPM. Mientras tanto el código nuevo está en disco pero **no se ejecuta**.
+> Verificá que el reload corrió: `sudo systemctl status php*-fpm` (uptime reciente) o
+> `php -r 'print_r(opcache_get_status()["opcache_statistics"]["start_time"]);'` desde el
+> SAPI web (no CLI). Esto explica el viejo "lo arregló el optimize": el lever real no era
+> `config:cache` (mide ~8 ms), era que el ciclo de deploy refrescaba los workers de FPM.
 
 ### Sobre `php artisan optimize` / `config:cache`
 
@@ -46,6 +58,38 @@ sudo systemctl reload php*-fpm
   asumirlo, **medí** (ver Diagnóstico).
 
 ---
+
+## Checklist pre-deploy (correr en local/CI antes de subir)
+
+```bash
+# 1) No quedaron componentes Volt sueltos en livewire/ (deben estar en views/volt/).
+#    Un Volt huérfano = 500 'Unable to find component' en la página que lo use.
+#    Bug real 2026-06-30: welcome.navigation quedó en livewire/ tras mover los otros 9.
+find resources/views/livewire -name "*.blade.php" \
+  -exec sh -c 'head -c5 "$1" | grep -q "<?php" && echo "VOLT SUELTO: $1"' _ {} \;
+#    ⚠️ Ojo: welcome/navigation NO arranca con <?php (es view-only) pero IGUAL es Volt.
+#    Detector complementario: toda ref <livewire:X> cuyo componente sólo exista bajo
+#    views/ (no en app/Livewire/) tiene que vivir en views/volt/.
+
+# 2) Smoke de las rutas públicas que no requieren login (se rompen sin que nadie las note):
+#    abrir '/' (welcome) y '/login' — ambas deben dar 200, no 500.
+for p in / app/login; do
+  curl -s -o /dev/null -w "$p -> %{http_code}\n" http://127.0.0.1:8000/$p
+done
+```
+
+## Verificación post-deploy (en el server, después del paso 4)
+
+```bash
+DOMINIO=<tu-dominio>
+# '/' y '/login' deben dar 200 (no 500 por Volt huérfano)
+for p in "" app/login; do
+  curl -s -o /dev/null -w "/$p -> %{http_code} %{time_total}s\n" https://$DOMINIO/$p
+done
+# Tiempo de una página real ya con OPcache caliente (2ª+ corrida): debe bajar
+# muy por debajo del ~750 ms del bug de Volt. Si sigue alto → revisar paso 4 (reload FPM).
+for i in 1 2 3 4; do curl -s -o /dev/null -w "%{time_total}s\n" -L https://$DOMINIO/app/login; done
+```
 
 ## Gotcha 1 — Volt monta solo `resources/views/volt/` (NUNCA todo `livewire/`)
 
@@ -61,15 +105,20 @@ solo se usa para 9 componentes de Breeze.
 Los nombres (`layout.navigation`, `profile.*`, `pages.auth.*`) se preservan por
 los subpaths.
 
-**Regla:** un componente Volt (single-file, arranca con `<?php`) va en
-`resources/views/volt/`, **nunca** mezclado con las vistas Livewire clásicas de
-`resources/views/livewire/`. Detector rápido de Volt sueltos:
+**Regla:** un componente Volt va en `resources/views/volt/`, **nunca** mezclado con
+las vistas Livewire clásicas de `resources/views/livewire/`. Detector rápido:
 
 ```bash
 # debe devolver 0
 find resources/views/livewire -name "*.blade.php" \
   -exec sh -c 'head -c5 "$1" | grep -q "<?php" && echo "$1"' _ {} \;
 ```
+
+> **Caveat (regresión 2026-06-30):** el detector de arriba sólo encuentra Volts que
+> arrancan con `<?php`. Un Volt **view-only** (puro markup, sin bloque `<?php`) como
+> `welcome/navigation.blade.php` **NO lo atrapa** y aun así se rompe al moverse el mount.
+> Por eso el paso 2 del checklist pre-deploy (abrir `/` y `/login`) es obligatorio:
+> un Volt huérfano da 500 sólo al renderizar la página que lo referencia.
 
 **`optimize` NO arregla esto** (no cachea el escaneo de directorios de Volt).
 Lo confirmamos midiendo: `config:cache` + `view:cache` no movieron el tiempo.
