@@ -56,6 +56,19 @@ sudo systemctl reload php*-fpm
 - Reflejo típico "está lento → corré optimize": **a veces es la respuesta y a
   veces no.** Solo aplica si el cuello eran rutas/vistas sin cachear. Antes de
   asumirlo, **medí** (ver Diagnóstico).
+- **Hook de `composer`** (`composer.json` → `post-install-cmd`/`post-update-cmd`):
+  corría `php artisan optimize` (= `config:cache`) en cada `composer install/update`
+  sin `CI=1` → todo deploy horneaba config en silencio (lo opuesto a la regla). Se
+  cambió a `optimize:clear` (alineado con el hook `post-merge`). Verificación tras
+  deploy: `php artisan config:clear` debería ser no-op; si `bootstrap/cache/config.php`
+  existe, algo volvió a cachear config.
+
+### Detalle del servicio FPM (server oficial)
+
+El SAPI web corre **`php8.2-fpm`** aunque el **CLI es PHP 8.3**. El `reload php*-fpm`
+del flujo igual lo agarra (wildcard), pero si reloadeás el servicio explícito es
+`sudo systemctl reload php8.2-fpm`. No confundir la versión del CLI (`php -v`) con la
+que sirve las requests.
 
 ---
 
