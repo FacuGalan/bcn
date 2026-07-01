@@ -31,6 +31,7 @@ class CuitImpuestoConfig extends Model
         'percibir_no_empadronados',
         'alicuota',
         'alicuota_minimo_base',
+        'monto_minimo_percepcion',
         'origen_alicuota',
         'vigente_desde',
         'vigente_hasta',
@@ -43,6 +44,7 @@ class CuitImpuestoConfig extends Model
         'percibir_no_empadronados' => 'boolean',
         'alicuota' => 'decimal:4',
         'alicuota_minimo_base' => 'decimal:2',
+        'monto_minimo_percepcion' => 'decimal:2',
         'vigente_desde' => 'date',
         'vigente_hasta' => 'date',
     ];

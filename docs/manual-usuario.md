@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-07-01 (pedidos por mostrador: filtros de estado en barra superior, ordenamiento por columna, badges de estado pedido vibrantes, cliente opcional con default "Consumidor final", teclas rapidas en editor)
+> Version: 0.1.x | Ultima actualizacion: 2026-07-01 (revision sistema impositivo: percepcion minima por regimen en configuracion de impuestos del CUIT, desglose de ingresos gravado/no gravado/exento en posicion IIBB por jurisdiccion)
 
 ---
 
@@ -2452,7 +2452,7 @@ Cada CUIT en la lista expone tres botones de accion adicionales (accesibles desd
 **Boton "Impuestos"**: abre el modal de configuracion impositiva del CUIT. Permite:
 - Buscar impuestos del catalogo del sistema (percepciones y retenciones de IVA e IIBB por jurisdiccion, ganancias, creditos y debitos, SIRCREB) y agregarlos al CUIT.
 - Crear impuestos personalizados que no esten en el catalogo del sistema.
-- Para cada impuesto configurado, editar: alicuota (%), base minima (umbral de base imponible para aplicar la percepcion), numero de inscripcion, vigente desde, vigente hasta.
+- Para cada impuesto configurado, editar: alicuota (%), base minima (umbral de base imponible para aplicar la percepcion), **Percepcion minima** (umbral sobre el monto ya calculado de la percepcion: si el importe resultante no alcanza este valor, no se practica; distinto de la base minima, que se compara contra el neto gravado), numero de inscripcion, vigente desde, vigente hasta.
 - Marcar si el CUIT actua como agente de percepcion y/o agente de retencion para ese impuesto.
 - Para los impuestos de tipo IIBB, aparece ademas el flag **"Percibir a clientes no empadronados"**: si esta activo, el sistema percibe la alicuota fija del agente a todo cliente Responsable Inscripto que no tenga perfil fiscal propio cargado para ese IIBB; si esta desactivado (valor por defecto), solo se percibe a los clientes que tienen alicuota cargada manualmente o proveniente de padron.
 - Quitar un impuesto de la configuracion del CUIT.
@@ -2461,6 +2461,7 @@ Cada CUIT en la lista expone tres botones de accion adicionales (accesibles desd
 > **Percepcion automatica en ventas**: si marca el CUIT como agente de percepcion para un impuesto (por ejemplo, percepcion de IIBB provincial o percepcion de IVA), el sistema calculara y cobrara automaticamente esa percepcion al facturar a clientes Responsables Inscriptos desde los puntos de venta de ese CUIT.
 > - Para **IVA**: la alicuota fija del agente aplica a todo RI sin excepcion (percepcion automatica).
 > - Para **IIBB provincial**: la alicuota se refina por el perfil fiscal del cliente (ver accion "Perfil fiscal" en el modulo Clientes). Si el cliente tiene alicuota propia, pisa la fija del agente; si esta exento, no se percibe; si no tiene perfil, el comportamiento depende del flag "Percibir a clientes no empadronados" del agente.
+> - En ambos casos, ademas del umbral de base minima, se respeta el campo **Percepcion minima** del agente: si el monto calculado no lo alcanza, no se cobra la percepcion.
 > Los impuestos del catalogo ya tienen asignado su codigo de tributo AFIP (campo interno `codigo_arca`) para informarlo correctamente en el comprobante electronico.
 
 **Boton "Domicilios"**: abre el modal de domicilios fiscales del CUIT. Permite:
@@ -3258,13 +3259,20 @@ Las percepciones y retenciones que el CUIT aplica como agente (deuda a depositar
 #### Panel de Posicion de IIBB
 
 Muestra el resumen por jurisdiccion (provincia). Para cada jurisdiccion:
-- Base imponible (ingresos netos gravados del periodo)
+- Gravado (ingresos netos gravados del periodo)
+- No gravado (ingresos netos no gravados del periodo)
+- Exento (ingresos netos exentos del periodo)
+- Ingresos totales (suma de Gravado + No gravado + Exento)
 - Percepciones sufridas a cuenta
 - Retenciones sufridas a cuenta
 - Total a cuenta
 - Percepciones y retenciones aplicadas como agente (deuda a depositar)
 
+Las notas de credito restan de los tres componentes de ingresos (Gravado, No gravado y Exento) en la jurisdiccion correspondiente. El desglose es informativo: que columnas integran la base de Ingresos Brutos depende de cada jurisdiccion y rubro, por eso se muestran por separado en vez de asumir un unico calculo.
+
 La jurisdiccion surge del domicilio fiscal del punto de venta del comprobante, no de la ubicacion fisica de la sucursal.
+
+**Exportar CSV**: el boton "Exportar CSV" incluye las cuatro columnas de ingresos (Gravado, No gravado, Exento, Ingresos totales) ademas de percepciones/retenciones sufridas y a cuenta.
 
 ---
 

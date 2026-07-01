@@ -133,19 +133,20 @@ class PosicionFiscalService
      * Posición de IIBB por jurisdicción (RF-09).
      *
      * Cada jurisdicción (código ISO 3166-2, ej. `AR-B`) lista:
-     *  - base_imponible: ingresos del período (neto gravado de los comprobantes
-     *    cuya sucursal pertenece a esa provincia; NC restan).
+     *  - Ingresos del período desglosados (NC restan): base_imponible (neto
+     *    gravado por IVA), no_gravado, exento e ingresos_totales (suma de los
+     *    tres). El desglose es informativo: qué componentes integran la base de
+     *    IIBB depende de cada jurisdicción/rubro — lo define el contador con las
+     *    columnas a la vista (revisión Fable 2026-07-01).
      *  - percepciones / retenciones SUFRIDAS a cuenta + total a_cuenta.
      *  - percepciones / retenciones APLICADAS (como agente, deuda a depositar).
      *
-     * REVISAR (Fable): (1) la base imponible de IIBB se toma como `neto_gravado`
-     * de ventas; varias jurisdicciones consideran ingresos brutos (gravado + no
-     * gravado + exento) — confirmar con el contador. (2) No contempla Convenio
-     * Multilateral (reparto de base entre jurisdicciones) ni alícuota por padrón
-     * del sujeto. Diferido a la fase de padrones.
+     * Pendiente diferido (contador/fase padrones): Convenio Multilateral (reparto
+     * de la base entre jurisdicciones por coeficiente).
      *
      * @return array<int, array{jurisdiccion:string, jurisdiccion_nombre:string,
-     *   base_imponible:float, percepciones_sufridas:float,
+     *   base_imponible:float, no_gravado:float, exento:float,
+     *   ingresos_totales:float, percepciones_sufridas:float,
      *   retenciones_sufridas:float, a_cuenta:float, percepciones_aplicadas:float,
      *   retenciones_aplicadas:float}>
      */
@@ -160,6 +161,8 @@ class PosicionFiscalService
             if (! isset($jurisdicciones[$iso])) {
                 $jurisdicciones[$iso] = [
                     'base_imponible' => 0.0,
+                    'no_gravado' => 0.0,
+                    'exento' => 0.0,
                     'percepciones_sufridas' => 0.0,
                     'retenciones_sufridas' => 0.0,
                     'percepciones_aplicadas' => 0.0,
@@ -201,7 +204,7 @@ class PosicionFiscalService
             ->where('cuit_id', $cuit->id)
             ->whereBetween('fecha_emision', [$desde, $hasta])
             ->with(['puntoVenta.cuitDomicilio:id,provincia', 'sucursal:id,provincia'])
-            ->get(['id', 'tipo', 'punto_venta_id', 'sucursal_id', 'neto_gravado', 'comprobante_asociado_id']);
+            ->get(['id', 'tipo', 'punto_venta_id', 'sucursal_id', 'neto_gravado', 'neto_no_gravado', 'neto_exento', 'comprobante_asociado_id']);
 
         foreach ($comprobantes as $comprobante) {
             $iso = $comprobante->puntoVenta?->cuitDomicilio?->provincia
@@ -215,6 +218,8 @@ class PosicionFiscalService
             // Las notas de crédito restan ingresos.
             $signo = $comprobante->esNotaCredito() ? -1 : 1;
             $jurisdicciones[$iso]['base_imponible'] += $signo * (float) $comprobante->neto_gravado;
+            $jurisdicciones[$iso]['no_gravado'] += $signo * (float) $comprobante->neto_no_gravado;
+            $jurisdicciones[$iso]['exento'] += $signo * (float) $comprobante->neto_exento;
         }
 
         $resultado = [];
@@ -226,6 +231,9 @@ class PosicionFiscalService
                 'jurisdiccion' => $iso,
                 'jurisdiccion_nombre' => $this->nombreJurisdiccion($iso),
                 'base_imponible' => round($datos['base_imponible'], 2),
+                'no_gravado' => round($datos['no_gravado'], 2),
+                'exento' => round($datos['exento'], 2),
+                'ingresos_totales' => round($datos['base_imponible'] + $datos['no_gravado'] + $datos['exento'], 2),
                 'percepciones_sufridas' => round($datos['percepciones_sufridas'], 2),
                 'retenciones_sufridas' => round($datos['retenciones_sufridas'], 2),
                 'a_cuenta' => $aCuenta,

@@ -3,6 +3,7 @@
 namespace App\Services\Fiscal;
 
 use App\Models\Cliente;
+use App\Models\ClienteImpuestoConfig;
 use App\Models\Compra;
 use App\Models\ComprobanteFiscal;
 use App\Models\ConciliacionFila;
@@ -48,13 +49,18 @@ class ImpuestoService
      * $datos: cuit_id, impuesto_id, sentido, naturaleza, fecha, monto
      * (requeridos) + sucursal_id, base_imponible, alicuota, certificado_numero,
      * origen_tipo, origen_id, observaciones, usuario_id (opcionales).
+     *
+     * Semántica de signos: monto positivo. Sólo las reversas de nota de crédito
+     * (registrarDesdeComprobante) pasan `$permitirNegativo` y registran montos
+     * negativos — la posición fiscal suma montos, así que una fila negativa
+     * resta el débito/percepción en el período de la NC.
      */
-    public function registrarMovimientoFiscal(array $datos): MovimientoFiscal
+    public function registrarMovimientoFiscal(array $datos, bool $permitirNegativo = false): MovimientoFiscal
     {
         DB::connection('pymes_tenant')->beginTransaction();
 
         try {
-            $this->validarDatosMovimiento($datos);
+            $this->validarDatosMovimiento($datos, $permitirNegativo);
 
             $fecha = Carbon::parse($datos['fecha']);
 
@@ -110,10 +116,11 @@ class ImpuestoService
      * estado=activo, por lo que la anulación saca limpio el original sin
      * necesidad de aritmética con signo (monto queda siempre positivo).
      *
-     * REVISAR (Fable): esto solo hace anulación TOTAL. RF-04 pide contraasientos
-     * PROPORCIONALES para la nota de crédito (reversa parcial de un débito/tributo).
-     * Falta un método tipo `revertirParcial(mov, monto)` o que registrarDesdeComprobante
-     * de la NC genere las reversas proporcionales. Se resuelve en Fase 5.
+     * Anular es CORRECCIÓN DE ERROR de carga: hace desaparecer el movimiento
+     * retroactivamente de su período. Un evento fiscal nuevo que revierte otro
+     * (la nota de crédito) NO pasa por acá — registra sus propios movimientos
+     * negativos en SU período (ver registrarDesdeComprobante), porque el período
+     * del original puede estar ya declarado ante el fisco.
      *
      * @throws Exception si el movimiento ya fue anulado o es un contraasiento.
      */
@@ -202,8 +209,9 @@ class ImpuestoService
      * Matriz v1 conservador (decisión del usuario, 2026-06-16): una percepción
      * se aplica solo si el CUIT emisor es agente de percepción (config vigente,
      * inscripto, con alícuota cargada) Y el receptor es Responsable Inscripto.
-     *  - Percepción IVA (nacional): AUTOMÁTICA, sin condicionamiento por
-     *    jurisdicción ni por cliente — alícuota fija del agente a todo RI.
+     *  - Percepción IVA (nacional): automática a todo RI, sin condicionar
+     *    jurisdicción — salvo cliente con certificado de exclusión (perfil
+     *    fiscal `exento` para el impuesto; RG 2226). No toma alícuota por sujeto.
      *  - Percepción IIBB (provincial): solo si la jurisdicción del impuesto
      *    coincide con la jurisdicción de la operación. Esta sale del DOMICILIO
      *    FISCAL del punto de venta del comprobante (RF-11, Fase 9), no de la
@@ -213,7 +221,8 @@ class ImpuestoService
      *    config del cliente decide la flag `percibir_no_empadronados` del agente
      *    (D7): true ⇒ alícuota fija del agente; false (default) ⇒ no percibe.
      * Respeta `alicuota_minimo_base` (del cliente si está, si no del agente; si el
-     * neto gravado es menor → no percibe).
+     * neto gravado es menor → no percibe) y `monto_minimo_percepcion` del agente
+     * (si el importe resultante no lo alcanza → no se practica).
      * Consumidor final / monotributo / exento / receptor null → sin percepción.
      *
      * El IVA débito del comprobante NO se calcula acá (lo hace
@@ -226,15 +235,11 @@ class ImpuestoService
      */
     public function calcularTributos(Cuit $emisor, ?Cliente $receptor, float $netoGravado, ?string $jurisdiccion = null, ?Carbon $fecha = null): array
     {
-        // REVISAR (Fable): la matriz es v1 conservador (ver "Revisión pendiente"
-        // en el spec). Puntos que AÚN faltan auditar contra la normativa real:
-        //  - "solo RI" como receptor ignora regímenes que perciben también a
-        //    monotributo/exento según jurisdicción.
-        //  - Falta un "monto mínimo de percepción" (sobre el importe resultante)
-        //    y un "monto no sujeto" (se resta de la base); hoy solo
-        //    alicuota_minimo_base como umbral de base.
-        //  - IIBB no contempla Convenio Multilateral ni padrón del receptor
-        //    (diferido a fase padrones).
+        // Pendiente normativo (con el contador, ver "Revisión pendiente" en el
+        // spec): el gate "solo RI" como receptor puede saltear monotributistas
+        // empadronados en IIBB (los padrones ARBA/AGIP los incluyen) — relajarlo
+        // re-abre D6. Convenio Multilateral: diferido. El "monto no sujeto"
+        // (deducción de base, típico de retenciones) no se modela.
         if ($netoGravado <= 0) {
             return [];
         }
@@ -259,14 +264,30 @@ class ImpuestoService
             ->where('es_agente_percepcion', true)
             ->whereNotNull('alicuota')
             ->with('impuesto')
-            ->get();
+            ->get()
+            // Vigencias solapadas para el mismo impuesto: gana la de
+            // vigente_desde más reciente (misma regla que configVigente) — sin
+            // esto se percibiría dos veces el mismo impuesto.
+            ->groupBy('impuesto_id')
+            ->map(fn ($grupo) => $grupo->sortByDesc(
+                fn ($c) => $c->vigente_desde?->format('Y-m-d') ?? ''
+            )->first())
+            ->values();
 
-        // Perfil fiscal del receptor (RF-15, Fase 10): refina el IIBB por sujeto.
-        // Se carga una sola vez, keyed por impuesto_id (evita N+1 en el loop).
+        // Perfil fiscal del receptor (RF-15, Fase 10): refina el IIBB por sujeto
+        // y la exclusión de IVA. Una sola query, un ganador por impuesto: el
+        // override MANUAL del contador le gana al padrón (que el importador no
+        // pise la fila manual no alcanza — acá pueden coexistir vigentes ambas);
+        // a igual origen, la vigencia más reciente.
         $configsCliente = $receptor->impuestoConfigs()
             ->vigentes($fecha?->toDateString())
             ->get()
-            ->keyBy('impuesto_id');
+            ->groupBy('impuesto_id')
+            ->map(fn ($grupo) => $grupo->sortByDesc(fn ($c) => sprintf(
+                '%d|%s',
+                $c->origen_alicuota === ClienteImpuestoConfig::ORIGEN_MANUAL ? 1 : 0,
+                $c->vigente_desde?->format('Y-m-d') ?? ''
+            ))->first());
 
         $tributos = [];
 
@@ -283,6 +304,15 @@ class ImpuestoService
             }
 
             if ($impuesto->naturaleza_default !== MovimientoFiscal::NATURALEZA_PERCEPCION) {
+                continue;
+            }
+
+            // Certificado de exclusión de percepción de IVA (RG 2226): un perfil
+            // fiscal del cliente marcado exento para este impuesto lo excluye.
+            // A diferencia del IIBB, para IVA no se toma alícuota por sujeto
+            // (la exclusión es todo-o-nada).
+            if ($impuesto->tipo === Impuesto::TIPO_IVA
+                && ($configsCliente->get($impuesto->id)?->exento ?? false)) {
                 continue;
             }
 
@@ -322,12 +352,7 @@ class ImpuestoService
                 }
             }
 
-            // Base mínima para aplicar la percepción.
-            // REVISAR (Fable): se interpreta `alicuota_minimo_base` como umbral
-            // de BASE imponible (si el neto es menor, no se percibe). Muchos
-            // regímenes definen además un "monto mínimo de percepción" (sobre el
-            // importe resultante) y/o un "monto no sujeto" que se resta de la
-            // base. Hoy no se modela ninguno de esos dos.
+            // Umbral de base imponible: si el neto es menor, no se percibe.
             if ($minimoBase !== null && $base < $minimoBase) {
                 continue;
             }
@@ -335,6 +360,13 @@ class ImpuestoService
             $monto = round($base * $alicuota / 100, 2);
 
             if ($monto <= 0) {
+                continue;
+            }
+
+            // Monto mínimo de percepción del régimen: si el importe resultante
+            // no lo alcanza, la percepción no se practica (distinto del umbral
+            // de base; ej. percepción IVA RG 2408).
+            if ($config->monto_minimo_percepcion !== null && $monto < (float) $config->monto_minimo_percepcion) {
                 continue;
             }
 
@@ -378,38 +410,21 @@ class ImpuestoService
      *
      * - Factura/comprobante: IVA débito fiscal por alícuota (sentido aplicado),
      *   tomado del desglose ya calculado en ComprobanteFiscalIva — alimenta la
-     *   posición de IVA sin recalcular nada.
-     * - Nota de crédito (comprobante_asociado_id): contraasiento de los
-     *   movimientos del comprobante original (anulación; las NC de este sistema
-     *   son por el total). REVISAR (Fable): NC PARCIAL requeriría reversa
-     *   proporcional.
+     *   posición de IVA sin recalcular nada. Ídem percepciones aplicadas (5b)
+     *   desde tributosDetalle.
+     * - Nota de crédito (comprobante_asociado_id): registra sus PROPIOS
+     *   movimientos con monto NEGATIVO, imputados al período de la NC. NO se
+     *   anulan los movimientos del comprobante original: una NC de julio sobre
+     *   una factura de junio ajusta la posición de JULIO — junio puede estar ya
+     *   declarado ante el fisco, y el Libro IVA Ventas también computa la NC por
+     *   su fecha de emisión (así libro y posición reconcilian en ambos meses).
+     *   En el caso mismo-período el neto es idéntico a la vieja anulación.
      *
      * Idempotente: si el comprobante ya tiene movimientos activos, no duplica.
-     * Las percepciones APLICADAS (caso agente, sentido aplicado naturaleza
-     * percepción) son Fase 5b (deben viajar a AFIP en el mismo acto).
      */
     public function registrarDesdeComprobante(ComprobanteFiscal $c, ?int $usuarioId = null): void
     {
-        // Nota de crédito → contraasiento de los movimientos del original.
-        if ($c->comprobante_asociado_id !== null) {
-            $movimientos = MovimientoFiscal::query()
-                ->activos()
-                ->where('origen_tipo', 'ComprobanteFiscal')
-                ->where('origen_id', $c->comprobante_asociado_id)
-                ->get();
-
-            foreach ($movimientos as $movimiento) {
-                $this->anularMovimientoFiscal(
-                    $movimiento,
-                    $usuarioId ?? (int) ($c->usuario_id ?? 0),
-                    __('Nota de crédito #:id', ['id' => $c->id]),
-                );
-            }
-
-            return;
-        }
-
-        // Idempotencia: ya registrado para este comprobante.
+        // Idempotencia: ya registrado para este comprobante (factura o NC).
         $yaRegistrado = MovimientoFiscal::query()
             ->activos()
             ->where('origen_tipo', 'ComprobanteFiscal')
@@ -427,37 +442,42 @@ class ImpuestoService
             return;
         }
 
+        $esNotaCredito = $c->comprobante_asociado_id !== null;
+        $signo = $esNotaCredito ? -1 : 1;
+        $observaciones = $esNotaCredito
+            ? __('Nota de crédito del comprobante #:id', ['id' => $c->comprobante_asociado_id])
+            : null;
+
         $ivaDebito = Impuesto::porCodigo('iva_debito')->first();
 
-        if ($ivaDebito === null) {
-            return;
-        }
+        if ($ivaDebito !== null) {
+            foreach ($c->detallesIva as $iva) {
+                if (round((float) $iva->importe, 2) <= 0) {
+                    continue; // Alícuota 0% / exento: no genera débito fiscal.
+                }
 
-        foreach ($c->detallesIva as $iva) {
-            if (round((float) $iva->importe, 2) <= 0) {
-                continue; // Alícuota 0% / exento: no genera débito fiscal.
+                $this->registrarMovimientoFiscal([
+                    'cuit_id' => $c->cuit_id,
+                    'sucursal_id' => $c->sucursal_id,
+                    'impuesto_id' => $ivaDebito->id,
+                    'sentido' => MovimientoFiscal::SENTIDO_APLICADO,
+                    'naturaleza' => MovimientoFiscal::NATURALEZA_DEBITO_FISCAL,
+                    'fecha' => $c->fecha_emision,
+                    'base_imponible' => $signo * (float) $iva->base_imponible,
+                    'alicuota' => $iva->alicuota,
+                    'monto' => $signo * (float) $iva->importe,
+                    'origen_tipo' => 'ComprobanteFiscal',
+                    'origen_id' => $c->id,
+                    'observaciones' => $observaciones,
+                    'usuario_id' => $usuarioId,
+                ], permitirNegativo: $esNotaCredito);
             }
-
-            $this->registrarMovimientoFiscal([
-                'cuit_id' => $c->cuit_id,
-                'sucursal_id' => $c->sucursal_id,
-                'impuesto_id' => $ivaDebito->id,
-                'sentido' => MovimientoFiscal::SENTIDO_APLICADO,
-                'naturaleza' => MovimientoFiscal::NATURALEZA_DEBITO_FISCAL,
-                'fecha' => $c->fecha_emision,
-                'base_imponible' => $iva->base_imponible,
-                'alicuota' => $iva->alicuota,
-                'monto' => $iva->importe,
-                'origen_tipo' => 'ComprobanteFiscal',
-                'origen_id' => $c->id,
-                'usuario_id' => $usuarioId,
-            ]);
         }
 
         // Percepciones APLICADAS (Fase 5b): el comercio actúa como agente. Cada
         // tributo del comprobante es deuda a depositar ante el fisco (sentido
         // aplicado, naturaleza percepción) — NO integra la posición de IVA propia.
-        // La NC contraasienta estos movimientos junto con el débito (rama de arriba).
+        // La NC lleva copia de los tributos del original → acá salen en negativo.
         foreach ($c->tributosDetalle as $tributo) {
             if (round((float) $tributo->monto, 2) <= 0) {
                 continue;
@@ -470,13 +490,14 @@ class ImpuestoService
                 'sentido' => MovimientoFiscal::SENTIDO_APLICADO,
                 'naturaleza' => MovimientoFiscal::NATURALEZA_PERCEPCION,
                 'fecha' => $c->fecha_emision,
-                'base_imponible' => $tributo->base_imponible,
+                'base_imponible' => $signo * (float) $tributo->base_imponible,
                 'alicuota' => $tributo->alicuota,
-                'monto' => $tributo->monto,
+                'monto' => $signo * (float) $tributo->monto,
                 'origen_tipo' => 'ComprobanteFiscal',
                 'origen_id' => $c->id,
+                'observaciones' => $observaciones,
                 'usuario_id' => $usuarioId,
-            ]);
+            ], permitirNegativo: $esNotaCredito);
         }
     }
 
@@ -689,8 +710,9 @@ class ImpuestoService
 
     /**
      * Valida los campos requeridos de un movimiento fiscal antes de registrarlo.
+     * Monto negativo solo con $permitirNegativo (reversas de NC); cero nunca.
      */
-    private function validarDatosMovimiento(array $datos): void
+    private function validarDatosMovimiento(array $datos, bool $permitirNegativo = false): void
     {
         foreach (['cuit_id', 'impuesto_id', 'sentido', 'naturaleza', 'fecha', 'monto'] as $campo) {
             if (! isset($datos[$campo]) || $datos[$campo] === '') {
@@ -714,7 +736,9 @@ class ImpuestoService
             throw new Exception(__('Naturaleza de movimiento fiscal inválida: :valor', ['valor' => $datos['naturaleza']]));
         }
 
-        if (round((float) $datos['monto'], 2) <= 0) {
+        $monto = round((float) $datos['monto'], 2);
+
+        if ($monto == 0.0 || (! $permitirNegativo && $monto < 0)) {
             throw new Exception(__('El monto del movimiento fiscal debe ser positivo'));
         }
     }

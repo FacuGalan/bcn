@@ -471,6 +471,110 @@ class ImpuestoServiceTest extends TestCase
         $this->assertEquals(15.0, $tributos[0]['monto']);
     }
 
+    public function test_config_manual_del_cliente_gana_sobre_la_del_padron(): void
+    {
+        // Revisión Fable 2026-07-01: si coexisten vigentes una config manual
+        // (contador) y una de padrón para el mismo impuesto, gana la manual —
+        // antes el keyBy se quedaba con la última por orden de PK (el padrón).
+        $emisor = $this->cuit();
+        $imp = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
+        $this->config($emisor, $imp, ['alicuota' => 3.0]);
+
+        $cliente = $this->cliente();
+        // Manual del contador: exento (vigente_desde null, creada primero).
+        $this->clienteConfig($cliente, $imp, ['exento' => true]);
+        // Padrón importado después: alícuota 1.5 con vigencia fechada.
+        $this->clienteConfig($cliente, $imp, [
+            'alicuota' => 1.5,
+            'origen_alicuota' => ClienteImpuestoConfig::ORIGEN_PADRON,
+            'vigente_desde' => now()->subMonth()->toDateString(),
+        ]);
+
+        // Gana la manual (exento) → no se percibe.
+        $this->assertSame([], $this->service->calcularTributos($emisor, $cliente, 1000.0, 'AR-B'));
+    }
+
+    public function test_configs_de_padron_solapadas_gana_la_vigencia_mas_reciente(): void
+    {
+        $emisor = $this->cuit();
+        $imp = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
+        $this->config($emisor, $imp, ['alicuota' => 3.0]);
+
+        $cliente = $this->cliente();
+        $this->clienteConfig($cliente, $imp, [
+            'alicuota' => 2.0,
+            'origen_alicuota' => ClienteImpuestoConfig::ORIGEN_PADRON,
+            'vigente_desde' => now()->subMonths(2)->toDateString(),
+        ]);
+        $this->clienteConfig($cliente, $imp, [
+            'alicuota' => 1.0,
+            'origen_alicuota' => ClienteImpuestoConfig::ORIGEN_PADRON,
+            'vigente_desde' => now()->subMonth()->toDateString(),
+        ]);
+
+        $tributos = $this->service->calcularTributos($emisor, $cliente, 1000.0, 'AR-B');
+
+        $this->assertCount(1, $tributos);
+        $this->assertEquals(1.0, $tributos[0]['alicuota']); // la más reciente
+    }
+
+    public function test_configs_solapadas_del_emisor_no_duplican_la_percepcion(): void
+    {
+        // Dos configs vigentes del mismo impuesto (vigencias solapadas): se
+        // percibe UNA sola vez, con la de vigente_desde más reciente.
+        $emisor = $this->cuit();
+        $imp = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
+        $this->config($emisor, $imp, ['alicuota' => 2.0, 'vigente_desde' => '2026-01-01']);
+        $this->config($emisor, $imp, ['alicuota' => 3.5, 'vigente_desde' => '2026-06-01']);
+
+        $tributos = $this->service->calcularTributos(
+            $emisor,
+            $this->cliente(CondicionIva::RESPONSABLE_INSCRIPTO),
+            1000.0,
+            'AR-B'
+        );
+
+        $this->assertCount(1, $tributos);
+        $this->assertEquals(3.5, $tributos[0]['alicuota']);
+        $this->assertEquals(35.0, $tributos[0]['monto']);
+    }
+
+    public function test_cliente_con_certificado_de_exclusion_no_sufre_percepcion_iva(): void
+    {
+        // Revisión Fable 2026-07-01 (RG 2226): perfil fiscal exento sobre el
+        // impuesto de percepción de IVA ⇒ no se percibe IVA (el IIBB no cambia).
+        $emisor = $this->cuit();
+        $iva = $this->impuesto('perc_iva', Impuesto::TIPO_IVA, 'percepcion', 'AR');
+        $iibb = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
+        $this->config($emisor, $iva, ['alicuota' => 1.5]);
+        $this->config($emisor, $iibb, ['alicuota' => 3.0]);
+
+        $cliente = $this->cliente();
+        $this->clienteConfig($cliente, $iva, ['exento' => true]);
+
+        $tributos = $this->service->calcularTributos($emisor, $cliente, 1000.0, 'AR-B');
+
+        $this->assertCount(1, $tributos);
+        $this->assertEquals('perc_iibb_ar_b', $tributos[0]['codigo']);
+    }
+
+    public function test_no_percibe_si_el_importe_no_alcanza_el_monto_minimo_de_percepcion(): void
+    {
+        $emisor = $this->cuit();
+        $imp = $this->impuesto('perc_iva', Impuesto::TIPO_IVA, 'percepcion', 'AR');
+        $this->config($emisor, $imp, ['alicuota' => 1.5, 'monto_minimo_percepcion' => 100.0]);
+
+        $receptor = $this->cliente(CondicionIva::RESPONSABLE_INSCRIPTO);
+
+        // 1000 * 1.5% = 15 < 100 → no se practica.
+        $this->assertSame([], $this->service->calcularTributos($emisor, $receptor, 1000.0, null));
+
+        // 10000 * 1.5% = 150 ≥ 100 → se practica.
+        $tributos = $this->service->calcularTributos($emisor, $receptor, 10000.0, null);
+        $this->assertCount(1, $tributos);
+        $this->assertEquals(150.0, $tributos[0]['monto']);
+    }
+
     public function test_respeta_la_base_minima_del_cliente_sobre_la_del_agente(): void
     {
         $emisor = $this->cuit();
@@ -535,6 +639,24 @@ class ImpuestoServiceTest extends TestCase
             'naturaleza' => MovimientoFiscal::NATURALEZA_DEBITO_FISCAL,
             'fecha' => '2026-03-15',
             'monto' => 0.0,
+        ]);
+    }
+
+    public function test_registrar_falla_con_monto_negativo_sin_permitir_negativo(): void
+    {
+        // El monto negativo queda reservado a las reversas de NC (flag interno).
+        $emisor = $this->cuit();
+        $imp = $this->impuesto('iva_debito', Impuesto::TIPO_IVA, 'debito_fiscal', 'AR');
+
+        $this->expectException(Exception::class);
+
+        $this->service->registrarMovimientoFiscal([
+            'cuit_id' => $emisor->id,
+            'impuesto_id' => $imp->id,
+            'sentido' => MovimientoFiscal::SENTIDO_APLICADO,
+            'naturaleza' => MovimientoFiscal::NATURALEZA_DEBITO_FISCAL,
+            'fecha' => '2026-03-15',
+            'monto' => -100.0,
         ]);
     }
 
@@ -699,7 +821,39 @@ class ImpuestoServiceTest extends TestCase
         $this->assertEquals(0, MovimientoFiscal::where('origen_tipo', 'ComprobanteFiscal')->where('origen_id', 200)->count());
     }
 
-    public function test_nota_de_credito_contraasienta_el_comprobante_original(): void
+    public function test_nota_de_credito_registra_debito_negativo_en_su_propio_periodo(): void
+    {
+        // Revisión Fable 2026-07-01: la NC NO anula retroactivamente el original
+        // (su período puede estar ya declarado). Registra movimientos propios
+        // negativos imputados al período de la NC.
+        $this->impuesto('iva_debito', Impuesto::TIPO_IVA, 'debito_fiscal', 'AR');
+
+        $factura = $this->comprobante(100, [['base_imponible' => 1000, 'alicuota' => 21, 'importe' => 210]], fecha: '2026-04-10');
+        $this->service->registrarDesdeComprobante($factura, 7);
+
+        // NC emitida al mes siguiente (venta de abril anulada en mayo).
+        $nc = $this->comprobante(101, [['base_imponible' => 1000, 'alicuota' => 21, 'importe' => 210]], asociadoId: 100, fecha: '2026-05-02');
+        $this->service->registrarDesdeComprobante($nc, 7);
+
+        // El débito de abril queda INTACTO (abril puede estar declarado).
+        $original = MovimientoFiscal::activos()->where('origen_tipo', 'ComprobanteFiscal')->where('origen_id', 100)->first();
+        $this->assertNotNull($original);
+        $this->assertEquals('2026-04', $original->periodo_fiscal);
+        $this->assertEquals(210.0, (float) $original->monto);
+
+        // La NC genera su propio débito NEGATIVO activo en MAYO.
+        $reversa = MovimientoFiscal::activos()->where('origen_tipo', 'ComprobanteFiscal')->where('origen_id', 101)->first();
+        $this->assertNotNull($reversa);
+        $this->assertEquals('2026-05', $reversa->periodo_fiscal);
+        $this->assertEquals(-210.0, (float) $reversa->monto);
+        $this->assertEquals(-1000.0, (float) $reversa->base_imponible);
+
+        // Neto de ambos períodos: abril +210, mayo −210 (la suma de activos da 0).
+        $suma = MovimientoFiscal::activos()->where('origen_tipo', 'ComprobanteFiscal')->sum('monto');
+        $this->assertEquals(0.0, (float) $suma);
+    }
+
+    public function test_nota_de_credito_es_idempotente(): void
     {
         $this->impuesto('iva_debito', Impuesto::TIPO_IVA, 'debito_fiscal', 'AR');
 
@@ -708,10 +862,9 @@ class ImpuestoServiceTest extends TestCase
 
         $nc = $this->comprobante(101, [['base_imponible' => 1000, 'alicuota' => 21, 'importe' => 210]], asociadoId: 100);
         $this->service->registrarDesdeComprobante($nc, 7);
+        $this->service->registrarDesdeComprobante($nc, 7);
 
-        // El débito del comprobante original queda anulado → la posición (solo activos) no lo cuenta.
-        $activos = MovimientoFiscal::activos()->where('origen_tipo', 'ComprobanteFiscal')->where('origen_id', 100)->count();
-        $this->assertEquals(0, $activos);
+        $this->assertEquals(1, MovimientoFiscal::where('origen_tipo', 'ComprobanteFiscal')->where('origen_id', 101)->count());
     }
 
     // ==================== Fase 5b: percepciones aplicadas en comprobantes ====================
@@ -763,27 +916,37 @@ class ImpuestoServiceTest extends TestCase
         $this->assertEquals(30.0, (float) $percepciones->first()->monto);
     }
 
-    public function test_nota_de_credito_contraasienta_tambien_los_tributos(): void
+    public function test_nota_de_credito_revierte_tambien_los_tributos_en_negativo(): void
     {
         $this->impuesto('iva_debito', Impuesto::TIPO_IVA, 'debito_fiscal', 'AR');
         $percIibb = $this->impuesto('perc_iibb_ar_b', Impuesto::TIPO_IIBB, 'percepcion', 'AR-B');
 
+        $tributo = fn () => new \App\Models\ComprobanteFiscalTributo([
+            'impuesto_id' => $percIibb->id, 'base_imponible' => 1000, 'alicuota' => 3, 'monto' => 30, 'codigo_arca' => 7,
+        ]);
+
         $factura = $this->comprobante(300, [['base_imponible' => 1000, 'alicuota' => 21, 'importe' => 210]]);
-        $factura->setRelation('tributosDetalle', collect([
-            new \App\Models\ComprobanteFiscalTributo([
-                'impuesto_id' => $percIibb->id, 'base_imponible' => 1000, 'alicuota' => 3, 'monto' => 30, 'codigo_arca' => 7,
-            ]),
-        ]));
+        $factura->setRelation('tributosDetalle', collect([$tributo()]));
         $this->service->registrarDesdeComprobante($factura, 7);
 
         // 2 movimientos activos: débito IVA + percepción.
         $this->assertEquals(2, MovimientoFiscal::activos()->where('origen_id', 300)->where('origen_tipo', 'ComprobanteFiscal')->count());
 
+        // La NC lleva copia de los detalles del original (como crearNotaCredito).
         $nc = $this->comprobante(301, [['base_imponible' => 1000, 'alicuota' => 21, 'importe' => 210]], asociadoId: 300);
+        $nc->setRelation('tributosDetalle', collect([$tributo()]));
         $this->service->registrarDesdeComprobante($nc, 7);
 
-        // Tras la NC ninguno queda activo (débito + percepción contraasentados).
-        $this->assertEquals(0, MovimientoFiscal::activos()->where('origen_id', 300)->where('origen_tipo', 'ComprobanteFiscal')->count());
+        // El original sigue activo; la NC registró débito y percepción negativos.
+        $this->assertEquals(2, MovimientoFiscal::activos()->where('origen_id', 300)->where('origen_tipo', 'ComprobanteFiscal')->count());
+
+        $reversas = MovimientoFiscal::activos()->where('origen_id', 301)->where('origen_tipo', 'ComprobanteFiscal')->get();
+        $this->assertCount(2, $reversas);
+        $this->assertEqualsCanonicalizing([-210.0, -30.0], $reversas->pluck('monto')->map(fn ($m) => (float) $m)->all());
+
+        $percepcionNc = $reversas->firstWhere('naturaleza', MovimientoFiscal::NATURALEZA_PERCEPCION);
+        $this->assertEquals(MovimientoFiscal::SENTIDO_APLICADO, $percepcionNc->sentido);
+        $this->assertEquals($percIibb->id, $percepcionNc->impuesto_id);
     }
 
     // ==================== registrarDesdeCompra (RF-05, Fase 6) ====================

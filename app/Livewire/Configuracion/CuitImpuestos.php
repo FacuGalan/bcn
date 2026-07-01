@@ -22,15 +22,16 @@ use Livewire\Component;
  * lugar (sin historial de vigencias; vigente_desde/hasta opcionales). El origen
  * de alícuota es siempre `manual` (padrón = fase futura, D3).
  *
- * REVISAR (Fable):
- *  - El modelo admite múltiples vigencias por (cuit, impuesto) pero la UI edita
- *    una sola fila en lugar. Si el usuario carga vigente_desde, una segunda alta
- *    del mismo impuesto queda bloqueada por el filtro de disponibles → ok para
- *    v1, pero el historial de vigencias real no se gestiona (¿hace falta?).
- *  - `numero_inscripcion` (acá) vs `cuits.numero_iibb` (ya existente): posible
- *    redundancia para IIBB. Definir cuál es la fuente de verdad.
- *  - Permisos: el componente no tiene gate propio; confía en que ConfiguracionEmpresa
- *    ya está protegido. Confirmar si necesita un permiso fiscal propio (RF-10/Fase 7).
+ * Revisado (pasada Fable 2026-07-01):
+ *  - Historial de vigencias sin UI: ACEPTADO para v1 — los movimientos fiscales
+ *    persisten los valores calculados al operar, así que editar una config no
+ *    re-escribe historia. Si algún día hace falta auditoría de vigencias, se
+ *    agrega gestión de filas históricas sin tocar el modelo.
+ *  - `numero_inscripcion` (acá, por impuesto/jurisdicción) convive con
+ *    `cuits.numero_iibb` (el número que se muestra/imprime, sede o CM). No es
+ *    redundancia dañina; fuentes documentadas en el spec.
+ *  - Permisos: sin gate propio, ACEPTADO — solo lo renderiza ConfiguracionEmpresa
+ *    (ya protegida) y las acciones Livewire requieren componente renderizado.
  *  - IVA débito/crédito a nivel CUIT: se siembran como MARCADOR (inscripto, SIN
  *    alícuota) al abrir un CUIT sin configs. El IVA real es por artículo (21/10,5)
  *    vía ComprobanteFiscalIva/CompraService. Cuando Fase 5/6 alimenten
@@ -71,6 +72,7 @@ class CuitImpuestos extends Component
         return [
             'filas.*.alicuota' => 'nullable|numeric|min:0|max:100',
             'filas.*.alicuota_minimo_base' => 'nullable|numeric|min:0',
+            'filas.*.monto_minimo_percepcion' => 'nullable|numeric|min:0',
             'filas.*.numero_inscripcion' => 'nullable|string|max:30',
             'filas.*.vigente_desde' => 'nullable|date',
             'filas.*.vigente_hasta' => 'nullable|date|after_or_equal:filas.*.vigente_desde',
@@ -189,6 +191,7 @@ class CuitImpuestos extends Component
                     'percibir_no_empadronados' => (bool) ($fila['percibir_no_empadronados'] ?? false),
                     'alicuota' => $fila['alicuota'] !== '' ? $fila['alicuota'] : null,
                     'alicuota_minimo_base' => $fila['alicuota_minimo_base'] !== '' ? $fila['alicuota_minimo_base'] : null,
+                    'monto_minimo_percepcion' => $fila['monto_minimo_percepcion'] !== '' ? $fila['monto_minimo_percepcion'] : null,
                     'numero_inscripcion' => $fila['numero_inscripcion'] ?: null,
                     'vigente_desde' => $fila['vigente_desde'] ?: null,
                     'vigente_hasta' => $fila['vigente_hasta'] ?: null,
@@ -301,6 +304,7 @@ class CuitImpuestos extends Component
                 'percibir_no_empadronados' => (bool) $c->percibir_no_empadronados,
                 'alicuota' => $c->alicuota !== null ? (string) (float) $c->alicuota : '',
                 'alicuota_minimo_base' => $c->alicuota_minimo_base !== null ? (string) (float) $c->alicuota_minimo_base : '',
+                'monto_minimo_percepcion' => $c->monto_minimo_percepcion !== null ? (string) (float) $c->monto_minimo_percepcion : '',
                 'numero_inscripcion' => $c->numero_inscripcion ?? '',
                 'vigente_desde' => $c->vigente_desde?->format('Y-m-d') ?? '',
                 'vigente_hasta' => $c->vigente_hasta?->format('Y-m-d') ?? '',

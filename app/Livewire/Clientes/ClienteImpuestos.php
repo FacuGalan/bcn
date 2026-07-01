@@ -18,10 +18,11 @@ use Livewire\Component;
  * N° de padrón, vigencia, origen). Se abre vía el evento `abrir-impuestos-cliente`
  * desde la fila de un cliente en GestionarClientes.
  *
- * El combobox excluye el tipo IVA (la percepción de IVA es automática, no se
- * configura por cliente) y las naturalezas débito/crédito fiscal; sólo ofrece
- * percepciones (IIBB y otras provinciales). El override manual gana sobre el
- * padrón (Fase 10b) — ver ImpuestoService::calcularTributos.
+ * El combobox ofrece solo percepciones (naturaleza percepcion): IIBB/provinciales
+ * con alícuota por sujeto, y también la percepción de IVA — para IVA el único
+ * campo con efecto es "Exento" (certificado de exclusión RG 2226, revisión Fable
+ * 2026-07-01): el cálculo ignora alícuota/base por sujeto en IVA. El override
+ * manual gana sobre el padrón (Fase 10b) — ver ImpuestoService::calcularTributos.
  *
  * Ref: .claude/specs/sistema-impositivo.md (RF-13/RF-15, Fase 10a).
  */
@@ -79,8 +80,8 @@ class ClienteImpuestos extends Component
 
     /**
      * Catálogo disponible para agregar: percepciones activas que el cliente aún no
-     * tiene configuradas, filtradas por la búsqueda. Excluye el tipo IVA (la
-     * percepción de IVA es automática) y las naturalezas débito/crédito fiscal.
+     * tiene configuradas, filtradas por la búsqueda. Incluye la percepción de IVA
+     * (para cargar la exención por certificado); excluye débito/crédito fiscal.
      */
     public function getImpuestosDisponiblesProperty()
     {
@@ -92,7 +93,6 @@ class ClienteImpuestos extends Component
 
         return Impuesto::activos()
             ->whereNotIn('id', $yaConfigurados)
-            ->where('tipo', '!=', Impuesto::TIPO_IVA)
             ->where('naturaleza_default', 'percepcion')
             ->when($this->buscarImpuesto !== '', function ($q) {
                 $term = '%'.$this->buscarImpuesto.'%';
@@ -113,7 +113,6 @@ class ClienteImpuestos extends Component
         }
 
         $impuesto = Impuesto::activos()
-            ->where('tipo', '!=', Impuesto::TIPO_IVA)
             ->where('naturaleza_default', 'percepcion')
             ->find($impuestoId);
 

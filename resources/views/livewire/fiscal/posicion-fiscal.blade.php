@@ -106,8 +106,14 @@
                             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
                                 <p class="font-semibold text-gray-900 dark:text-white">{{ $j['jurisdiccion_nombre'] }}</p>
                                 <dl class="mt-2 grid grid-cols-2 gap-2 text-xs">
-                                    <dt class="text-gray-500 dark:text-gray-400">{{ __('Base imponible') }}</dt>
+                                    <dt class="text-gray-500 dark:text-gray-400">{{ __('Gravado') }}</dt>
                                     <dd class="text-right text-gray-900 dark:text-white">${{ number_format($j['base_imponible'], 2, ',', '.') }}</dd>
+                                    <dt class="text-gray-500 dark:text-gray-400">{{ __('No gravado') }}</dt>
+                                    <dd class="text-right text-gray-900 dark:text-white">${{ number_format($j['no_gravado'], 2, ',', '.') }}</dd>
+                                    <dt class="text-gray-500 dark:text-gray-400">{{ __('Exento') }}</dt>
+                                    <dd class="text-right text-gray-900 dark:text-white">${{ number_format($j['exento'], 2, ',', '.') }}</dd>
+                                    <dt class="text-gray-500 dark:text-gray-400 font-medium">{{ __('Ingresos totales') }}</dt>
+                                    <dd class="text-right font-semibold text-gray-900 dark:text-white">${{ number_format($j['ingresos_totales'], 2, ',', '.') }}</dd>
                                     <dt class="text-gray-500 dark:text-gray-400">{{ __('Percepciones sufridas') }}</dt>
                                     <dd class="text-right text-gray-900 dark:text-white">${{ number_format($j['percepciones_sufridas'], 2, ',', '.') }}</dd>
                                     <dt class="text-gray-500 dark:text-gray-400">{{ __('Retenciones sufridas') }}</dt>
@@ -125,7 +131,10 @@
                             <thead class="bg-gray-50 dark:bg-gray-900/50">
                                 <tr>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('Jurisdicción') }}</th>
-                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('Base imponible') }}</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('Gravado') }}</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('No gravado') }}</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('Exento') }}</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('Ingresos totales') }}</th>
                                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('Percepciones sufridas') }}</th>
                                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('Retenciones sufridas') }}</th>
                                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('A cuenta') }}</th>
@@ -136,6 +145,9 @@
                                     <tr>
                                         <td class="px-4 py-3 text-sm text-gray-900 dark:text-white">{{ $j['jurisdiccion_nombre'] }}</td>
                                         <td class="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">${{ number_format($j['base_imponible'], 2, ',', '.') }}</td>
+                                        <td class="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">${{ number_format($j['no_gravado'], 2, ',', '.') }}</td>
+                                        <td class="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">${{ number_format($j['exento'], 2, ',', '.') }}</td>
+                                        <td class="px-4 py-3 text-sm text-right font-semibold text-gray-900 dark:text-white">${{ number_format($j['ingresos_totales'], 2, ',', '.') }}</td>
                                         <td class="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">${{ number_format($j['percepciones_sufridas'], 2, ',', '.') }}</td>
                                         <td class="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">${{ number_format($j['retenciones_sufridas'], 2, ',', '.') }}</td>
                                         <td class="px-4 py-3 text-sm text-right font-bold text-blue-600 dark:text-blue-400">${{ number_format($j['a_cuenta'], 2, ',', '.') }}</td>

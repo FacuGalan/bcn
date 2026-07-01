@@ -874,6 +874,7 @@ CREATE TABLE `{{PREFIX}}cuit_impuesto_configs` (
   `percibir_no_empadronados` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'IIBB: percibir a RI sin config/padron (D7)',
   `alicuota` decimal(6,4) DEFAULT NULL COMMENT '% aplicable (que aplica o sufre)',
   `alicuota_minimo_base` decimal(12,2) DEFAULT NULL COMMENT 'Base mínima para aplicar',
+  `monto_minimo_percepcion` decimal(15,2) DEFAULT NULL COMMENT 'Monto minimo de percepcion del regimen: si el importe resultante no lo alcanza, no se practica',
   `origen_alicuota` enum('manual','padron') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'manual' COMMENT 'padron = integración futura ARBA/AGIP',
   `vigente_desde` date DEFAULT NULL,
   `vigente_hasta` date DEFAULT NULL,

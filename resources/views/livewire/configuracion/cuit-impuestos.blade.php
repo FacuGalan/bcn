@@ -154,6 +154,12 @@
                                         <input type="number" step="0.01" min="0" wire:model="filas.{{ $i }}.alicuota_minimo_base"
                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                     </div>
+                                    {{-- Monto mínimo de percepción --}}
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300" title="{{ __('Si la percepción calculada no alcanza este importe, no se practica') }}">{{ __('Percepción mínima') }}</label>
+                                        <input type="number" step="0.01" min="0" wire:model="filas.{{ $i }}.monto_minimo_percepcion"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    </div>
                                     {{-- N° inscripción --}}
                                     <div>
                                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('N° inscripción') }}</label>

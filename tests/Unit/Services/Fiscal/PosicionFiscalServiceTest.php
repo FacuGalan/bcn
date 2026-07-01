@@ -160,6 +160,23 @@ class PosicionFiscalServiceTest extends TestCase
         $this->assertEquals(15, $pos['percepciones_iva_aplicadas']);
     }
 
+    public function test_posicion_iva_resta_las_reversas_negativas_de_nc(): void
+    {
+        // Revisión Fable 2026-07-01: una NC registra movimientos NEGATIVOS en su
+        // período — la posición los suma tal cual y el débito del mes baja.
+        $cuit = $this->cuit();
+        $ivaDeb = $this->impuesto('iva_debito', Impuesto::TIPO_IVA, 'debito_fiscal', 'AR');
+
+        $this->mov($cuit, $ivaDeb, MovimientoFiscal::SENTIDO_APLICADO, 'debito_fiscal', 1000);
+        // Reversa de NC del período (factura de un mes anterior).
+        $this->mov($cuit, $ivaDeb, MovimientoFiscal::SENTIDO_APLICADO, 'debito_fiscal', -210);
+
+        $pos = $this->service->posicionIva($cuit, $this->periodo);
+
+        $this->assertEquals(790, $pos['debito_fiscal']);
+        $this->assertEquals(790, $pos['saldo_tecnico']);
+    }
+
     public function test_posicion_iva_saldo_a_favor_cuando_credito_supera_debito(): void
     {
         $cuit = $this->cuit();
@@ -188,9 +205,13 @@ class PosicionFiscalServiceTest extends TestCase
         $this->mov($cuit, $retC, MovimientoFiscal::SENTIDO_SUFRIDO, 'retencion', 10);
         $this->mov($cuit, $percB, MovimientoFiscal::SENTIDO_APLICADO, 'percepcion', 5);
 
-        // Base imponible de ventas en AR-B (provincia de la sucursal del comprobante).
+        // Ingresos de ventas en AR-B (provincia de la sucursal del comprobante),
+        // con desglose gravado / no gravado / exento (revisión Fable 2026-07-01).
         Sucursal::find($this->sucursalId)->update(['provincia' => 'AR-B']);
-        $this->comprobante($cuit, ['neto_gravado' => 2000, 'total' => 2420, 'iva_total' => 420]);
+        $this->comprobante($cuit, [
+            'neto_gravado' => 2000, 'neto_no_gravado' => 300, 'neto_exento' => 100,
+            'total' => 2820, 'iva_total' => 420,
+        ]);
 
         $iibb = $this->service->posicionIibb($cuit, $this->periodo);
 
@@ -200,6 +221,9 @@ class PosicionFiscalServiceTest extends TestCase
         $this->assertEquals(40, $porIso['AR-B']['a_cuenta']);
         $this->assertEquals(5, $porIso['AR-B']['percepciones_aplicadas']);
         $this->assertEquals(2000, $porIso['AR-B']['base_imponible']);
+        $this->assertEquals(300, $porIso['AR-B']['no_gravado']);
+        $this->assertEquals(100, $porIso['AR-B']['exento']);
+        $this->assertEquals(2400, $porIso['AR-B']['ingresos_totales']);
 
         $this->assertEquals(10, $porIso['AR-C']['retenciones_sufridas']);
         $this->assertEquals(10, $porIso['AR-C']['a_cuenta']);
