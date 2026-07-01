@@ -23,8 +23,11 @@
 >   NO escribir parser especulativo (sería deuda no testeable).
 > - **Fase 6 (módulo compras funcional)**: NO avanzar — depende del modelo de
 >   costos/precios de proveedor aún sin definir (merece su propio SDD).
-> - **Auditoría fiscal "REVISAR (Fable)"**: mayormente preguntas normativas
->   para el contador (no código). Checklist abierto más abajo.
+> - **Auditoría fiscal "REVISAR (Fable)"**: REALIZADA el 2026-07-01 (rama
+>   feat/fiscal-revision-fable): 2 bugs corregidos (NC cross-período,
+>   precedencia manual/padrón) + 3 profundizaciones (exclusión IVA por
+>   certificado, monto mínimo de percepción, desglose ingresos IIBB). Quedan
+>   solo preguntas normativas para el contador — ver checklist más abajo.
 
 ---
 
@@ -681,35 +684,41 @@ Orden sugerido de implementación:
 
 ## Revisión pendiente (pasada de Fable)
 
-> El desarrollo se hizo con Opus mientras Fable está deshabilitado. Estos puntos
-> son simplificaciones o decisiones discutibles que se tomaron para avanzar y se
-> dejan marcadas para que Fable las audite/mejore. En código llevan el tag
-> `REVISAR (Fable)`. Aceptados como "correctos por ahora" por el usuario (2026-06-16).
+> El desarrollo se hizo con Opus mientras Fable estaba deshabilitado.
+> **PASADA DE FABLE REALIZADA el 2026-07-01** (rama feat/fiscal-revision-fable):
+> se auditaron todos los tags `REVISAR (Fable)` + este checklist. Resultado:
+> la mayoría CONFIRMADOS correctos, 2 bugs nuevos encontrados y corregidos
+> (NC cross-período y precedencia manual/padrón) + 3 profundizaciones
+> (exclusión IVA por certificado, monto mínimo de percepción, desglose de
+> ingresos IIBB). Quedan abiertas solo preguntas normativas para el contador.
 
-**Fase 2 — `ImpuestoService::calcularTributos` (lo de mayor riesgo fiscal):**
-- [ ] Matriz v1 conservador: percibe solo a Responsable Inscripto. Auditar contra normativa real — varios regímenes perciben también a monotributo/exento según jurisdicción.
-- [ ] No existe "monto mínimo de percepción" (importe resultante) ni "monto no sujeto" (se resta de la base). Solo se modela `alicuota_minimo_base` como umbral de base imponible. Confirmar si alcanza o falta agregar campos a `cuit_impuesto_configs`.
-- [ ] IIBB: jurisdicción de la operación = `sucursal.provincia`. No contempla Convenio Multilateral (la base puede repartirse entre jurisdicciones) ni el padrón del receptor (alícuota real por sujeto). Diferido a fase padrones — validar que el diferimiento sea aceptable.
-- [x] No se cruza la **condición del emisor**: RESUELTO (2026-06-16) — `calcularTributos` ahora exige que el emisor sea Responsable Inscripto para actuar como agente; un Monotributo/exento mal cargado no percibe. Test `test_no_percibe_si_el_emisor_no_es_responsable_inscripto`.
-- [x] `vigentes()` usa `now()`: RESUELTO (2026-06-16) — `calcularTributos` acepta `?Carbon $fecha` y la propaga a `vigentes()`; al cablear en emisión (Fase 5) se le pasa la fecha del comprobante. Test `test_respeta_la_fecha_de_la_operacion_para_la_vigencia`. (Sigue pendiente que la Fase 5 efectivamente le pase la fecha del comprobante.)
-- [ ] Redondeo por tributo independiente (`round(base*alic/100, 2)`). Verificar contra cómo redondea ARCA/las agencias al informar el array de tributos.
-- [ ] Convención alícuota = porcentaje. Confirmar contra el formato exacto que espera el WS de ARCA (Fase 5, + mapeo `codigo_arca`).
+**Fase 2 — `ImpuestoService::calcularTributos`:**
+- [ ] **(CONTADOR)** Matriz "receptor RI": correcta para percepción de IVA, pero para IIBB los padrones ARBA/AGIP incluyen monotributistas inscriptos en IIBB — el gate por condición de IVA los saltea aunque estén empadronados con alícuota. Relajarlo re-abre D6: decidir con el contador si para IIBB el gate pasa a ser "tiene config/padrón vigente" en vez de "es RI".
+- [x] Monto mínimo de percepción: RESUELTO (2026-07-01, Fable) — campo `monto_minimo_percepcion` en `cuit_impuesto_configs` (migración 2026_07_01) aplicado sobre el importe resultante + UI. El "monto no sujeto" (deducción de base, típico de RETENCIONES que el sistema no calcula) queda fuera de alcance a propósito.
+- [ ] **(CONTADOR/futuro)** Convenio Multilateral: sigue diferido (reparto de base por coeficiente). El padrón del receptor YA refina la alícuota (Fase 10).
+- [x] Condición del emisor: RESUELTO (2026-06-16) — gate RI del emisor. Test `test_no_percibe_si_el_emisor_no_es_responsable_inscripto`.
+- [x] Fecha de la operación: RESUELTO Y CONFIRMADO (2026-07-01, Fable) — el carrito pasa `now()` al cobrar (`WithPagosDesglose::calcularTributosFiscales`) y el comprobante se emite en el mismo acto; la NC copia los tributos del original sin recalcular (correcto).
+- [x] Redondeo por tributo: CONFIRMADO (2026-07-01, Fable) — WSFEv1 trabaja con 2 decimales por tributo; `ImpTrib` se arma sumando los montos ya redondeados (consistente con lo cobrado).
+- [x] Convención alícuota = porcentaje: CONFIRMADO (2026-07-01, Fable) — el campo `Alic` de ARCA es porcentaje; validado en vivo en 5b.
+- [x] **BUG (encontrado y corregido 2026-07-01, Fable)**: precedencia manual vs padrón del perfil del cliente — coexistían vigentes la fila manual (`vigente_desde` null) y la del padrón (fechada) y el `keyBy` se quedaba con la del padrón (última por PK), ignorando el override del contador. Fix: desempate explícito manual > padrón > vigencia más reciente; ídem dedup de configs solapadas del emisor (percibía dos veces). Tests `test_config_manual_del_cliente_gana_sobre_la_del_padron`, `test_configs_solapadas_del_emisor_no_duplican_la_percepcion`.
+- [x] Exclusión de percepción de IVA por certificado (RG 2226): RESUELTO (2026-07-01, Fable) — perfil fiscal del cliente `exento` sobre el impuesto de percepción de IVA ⇒ no se percibe (antes la percepción de IVA era incondicional). Salda la limitación v1 anotada en Fase 10.
 
-**Fase 3 — config UI por CUIT:**
-- [ ] v1 edita una sola config por impuesto; el historial de vigencias del modelo no se gestiona en UI. Decidir si hace falta gestionarlo.
-- [ ] `numero_inscripcion` (cuit_impuesto_configs) vs `cuits.numero_iibb` existente: posible redundancia para IIBB. Definir fuente de verdad.
-- [ ] El componente embebido no tiene permiso propio (confía en ConfiguracionEmpresa). Confirmar contra los permisos `fiscal.*` (RF-10/Fase 7).
+**Fase 3 — config UI por CUIT (todos cerrados 2026-07-01, Fable):**
+- [x] Historial de vigencias sin UI: ACEPTADO v1 — los movimientos persisten los valores calculados al operar; editar una config no re-escribe historia.
+- [x] `numero_inscripcion` vs `cuits.numero_iibb`: NO es redundancia dañina — `cuits.numero_iibb` es el número que se muestra/imprime (sede/CM); `numero_inscripcion` es el detalle por impuesto-jurisdicción.
+- [x] Permisos del componente embebido: ACEPTADO — solo lo renderiza ConfiguracionEmpresa (gateada) y las acciones Livewire requieren componente renderizado.
 
 **Fase 7 — posición fiscal / libros:**
-- [ ] Base imponible de IIBB = `neto_gravado` de ventas. Varias jurisdicciones consideran ingresos brutos (gravado + no gravado + exento) y/o no computan ciertos rubros. Confirmar la definición con el contador.
-- [ ] IIBB sin Convenio Multilateral (la base no se reparte entre jurisdicciones) ni alícuota por padrón del sujeto. Diferido a la fase de padrones.
-- [ ] Libro IVA Ventas desde `comprobantes_fiscales`; posición desde `movimientos_fiscales`. Reconcilian por construcción (el débito del ledger se genera de esos comprobantes en 5a), pero solo para CUITs RI (un Monotributo no genera débito → su libro de ventas muestra comprobantes pero su posición de IVA es 0). Validar que la presentación sea clara.
-- [ ] Export CSV "simplificado" (no formato Libro IVA Digital de ARCA). El formato ARCA exacto queda para fase futura (ver Notas 2026-06-12).
+- [x] Base IIBB: RESUELTO (2026-07-01, Fable) — `posicionIibb` ahora desglosa gravado / no gravado / exento + ingresos totales por jurisdicción (vista + CSV); qué componentes integran la base lo decide el contador con las columnas a la vista.
+- [ ] **(CONTADOR/futuro)** Convenio Multilateral (ídem Fase 2).
+- [ ] Presentación libro vs posición para CUITs monotributo (libro muestra comprobantes, posición 0): pendiente menor de UX, sin riesgo fiscal.
+- [ ] Export CSV "simplificado" (no formato Libro IVA Digital de ARCA): fase futura.
 
 **Fase 2 — ledger / contraasiento:**
-- [ ] `anularMovimientoFiscal` es anulación TOTAL. RF-04 pide contraasientos **proporcionales** para la NC. Falta `revertirParcial()` o equivalente (Fase 5).
-- [ ] Contrato de posición: se asume que PosicionFiscalService (Fase 7) suma **solo `estado=activo`**. Validar que esa semántica (vs. un enfoque con signo) sea la mejor para todos los reportes, incluida la NC parcial.
-- [ ] `configVigente`: desempate "vigente_desde más reciente gana, NULL fallback". Revisar el caso de vigencias solapadas con `vigente_desde` distinto pero `vigente_hasta` que se pisan.
+- [x] **BUG (encontrado y corregido 2026-07-01, Fable — el hallazgo más importante de la pasada)**: la NC anulaba retroactivamente los movimientos del comprobante original en el período ORIGINAL. Una venta de junio anulada el 1° de julio le borraba el débito a junio (que puede estar ya declarado) y rompía la reconciliación libro↔posición (el Libro IVA computa la NC en julio). Fix: la NC registra SUS PROPIOS movimientos activos con monto NEGATIVO en SU período (`registrarDesdeComprobante`); `anularMovimientoFiscal` queda solo para corrección de errores de carga (retro correcto). La posición suma montos, así que las filas negativas restan sin cambios aguas abajo. Con esto la "NC parcial" tampoco necesita `revertirParcial()`: si algún día existe, sus propios detalles salen en negativo. Tests `test_nota_de_credito_registra_debito_negativo_en_su_propio_periodo`, `test_posicion_iva_resta_las_reversas_negativas_de_nc`. NOTA: NCs históricas (pre-fix) quedaron registradas con el esquema viejo (anulación retro); no se migran.
+- [x] Contrato de posición "solo activos": CONFIRMADO (2026-07-01, Fable) con la corrección de arriba — anulación (error de carga) = retro por estado; reversa de NC = fila negativa en su período. Los dos ejes conviven bien.
+- [x] `configVigente` con vigencias solapadas: CONFIRMADO (2026-07-01, Fable) — desempate determinístico y razonable; además `calcularTributos` ahora deduplica por impuesto con la misma regla (antes duplicaba la percepción).
+- [ ] **(futuro, Fase 6)** `anularDesdeCompra` sigue siendo anulación retro total: cuando el módulo de compras se desarrolle, la cancelación cross-período debe seguir el patrón de la NC (reversa negativa en su período).
 
 ## Notas y Decisiones
 

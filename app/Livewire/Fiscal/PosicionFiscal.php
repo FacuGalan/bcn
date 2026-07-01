@@ -91,7 +91,10 @@ class PosicionFiscal extends Component
             fputcsv($file, [__('Posición IIBB por jurisdicción')], ';');
             fputcsv($file, [
                 __('Jurisdicción'),
-                __('Base imponible'),
+                __('Gravado'),
+                __('No gravado'),
+                __('Exento'),
+                __('Ingresos totales'),
                 __('Percepciones sufridas'),
                 __('Retenciones sufridas'),
                 __('A cuenta'),
@@ -101,6 +104,9 @@ class PosicionFiscal extends Component
                 fputcsv($file, [
                     $j['jurisdiccion_nombre'],
                     number_format($j['base_imponible'], 2, ',', ''),
+                    number_format($j['no_gravado'], 2, ',', ''),
+                    number_format($j['exento'], 2, ',', ''),
+                    number_format($j['ingresos_totales'], 2, ',', ''),
                     number_format($j['percepciones_sufridas'], 2, ',', ''),
                     number_format($j['retenciones_sufridas'], 2, ',', ''),
                     number_format($j['a_cuenta'], 2, ',', ''),
