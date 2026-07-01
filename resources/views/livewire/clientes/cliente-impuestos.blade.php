@@ -19,7 +19,7 @@
                 </div>
 
                 <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">
-                    {{ __('La percepción de IVA es automática y no se configura acá. Este perfil define las percepciones provinciales (Ingresos Brutos) que se le aplican al cliente: exención o alícuota por sujeto (manual o de padrón).') }}
+                    {{ __('Este perfil define las percepciones que se le aplican al cliente: exención o alícuota por sujeto (manual o de padrón) para Ingresos Brutos, y la exención de la percepción de IVA si presenta certificado de exclusión.') }}
                     <span class="block mt-1">{{ __('Agregá la jurisdicción del cliente desde el buscador y luego cargá su alícuota (o marcala como exenta).') }}</span>
                 </p>
 
@@ -94,25 +94,28 @@
                                 </div>
 
                                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                    {{-- Alícuota --}}
-                                    <div>
-                                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Alícuota (%)') }}</label>
-                                        <input type="number" step="0.0001" min="0" max="100" wire:model="filas.{{ $i }}.alicuota" @disabled($fila['exento'])
-                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-60">
-                                        @error('filas.'.$i.'.alicuota') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
-                                    </div>
-                                    {{-- Base mínima --}}
-                                    <div>
-                                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Base mínima') }}</label>
-                                        <input type="number" step="0.01" min="0" wire:model="filas.{{ $i }}.alicuota_minimo_base" @disabled($fila['exento'])
-                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-60">
-                                    </div>
-                                    {{-- N° padrón --}}
-                                    <div>
-                                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('N° padrón') }}</label>
-                                        <input type="text" wire:model="filas.{{ $i }}.numero_padron" maxlength="30"
-                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                    </div>
+                                    {{-- Para la percepción de IVA sólo aplica la exención (RG 2226): el cálculo ignora alícuota/base/padrón por sujeto --}}
+                                    @if($fila['tipo'] !== 'iva')
+                                        {{-- Alícuota --}}
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Alícuota (%)') }}</label>
+                                            <input type="number" step="0.0001" min="0" max="100" wire:model="filas.{{ $i }}.alicuota" @disabled($fila['exento'])
+                                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-60">
+                                            @error('filas.'.$i.'.alicuota') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                                        </div>
+                                        {{-- Base mínima --}}
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Base mínima') }}</label>
+                                            <input type="number" step="0.01" min="0" wire:model="filas.{{ $i }}.alicuota_minimo_base" @disabled($fila['exento'])
+                                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-60">
+                                        </div>
+                                        {{-- N° padrón --}}
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('N° padrón') }}</label>
+                                            <input type="text" wire:model="filas.{{ $i }}.numero_padron" maxlength="30"
+                                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                        </div>
+                                    @endif
                                     {{-- Vigencia desde --}}
                                     <div>
                                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Vigente desde') }}</label>
@@ -135,6 +138,9 @@
                                             class="rounded border-gray-300 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700 dark:border-gray-600">
                                         {{ __('Exento (no se le percibe este impuesto)') }}
                                     </label>
+                                    @if($fila['tipo'] === 'iva')
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Para la percepción de IVA sólo aplica la exención (certificado de exclusión)') }}</span>
+                                    @endif
                                 </div>
                             </div>
                         @endforeach

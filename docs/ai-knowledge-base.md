@@ -2706,7 +2706,8 @@ Configuracion impositiva de un CUIT: que impuestos lo alcanzan y con que condici
 | `es_agente_retencion` | boolean | Si actua como agente de retencion |
 | `percibir_no_empadronados` | boolean | Solo IIBB. Si true, percibe a todo RI sin perfil fiscal propio a la alicuota fija; si false (default), solo a clientes con alicuota cargada (manual o padron) |
 | `alicuota` | decimal(6,4) nullable | Alicuota porcentual (ej: `3.0000` = 3%) |
-| `alicuota_minimo_base` | decimal(14,2) nullable | Base imponible minima; si el neto es menor, no se percibe |
+| `alicuota_minimo_base` | decimal(14,2) nullable | Umbral de BASE IMPONIBLE minima; si el neto es menor, no se percibe |
+| `monto_minimo_percepcion` | decimal(15,2) nullable | Umbral sobre el IMPORTE RESULTANTE de la percepcion (distinto de `alicuota_minimo_base`, que es sobre la base); si el monto calculado no lo alcanza, la percepcion no se practica. Config del agente (revision Fable 2026-07-01) |
 | `origen_alicuota` | enum | `manual` (cargada a mano) o `padron` (importado desde padron ARBA/AGIP — Fase 10b) |
 | `vigente_desde` | date nullable | Inicio de vigencia; NULL = siempre vigente |
 | `vigente_hasta` | date nullable | Fin de vigencia; NULL = sin fecha limite |
@@ -2729,7 +2730,7 @@ Ledger fiscal. Registro append-only de cada impuesto sufrido o aplicado. Unica p
 | `periodo_fiscal` | char(7) | `YYYY-MM` calculado al registrar desde `fecha`. Inmutable, nunca depende del timezone al consultar |
 | `base_imponible` | decimal(14,2) nullable | Base sobre la que se calcula el impuesto |
 | `alicuota` | decimal(6,4) nullable | Alicuota aplicada |
-| `monto` | decimal(14,2) | Monto del impuesto. **Siempre positivo**: el signo semantico lo dan `sentido` + `naturaleza` |
+| `monto` | decimal(14,2) | Monto del impuesto. Positivo salvo excepcion: las reversas de nota de credito (ver mas abajo) registran `monto` NEGATIVO. Fuera de ese caso, el signo semantico lo dan `sentido` + `naturaleza` |
 | `certificado_numero` | varchar(50) nullable | N° de constancia de retencion |
 | `origen_tipo` | varchar(50) nullable | `ComprobanteFiscal`, `Compra`, `ConciliacionFila`, NULL = manual |
 | `origen_id` | bigint nullable | ID del origen |
@@ -3389,6 +3390,8 @@ Devuelve 0.0 si el resultado es menor a 0.009 (umbral anti-ruido de redondeo). U
 **Componente embebido `App\Livewire\Clientes\ClienteImpuestos` (Fase 10a)**:
 Modal embebido en la vista de Clientes. Se abre via evento `abrir-impuestos-cliente` con `{ clienteId: N }`. Gestiona el CRUD de `ClienteImpuestoConfig` para un cliente dado. No es SucursalAware (el perfil fiscal es global al cliente, no por sucursal).
 
+**Gap de UI (revision Fable 2026-07-01)**: el combobox de este componente EXCLUYE explicitamente `Impuesto::TIPO_IVA` (`->where('tipo', '!=', Impuesto::TIPO_IVA)`, ver comentario en el archivo). Esto significa que la exclusion de percepcion de IVA por certificado (RG 2226, ver `calcularTributos()` mas arriba) es un camino de codigo funcional pero **sin UI para cargarlo hoy** — el registro `ClienteImpuestoConfig` con `impuesto_id` de tipo IVA y `exento = true` debe crearse por otra via (seed, tinker, futuro importador). No ofrecer esto como flujo de usuario hasta que se habilite en la UI.
+
 ### 3.10 Cambio de Forma de Pago en Ventas Registradas
 
 Permite dividir un pago existente de una venta confirmada en N pagos nuevos con formas de pago distintas, manteniendo el total de la venta inmutable. Implementado en `App\Services\Ventas\CambioFormaPagoService` con patron append-only y procesamiento en dos fases para tolerancia a fallos ARCA.
@@ -3779,20 +3782,29 @@ Una venta o pago con cobro de integracion QR ya confirmado no puede anularse ni 
 El ledger fiscal es **append-only**, igual que los otros ledgers del sistema. Unica puerta de escritura: `App\Services\Fiscal\ImpuestoService`. Livewire, reportes y otros services solo leen.
 
 Reglas de registro:
-- El campo `monto` es **siempre positivo**. El significado del importe lo da la combinacion `sentido + naturaleza`:
+- El campo `monto` es positivo en el caso general. El significado del importe lo da la combinacion `sentido + naturaleza`:
   - `sentido=sufrido + naturaleza=percepcion` → percepcion sufrida (el comercio la pago a un proveedor o integrador).
   - `sentido=aplicado + naturaleza=debito_fiscal` → IVA debito fiscal de una factura emitida.
   - `sentido=sufrido + naturaleza=credito_fiscal` → IVA credito fiscal de una factura de proveedor (Factura A).
   - etc.
+- **Excepcion — reversas de nota de credito**: `registrarMovimientoFiscal(datos, permitirNegativo: true)` es el UNICO camino que admite `monto` negativo (y cero nunca se admite, con o sin el flag). Lo usa exclusivamente `registrarDesdeComprobante()` cuando el comprobante es una NC (ver mas abajo). La posicion fiscal SUMA montos, asi que una fila negativa resta debito/percepcion en el periodo en que se imputa.
 - El `periodo_fiscal` (YYYY-MM) se calcula **al registrar** desde la `fecha` del movimiento. Es inmutable y se usa como clave de particion para consultas; no depende del timezone en el momento de la consulta.
-- La **anulacion** crea un contraasiento: fila nueva con `movimiento_anulado_id` apuntando al original, ambos quedan con `estado = anulado`. La posicion fiscal solo suma `estado = activo`.
-- No existe un contraasiento parcial en v1: la anulacion es siempre total del movimiento original.
+- La **anulacion** (`anularMovimientoFiscal`) crea un contraasiento: fila nueva con `movimiento_anulado_id` apuntando al original, ambos quedan con `estado = anulado`. La posicion fiscal solo suma `estado = activo`. Este mecanismo es SOLO para correccion de errores de carga (alta manual, RF-08); una nota de credito NO lo usa (ver abajo).
+- No existe un contraasiento parcial en v1: la anulacion (correccion de error) es siempre total del movimiento original.
+
+#### Nota de credito: movimientos propios en su propio periodo (revision Fable 2026-07-01)
+
+Antes, una NC anulaba retroactivamente (contraasiento) los movimientos fiscales del comprobante original. Esto es incorrecto cuando la NC se emite en un periodo distinto a la factura: si la factura es de junio y la NC de julio, el periodo de junio puede estar YA DECLARADO ante el fisco, y el Libro IVA Ventas tambien computa la NC por su propia fecha de emision.
+
+**Semantica actual**: `registrarDesdeComprobante()` para una NC (`comprobante_asociado_id !== null`) registra sus PROPIOS movimientos (mismo `origen_tipo/origen_id` = la NC, no el original) con `monto` y `base_imponible` NEGATIVOS, imputados a `fecha = c->fecha_emision` de la NC (osea al periodo de la NC). El comprobante original y sus movimientos activos NO se tocan. En el caso de NC del mismo periodo que la factura, el neto de la posicion es identico al comportamiento anterior.
+
+Esto aplica tanto al debito fiscal de IVA como a las percepciones aplicadas (Fase 5b, `tributosDetalle`): ambos loops usan `$signo = $esNotaCredito ? -1 : 1` y pasan `permitirNegativo: $esNotaCredito`.
 
 #### Origenes de alimentacion del ledger
 
 | Origen | Metodo | Cuando se invoca |
 |---|---|---|
-| `ComprobanteFiscal` | `ImpuestoService::registrarDesdeComprobante()` | Despues de obtener el CAE (post-commit del comprobante). Solo CUIT Responsable Inscripto. Registra IVA debito fiscal por alicuota (sentido `aplicado`, naturaleza `debito_fiscal`). Una NC genera contraasientos de los movimientos del comprobante original. |
+| `ComprobanteFiscal` | `ImpuestoService::registrarDesdeComprobante()` | Despues de obtener el CAE (post-commit del comprobante). Solo CUIT Responsable Inscripto. Registra IVA debito fiscal por alicuota (sentido `aplicado`, naturaleza `debito_fiscal`) y percepciones aplicadas (Fase 5b). Una NC registra sus PROPIOS movimientos en negativo, imputados a su propio periodo (ver arriba) — ya NO anula los del comprobante original. |
 | `Compra` | `ImpuestoService::registrarDesdeCompra()` | Al cargar una factura de proveedor con `cuit_id` asignado. Registra IVA credito fiscal (sentido `sufrido`, naturaleza `credito_fiscal`) y percepciones/retenciones sufridas (sentido `sufrido`, naturaleza segun el impuesto). |
 | `ConciliacionFila` | `ImpuestoService::registrarDesdeConciliacion()` | Al aplicar una corrida de conciliacion, para filas con `impuesto_id` identificado. Registra sentido `sufrido` con la naturaleza del impuesto. El importe es `abs(monto_neto)`. |
 | Manual | `ImpuestoService::registrarMovimientoFiscal()` | Carga manual por el usuario desde `MovimientosFiscales` (RF-08). `origen_tipo = NULL`. Permite naturalezas `percepcion`, `retencion`, `tributo` en cualquier sentido. Debito/credito fiscal NO se admiten en carga manual para evitar doble conteo con los origenes automaticos. |
@@ -3808,17 +3820,22 @@ Todos los metodos son **idempotentes por origen**: si ya existe un movimiento ac
 **Logica**:
 1. El emisor debe ser Responsable Inscripto.
 2. El receptor (cliente) debe ser Responsable Inscripto (`receptor->condicionIva->codigo === CondicionIva::RESPONSABLE_INSCRIPTO`). Si es NULL, CF, monotributo o exento, devuelve array vacio.
-3. Se carga una vez el perfil fiscal del receptor: `$receptor->impuestoConfigs()->vigentes($fecha)->get()->keyBy('impuesto_id')` (evita N+1 en el loop).
+3. Se cargan las configs del agente (`cuit_impuesto_configs`) y del receptor (`ClienteImpuestoConfig::vigentes($fecha)`), cada una **deduplicada a un ganador por `impuesto_id`** (evita percibir dos veces el mismo impuesto cuando hay vigencias solapadas):
+   - Config del agente: gana la de `vigente_desde` mas reciente (misma regla que `configVigente()`).
+   - Config del cliente (revision Fable 2026-07-01, **precedencia manual > padron**): gana primero `origen_alicuota = manual` sobre `padron`; a igual origen, gana la `vigente_desde` mas reciente. Esto permite que el perfil cargado a mano por el contador conviva con filas importadas del padron ARBA/AGIP sin que el importador lo pise.
 4. Para cada impuesto del agente con config vigente `inscripto=true, es_agente_percepcion=true, alicuota != null`:
-   - **Percepcion IVA**: automatica, no consulta al cliente. Se aplica la alicuota fija del agente a todo RI.
+   - **Exclusion de percepcion de IVA por certificado (RG 2226, revision Fable)**: si el impuesto es de tipo IVA y el cliente tiene `ClienteImpuestoConfig` con `exento = true` para ese impuesto, se excluye (`continue`) — todo o nada, no se refina por alicuota. Fuera de ese caso, la percepcion de IVA es automatica: se aplica la alicuota fija del agente a todo RI, sin condicionar por sujeto.
    - **Percepcion IIBB**: requiere que la jurisdiccion del impuesto coincida con `$jurisdiccion` (domicilio fiscal del PV). Ademas se refina por el perfil del receptor:
-     - Si el cliente tiene `ClienteImpuestoConfig` vigente para ese impuesto:
+     - Si el cliente tiene `ClienteImpuestoConfig` vigente (ganadora segun la precedencia del punto 3) para ese impuesto:
        - `exento = true` → `continue` (no percibe).
        - `alicuota != null` → pisa la alicuota fija del agente.
        - `alicuota_minimo_base != null` → pisa la base minima del agente.
      - Sin config del cliente: si `cuit_impuesto_config.percibir_no_empadronados = false` (default) → `continue`. Si `= true` → aplica alicuota fija del agente.
-   - Si la base imponible es menor a `alicuota_minimo_base` efectiva, no aplica.
+   - Si la base imponible es menor a `alicuota_minimo_base` efectiva (umbral de BASE), no aplica.
+   - Si el monto resultante es menor a `monto_minimo_percepcion` del agente (umbral de IMPORTE, campo nuevo revision Fable), no aplica.
 5. Devuelve array de `{impuesto_id, codigo, tipo, jurisdiccion, base_imponible, alicuota, monto}`.
+
+**Pendiente normativo (a validar con el contador)**: el gate "solo RI" como receptor puede saltear regimenes de IIBB que tambien empadronan monotributistas (los padrones ARBA/AGIP los incluyen). Convenio Multilateral (reparto de base entre jurisdicciones) diferido. El "monto no sujeto" (deduccion de base, tipico de retenciones) no se modela.
 
 #### Posicion fiscal (PosicionFiscalService)
 
@@ -3835,8 +3852,15 @@ Servicio de solo lectura. Calcula:
 
 **posicionIibb(cuit, periodo)**:
 - Agrupa por jurisdiccion ISO 3166-2.
-- Para cada jurisdiccion: base imponible (neto gravado de comprobantes del periodo), percepciones/retenciones sufridas a cuenta, percepciones/retenciones aplicadas como agente.
+- Para cada jurisdiccion, desglosa los ingresos del periodo (revision Fable 2026-07-01; las NC restan en los tres campos, `signo = -1`):
+  - `base_imponible`: neto gravado por IVA de los comprobantes.
+  - `no_gravado`: `comprobantes_fiscales.neto_no_gravado`.
+  - `exento`: `comprobantes_fiscales.neto_exento`.
+  - `ingresos_totales`: suma de los tres anteriores.
+  - El desglose es informativo — que componentes integran la base de IIBB depende de cada jurisdiccion/rubro, lo define el contador viendo las columnas por separado. No se asume que IIBB se calcula solo sobre `base_imponible`.
+- Ademas: percepciones/retenciones sufridas a cuenta, percepciones/retenciones aplicadas como agente.
 - La jurisdiccion de cada comprobante surge de: `puntoVenta.cuitDomicilio.provincia` (Fase 9) → fallback `sucursal.provincia` → fallback `AR`.
+- Pendiente diferido (contador/fase padrones): Convenio Multilateral (reparto de la base entre jurisdicciones por coeficiente).
 
 **libroIvaVentas(cuit, periodo)**:
 - Fuente: `comprobantes_fiscales` autorizados del CUIT en el periodo.
@@ -4277,6 +4301,8 @@ ORDER BY cc.aplicada_en DESC;
 ```sql
 -- Debito fiscal, credito fiscal y percepciones/retenciones sufridas de IVA.
 -- Usar: cuit_id = ? y periodo_fiscal = 'YYYY-MM'
+-- SUM(mf.monto) ya neta las notas de credito: sus movimientos se registran en
+-- NEGATIVO, imputados al periodo de la NC (no al periodo del comprobante original).
 SELECT
   mf.naturaleza,
   mf.sentido,
@@ -4325,7 +4351,8 @@ WHERE mf.origen_tipo = 'ComprobanteFiscal'
 -- Impuestos activos configurados para un CUIT a la fecha de hoy.
 SELECT imp.codigo, imp.nombre, imp.tipo, imp.jurisdiccion,
   cfg.inscripto, cfg.es_agente_percepcion, cfg.es_agente_retencion,
-  cfg.alicuota, cfg.alicuota_minimo_base, cfg.vigente_desde, cfg.vigente_hasta
+  cfg.alicuota, cfg.alicuota_minimo_base, cfg.monto_minimo_percepcion,
+  cfg.vigente_desde, cfg.vigente_hasta
 FROM {PREFIX}cuit_impuesto_configs cfg
 JOIN {PREFIX}impuestos imp ON imp.id = cfg.impuesto_id
 WHERE cfg.cuit_id = ?
@@ -4350,7 +4377,7 @@ ORDER BY imp.tipo, imp.jurisdiccion;
 | MovimientoStock | `activo`, `anulado` | Anulado = contraasiento |
 | MovimientoCuentaCorriente | `activo`, `anulado` | Anulado = contraasiento |
 | MovimientoCuentaEmpresa | `activo`, `anulado` | Anulado = contraasiento |
-| MovimientoFiscal | `activo`, `anulado` | Anulado = contraasiento. El monto es siempre positivo; el signo semantico lo dan `sentido` + `naturaleza`. |
+| MovimientoFiscal | `activo`, `anulado` | Anulado = contraasiento (solo correccion de errores de carga, no NC). El monto es positivo salvo las reversas de NC (propias, en su propio periodo), que son negativas; fuera de eso el signo semantico lo dan `sentido` + `naturaleza`. |
 | Caja | `abierta`, `cerrada` | |
 | ComprobanteFiscal | `pendiente`, `autorizado`, `rechazado`, `anulado` | |
 | Produccion | `confirmado`, `anulado` | |
