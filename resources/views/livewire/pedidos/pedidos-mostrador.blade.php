@@ -88,21 +88,9 @@
                 </button>
             @endif
 
-            {{-- Chips: filtros activos --}}
-            @if($filterEstadoPedido !== 'activos')
-                <button type="button" wire:click="$set('filterEstadoPedido', 'activos')"
-                    class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs rounded-full hover:bg-gray-200 dark:hover:bg-gray-600">
-                    <span>{{ __('Estado') }}: {{ $filterEstadoPedido === 'all' ? __('todos') : __($estadosPedido[$filterEstadoPedido] ?? $filterEstadoPedido) }}</span>
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            @endif
-            @if($filterEstadoPago !== 'all')
-                <button type="button" wire:click="$set('filterEstadoPago', 'all')"
-                    class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs rounded-full hover:bg-gray-200 dark:hover:bg-gray-600">
-                    <span>{{ __('Pago') }}: {{ __($estadosPago[$filterEstadoPago] ?? $filterEstadoPago) }}</span>
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-            @endif
+            {{-- Chips: filtros activos. Estado del pedido y estado del pago ya no
+                 generan chip porque sus selectores están siempre visibles en la
+                 barra superior; solo la búsqueda mantiene su chip removible. --}}
             @if($search !== '')
                 <button type="button" wire:click="$set('search', '')"
                     class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs rounded-full hover:bg-gray-200 dark:hover:bg-gray-600">
@@ -112,17 +100,56 @@
             @endif
         </div>
 
-        {{-- Derecha: search + filtros + refresh + toggle vista + nuevo --}}
-        <div class="flex items-center gap-1.5 flex-shrink-0">
-            {{-- Search inline (desktop) --}}
-            <div class="relative hidden md:block">
+        {{-- Derecha: buscador + filtros estado/pago + acciones (mismo renglón) --}}
+        <div class="flex flex-wrap items-center justify-end gap-1.5 flex-shrink-0">
+            {{-- Buscador --}}
+            <div class="relative">
                 <svg class="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
                 <input x-ref="searchInput" type="text" id="search" wire:model.live.debounce.300ms="search"
                     placeholder="{{ __('Buscar...') }}"
-                    class="pl-7 pr-9 py-1.5 w-48 lg:w-56 h-9 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-1 focus:ring-bcn-primary" />
+                    class="pl-7 pr-9 py-1.5 w-40 lg:w-52 h-9 text-sm rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-1 focus:ring-bcn-primary" />
                 <kbd class="hidden lg:inline-flex absolute right-2 top-1/2 -translate-y-1/2 items-center text-[10px] font-mono text-gray-400 border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 pointer-events-none">/</kbd>
+            </div>
+
+            {{-- Filtro estado del pedido --}}
+            <select wire:model.live="filterEstadoPedido" title="{{ __('Estado del pedido') }}"
+                class="h-9 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm">
+                <option value="activos">{{ __('Solo activos') }}</option>
+                <option value="all">{{ __('Todos los estados') }}</option>
+                @foreach($estadosPedido as $key => $label)
+                    <option value="{{ $key }}">{{ __($label) }}</option>
+                @endforeach
+            </select>
+
+            {{-- Filtro estado del pago --}}
+            <select wire:model.live="filterEstadoPago" title="{{ __('Estado del pago') }}"
+                class="h-9 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm">
+                <option value="all">{{ __('Todos los pagos') }}</option>
+                @foreach($estadosPago as $key => $label)
+                    <option value="{{ $key }}">{{ __($label) }}</option>
+                @endforeach
+            </select>
+
+            {{-- Orden (solo mobile: en desktop se ordena clickeando los encabezados) --}}
+            <div class="sm:hidden flex items-center gap-1.5">
+                <select wire:model.live="sortField" title="{{ __('Ordenar por') }}"
+                    class="h-9 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm">
+                    <option value="fecha">{{ __('Fecha') }}</option>
+                    <option value="numero">{{ __('N°') }}</option>
+                    <option value="cliente">{{ __('Cliente') }}</option>
+                    <option value="total_final">{{ __('Total') }}</option>
+                    <option value="estado_pedido">{{ __('Estado') }}</option>
+                    <option value="estado_pago">{{ __('Pago') }}</option>
+                </select>
+                <button type="button" wire:click="toggleSortDirection"
+                    class="h-9 w-9 inline-flex items-center justify-center border border-gray-300 dark:border-gray-600 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    title="{{ $sortDirection === 'asc' ? __('Ascendente') : __('Descendente') }}">
+                    <svg class="w-4 h-4 transition-transform {{ $sortDirection === 'asc' ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
             </div>
 
             {{-- Filtros toggle --}}
@@ -179,49 +206,19 @@
         </div>
     </div>
 
-    {{-- ==================== FILTROS COLAPSABLES ==================== --}}
+    {{-- ==================== FILTROS COLAPSABLES (avanzado: rango de fechas) ==================== --}}
     @if($showFilters)
         <div class="bg-white dark:bg-gray-800 shadow-sm rounded-md mb-2 flex-shrink-0 border border-gray-200 dark:border-gray-700">
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3">
-                {{-- Search (visible aca en mobile, oculto en desktop porque ya esta en header) --}}
-                <div class="md:hidden">
-                    <label for="search-mobile" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar') }}</label>
-                    <input type="text" id="search-mobile" wire:model.live.debounce.300ms="search"
-                        placeholder="{{ __('N°, cliente o teléfono...') }}"
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3">
+                <div>
+                    <label for="filterFechaDesde" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Desde') }}</label>
+                    <input type="date" id="filterFechaDesde" wire:model.live="filterFechaDesde"
                         class="w-full h-9 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
                 </div>
                 <div>
-                    <label for="filterEstadoPedido" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Estado del pedido') }}</label>
-                    <select id="filterEstadoPedido" wire:model.live="filterEstadoPedido"
-                        class="w-full h-9 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm">
-                        <option value="activos">{{ __('Solo activos') }}</option>
-                        <option value="all">{{ __('Todos') }}</option>
-                        @foreach($estadosPedido as $key => $label)
-                            <option value="{{ $key }}">{{ __($label) }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label for="filterEstadoPago" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Estado del pago') }}</label>
-                    <select id="filterEstadoPago" wire:model.live="filterEstadoPago"
-                        class="w-full h-9 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm">
-                        <option value="all">{{ __('Todos') }}</option>
-                        @foreach($estadosPago as $key => $label)
-                            <option value="{{ $key }}">{{ __($label) }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label for="filterFechaDesde" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Desde') }}</label>
-                        <input type="date" id="filterFechaDesde" wire:model.live="filterFechaDesde"
-                            class="w-full h-9 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
-                    </div>
-                    <div>
-                        <label for="filterFechaHasta" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Hasta') }}</label>
-                        <input type="date" id="filterFechaHasta" wire:model.live="filterFechaHasta"
-                            class="w-full h-9 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
-                    </div>
+                    <label for="filterFechaHasta" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Hasta') }}</label>
+                    <input type="date" id="filterFechaHasta" wire:model.live="filterFechaHasta"
+                        class="w-full h-9 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
                 </div>
             </div>
             <div class="px-3 pb-2 flex justify-end">
@@ -417,12 +414,42 @@
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead class="bg-bcn-light dark:bg-gray-900">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('N°') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Cliente') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Fecha') }}</th>
-                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Total') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Estado') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Pago') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                <button type="button" wire:click="sortBy('numero')" class="group inline-flex items-center gap-1 hover:text-bcn-primary transition-colors select-none">
+                                    {{ __('N°') }}
+                                    @include('livewire.pedidos._sort-icon', ['field' => 'numero'])
+                                </button>
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                <button type="button" wire:click="sortBy('cliente')" class="group inline-flex items-center gap-1 hover:text-bcn-primary transition-colors select-none">
+                                    {{ __('Cliente') }}
+                                    @include('livewire.pedidos._sort-icon', ['field' => 'cliente'])
+                                </button>
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                <button type="button" wire:click="sortBy('fecha')" class="group inline-flex items-center gap-1 hover:text-bcn-primary transition-colors select-none">
+                                    {{ __('Fecha') }}
+                                    @include('livewire.pedidos._sort-icon', ['field' => 'fecha'])
+                                </button>
+                            </th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                <button type="button" wire:click="sortBy('total_final')" class="group inline-flex items-center gap-1 w-full justify-end hover:text-bcn-primary transition-colors select-none">
+                                    {{ __('Total') }}
+                                    @include('livewire.pedidos._sort-icon', ['field' => 'total_final'])
+                                </button>
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                <button type="button" wire:click="sortBy('estado_pedido')" class="group inline-flex items-center gap-1 hover:text-bcn-primary transition-colors select-none">
+                                    {{ __('Estado') }}
+                                    @include('livewire.pedidos._sort-icon', ['field' => 'estado_pedido'])
+                                </button>
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                <button type="button" wire:click="sortBy('estado_pago')" class="group inline-flex items-center gap-1 hover:text-bcn-primary transition-colors select-none">
+                                    {{ __('Pago') }}
+                                    @include('livewire.pedidos._sort-icon', ['field' => 'estado_pago'])
+                                </button>
+                            </th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Acciones') }}</th>
                         </tr>
                     </thead>

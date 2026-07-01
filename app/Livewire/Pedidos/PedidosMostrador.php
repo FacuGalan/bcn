@@ -3,6 +3,7 @@
 namespace App\Livewire\Pedidos;
 
 use App\Livewire\Concerns\Carrito\WithCobroIntegracion;
+use App\Models\Cliente;
 use App\Models\FormaPago;
 use App\Models\PedidoMostrador;
 use App\Models\PedidoMostradorPago;
@@ -10,6 +11,7 @@ use App\Services\Pedidos\PedidoMostradorService;
 use App\Traits\CajaAware;
 use App\Traits\SucursalAware;
 use Exception;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
@@ -54,6 +56,12 @@ class PedidosMostrador extends Component
     public ?string $filterFechaHasta = null;
 
     public bool $showFilters = false;
+
+    // ==================== ORDENAMIENTO ====================
+
+    public string $sortField = 'fecha';
+
+    public string $sortDirection = 'desc';
 
     // ==================== MODAL: DETALLE ====================
 
@@ -579,6 +587,43 @@ class PedidosMostrador extends Component
         $this->showFilters = ! $this->showFilters;
     }
 
+    /**
+     * Ordenar el listado por columna. Un click ordena ascendente por ese campo;
+     * volver a clickear la misma columna alterna a descendente (y viceversa).
+     * Campos válidos: numero, cliente, fecha, total_final, estado_pedido, estado_pago.
+     */
+    public function sortBy(string $field): void
+    {
+        $permitidos = ['numero', 'cliente', 'fecha', 'total_final', 'estado_pedido', 'estado_pago'];
+        if (! in_array($field, $permitidos, true)) {
+            return;
+        }
+
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDirection = 'asc';
+        }
+
+        $this->resetPage();
+    }
+
+    /**
+     * Alterna la dirección del orden actual sin cambiar el campo. Lo usa el
+     * control de orden mobile (selector de campo + botón de dirección).
+     */
+    public function toggleSortDirection(): void
+    {
+        $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        $this->resetPage();
+    }
+
+    public function updatingSortField(): void
+    {
+        $this->resetPage();
+    }
+
     public function resetFilters(): void
     {
         $this->search = '';
@@ -651,7 +696,64 @@ class PedidosMostrador extends Component
             });
         }
 
-        return $query->orderByDesc('fecha')->orderByDesc('id')->paginate(15);
+        $this->aplicarOrden($query);
+
+        return $query->paginate(15);
+    }
+
+    /**
+     * Aplica el orden dinámico según $sortField / $sortDirection. Los estados se
+     * ordenan por su orden lógico (constantes del modelo), no alfabético; el
+     * cliente por su nombre efectivo (cliente vinculado o nombre temporal).
+     */
+    protected function aplicarOrden($query): void
+    {
+        $dir = $this->sortDirection === 'asc' ? 'asc' : 'desc';
+
+        switch ($this->sortField) {
+            case 'numero':
+            case 'total_final':
+                $query->orderBy($this->sortField, $dir);
+                break;
+
+            case 'estado_pedido':
+                $orden = $this->fieldOrderSql('estado_pedido', array_keys(PedidoMostrador::ESTADOS));
+                $query->orderByRaw("{$orden} {$dir}");
+                break;
+
+            case 'estado_pago':
+                $orden = $this->fieldOrderSql('estado_pago', array_keys(PedidoMostrador::ESTADOS_PAGO));
+                $query->orderByRaw("{$orden} {$dir}");
+                break;
+
+            case 'cliente':
+                // Nombre efectivo: cliente vinculado o nombre temporal. La tabla
+                // clientes lleva prefijo tenant en la conexión, así que lo
+                // anteponemos a mano para la subconsulta correlacionada (SQL raw).
+                $prefix = DB::connection('pymes_tenant')->getTablePrefix();
+                $tabla = $prefix.(new Cliente)->getTable();
+                $query->orderByRaw("COALESCE((SELECT nombre FROM {$tabla} WHERE {$tabla}.id = cliente_id), nombre_cliente_temporal) {$dir}");
+                break;
+
+            case 'fecha':
+            default:
+                $query->orderBy('fecha', $dir);
+                break;
+        }
+
+        $query->orderByDesc('id');
+    }
+
+    /**
+     * Construye una expresión FIELD(columna, 'v1','v2',...) para ordenar por el
+     * orden lógico de un enum. Los valores provienen de constantes del modelo,
+     * no de input del usuario, pero los citamos igual de forma segura.
+     */
+    protected function fieldOrderSql(string $columna, array $valores): string
+    {
+        $lista = implode(',', array_map(fn ($v) => DB::connection('pymes_tenant')->getPdo()->quote($v), $valores));
+
+        return "FIELD({$columna}, {$lista})";
     }
 
     /**

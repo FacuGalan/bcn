@@ -68,6 +68,12 @@ use Livewire\Component;
  */
 class NuevoPedidoMostrador extends Component
 {
+    /**
+     * Nombre temporal por defecto cuando no se elige cliente ni se cargan datos
+     * temporales. Es un dato que se persiste (no UI), por eso literal sin __().
+     */
+    public const NOMBRE_CLIENTE_DEFAULT = 'Consumidor final';
+
     use CajaAware;
     use WithArticuloRapido;
     use WithBusquedaArticulos;
@@ -1278,15 +1284,8 @@ class NuevoPedidoMostrador extends Component
 
             return false;
         }
-        if (! $this->clienteSeleccionado) {
-            $nombreTemp = trim($this->nombreClienteTemporal ?? '');
-            $telTemp = trim($this->telefonoClienteTemporal ?? '');
-            if ($nombreTemp === '' || $telTemp === '') {
-                $this->dispatch('toast-error', message: __('Seleccioná un cliente o ingresá nombre y teléfono temporales'));
-
-                return false;
-            }
-        }
+        // Cliente NO es obligatorio: sin cliente ni datos temporales se graba
+        // "Consumidor final" (ver construirDataPedido). El teléfono es opcional.
         $this->calcularVenta();
         if (! $this->resultado) {
             $this->dispatch('toast-error', message: __('No se pudo calcular el pedido'));
@@ -1502,15 +1501,8 @@ class NuevoPedidoMostrador extends Component
                 return;
             }
 
-            if (! $esBorrador && ! $this->clienteSeleccionado) {
-                $nombreTemp = trim($this->nombreClienteTemporal ?? '');
-                $telTemp = trim($this->telefonoClienteTemporal ?? '');
-                if ($nombreTemp === '' || $telTemp === '') {
-                    $this->dispatch('toast-error', message: __('Seleccioná un cliente o ingresá nombre y teléfono temporales'));
-
-                    return;
-                }
-            }
+            // Cliente NO es obligatorio: sin cliente ni datos temporales se graba
+            // "Consumidor final" (ver construirDataPedido). El teléfono es opcional.
 
             $this->calcularVenta();
             if (! $this->resultado) {
@@ -1591,7 +1583,7 @@ class NuevoPedidoMostrador extends Component
         return [
             'sucursal_id' => $this->sucursalId,
             'cliente_id' => $this->clienteSeleccionado,
-            'nombre_cliente_temporal' => $this->clienteSeleccionado ? null : (trim($this->nombreClienteTemporal ?? '') ?: null),
+            'nombre_cliente_temporal' => $this->clienteSeleccionado ? null : (trim($this->nombreClienteTemporal ?? '') ?: self::NOMBRE_CLIENTE_DEFAULT),
             'telefono_cliente_temporal' => $this->clienteSeleccionado ? null : (trim($this->telefonoClienteTemporal ?? '') ?: null),
             'caja_id' => $this->cajaSeleccionada,
             'canal_venta_id' => $this->canalVentaId,

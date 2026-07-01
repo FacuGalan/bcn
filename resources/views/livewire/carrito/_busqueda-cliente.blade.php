@@ -2,7 +2,7 @@
 <div class="relative" x-data="{ clienteFocused: false, hlIdx: -1 }" @click.outside="clienteFocused = false"
      x-on:focus-cliente.window="$nextTick(() => { if ($refs.inputCliente) $refs.inputCliente.focus(); })">
     <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5">
-        {{ __('Cliente') }}
+        {{ __('Cliente') }}@isset($atajoCliente)<kbd class="hidden sm:inline ml-1 px-1 py-0 text-[9px] bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-400 rounded align-middle">{{ $atajoCliente }}</kbd>@endisset
     </label>
     @if($clienteSeleccionado)
         {{-- Cliente seleccionado --}}

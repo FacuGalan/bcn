@@ -2,17 +2,17 @@
 
 @php
     $config = match($estado) {
-        'borrador' => ['label' => __('Borrador'), 'classes' => 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'],
-        'confirmado' => ['label' => __('Confirmado'), 'classes' => 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'],
-        'en_preparacion' => ['label' => __('En preparación'), 'classes' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'],
-        'listo' => ['label' => __('Listo'), 'classes' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'],
-        'entregado' => ['label' => __('Entregado'), 'classes' => 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200'],
-        'facturado' => ['label' => __('Facturado'), 'classes' => 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'],
-        'cancelado' => ['label' => __('Cancelado'), 'classes' => 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'],
-        default => ['label' => $estado, 'classes' => 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'],
+        'borrador' => ['label' => __('Borrador'), 'classes' => 'bg-gray-500 text-white dark:bg-gray-600'],
+        'confirmado' => ['label' => __('Confirmado'), 'classes' => 'bg-blue-600 text-white dark:bg-blue-500'],
+        'en_preparacion' => ['label' => __('En preparación'), 'classes' => 'bg-amber-500 text-white dark:bg-amber-500'],
+        'listo' => ['label' => __('Listo'), 'classes' => 'bg-green-600 text-white dark:bg-green-500'],
+        'entregado' => ['label' => __('Entregado'), 'classes' => 'bg-emerald-600 text-white dark:bg-emerald-500'],
+        'facturado' => ['label' => __('Facturado'), 'classes' => 'bg-purple-600 text-white dark:bg-purple-500'],
+        'cancelado' => ['label' => __('Cancelado'), 'classes' => 'bg-red-600 text-white dark:bg-red-500'],
+        default => ['label' => $estado, 'classes' => 'bg-gray-500 text-white dark:bg-gray-600'],
     };
 @endphp
 
-<span {{ $attributes->merge(['class' => 'inline-flex items-center px-2 py-0.5 rounded text-sm font-medium cursor-default select-none ' . $config['classes']]) }}>
+<span {{ $attributes->merge(['class' => 'inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold cursor-default select-none ' . $config['classes']]) }}>
     {{ $config['label'] }}
 </span>
