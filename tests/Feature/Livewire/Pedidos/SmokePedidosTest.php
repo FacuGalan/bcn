@@ -1278,6 +1278,75 @@ class SmokePedidosTest extends TestCase
         }
     }
 
+    public function test_confirmar_sin_cobrar_sin_cliente_graba_consumidor_final(): void
+    {
+        // Cliente dejó de ser obligatorio: sin cliente ni datos temporales el
+        // pedido se persiste con nombre "Consumidor final" y teléfono null.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('confirmarSinCobrar')
+            ->assertDispatched('pedido-guardado')
+            ->assertNotDispatched('toast-error');
+
+        $pedido = PedidoMostrador::first();
+        $this->assertNotNull($pedido);
+        $this->assertNull($pedido->cliente_id);
+        $this->assertSame(NuevoPedidoMostrador::NOMBRE_CLIENTE_DEFAULT, $pedido->nombre_cliente_temporal);
+        $this->assertNull($pedido->telefono_cliente_temporal);
+    }
+
+    public function test_confirmar_sin_cobrar_sin_telefono_no_bloquea(): void
+    {
+        // El teléfono ya no es obligatorio: con solo nombre temporal persiste.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoMostrador::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->set('nombreClienteTemporal', 'Mesa 4')
+            ->call('confirmarSinCobrar')
+            ->assertDispatched('pedido-guardado')
+            ->assertNotDispatched('toast-error');
+
+        $pedido = PedidoMostrador::first();
+        $this->assertSame('Mesa 4', $pedido->nombre_cliente_temporal);
+        $this->assertNull($pedido->telefono_cliente_temporal);
+    }
+
+    public function test_sort_by_alterna_direccion_y_valida_campo(): void
+    {
+        Livewire::test(PedidosMostrador::class)
+            ->assertSet('sortField', 'fecha')
+            ->assertSet('sortDirection', 'desc')
+            ->call('sortBy', 'total_final')
+            ->assertSet('sortField', 'total_final')
+            ->assertSet('sortDirection', 'asc')
+            ->call('sortBy', 'total_final')
+            ->assertSet('sortDirection', 'desc')
+            ->call('sortBy', 'cliente')
+            ->assertSet('sortField', 'cliente')
+            ->assertSet('sortDirection', 'asc')
+            // Campo no permitido: se ignora, no cambia el orden actual.
+            ->call('sortBy', 'columna_inexistente')
+            ->assertSet('sortField', 'cliente')
+            ->assertSet('sortDirection', 'asc');
+    }
+
+    public function test_render_ordena_por_cada_campo_sin_error_sql(): void
+    {
+        // Ejercita la SQL de orden de obtenerPedidos por cada campo y dirección:
+        // valida FIELD() para estados y la subconsulta prefijada para cliente.
+        foreach (['numero', 'cliente', 'fecha', 'total_final', 'estado_pedido', 'estado_pago'] as $campo) {
+            Livewire::test(PedidosMostrador::class)
+                ->set('sortField', $campo)
+                ->set('sortDirection', 'asc')
+                ->assertOk()
+                ->set('sortDirection', 'desc')
+                ->assertOk();
+        }
+    }
+
     protected function crearPedidoConfirmadoConDosDetalles(): PedidoMostrador
     {
         $a1 = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);

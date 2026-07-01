@@ -92,7 +92,7 @@
     <div class="flex gap-2">
         {{-- Input de búsqueda con botones integrados --}}
         <div class="flex-1">
-            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar Artículo') }}</label>
+            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Buscar Artículo') }}@isset($atajoBusqueda)<kbd class="hidden sm:inline ml-1 px-1 py-0 text-[9px] bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-400 rounded align-middle">{{ $atajoBusqueda }}</kbd>@endisset</label>
             <div class="flex">
                 <div class="relative flex-1">
                     <input

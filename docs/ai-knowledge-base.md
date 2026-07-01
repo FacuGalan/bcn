@@ -2007,6 +2007,7 @@ Metodos:
 - `CajaAware` y `SucursalAware` se usan juntos; el conflicto en `getListeners()` se resuelve con `use CajaAware, SucursalAware { CajaAware::getListeners insteadof SucursalAware; }`. El override propio de `getListeners()` llama a ambos padres manualmente via alias o ignora el trait y reimplementa la logica combinada.
 - Polling de 60 segundos via `wire:poll.60s` como fallback defensivo (reducido de 15s al agregar tiempo real).
 - Filtra por sucursal activa, estado pedido, estado pago, rango de fechas y busqueda libre. Cuando hay caja activa, agrega filtro adicional por `caja_id`.
+- **Ordenamiento dinamico**: propiedades `$sortField` (string, default `'fecha'`) y `$sortDirection` (string, `'asc'|'desc'`, default `'desc'`). Campos permitidos: `numero`, `cliente`, `fecha`, `total_final`, `estado_pedido`, `estado_pago`. Los estados se ordenan por orden logico del flujo via `FIELD()` SQL, no alfabeticamente. El campo `cliente` ordena por nombre efectivo (subquery correlacionada sobre la tabla con prefijo tenant para comparar con `nombre_cliente_temporal` usando `COALESCE`).
 - Modales: detalle, cambiar estado, cobrar pendiente, convertir en venta, cancelar.
 - Permisos chequeados con `hasPermissionTo()` al abrir los modales de cobrar, convertir y cancelar.
 - **Tiempo real via WebSocket**: escucha el canal privado `comercios.{comercioId}.pedidos-mostrador` a traves de Laravel Echo/Reverb. Cualquier cambio en un pedido de la sucursal activa dispara un re-render automatico.
@@ -2054,6 +2055,10 @@ Ante cualquier rechazo (incluyendo excepciones del service), dispatcha `kanban-r
 - `cerrarComandarModal(): void` -- resetea `$showComandarModal = false`, `$pedidoComandarId = null`, `$comandarNuevosCount = 0`, `$comandarComandadosCount = 0`.
 - `ejecutarComandarPedido(PedidoMostrador $pedido, string $alcance): void` -- metodo protegido. Llama `PedidoMostradorService::comandarPedido($pedido, $alcance)`, dispatcha el evento `imprimir-comanda` con el payload retornado, dispatcha toast informativo y llama `resetPage()`.
 - `reordenarColumna(string $estado, array $idsOrdenados): void` -- persiste el orden intra-columna del Kanban. Delega a `PedidoMostradorService::reordenarColumna()`. Ante error, dispatcha toast pero no lanza excepcion al caller. Al cambiar caja activa, los snapshots y `$nuevosCount` se resetean.
+- `sortBy(string $field): void` -- cambia el campo de orden. Si `$field` es el mismo que `$sortField`, invierte `$sortDirection`; si es distinto, setea el nuevo campo y resetea a `'asc'`. Solo acepta campos en el array de permitidos (`numero`, `cliente`, `fecha`, `total_final`, `estado_pedido`, `estado_pago`); ignora silenciosamente valores invalidos. Llama `resetPage()`.
+- `toggleSortDirection(): void` -- invierte `$sortDirection` sin cambiar el campo. Lo usa el control de orden mobile (selector de campo + boton de direccion). Llama `resetPage()`.
+- `aplicarOrden($query): void` -- metodo protegido. Aplica `ORDER BY` dinamico segun `$sortField`/`$sortDirection`. `numero` y `total_final`: `orderBy` simple. `estado_pedido` y `estado_pago`: `orderByRaw(FIELD(...))` con los valores de `PedidoMostrador::ESTADOS` / `ESTADOS_PAGO` para orden logico. `cliente`: `orderByRaw(COALESCE(subquery_nombre_catalogo, nombre_cliente_temporal))`. `fecha` (default): `orderBy('fecha', $dir)`. Tiebreak: siempre `orderByDesc('id')` al final.
+- `fieldOrderSql(string $columna, array $valores): string` -- metodo protegido. Construye la expresion `FIELD(columna, 'v1','v2',...)` para ordenar por orden logico de un enum. Los valores se citan via `PDO::quote()` sobre la conexion `pymes_tenant`.
 
 **Metodo `render()` -- datos adicionales para Kanban**:
 - `pedidosKanban` -- resultado de `obtenerPedidosKanban()`.
@@ -2076,16 +2081,16 @@ La vista Lista esta envuelta en `x-show="vista === 'lista'"` y la vista Kanban e
 **Badge de estado de pago clickeable (patron boton-inline-hover)**:
 Cuando el pedido tiene saldo pendiente (`total_cobrado < total_final - 0.005` o hay planificados) y el usuario tiene permiso `func.pedidos_mostrador.cobrar`, el badge de `estado_pago` se envuelve en un `<button>` con `wire:click="cobrarRapido({{ $pedido->id }})"`. El boton usa el patron `group` de Tailwind: un icono SVG de signo $ a la derecha del badge tiene clase `opacity-0 group-hover:opacity-100 transition-opacity`, haciendolo invisible por defecto y visible al pasar el cursor. Cuando el pedido esta pagado, el badge es un `<span>` normal sin accion (clase `cursor-default`). Este patron aplica tanto en la Vista Lista (columna de estado de pago) como en las cards del Kanban.
 
-Los badges de `estado_pedido` y `estado_pago` usan tamano `text-sm` (antes `text-xs`) para mayor legibilidad.
+Los badges de `estado_pedido` usan color solido y vibrante (alta saturacion) para lectura rapida de un vistazo. Los badges de `estado_pago` usan tinte suave (baja saturacion) para diferenciarse visualmente de los de estado pedido. Ambos usan tamano `text-sm`.
 
 **Header compacto (una sola fila, h-9)**:
-El header ya no contiene titulo ni descripcion del modulo. Contiene en una sola fila: contador de pedidos, badge de nuevos, boton de borradores (condicional), chips removibles de filtros activos, search inline (md+), boton filtros, boton refrescar con estado loading (`wire:loading.remove` / `wire:loading`), toggle lista/kanban y boton nuevo.
+El header ya no contiene titulo ni descripcion del modulo. Contiene en una sola fila: contador de pedidos, badge de nuevos, boton de borradores (condicional), chips removibles de filtros activos, search inline (md+), **selector `filterEstadoPedido`** (siempre visible), **selector `filterEstadoPago`** (siempre visible), boton filtros (abre panel colapsable con solo el rango de fechas), boton refrescar con estado loading (`wire:loading.remove` / `wire:loading`), toggle lista/kanban y boton nuevo.
 
 **Boton borradores (Alpine puro, sin round-trip)**:
 Reemplaza el desplegable Livewire previo. El boton aparece condicionalmente si `$borradores->count() > 0`. Click activa `mostrarBorradoresPanel = true`; `@click.outside` y `@keydown.escape.window` lo cierran. Las propiedades Livewire `$mostrarBorradores` y el metodo `toggleBorradores()` fueron eliminados del componente PHP.
 
 **Chips de filtros activos**:
-Por cada filtro con valor distinto al default (estado pedido, estado pago, busqueda), el header renderiza un chip con un boton de cierre. Click en el boton del chip hace `wire:click` que limpia la propiedad Livewire correspondiente (`filterEstadoPedido = ''`, `filterEstadoPago = ''`, `search = ''`).
+Por cada filtro con valor distinto al default (busqueda), el header renderiza un chip con un boton de cierre. Click en el boton del chip hace `wire:click` que limpia la propiedad Livewire correspondiente (`search = ''`). Los filtros de estado pedido y estado pago tienen sus propios selectores siempre visibles en la barra; no generan chips separados.
 
 **Atajos de teclado (`@keydown.window`)**:
 Registrados en el `x-data` raiz via Alpine:
@@ -2179,6 +2184,9 @@ El modal de detalle agrega el boton **"Editar pedido"** cuando el pedido no es t
 
 No hay rutas `/pedidos/mostrador/nuevo` ni `/pedidos/mostrador/{pedido}/editar`. El alta y la edicion ocurren exclusivamente dentro del modal full-screen.
 
+**Constante**:
+- `NOMBRE_CLIENTE_DEFAULT = 'Consumidor final'` -- nombre temporal que se persiste cuando no se elige cliente del catalogo ni se ingresa nombre temporal. No usa `__()` porque es un dato persistido, no un label de UI.
+
 **Props**:
 - `$pedidoId` (int|null) -- null = modo alta, ID = modo edicion o cobro rapido.
 - `$modoCobroRapido` (bool, default `false`) -- cuando `true`, el componente monta solo el modal de desglose de pagos sobre el listado, sin renderizar la UI completa del editor. El `mount()` acepta este parametro directamente.
@@ -2200,6 +2208,8 @@ El archivo tiene un wrapper raiz `<div data-livewire-root="nuevo-pedido-mostrado
 - Alta (`$pedidoId === null`): sin numero, sin descuento de stock al guardar borrador.
 - Edicion (`$pedidoId` provisto, `$modoCobroRapido = false`): precarga datos del pedido. Disponible para estados `borrador`, `confirmado`, `en_preparacion`, `listo` y `entregado`, siempre que `estado_pago === pendiente` (sin cobros materializados activos). En `cargarPedidoParaEditar()` se valida que el estado este en esta lista y que no haya pagos activos; si la condicion no se cumple, se dispatcha error y el componente no carga el pedido.
 - Cobro rapido (`$pedidoId` provisto, `$modoCobroRapido = true`): llama `iniciarCobroRapido()` al final de `mount()`. Aplica la misma validacion de estados que el modo edicion. No carga catalogo tactil.
+
+**Logica de cliente**: el cliente es opcional. Si `cliente_id` es null y `nombreClienteTemporal` esta vacio, el service persiste `NOMBRE_CLIENTE_DEFAULT` (`'Consumidor final'`) en `nombre_cliente_temporal`. El campo `telefonoClienteTemporal` tampoco es obligatorio. El boton "Dar de alta como cliente" fue eliminado de la seccion de datos temporales; el alta rapida sigue disponible exclusivamente desde el buscador de cliente (boton "+").
 
 **Logica de beeper**: el campo `numero_beeper` es obligatorio al confirmar si `sucursal.usa_beepers = true`. No se valida al guardar como borrador.
 
@@ -2230,7 +2240,19 @@ En modo cobro rapido delega a `procesarCobroRapido()` antes de la logica estanda
 - **Cerrar / Cancelar**: despacha evento `cerrar-modal-pedido` al componente padre.
 - Tras alta o edicion exitosa: despacha evento `pedido-guardado` al componente padre.
 
-**Atajo de teclado**: Esc cierra el modal (manejado en Alpine con `@keydown.escape.window`). Solo aplica en modo editor.
+**Atajos de teclado del editor** (registrados en `@keydown.window` del wrapper Alpine del modo editor):
+
+| Atajo | Accion | Guard |
+|-------|--------|-------|
+| `F2` | `$wire.confirmarPedido()` | No se dispara si hay modal secundario abierto |
+| `F3` | `$wire.confirmarSinCobrar()` | Idem |
+| `F4` | `$wire.abrirModalDescuentos()` | Idem |
+| `Ctrl+G` | `$wire.guardarBorrador()` | Solo en alta o cuando `estadoPedidoActual === 'borrador'` |
+| `Ctrl+1` | `$dispatch('focus-busqueda')` | Sin guard |
+| `Ctrl+6` | `$dispatch('focus-cliente')` | Sin guard |
+| `Esc` | `$wire.cerrar()` | `@keydown.escape.window` |
+
+Los modales secundarios que bloquean F2/F3/F4/Ctrl+G son: `$mostrarModalPago`, `$mostrarModalMonedaExtranjera`, `$mostrarModalVuelto`, `$mostrarModalEsperandoPago`, `$showModalDescuentos`, `$mostrarModalConcepto`, `$mostrarConfirmLimpiar`.
 
 **Badge "Nuevo" por item en edicion**: el partial compartido `resources/views/livewire/carrito/_detalle-items.blade.php` renderiza un badge ambar "Nuevo" al lado del nombre del articulo cuando se cumplen dos condiciones simultaneamente: (1) el array del item tiene la clave `comandado_at` (presente cuando se rehidrata un pedido existente via `detalleAItemCarrito()`; ausente en NuevaVenta que no tiene este campo); (2) `$item['comandado_at'] === null`. No se muestra si el pedido esta en estado borrador (la vista del editor lo suprimir pasando el `$pedidoId` como null o verificando el estado). Este mecanismo de guarda por `array_key_exists` asegura que NuevaVenta (que no rehidrata `comandado_at`) no vea el badge.
 

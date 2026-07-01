@@ -33,6 +33,15 @@
         }
     }"
     @keydown.escape.window="$wire.cerrar()"
+    @keydown.window="
+        const modalAbierto = $wire.mostrarModalPago || $wire.mostrarModalMonedaExtranjera || $wire.mostrarModalVuelto || $wire.mostrarModalEsperandoPago || $wire.showModalDescuentos || $wire.mostrarModalConcepto || $wire.mostrarConfirmLimpiar;
+        if ($event.key === 'F2' && !modalAbierto) { $event.preventDefault(); $wire.confirmarPedido(); }
+        if ($event.key === 'F3' && !modalAbierto) { $event.preventDefault(); $wire.confirmarSinCobrar(); }
+        if ($event.key === 'F4' && !modalAbierto) { $event.preventDefault(); $wire.abrirModalDescuentos(); }
+        if ($event.ctrlKey && $event.key === '1') { $event.preventDefault(); $dispatch('focus-busqueda'); }
+        if ($event.ctrlKey && $event.key === '6') { $event.preventDefault(); $dispatch('focus-cliente'); }
+        if ($event.ctrlKey && ($event.key === 'g' || $event.key === 'G') && !modalAbierto && (!$wire.modoEdicion || $wire.estadoPedidoActual === 'borrador')) { $event.preventDefault(); $wire.guardarBorrador(); }
+    "
 >
     <div class="w-full bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-lg shadow-2xl">
     {{-- Header naranja --}}
@@ -87,7 +96,7 @@
             @keydown.window.ctrl.b.prevent="tactil = !tactil"
         >
             {{-- Búsqueda / scan (siempre visible) --}}
-            @include('livewire.carrito._busqueda-articulos')
+            @include('livewire.carrito._busqueda-articulos', ['atajoBusqueda' => 'Ctrl+1'])
 
             {{-- Toggle Panel táctil / Detalle (panel táctil primero) --}}
             <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-1 flex gap-1">
@@ -385,7 +394,7 @@
             <div class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
                 {{-- Cliente (reutilizado) --}}
                 <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-2">
-                    @include('livewire.carrito._busqueda-cliente')
+                    @include('livewire.carrito._busqueda-cliente', ['atajoCliente' => 'Ctrl+6'])
 
                     @unless($clienteSeleccionado)
                         {{-- Cliente temporal (RF-17): nombre+teléfono en una sola fila --}}
@@ -398,15 +407,12 @@
                                     placeholder="{{ __('Nombre') }}"
                                     class="block w-full pl-2 pr-2 py-1 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary rounded-md" />
                                 <input type="text" wire:model.live.debounce.300ms="telefonoClienteTemporal"
-                                    placeholder="{{ __('Teléfono') }}"
+                                    placeholder="{{ __('Teléfono (opcional)') }}"
                                     class="block w-full pl-2 pr-2 py-1 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary rounded-md" />
                             </div>
-                            @if(trim($nombreClienteTemporal ?? '') !== '' && trim($telefonoClienteTemporal ?? '') !== '')
-                                <button type="button" wire:click="abrirModalAltaClienteTemporal"
-                                    class="text-[10px] text-bcn-primary hover:underline">
-                                    + {{ __('Dar de alta como cliente') }}
-                                </button>
-                            @endif
+                            <div class="text-[10px] text-gray-400 dark:text-gray-500">
+                                {{ __('Si lo dejás vacío se registra como "Consumidor final".') }}
+                            </div>
                         </div>
                     @endunless
                 </div>
@@ -567,6 +573,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
                             </svg>
                             {{ __('Descuentos') }}
+                            <kbd class="hidden sm:inline ml-1.5 px-1 py-0 text-[9px] bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-300 rounded">F4</kbd>
                             @if($descuentoGeneralActivo)
                                 <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-purple-200 dark:bg-purple-700 text-purple-800 dark:text-purple-200 rounded">
                                     {{ $descuentoGeneralTipo === 'porcentaje' ? $descuentoGeneralValor . '%' : '$' . number_format($descuentoGeneralValor, 2, ',', '.') }}
@@ -649,11 +656,13 @@
                         <button type="button" wire:click="guardarBorrador" wire:loading.attr="disabled"
                             class="flex-1 inline-flex justify-center items-center px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-xs font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                             {{ __('Guardar borrador') }}
+                            <kbd class="hidden sm:inline ml-1.5 px-1 py-0 text-[9px] bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-300 rounded">Ctrl+G</kbd>
                         </button>
                     @endif
                     <button type="button" wire:click="confirmarSinCobrar" wire:loading.attr="disabled"
                         class="flex-1 inline-flex justify-center items-center px-2 py-1.5 border border-gray-400 dark:border-gray-500 rounded-md text-xs font-medium text-gray-800 dark:text-gray-100 bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500">
                         {{ __('Confirmar sin cobrar') }}
+                        <kbd class="hidden sm:inline ml-1.5 px-1 py-0 text-[9px] bg-black/10 dark:bg-white/20 text-gray-600 dark:text-gray-200 rounded">F3</kbd>
                     </button>
                 </div>
 
@@ -668,6 +677,7 @@
                     @if($totalACobrar > 0)
                         <span class="ml-1.5">${{ number_format($totalACobrar, 2, ',', '.') }}</span>
                     @endif
+                    <kbd class="hidden sm:inline ml-1.5 px-1 py-0 text-[9px] bg-black/20 rounded">F2</kbd>
                 </button>
             </div>
         </div>

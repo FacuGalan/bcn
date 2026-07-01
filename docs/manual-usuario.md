@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-06-29 (pantallas auxiliares Clase B: iconos de marca propios, fullscreen automatico y sonido de exito en consultor de precios)
+> Version: 0.1.x | Ultima actualizacion: 2026-07-01 (pedidos por mostrador: filtros de estado en barra superior, ordenamiento por columna, badges de estado pedido vibrantes, cliente opcional con default "Consumidor final", teclas rapidas en editor)
 
 ---
 
@@ -792,7 +792,8 @@ El **header** es una sola fila compacta de 36px que contiene, de izquierda a der
 - **Boton "X en borrador"** (solo si hay borradores): badge amarillo. Al hacer click se despliega un panel con la lista de borradores. Click fuera del panel o tecla Escape lo cierra. Si no hay borradores, el boton no aparece.
 - **Chips de filtros activos**: por cada filtro activo (estado pedido, estado pago, busqueda) aparece un chip removible con el nombre del filtro. Click en la X del chip limpia ese filtro.
 - **Search inline** (solo pantallas medianas y grandes): campo de busqueda directamente en el header. En mobile el campo se traslada al panel de filtros.
-- **Boton Filtros**: abre el panel de filtros lateral.
+- **Selector "Estado del pedido"** y **Selector "Estado de pago"**: siempre visibles en la barra superior, al lado del buscador. Permiten filtrar sin abrir el panel de filtros.
+- **Boton Filtros**: abre el panel colapsable que contiene exclusivamente el rango de fechas (Desde / Hasta).
 - **Boton Refrescar**: icono de flecha circular. Fuerza un fetch inmediato desde el servidor (util cuando la conexion WebSocket esta caida). Durante la recarga muestra un spinner en lugar del icono.
 - **Toggle Lista / Kanban**: icono de lineas horizontales = Lista / icono de grilla = Kanban. El boton activo aparece resaltado. La preferencia se guarda en el dispositivo y se restaura al volver.
 - **Boton Nuevo**: abre el modal de creacion de pedido.
@@ -838,21 +839,42 @@ Para quitar el resaltado de un pedido puntual, **haga click sobre la fila o la c
 
 #### Filtros disponibles
 
-| Filtro | Opciones | Comportamiento por defecto |
-|--------|----------|---------------------------|
-| Busqueda | Numero, identificador, beeper, nombre o telefono de cliente | Vacio |
-| Estado pedido | Solo activos / Todos / Borrador / Confirmado / En preparacion / Listo / Entregado / Facturado / Cancelado | Solo activos |
-| Estado pago | Todos / Pendiente / Parcial / Pagado | Todos |
-| Fecha desde | Fecha | Ultimos 7 dias |
-| Fecha hasta | Fecha | Hoy |
+Los filtros de **Estado del pedido** y **Estado de pago** estan siempre visibles en la barra superior junto al buscador; no requieren abrir el panel de filtros. El panel colapsable ("Filtros") contiene exclusivamente el rango de fechas.
+
+| Filtro | Opciones | Ubicacion | Comportamiento por defecto |
+|--------|----------|-----------|---------------------------|
+| Busqueda | Numero, identificador, beeper, nombre o telefono de cliente | Barra superior | Vacio |
+| Estado pedido | Solo activos / Todos / Borrador / Confirmado / En preparacion / Listo / Entregado / Facturado / Cancelado | Barra superior | Solo activos |
+| Estado pago | Todos / Pendiente / Parcial / Pagado | Barra superior | Todos |
+| Fecha desde | Fecha | Panel colapsable | Ultimos 7 dias |
+| Fecha hasta | Fecha | Panel colapsable | Hoy |
 
 > "Solo activos" excluye los estados Facturado y Cancelado. Es la vista operativa del dia.
 
 #### Columnas de la tabla
 
-Cada fila muestra: numero de pedido, identificador/beeper, cliente, fecha/hora, estado del pedido (badge de color), estado del pago (badge de color), badge verde "Cortesia" si el pedido es una invitacion total, y acciones.
+Cada fila muestra: numero de pedido, identificador/beeper, cliente, fecha/hora, estado del pedido (badge de color solido), estado del pago (badge de tinte suave), badge verde "Cortesia" si el pedido es una invitacion total, y acciones.
+
+Los badges de **estado del pedido** son de color solido y vibrante para facilitar la lectura de un vistazo. Los badges de **estado de pago** usan un tinte suave para diferenciarse visualmente de los anteriores.
 
 > Cuando la sucursal tiene activa la **numeracion de display** (turno), el numero visible del pedido en la fila es el numero de turno (corto y reseteable), no el correlativo permanente. El correlativo permanente sigue disponible como referencia interna pero no se muestra en la fila de la lista.
+
+#### Ordenamiento de la tabla
+
+Las columnas de la tabla son clickeables para ordenar el listado:
+
+| Columna | Campo de orden |
+|---------|---------------|
+| N° | Numero de pedido |
+| Cliente | Nombre efectivo (catalogo o temporal) |
+| Fecha | Fecha del pedido |
+| Total | Total final |
+| Estado | Estado del pedido (orden logico del flujo) |
+| Pago | Estado de pago (orden logico) |
+
+El primer click en una columna ordena de forma ascendente; el segundo click en la misma columna invierte a descendente. La columna activa muestra un icono de flecha indicando la direccion. Los estados se ordenan por su orden logico en el flujo operativo, no alfabeticamente.
+
+En **dispositivos moviles** el ordenamiento se controla con un selector de campo y un boton de direccion (ascendente / descendente) que aparecen en el panel de filtros.
 
 #### Acciones por fila
 
@@ -1096,11 +1118,13 @@ Para editar un pedido existente (cualquier estado activo no terminal con pago pe
 
 ##### Seleccion de cliente
 
-El pedido admite tres vias para asociar un cliente:
+El cliente es **opcional**. Si no se elige ninguna opcion ni se ingresan datos temporales, el pedido se registra automaticamente como **"Consumidor final"**.
+
+El pedido admite las siguientes vias para asociar un cliente:
 
 1. **Cliente del catalogo**: busqueda por nombre o telefono. Al seleccionar, el sistema usa su lista de precios asignada y acumula puntos al convertir.
 2. **Alta rapida de cliente**: boton "+" junto al campo de busqueda, abre el modal de cliente rapido para registrarlo sin salir del formulario.
-3. **Cliente temporal**: se ingresa nombre y telefono libre sin crear un registro permanente. Aparece un boton **"Dar de alta como cliente"** para convertirlo en cliente del catalogo en cualquier momento antes de guardar.
+3. **Cliente temporal**: se ingresa nombre libre (telefono opcional) sin crear un registro permanente. Para convertirlo en cliente del catalogo, usar el alta rapida desde el buscador de cliente.
 
 ##### Carrito de articulos
 
@@ -1173,12 +1197,29 @@ El panel derecho muestra subtotal, IVA, descuentos aplicados y total final, actu
 
 ##### Botones de accion
 
-| Boton | Comportamiento |
-|-------|----------------|
-| Cancelar | Cierra el modal sin guardar. Equivalente a presionar Esc. |
-| Guardar borrador | Guarda sin asignar numero ni descontar stock. El pedido queda en estado borrador. No valida beeper. |
-| Confirmar pedido | Asigna numero correlativo, descuenta stock, imprime comanda si la sucursal esta configurada para ello. Valida beeper si la sucursal lo requiere. Si la sucursal tiene `imprime_comanda_automatico=true`, el pedido avanza automaticamente a **En preparacion** al confirmar y todos los items quedan marcados como comandados. |
-| Guardar cambios (edicion) | En modo edicion, persiste los cambios sobre el pedido existente. |
+| Boton | Atajo | Comportamiento |
+|-------|-------|----------------|
+| Cancelar | `Esc` | Cierra el modal sin guardar. |
+| Guardar borrador | `Ctrl+G` | Guarda sin asignar numero ni descontar stock. El pedido queda en estado borrador. No valida beeper. Solo disponible en alta o cuando el pedido esta en estado borrador. |
+| Confirmar (cobrar) | `F2` | Asigna numero correlativo, descuenta stock, abre el desglose de formas de pago. Valida beeper si la sucursal lo requiere. Si la sucursal tiene `imprime_comanda_automatico=true`, el pedido avanza automaticamente a **En preparacion** y todos los items quedan marcados como comandados. |
+| Confirmar sin cobrar | `F3` | Confirma el pedido sin registrar pago. El pedido queda con estado de pago pendiente. |
+| Descuentos | `F4` | Abre el modal de descuentos generales. |
+| Guardar cambios (edicion) | -- | En modo edicion, persiste los cambios sobre el pedido existente. |
+
+##### Atajos de teclado del editor
+
+| Atajo | Accion |
+|-------|--------|
+| `F2` | Confirmar pedido (abre cobro) |
+| `F3` | Confirmar sin cobrar |
+| `F4` | Abrir modal de descuentos |
+| `Ctrl+G` | Guardar como borrador (solo en alta o edicion de borrador) |
+| `Ctrl+1` | Enfocar buscador de articulos |
+| `Ctrl+6` | Enfocar campo de cliente |
+| `Ctrl+B` | Alternar entre Panel tactil y vista Detalle |
+| `Esc` | Cerrar el editor sin guardar |
+
+> Los atajos de accion (`F2`, `F3`, `F4`, `Ctrl+G`) no se disparan si hay un modal secundario abierto (pago, descuentos, concepto libre, etc.).
 
 > Al guardar o confirmar exitosamente, el modal se cierra y la lista se refresca automaticamente.
 
