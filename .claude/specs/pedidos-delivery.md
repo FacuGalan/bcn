@@ -994,12 +994,22 @@ origen, morphMap) + tenant_tables.sql regenerado (sanitizado: sin `;` en
 COMMENTs). Verificado: pint OK, 93 tests de PedidoMostrador/IntegracionPago
 verdes (valida morphMap + template), smoke de los 12 modelos contra tenant real.
 
-### Fase 2: PedidoDeliveryService + DeliveryEnvioService [PENDIENTE]
-Núcleo espejo (conversión setea origen en ventas, D20; se actualiza también la
-de mostrador) + dirección/cotización/alcance + costo envío + promesa de entrega
-CORE (automática por km + manual; franjas/programados/Routes → Fase 8, D22) +
-validación de disponibilidad por canal. Suite de tests completa (es el corazón;
-incluye matriz de cotización y de promesa).
+### Fase 2: PedidoDeliveryService + DeliveryEnvioService [COMPLETO — 2026-07-02]
+Implementado: PedidoDeliveryService (espejo completo: alta/edición con renglón
+de envío D17 por deltas, transiciones con en_camino + exigir_repartidor,
+pagos con override destino_fondo D13 + movimiento inverso del fondo al anular,
+conversión con origen D20 + fixes D19 — CuponUso sin revalidar vigencia,
+puntos ganados post-commit, opcionales migrados —, caja override para pedidos
+de tienda, comanda/precuenta con PlantillasComanda generalizada a union type)
++ DeliveryEnvioService (cotizar zona→radio→fuera, Haversine, rangos horarios
+con cruce de medianoche, calendario estaAbierto, demora automática core) +
+CotizacionEnvio DTO + trait ConNumeracionDisplay compartido (extraído de
+mostrador, contador display único) + eventos dominio/broadcast delivery +
+constantes MovimientoStock/Caja + conversión de MOSTRADOR setea origen (D20)
++ marcarTransaccionesCierre marca pagos de pedidos (D19, excluye
+destino_fondo). Tests: 29 nuevos (matriz cotización + ciclo completo) y toda
+la carpeta de pedidos verde (94), cierres verdes. Diferido explícito a Fase 3:
+salida implícita en el pase manual listo→en_camino (RepartidorService).
 
 ### Fase 3: RepartidorService (salidas + fondos) [PENDIENTE]
 Salidas/vueltas, fondo append-only, rendición con diferencias y liquidación

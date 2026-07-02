@@ -1725,6 +1725,24 @@ class TurnoActual extends Component
                 ->where('estado', 'activo')
                 ->update(['cierre_turno_id' => $cierreTurnoId]);
         }
+
+        // Pagos de PEDIDOS cobrados por esta caja y aún no convertidos en venta
+        // (D19 spec pedidos-delivery): antes cierre_turno_id nunca se asignaba y
+        // el guard de anulación con turno cerrado era letra muerta. Los pagos ya
+        // migrados a venta quedan cubiertos por el bloque de ventas de arriba.
+        \App\Models\PedidoMostradorPago::whereNull('cierre_turno_id')
+            ->where('estado', \App\Models\PedidoMostradorPago::ESTADO_ACTIVO)
+            ->whereHas('pedido', fn ($q) => $q->where('caja_id', $cajaId))
+            ->update(['cierre_turno_id' => $cierreTurnoId]);
+
+        // Delivery: ídem, EXCLUYENDO cobros al fondo del repartidor (D13): ese
+        // efectivo es cross-turno, vive en el fondo hasta la rendición y no
+        // pertenece al arqueo de esta caja.
+        \App\Models\PedidoDeliveryPago::whereNull('cierre_turno_id')
+            ->where('estado', \App\Models\PedidoDeliveryPago::ESTADO_ACTIVO)
+            ->where('destino_fondo', false)
+            ->whereHas('pedido', fn ($q) => $q->where('caja_id', $cajaId))
+            ->update(['cierre_turno_id' => $cierreTurnoId]);
     }
 
     /**

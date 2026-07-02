@@ -37,6 +37,8 @@ use Illuminate\Support\Facades\Log;
  */
 class PedidoMostradorService
 {
+    use Concerns\ConNumeracionDisplay;
+
     public function __construct(
         protected ?VentaService $ventaService = null,
     ) {
@@ -746,10 +748,14 @@ class PedidoMostradorService
             );
 
             // Update post-crear venta para los 2 campos de puntos que VentaService::crearVenta
-            // no toma en su Venta::create() (NuevaVenta los setea de igual forma post-crear).
+            // no toma en su Venta::create() (NuevaVenta los setea de igual forma post-crear)
+            // + origen polimórfico (D20 spec pedidos-delivery): la venta sabe de
+            // qué pedido nació. Aplica a TODOS los canales; venta directa queda NULL.
             $venta->update([
                 'puntos_canjeados_pago' => $pedido->puntos_canjeados_pago,
                 'puntos_canjeados_articulos' => $pedido->puntos_canjeados_articulos,
+                'origen_type' => $pedido->getMorphClass(),
+                'origen_id' => $pedido->id,
             ]);
 
             $this->migrarPromocionesAVenta($pedido, $venta);
@@ -822,112 +828,8 @@ class PedidoMostradorService
         ]);
     }
 
-    /**
-     * Reserva atómicamente el próximo número de DISPLAY (turno) de la sucursal,
-     * o null si la sucursal no usa numeración de display (entonces se muestra el
-     * `numero` permanente). En modo `diario` reinicia el contador cuando el
-     * segmento (definido por las horas de reset) avanza.
-     */
-    public function siguienteNumeroDisplay(int $sucursalId): ?int
-    {
-        return DB::connection('pymes_tenant')->transaction(function () use ($sucursalId) {
-            $suc = DB::connection('pymes_tenant')
-                ->table('sucursales')
-                ->where('id', $sucursalId)
-                ->lockForUpdate()
-                ->first([
-                    'usa_numeracion_display', 'numeracion_display_modo',
-                    'numeracion_display_horas', 'pedido_display_ultimo_numero',
-                    'pedido_display_segmento_at',
-                ]);
-
-            if (! $suc || ! $suc->usa_numeracion_display) {
-                return null;
-            }
-
-            $contador = (int) ($suc->pedido_display_ultimo_numero ?? 0);
-            $update = [];
-
-            if (($suc->numeracion_display_modo ?? 'diario') === 'diario') {
-                $segmentoActual = $this->inicioSegmentoDisplay(
-                    $this->horasResetDisplay($suc->numeracion_display_horas),
-                    now()
-                );
-                $segmentoGuardado = $suc->pedido_display_segmento_at
-                    ? \Illuminate\Support\Carbon::parse($suc->pedido_display_segmento_at)
-                    : null;
-
-                if (! $segmentoGuardado || $segmentoGuardado->lt($segmentoActual)) {
-                    $contador = 0;
-                    $update['pedido_display_segmento_at'] = $segmentoActual->toDateTimeString();
-                }
-            }
-
-            $siguiente = $contador + 1;
-            $update['pedido_display_ultimo_numero'] = $siguiente;
-
-            DB::connection('pymes_tenant')
-                ->table('sucursales')
-                ->where('id', $sucursalId)
-                ->update($update);
-
-            return $siguiente;
-        });
-    }
-
-    /**
-     * Reinicia a 0 la numeración de display (modo manual, con permiso). Audita.
-     */
-    public function reiniciarNumeracionDisplay(int $sucursalId, int $usuarioId): void
-    {
-        DB::connection('pymes_tenant')
-            ->table('sucursales')
-            ->where('id', $sucursalId)
-            ->update(['pedido_display_ultimo_numero' => 0, 'pedido_display_segmento_at' => null]);
-
-        Log::info('Numeración display reiniciada manualmente', [
-            'sucursal_id' => $sucursalId,
-            'usuario_id' => $usuarioId,
-        ]);
-    }
-
-    /**
-     * Normaliza la lista de horas de reset (json crudo del row) a enteros 0-23
-     * ordenados y sin duplicados. Default `[6]`.
-     *
-     * @return list<int>
-     */
-    private function horasResetDisplay(?string $json): array
-    {
-        $horas = $json ? (json_decode($json, true) ?: []) : [];
-        $horas = array_values(array_unique(array_filter(
-            array_map('intval', is_array($horas) ? $horas : []),
-            fn ($h) => $h >= 0 && $h <= 23
-        )));
-        sort($horas);
-
-        return $horas ?: [6];
-    }
-
-    /**
-     * Inicio del segmento actual: el último horario de reset (de hoy o ayer) que
-     * sea <= ahora. Define a qué "turno" pertenece el contador.
-     */
-    private function inicioSegmentoDisplay(array $horas, \Illuminate\Support\Carbon $ahora): \Illuminate\Support\Carbon
-    {
-        $inicio = null;
-
-        foreach ([$ahora->copy()->subDay(), $ahora->copy()] as $dia) {
-            foreach ($horas as $h) {
-                $cand = $dia->copy()->setTime($h, 0, 0);
-                if ($cand->lte($ahora) && ($inicio === null || $cand->gt($inicio))) {
-                    $inicio = $cand;
-                }
-            }
-        }
-
-        return $inicio ?? $ahora->copy()->startOfDay();
-    }
+    // siguienteNumeroDisplay / reiniciarNumeracionDisplay viven en el trait
+    // Concerns\ConNumeracionDisplay (contador COMPARTIDO con delivery).
 
     // ==================== COMANDA ====================
 

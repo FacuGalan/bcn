@@ -95,6 +95,7 @@ class Sucursal extends Model
         'costo_envio_base' => 0,
         'costo_por_km_extra' => 0,
         'km_incluidos_en_base' => 0,
+        'concepto_categoria_envio_id' => null, // categoría del renglón-concepto "Costo de envío" (D17)
         // Operatoria
         'exigir_repartidor' => true,         // listo → en_camino exige repartidor
         'takeaway_habilitado' => true,
