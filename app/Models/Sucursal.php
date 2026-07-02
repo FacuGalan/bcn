@@ -82,6 +82,43 @@ class Sucursal extends Model
     ];
 
     /**
+     * Valores por defecto de la configuración de delivery (RF-05, spec
+     * pedidos-delivery). Se mergean con lo guardado en `config_delivery` para
+     * que nunca falten keys. Las keys de franjas/programados/Routes API
+     * existen desde el día 1 pero su lógica llega en Fase 8 (D22):
+     * `acepta_programados` OFF oculta todo lo de programados en toda la UI.
+     */
+    public const CONFIG_DELIVERY_DEFAULTS = [
+        // Georreferenciación y costo de envío (D5/D7, RF-06)
+        'georreferenciar_pedidos' => false,
+        'radio_entrega_km' => null,          // null = sin límite
+        'costo_envio_base' => 0,
+        'costo_por_km_extra' => 0,
+        'km_incluidos_en_base' => 0,
+        // Operatoria
+        'exigir_repartidor' => true,         // listo → en_camino exige repartidor
+        'takeaway_habilitado' => true,
+        // Pedidos externos (tienda/API, D14)
+        'aceptacion_pedidos_externos' => 'manual',  // manual | automatica
+        'imprimir_comanda_al_aceptar' => false,
+        'timeout_aceptacion_min' => null,    // null = sin timeout; vencido avisa, no cancela
+        // Calendario (D16) — la API pública rechaza pedidos fuera de horario
+        'horarios_atencion' => null,         // null = siempre; [{dias:[1..7], desde:'19:00', hasta:'23:30'}]
+        'feriados' => [],                    // fechas 'Y-m-d' sin atención
+        'dias_laborales' => [1, 2, 3, 4, 5, 6, 7],
+        // Promesa de entrega (RF-15; 'franjas' es Fase 8)
+        'modo_promesa' => 'manual',          // franjas | automatica | manual
+        'demora_base_min' => 15,             // modo automática
+        'demora_min_por_km' => 4,            // modo automática
+        'usar_maps_para_demora' => false,    // Routes API (Fase 8)
+        'botones_demora' => [0, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 90], // modo manual
+        'franjas' => [],                     // [{desde, hasta, cupo_delivery, cupo_takeaway}] (Fase 8)
+        // Pedidos programados (Fase 8, flag maestro OFF)
+        'acepta_programados' => false,
+        'programados_aparecen_min_antes' => 60,
+    ];
+
+    /**
      * Valores por defecto de la personalización del consultor de precios
      * (pantalla Clase B). Se mergean con lo guardado en `config_consultor_precios`.
      */
@@ -158,6 +195,8 @@ class Sucursal extends Model
         // Pedidos por Mostrador
         'pedido_mostrador_ultimo_numero', 'imprime_comanda_automatico',
         'pedido_conversion_automatica_al_entregar', 'usa_beepers',
+        // Pedidos Delivery / Take-away (RF-05)
+        'usa_delivery', 'config_delivery', 'pedido_delivery_ultimo_numero',
         // Geolocalización + Mercado Pago Stores
         'latitud', 'longitud', 'localidad', 'localidad_id', 'provincia',
         'mp_store_id', 'mp_store_external_id',
@@ -170,6 +209,8 @@ class Sucursal extends Model
         'config_pantalla_cliente' => 'array',
         'config_llamador' => 'array',
         'config_consultor_precios' => 'array',
+        'usa_delivery' => 'boolean',
+        'config_delivery' => 'array',
         'usa_llamador' => 'boolean',
         'usa_consultor_precios' => 'boolean',
         'usa_numeracion_display' => 'boolean',
@@ -253,7 +294,7 @@ class Sucursal extends Model
     public function articulos(): BelongsToMany
     {
         return $this->belongsToMany(Articulo::class, 'articulos_sucursales', 'sucursal_id', 'articulo_id')
-            ->withPivot('activo')
+            ->withPivot('activo', 'modo_stock', 'vendible', 'visible_tienda')
             ->withTimestamps();
     }
 
@@ -347,6 +388,18 @@ class Sucursal extends Model
         $guardada = is_array($this->config_consultor_precios) ? $this->config_consultor_precios : [];
 
         return array_merge(self::CONFIG_CONSULTOR_PRECIOS_DEFAULTS, $guardada);
+    }
+
+    /**
+     * Configuración de delivery (RF-05) con los DEFAULTS mergeados para
+     * garantizar todas las keys. La consumen DeliveryEnvioService (cotización,
+     * calendario, promesa), el panel y la API pública.
+     */
+    public function getConfigDelivery(): array
+    {
+        $guardada = is_array($this->config_delivery) ? $this->config_delivery : [];
+
+        return array_merge(self::CONFIG_DELIVERY_DEFAULTS, $guardada);
     }
 
     /**

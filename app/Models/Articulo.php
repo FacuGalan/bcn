@@ -76,6 +76,13 @@ class Articulo extends Model
         'activo',
         'tipo_iva_id',
         'precio_iva_incluido',
+        // Disponibilidad por canal (RF-16) + presentación en tienda (RF-17)
+        'disponible_delivery',
+        'disponible_take_away',
+        'permite_programado',
+        'orden',
+        'destacado',
+        'permite_venta_sin_stock',
     ];
 
     protected $casts = [
@@ -87,6 +94,12 @@ class Articulo extends Model
         'imagen_focal_y' => 'decimal:2',
         'activo' => 'boolean',
         'precio_iva_incluido' => 'boolean',
+        'disponible_delivery' => 'boolean',
+        'disponible_take_away' => 'boolean',
+        'permite_programado' => 'boolean',
+        'orden' => 'integer',
+        'destacado' => 'boolean',
+        'permite_venta_sin_stock' => 'boolean',
     ];
 
     // Relaciones
@@ -107,7 +120,7 @@ class Articulo extends Model
     public function sucursales(): BelongsToMany
     {
         return $this->belongsToMany(Sucursal::class, 'articulos_sucursales', 'articulo_id', 'sucursal_id')
-            ->withPivot('activo', 'modo_stock')
+            ->withPivot('activo', 'modo_stock', 'vendible', 'visible_tienda')
             ->withTimestamps();
     }
 

@@ -50,10 +50,15 @@ class AppServiceProvider extends ServiceProvider
         // Establecer longitud por defecto para strings en migraciones
         Schema::defaultStringLength(191);
 
-        // Mapear nombres cortos de morph types usados en recetas
+        // Mapear nombres cortos de morph types usados en recetas y en el
+        // origen polimórfico de ventas (D20). OJO: aliasar una clase cambia
+        // su getMorphClass() — los datos históricos con FQCN se normalizan
+        // por migración (ver 2026_07_02_200009_normalize_cobrable_type...).
         Relation::morphMap([
             'Articulo' => \App\Models\Articulo::class,
             'Opcional' => \App\Models\Opcional::class,
+            'PedidoMostrador' => \App\Models\PedidoMostrador::class,
+            'PedidoDelivery' => \App\Models\PedidoDelivery::class,
         ]);
 
         // Registrar observers

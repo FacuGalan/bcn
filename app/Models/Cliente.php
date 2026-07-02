@@ -68,6 +68,12 @@ class Cliente extends Model
         'email',
         'telefono',
         'direccion',
+        // Domicilio de ENTREGA (delivery, D18) — SEPARADO del fiscal
+        // (`direccion`, que alimenta ARCA/impresión/padrón y nunca se pisa)
+        'direccion_entrega',
+        'direccion_entrega_referencia',
+        'latitud',
+        'longitud',
         'provincia',
         'localidad_id',
         'condicion_iva_id',
@@ -93,6 +99,8 @@ class Cliente extends Model
 
     protected $casts = [
         'activo' => 'boolean',
+        'latitud' => 'decimal:7',
+        'longitud' => 'decimal:7',
         'tiene_cuenta_corriente' => 'boolean',
         'limite_credito' => 'decimal:2',
         'tasa_interes_mensual' => 'decimal:2',
