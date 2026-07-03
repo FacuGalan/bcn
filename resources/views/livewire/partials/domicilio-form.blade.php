@@ -5,12 +5,14 @@
     Variables opcionales (vía @include):
       - $conTipo (bool)            : muestra el selector fiscal/comercial/otro (default true)
       - $conDireccion (bool)       : muestra el campo dirección (default true)
+      - $conReferencia (bool)      : muestra el campo referencia piso/depto/timbre (default false)
       - $conGeo (bool)             : muestra los campos latitud/longitud (default true)
       - $provinciaRequerida (bool) : marca la provincia como obligatoria (default true)
       - $idPrefix (string)         : prefijo para los ids de los <label for> (default 'dom')
 --}}
 @php($conTipo = $conTipo ?? true)
 @php($conDireccion = $conDireccion ?? true)
+@php($conReferencia = $conReferencia ?? false)
 @php($conGeo = $conGeo ?? true)
 @php($provinciaRequerida = $provinciaRequerida ?? true)
 @php($idPrefix = $idPrefix ?? 'dom')
@@ -61,6 +63,15 @@
             <input id="{{ $idPrefix }}-direccion" type="text" wire:model="domDireccion" maxlength="255" placeholder="{{ __('Calle y número') }}"
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
             @error('domDireccion') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+        </div>
+    @endif
+
+    {{-- Referencia de entrega (piso/depto/timbre) --}}
+    @if($conReferencia)
+        <div class="sm:col-span-2">
+            <label for="{{ $idPrefix }}-referencia" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Referencia') }} <span class="text-gray-400">({{ __('piso, depto, timbre...') }})</span></label>
+            <input id="{{ $idPrefix }}-referencia" type="text" wire:model="domReferencia" maxlength="255"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
         </div>
     @endif
 

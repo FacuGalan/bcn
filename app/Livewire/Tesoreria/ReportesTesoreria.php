@@ -380,8 +380,17 @@ class ReportesTesoreria extends Component
 
     public function render()
     {
+        // D13 (pedidos-delivery): entre la vuelta y la rendición hay efectivo
+        // cobrado en la calle que no está en ninguna caja — se muestra como
+        // línea informativa para que esa plata nunca sea invisible.
+        $sucursalId = SucursalService::getSucursalActiva();
+        $enFondosRepartidores = $sucursalId
+            ? app(\App\Services\Pedidos\RepartidorService::class)->totalEnFondosAbiertos((int) $sucursalId)
+            : 0.0;
+
         return view('livewire.tesoreria.reportes-tesoreria', [
             'cajas' => $this->cajas,
+            'enFondosRepartidores' => $enFondosRepartidores,
         ]);
     }
 }

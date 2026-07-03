@@ -52,6 +52,20 @@
         </div>
     </div>
 
+    {{-- Línea informativa D13: efectivo en fondos de repartidores abiertos --}}
+    @if(($enFondosRepartidores ?? 0) > 0.005)
+        <div class="bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-xl p-3 mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-cyan-600 dark:text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/>
+            </svg>
+            <p class="text-sm text-cyan-800 dark:text-cyan-200">
+                {{ __('En fondos de repartidores (abiertos)') }}:
+                <span class="font-bold">${{ number_format($enFondosRepartidores, 2, ',', '.') }}</span>
+                <span class="text-xs text-cyan-600 dark:text-cyan-300">— {{ __('ingresa a caja al rendir cada fondo') }}</span>
+            </p>
+        </div>
+    @endif
+
     {{-- Resumen --}}
     @if(!empty($resumen))
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 mb-6">

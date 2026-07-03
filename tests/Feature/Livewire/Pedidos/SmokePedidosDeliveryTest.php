@@ -1,0 +1,349 @@
+<?php
+
+namespace Tests\Feature\Livewire\Pedidos;
+
+use App\Livewire\Pedidos\NuevoPedidoDelivery;
+use App\Livewire\Pedidos\PedidosDelivery;
+use App\Livewire\Pedidos\Repartidores;
+use App\Models\PedidoDelivery;
+use App\Models\Repartidor;
+use App\Models\User;
+use App\Services\Pedidos\PedidoDeliveryService;
+use App\Services\Pedidos\RepartidorService;
+use Livewire\Livewire;
+use Tests\TestCase;
+use Tests\Traits\WithPedidoDeliveryHelpers;
+use Tests\Traits\WithSucursal;
+use Tests\Traits\WithTenant;
+use Tests\Traits\WithVentaHelpers;
+
+/**
+ * Smoke tests de la UI de Pedidos Delivery (Fase 4): panel kanban, editor
+ * full-screen y ABM de repartidores/fondos. Detecta fallas de mount, Blade
+ * inválido, variables indefinidas y dependencias rotas.
+ */
+class SmokePedidosDeliveryTest extends TestCase
+{
+    use WithPedidoDeliveryHelpers, WithSucursal, WithTenant, WithVentaHelpers;
+
+    protected PedidoDeliveryService $service;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->setUpTenant();
+        $this->setUpSucursal();
+        $this->crearTiposIva();
+
+        $user = User::factory()->create(['is_system_admin' => true]);
+        $user->comercios()->syncWithoutDetaching([$this->comercio->id]);
+        $this->actingAs($user);
+        session([
+            'comercio_activo_id' => $this->comercio->id,
+            'sucursal_id' => $this->sucursalId,
+        ]);
+
+        // Bypass del cache de SucursalService (mismo patrón que SmokePedidosTest).
+        $ref = new \ReflectionClass(\App\Services\SucursalService::class);
+        foreach (['sucursalesCache', 'sucursalActivaCache', 'esMultiSucursalCache'] as $prop) {
+            if ($ref->hasProperty($prop)) {
+                $p = $ref->getProperty($prop);
+                $p->setAccessible(true);
+                $p->setValue(null, null);
+            }
+        }
+        $p = $ref->getProperty('sucursalIdsCache');
+        $p->setAccessible(true);
+        $p->setValue(null, [0]);
+
+        $this->habilitarDelivery();
+        $this->service = new PedidoDeliveryService;
+
+        Livewire::withoutLazyLoading();
+    }
+
+    protected function tearDown(): void
+    {
+        $this->tearDownTenant();
+        parent::tearDown();
+    }
+
+    // ==================== SMOKE: MONTAJE ====================
+
+    public function test_pedidos_delivery_monta(): void
+    {
+        Livewire::test(PedidosDelivery::class)->assertOk();
+    }
+
+    public function test_nuevo_pedido_delivery_monta(): void
+    {
+        Livewire::test(NuevoPedidoDelivery::class)->assertOk();
+    }
+
+    public function test_repartidores_monta(): void
+    {
+        Livewire::test(Repartidores::class)->assertOk();
+    }
+
+    public function test_pedidos_delivery_abre_modal_alta(): void
+    {
+        Livewire::test(PedidosDelivery::class)
+            ->call('abrirModalNuevoPedido')
+            ->assertSet('modalNuevoPedidoAbierto', true)
+            ->assertSet('pedidoIdEnEdicion', null);
+    }
+
+    // ==================== EDITOR: TIPO + DIRECCIÓN + ENVÍO ====================
+
+    public function test_editor_arranca_en_delivery_y_cambia_a_take_away(): void
+    {
+        Livewire::test(NuevoPedidoDelivery::class)
+            ->assertSet('tipo', PedidoDelivery::TIPO_DELIVERY)
+            ->set('tipo', PedidoDelivery::TIPO_TAKE_AWAY)
+            ->assertSet('tipo', PedidoDelivery::TIPO_TAKE_AWAY)
+            // RF-02: take-away limpia el circuito de envío.
+            ->assertSet('costoEnvio', 0)
+            ->assertSet('zonaEnvioId', null);
+    }
+
+    public function test_editor_confirmar_direccion_actualiza_snapshot_y_cotiza(): void
+    {
+        Livewire::test(NuevoPedidoDelivery::class)
+            ->call('abrirModalDireccion')
+            ->assertSet('mostrarModalDireccion', true)
+            ->set('domDireccion', 'Av. Siempreviva 742')
+            ->set('domReferencia', 'Timbre 3B')
+            ->call('confirmarDireccion')
+            ->assertSet('mostrarModalDireccion', false)
+            ->assertSet('direccionEntrega', 'Av. Siempreviva 742')
+            ->assertSet('direccionReferencia', 'Timbre 3B');
+    }
+
+    public function test_editor_guarda_borrador_delivery_sin_direccion(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoDelivery::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('guardarBorrador')
+            ->assertNotDispatched('toast-error');
+
+        $pedido = PedidoDelivery::first();
+        $this->assertNotNull($pedido);
+        $this->assertSame(PedidoDelivery::ESTADO_BORRADOR, $pedido->estado_pedido);
+        $this->assertSame(PedidoDelivery::TIPO_DELIVERY, $pedido->tipo);
+        $this->assertSame(PedidoDelivery::ORIGEN_PANEL, $pedido->origen);
+    }
+
+    public function test_editor_confirmar_delivery_sin_direccion_pide_direccion(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoDelivery::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('confirmarSinCobrar')
+            ->assertDispatched('toast-error')
+            ->assertSet('mostrarModalDireccion', true);
+
+        $this->assertSame(0, PedidoDelivery::count());
+    }
+
+    public function test_editor_confirma_take_away_sin_direccion_y_persiste(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoDelivery::class)
+            ->set('tipo', PedidoDelivery::TIPO_TAKE_AWAY)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('confirmarSinCobrar')
+            ->assertDispatched('pedido-guardado')
+            ->assertNotDispatched('toast-error');
+
+        $pedido = PedidoDelivery::first();
+        $this->assertSame(PedidoDelivery::TIPO_TAKE_AWAY, $pedido->tipo);
+        $this->assertSame(PedidoDelivery::ESTADO_CONFIRMADO, $pedido->estado_pedido);
+    }
+
+    public function test_editor_costo_envio_manual_se_materializa_en_renglon_d17(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevoPedidoDelivery::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirModalDireccion')
+            ->set('domDireccion', 'Av. Siempreviva 742')
+            ->call('confirmarDireccion')
+            ->set('costoEnvio', 500)
+            ->assertSet('costoEnvioManual', true)
+            ->call('confirmarSinCobrar')
+            ->assertDispatched('pedido-guardado');
+
+        $pedido = PedidoDelivery::with('detalles')->first();
+        $this->assertNotNull($pedido);
+        $this->assertEqualsWithDelta(500.0, (float) $pedido->costo_envio, 0.01);
+        $this->assertTrue((bool) $pedido->costo_envio_manual);
+
+        $renglon = $pedido->detalles->firstWhere('es_costo_envio', true);
+        $this->assertNotNull($renglon, 'El envío debe materializarse como renglón-concepto (D17)');
+        $this->assertEqualsWithDelta(500.0, (float) $renglon->total, 0.01);
+        // Total del pedido = artículo + envío (Σ detalles = total, cierra ARCA).
+        $this->assertEqualsWithDelta(
+            (float) $pedido->detalles->sum('total'),
+            (float) $pedido->total,
+            0.01,
+        );
+    }
+
+    // ==================== PANEL: DESPACHO + VUELTA ====================
+
+    protected function pedidoListoConRepartidor(): array
+    {
+        $repartidor = Repartidor::create(['nombre' => 'Carlos Moto', 'tipo' => 'propio', 'activo' => true]);
+        $repartidor->sucursales()->attach($this->sucursalId);
+
+        $pedido = $this->pedidoDeliveryConfirmado(totalFinal: 1000, cajaId: $this->crearCajaAbierta($this->sucursalId)->id);
+        $this->service->asignarRepartidor($pedido, $repartidor->id);
+        $this->service->cambiarEstado($pedido, PedidoDelivery::ESTADO_LISTO);
+
+        return [$pedido->fresh(), $repartidor];
+    }
+
+    public function test_despachar_desde_panel_crea_salida_implicita(): void
+    {
+        [$pedido] = $this->pedidoListoConRepartidor();
+
+        Livewire::test(PedidosDelivery::class)
+            ->call('despachar', $pedido->id)
+            ->assertNotDispatched('toast-error');
+
+        $pedido->refresh();
+        $this->assertSame(PedidoDelivery::ESTADO_EN_CAMINO, $pedido->estado_pedido);
+        $this->assertNotNull($pedido->salida_id, 'El despacho manual debe crear la salida implícita (RF-08)');
+    }
+
+    public function test_drag_a_en_camino_intercepta_y_despacha(): void
+    {
+        [$pedido] = $this->pedidoListoConRepartidor();
+
+        Livewire::test(PedidosDelivery::class)
+            ->call('cambiarEstadoDrag', $pedido->id, PedidoDelivery::ESTADO_EN_CAMINO);
+
+        $pedido->refresh();
+        $this->assertSame(PedidoDelivery::ESTADO_EN_CAMINO, $pedido->estado_pedido);
+        $this->assertNotNull($pedido->salida_id);
+    }
+
+    public function test_abrir_vuelta_desde_panel_precarga_resultados(): void
+    {
+        [$pedido] = $this->pedidoListoConRepartidor();
+        app(RepartidorService::class)->despacharPedido($pedido);
+        $pedido->refresh();
+
+        $componente = Livewire::test(PedidosDelivery::class)
+            ->call('abrirVuelta', (int) $pedido->salida_id)
+            ->assertSet('showVueltaModal', true);
+
+        $resultados = $componente->get('vueltaResultados');
+        $this->assertArrayHasKey($pedido->id, $resultados);
+        $this->assertSame('entregado', $resultados[$pedido->id]['resultado']);
+    }
+
+    public function test_confirmar_vuelta_entregado_desde_panel(): void
+    {
+        [$pedido] = $this->pedidoListoConRepartidor();
+        app(RepartidorService::class)->despacharPedido($pedido);
+        $pedido->refresh();
+
+        Livewire::test(PedidosDelivery::class)
+            ->call('abrirVuelta', (int) $pedido->salida_id)
+            ->call('confirmarVuelta')
+            ->assertDispatched('toast-success');
+
+        $this->assertSame(PedidoDelivery::ESTADO_ENTREGADO, $pedido->fresh()->estado_pedido);
+    }
+
+    public function test_asignar_repartidor_desde_panel(): void
+    {
+        $repartidor = Repartidor::create(['nombre' => 'Ana Bici', 'tipo' => 'propio', 'activo' => true]);
+        $repartidor->sucursales()->attach($this->sucursalId);
+        $pedido = $this->pedidoDeliveryConfirmado(totalFinal: 500);
+
+        Livewire::test(PedidosDelivery::class)
+            ->call('abrirAsignarRepartidor', $pedido->id)
+            ->assertSet('showRepartidorModal', true)
+            ->set('repartidorSeleccionadoId', (string) $repartidor->id)
+            ->call('confirmarAsignarRepartidor')
+            ->assertDispatched('toast-success');
+
+        $this->assertSame($repartidor->id, (int) $pedido->fresh()->repartidor_id);
+    }
+
+    public function test_armar_salida_desde_panel_despacha_varios(): void
+    {
+        $repartidor = Repartidor::create(['nombre' => 'Leo Moto', 'tipo' => 'propio', 'activo' => true]);
+        $repartidor->sucursales()->attach($this->sucursalId);
+
+        $p1 = $this->pedidoDeliveryConfirmado(totalFinal: 100);
+        $p2 = $this->pedidoDeliveryConfirmado(totalFinal: 200);
+        $this->service->cambiarEstado($p1, PedidoDelivery::ESTADO_LISTO);
+        $this->service->cambiarEstado($p2, PedidoDelivery::ESTADO_LISTO);
+
+        Livewire::test(PedidosDelivery::class)
+            ->call('abrirArmarSalida')
+            ->assertSet('showArmarSalidaModal', true)
+            ->set('salidaRepartidorId', (string) $repartidor->id)
+            ->set('salidaPedidosSeleccionados', [$p1->id => true, $p2->id => true])
+            ->call('confirmarArmarSalida')
+            ->assertDispatched('toast-success');
+
+        $this->assertSame(PedidoDelivery::ESTADO_EN_CAMINO, $p1->fresh()->estado_pedido);
+        $this->assertSame(PedidoDelivery::ESTADO_EN_CAMINO, $p2->fresh()->estado_pedido);
+        $this->assertSame((int) $p1->fresh()->salida_id, (int) $p2->fresh()->salida_id);
+    }
+
+    // ==================== REPARTIDORES: ABM + FONDO ====================
+
+    public function test_repartidores_crea_repartidor_con_sucursal(): void
+    {
+        Livewire::test(Repartidores::class)
+            ->call('abrirCrear')
+            ->assertSet('showModal', true)
+            ->set('nombre', 'Nuevo Cadete')
+            ->set('tipo', 'tercero')
+            ->set('envioEsDelRepartidor', true)
+            ->call('guardar')
+            ->assertDispatched('toast-success');
+
+        $repartidor = Repartidor::where('nombre', 'Nuevo Cadete')->first();
+        $this->assertNotNull($repartidor);
+        $this->assertTrue((bool) $repartidor->envio_es_del_repartidor);
+        $this->assertTrue($repartidor->sucursales()->where('sucursales.id', $this->sucursalId)->exists());
+    }
+
+    public function test_repartidores_abre_y_rinde_fondo(): void
+    {
+        $repartidor = Repartidor::create(['nombre' => 'Fondo Test', 'tipo' => 'propio', 'activo' => true]);
+        $repartidor->sucursales()->attach($this->sucursalId);
+        $caja = $this->crearCajaAbierta($this->sucursalId, ['saldo_actual' => 10000]);
+
+        $componente = Livewire::test(Repartidores::class)
+            ->call('abrirFondoModal', $repartidor->id)
+            ->assertSet('fondoModalModo', 'abrir')
+            ->set('fondoMonto', '3000')
+            ->set('fondoCajaId', (string) $caja->id)
+            ->call('confirmarFondo')
+            ->assertDispatched('toast-success');
+
+        $fondo = $repartidor->fondoAbierto($this->sucursalId);
+        $this->assertNotNull($fondo);
+
+        $componente->call('abrirRendir', $fondo->id)
+            ->assertSet('showRendirModal', true)
+            ->set('rendirMontoDeclarado', '3000')
+            ->set('rendirCajaId', (string) $caja->id)
+            ->call('confirmarRendir')
+            ->assertDispatched('toast-success');
+
+        $this->assertSame('rendido', $fondo->fresh()->estado);
+    }
+}

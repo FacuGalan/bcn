@@ -193,6 +193,11 @@ class PedidoDeliveryService
             // ajusta subtotal/iva/total/total_final por el delta.
             $this->gestionarRenglonCostoEnvio($pedido);
 
+            // D6/D18: persistir la dirección de ENTREGA en el cliente (campos
+            // propios, jamás el `direccion` fiscal) salvo "entregar en otra
+            // dirección" (el caller manda _actualizar_direccion_cliente=false).
+            $this->actualizarDireccionEntregaCliente($pedido, $data);
+
             // Promesa automática (RF-15 core): si no vino hora pactada y el
             // modo es 'automatica', calcular desde la distancia cotizada.
             if (! $pedido->hora_pactada_at && $tipo === PedidoDelivery::TIPO_DELIVERY) {
@@ -343,6 +348,8 @@ class PedidoDeliveryService
 
             $this->gestionarRenglonCostoEnvio($pedido);
 
+            $this->actualizarDireccionEntregaCliente($pedido, $data);
+
             if ($stockEstaDescontado) {
                 $pedido->load('detalles');
                 $this->descontarStockPorPedido($pedido);
@@ -356,6 +363,29 @@ class PedidoDeliveryService
     }
 
     // ==================== LOGISTICA (RF-04/RF-06/RF-08) ====================
+
+    /**
+     * D6/D18: si el caller lo pide (`_actualizar_direccion_cliente`, default
+     * false) y el pedido delivery tiene cliente y dirección, persiste el
+     * domicilio de ENTREGA en el cliente (campos propios; el `direccion`
+     * fiscal NUNCA se pisa).
+     */
+    protected function actualizarDireccionEntregaCliente(PedidoDelivery $pedido, array $data): void
+    {
+        if (empty($data['_actualizar_direccion_cliente'])
+            || ! $pedido->cliente_id
+            || $pedido->tipo !== PedidoDelivery::TIPO_DELIVERY
+            || empty($pedido->direccion_entrega)) {
+            return;
+        }
+
+        Cliente::where('id', $pedido->cliente_id)->update([
+            'direccion_entrega' => $pedido->direccion_entrega,
+            'direccion_entrega_referencia' => $pedido->direccion_referencia,
+            'latitud' => $pedido->latitud,
+            'longitud' => $pedido->longitud,
+        ]);
+    }
 
     /**
      * Setea/actualiza la dirección de entrega del pedido (snapshot, D6):

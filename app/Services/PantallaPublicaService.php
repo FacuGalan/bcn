@@ -161,24 +161,38 @@ class PantallaPublicaService
      */
     public function pedidosParaLlamador(Sucursal $sucursal): array
     {
-        $mapear = static fn (PedidoMostrador $p): array => [
+        $mapear = static fn ($p): array => [
             'numero' => (int) $p->numero_visible,
             'nombre' => $p->nombreLlamador(),
         ];
+
+        // Los TAKE-AWAY de delivery comparten numero_display con mostrador
+        // (contador único por sucursal) y se anuncian en el mismo llamador
+        // (RF-03). Los delivery puros NO: los retira el repartidor.
+        $takeAway = fn (string $estado) => \App\Models\PedidoDelivery::query()
+            ->where('sucursal_id', $sucursal->id)
+            ->where('tipo', \App\Models\PedidoDelivery::TIPO_TAKE_AWAY)
+            ->where('estado_pedido', $estado)
+            ->with('cliente:id,nombre')
+            ->get();
 
         $enPreparacion = PedidoMostrador::query()
             ->where('sucursal_id', $sucursal->id)
             ->where('estado_pedido', PedidoMostrador::ESTADO_EN_PREPARACION)
             ->with('cliente:id,nombre')
-            ->orderBy('numero')
-            ->get();
+            ->get()
+            ->concat($takeAway(\App\Models\PedidoDelivery::ESTADO_EN_PREPARACION))
+            ->sortBy(fn ($p) => (int) $p->numero_visible)
+            ->values();
 
         $listo = PedidoMostrador::query()
             ->where('sucursal_id', $sucursal->id)
             ->where('estado_pedido', PedidoMostrador::ESTADO_LISTO)
             ->with('cliente:id,nombre')
-            ->orderByDesc('numero')
-            ->get();
+            ->get()
+            ->concat($takeAway(\App\Models\PedidoDelivery::ESTADO_LISTO))
+            ->sortByDesc(fn ($p) => (int) $p->numero_visible)
+            ->values();
 
         return [
             'en_preparacion' => $enPreparacion->map($mapear)->all(),

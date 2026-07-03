@@ -1032,9 +1032,48 @@ PedidoIntegracionBloqueo (sembraba cobrable_type FQCN pre-morphMap); carpetas
 de pedidos 186 verdes, cierres verdes. Diferido a Fase 4: línea "en fondos de
 repartidores" en la UI de reportes de tesorería (el service ya lo expone).
 
-### Fase 4: Panel + alta/edición (UI) [PENDIENTE]
-`PedidosDelivery` + `NuevoPedidoDelivery` + modal dirección (picker) + armar
-salida + repartidores/fondos UI + broadcasting. Smoke tests.
+### Fase 4: Panel + alta/edición (UI) [COMPLETO — 2026-07-03]
+Implementado por copy-adapt del espejo de mostrador (D1):
+- `PedidosDelivery` (panel): kanban de 5 columnas (+en_camino), filtros
+  tipo/repartidor/origen/zona (RF-01), badges delivery en cards/tabla
+  (partial `_badges-delivery`), sección "En la calle" (salidas en curso),
+  asignar repartidor, despachar (drag o botón → RepartidorService::
+  despacharPedido; sin repartidor con exigir_repartidor=false →
+  cambiarEstado), armar salida multi-pedido (crear+registrar en un paso),
+  modal de vuelta con resultado por pedido + cobros (efectivo→fondo D13,
+  monto recibido/vuelto; no-efectivo→normal) y cajaConversionId de quien
+  registra. SIN filtro por caja (pedidos de tienda no tienen). Broadcast
+  canal pedidos-delivery. Label dinámico de `listo` (badge compartido ganó
+  en_camino + prop label).
+- `NuevoPedidoDelivery` (editor): tipo delivery/take_away segmented (RF-02,
+  forma de venta AUTOMÁTICA por código DELIVERY/TAKEAWAY), modal dirección
+  con ManejaDomicilio + domicilio-form extendidos (referencia, sin domTipo,
+  defaults provincia/localidad de sucursal, mapa si georreferenciar_pedidos),
+  cotización RF-06 (zona/km/alcance) con costo editable D7 + recotizar,
+  forzar alcance solo con permiso, advertencia RF-16 de artículos no
+  disponibles, "entregar en otra dirección" (D6). El envío entra al total de
+  pagos vía wrapper calcularVenta (alias del trait) pero los data-totales van
+  SIN envío (el service materializa el renglón D17 por delta). Beeper solo
+  take-away. Service ganó `_actualizar_direccion_cliente` (actualiza entrega
+  del cliente en crear/actualizar, D6/D18).
+- `Repartidores` (ABM RF-07 + fondos RF-09): CRUD con pivot sucursales,
+  tipo tercero + envío propio, abrir/reforzar fondo (caja origen), rendir
+  con diferencia en vivo + aviso de liquidación de terceros, modal de
+  movimientos del ledger, total "en fondos" en el header.
+- Llamador: PantallaPublicaService::pedidosParaLlamador ahora une los
+  take-away de delivery (numero_display compartido, RF-03).
+- Tesorería: línea informativa "En fondos de repartidores (abiertos)" en
+  ReportesTesoreria (D13).
+- Rutas `pedidos/delivery` + `pedidos/repartidores` (menú/permisos = Fase 5).
+- Traducciones: 119 claves nuevas es/en/pt (3724 parejas).
+- Fix de infraestructura: WithTenant no limpiaba las 13 tablas delivery
+  entre tests (residuos desde Fase 1) — agregadas al DELETE selectivo.
+Tests: SmokePedidosDeliveryTest 18 verdes (montaje de los 3 componentes +
+tipo/dirección/envío D17 end-to-end + despacho/vuelta/armar salida/fondos
+desde la UI); suites de pedidos 204 verdes; cierres/tesorería/pantalla 34
+verdes; pint OK. Pendiente conocido para Fase 5: seeds formas venta
+DELIVERY/TAKEAWAY en ProvisionComercioCommand + migración comercios
+existentes (dev ya los tiene por seeder) y permisos/menú (migración 14).
 
 ### Fase 5: Configuración delivery + zonas [PENDIENTE]
 Sección config sucursal (solo modos de promesa core) + ABM zonas con mapa +

@@ -33,6 +33,9 @@ trait ManejaDomicilio
 
     public string $domDireccion = '';
 
+    /** Referencia de entrega (piso/depto/timbre) — RF-04 delivery. */
+    public ?string $domReferencia = null;
+
     public ?string $domLatitud = null;
 
     public ?string $domLongitud = null;
@@ -145,10 +148,28 @@ trait ManejaDomicilio
         $this->domProvincia = $datos['provincia'] ?? null;
         $this->domLocalidadId = $datos['localidad_id'] ?? null;
         $this->domDireccion = $datos['direccion'] ?? '';
+        $this->domReferencia = $datos['referencia'] ?? null;
         $this->domLatitud = isset($datos['latitud']) ? (string) $datos['latitud'] : null;
         $this->domLongitud = isset($datos['longitud']) ? (string) $datos['longitud'] : null;
         $this->cargarLocalidadesDomicilio();
         $this->domLocalidadCentro = Localidad::centro($this->domLocalidadId);
+    }
+
+    /**
+     * Precarga provincia/localidad desde la sucursal (carga rápida RF-04:
+     * la mayoría de las entregas son de la zona de la sucursal). No pisa
+     * valores ya elegidos.
+     */
+    protected function domicilioDefaultDesdeSucursal(\App\Models\Sucursal $sucursal): void
+    {
+        if ($this->domProvincia === null && ! empty($sucursal->provincia)) {
+            $this->domProvincia = $sucursal->provincia;
+            $this->cargarLocalidadesDomicilio();
+        }
+        if ($this->domLocalidadId === null && ! empty($sucursal->localidad_id)) {
+            $this->domLocalidadId = (int) $sucursal->localidad_id;
+            $this->domLocalidadCentro = Localidad::centro($this->domLocalidadId);
+        }
     }
 
     /**
@@ -163,6 +184,7 @@ trait ManejaDomicilio
             'provincia' => $this->domProvincia,
             'localidad_id' => $this->domLocalidadId ?: null,
             'direccion' => $this->domDireccion,
+            'referencia' => trim($this->domReferencia ?? '') ?: null,
             'latitud' => $this->domLatitud !== null && $this->domLatitud !== '' ? $this->domLatitud : null,
             'longitud' => $this->domLongitud !== null && $this->domLongitud !== '' ? $this->domLongitud : null,
         ];
@@ -177,6 +199,7 @@ trait ManejaDomicilio
         $this->domProvincia = null;
         $this->domLocalidadId = null;
         $this->domDireccion = '';
+        $this->domReferencia = null;
         $this->domLatitud = null;
         $this->domLongitud = null;
         $this->domLocalidades = [];
