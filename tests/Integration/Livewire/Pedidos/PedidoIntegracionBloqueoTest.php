@@ -141,7 +141,9 @@ class PedidoIntegracionBloqueoTest extends TestCase
             'monto' => 60,
             'estado' => IntegracionPagoTransaccion::ESTADO_CONFIRMADO,
             'confirmado_en' => now(),
-            'cobrable_type' => PedidoMostrador::class,
+            // El morphMap (Fase 1 delivery) aliasa PedidoMostrador: sembrar el
+            // alias como en producción (normalize_cobrable_type), no el FQCN.
+            'cobrable_type' => (new PedidoMostrador)->getMorphClass(),
             'cobrable_id' => $pedido->id,
         ]);
 

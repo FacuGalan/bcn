@@ -519,11 +519,16 @@ class PedidoDeliveryService
      * - listo → en_camino exige repartidor asignado si la sucursal lo pide
      *   (`exigir_repartidor`, default true).
      *
-     * NOTA (Fase 3): el pase manual listo → en_camino desde acá NO registra
-     * salida; RepartidorService::registrarSalida es el camino canónico y crea
-     * la salida implícita de 1 pedido cuando corresponde.
+     * NOTA: el pase manual listo → en_camino desde acá NO registra salida;
+     * RepartidorService::despacharPedido es el camino canónico (crea y
+     * registra la salida implícita de 1 pedido).
+     *
+     * `$convertirAutomatico` = false suprime la conversión automática a venta
+     * al entregar: RepartidorService::registrarVuelta la corre POST-vuelta,
+     * individual y fuera de su transacción (una falla de ARCA no puede dejar
+     * la vuelta a medias).
      */
-    public function cambiarEstado(PedidoDelivery $pedido, string $nuevoEstado, ?string $observacion = null): void
+    public function cambiarEstado(PedidoDelivery $pedido, string $nuevoEstado, ?string $observacion = null, bool $convertirAutomatico = true): void
     {
         $anterior = $pedido->estado_pedido;
 
@@ -580,7 +585,7 @@ class PedidoDeliveryService
         });
 
         // Conversión automática post-commit (config compartida con mostrador).
-        if ($nuevoEstado === PedidoDelivery::ESTADO_ENTREGADO) {
+        if ($convertirAutomatico && $nuevoEstado === PedidoDelivery::ESTADO_ENTREGADO) {
             $sucursal = Sucursal::find($pedido->sucursal_id);
             if ($sucursal && $sucursal->pedido_conversion_automatica_al_entregar) {
                 $this->convertirEnVenta($pedido->fresh());

@@ -476,7 +476,19 @@ class CajaService
                 ];
             }
 
-            return DB::connection('pymes_tenant')->transaction(function () use ($caja, $saldoDeclarado, $usuarioId, $cierreTurno, $tesoreria, $observaciones, $desgloseMonedas) {
+            // D13: los fondos de repartidor abiertos con cambio de esta caja
+            // advierten pero NO bloquean el cierre (el efectivo ingresa al
+            // rendir cada fondo).
+            $advertenciaFondos = app(\App\Services\Pedidos\RepartidorService::class)
+                ->advertenciaFondosAbiertos([$caja->id]);
+            if ($advertenciaFondos) {
+                Log::warning('Cierre de caja con fondos de repartidor abiertos', [
+                    'caja_id' => $caja->id,
+                    'advertencia' => $advertenciaFondos,
+                ]);
+            }
+
+            return DB::connection('pymes_tenant')->transaction(function () use ($caja, $saldoDeclarado, $usuarioId, $cierreTurno, $tesoreria, $observaciones, $desgloseMonedas, $advertenciaFondos) {
                 $rendicion = null;
 
                 // El saldo del sistema es el saldo_actual de la caja (ya refleja todos los movimientos)
@@ -538,6 +550,7 @@ class CajaService
                     'message' => 'Caja cerrada correctamente',
                     'rendicion' => $rendicion,
                     'diferencia' => $diferencia,
+                    'advertencias' => array_filter([$advertenciaFondos]),
                 ];
             });
         } catch (\Exception $e) {

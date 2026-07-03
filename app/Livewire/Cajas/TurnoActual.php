@@ -71,6 +71,9 @@ class TurnoActual extends Component
 
     public $saldoDeclaradoFondoComun = '';
 
+    /** Advertencia D13: fondos de repartidor abiertos con cambio de las cajas a cerrar (no bloquea). */
+    public ?string $advertenciaFondosRepartidor = null;
+
     public array $declaradosMoneda = []; // cajaId => [código => valor], key 0 para fondo común
 
     // Modal de apertura de turno
@@ -1074,6 +1077,13 @@ class TurnoActual extends Component
             }
         }
 
+        // D13: advertir (no bloquear) si hay fondos de repartidor abiertos
+        // con cambio entregado desde las cajas a cerrar.
+        if (! empty($this->cajasACerrar)) {
+            $this->advertenciaFondosRepartidor = app(\App\Services\Pedidos\RepartidorService::class)
+                ->advertenciaFondosAbiertos($this->cajasACerrar);
+        }
+
         $this->showCierreModal = true;
     }
 
@@ -1089,6 +1099,7 @@ class TurnoActual extends Component
         $this->cierreUsaFondoComun = false;
         $this->saldoFondoComunCierre = 0;
         $this->saldoDeclaradoFondoComun = '';
+        $this->advertenciaFondosRepartidor = null;
     }
 
     /**

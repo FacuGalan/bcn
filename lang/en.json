@@ -1707,6 +1707,7 @@
     "Hasta": "To",
     "hasta": "to",
     "Hasta (opcional)": "To (optional)",
+    "Hay :count fondo(s) de repartidor abiertos con cambio de esta caja: :detalle. La caja puede cerrarse igual; el efectivo ingresará al rendir cada fondo.": "There are :count open delivery-driver fund(s) with change from this register: :detalle. The register can still be closed; the cash will come in when each fund is settled.",
     "Haz clic aquí para reenviar el correo de verificación.": "Click here to resend the verification email.",
     "Haz clic en \"Nueva Impresora\" para agregar una": "Click \"New Printer\" to add one",
     "Haz clic en un artículo para agregarlo a la lista con el ajuste configurado.": "Click on an item to add it to the list with the configured adjustment.",

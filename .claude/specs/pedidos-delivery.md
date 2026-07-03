@@ -1011,9 +1011,26 @@ destino_fondo). Tests: 29 nuevos (matriz cotización + ciclo completo) y toda
 la carpeta de pedidos verde (94), cierres verdes. Diferido explícito a Fase 3:
 salida implícita en el pase manual listo→en_camino (RepartidorService).
 
-### Fase 3: RepartidorService (salidas + fondos) [PENDIENTE]
-Salidas/vueltas, fondo append-only, rendición con diferencias y liquidación
-de terceros. Tests (es dinero).
+### Fase 3: RepartidorService (salidas + fondos) [COMPLETO — 2026-07-03]
+Implementado: RepartidorService (crearSalida/agregarPedidos/quitarPedido/
+registrarSalida + despacharPedido = salida implícita de 1 pedido del pase
+manual; registrarVuelta con cobros ANTES de entregar — efectivo →
+confirmarCobroContraEntrega al fondo con movimientos cobro_pedido/vuelto por
+el efectivo físico, no-efectivo → circuito normal — pivot append-only con
+re-despacho, conversión automática POST-vuelta individual y FUERA de la
+transacción; abrirFondo/reforzarFondo con egreso REF_FONDO_REPARTIDOR,
+rendirFondo con lockForUpdate + liquidación de envíos de terceros + diferencia
+sobrante/faltante + UN ingreso neto por lo declarado + ledger cerrado en cero;
+helpers saldoTeorico/fondosAbiertosDeCaja/totalEnFondosAbiertos/
+advertenciaFondosAbiertos). cambiarEstado ganó flag `convertirAutomatico`
+(la vuelta suprime la conversión en-transacción). Advertencia D13 de fondos
+abiertos en los TRES caminos de cierre: TurnoActual::abrirModalCierre (cubre
+grupal + individual, banner ámbar en el modal) y
+CajaService::cerrarCajaConTesoreria (key `advertencias` + Log::warning).
+Traducción es/en/pt. Tests: 21 nuevos (93 aserciones) + fix test preexistente
+PedidoIntegracionBloqueo (sembraba cobrable_type FQCN pre-morphMap); carpetas
+de pedidos 186 verdes, cierres verdes. Diferido a Fase 4: línea "en fondos de
+repartidores" en la UI de reportes de tesorería (el service ya lo expone).
 
 ### Fase 4: Panel + alta/edición (UI) [PENDIENTE]
 `PedidosDelivery` + `NuevoPedidoDelivery` + modal dirección (picker) + armar
