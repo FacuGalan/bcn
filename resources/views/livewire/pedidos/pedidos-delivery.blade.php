@@ -250,6 +250,50 @@
         </div>
     </div>
 
+    {{-- ==================== POR ACEPTAR (D14/RF-12) ==================== --}}
+    @if($pedidosPorAceptar->isNotEmpty())
+        <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-md p-2.5 mb-2 flex-shrink-0 space-y-1.5">
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-600 text-white text-xs font-bold rounded-full animate-pulse">
+                    {{ $pedidosPorAceptar->count() }} {{ __('por aceptar') }}
+                </span>
+                <span class="text-xs text-orange-700 dark:text-orange-300">{{ __('Pedidos de la tienda/API esperando confirmación') }}</span>
+            </div>
+            @foreach($pedidosPorAceptar as $pedidoPA)
+                <div class="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-gray-800 rounded-md px-3 py-2 border border-orange-200 dark:border-orange-800">
+                    <div class="flex-1 min-w-0">
+                        <span class="text-sm font-semibold text-gray-900 dark:text-white">
+                            {{ $pedidoPA->nombre_cliente_final ?? __('Sin cliente') }}
+                        </span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">
+                            — {{ __(\App\Models\PedidoDelivery::TIPOS[$pedidoPA->tipo] ?? $pedidoPA->tipo) }}
+                            · {{ __(\App\Models\PedidoDelivery::ORIGENES[$pedidoPA->origen] ?? $pedidoPA->origen) }}
+                            · {{ $pedidoPA->created_at->diffForHumans(short: true) }}
+                        </span>
+                        @if($pedidoPA->direccion_entrega)
+                            <span class="block text-xs text-gray-500 dark:text-gray-400 truncate">{{ $pedidoPA->direccion_entrega }}</span>
+                        @endif
+                    </div>
+                    <span class="text-sm font-bold text-bcn-primary whitespace-nowrap">${{ number_format($pedidoPA->total_final, 2, ',', '.') }}</span>
+                    <div class="flex gap-1.5">
+                        <button type="button" wire:click="verDetalle({{ $pedidoPA->id }})"
+                            class="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                            {{ __('Ver') }}
+                        </button>
+                        <button type="button" wire:click="abrirAceptar({{ $pedidoPA->id }})"
+                            class="inline-flex items-center px-2.5 py-1 bg-emerald-600 rounded text-xs font-semibold text-white hover:bg-emerald-700">
+                            {{ __('Aceptar') }}
+                        </button>
+                        <button type="button" wire:click="abrirRechazar({{ $pedidoPA->id }})"
+                            class="inline-flex items-center px-2.5 py-1 border border-red-300 dark:border-red-600 rounded text-xs text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30">
+                            {{ __('Rechazar') }}
+                        </button>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
     {{-- ==================== SALIDAS EN CURSO (RF-08) ==================== --}}
     @if($salidasEnCurso->isNotEmpty())
         <div class="flex flex-wrap items-center gap-2 mb-2 flex-shrink-0">
@@ -1769,6 +1813,79 @@
                     @disabled(($convertirPedidoInfo['pendiente'] ?? 0) > 0.005)
                     class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-bcn-primary text-base font-medium text-white hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto sm:text-sm">
                     {{ __('Convertir en venta') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
+    {{-- ==================== MODAL: ACEPTAR PEDIDO EXTERNO (D14/RF-15) ==================== --}}
+    @if($showAceptarModal && !empty($aceptarInfo))
+        <x-bcn-modal
+            :title="__('Aceptar pedido de') . ' ' . $aceptarInfo['cliente']"
+            color="bg-emerald-600"
+            maxWidth="md"
+            onClose="cerrarAceptar"
+        >
+            <x-slot:body>
+                <div class="space-y-3">
+                    <p class="text-sm text-gray-700 dark:text-gray-300 -mt-1">
+                        {{ __(\App\Models\PedidoDelivery::TIPOS[$aceptarInfo['tipo']] ?? $aceptarInfo['tipo']) }}
+                        — <span class="font-bold">${{ number_format($aceptarInfo['total'], 2, ',', '.') }}</span>
+                    </p>
+                    @if($aceptarInfo['modo_promesa_manual'])
+                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('¿En cuántos minutos estará?') }}</p>
+                        <div class="grid grid-cols-4 gap-1.5">
+                            @foreach($aceptarInfo['botones_demora'] as $demora)
+                                <button type="button" wire:click="confirmarAceptar({{ (int) $demora }})"
+                                    class="px-2 py-2 border border-emerald-300 dark:border-emerald-600 rounded-md text-sm font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white transition-colors">
+                                    @if((int) $demora === 0) {{ __('Ya') }} @else +{{ (int) $demora }}′ @endif
+                                </button>
+                            @endforeach
+                        </div>
+                        <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('El botón fija la hora pactada y se informa al consumidor.') }}</p>
+                    @else
+                        <p class="text-sm text-gray-600 dark:text-gray-300">{{ __('La hora pactada se calcula automáticamente por distancia.') }}</p>
+                    @endif
+                </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button type="button" wire:click="cerrarAceptar"
+                    class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    {{ __('Cancelar') }}
+                </button>
+                @unless($aceptarInfo['modo_promesa_manual'])
+                    <button type="button" wire:click="confirmarAceptar"
+                        class="px-4 py-2 bg-emerald-600 rounded-md text-sm font-semibold text-white hover:bg-emerald-700">
+                        {{ __('Aceptar pedido') }}
+                    </button>
+                @endunless
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
+    {{-- ==================== MODAL: RECHAZAR PEDIDO EXTERNO (D14) ==================== --}}
+    @if($showRechazarModal)
+        <x-bcn-modal :title="__('Rechazar pedido')" color="bg-red-600" maxWidth="md" onClose="cerrarRechazar">
+            <x-slot:body>
+                <div class="space-y-2">
+                    <label for="motivo-rechazo" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Motivo del rechazo') }} <span class="text-red-500">*</span></label>
+                    <textarea id="motivo-rechazo" wire:model="motivoRechazo" rows="2"
+                        class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm"
+                        placeholder="{{ __('Ej: sin stock, fuera de zona, cerrando...') }}"></textarea>
+                    @error('motivoRechazo') <p class="text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                    <p class="text-[11px] text-amber-600 dark:text-amber-400">
+                        {{ __('Si el pedido tenía pago online acreditado queda marcado "a devolver" (devolución manual). El consumidor ve el rechazo en su seguimiento.') }}
+                    </p>
+                </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button type="button" wire:click="cerrarRechazar"
+                    class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="button" wire:click="confirmarRechazar"
+                    class="px-4 py-2 bg-red-600 rounded-md text-sm font-semibold text-white hover:bg-red-700">
+                    {{ __('Rechazar pedido') }}
                 </button>
             </x-slot:footer>
         </x-bcn-modal>

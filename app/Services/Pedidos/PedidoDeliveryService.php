@@ -612,6 +612,7 @@ class PedidoDeliveryService
             ));
             $this->dispatchBroadcast($pedido, PedidoDeliveryBroadcast::TIPO_ESTADO_CAMBIADO);
             $this->dispatchLlamadorPublico($pedido, $nuevoEstado, $anterior);
+            $this->dispatchSeguimientoPublico($pedido, $nuevoEstado);
         });
 
         // Conversión automática post-commit (config compartida con mostrador).
@@ -656,6 +657,7 @@ class PedidoDeliveryService
             usuarioId: (int) auth()->id() ?: $pedido->usuario_id,
         ));
         $this->dispatchBroadcast($pedido, PedidoDeliveryBroadcast::TIPO_CREADO);
+        $this->dispatchSeguimientoPublico($pedido, PedidoDelivery::ESTADO_CONFIRMADO);
 
         $this->maybeImprimirComandaAutomatica($pedido);
 
@@ -663,6 +665,90 @@ class PedidoDeliveryService
             'pedido_id' => $pedido->id,
             'numero' => $numero,
         ]);
+    }
+
+    // ==================== ACEPTACION DE PEDIDOS EXTERNOS (D14/RF-12) ====================
+
+    /**
+     * Acepta un pedido externo "por aceptar" (borrador con origen tienda/api):
+     * fija la promesa (botón de demora en modo manual; automática por km si
+     * no vino) y lo confirma (número, display, stock — si falta stock el
+     * service corta y el operador ajusta o rechaza). Con
+     * `imprimir_comanda_al_aceptar`, comanda en el acto.
+     */
+    public function aceptarPedidoExterno(PedidoDelivery $pedido, ?int $demoraMin = null): void
+    {
+        $this->guardEsPedidoPorAceptar($pedido);
+
+        if ($demoraMin !== null && $demoraMin >= 0) {
+            $pedido->update(['hora_pactada_at' => now()->addMinutes($demoraMin)]);
+            $pedido->refresh();
+        }
+
+        if (! $pedido->hora_pactada_at && $pedido->tipo === PedidoDelivery::TIPO_DELIVERY) {
+            $sucursal = Sucursal::findOrFail($pedido->sucursal_id);
+            $horaPactada = $this->envioService->calcularHoraPactada(
+                $sucursal,
+                $pedido->distancia_km !== null ? (float) $pedido->distancia_km : null,
+            );
+            if ($horaPactada) {
+                $pedido->update(['hora_pactada_at' => $horaPactada]);
+                $pedido->refresh();
+            }
+        }
+
+        $this->confirmarBorrador($pedido);
+
+        $config = $this->envioService->configDelivery(Sucursal::findOrFail($pedido->sucursal_id));
+        if (! empty($config['imprimir_comanda_al_aceptar'])) {
+            try {
+                $this->comandarPedido($pedido->fresh(['detalles']));
+            } catch (Exception $e) {
+                Log::warning('No se pudo comandar al aceptar el pedido externo', [
+                    'pedido_id' => $pedido->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        Log::info('Pedido externo aceptado', ['pedido_id' => $pedido->id, 'demora_min' => $demoraMin]);
+    }
+
+    /**
+     * Rechaza un pedido externo: lo cancela (contraasientos incluidos) y
+     * devuelve si quedó "a devolver" (tenía cobros online acreditados —
+     * devolución manual en v1, D14). El consumidor se entera por el canal de
+     * seguimiento (la cancelación ya lo broadcastea).
+     */
+    public function rechazarPedidoExterno(PedidoDelivery $pedido, string $motivo): array
+    {
+        $this->guardEsPedidoPorAceptar($pedido);
+
+        $teniaPagoOnline = $pedido->pagos()
+            ->where('estado', PedidoDeliveryPago::ESTADO_ACTIVO)
+            ->where('monto_final', '>', 0)
+            ->exists();
+
+        $this->cancelarPedido($pedido, __('Rechazado por el comercio').' — '.$motivo);
+
+        if ($teniaPagoOnline) {
+            Log::warning('Pedido externo rechazado CON pago online: queda a devolver (manual, v1)', [
+                'pedido_id' => $pedido->id,
+            ]);
+        }
+
+        return ['a_devolver' => $teniaPagoOnline];
+    }
+
+    protected function guardEsPedidoPorAceptar(PedidoDelivery $pedido): void
+    {
+        if ($pedido->origen === PedidoDelivery::ORIGEN_PANEL) {
+            throw new Exception('Este pedido no es externo');
+        }
+
+        if ($pedido->estado_pedido !== PedidoDelivery::ESTADO_BORRADOR) {
+            throw new Exception("El pedido ya no está por aceptar (estado '{$pedido->estado_pedido}')");
+        }
     }
 
     // ==================== PAGOS ====================
@@ -940,6 +1026,7 @@ class PedidoDeliveryService
                 usuarioId: $usuarioId,
             ));
             $this->dispatchBroadcast($pedido, PedidoDeliveryBroadcast::TIPO_CANCELADO);
+            $this->dispatchSeguimientoPublico($pedido, PedidoDelivery::ESTADO_CANCELADO);
         });
     }
 
@@ -2218,6 +2305,35 @@ class PedidoDeliveryService
      * take-away `listo` se anuncia como "listo para retirar" con su número
      * display (secuencia compartida con mostrador); delivery no se canta.
      */
+    /**
+     * Seguimiento público del pedido (RF-11): canal
+     * pedidos-delivery.seguimiento.{token}. Aplica a pedidos EXTERNOS
+     * (tienda/API) en cualquier cambio de estado; best-effort.
+     */
+    private function dispatchSeguimientoPublico(PedidoDelivery $pedido, string $estadoNuevo): void
+    {
+        if ($pedido->origen === PedidoDelivery::ORIGEN_PANEL || ! $pedido->token_seguimiento) {
+            return;
+        }
+
+        try {
+            broadcast(new \App\Events\Broadcasting\PedidoSeguimientoPublicoBroadcast(
+                token: (string) $pedido->token_seguimiento,
+                estado: $estadoNuevo,
+                estadoLabel: $pedido->estado_label,
+                repartidor: $estadoNuevo === PedidoDelivery::ESTADO_EN_CAMINO
+                    ? $pedido->repartidor()->value('nombre')
+                    : null,
+                horaPactada: $pedido->hora_pactada_at?->toIso8601String(),
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo broadcastear seguimiento público', [
+                'pedido_id' => $pedido->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     private function dispatchLlamadorPublico(PedidoDelivery $pedido, string $estadoNuevo, string $estadoAnterior): void
     {
         if ($pedido->tipo !== PedidoDelivery::TIPO_TAKE_AWAY) {

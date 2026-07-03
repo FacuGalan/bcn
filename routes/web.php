@@ -192,6 +192,7 @@ Route::prefix('app')->group(function () {
          */
         Route::get('pedidos/delivery', \App\Livewire\Pedidos\PedidosDelivery::class)->name('pedidos.delivery');
         Route::get('pedidos/delivery/configuracion', \App\Livewire\Pedidos\ConfiguracionDelivery::class)->name('pedidos.delivery.configuracion');
+        Route::get('configuracion/api-tokens', \App\Livewire\Configuracion\ApiTokens::class)->name('configuracion.api-tokens');
         Route::get('pedidos/repartidores', \App\Livewire\Pedidos\Repartidores::class)->name('pedidos.repartidores');
 
         /**

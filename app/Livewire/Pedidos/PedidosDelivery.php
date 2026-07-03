@@ -402,6 +402,8 @@ class PedidosDelivery extends Component
         $this->cerrarAsignarRepartidor();
         $this->cerrarArmarSalida();
         $this->cerrarVuelta();
+        $this->cerrarAceptar();
+        $this->cerrarRechazar();
     }
 
     // ==================== MODAL ALTA/EDICIÓN ====================
@@ -865,7 +867,10 @@ class PedidosDelivery extends Component
     {
         $query = PedidoDelivery::with(['cliente:id,nombre,telefono'])
             ->where('sucursal_id', $this->sucursalActual())
-            ->where('estado_pedido', PedidoDelivery::ESTADO_BORRADOR);
+            ->where('estado_pedido', PedidoDelivery::ESTADO_BORRADOR)
+            // Los borradores EXTERNOS son "por aceptar" (D14) y tienen su
+            // propio strip con aceptar/rechazar — no van en este dropdown.
+            ->where('origen', PedidoDelivery::ORIGEN_PANEL);
 
         return $query->orderByDesc('updated_at')->limit(50)->get();
     }
@@ -1260,6 +1265,132 @@ class PedidosDelivery extends Component
         }
 
         return $pedido->estado_pago === PedidoDelivery::ESTADO_PAGO_PENDIENTE;
+    }
+
+    // ==================== ACEPTACION DE EXTERNOS (D14/RF-12) ====================
+
+    public bool $showAceptarModal = false;
+
+    public ?int $pedidoAceptarId = null;
+
+    public array $aceptarInfo = [];
+
+    public bool $showRechazarModal = false;
+
+    public ?int $pedidoRechazarId = null;
+
+    public string $motivoRechazo = '';
+
+    /**
+     * Pedidos externos "por aceptar": borradores con origen tienda/api (D14,
+     * patrón borrador — sin número ni stock, precios cotizados snapshot).
+     */
+    protected function pedidosPorAceptar()
+    {
+        $sucursalId = $this->sucursalActual();
+        if ($sucursalId === null) {
+            return collect();
+        }
+
+        return PedidoDelivery::with(['cliente:id,nombre,telefono'])
+            ->where('sucursal_id', $sucursalId)
+            ->where('estado_pedido', PedidoDelivery::ESTADO_BORRADOR)
+            ->where('origen', '!=', PedidoDelivery::ORIGEN_PANEL)
+            ->orderBy('created_at')
+            ->get();
+    }
+
+    public function abrirAceptar(int $pedidoId): void
+    {
+        $pedido = PedidoDelivery::find($pedidoId);
+        if (! $pedido || ! $this->tieneAccesoASucursal($pedido->sucursal_id)) {
+            $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+
+            return;
+        }
+
+        $config = app(\App\Services\Pedidos\DeliveryEnvioService::class)
+            ->configDelivery(\App\Models\Sucursal::findOrFail($pedido->sucursal_id));
+
+        $this->pedidoAceptarId = $pedidoId;
+        $this->aceptarInfo = [
+            'numero' => $pedido->numero_visible,
+            'cliente' => $pedido->nombre_cliente_final ?? __('Sin cliente'),
+            'tipo' => $pedido->tipo,
+            'total' => (float) $pedido->total_final,
+            'modo_promesa_manual' => ($config['modo_promesa'] ?? 'manual') === 'manual',
+            'botones_demora' => $config['botones_demora'] ?? [0, 10, 15, 20, 30, 45, 60],
+        ];
+        $this->showAceptarModal = true;
+    }
+
+    /**
+     * Acepta el pedido externo. En modo promesa manual, `$demoraMin` viene
+     * del botón elegido (RF-15); en automática se calcula por distancia.
+     */
+    public function confirmarAceptar(?int $demoraMin = null): void
+    {
+        $pedido = PedidoDelivery::find($this->pedidoAceptarId);
+        if (! $pedido) {
+            return;
+        }
+
+        try {
+            $this->service->aceptarPedidoExterno($pedido, $demoraMin);
+            $this->dispatch('toast-success', message: __('Pedido #:numero aceptado', ['numero' => $pedido->fresh()->numero_visible]));
+            $this->cerrarAceptar();
+        } catch (Exception $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
+    }
+
+    public function cerrarAceptar(): void
+    {
+        $this->showAceptarModal = false;
+        $this->pedidoAceptarId = null;
+        $this->aceptarInfo = [];
+    }
+
+    public function abrirRechazar(int $pedidoId): void
+    {
+        $this->pedidoRechazarId = $pedidoId;
+        $this->motivoRechazo = '';
+        $this->showRechazarModal = true;
+    }
+
+    public function confirmarRechazar(): void
+    {
+        $this->validate([
+            'motivoRechazo' => 'required|string|min:5',
+        ], [
+            'motivoRechazo.required' => __('Ingresá el motivo del rechazo'),
+            'motivoRechazo.min' => __('El motivo debe tener al menos 5 caracteres'),
+        ]);
+
+        $pedido = PedidoDelivery::find($this->pedidoRechazarId);
+        if (! $pedido) {
+            return;
+        }
+
+        try {
+            $resultado = $this->service->rechazarPedidoExterno($pedido, trim($this->motivoRechazo));
+
+            if (! empty($resultado['a_devolver'])) {
+                $this->dispatch('toast-warning', message: __('Pedido rechazado: tenía pago online acreditado — queda A DEVOLVER (devolución manual)'));
+            } else {
+                $this->dispatch('toast-success', message: __('Pedido rechazado'));
+            }
+            $this->cerrarRechazar();
+        } catch (Exception $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
+    }
+
+    public function cerrarRechazar(): void
+    {
+        $this->showRechazarModal = false;
+        $this->pedidoRechazarId = null;
+        $this->motivoRechazo = '';
     }
 
     // ==================== REPARTIDOR (RF-08) ====================
@@ -2134,6 +2265,7 @@ class PedidosDelivery extends Component
             'zonas' => $this->zonasDisponibles(),
             'salidasEnCurso' => $this->salidasEnCurso(),
             'pedidosParaSalida' => $this->showArmarSalidaModal ? $this->pedidosParaSalida() : collect(),
+            'pedidosPorAceptar' => $this->pedidosPorAceptar(),
         ]);
     }
 

@@ -59,7 +59,13 @@ class AppServiceProvider extends ServiceProvider
             'Opcional' => \App\Models\Opcional::class,
             'PedidoMostrador' => \App\Models\PedidoMostrador::class,
             'PedidoDelivery' => \App\Models\PedidoDelivery::class,
+            'Comercio' => \App\Models\Comercio::class,
+            'Consumidor' => \App\Models\Consumidor::class,
         ]);
+
+        // Sanctum: tokens en la BD CONFIG (los tokens de integración son por
+        // comercio y los de consumidores son globales — cross-tenant).
+        \Laravel\Sanctum\Sanctum::usePersonalAccessTokenModel(\App\Models\PersonalAccessToken::class);
 
         // Registrar observers
         MenuItem::observe(MenuItemObserver::class);

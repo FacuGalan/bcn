@@ -90,6 +90,56 @@ class SmokePedidosDeliveryTest extends TestCase
         Livewire::test(\App\Livewire\Pedidos\ConfiguracionDelivery::class)->assertOk();
     }
 
+    public function test_api_tokens_monta(): void
+    {
+        Livewire::test(\App\Livewire\Configuracion\ApiTokens::class)->assertOk();
+    }
+
+    public function test_panel_muestra_pedido_externo_por_aceptar_y_lo_acepta(): void
+    {
+        // D14: un borrador con origen tienda es "por aceptar" — aparece en el
+        // strip, se acepta desde el modal (con demora) y queda confirmado.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $pedido = $this->service->crearPedido(
+            data: $this->datosBaseDelivery(total: 500, overrides: ['origen' => PedidoDelivery::ORIGEN_TIENDA]),
+            detalles: [$this->detalleDeliveryDe($articulo, 1, 500)],
+            esBorrador: true,
+        );
+
+        $componente = Livewire::test(PedidosDelivery::class);
+        $this->assertTrue(
+            $componente->viewData('pedidosPorAceptar')->pluck('id')->contains($pedido->id),
+            'El borrador externo debe estar en el strip por aceptar',
+        );
+
+        $componente->call('abrirAceptar', $pedido->id)
+            ->assertSet('showAceptarModal', true)
+            ->call('confirmarAceptar', 20)
+            ->assertDispatched('toast-success');
+
+        $pedido->refresh();
+        $this->assertSame(PedidoDelivery::ESTADO_CONFIRMADO, $pedido->estado_pedido);
+        $this->assertNotNull($pedido->hora_pactada_at);
+    }
+
+    public function test_panel_rechaza_pedido_externo_con_motivo(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $pedido = $this->service->crearPedido(
+            data: $this->datosBaseDelivery(total: 500, overrides: ['origen' => PedidoDelivery::ORIGEN_API]),
+            detalles: [$this->detalleDeliveryDe($articulo, 1, 500)],
+            esBorrador: true,
+        );
+
+        Livewire::test(PedidosDelivery::class)
+            ->call('abrirRechazar', $pedido->id)
+            ->set('motivoRechazo', 'Sin stock del artículo')
+            ->call('confirmarRechazar')
+            ->assertDispatched('toast-success');
+
+        $this->assertSame(PedidoDelivery::ESTADO_CANCELADO, $pedido->fresh()->estado_pedido);
+    }
+
     public function test_configuracion_delivery_guarda_config_core(): void
     {
         Livewire::test(\App\Livewire\Pedidos\ConfiguracionDelivery::class)

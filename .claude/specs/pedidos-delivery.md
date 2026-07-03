@@ -1112,11 +1112,63 @@ core + crear zona), suites de pedidos 195 verdes, artículos/categorías 77
 verdes, pint OK. Pendiente menor anotado: columnas RF-16/17 al final del
 import/export de artículos (se hace con la doc de Fase 7).
 
-### Fase 6: API v1 [PENDIENTE]
-Scaffolding (Sanctum, versionado, Resources, api.tenant, errores, throttle) +
-migraciones 10-12 (tienda/consumidores/tokens) + endpoints delivery (catálogo
-con criterio RF-17) + tokens UI + canal público de seguimiento + documentación
-de la API (markdown en docs/).
+### Fase 6: API v1 [COMPLETO — 2026-07-03]
+Implementado:
+- **Sanctum** (^4.3) con `personal_access_tokens` en BD CONFIG (modelo custom
+  PersonalAccessToken + Sanctum::usePersonalAccessTokenModel);
+  `sanctum.guard=null` (los tokenables no son Users); Comercio implementa
+  Authenticatable + HasApiTokens (tokens POR COMERCIO con abilities).
+- **Migración config** (`2026_07_03_140000`): tiendas (slug UNIQUE por
+  sucursal, D15), rubros + comercios.rubro_id + tienda_alta_cliente_automatica
+  (D11), consumidores + consumidor_direcciones + consumidor_comercio (D8),
+  personal_access_tokens, permiso funcional `api.tokens` (faltaba en la
+  migración 14) asignado a admins. Modelos config + guard `consumidores`.
+- **api.tenant** (ApiTenantMiddleware): resuelve por slug (config.tiendas →
+  usarComercioParaProceso, 404 genérico sin enumeración) o por token Sanctum
+  de Comercio (sucursal por header X-Sucursal-Id, default principal).
+  **User::loadAllPermissions extendido**: fallback al comercio explícito de
+  TenantService cuando no hay sesión (hallazgo del spec resuelto).
+- **Errores JSON uniformes** en bootstrap/app.php para api/v1/*
+  ({error:{code,message,details}}): \Exception "pelada" de services → 422
+  con mensaje; el resto → 500 genérico logueado.
+- **Endpoints públicos** (throttle 60/min): GET tienda (datos+calendario),
+  GET catálogo (criterio RF-17 con agotados visibles no-pedibles + precios
+  del motor vía PrecioService + opcionales con min/max), POST envios/cotizar,
+  POST carrito/cotizar (**CotizadorCarritoTienda**: harness HEADLESS del
+  trait WithCalculoVenta — mismo motor de precios/promos/cupones, D12; lista
+  resuelta con ListaPrecio::buscarListaAplicable con contexto forma venta
+  DELIVERY/TAKEAWAY + canal TIENDA), POST pedidos (PedidoTiendaService:
+  bloqueos API — horario, coordenadas, alcance, agotados —, D14
+  borrador-por-aceptar o confirmado directo, D11 mapping consumidor→cliente),
+  GET pedidos/{token} seguimiento + POST cancelar (hasta confirmado).
+  AJUSTE documentado: el seguimiento vive bajo /tiendas/{slug}/pedidos/{token}
+  (el slug es necesario para resolver el tenant; el spec lo tenía sin slug).
+- **Endpoints integración** (auth:sanctum + abilities + throttle 120/min):
+  GET/POST/PATCH pedidos-delivery (PATCH = estado/repartidor/observaciones;
+  en_camino con repartidor pasa por la salida implícita), GET delivery/config,
+  GET repartidores. Aliases 'ability'/'abilities' registrados.
+- **Canal público de seguimiento**: PedidoSeguimientoPublicoBroadcast
+  (ShouldBroadcastNow, canal `pedidos-delivery.seguimiento.{token}`) —
+  se emite en cambios de estado/confirmación/cancelación de pedidos externos.
+- **D14 en el panel**: strip "por aceptar" (borradores externos, excluidos
+  del dropdown de borradores) + modal aceptar con botones de demora (RF-15
+  manual) o directo (automática por km) + modal rechazar con motivo y aviso
+  "A DEVOLVER" si tenía pago online. Service: aceptarPedidoExterno /
+  rechazarPedidoExterno.
+- **Tokens UI**: ConfiguracionApiTokens (/configuracion/api-tokens, permiso
+  func.api.tokens): crear con abilities (token en claro UNA vez, copiar),
+  listar con último uso, revocar.
+- **Docs**: docs/api-v1-delivery.md (audiencias, abilities, endpoints,
+  errores, tiempo real, alta de tienda).
+- Fix infra tests: el gate de `migrate` en TestCase solo miraba
+  pymes_test.menu_items — ahora también config_test.tiendas (centinela).
+Tests: ApiV1DeliveryTest 17 verdes (catálogo RF-17, cotizaciones, D14
+manual/automática, seguimiento, cancelación de consumidor, abilities 401/403,
+PATCH) + 3 smokes nuevos (ApiTokens + aceptar/rechazar desde el panel);
+suites pedidos+API 227 verdes; cierres/tesorería/smokes 198 verdes; pint OK.
+Traducciones: 51 claves (3871 parejas). Pendiente conocido: link de
+navegación a /configuracion/api-tokens (menú o botón en Configuración) y el
+alta de `tiendas` es por consola/soporte en v1.
 
 ### Fase 7: Verificación + docs [PENDIENTE]
 /sdd-verify + @docs-sync + manual de usuario.
