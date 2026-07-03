@@ -176,6 +176,23 @@ class GestionarArticulos extends Component
 
     public string $modo_stock = 'ninguno';
 
+    // ── Delivery / Tienda (RF-16/RF-17 pedidos-delivery) ──
+
+    public bool $disponible_delivery = true;
+
+    public bool $disponible_take_away = true;
+
+    public bool $permite_programado = true;
+
+    public string $tienda_orden = '0';
+
+    public bool $destacado = false;
+
+    public bool $permite_venta_sin_stock = false;
+
+    /** Pivot articulos_sucursales de la sucursal activa (tienda por sucursal, D15). */
+    public bool $visible_tienda = true;
+
     public ?float $precio_sucursal = null;
 
     public bool $vendible = true;
@@ -617,6 +634,13 @@ class GestionarArticulos extends Component
         $this->modo_stock = 'ninguno';
         $this->precio_sucursal = null;
         $this->vendible = true;
+        $this->disponible_delivery = true;
+        $this->disponible_take_away = true;
+        $this->permite_programado = true;
+        $this->tienda_orden = '0';
+        $this->destacado = false;
+        $this->permite_venta_sin_stock = false;
+        $this->visible_tienda = true;
 
         // En creación: solo la sucursal activa preseleccionada (las demás se crean inactivas)
         $sucursalActiva = sucursal_activa();
@@ -661,6 +685,15 @@ class GestionarArticulos extends Component
         $this->modo_stock = $configSucursal?->modo_stock ?? 'ninguno';
         $this->precio_sucursal = $configSucursal?->precio_base;
         $this->vendible = (bool) ($configSucursal?->vendible ?? true);
+        $this->visible_tienda = (bool) ($configSucursal?->visible_tienda ?? true);
+
+        // Delivery / Tienda (RF-16/RF-17)
+        $this->disponible_delivery = (bool) ($articulo->disponible_delivery ?? true);
+        $this->disponible_take_away = (bool) ($articulo->disponible_take_away ?? true);
+        $this->permite_programado = (bool) ($articulo->permite_programado ?? true);
+        $this->tienda_orden = (string) ($articulo->orden ?? 0);
+        $this->destacado = (bool) ($articulo->destacado ?? false);
+        $this->permite_venta_sin_stock = (bool) ($articulo->permite_venta_sin_stock ?? false);
 
         // Cargar sucursales donde está activo
         $this->sucursales_seleccionadas = $articulo->sucursales()
@@ -717,6 +750,13 @@ class GestionarArticulos extends Component
             'precio_iva_incluido' => $this->precio_iva_incluido,
             'precio_base' => $this->precio_base,
             'activo' => $this->activo,
+            // Delivery / Tienda (RF-16/RF-17 pedidos-delivery)
+            'disponible_delivery' => $this->disponible_delivery,
+            'disponible_take_away' => $this->disponible_take_away,
+            'permite_programado' => $this->permite_programado,
+            'orden' => max(0, (int) $this->tienda_orden),
+            'destacado' => $this->destacado,
+            'permite_venta_sin_stock' => $this->permite_venta_sin_stock,
         ];
 
         if ($this->editMode) {
@@ -792,6 +832,7 @@ class GestionarArticulos extends Component
                         'precio_base' => $this->precio_sucursal,
                         'modo_stock' => $this->modo_stock,
                         'vendible' => $this->vendible,
+                        'visible_tienda' => $this->visible_tienda,
                     ]);
 
                 if ((float) $precioSucursalAnterior !== (float) $this->precio_sucursal) {
@@ -832,6 +873,7 @@ class GestionarArticulos extends Component
                     'modo_stock' => $esActiva ? $this->modo_stock : 'ninguno',
                     'vendible' => $esActiva ? $this->vendible : true,
                     'precio_base' => $esActiva ? $this->precio_sucursal : null,
+                    'visible_tienda' => $esActiva ? $this->visible_tienda : true,
                 ];
             }
             $articulo->sucursales()->sync($syncDataCompleto);
@@ -900,6 +942,8 @@ class GestionarArticulos extends Component
             'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
             'sucursales_seleccionadas', 'etiquetas_seleccionadas', 'busquedaEtiqueta',
             'modo_stock', 'precio_sucursal', 'vendible',
+            'disponible_delivery', 'disponible_take_away', 'permite_programado',
+            'tienda_orden', 'destacado', 'permite_venta_sin_stock', 'visible_tienda',
             'showAltaRapidaCategoria', 'nuevaCategoriaNombre', 'nuevaCategoriaPrefijo',
             'imagenUpload', 'imagenPathActual', 'quitarImagen',
             'imagenFocalX', 'imagenFocalY',

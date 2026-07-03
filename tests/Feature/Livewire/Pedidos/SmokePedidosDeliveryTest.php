@@ -85,6 +85,52 @@ class SmokePedidosDeliveryTest extends TestCase
         Livewire::test(Repartidores::class)->assertOk();
     }
 
+    public function test_configuracion_delivery_monta(): void
+    {
+        Livewire::test(\App\Livewire\Pedidos\ConfiguracionDelivery::class)->assertOk();
+    }
+
+    public function test_configuracion_delivery_guarda_config_core(): void
+    {
+        Livewire::test(\App\Livewire\Pedidos\ConfiguracionDelivery::class)
+            ->set('usaDelivery', true)
+            ->set('georreferenciarPedidos', true)
+            ->set('radioEntregaKm', '5')
+            ->set('costoEnvioBase', '800')
+            ->set('modoPromesa', 'automatica')
+            ->call('guardarConfig')
+            ->assertDispatched('toast-success');
+
+        $sucursal = \App\Models\Sucursal::find($this->sucursalId);
+        $config = $sucursal->getConfigDelivery();
+        $this->assertTrue((bool) $sucursal->usa_delivery);
+        $this->assertTrue((bool) $config['georreferenciar_pedidos']);
+        $this->assertEqualsWithDelta(5.0, (float) $config['radio_entrega_km'], 0.01);
+        $this->assertEqualsWithDelta(800.0, (float) $config['costo_envio_base'], 0.01);
+        $this->assertSame('automatica', $config['modo_promesa']);
+        // Las keys de Fase 8 conservan su default (no se pisan).
+        $this->assertFalse((bool) $config['acepta_programados']);
+    }
+
+    public function test_configuracion_delivery_crea_zona(): void
+    {
+        $componente = Livewire::test(\App\Livewire\Pedidos\ConfiguracionDelivery::class)
+            ->call('abrirCrearZona')
+            ->assertSet('showZonaModal', true)
+            ->set('zonaNombre', 'Centro')
+            ->set('zonaRadioKm', '3')
+            ->set('zonaCostoEnvio', '600')
+            ->set('domLatitud', '-34.6037')
+            ->set('domLongitud', '-58.3816')
+            ->call('guardarZona')
+            ->assertDispatched('toast-success');
+
+        $zona = \App\Models\DeliveryZona::where('nombre', 'Centro')->first();
+        $this->assertNotNull($zona);
+        $this->assertSame($this->sucursalId, (int) $zona->sucursal_id);
+        $this->assertEqualsWithDelta(600.0, (float) $zona->costo_envio, 0.01);
+    }
+
     public function test_pedidos_delivery_abre_modal_alta(): void
     {
         Livewire::test(PedidosDelivery::class)

@@ -1075,10 +1075,42 @@ verdes; pint OK. Pendiente conocido para Fase 5: seeds formas venta
 DELIVERY/TAKEAWAY en ProvisionComercioCommand + migración comercios
 existentes (dev ya los tiene por seeder) y permisos/menú (migración 14).
 
-### Fase 5: Configuración delivery + zonas [PENDIENTE]
-Sección config sucursal (solo modos de promesa core) + ABM zonas con mapa +
-UI mínima RF-17 en ABM de artículos/categorías (sección "Tienda") +
-permisos/menú (migración 14).
+### Fase 5: Configuración delivery + zonas [COMPLETO — 2026-07-03]
+Implementado:
+- **Migración 14** (`2026_07_03_120000_add_pedidos_delivery_menu_permisos_y_seeds`):
+  menú "Pedidos Delivery" + "Repartidores" bajo Ventas (MenuItemObserver crea
+  los permisos de menú), 7 permisos funcionales `func.pedidos_delivery.*`
+  (cobrar/convertir_venta/cancelar/resetear_numeracion — espejo mostrador — +
+  repartidores/forzar_alcance/config) asignados a Administrador/Super Admin en
+  todos los tenants, y SEEDS tenant para comercios existentes: formas de venta
+  DELIVERY/TAKEAWAY + canal TIENDA (idempotente por código, patrón SHOW TABLES).
+  `ProvisionComercioCommand::seedFormasYCanalesVenta()` para comercios nuevos
+  (LOCAL/DELIVERY/TAKEAWAY + POS/TIENDA — antes la provisión NO sembraba
+  formas/canales de venta en absoluto). Ejecutada y verificada en dev.
+- **ConfiguracionDelivery** (`/pedidos/delivery/configuracion`, ajuste de
+  implementación: página dedicada en vez de sección dentro de
+  ConfiguracionEmpresa — ese componente ya tiene 1600+ líneas; enlazada con
+  el engranaje del panel, visible con `func.pedidos_delivery.config`):
+  usa_delivery + keys CORE de config_delivery (georef, radio/costos por km,
+  categoría del renglón de envío, exigir_repartidor, take-away, aceptación
+  externa manual/automática + imprimir al aceptar + timeout, días laborales +
+  horarios de atención con repeater días/desde/hasta + feriados, promesa
+  automática/manual con demoras y botones). Merge preservando las keys de
+  Fase 8. En la MISMA página el **ABM de zonas** (RF-05/RF-06): nombre,
+  centro con el picker de Maps (partial domicilio solo-geo, default centro
+  de la sucursal), radio, costo propio, rangos horarios, orden y activo;
+  eliminar es seguro (FK zona_id ON DELETE SET NULL).
+- **RF-16/RF-17 UI mínima**: GestionarArticulos ganó sección "Delivery y
+  Tienda" (disponible_delivery/take_away, visible_tienda del pivot de la
+  sucursal activa, destacado, permite_venta_sin_stock, orden);
+  `permite_programado` se persiste pero NO se expone (D22: programados
+  ocultos hasta Fase 8). GestionarCategorias ganó orden + imagen de tienda
+  (uploader simple a disco público, carpeta categorias/).
+- Traducciones: 96 claves es/en/pt (3820 parejas).
+Tests: 3 smokes nuevos de ConfiguracionDelivery (montaje + guardar config
+core + crear zona), suites de pedidos 195 verdes, artículos/categorías 77
+verdes, pint OK. Pendiente menor anotado: columnas RF-16/17 al final del
+import/export de artículos (se hace con la doc de Fase 7).
 
 ### Fase 6: API v1 [PENDIENTE]
 Scaffolding (Sanctum, versionado, Resources, api.tenant, errores, throttle) +

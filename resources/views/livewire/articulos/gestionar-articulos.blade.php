@@ -977,6 +977,41 @@
                                     </div>
                                 </div>
 
+                                <!-- Delivery y Tienda (RF-16/RF-17 pedidos-delivery) -->
+                                <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Delivery y Tienda') }}</label>
+                                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                        <label class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2 cursor-pointer">
+                                            <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Disponible delivery') }}</span>
+                                            <input type="checkbox" wire:model="disponible_delivery" class="rounded border-gray-300 dark:border-gray-500 text-bcn-primary focus:ring-bcn-primary" />
+                                        </label>
+                                        <label class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2 cursor-pointer">
+                                            <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Disponible take-away') }}</span>
+                                            <input type="checkbox" wire:model="disponible_take_away" class="rounded border-gray-300 dark:border-gray-500 text-bcn-primary focus:ring-bcn-primary" />
+                                        </label>
+                                        <label class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2 cursor-pointer">
+                                            <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Visible en tienda') }} <span class="text-gray-400">({{ __('sucursal') }})</span></span>
+                                            <input type="checkbox" wire:model="visible_tienda" class="rounded border-gray-300 dark:border-gray-500 text-bcn-primary focus:ring-bcn-primary" />
+                                        </label>
+                                        <label class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2 cursor-pointer">
+                                            <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Destacado en tienda') }}</span>
+                                            <input type="checkbox" wire:model="destacado" class="rounded border-gray-300 dark:border-gray-500 text-bcn-primary focus:ring-bcn-primary" />
+                                        </label>
+                                        <label class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2 cursor-pointer">
+                                            <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Vender sin stock') }}</span>
+                                            <input type="checkbox" wire:model="permite_venta_sin_stock" class="rounded border-gray-300 dark:border-gray-500 text-bcn-primary focus:ring-bcn-primary" />
+                                        </label>
+                                        <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2">
+                                            <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Orden en tienda') }}</span>
+                                            <input type="number" min="0" wire:model="tienda_orden"
+                                                class="w-16 rounded-md border-gray-300 dark:border-gray-500 dark:bg-gray-600 dark:text-white shadow-sm text-xs py-1" />
+                                        </div>
+                                    </div>
+                                    <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                                        {{ __('Un artículo agotado sin "vender sin stock" se muestra en la tienda pero no se puede pedir.') }}
+                                    </p>
+                                </div>
+
                                 <!-- Etiquetas + Imagen lado a lado -->
                                 <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
                                     <div class="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-4">
