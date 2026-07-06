@@ -512,11 +512,12 @@
                             {{ $tipo === 'take_away' ? __('Listo para retirar') : __('Entrega estimada') }}
                         </label>
                         @if($this->horaPactadaEstimada)
-                            <span class="inline-flex items-center gap-1 text-xs font-semibold text-cyan-700 dark:text-cyan-300">
+                            <span class="inline-flex items-center gap-1 text-xs font-semibold text-cyan-700 dark:text-cyan-300"
+                                @unless($this->horaPactadaEstimada->isToday()) title="{{ __('Madrugada del día siguiente') }}" @endunless>
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                 </svg>
-                                {{ $modoPromesa === 'franjas' ? $this->horaPactadaEstimada->format('H:i') : '~'.$this->horaPactadaEstimada->format('H:i') }}
+                                {{ ($modoPromesa === 'franjas' ? '' : '~').$this->horaPactadaEstimada->format($this->horaPactadaEstimada->isToday() ? 'H:i' : 'd/m H:i') }}
                             </span>
                         @elseif($franjaSeleccionada === 'asap')
                             <span class="text-xs font-semibold text-cyan-700 dark:text-cyan-300">{{ __('Lo antes posible') }}</span>
@@ -536,10 +537,11 @@
                                 @endif
                                 @foreach($franjasDisponibles as $franja)
                                     <button type="button" wire:click="seleccionarFranja('{{ $franja['iso'] }}')"
+                                        @if(!empty($franja['manana'])) title="{{ __('Madrugada del día siguiente') }}" @endif
                                         class="px-1 py-1 border rounded-md text-[11px] font-semibold transition-colors {{ $franjaSeleccionada === $franja['iso']
                                             ? 'bg-cyan-600 border-cyan-600 text-white shadow'
                                             : 'border-cyan-300 dark:border-cyan-600 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600 hover:text-white' }}">
-                                        {{ $franja['label'] }}
+                                        {{ $franja['label'] }}@if(!empty($franja['manana']))<sup class="font-bold">+1</sup>@endif
                                     </button>
                                 @endforeach
                             </div>

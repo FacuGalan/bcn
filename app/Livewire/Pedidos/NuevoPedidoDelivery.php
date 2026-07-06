@@ -947,7 +947,13 @@ class NuevoPedidoDelivery extends Component
         $sucursal = Sucursal::find($this->sucursalId);
         $this->franjasDisponibles = $sucursal
             ? array_map(
-                fn ($slot) => ['iso' => $slot->toDateTimeString(), 'label' => $slot->format('H:i')],
+                // 'manana' = madrugada de la jornada (fecha de mañana): la UI
+                // lo marca con +1 para que se note que cae pasada la medianoche.
+                fn ($slot) => [
+                    'iso' => $slot->toDateTimeString(),
+                    'label' => $slot->format('H:i'),
+                    'manana' => ! $slot->isToday(),
+                ],
                 $this->envioService->franjasDisponibles($sucursal, $this->tipo),
             )
             : [];

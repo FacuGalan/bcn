@@ -1880,8 +1880,9 @@
                                 @endif
                                 @foreach($aceptarInfo['franjas'] as $franja)
                                     <button type="button" wire:click="confirmarAceptarFranja('{{ $franja['iso'] }}')"
+                                        @if(!empty($franja['manana'])) title="{{ __('Madrugada del día siguiente') }}" @endif
                                         class="px-2 py-2 border border-emerald-300 dark:border-emerald-600 rounded-md text-sm font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white transition-colors">
-                                        {{ $franja['label'] }}
+                                        {{ $franja['label'] }}@if(!empty($franja['manana']))<sup class="font-bold">+1</sup>@endif
                                     </button>
                                 @endforeach
                             </div>

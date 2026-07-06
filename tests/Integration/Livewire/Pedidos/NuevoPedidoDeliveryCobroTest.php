@@ -340,6 +340,47 @@ class NuevoPedidoDeliveryCobroTest extends TestCase
         \Illuminate\Support\Carbon::setTestNow();
     }
 
+    public function test_promesa_franjas_cruce_de_medianoche_ofrece_madrugada_con_fecha_de_manana(): void
+    {
+        // Jornada de viernes 19:00–02:00: a las 23:50 del viernes, el horario
+        // de 00:15 pertenece a la jornada pero cae con FECHA DEL SÁBADO.
+        $viernes = now()->next(\Carbon\Carbon::FRIDAY)->setTime(23, 50);
+        \Illuminate\Support\Carbon::setTestNow($viernes);
+        $this->habilitarDelivery([
+            'modo_promesa' => 'franjas',
+            'horarios_atencion' => [['dias' => [5], 'desde' => '19:00', 'hasta' => '02:00']],
+            'franjas' => [
+                ['hora' => '23:30', 'dias' => [5], 'delivery' => true, 'take_away' => true], // ya pasó
+                ['hora' => '00:15', 'dias' => [5], 'delivery' => true, 'take_away' => true], // madrugada
+                ['hora' => '01:00', 'dias' => [5], 'delivery' => true, 'take_away' => true],
+            ],
+        ]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevoPedidoDelivery::class)
+            ->set('tipo', PedidoDelivery::TIPO_TAKE_AWAY)
+            ->call('seleccionarArticulo', $articulo->id);
+
+        $franjas = $componente->get('franjasDisponibles');
+        $this->assertSame(['00:15', '01:00'], array_column($franjas, 'label'));
+        $this->assertTrue($franjas[0]['manana'], 'La madrugada se marca +1 en la UI');
+        $this->assertSame(
+            $viernes->copy()->addDay()->setTime(0, 15)->toDateTimeString(),
+            $franjas[0]['iso'],
+            'El slot de madrugada lleva la fecha del sábado',
+        );
+
+        $componente->call('seleccionarFranja', $franjas[0]['iso'])
+            ->call('confirmarSinCobrar')
+            ->assertNotDispatched('toast-error');
+
+        $pedido = PedidoDelivery::first();
+        $this->assertSame($franjas[0]['iso'], $pedido->hora_pactada_at->toDateTimeString());
+        $this->assertTrue($pedido->hora_pactada_at->isSaturday());
+
+        \Illuminate\Support\Carbon::setTestNow();
+    }
+
     public function test_promesa_franjas_lo_antes_posible_queda_sin_hora(): void
     {
         $this->habilitarDelivery(['modo_promesa' => 'franjas']);

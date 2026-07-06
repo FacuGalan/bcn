@@ -148,12 +148,17 @@ class DeliveryEnvioService
     }
 
     /**
-     * Franjas horarias elegibles para HOY con `modo_promesa=franjas` (RF-15):
-     * los horarios de entrega que el comercio dio de alta A MANO en la config
-     * (`franjas`: hora exacta + días que aplica + tipo que sirve), filtrados
-     * por tipo de pedido, día de hoy, feriados/días laborales y hora futura.
-     * Devuelve Carbon[] ordenados; vacío si hoy no se atiende o no hay
-     * horarios que apliquen. Los CUPOS por franja quedan para Fase 8.
+     * Franjas horarias elegibles para la JORNADA de hoy con
+     * `modo_promesa=franjas` (RF-15): los horarios de entrega que el comercio
+     * dio de alta A MANO en la config (`franjas`: hora exacta + días que
+     * aplica + tipo que sirve), filtrados por tipo de pedido, día de hoy,
+     * feriados/días laborales y hora futura.
+     *
+     * Cruce de medianoche: si el calendario de HOY tiene un rango que cruza
+     * la medianoche (ej. viernes 19:00–02:00), las franjas de la madrugada
+     * (hora <= cierre) pertenecen a la jornada de hoy — se ofrecen con la
+     * FECHA DE MAÑANA (un pedido del viernes 23:50 puede pactar 00:15 del
+     * sábado). Los CUPOS por franja quedan para Fase 8.
      *
      * @param  string|null  $tipo  'delivery' | 'take_away' | null (ambos)
      * @return Carbon[]
@@ -171,6 +176,10 @@ class DeliveryEnvioService
             return [];
         }
 
+        // Cierre de la jornada de HOY cuando algún rango del calendario cruza
+        // la medianoche (desde > hasta): habilita franjas de madrugada.
+        $cierreMadrugada = $this->cierreTrasMedianoche($config, $desde);
+
         $dia = $desde->isoWeekday();
         $slots = [];
         foreach ((array) ($config['franjas'] ?? []) as $franja) {
@@ -179,6 +188,8 @@ class DeliveryEnvioService
                 continue;
             }
 
+            // La franja pertenece a la JORNADA (día en que arranca la noche):
+            // sus días se comparan contra HOY aunque el slot caiga mañana.
             $dias = array_map('intval', (array) ($franja['dias'] ?? [1, 2, 3, 4, 5, 6, 7]));
             if (! in_array($dia, $dias, true)) {
                 continue;
@@ -193,14 +204,47 @@ class DeliveryEnvioService
             }
 
             $slot = $desde->copy()->setTimeFromTimeString($hora);
+
+            // Madrugada de la jornada: hora dentro del rango post-medianoche
+            // ⇒ el slot es MAÑANA (misma noche, otro día calendario).
+            if ($cierreMadrugada && $hora <= $cierreMadrugada) {
+                $slot = $slot->addDay();
+            }
+
             if ($slot->greaterThanOrEqualTo($desde)) {
-                $slots[$slot->format('H:i')] = $slot;
+                $slots[$slot->format('Y-m-d H:i')] = $slot;
             }
         }
 
         ksort($slots);
 
         return array_values($slots);
+    }
+
+    /**
+     * Si algún rango del calendario aplicable a HOY cruza la medianoche
+     * (desde > hasta), devuelve la hora de cierre de la madrugada ('HH:MM');
+     * null si la jornada termina el mismo día.
+     */
+    private function cierreTrasMedianoche(array $config, Carbon $hoy): ?string
+    {
+        $dia = $hoy->isoWeekday();
+        $cierre = null;
+
+        foreach ((array) ($config['horarios_atencion'] ?? []) as $rango) {
+            $dias = array_map('intval', (array) ($rango['dias'] ?? [1, 2, 3, 4, 5, 6, 7]));
+            if (! in_array($dia, $dias, true)) {
+                continue;
+            }
+
+            $desde = (string) ($rango['desde'] ?? '00:00');
+            $hasta = (string) ($rango['hasta'] ?? '23:59');
+            if ($desde > $hasta && ($cierre === null || $hasta > $cierre)) {
+                $cierre = $hasta;
+            }
+        }
+
+        return $cierre;
     }
 
     /**
