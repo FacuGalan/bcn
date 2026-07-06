@@ -40,6 +40,13 @@
                 </span>
             </label>
             <label class="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" wire:model="usaEstadoListo" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                <span class="text-sm text-gray-700 dark:text-gray-300">
+                    {{ __('Usar estado "Listo"') }}
+                    <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Desactivado: la columna Listo se oculta y de "En preparación" se pasa directo al envío o retiro. Aun activado, se puede despachar sin pasar por Listo.') }}</span>
+                </span>
+            </label>
+            <label class="flex items-start gap-2 cursor-pointer">
                 <input type="checkbox" wire:model="convertirVentaAlEntregar" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
                 <span class="text-sm text-gray-700 dark:text-gray-300">
                     {{ __('Convertir en venta al entregar') }}

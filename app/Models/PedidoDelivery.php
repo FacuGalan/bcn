@@ -117,13 +117,25 @@ class PedidoDelivery extends Model
      */
     public const TRANSICIONES_PERMITIDAS = [
         self::ESTADO_BORRADOR => [self::ESTADO_CONFIRMADO, self::ESTADO_CANCELADO],
-        self::ESTADO_CONFIRMADO => [self::ESTADO_EN_PREPARACION, self::ESTADO_LISTO, self::ESTADO_ENTREGADO, self::ESTADO_CANCELADO],
-        self::ESTADO_EN_PREPARACION => [self::ESTADO_LISTO, self::ESTADO_ENTREGADO, self::ESTADO_CANCELADO],
+        self::ESTADO_CONFIRMADO => [self::ESTADO_EN_PREPARACION, self::ESTADO_LISTO, self::ESTADO_EN_CAMINO, self::ESTADO_ENTREGADO, self::ESTADO_CANCELADO],
+        self::ESTADO_EN_PREPARACION => [self::ESTADO_LISTO, self::ESTADO_EN_CAMINO, self::ESTADO_ENTREGADO, self::ESTADO_CANCELADO],
         self::ESTADO_LISTO => [self::ESTADO_EN_CAMINO, self::ESTADO_ENTREGADO, self::ESTADO_CANCELADO],
         self::ESTADO_EN_CAMINO => [self::ESTADO_ENTREGADO, self::ESTADO_LISTO, self::ESTADO_CANCELADO],
         self::ESTADO_ENTREGADO => [self::ESTADO_FACTURADO, self::ESTADO_CANCELADO],
         self::ESTADO_FACTURADO => [],
         self::ESTADO_CANCELADO => [],
+    ];
+
+    /**
+     * Estados desde los que un pedido puede despacharse/armar salida (RF-08):
+     * "listo" NO es paso obligado — el operador puede despachar directo desde
+     * confirmado/en_preparacion (y con `usa_estado_listo` OFF la columna ni
+     * aparece en el kanban). Al saltar, cambiarEstado backfillea listo_at.
+     */
+    public const ESTADOS_DESPACHABLES = [
+        self::ESTADO_CONFIRMADO,
+        self::ESTADO_EN_PREPARACION,
+        self::ESTADO_LISTO,
     ];
 
     protected $fillable = [

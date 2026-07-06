@@ -518,7 +518,7 @@
                             {{ __('Ver') }}
                         </button>
                         @if(!in_array($pedido->estado_pedido, ['cancelado','facturado']))
-                            @if($pedido->tipo === 'delivery' && $pedido->estado_pedido === 'listo')
+                            @if($pedido->tipo === 'delivery' && in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']))
                                 <button wire:click="despachar({{ $pedido->id }})"
                                     class="inline-flex items-center px-2.5 py-1.5 border border-cyan-400 dark:border-cyan-500 rounded text-xs bg-cyan-600 text-white hover:bg-cyan-700">
                                     {{ __('Despachar') }}
@@ -732,7 +732,7 @@
                                                     </svg>
                                                 </button>
                                             @endif
-                                            @if($pedido->tipo === 'delivery' && $pedido->estado_pedido === 'listo')
+                                            @if($pedido->tipo === 'delivery' && in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']))
                                                 <button wire:click="despachar({{ $pedido->id }})"
                                                     class="inline-flex items-center px-2 py-1 border border-cyan-400 dark:border-cyan-500 rounded text-xs bg-cyan-600 text-white hover:bg-cyan-700"
                                                     title="{{ __('Despachar (en camino)') }}">
@@ -832,7 +832,7 @@
             data-transiciones="{{ json_encode($transicionesKanban) }}"
             wire:key="kanban-{{ collect($pedidosKanban)->map->pluck('id')->flatten()->implode('-') }}"
             class="flex-1 flex flex-col min-h-0">
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 flex-1 min-h-0">
+            <div class="grid grid-cols-1 sm:grid-cols-2 {{ count($estadosKanban) === 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-5' }} gap-3 sm:gap-4 flex-1 min-h-0">
                 @foreach($estadosKanban as $estado)
                     <div class="bg-gray-100 dark:bg-gray-900 rounded-lg border {{ $estadoColores[$estado]['border'] }} flex flex-col min-h-0">
                         {{-- Header columna --}}
@@ -927,7 +927,7 @@
                                             <div x-show="open" x-cloak x-transition.opacity
                                                 class="fixed z-50 w-56 rounded-md bg-white dark:bg-gray-700 shadow-lg ring-1 ring-black ring-opacity-5 py-1"
                                                 :style="`top:${pos.top}px;left:${pos.left}px`">
-                                                @if($pedido->tipo === 'delivery' && $pedido->estado_pedido === 'listo')
+                                                @if($pedido->tipo === 'delivery' && in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']))
                                                     <button type="button" wire:click="despachar({{ $pedido->id }})" @click="open = false"
                                                         class="flex w-full items-center px-3 py-2 text-xs font-semibold text-cyan-700 dark:text-cyan-300 hover:bg-gray-100 dark:hover:bg-gray-600">
                                                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>
@@ -2067,9 +2067,9 @@
                     @endif
 
                     @if($vueltaInfo['hay_efectivo'] && ! $vueltaInfo['fondo_abierto'])
-                        <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg p-3">
-                            <p class="text-sm text-amber-800 dark:text-amber-200">
-                                {{ __('Hay cobros en efectivo pero el repartidor no tiene un fondo abierto en esta sucursal: abrilo desde el módulo Repartidores antes de confirmar la vuelta.') }}
+                        <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 rounded-lg p-3">
+                            <p class="text-sm text-blue-800 dark:text-blue-200">
+                                {{ __('El repartidor no tiene fondo abierto: al confirmar se abre uno automáticamente en $0 para alojar los cobros en efectivo.') }}
                             </p>
                         </div>
                     @endif
@@ -2133,6 +2133,87 @@
                             @endif
                         </div>
                     @endforeach
+
+                    {{-- ===== Rendición del repartidor (D4/D13): caja chica + cobros de esta vuelta ===== --}}
+                    @if($vueltaInfo['fondo_abierto'] || $vueltaInfo['hay_efectivo'])
+                        @php $esperadoV = $this->vueltaEfectivoEsperado; @endphp
+                        <div class="border border-emerald-200 dark:border-emerald-800 rounded-lg p-3 space-y-3 bg-emerald-50/50 dark:bg-emerald-900/10">
+                            <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Rendición del repartidor') }}</h4>
+
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                                <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 px-2 py-1.5">
+                                    <span class="block text-[11px] text-gray-500 dark:text-gray-400">{{ __('Caja chica') }}</span>
+                                    <span class="text-sm font-bold text-gray-900 dark:text-white">${{ number_format($esperadoV['fondo'], 2, ',', '.') }}</span>
+                                </div>
+                                <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 px-2 py-1.5">
+                                    <span class="block text-[11px] text-gray-500 dark:text-gray-400">{{ __('Cobros en efectivo') }}</span>
+                                    <span class="text-sm font-bold text-emerald-700 dark:text-emerald-400">+${{ number_format($esperadoV['cobros'], 2, ',', '.') }}</span>
+                                </div>
+                                @if($vueltaInfo['envio_del_repartidor'])
+                                    <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 px-2 py-1.5">
+                                        <span class="block text-[11px] text-gray-500 dark:text-gray-400">{{ __('Envíos del repartidor') }}</span>
+                                        <span class="text-sm font-bold text-red-600 dark:text-red-400">−${{ number_format($esperadoV['envios'], 2, ',', '.') }}</span>
+                                    </div>
+                                @endif
+                                <div class="bg-white dark:bg-gray-800 rounded-md border-2 border-emerald-400 dark:border-emerald-600 px-2 py-1.5 {{ $vueltaInfo['envio_del_repartidor'] ? '' : 'col-span-2' }}">
+                                    <span class="block text-[11px] text-gray-500 dark:text-gray-400">{{ __('Efectivo esperado encima') }}</span>
+                                    <span class="text-sm font-bold text-bcn-primary">${{ number_format($esperadoV['esperado'], 2, ',', '.') }}</span>
+                                </div>
+                            </div>
+                            @if($vueltaInfo['envio_del_repartidor'])
+                                <p class="text-[11px] text-gray-500 dark:text-gray-400 -mt-1">{{ __('El envío es del repartidor: se descuenta del fondo por cada pedido entregado.') }}</p>
+                            @endif
+
+                            <div class="space-y-1.5">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" wire:model.live="vueltaRendicionModo" value="nada"
+                                        class="border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500" />
+                                    <span class="text-sm text-gray-800 dark:text-gray-200">{{ __('Se queda todo (sigue repartiendo)') }}</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer flex-wrap">
+                                    <input type="radio" wire:model.live="vueltaRendicionModo" value="devolver"
+                                        class="border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500" />
+                                    <span class="text-sm text-gray-800 dark:text-gray-200">{{ __('Devuelve una parte a caja') }}</span>
+                                    @if($vueltaRendicionModo === 'devolver')
+                                        <span class="inline-flex items-center gap-1">
+                                            <span class="text-xs text-gray-500 dark:text-gray-400">$</span>
+                                            <input type="number" step="0.01" min="0" wire:model="vueltaRendicionMonto"
+                                                class="w-28 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm py-1" />
+                                        </span>
+                                    @endif
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer flex-wrap">
+                                    <input type="radio" wire:model.live="vueltaRendicionModo" value="cerrar"
+                                        class="border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500" />
+                                    <span class="text-sm text-gray-800 dark:text-gray-200">{{ __('Devuelve todo y cierra la caja chica') }}</span>
+                                    @if($vueltaRendicionModo === 'cerrar')
+                                        <span class="inline-flex items-center gap-1">
+                                            <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Contado') }}: $</span>
+                                            <input type="number" step="0.01" min="0" wire:model="vueltaRendicionMonto"
+                                                class="w-28 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm py-1" />
+                                        </span>
+                                        <span class="text-[11px] text-gray-500 dark:text-gray-400 basis-full">{{ __('Si lo contado difiere del esperado se registra como sobrante/faltante.') }}</span>
+                                    @endif
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer flex-wrap">
+                                    <input type="radio" wire:model.live="vueltaRendicionModo" value="reforzar"
+                                        class="border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500" />
+                                    <span class="text-sm text-gray-800 dark:text-gray-200">{{ __('Se lleva más cambio (refuerzo desde caja)') }}</span>
+                                    @if($vueltaRendicionModo === 'reforzar')
+                                        <span class="inline-flex items-center gap-1">
+                                            <span class="text-xs text-gray-500 dark:text-gray-400">$</span>
+                                            <input type="number" step="0.01" min="0" wire:model="vueltaRendicionMonto"
+                                                class="w-28 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm py-1" />
+                                        </span>
+                                    @endif
+                                </label>
+                            </div>
+
+                            @if($vueltaRendicionModo !== 'nada' && ! $vueltaInfo['tiene_caja'])
+                                <p class="text-xs text-amber-700 dark:text-amber-300">{{ __('Necesitás una caja activa para mover efectivo del fondo: seleccioná una caja o dejá "Se queda todo".') }}</p>
+                            @endif
+                        </div>
+                    @endif
                 </div>
             </x-slot:body>
             <x-slot:footer>

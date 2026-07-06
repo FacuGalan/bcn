@@ -213,16 +213,19 @@ class RepartidorServiceTest extends TestCase
         $this->assertSame(PedidoDelivery::ESTADO_EN_CAMINO, $p2->fresh()->estado_pedido);
     }
 
-    public function test_salida_rechaza_pedidos_no_listos_y_take_away(): void
+    public function test_salida_rechaza_pedidos_no_despachables_y_take_away(): void
     {
         $repartidor = $this->crearRepartidorHabilitado();
-        $confirmado = $this->pedidoDeliveryConfirmado(totalFinal: 1000, cajaId: $this->cajaId);
+
+        // Entregado: fuera de los estados despachables.
+        $entregado = $this->pedidoDeliveryConfirmado(totalFinal: 1000, cajaId: $this->cajaId);
+        $this->service->cambiarEstado($entregado, PedidoDelivery::ESTADO_ENTREGADO);
 
         try {
-            $this->repartidorService->crearSalida($this->sucursalId, $repartidor->id, [$confirmado->id]);
-            $this->fail('Debió rechazar el pedido no listo');
+            $this->repartidorService->crearSalida($this->sucursalId, $repartidor->id, [$entregado->id]);
+            $this->fail('Debió rechazar el pedido entregado');
         } catch (Exception $e) {
-            $this->assertStringContainsString('no está listo', $e->getMessage());
+            $this->assertStringContainsString('no está despachable', $e->getMessage());
         }
 
         $takeAway = $this->pedidoDeliveryConfirmado(totalFinal: 500, cajaId: $this->cajaId, overrides: [
@@ -234,6 +237,42 @@ class RepartidorServiceTest extends TestCase
         $this->expectException(Exception::class);
         $this->expectExceptionMessageMatches('/take-away/');
         $this->repartidorService->crearSalida($this->sucursalId, $repartidor->id, [$takeAway->id]);
+    }
+
+    public function test_despachar_desde_en_preparacion_backfillea_listo_at(): void
+    {
+        // "Listo" no es paso obligado (usa_estado_listo / automatización):
+        // despachar desde en_preparacion crea la salida y estampa listo_at
+        // para el reporte de tiempos.
+        $repartidor = $this->crearRepartidorHabilitado();
+        $pedido = $this->pedidoDeliveryConfirmado(totalFinal: 1000, cajaId: $this->cajaId);
+        $this->service->asignarRepartidor($pedido, $repartidor->id);
+        $this->service->cambiarEstado($pedido, PedidoDelivery::ESTADO_EN_PREPARACION);
+        $this->assertNull($pedido->fresh()->listo_at);
+
+        $salida = $this->repartidorService->despacharPedido($pedido->fresh(), usuarioId: 1);
+
+        $pedido->refresh();
+        $this->assertSame(DeliverySalida::ESTADO_EN_CAMINO, $salida->estado);
+        $this->assertSame(PedidoDelivery::ESTADO_EN_CAMINO, $pedido->estado_pedido);
+        $this->assertNotNull($pedido->listo_at, 'El salto de listo debe backfillear listo_at');
+        $this->assertNotNull($pedido->en_camino_at);
+    }
+
+    public function test_take_away_en_preparacion_pasa_directo_a_entregado(): void
+    {
+        $pedido = $this->pedidoDeliveryConfirmado(totalFinal: 500, cajaId: $this->cajaId, overrides: [
+            'tipo' => PedidoDelivery::TIPO_TAKE_AWAY,
+            'direccion_entrega' => null,
+        ]);
+        $this->service->cambiarEstado($pedido, PedidoDelivery::ESTADO_EN_PREPARACION);
+
+        $this->service->cambiarEstado($pedido->fresh(), PedidoDelivery::ESTADO_ENTREGADO);
+
+        $pedido->refresh();
+        $this->assertSame(PedidoDelivery::ESTADO_ENTREGADO, $pedido->estado_pedido);
+        $this->assertNotNull($pedido->listo_at);
+        $this->assertNotNull($pedido->entregado_at);
     }
 
     public function test_despachar_pedido_crea_salida_implicita_de_uno(): void
@@ -533,6 +572,177 @@ class RepartidorServiceTest extends TestCase
         $this->expectException(Exception::class);
         $this->expectExceptionMessageMatches('/ya fue rendido/');
         $this->repartidorService->rendirFondo($fondo, 1000, $this->cajaId, 1);
+    }
+
+    // ==================== VUELTA: MINI-RENDICIÓN (D4/D13) ====================
+
+    /** Vuelta estándar de 1 pedido efectivo listo para asserts de rendición. */
+    private function vueltaConCobroEfectivo(Repartidor $repartidor, float $total = 1000, ?array $rendicion = null): DeliverySalida
+    {
+        $pedido = $this->pedidoListoConPagoPlanificado($repartidor, total: $total);
+        $pago = $pedido->pagos()->first();
+        $salida = $this->repartidorService->despacharPedido($pedido, usuarioId: 1);
+
+        return $this->repartidorService->registrarVuelta($salida, [
+            $pedido->id => [
+                'resultado' => DeliverySalidaPedido::RESULTADO_ENTREGADO,
+                'cobros' => [['pago_id' => $pago->id]],
+            ],
+        ], cajaConversionId: $this->cajaId, usuarioId: 1, rendicion: $rendicion);
+    }
+
+    public function test_vuelta_auto_abre_fondo_en_cero_si_hay_efectivo_y_caja_de_contexto(): void
+    {
+        $repartidor = $this->crearRepartidorHabilitado();
+        $this->assertNull($repartidor->fondoAbierto($this->sucursalId));
+        $egresosAntes = MovimientoCaja::where('caja_id', $this->cajaId)->where('tipo', MovimientoCaja::TIPO_EGRESO)->count();
+
+        $this->vueltaConCobroEfectivo($repartidor, total: 1000);
+
+        $fondo = $repartidor->fondoAbierto($this->sucursalId);
+        $this->assertNotNull($fondo, 'Con caja de contexto el fondo se abre solo');
+        $this->assertEqualsWithDelta(0.0, (float) $fondo->monto_inicial, 0.01);
+        $this->assertEqualsWithDelta(1000.0, $this->repartidorService->saldoTeorico($fondo), 0.01);
+        // Apertura en $0: la caja no sufre egreso.
+        $this->assertSame($egresosAntes, MovimientoCaja::where('caja_id', $this->cajaId)->where('tipo', MovimientoCaja::TIPO_EGRESO)->count());
+    }
+
+    public function test_vuelta_con_devolucion_parcial_ingresa_a_caja_y_fondo_sigue_abierto(): void
+    {
+        $repartidor = $this->crearRepartidorHabilitado();
+        $fondo = $this->abrirFondoDe($repartidor, monto: 2000);
+        $caja = Caja::find($this->cajaId);
+        $saldoCaja = (float) $caja->saldo_actual;
+
+        // Cobra 1000 en efectivo (fondo 3000) y devuelve 2500, se queda 500.
+        $this->vueltaConCobroEfectivo($repartidor, total: 1000, rendicion: [
+            'modo' => 'devolver',
+            'monto' => 2500,
+        ]);
+
+        $fondo->refresh();
+        $this->assertTrue($fondo->estaAbierto(), 'La devolución parcial NO cierra el fondo');
+        $this->assertEqualsWithDelta(500.0, $this->repartidorService->saldoTeorico($fondo), 0.01);
+
+        $devolucion = $fondo->movimientos()->where('tipo', RepartidorFondoMovimiento::TIPO_DEVOLUCION)->first();
+        $this->assertNotNull($devolucion);
+        $this->assertEqualsWithDelta(-2500.0, (float) $devolucion->monto, 0.01);
+        $this->assertNotNull($devolucion->movimiento_caja_id);
+        $this->assertEqualsWithDelta($saldoCaja + 2500.0, (float) $caja->fresh()->saldo_actual, 0.01);
+    }
+
+    public function test_devolucion_parcial_no_puede_superar_el_saldo_del_fondo(): void
+    {
+        $repartidor = $this->crearRepartidorHabilitado();
+        $fondo = $this->abrirFondoDe($repartidor, monto: 1000);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessageMatches('/supera el saldo/');
+        $this->repartidorService->devolverACaja($fondo, 1500, $this->cajaId, 1);
+    }
+
+    public function test_vuelta_con_cierre_rinde_el_fondo_con_diferencia(): void
+    {
+        $repartidor = $this->crearRepartidorHabilitado();
+        $fondo = $this->abrirFondoDe($repartidor, monto: 2000);
+
+        // Teórico post-cobro: 3000. Declara 2900 → faltante -100 y fondo cerrado.
+        $this->vueltaConCobroEfectivo($repartidor, total: 1000, rendicion: [
+            'modo' => 'cerrar',
+            'monto' => 2900,
+        ]);
+
+        $fondo->refresh();
+        $this->assertFalse($fondo->estaAbierto());
+        $this->assertEqualsWithDelta(2900.0, (float) $fondo->monto_rendido, 0.01);
+        $this->assertEqualsWithDelta(-100.0, (float) $fondo->diferencia, 0.01);
+        $this->assertEqualsWithDelta(0.0, $this->repartidorService->saldoTeorico($fondo), 0.01);
+    }
+
+    public function test_vuelta_con_refuerzo_egresa_de_caja_y_suma_al_fondo(): void
+    {
+        $repartidor = $this->crearRepartidorHabilitado();
+        $fondo = $this->abrirFondoDe($repartidor, monto: 1000);
+        $caja = Caja::find($this->cajaId);
+        $saldoCaja = (float) $caja->saldo_actual;
+
+        $this->vueltaConCobroEfectivo($repartidor, total: 1000, rendicion: [
+            'modo' => 'reforzar',
+            'monto' => 800,
+        ]);
+
+        $fondo->refresh();
+        $this->assertTrue($fondo->estaAbierto());
+        // 1000 inicial + 1000 cobro + 800 refuerzo.
+        $this->assertEqualsWithDelta(2800.0, $this->repartidorService->saldoTeorico($fondo), 0.01);
+        $this->assertEqualsWithDelta($saldoCaja - 800.0, (float) $caja->fresh()->saldo_actual, 0.01);
+    }
+
+    public function test_vuelta_liquida_envios_del_tercero_por_pedido_sin_duplicar_en_rendicion(): void
+    {
+        $repartidor = $this->crearRepartidorHabilitado([
+            'nombre' => 'Cadete Externo 2',
+            'tipo' => 'tercero',
+            'envio_es_del_repartidor' => true,
+        ]);
+        $fondo = $this->abrirFondoDe($repartidor, monto: 0);
+
+        $pedido = $this->pedidoDeliveryConfirmado(totalFinal: 1000, cajaId: $this->cajaId, overrides: ['costo_envio' => 300]);
+        $pedido->refresh();
+        $this->service->agregarPago($pedido, [
+            'forma_pago_id' => $this->formaPagoEfectivo(),
+            'monto_base' => (float) $pedido->total_final,
+            'monto_final' => (float) $pedido->total_final,
+            'planificado' => true,
+        ]);
+        $this->service->asignarRepartidor($pedido, $repartidor->id);
+        $this->service->cambiarEstado($pedido, PedidoDelivery::ESTADO_LISTO);
+        $pago = $pedido->pagos()->first();
+        $salida = $this->repartidorService->despacharPedido($pedido->fresh(), usuarioId: 1);
+
+        $this->repartidorService->registrarVuelta($salida, [
+            $pedido->id => [
+                'resultado' => DeliverySalidaPedido::RESULTADO_ENTREGADO,
+                'cobros' => [['pago_id' => $pago->id]],
+            ],
+        ], usuarioId: 1);
+
+        // La VUELTA ya liquidó el envío (movimiento por pedido, con pedido_id).
+        $liquidaciones = $fondo->movimientos()->where('tipo', RepartidorFondoMovimiento::TIPO_LIQUIDACION_ENVIOS)->get();
+        $this->assertCount(1, $liquidaciones);
+        $this->assertSame($pedido->id, (int) $liquidaciones->first()->pedido_id);
+        $this->assertEqualsWithDelta(-300.0, (float) $liquidaciones->first()->monto, 0.01);
+        $this->assertEqualsWithDelta(1000.0, $this->repartidorService->saldoTeorico($fondo), 0.01);
+
+        // La rendición posterior NO vuelve a liquidar el mismo pedido.
+        $fondo = $this->repartidorService->rendirFondo($fondo, montoDeclarado: 1000, cajaRendicionId: $this->cajaId, usuarioId: 1);
+        $this->assertSame(1, $fondo->movimientos()->where('tipo', RepartidorFondoMovimiento::TIPO_LIQUIDACION_ENVIOS)->count());
+        $this->assertEqualsWithDelta(0.0, (float) $fondo->diferencia, 0.01);
+    }
+
+    public function test_rendicion_de_vuelta_invalida_falla_antes_de_registrar_la_vuelta(): void
+    {
+        $repartidor = $this->crearRepartidorHabilitado();
+        $this->abrirFondoDe($repartidor, monto: 1000);
+        $pedido = $this->pedidoListoConPagoPlanificado($repartidor);
+        $pago = $pedido->pagos()->first();
+        $salida = $this->repartidorService->despacharPedido($pedido, usuarioId: 1);
+
+        try {
+            $this->repartidorService->registrarVuelta($salida, [
+                $pedido->id => [
+                    'resultado' => DeliverySalidaPedido::RESULTADO_ENTREGADO,
+                    'cobros' => [['pago_id' => $pago->id]],
+                ],
+            ], usuarioId: 1, rendicion: ['modo' => 'devolver', 'monto' => 0]);
+            $this->fail('Debió rechazar la rendición sin monto');
+        } catch (Exception $e) {
+            $this->assertStringContainsString('Indicar el monto', $e->getMessage());
+        }
+
+        // La validación corre ANTES: la salida sigue en camino, sin vuelta.
+        $this->assertSame(DeliverySalida::ESTADO_EN_CAMINO, $salida->fresh()->estado);
+        $this->assertSame(PedidoDelivery::ESTADO_EN_CAMINO, $pedido->fresh()->estado_pedido);
     }
 
     // ==================== VISIBILIDAD (D13) ====================

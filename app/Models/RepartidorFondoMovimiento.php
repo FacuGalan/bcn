@@ -33,6 +33,8 @@ class RepartidorFondoMovimiento extends Model
 
     public const TIPO_LIQUIDACION_ENVIOS = 'liquidacion_envios';
 
+    public const TIPO_DEVOLUCION = 'devolucion';
+
     public const TIPO_RENDICION = 'rendicion';
 
     public const TIPO_AJUSTE = 'ajuste';
@@ -43,6 +45,7 @@ class RepartidorFondoMovimiento extends Model
         self::TIPO_COBRO_PEDIDO => 'Cobro de pedido',
         self::TIPO_VUELTO => 'Vuelto',
         self::TIPO_LIQUIDACION_ENVIOS => 'Liquidación de envíos',
+        self::TIPO_DEVOLUCION => 'Devolución a caja',
         self::TIPO_RENDICION => 'Rendición',
         self::TIPO_AJUSTE => 'Ajuste',
     ];

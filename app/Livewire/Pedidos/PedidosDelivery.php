@@ -230,6 +230,15 @@ class PedidosDelivery extends Component
     /** Info de solo-lectura del modal de vuelta (repartidor, fondo, pedidos). */
     public array $vueltaInfo = [];
 
+    /**
+     * Balanceo del fondo en la misma vuelta (mini-rendición, D4/D13):
+     * nada = se queda todo | devolver = parcial a caja | cerrar = rendición
+     * definitiva (con diferencia) | reforzar = se lleva más cambio.
+     */
+    public string $vueltaRendicionModo = 'nada';
+
+    public string $vueltaRendicionMonto = '';
+
     // ==================== TIEMPO REAL ====================
 
     /**
@@ -890,6 +899,46 @@ class PedidosDelivery extends Component
         PedidoDelivery::ESTADO_ENTREGADO,
     ];
 
+    /** Cache por request de la config delivery de la sucursal activa. */
+    protected ?array $configDeliveryCache = null;
+
+    protected function configDeliverySucursal(): array
+    {
+        if ($this->configDeliveryCache === null) {
+            $sucursal = $this->sucursalActual() ? Sucursal::find($this->sucursalActual()) : null;
+            $this->configDeliveryCache = $sucursal
+                ? app(\App\Services\Pedidos\DeliveryEnvioService::class)->configDelivery($sucursal)
+                : Sucursal::CONFIG_DELIVERY_DEFAULTS;
+        }
+
+        return $this->configDeliveryCache;
+    }
+
+    /**
+     * ¿La sucursal usa el estado "listo" como paso visible? Con OFF la columna
+     * se oculta del kanban (salvo que tenga pedidos: una vuelta fallida vuelve
+     * a listo y nunca debe quedar invisible) y el modal de estado no lo ofrece.
+     */
+    protected function usaEstadoListo(): bool
+    {
+        return (bool) ($this->configDeliverySucursal()['usa_estado_listo'] ?? true);
+    }
+
+    /**
+     * Columnas visibles del kanban según config de la sucursal.
+     *
+     * @param  array<string, \Illuminate\Support\Collection>  $agrupados
+     * @return list<string>
+     */
+    protected function estadosKanbanVisibles(array $agrupados): array
+    {
+        if ($this->usaEstadoListo() || $agrupados[PedidoDelivery::ESTADO_LISTO]->isNotEmpty()) {
+            return self::ESTADOS_KANBAN;
+        }
+
+        return array_values(array_diff(self::ESTADOS_KANBAN, [PedidoDelivery::ESTADO_LISTO]));
+    }
+
     /**
      * Pedidos para la vista Kanban, agrupados por estado_pedido. Mismos
      * filtros que la lista (cliente, fecha, pago) pero SIN paginacion —
@@ -1080,11 +1129,21 @@ class PedidosDelivery extends Component
         $transiciones = PedidoDelivery::TRANSICIONES_PERMITIDAS[$pedido->estado_pedido] ?? [];
 
         // Excluir CANCELADO acá (tiene su propio modal con motivo) y FACTURADO
-        // (solo se llega vía convertirEnVenta).
-        $transiciones = array_values(array_filter($transiciones, fn ($e) => ! in_array($e, [
+        // (solo se llega vía convertirEnVenta). Con `usa_estado_listo` OFF,
+        // LISTO tampoco se ofrece como destino (la sucursal no usa ese paso).
+        $excluidos = [
             PedidoDelivery::ESTADO_CANCELADO,
             PedidoDelivery::ESTADO_FACTURADO,
-        ], true)));
+        ];
+        if (! $this->usaEstadoListo()) {
+            $excluidos[] = PedidoDelivery::ESTADO_LISTO;
+        }
+        $transiciones = array_values(array_filter($transiciones, fn ($e) => ! in_array($e, $excluidos, true)));
+
+        // en_camino solo aplica a delivery (el modal no debe ofrecerlo a take-away).
+        if ($pedido->tipo !== PedidoDelivery::TIPO_DELIVERY) {
+            $transiciones = array_values(array_diff($transiciones, [PedidoDelivery::ESTADO_EN_CAMINO]));
+        }
 
         if (empty($transiciones)) {
             $this->dispatch('toast-error', message: __('No hay transiciones disponibles desde este estado'));
@@ -1110,6 +1169,16 @@ class PedidosDelivery extends Component
         $pedido = PedidoDelivery::find($this->pedidoEstadoId);
         if (! $pedido) {
             $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+
+            return;
+        }
+
+        // Pasar a "en camino" desde el modal usa el camino canónico del
+        // despacho (salida implícita + circuito de fondo), no cambiarEstado.
+        if ($this->nuevoEstado === PedidoDelivery::ESTADO_EN_CAMINO) {
+            $this->showCambiarEstadoModal = false;
+            $this->resetCambiarEstadoState();
+            $this->despachar($pedido->id);
 
             return;
         }
@@ -1519,8 +1588,8 @@ class PedidosDelivery extends Component
             return;
         }
 
-        if ($pedido->estado_pedido !== PedidoDelivery::ESTADO_LISTO) {
-            $this->dispatch('toast-error', message: __("Solo se despachan pedidos listos (estado actual: ':estado')", ['estado' => $pedido->estado_pedido]));
+        if (! in_array($pedido->estado_pedido, PedidoDelivery::ESTADOS_DESPACHABLES, true)) {
+            $this->dispatch('toast-error', message: __("El pedido no está en un estado despachable (estado actual: ':estado')", ['estado' => $pedido->estado_pedido]));
 
             return;
         }
@@ -1566,7 +1635,8 @@ class PedidosDelivery extends Component
     }
 
     /**
-     * Pedidos candidatos a una salida: delivery, listos y sin salida actual.
+     * Pedidos candidatos a una salida: delivery, despachables ("listo" no es
+     * paso obligado) y sin salida actual.
      */
     protected function pedidosParaSalida()
     {
@@ -1578,9 +1648,9 @@ class PedidosDelivery extends Component
         return PedidoDelivery::with(['cliente:id,nombre', 'repartidor:id,nombre', 'zona:id,nombre'])
             ->where('sucursal_id', $sucursalId)
             ->where('tipo', PedidoDelivery::TIPO_DELIVERY)
-            ->where('estado_pedido', PedidoDelivery::ESTADO_LISTO)
+            ->whereIn('estado_pedido', PedidoDelivery::ESTADOS_DESPACHABLES)
             ->whereNull('salida_id')
-            ->orderBy('listo_at')
+            ->orderByRaw('COALESCE(listo_at, confirmado_at, created_at)')
             ->get();
     }
 
@@ -1675,6 +1745,8 @@ class PedidosDelivery extends Component
         $this->vueltaSalidaId = $salida->id;
         $this->vueltaResultados = [];
         $this->vueltaCobros = [];
+        $this->vueltaRendicionModo = 'nada';
+        $this->vueltaRendicionMonto = '';
 
         $pedidosInfo = [];
         $hayEfectivo = false;
@@ -1710,6 +1782,7 @@ class PedidosDelivery extends Component
                 'cliente' => $pedido->nombre_cliente_final ?? __('Sin cliente'),
                 'direccion' => $pedido->direccion_entrega,
                 'total' => (float) $pedido->total_final,
+                'costo_envio' => (float) $pedido->costo_envio,
                 'pagos' => $pagosInfo,
             ];
         }
@@ -1719,10 +1792,66 @@ class PedidosDelivery extends Component
             'repartidor' => $salida->repartidor->nombre,
             'salida_at' => $salida->salida_at?->format('d/m H:i'),
             'fondo_abierto' => $fondo !== null,
+            'fondo_saldo' => $fondo ? $this->repartidorService->saldoTeorico($fondo) : 0.0,
+            // Repartidor tercero con envío propio: los envíos de los pedidos
+            // entregados se le liquidan (salen del fondo) en esta vuelta (D3).
+            'envio_del_repartidor' => (bool) $salida->repartidor->envio_es_del_repartidor,
             'hay_efectivo' => $hayEfectivo,
+            'tiene_caja' => $this->cajaActual() !== null,
             'pedidos' => $pedidosInfo,
         ];
         $this->showVueltaModal = true;
+    }
+
+    /**
+     * Efectivo que el repartidor debería tener encima al confirmar la vuelta,
+     * reactivo a los toggles del modal: caja chica + cobros en efectivo
+     * tildados de pedidos entregados − envíos a liquidar (tercero).
+     *
+     * @return array{fondo: float, cobros: float, envios: float, esperado: float}
+     */
+    public function getVueltaEfectivoEsperadoProperty(): array
+    {
+        $fondo = (float) ($this->vueltaInfo['fondo_saldo'] ?? 0);
+        $cobros = 0.0;
+        $envios = 0.0;
+
+        foreach ($this->vueltaInfo['pedidos'] ?? [] as $pedidoV) {
+            if (($this->vueltaResultados[$pedidoV['id']]['resultado'] ?? '') !== 'entregado') {
+                continue;
+            }
+
+            foreach ($pedidoV['pagos'] as $pagoV) {
+                if ($pagoV['es_efectivo'] && ($this->vueltaCobros[$pagoV['id']]['cobrar'] ?? false)) {
+                    // Neto al fondo = monto del pago (recibido − vuelto).
+                    $cobros += (float) $pagoV['monto_final'];
+                }
+            }
+
+            if ($this->vueltaInfo['envio_del_repartidor'] ?? false) {
+                $envios += (float) ($pedidoV['costo_envio'] ?? 0);
+            }
+        }
+
+        return [
+            'fondo' => round($fondo, 2),
+            'cobros' => round($cobros, 2),
+            'envios' => round($envios, 2),
+            'esperado' => round($fondo + $cobros - $envios, 2),
+        ];
+    }
+
+    /**
+     * Al elegir "devolver todo y cerrar", prellenar el monto con el esperado
+     * (editable: lo que declare distinto se registra como diferencia).
+     */
+    public function updatedVueltaRendicionModo(string $valor): void
+    {
+        if ($valor === 'cerrar') {
+            $this->vueltaRendicionMonto = (string) max(0, $this->vueltaEfectivoEsperado['esperado']);
+        } elseif ($valor === 'nada') {
+            $this->vueltaRendicionMonto = '';
+        }
     }
 
     public function cerrarVuelta(): void
@@ -1732,6 +1861,8 @@ class PedidosDelivery extends Component
         $this->vueltaResultados = [];
         $this->vueltaCobros = [];
         $this->vueltaInfo = [];
+        $this->vueltaRendicionModo = 'nada';
+        $this->vueltaRendicionMonto = '';
     }
 
     public function confirmarVuelta(): void
@@ -1767,13 +1898,27 @@ class PedidosDelivery extends Component
             ];
         }
 
+        $rendicion = $this->vueltaRendicionModo !== 'nada'
+            ? [
+                'modo' => $this->vueltaRendicionModo,
+                'monto' => (float) $this->vueltaRendicionMonto,
+                'caja_id' => $this->cajaActual(),
+            ]
+            : null;
+
         try {
             $this->repartidorService->registrarVuelta(
                 $salida,
                 $resultados,
                 cajaConversionId: $this->cajaActual(),
+                rendicion: $rendicion,
             );
-            $this->dispatch('toast-success', message: __('Vuelta registrada'));
+            $this->dispatch('toast-success', message: match ($this->vueltaRendicionModo) {
+                'cerrar' => __('Vuelta registrada y fondo rendido'),
+                'devolver' => __('Vuelta registrada y devolución ingresada a caja'),
+                'reforzar' => __('Vuelta registrada y fondo reforzado'),
+                default => __('Vuelta registrada'),
+            });
             $this->cerrarVuelta();
         } catch (Exception $e) {
             Log::error('Error al registrar vuelta', [
@@ -1781,6 +1926,13 @@ class PedidosDelivery extends Component
                 'error' => $e->getMessage(),
             ]);
             $this->dispatch('toast-error', message: $e->getMessage());
+
+            // Si la vuelta en sí quedó registrada (falló solo el balanceo del
+            // fondo, que corre después), cerrar el modal: la salida ya está
+            // finalizada y el fondo se balancea desde Repartidores.
+            if ($salida->fresh()->estado === DeliverySalida::ESTADO_FINALIZADA) {
+                $this->cerrarVuelta();
+            }
         }
     }
 
@@ -2296,7 +2448,7 @@ class PedidosDelivery extends Component
             'alertaAmarillaMin' => (int) ($sucursalPanel->pedido_alerta_amarilla_min ?? 0),
             'alertaRojaMin' => (int) ($sucursalPanel->pedido_alerta_roja_min ?? 0),
             'transicionesKanban' => $transicionesKanban,
-            'estadosKanban' => self::ESTADOS_KANBAN,
+            'estadosKanban' => $this->estadosKanbanVisibles($pedidosKanban),
             'pedidoDetalle' => $pedidoDetalle,
             'estadosPedido' => PedidoDelivery::ESTADOS,
             'estadosPago' => PedidoDelivery::ESTADOS_PAGO,

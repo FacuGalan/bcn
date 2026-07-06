@@ -99,6 +99,7 @@ class Sucursal extends Model
         // Operatoria
         'exigir_repartidor' => true,         // listo → en_camino exige repartidor
         'takeaway_habilitado' => true,
+        'usa_estado_listo' => true,          // OFF: columna Listo oculta; preparación pasa directo a envío/retiro
         // Pedidos externos (tienda/API, D14)
         'aceptacion_pedidos_externos' => 'manual',  // manual | automatica
         'imprimir_comanda_al_aceptar' => false,

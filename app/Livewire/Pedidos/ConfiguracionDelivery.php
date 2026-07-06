@@ -47,6 +47,13 @@ class ConfiguracionDelivery extends Component
 
     public bool $exigirRepartidor = true;
 
+    /**
+     * OFF: la columna "Listo" se oculta del kanban y de preparación se pasa
+     * directo a en camino (delivery) / entregado (take-away). Aunque esté ON,
+     * "listo" nunca bloquea: se puede despachar desde preparación igual.
+     */
+    public bool $usaEstadoListo = true;
+
     public bool $takeawayHabilitado = true;
 
     public string $aceptacionPedidosExternos = 'manual';
@@ -163,6 +170,7 @@ class ConfiguracionDelivery extends Component
         $this->kmIncluidosEnBase = (string) $config['km_incluidos_en_base'];
         $this->conceptoCategoriaEnvioId = $config['concepto_categoria_envio_id'] !== null ? (string) $config['concepto_categoria_envio_id'] : '';
         $this->exigirRepartidor = (bool) $config['exigir_repartidor'];
+        $this->usaEstadoListo = (bool) ($config['usa_estado_listo'] ?? true);
         $this->takeawayHabilitado = (bool) $config['takeaway_habilitado'];
         $this->aceptacionPedidosExternos = (string) $config['aceptacion_pedidos_externos'];
         $this->imprimirComandaAlAceptar = (bool) $config['imprimir_comanda_al_aceptar'];
@@ -224,6 +232,7 @@ class ConfiguracionDelivery extends Component
             'km_incluidos_en_base' => round((float) $this->kmIncluidosEnBase, 2),
             'concepto_categoria_envio_id' => $this->conceptoCategoriaEnvioId !== '' ? (int) $this->conceptoCategoriaEnvioId : null,
             'exigir_repartidor' => $this->exigirRepartidor,
+            'usa_estado_listo' => $this->usaEstadoListo,
             'takeaway_habilitado' => $this->takeawayHabilitado,
             'aceptacion_pedidos_externos' => in_array($this->aceptacionPedidosExternos, ['manual', 'automatica'], true)
                 ? $this->aceptacionPedidosExternos

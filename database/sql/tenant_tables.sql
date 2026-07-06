@@ -2727,7 +2727,7 @@ DROP TABLE IF EXISTS `{{PREFIX}}repartidor_fondo_movimientos`;
 CREATE TABLE `{{PREFIX}}repartidor_fondo_movimientos` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `fondo_id` bigint unsigned NOT NULL,
-  `tipo` enum('entrega_inicial','refuerzo','cobro_pedido','vuelto','liquidacion_envios','rendicion','ajuste') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tipo` enum('entrega_inicial','refuerzo','cobro_pedido','vuelto','liquidacion_envios','devolucion','rendicion','ajuste') COLLATE utf8mb4_unicode_ci NOT NULL,
   `monto` decimal(12,2) NOT NULL COMMENT 'Con signo segun tipo (append-only, sin updates)',
   `pedido_id` bigint unsigned DEFAULT NULL COMMENT 'FK pedidos_delivery (cobros/vueltos)',
   `movimiento_caja_id` bigint unsigned DEFAULT NULL COMMENT 'Egreso/ingreso de caja vinculado (apertura/refuerzo/rendicion)',

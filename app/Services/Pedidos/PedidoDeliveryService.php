@@ -551,8 +551,10 @@ class PedidoDeliveryService
     /**
      * Cambia el estado validando la máquina de transiciones + reglas delivery:
      * - `en_camino` SOLO para tipo delivery (RF-03).
-     * - listo → en_camino exige repartidor asignado si la sucursal lo pide
+     * - pasar a en_camino exige repartidor asignado si la sucursal lo pide
      *   (`exigir_repartidor`, default true).
+     * - "listo" no es paso obligado: al saltarlo (despacho/entrega directa
+     *   desde confirmado/en_preparacion) se backfillea listo_at.
      *
      * NOTA: el pase manual listo → en_camino desde acá NO registra salida;
      * RepartidorService::despacharPedido es el camino canónico (crea y
@@ -600,6 +602,13 @@ class PedidoDeliveryService
             $update = ['estado_pedido' => $nuevoEstado];
             if ($timestampField) {
                 $update[$timestampField] = now();
+            }
+
+            // Salto de "listo" (usa_estado_listo OFF o despacho directo desde
+            // preparación): backfill de listo_at para el reporte de tiempos.
+            if (in_array($nuevoEstado, [PedidoDelivery::ESTADO_EN_CAMINO, PedidoDelivery::ESTADO_ENTREGADO], true)
+                && ! $pedido->listo_at) {
+                $update['listo_at'] = now();
             }
             if ($observacion !== null && $observacion !== '') {
                 $update['observaciones'] = trim(($pedido->observaciones ?? '')."\n[{$nuevoEstado}] {$observacion}");

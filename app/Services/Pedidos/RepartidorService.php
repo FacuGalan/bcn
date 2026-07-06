@@ -46,7 +46,8 @@ class RepartidorService
     // ==================== SALIDAS (RF-08) ====================
 
     /**
-     * Crea una salida en estado `armando` agrupando pedidos `listo` de un
+     * Crea una salida en estado `armando` agrupando pedidos despachables
+     * (confirmado/en_preparacion/listo — "listo" no es paso obligado) de un
      * repartidor. Los pedidos quedan apuntando a la salida ACTUAL
      * (pedidos_delivery.salida_id) y el repartidor de la salida pisa la
      * asignación previa del pedido (reasignación libre hasta `listo`).
@@ -140,8 +141,8 @@ class RepartidorService
 
         return DB::connection('pymes_tenant')->transaction(function () use ($salida, $pedidos) {
             foreach ($pedidos as $pedido) {
-                if ($pedido->estado_pedido !== PedidoDelivery::ESTADO_LISTO) {
-                    throw new Exception("El pedido #{$pedido->numero} no está listo (estado '{$pedido->estado_pedido}')");
+                if (! in_array($pedido->estado_pedido, PedidoDelivery::ESTADOS_DESPACHABLES, true)) {
+                    throw new Exception("El pedido #{$pedido->numero} no está despachable (estado '{$pedido->estado_pedido}')");
                 }
 
                 $this->pedidoService->cambiarEstado($pedido, PedidoDelivery::ESTADO_EN_CAMINO);
@@ -209,13 +210,25 @@ class RepartidorService
      * individual y en try/catch: un pedido que no puede facturarse (p. ej. sin
      * caja) queda `entregado` en cola "por facturar" sin romper la vuelta.
      * `$cajaConversionId` es la caja de quien registra la vuelta, usada para
-     * convertir pedidos sin caja propia (tienda/API).
+     * convertir pedidos sin caja propia (tienda/API) y como caja default del
+     * balanceo del fondo.
+     *
+     * `$rendicion` (opcional) = balanceo del fondo en la misma vuelta:
+     * ['modo' => 'nada'|'devolver'|'cerrar'|'reforzar', 'monto' => float,
+     *  'caja_id' => ?int (default $cajaConversionId)].
+     * - devolver: devolución PARCIAL a caja, el fondo sigue abierto (D4).
+     * - cerrar: rendición definitiva (rendirFondo — acá sí hay diferencia).
+     * - reforzar: se lleva MÁS cambio (egreso de caja; sin fondo lo abre).
+     * Corre POST-vuelta: si falla, la vuelta ya quedó registrada (el mensaje
+     * de error lo aclara) y el fondo se balancea después desde Repartidores.
      */
-    public function registrarVuelta(DeliverySalida $salida, array $resultados, ?int $cajaConversionId = null, ?int $usuarioId = null): DeliverySalida
+    public function registrarVuelta(DeliverySalida $salida, array $resultados, ?int $cajaConversionId = null, ?int $usuarioId = null, ?array $rendicion = null): DeliverySalida
     {
         if ($salida->estado !== DeliverySalida::ESTADO_EN_CAMINO) {
             throw new Exception("Solo se puede registrar la vuelta de una salida en camino (estado '{$salida->estado}')");
         }
+
+        $rendicion = $this->validarRendicionDeVuelta($rendicion, $cajaConversionId);
 
         $pendientes = $salida->salidaPedidos()
             ->where('resultado', DeliverySalidaPedido::RESULTADO_PENDIENTE)
@@ -234,7 +247,7 @@ class RepartidorService
 
         $entregadosIds = [];
 
-        DB::connection('pymes_tenant')->transaction(function () use ($salida, $resultados, $pendientes, $usuarioId, &$entregadosIds) {
+        DB::connection('pymes_tenant')->transaction(function () use ($salida, $resultados, $pendientes, $cajaConversionId, $usuarioId, &$entregadosIds) {
             foreach ($pendientes as $sp) {
                 $pedido = $sp->pedido;
                 $res = $resultados[$pedido->id];
@@ -242,7 +255,7 @@ class RepartidorService
                 if ($res['resultado'] === DeliverySalidaPedido::RESULTADO_ENTREGADO) {
                     // 1. Cobros ANTES de entregar (guard de conversión).
                     foreach ($res['cobros'] ?? [] as $cobro) {
-                        $this->registrarCobroDeVuelta($salida, $pedido, $cobro, $usuarioId);
+                        $this->registrarCobroDeVuelta($salida, $pedido, $cobro, $usuarioId, $cajaConversionId);
                     }
 
                     $sp->update(['resultado' => DeliverySalidaPedido::RESULTADO_ENTREGADO]);
@@ -275,6 +288,16 @@ class RepartidorService
                 'estado' => DeliverySalida::ESTADO_FINALIZADA,
                 'vuelta_at' => now(),
             ]);
+
+            // Liquidación de envíos de terceros de los pedidos entregados de
+            // ESTA salida (D3): el saldo del fondo queda honesto vuelta a
+            // vuelta; rendirFondo barre después solo los que falten.
+            if (! empty($entregadosIds)) {
+                $fondo = $salida->repartidor()->first()?->fondoAbierto((int) $salida->sucursal_id);
+                if ($fondo) {
+                    $this->liquidarEnviosDeTerceros($fondo, $usuarioId ?: ((int) auth()->id() ?: 0), $entregadosIds);
+                }
+            }
         });
 
         Log::info('Vuelta de reparto registrada', [
@@ -303,7 +326,88 @@ class RepartidorService
             }
         }
 
+        if ($rendicion) {
+            $this->ejecutarRendicionDeVuelta($salida, $rendicion, $usuarioId);
+        }
+
         return $salida->fresh();
+    }
+
+    /**
+     * Normaliza y pre-valida el balanceo del fondo pedido en la vuelta, ANTES
+     * de tocar nada (que un error obvio de caja no deje la vuelta a medias).
+     */
+    protected function validarRendicionDeVuelta(?array $rendicion, ?int $cajaFallbackId): ?array
+    {
+        $modo = $rendicion['modo'] ?? 'nada';
+
+        if (! $rendicion || $modo === 'nada') {
+            return null;
+        }
+
+        if (! in_array($modo, ['devolver', 'cerrar', 'reforzar'], true)) {
+            throw new Exception("Modo de rendición desconocido: '{$modo}'");
+        }
+
+        $monto = round((float) ($rendicion['monto'] ?? 0), 2);
+
+        if ($monto < 0) {
+            throw new Exception('El monto de la rendición no puede ser negativo');
+        }
+
+        if ($monto <= 0 && $modo !== 'cerrar') {
+            throw new Exception('Indicar el monto a '.($modo === 'reforzar' ? 'reforzar' : 'devolver'));
+        }
+
+        $cajaId = (int) ($rendicion['caja_id'] ?? 0) ?: (int) $cajaFallbackId;
+
+        if (! $cajaId) {
+            throw new Exception('Se necesita una caja para mover el efectivo del fondo');
+        }
+
+        $caja = Caja::findOrFail($cajaId);
+
+        if ($monto > 0 && ! $caja->estaAbierta()) {
+            throw new Exception('La caja debe estar abierta para el movimiento del fondo');
+        }
+
+        return ['modo' => $modo, 'monto' => $monto, 'caja_id' => $cajaId];
+    }
+
+    /**
+     * Ejecuta el balanceo del fondo POST-vuelta. La vuelta ya está commiteada:
+     * un fallo acá no la revierte (el mensaje lo aclara) y el fondo puede
+     * balancearse después desde la pantalla Repartidores.
+     */
+    protected function ejecutarRendicionDeVuelta(DeliverySalida $salida, array $rendicion, ?int $usuarioId): void
+    {
+        try {
+            $repartidor = $salida->repartidor()->first();
+            $fondo = $repartidor?->fondoAbierto((int) $salida->sucursal_id);
+            $detalle = "Vuelta de reparto (salida #{$salida->id})";
+
+            if ($rendicion['modo'] === 'reforzar') {
+                if ($fondo) {
+                    $this->reforzarFondo($fondo, $rendicion['monto'], $rendicion['caja_id'], $usuarioId, $detalle);
+                } else {
+                    $this->abrirFondo((int) $salida->repartidor_id, (int) $salida->sucursal_id, $rendicion['caja_id'], $rendicion['monto'], $usuarioId, $detalle);
+                }
+
+                return;
+            }
+
+            if (! $fondo) {
+                throw new Exception('El repartidor no tiene un fondo abierto en esta sucursal');
+            }
+
+            if ($rendicion['modo'] === 'devolver') {
+                $this->devolverACaja($fondo, $rendicion['monto'], $rendicion['caja_id'], $usuarioId, $detalle);
+            } else {
+                $this->rendirFondo($fondo, $rendicion['monto'], $rendicion['caja_id'], $usuarioId, $detalle);
+            }
+        } catch (Exception $e) {
+            throw new Exception(__('La vuelta quedó registrada, pero el movimiento del fondo falló: :error', ['error' => $e->getMessage()]));
+        }
     }
 
     /**
@@ -314,8 +418,12 @@ class RepartidorService
      * (el neto es el monto del pago, y el fondo refleja el arqueo físico).
      *
      * Camino compartido por la vuelta y por el cobro manual desde el panel.
+     *
+     * `$cajaAutoAperturaId`: si el repartidor NO tiene fondo abierto, se abre
+     * uno en $0 contra esa caja (informacional: con $0 no hay MovimientoCaja)
+     * para que el cobro no se corte. Sin caja de contexto, error como antes.
      */
-    public function confirmarCobroContraEntrega(PedidoDeliveryPago $pago, array $datosCobro = [], ?int $usuarioId = null): PedidoDeliveryPago
+    public function confirmarCobroContraEntrega(PedidoDeliveryPago $pago, array $datosCobro = [], ?int $usuarioId = null, ?int $cajaAutoAperturaId = null): PedidoDeliveryPago
     {
         if (! $pago->esPlanificado()) {
             throw new Exception("Solo se pueden confirmar al fondo pagos planificados (actual: '{$pago->estado}')");
@@ -333,6 +441,17 @@ class RepartidorService
 
         $repartidor = Repartidor::findOrFail($pedido->repartidor_id);
         $fondo = $repartidor->fondoAbierto((int) $pedido->sucursal_id);
+
+        if (! $fondo && $cajaAutoAperturaId) {
+            $fondo = $this->abrirFondo(
+                repartidorId: (int) $repartidor->id,
+                sucursalId: (int) $pedido->sucursal_id,
+                cajaOrigenId: $cajaAutoAperturaId,
+                monto: 0,
+                usuarioId: $usuarioId,
+                detalle: 'Apertura automática al cobrar contra entrega',
+            );
+        }
 
         if (! $fondo) {
             throw new Exception("El repartidor {$repartidor->nombre} no tiene un fondo abierto en esta sucursal: abrir uno antes de registrar cobros en efectivo");
@@ -614,6 +733,70 @@ class RepartidorService
     }
 
     /**
+     * Devolución PARCIAL del fondo a caja (vuelta del repartidor): ingreso a
+     * la caja receptora + movimiento `devolucion` negativo, el fondo SIGUE
+     * ABIERTO (ciclo largo, D4). Sin control de diferencia: el arqueo contra
+     * el saldo teórico es exclusivo del cierre definitivo (rendirFondo).
+     */
+    public function devolverACaja(RepartidorFondo $fondo, float $monto, int $cajaId, ?int $usuarioId = null, ?string $detalle = null): RepartidorFondo
+    {
+        if ($monto <= 0) {
+            throw new Exception('La devolución debe ser mayor a cero');
+        }
+
+        $caja = Caja::findOrFail($cajaId);
+
+        if (! $caja->estaAbierta()) {
+            throw new Exception('La caja receptora debe estar abierta para recibir la devolución');
+        }
+
+        return DB::connection('pymes_tenant')->transaction(function () use ($fondo, $monto, $caja, $usuarioId, $detalle) {
+            $fondo = RepartidorFondo::with('repartidor')->lockForUpdate()->findOrFail($fondo->id);
+
+            if (! $fondo->estaAbierto()) {
+                throw new Exception('El fondo ya fue rendido');
+            }
+
+            $monto = round($monto, 2);
+            $saldoTeorico = $this->saldoTeorico($fondo);
+
+            if ($monto > $saldoTeorico + 0.005) {
+                throw new Exception(sprintf('La devolución ($%.2f) supera el saldo del fondo ($%.2f) — para cerrar con faltante usar la rendición', $monto, $saldoTeorico));
+            }
+
+            $usuarioId = $usuarioId ?: ((int) auth()->id() ?: 0);
+
+            $movimientoCaja = MovimientoCaja::create([
+                'caja_id' => $caja->id,
+                'tipo' => MovimientoCaja::TIPO_INGRESO,
+                'concepto' => "Devolución fondo repartidor {$fondo->repartidor->nombre}".($detalle ? " — {$detalle}" : ''),
+                'monto' => $monto,
+                'usuario_id' => $usuarioId,
+                'referencia_tipo' => MovimientoCaja::REF_FONDO_REPARTIDOR,
+                'referencia_id' => $fondo->id,
+            ]);
+            $caja->aumentarSaldo($monto);
+
+            RepartidorFondoMovimiento::create([
+                'fondo_id' => $fondo->id,
+                'tipo' => RepartidorFondoMovimiento::TIPO_DEVOLUCION,
+                'monto' => -$monto,
+                'movimiento_caja_id' => $movimientoCaja->id,
+                'usuario_id' => $usuarioId,
+                'detalle' => $detalle ?: 'Devolución a caja en la vuelta',
+            ]);
+
+            Log::info('Devolución parcial de fondo de repartidor', [
+                'fondo_id' => $fondo->id,
+                'monto' => $monto,
+                'caja_id' => $caja->id,
+            ]);
+
+            return $fondo->fresh();
+        });
+    }
+
+    /**
      * Saldo teórico de un fondo (suma de movimientos append-only).
      */
     public function saldoTeorico(RepartidorFondo $fondo): float
@@ -686,8 +869,8 @@ class RepartidorService
     }
 
     /**
-     * Valida y vincula pedidos a una salida: estado listo, tipo delivery,
-     * misma sucursal y sin otra salida actual. Pisa el repartidor del pedido
+     * Valida y vincula pedidos a una salida: estado despachable, tipo
+     * delivery, misma sucursal y sin otra salida actual. Pisa el repartidor del pedido
      * con el de la salida y crea la fila del pivot (resultado pendiente).
      */
     protected function attachPedidosASalida(DeliverySalida $salida, array $pedidoIds): void
@@ -703,8 +886,8 @@ class RepartidorService
                 throw new Exception("El pedido #{$pedido->numero} es de otra sucursal");
             }
 
-            if ($pedido->estado_pedido !== PedidoDelivery::ESTADO_LISTO) {
-                throw new Exception("El pedido #{$pedido->numero} no está listo (estado '{$pedido->estado_pedido}')");
+            if (! in_array($pedido->estado_pedido, PedidoDelivery::ESTADOS_DESPACHABLES, true)) {
+                throw new Exception("El pedido #{$pedido->numero} no está despachable (estado '{$pedido->estado_pedido}')");
             }
 
             if ($pedido->salida_id && (int) $pedido->salida_id !== (int) $salida->id) {
@@ -732,7 +915,7 @@ class RepartidorService
      * Rutea un cobro de la vuelta: efectivo → fondo (D13); no-efectivo →
      * confirmación normal (MovimientoCaja si el pedido tiene caja).
      */
-    protected function registrarCobroDeVuelta(DeliverySalida $salida, PedidoDelivery $pedido, array $cobro, ?int $usuarioId): void
+    protected function registrarCobroDeVuelta(DeliverySalida $salida, PedidoDelivery $pedido, array $cobro, ?int $usuarioId, ?int $cajaAutoAperturaId = null): void
     {
         $pago = PedidoDeliveryPago::findOrFail($cobro['pago_id']);
 
@@ -744,7 +927,7 @@ class RepartidorService
             $this->confirmarCobroContraEntrega($pago, [
                 'monto_recibido' => $cobro['monto_recibido'] ?? null,
                 'referencia' => $cobro['referencia'] ?? null,
-            ], $usuarioId);
+            ], $usuarioId, $cajaAutoAperturaId);
 
             return;
         }
@@ -788,7 +971,7 @@ class RepartidorService
      * costos de envío de sus pedidos entregados durante la vida del fondo
      * (movimiento liquidacion_envios, explícito en el detalle).
      */
-    protected function liquidarEnviosDeTerceros(RepartidorFondo $fondo, int $usuarioId): void
+    protected function liquidarEnviosDeTerceros(RepartidorFondo $fondo, int $usuarioId, ?array $soloPedidoIds = null): void
     {
         $repartidor = $fondo->repartidor;
 
@@ -796,25 +979,34 @@ class RepartidorService
             return;
         }
 
-        $pedidos = PedidoDelivery::where('repartidor_id', $repartidor->id)
+        $query = PedidoDelivery::where('repartidor_id', $repartidor->id)
             ->where('sucursal_id', $fondo->sucursal_id)
             ->whereIn('estado_pedido', [PedidoDelivery::ESTADO_ENTREGADO, PedidoDelivery::ESTADO_FACTURADO])
             ->where('entregado_at', '>=', $fondo->abierto_at)
-            ->where('costo_envio', '>', 0)
-            ->get(['id', 'costo_envio']);
+            ->where('costo_envio', '>', 0);
 
-        $total = round((float) $pedidos->sum('costo_envio'), 2);
-
-        if ($total <= 0.005) {
-            return;
+        if ($soloPedidoIds !== null) {
+            $query->whereIn('id', $soloPedidoIds);
         }
 
-        RepartidorFondoMovimiento::create([
-            'fondo_id' => $fondo->id,
-            'tipo' => RepartidorFondoMovimiento::TIPO_LIQUIDACION_ENVIOS,
-            'monto' => -$total,
-            'usuario_id' => $usuarioId,
-            'detalle' => "Liquidación de {$pedidos->count()} envío(s) al repartidor (pedidos ".$pedidos->pluck('id')->implode(', ').')',
-        ]);
+        // Idempotencia: cada envío se liquida UNA sola vez (un movimiento por
+        // pedido con pedido_id) — la vuelta liquida los de su salida y
+        // rendirFondo barre después solo los que falten.
+        $yaLiquidados = RepartidorFondoMovimiento::where('tipo', RepartidorFondoMovimiento::TIPO_LIQUIDACION_ENVIOS)
+            ->whereNotNull('pedido_id')
+            ->pluck('pedido_id');
+
+        $pedidos = $query->whereNotIn('id', $yaLiquidados)->get(['id', 'costo_envio']);
+
+        foreach ($pedidos as $pedido) {
+            RepartidorFondoMovimiento::create([
+                'fondo_id' => $fondo->id,
+                'tipo' => RepartidorFondoMovimiento::TIPO_LIQUIDACION_ENVIOS,
+                'monto' => -round((float) $pedido->costo_envio, 2),
+                'pedido_id' => $pedido->id,
+                'usuario_id' => $usuarioId,
+                'detalle' => "Envío del pedido delivery #{$pedido->id} liquidado al repartidor",
+            ]);
+        }
     }
 }
