@@ -206,6 +206,15 @@ class NuevoPedidoDelivery extends Component
     /** Botón de demora elegido por el operador (modo manual). */
     public ?int $demoraSeleccionadaMin = null;
 
+    /** Franjas de HOY para el modo franjas: [['iso' => 'Y-m-d H:i:s', 'label' => 'H:i'], ...]. */
+    public array $franjasDisponibles = [];
+
+    /** Franja elegida (ISO) o 'asap' = Lo antes posible (hora_pactada null). */
+    public ?string $franjaSeleccionada = null;
+
+    /** La sucursal ofrece "Lo antes posible" en modo franjas. */
+    public bool $aceptaLoAntesPosible = true;
+
     /** Demora estimada de la última cotización (modo automática, delivery). */
     public ?int $demoraEstimadaMin = null;
 
@@ -664,12 +673,19 @@ class NuevoPedidoDelivery extends Component
         $this->takeawayHabilitado = (bool) ($config['takeaway_habilitado'] ?? true);
         $this->georreferenciarPedidos = (bool) ($config['georreferenciar_pedidos'] ?? false);
 
-        // Promesa de entrega (RF-15 core): 'franjas' está diferido a Fase 8 →
-        // cae a manual. Los botones alimentan el selector inline del alta.
+        // Promesa de entrega (RF-15): manual (botones), automática (por km) o
+        // franjas (horarios fijos + "Lo antes posible"; cupos = Fase 8).
         $modo = (string) ($config['modo_promesa'] ?? 'manual');
-        $this->modoPromesa = $modo === 'automatica' ? 'automatica' : 'manual';
+        $this->modoPromesa = in_array($modo, ['automatica', 'franjas'], true) ? $modo : 'manual';
         $this->botonesDemora = array_values(array_map('intval', (array) ($config['botones_demora'] ?? [])));
         $this->demoraBaseMin = (int) ($config['demora_base_min'] ?? 15);
+        $this->aceptaLoAntesPosible = (bool) ($config['acepta_lo_antes_posible'] ?? true);
+        $this->franjasDisponibles = $this->modoPromesa === 'franjas'
+            ? array_map(
+                fn ($slot) => ['iso' => $slot->toDateTimeString(), 'label' => $slot->format('H:i')],
+                $this->envioService->franjasDisponibles($sucursal),
+            )
+            : [];
 
         // Si el take-away está deshabilitado y el tipo actual es take_away,
         // volver a delivery (y viceversa cuando la sucursal no usa delivery).
@@ -902,12 +918,33 @@ class NuevoPedidoDelivery extends Component
     }
 
     /**
+     * Franja del alta (modo franjas): ISO del horario elegido o 'asap' para
+     * "Lo antes posible". Click sobre la ya elegida la des-selecciona.
+     */
+    public function seleccionarFranja(string $valor): void
+    {
+        $this->franjaSeleccionada = $this->franjaSeleccionada === $valor ? null : $valor;
+    }
+
+    /**
      * Promesa estimada para MOSTRAR en el alta (la definitiva se resuelve al
      * persistir, ver resolverHoraPactada). En automática: demora cotizada por
      * km (delivery) o demora base (take-away). En manual: el botón elegido.
+     * En franjas: el horario elegido (asap = null, la UI muestra el label).
      */
     public function getHoraPactadaEstimadaProperty(): ?\Carbon\Carbon
     {
+        if ($this->modoPromesa === 'franjas') {
+            if ($this->franjaSeleccionada && $this->franjaSeleccionada !== 'asap') {
+                return \Carbon\Carbon::parse($this->franjaSeleccionada);
+            }
+            if ($this->franjaSeleccionada === null && $this->modoEdicion && $this->horaPactadaExistente) {
+                return \Carbon\Carbon::parse($this->horaPactadaExistente);
+            }
+
+            return null;
+        }
+
         if ($this->demoraSeleccionadaMin !== null) {
             return now()->addMinutes($this->demoraSeleccionadaMin);
         }
@@ -929,6 +966,8 @@ class NuevoPedidoDelivery extends Component
 
     /**
      * hora_pactada_at que va al service al persistir:
+     * - Franjas: horario elegido; 'asap' → null (Lo antes posible); sin
+     *   elección en edición → preserva.
      * - Botón manual elegido → now + demora (alta o edición, pisa lo anterior).
      * - Edición sin cambio → preserva la promesa existente.
      * - Automática → now + demora cotizada (delivery) / demora base (take-away).
@@ -936,6 +975,17 @@ class NuevoPedidoDelivery extends Component
      */
     protected function resolverHoraPactada(): ?string
     {
+        if ($this->modoPromesa === 'franjas') {
+            if ($this->franjaSeleccionada === 'asap') {
+                return null;
+            }
+            if ($this->franjaSeleccionada) {
+                return $this->franjaSeleccionada;
+            }
+
+            return $this->modoEdicion ? $this->horaPactadaExistente : null;
+        }
+
         if ($this->demoraSeleccionadaMin !== null) {
             return now()->addMinutes($this->demoraSeleccionadaMin)->toDateTimeString();
         }
@@ -1025,6 +1075,27 @@ class NuevoPedidoDelivery extends Component
         return $this->tipo === PedidoDelivery::TIPO_DELIVERY
             ? round(max(0, (float) $this->costoEnvio), 2)
             : 0.0;
+    }
+
+    /**
+     * Override del hook del trait WithPagosDesglose: el envío es un valor FIJO
+     * — el ajuste % de cada pago del desglose se calcula excluyendo la porción
+     * de envío en forma proporcional (cada pago cubre bienes y envío en la
+     * misma proporción). En cobro rápido el saldo no se puede descomponer.
+     */
+    protected function baseAjustePagoDesglose(float $montoBase): float
+    {
+        if ($this->modoCobroRapido) {
+            return $montoBase;
+        }
+
+        $total = (float) ($this->resultado['total_final'] ?? 0);
+        $envio = $this->montoEnvioVigente();
+        if ($total <= 0 || $envio <= 0) {
+            return $montoBase;
+        }
+
+        return round($montoBase * (($total - $envio) / $total), 2);
     }
 
     protected function cargarListasPrecios(): void
@@ -2425,8 +2496,15 @@ class NuevoPedidoDelivery extends Component
         }
 
         $totalBase = $this->resultado['total_final'] ?? 0;
+        // El envío es un valor FIJO: queda fuera del ajuste por forma de pago
+        // y del recargo de cuotas, igual que de descuentos/promos/puntos (D17).
+        // Ej: efectivo -10% sobre $1000 de productos + $500 de envío = $1400.
+        // En cobro rápido el saldo no se puede descomponer → base completa.
+        $baseAjuste = $this->modoCobroRapido
+            ? (float) $totalBase
+            : max(0, round((float) $totalBase - $this->montoEnvioVigente(), 2));
         $ajustePorcentaje = $fp['ajuste_porcentaje'] ?? 0;
-        $montoAjuste = round($totalBase * ($ajustePorcentaje / 100), 2) + 0;
+        $montoAjuste = round($baseAjuste * ($ajustePorcentaje / 100), 2) + 0;
         $totalConAjuste = round($totalBase + $montoAjuste, 2) + 0;
 
         $cantidadCuotas = 1;
@@ -2439,7 +2517,7 @@ class NuevoPedidoDelivery extends Component
             if ($cuotaInfo) {
                 $cantidadCuotas = $cuotaInfo['cantidad_cuotas'];
                 $recargoCuotasPorcentaje = $cuotaInfo['recargo_porcentaje'];
-                $recargoCuotasMonto = round($totalConAjuste * ($recargoCuotasPorcentaje / 100), 2);
+                $recargoCuotasMonto = round(($baseAjuste + $montoAjuste) * ($recargoCuotasPorcentaje / 100), 2);
                 $totalConAjuste = round($totalConAjuste + $recargoCuotasMonto, 2);
                 $valorCuota = $cantidadCuotas > 0 ? round($totalConAjuste / $cantidadCuotas, 2) : $totalConAjuste;
                 $this->infoCuotaSeleccionada = [

@@ -191,6 +191,7 @@
                     class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm">
                     <option value="manual">{{ __('Manual (botones de demora)') }}</option>
                     <option value="automatica">{{ __('Automática por distancia') }}</option>
+                    <option value="franjas">{{ __('Horarios fijos (franjas)') }}</option>
                 </select>
             </div>
             @if($modoPromesa === 'automatica')
@@ -204,6 +205,22 @@
                     <input id="cd-demora-km" type="number" min="0" step="0.5" wire:model="demoraMinPorKm"
                         class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
                 </div>
+            @elseif($modoPromesa === 'franjas')
+                <div>
+                    <label for="cd-franjas-intervalo" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Intervalo entre horarios (min)') }}</label>
+                    <input id="cd-franjas-intervalo" type="number" min="5" step="5" wire:model="franjasIntervaloMin"
+                        class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
+                </div>
+                <div class="flex items-end pb-1.5">
+                    <label class="inline-flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" wire:model="aceptaLoAntesPosible"
+                            class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                        <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Aceptar "Lo antes posible"') }}</span>
+                    </label>
+                </div>
+                <p class="sm:col-span-3 text-[11px] text-gray-500 dark:text-gray-400 -mt-1">
+                    {{ __('Los horarios se generan desde el calendario de atención (ej. cada 30 min: 10:00, 10:30, 11:00...). Sin horarios cargados se ofrece todo el día.') }}
+                </p>
             @else
                 <div class="sm:col-span-2">
                     <label for="cd-botones" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Botones de demora (min, separados por coma)') }}</label>

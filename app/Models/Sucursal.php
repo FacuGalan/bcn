@@ -107,13 +107,17 @@ class Sucursal extends Model
         'horarios_atencion' => null,         // null = siempre; [{dias:[1..7], desde:'19:00', hasta:'23:30'}]
         'feriados' => [],                    // fechas 'Y-m-d' sin atención
         'dias_laborales' => [1, 2, 3, 4, 5, 6, 7],
-        // Promesa de entrega (RF-15; 'franjas' es Fase 8)
+        // Promesa de entrega (RF-15)
         'modo_promesa' => 'manual',          // franjas | automatica | manual
         'demora_base_min' => 15,             // modo automática
         'demora_min_por_km' => 4,            // modo automática
         'usar_maps_para_demora' => false,    // Routes API (Fase 8)
         'botones_demora' => [0, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 90], // modo manual
-        'franjas' => [],                     // [{desde, hasta, cupo_delivery, cupo_takeaway}] (Fase 8)
+        // Modo franjas: horarios fijos generados desde horarios_atencion cada
+        // `franjas_intervalo_min`. Los CUPOS por franja quedan para Fase 8.
+        'franjas_intervalo_min' => 30,
+        'acepta_lo_antes_posible' => true,   // ofrece "Lo antes posible" (hora_pactada null)
+        'franjas' => [],                     // [{desde, hasta, cupo_delivery, cupo_takeaway}] (Fase 8: cupos)
         // Pedidos programados (Fase 8, flag maestro OFF)
         'acepta_programados' => false,
         'programados_aparecen_min_antes' => 60,

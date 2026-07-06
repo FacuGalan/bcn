@@ -869,97 +869,102 @@
                                     </div>
                                     {{-- Fila 2b: badges delivery (tipo, dirección, repartidor, zona, envío, origen) --}}
                                     @include('livewire.pedidos._badges-delivery', ['pedido' => $pedido, 'class' => 'mt-1'])
-                                    {{-- Fila 3: acciones (izq) + monto (der) en un solo footer --}}
+                                    {{-- Fila 3: acciones en un solo botón desplegable (izq) + monto (der).
+                                         El menú va con position:fixed para que el overflow de la
+                                         columna kanban no lo recorte; se cierra al scrollear/clickear fuera. --}}
                                     <div class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2"
                                         @mousedown.stop @touchstart.stop>
-                                        <div class="flex gap-1 flex-wrap">
-                                        @php $puedeEditar = ! in_array($pedido->estado_pedido, ['cancelado', 'facturado']) && $pedido->estado_pago === 'pendiente'; @endphp
-                                        @if($puedeEditar)
-                                            <button type="button" wire:click="abrirModalEditarPedido({{ $pedido->id }})"
-                                                class="inline-flex items-center px-2 py-1 border border-amber-300 dark:border-amber-600 rounded text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30"
-                                                title="{{ __('Editar pedido') }}">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        <div x-data="{ open: false, pos: { top: 0, left: 0 },
+                                                abrir() {
+                                                    const r = this.$refs.btn.getBoundingClientRect();
+                                                    const alto = 300;
+                                                    let top = r.bottom + 4;
+                                                    if (top + alto > window.innerHeight) { top = Math.max(8, r.top - alto - 4); }
+                                                    this.pos = { top, left: Math.min(window.innerWidth - 232, Math.max(8, r.left)) };
+                                                    this.open = true;
+                                                } }"
+                                            @click.outside="open = false" @wheel.window="open = false"
+                                            @touchmove.window="open = false" @keydown.escape.window="open = false">
+                                            <button type="button" x-ref="btn" @click="open ? open = false : abrir()"
+                                                class="inline-flex items-center gap-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                                title="{{ __('Acciones') }}">
+                                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
                                                 </svg>
+                                                {{ __('Acciones') }}
                                             </button>
-                                        @endif
-                                        <button type="button" wire:click="verDetalle({{ $pedido->id }})"
-                                            class="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
-                                            title="{{ __('Ver detalle') }}">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                            </svg>
-                                        </button>
-                                        @if(($pedido->total_planificado > 0 || $pedido->total_cobrado < $pedido->total_final - 0.005) && auth()->user()?->hasPermissionTo('func.pedidos_delivery.cobrar'))
-                                            <button type="button" wire:click="cobrarRapido({{ $pedido->id }})"
-                                                class="inline-flex items-center px-2 py-1 border border-green-300 dark:border-green-600 rounded text-xs text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30"
-                                                title="{{ $pedido->total_planificado > 0 ? __('Confirmar pagos planificados') : __('Abrir desglose de cobro') }}">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                            </button>
-                                        @endif
-                                        @if($pedido->estado_pedido !== 'borrador' && auth()->user()?->hasPermissionTo('func.pedidos_delivery.convertir_venta'))
-                                            <button type="button" wire:click="abrirConvertir({{ $pedido->id }})"
-                                                class="inline-flex items-center px-2 py-1 border border-bcn-primary rounded text-xs text-bcn-primary hover:bg-bcn-primary hover:text-white"
-                                                title="{{ __('Convertir en venta') }}">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                                                </svg>
-                                            </button>
-                                        @endif
-                                        @php
-                                            $estadoComandaK = $pedido->estado_comanda;
-                                            $comandarTooltipK = $estadoComandaK === 'comandado'
-                                                ? __('Reimprimir comanda')
-                                                : ($estadoComandaK === 'parcial' ? __('Comandar (hay items nuevos)') : __('Comandar pedido'));
-                                        @endphp
-                                        <button type="button" wire:click="comandarPedido({{ $pedido->id }})"
-                                            class="inline-flex items-center px-2 py-1 border border-blue-300 dark:border-blue-600 rounded text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30"
-                                            title="{{ $comandarTooltipK }}">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                                            </svg>
-                                        </button>
-                                        @if($pedido->tipo === 'delivery' && in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']) && auth()->user()?->hasPermissionTo('func.pedidos_delivery.repartidores'))
-                                            <button type="button" wire:click="abrirAsignarRepartidor({{ $pedido->id }})"
-                                                class="inline-flex items-center px-2 py-1 border rounded text-xs {{ $pedido->repartidor_id ? 'border-cyan-300 dark:border-cyan-600 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30' : 'border-orange-300 dark:border-orange-600 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/30' }}"
-                                                title="{{ $pedido->repartidor_id ? __('Cambiar repartidor') : __('Asignar repartidor') }}">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                                </svg>
-                                            </button>
-                                        @endif
-                                        @if($pedido->tipo === 'delivery' && $pedido->estado_pedido === 'listo')
-                                            <button type="button" wire:click="despachar({{ $pedido->id }})"
-                                                class="inline-flex items-center px-2 py-1 border border-cyan-400 dark:border-cyan-500 rounded text-xs bg-cyan-600 text-white hover:bg-cyan-700"
-                                                title="{{ __('Despachar (en camino)') }}">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
-                                                </svg>
-                                            </button>
-                                        @endif
-                                        @if($pedido->estado_pedido === 'en_camino' && $pedido->salida_id && auth()->user()?->hasPermissionTo('func.pedidos_delivery.repartidores'))
-                                            <button type="button" wire:click="abrirVuelta({{ $pedido->salida_id }})"
-                                                class="inline-flex items-center px-2 py-1 border border-emerald-400 dark:border-emerald-500 rounded text-xs bg-emerald-600 text-white hover:bg-emerald-700"
-                                                title="{{ __('Registrar vuelta') }}">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                                                </svg>
-                                            </button>
-                                        @endif
-                                        @if(auth()->user()?->hasPermissionTo('func.pedidos_delivery.cancelar'))
-                                            <button type="button" wire:click="abrirCancelar({{ $pedido->id }})"
-                                                class="inline-flex items-center px-2 py-1 border border-red-300 dark:border-red-600 rounded text-xs text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30"
-                                                title="{{ __('Cancelar pedido') }}">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
-                                            </button>
-                                        @endif
-                                        </div>{{-- /acciones --}}
+                                            <div x-show="open" x-cloak x-transition.opacity
+                                                class="fixed z-50 w-56 rounded-md bg-white dark:bg-gray-700 shadow-lg ring-1 ring-black ring-opacity-5 py-1"
+                                                :style="`top:${pos.top}px;left:${pos.left}px`">
+                                                @if($pedido->tipo === 'delivery' && $pedido->estado_pedido === 'listo')
+                                                    <button type="button" wire:click="despachar({{ $pedido->id }})" @click="open = false"
+                                                        class="flex w-full items-center px-3 py-2 text-xs font-semibold text-cyan-700 dark:text-cyan-300 hover:bg-gray-100 dark:hover:bg-gray-600">
+                                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>
+                                                        {{ __('Despachar (en camino)') }}
+                                                    </button>
+                                                @endif
+                                                @if($pedido->estado_pedido === 'en_camino' && $pedido->salida_id && auth()->user()?->hasPermissionTo('func.pedidos_delivery.repartidores'))
+                                                    <button type="button" wire:click="abrirVuelta({{ $pedido->salida_id }})" @click="open = false"
+                                                        class="flex w-full items-center px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-gray-100 dark:hover:bg-gray-600">
+                                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                                                        {{ __('Registrar vuelta') }}
+                                                    </button>
+                                                @endif
+                                                @if(($pedido->total_planificado > 0 || $pedido->total_cobrado < $pedido->total_final - 0.005) && auth()->user()?->hasPermissionTo('func.pedidos_delivery.cobrar'))
+                                                    <button type="button" wire:click="cobrarRapido({{ $pedido->id }})" @click="open = false"
+                                                        class="flex w-full items-center px-3 py-2 text-xs text-green-700 dark:text-green-300 hover:bg-gray-100 dark:hover:bg-gray-600">
+                                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                        {{ $pedido->total_planificado > 0 ? __('Confirmar pagos planificados') : __('Cobrar') }}
+                                                    </button>
+                                                @endif
+                                                @if($pedido->tipo === 'delivery' && in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']) && auth()->user()?->hasPermissionTo('func.pedidos_delivery.repartidores'))
+                                                    <button type="button" wire:click="abrirAsignarRepartidor({{ $pedido->id }})" @click="open = false"
+                                                        class="flex w-full items-center px-3 py-2 text-xs {{ $pedido->repartidor_id ? 'text-gray-700 dark:text-gray-200' : 'text-orange-700 dark:text-orange-300' }} hover:bg-gray-100 dark:hover:bg-gray-600">
+                                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                                        {{ $pedido->repartidor_id ? __('Cambiar repartidor') : __('Asignar repartidor') }}
+                                                    </button>
+                                                @endif
+                                                @php
+                                                    $puedeEditar = ! in_array($pedido->estado_pedido, ['cancelado', 'facturado']) && $pedido->estado_pago === 'pendiente';
+                                                    $estadoComandaK = $pedido->estado_comanda;
+                                                    $comandarLabelK = $estadoComandaK === 'comandado'
+                                                        ? __('Reimprimir comanda')
+                                                        : ($estadoComandaK === 'parcial' ? __('Comandar (hay items nuevos)') : __('Comandar pedido'));
+                                                @endphp
+                                                @if($puedeEditar)
+                                                    <button type="button" wire:click="abrirModalEditarPedido({{ $pedido->id }})" @click="open = false"
+                                                        class="flex w-full items-center px-3 py-2 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600">
+                                                        <svg class="w-4 h-4 mr-2 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                        {{ __('Editar pedido') }}
+                                                    </button>
+                                                @endif
+                                                <button type="button" wire:click="verDetalle({{ $pedido->id }})" @click="open = false"
+                                                    class="flex w-full items-center px-3 py-2 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600">
+                                                    <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                    {{ __('Ver detalle') }}
+                                                </button>
+                                                <button type="button" wire:click="comandarPedido({{ $pedido->id }})" @click="open = false"
+                                                    class="flex w-full items-center px-3 py-2 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600">
+                                                    <svg class="w-4 h-4 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                                    {{ $comandarLabelK }}
+                                                </button>
+                                                @if($pedido->estado_pedido !== 'borrador' && auth()->user()?->hasPermissionTo('func.pedidos_delivery.convertir_venta'))
+                                                    <button type="button" wire:click="abrirConvertir({{ $pedido->id }})" @click="open = false"
+                                                        class="flex w-full items-center px-3 py-2 text-xs text-bcn-primary hover:bg-gray-100 dark:hover:bg-gray-600">
+                                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                                                        {{ __('Convertir en venta') }}
+                                                    </button>
+                                                @endif
+                                                @if(auth()->user()?->hasPermissionTo('func.pedidos_delivery.cancelar'))
+                                                    <div class="my-1 border-t border-gray-100 dark:border-gray-600"></div>
+                                                    <button type="button" wire:click="abrirCancelar({{ $pedido->id }})" @click="open = false"
+                                                        class="flex w-full items-center px-3 py-2 text-xs text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30">
+                                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                        {{ __('Cancelar pedido') }}
+                                                    </button>
+                                                @endif
+                                            </div>
+                                        </div>{{-- /dropdown acciones --}}
                                         <span class="text-base font-bold text-bcn-primary whitespace-nowrap">
                                             ${{ number_format($pedido->total_final, 2, ',', '.') }}
                                         </span>
@@ -1832,7 +1837,28 @@
                         {{ __(\App\Models\PedidoDelivery::TIPOS[$aceptarInfo['tipo']] ?? $aceptarInfo['tipo']) }}
                         — <span class="font-bold">${{ number_format($aceptarInfo['total'], 2, ',', '.') }}</span>
                     </p>
-                    @if($aceptarInfo['modo_promesa_manual'])
+                    @if(($aceptarInfo['modo_promesa'] ?? 'manual') === 'franjas')
+                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('¿Para qué horario?') }}</p>
+                        @if(!empty($aceptarInfo['franjas']) || !empty($aceptarInfo['acepta_asap']))
+                            <div class="grid grid-cols-4 gap-1.5 max-h-48 overflow-y-auto">
+                                @if(!empty($aceptarInfo['acepta_asap']))
+                                    <button type="button" wire:click="confirmarAceptarFranja"
+                                        class="col-span-2 px-2 py-2 border border-emerald-300 dark:border-emerald-600 rounded-md text-sm font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white transition-colors">
+                                        {{ __('Lo antes posible') }}
+                                    </button>
+                                @endif
+                                @foreach($aceptarInfo['franjas'] as $franja)
+                                    <button type="button" wire:click="confirmarAceptarFranja('{{ $franja['iso'] }}')"
+                                        class="px-2 py-2 border border-emerald-300 dark:border-emerald-600 rounded-md text-sm font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white transition-colors">
+                                        {{ $franja['label'] }}
+                                    </button>
+                                @endforeach
+                            </div>
+                            <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('El horario fija la hora pactada y se informa al consumidor.') }}</p>
+                        @else
+                            <p class="text-sm text-orange-600 dark:text-orange-400">{{ __('Hoy no hay horarios disponibles (cerrado o feriado).') }}</p>
+                        @endif
+                    @elseif($aceptarInfo['modo_promesa_manual'])
                         <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('¿En cuántos minutos estará?') }}</p>
                         <div class="grid grid-cols-4 gap-1.5">
                             @foreach($aceptarInfo['botones_demora'] as $demora)
@@ -1853,12 +1879,12 @@
                     class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
                     {{ __('Cancelar') }}
                 </button>
-                @unless($aceptarInfo['modo_promesa_manual'])
+                @if(($aceptarInfo['modo_promesa'] ?? 'manual') === 'automatica')
                     <button type="button" wire:click="confirmarAceptar"
                         class="px-4 py-2 bg-emerald-600 rounded-md text-sm font-semibold text-white hover:bg-emerald-700">
                         {{ __('Aceptar pedido') }}
                     </button>
-                @endunless
+                @endif
             </x-slot:footer>
         </x-bcn-modal>
     @endif

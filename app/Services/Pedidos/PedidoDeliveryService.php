@@ -30,6 +30,7 @@ use App\Models\Venta;
 use App\Models\VentaPago;
 use App\Services\VentaService;
 use Exception;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -671,16 +672,21 @@ class PedidoDeliveryService
 
     /**
      * Acepta un pedido externo "por aceptar" (borrador con origen tienda/api):
-     * fija la promesa (botón de demora en modo manual; automática por km si
-     * no vino) y lo confirma (número, display, stock — si falta stock el
-     * service corta y el operador ajusta o rechaza). Con
-     * `imprimir_comanda_al_aceptar`, comanda en el acto.
+     * fija la promesa (botón de demora en modo manual, franja horaria exacta
+     * en modo franjas, o automática por km si no vino) y lo confirma (número,
+     * display, stock — si falta stock el service corta y el operador ajusta o
+     * rechaza). Con `imprimir_comanda_al_aceptar`, comanda en el acto.
+     * En modo franjas, "Lo antes posible" acepta sin hora ($horaPactada null
+     * y $demoraMin null → hora_pactada_at queda null).
      */
-    public function aceptarPedidoExterno(PedidoDelivery $pedido, ?int $demoraMin = null): void
+    public function aceptarPedidoExterno(PedidoDelivery $pedido, ?int $demoraMin = null, ?Carbon $horaPactada = null): void
     {
         $this->guardEsPedidoPorAceptar($pedido);
 
-        if ($demoraMin !== null && $demoraMin >= 0) {
+        if ($horaPactada !== null) {
+            $pedido->update(['hora_pactada_at' => $horaPactada]);
+            $pedido->refresh();
+        } elseif ($demoraMin !== null && $demoraMin >= 0) {
             $pedido->update(['hora_pactada_at' => now()->addMinutes($demoraMin)]);
             $pedido->refresh();
         }

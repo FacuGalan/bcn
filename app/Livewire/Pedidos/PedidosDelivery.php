@@ -1309,8 +1309,10 @@ class PedidosDelivery extends Component
             return;
         }
 
-        $config = app(\App\Services\Pedidos\DeliveryEnvioService::class)
-            ->configDelivery(\App\Models\Sucursal::findOrFail($pedido->sucursal_id));
+        $envioService = app(\App\Services\Pedidos\DeliveryEnvioService::class);
+        $sucursal = \App\Models\Sucursal::findOrFail($pedido->sucursal_id);
+        $config = $envioService->configDelivery($sucursal);
+        $modoPromesa = (string) ($config['modo_promesa'] ?? 'manual');
 
         $this->pedidoAceptarId = $pedidoId;
         $this->aceptarInfo = [
@@ -1318,8 +1320,14 @@ class PedidosDelivery extends Component
             'cliente' => $pedido->nombre_cliente_final ?? __('Sin cliente'),
             'tipo' => $pedido->tipo,
             'total' => (float) $pedido->total_final,
-            'modo_promesa_manual' => ($config['modo_promesa'] ?? 'manual') === 'manual',
+            'modo_promesa' => $modoPromesa,
+            'modo_promesa_manual' => $modoPromesa === 'manual',
             'botones_demora' => $config['botones_demora'] ?? [0, 10, 15, 20, 30, 45, 60],
+            // Modo franjas: horarios fijos de hoy + "Lo antes posible" (RF-15).
+            'franjas' => $modoPromesa === 'franjas'
+                ? array_map(fn ($slot) => ['iso' => $slot->toDateTimeString(), 'label' => $slot->format('H:i')], $envioService->franjasDisponibles($sucursal))
+                : [],
+            'acepta_asap' => (bool) ($config['acepta_lo_antes_posible'] ?? true),
         ];
         $this->showAceptarModal = true;
     }
@@ -1337,6 +1345,27 @@ class PedidosDelivery extends Component
 
         try {
             $this->service->aceptarPedidoExterno($pedido, $demoraMin);
+            $this->dispatch('toast-success', message: __('Pedido #:numero aceptado', ['numero' => $pedido->fresh()->numero_visible]));
+            $this->cerrarAceptar();
+        } catch (Exception $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
+    }
+
+    /**
+     * Acepta el pedido externo con una franja horaria exacta (modo franjas,
+     * RF-15). `$iso` null = "Lo antes posible" (hora_pactada queda null).
+     */
+    public function confirmarAceptarFranja(?string $iso = null): void
+    {
+        $pedido = PedidoDelivery::find($this->pedidoAceptarId);
+        if (! $pedido) {
+            return;
+        }
+
+        try {
+            $hora = $iso ? \Illuminate\Support\Carbon::parse($iso) : null;
+            $this->service->aceptarPedidoExterno($pedido, null, $hora);
             $this->dispatch('toast-success', message: __('Pedido #:numero aceptado', ['numero' => $pedido->fresh()->numero_visible]));
             $this->cerrarAceptar();
         } catch (Exception $e) {

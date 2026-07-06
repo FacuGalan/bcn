@@ -74,6 +74,10 @@ class ConfiguracionDelivery extends Component
 
     public string $botonesDemora = '0, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 90';
 
+    public string $franjasIntervaloMin = '30';
+
+    public bool $aceptaLoAntesPosible = true;
+
     // ==================== ZONAS ====================
 
     public bool $showZonaModal = false;
@@ -153,10 +157,13 @@ class ConfiguracionDelivery extends Component
             ->toArray();
 
         $this->feriados = array_values($config['feriados'] ?? []);
-        $this->modoPromesa = (string) $config['modo_promesa'] === 'automatica' ? 'automatica' : 'manual';
+        $modo = (string) $config['modo_promesa'];
+        $this->modoPromesa = in_array($modo, ['automatica', 'franjas'], true) ? $modo : 'manual';
         $this->demoraBaseMin = (string) $config['demora_base_min'];
         $this->demoraMinPorKm = (string) $config['demora_min_por_km'];
         $this->botonesDemora = implode(', ', $config['botones_demora'] ?? []);
+        $this->franjasIntervaloMin = (string) ($config['franjas_intervalo_min'] ?? 30);
+        $this->aceptaLoAntesPosible = (bool) ($config['acepta_lo_antes_posible'] ?? true);
     }
 
     public function guardarConfig(): void
@@ -201,10 +208,12 @@ class ConfiguracionDelivery extends Component
             'dias_laborales' => array_keys(array_filter($this->diasLaborales)),
             'horarios_atencion' => $this->rangosDesdeForm($this->horariosAtencion) ?: null,
             'feriados' => array_values($this->feriados),
-            'modo_promesa' => $this->modoPromesa === 'automatica' ? 'automatica' : 'manual',
+            'modo_promesa' => in_array($this->modoPromesa, ['automatica', 'franjas'], true) ? $this->modoPromesa : 'manual',
             'demora_base_min' => max(0, (int) $this->demoraBaseMin),
             'demora_min_por_km' => max(0, (float) $this->demoraMinPorKm),
             'botones_demora' => $botones ?: Sucursal::CONFIG_DELIVERY_DEFAULTS['botones_demora'],
+            'franjas_intervalo_min' => max(5, (int) $this->franjasIntervaloMin),
+            'acepta_lo_antes_posible' => $this->aceptaLoAntesPosible,
         ]);
 
         try {

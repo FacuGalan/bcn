@@ -516,12 +516,42 @@
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                 </svg>
-                                ~{{ $this->horaPactadaEstimada->format('H:i') }}
+                                {{ $modoPromesa === 'franjas' ? $this->horaPactadaEstimada->format('H:i') : '~'.$this->horaPactadaEstimada->format('H:i') }}
                             </span>
+                        @elseif($franjaSeleccionada === 'asap')
+                            <span class="text-xs font-semibold text-cyan-700 dark:text-cyan-300">{{ __('Lo antes posible') }}</span>
                         @endif
                     </div>
 
-                    @if($modoPromesa === 'automatica')
+                    @if($modoPromesa === 'franjas')
+                        @if(!empty($franjasDisponibles) || $aceptaLoAntesPosible)
+                            <div class="grid grid-cols-4 gap-1 max-h-32 overflow-y-auto">
+                                @if($aceptaLoAntesPosible)
+                                    <button type="button" wire:click="seleccionarFranja('asap')"
+                                        class="col-span-2 px-1 py-1 border rounded-md text-[11px] font-semibold transition-colors {{ $franjaSeleccionada === 'asap'
+                                            ? 'bg-cyan-600 border-cyan-600 text-white shadow'
+                                            : 'border-cyan-300 dark:border-cyan-600 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600 hover:text-white' }}">
+                                        {{ __('Lo antes posible') }}
+                                    </button>
+                                @endif
+                                @foreach($franjasDisponibles as $franja)
+                                    <button type="button" wire:click="seleccionarFranja('{{ $franja['iso'] }}')"
+                                        class="px-1 py-1 border rounded-md text-[11px] font-semibold transition-colors {{ $franjaSeleccionada === $franja['iso']
+                                            ? 'bg-cyan-600 border-cyan-600 text-white shadow'
+                                            : 'border-cyan-300 dark:border-cyan-600 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600 hover:text-white' }}">
+                                        {{ $franja['label'] }}
+                                    </button>
+                                @endforeach
+                            </div>
+                            <p class="text-[11px] text-gray-400 dark:text-gray-500">
+                                {{ __('Elegí el horario de entrega pactado con el cliente.') }}
+                            </p>
+                        @else
+                            <p class="text-[11px] text-orange-600 dark:text-orange-400">
+                                {{ __('Hoy no hay horarios disponibles (cerrado o feriado).') }}
+                            </p>
+                        @endif
+                    @elseif($modoPromesa === 'automatica')
                         @if($this->horaPactadaEstimada)
                             <p class="text-[11px] text-gray-500 dark:text-gray-400">
                                 {{ $tipo === 'take_away'
@@ -905,6 +935,7 @@
                             'conUbicacion' => false,
                             'direccionAlFinal' => true,
                             'autocompletarDireccion' => true,
+                            'mapaAutoAbrir' => true,
                             'provinciaRequerida' => false,
                             'idPrefix' => 'entrega',
                             'direccionLabel' => __('Dirección de entrega'),

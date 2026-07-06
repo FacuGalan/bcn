@@ -14,6 +14,8 @@
       - $direccionAlFinal (bool)   : renderiza dirección+referencia DESPUÉS del mapa (default false)
       - $autocompletarDireccion (bool): el picker completa domDireccion con calle y número
                                      al elegir/mover el punto (default false)
+      - $mapaAutoAbrir (bool)      : el mapa se abre solo al montar (sin botón "Abrir mapa";
+                                     usa la API apenas se abre el modal) (default false)
       - $provinciaRequerida (bool) : marca la provincia como obligatoria (default true)
       - $idPrefix (string)         : prefijo para los ids de los <label for> (default 'dom')
 --}}
@@ -24,6 +26,7 @@
 @php($conUbicacion = $conUbicacion ?? true)
 @php($direccionAlFinal = $direccionAlFinal ?? false)
 @php($autocompletarDireccion = $autocompletarDireccion ?? false)
+@php($mapaAutoAbrir = $mapaAutoAbrir ?? false)
 @php($provinciaRequerida = $provinciaRequerida ?? true)
 @php($idPrefix = $idPrefix ?? 'dom')
 @php($direccionLabel = $direccionLabel ?? __('Dirección'))
@@ -88,10 +91,13 @@
                     'mapId' => config('services.google_maps.map_id'),
                     'txtGeoError' => __('No pudimos obtener tu ubicación'),
                     'autocompletarDireccion' => (bool) $autocompletarDireccion,
+                    'autoAbrir' => (bool) $mapaAutoAbrir,
                 ]))">
                 <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Ubicar en el mapa') }} <span class="text-gray-400">({{ __('opcional') }})</span></label>
 
-                {{-- Estado cerrado: botón que dispara la carga on-demand --}}
+                {{-- Estado cerrado: botón que dispara la carga on-demand.
+                     Con mapaAutoAbrir no existe: el mapa arranca abierto. --}}
+                @if(! $mapaAutoAbrir)
                 <div x-show="!abierto" class="mt-1 space-y-1">
                     <button type="button" @click="abrir()"
                         class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -103,6 +109,7 @@
                     @endif
                     <p class="text-[11px] text-gray-400 dark:text-gray-500">{{ __('El mapa se carga solo al abrirlo') }}</p>
                 </div>
+                @endif
 
                 {{-- Estado abierto: el mapa (oculto hasta abrir; el contenedor queda en el
                      DOM para que Livewire no se rompa con el morph) --}}
@@ -118,10 +125,12 @@
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                 {{ __('Usar mi ubicación actual') }}
                             </button>
-                            <button type="button" @click="cerrar()"
-                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
-                                {{ __('Ocultar mapa') }}
-                            </button>
+                            @if(! $mapaAutoAbrir)
+                                <button type="button" @click="cerrar()"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                    {{ __('Ocultar mapa') }}
+                                </button>
+                            @endif
                             <span x-show="cargando" class="text-xs text-gray-500 dark:text-gray-400">{{ __('Cargando mapa…') }}</span>
                             <span x-show="error" x-cloak class="text-xs text-red-600 dark:text-red-400">{{ __('No se pudo cargar el mapa') }}</span>
                             <span x-show="geoError" x-cloak x-text="geoError" class="text-xs text-red-600 dark:text-red-400"></span>

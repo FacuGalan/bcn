@@ -3,6 +3,7 @@
 namespace Tests\Integration\Livewire\Pedidos;
 
 use App\Livewire\Pedidos\NuevoPedidoDelivery;
+use App\Models\FormaPago;
 use App\Models\PedidoDelivery;
 use App\Models\User;
 use App\Services\Pedidos\PedidoDeliveryService;
@@ -93,6 +94,46 @@ class NuevoPedidoDeliveryCobroTest extends TestCase
         $this->assertEqualsWithDelta(1500.0, (float) $resultado['total_final'], 0.01);
         // …y la base del monto de los pagos también (acá vivía el bug).
         $this->assertEqualsWithDelta(1500.0, (float) $ajusteInfo['total_con_ajuste'], 0.01);
+    }
+
+    public function test_ajuste_forma_pago_no_aplica_sobre_el_envio(): void
+    {
+        // El envío es un valor FIJO: el -10% de efectivo aplica solo sobre los
+        // productos. $1000 de productos + $500 de envío → 1000*0.9 + 500 = 1400.
+        ['concepto' => $concepto] = $this->crearFormaPagoEfectivo();
+        $fp = FormaPago::create([
+            'nombre' => 'Efectivo 10% off',
+            'codigo' => 'efectivo_desc',
+            'concepto' => 'efectivo',
+            'concepto_pago_id' => $concepto->id,
+            'es_mixta' => false,
+            'permite_cuotas' => false,
+            'ajuste_porcentaje' => -10,
+            'activo' => true,
+        ]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+
+        $componente = Livewire::test(NuevoPedidoDelivery::class)
+            ->set('cajaSeleccionada', $caja->id)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirModalDireccion')
+            ->set('domDireccion', 'Av. Siempreviva 742')
+            ->call('confirmarDireccion')
+            ->set('costoEnvio', 500)
+            ->set('formaPagoId', (string) $fp->id);
+
+        $ajusteInfo = $componente->get('ajusteFormaPagoInfo');
+        $this->assertEqualsWithDelta(-100.0, (float) $ajusteInfo['monto'], 0.01);
+        $this->assertEqualsWithDelta(1400.0, (float) $ajusteInfo['total_con_ajuste'], 0.01);
+
+        $componente->call('confirmarPedido')
+            ->call('confirmarPagoConVuelto')
+            ->assertNotDispatched('toast-error');
+
+        $pedido = PedidoDelivery::first();
+        $this->assertEqualsWithDelta(1400.0, (float) $pedido->total_final, 0.01);
+        $this->assertSame(PedidoDelivery::ESTADO_PAGO_PAGADO, $pedido->estado_pago);
     }
 
     public function test_cobro_directo_efectivo_con_envio_deja_pedido_pagado(): void
@@ -235,6 +276,75 @@ class NuevoPedidoDeliveryCobroTest extends TestCase
         $pedido = PedidoDelivery::first();
         $this->assertNotNull($pedido->hora_pactada_at);
         $this->assertEqualsWithDelta(25, now()->diffInMinutes($pedido->hora_pactada_at), 2);
+    }
+
+    public function test_promesa_franjas_persiste_el_horario_elegido(): void
+    {
+        \Illuminate\Support\Carbon::setTestNow(now()->setTime(11, 10));
+        $this->habilitarDelivery([
+            'modo_promesa' => 'franjas',
+            'franjas_intervalo_min' => 30,
+            'horarios_atencion' => [['dias' => [1, 2, 3, 4, 5, 6, 7], 'desde' => '10:00', 'hasta' => '22:00']],
+        ]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $componente = Livewire::test(NuevoPedidoDelivery::class)
+            ->set('tipo', PedidoDelivery::TIPO_TAKE_AWAY)
+            ->call('seleccionarArticulo', $articulo->id);
+
+        $franjas = $componente->get('franjasDisponibles');
+        $this->assertNotEmpty($franjas);
+        $this->assertSame('11:30', $franjas[0]['label'], 'El primer slot es el próximo múltiplo del intervalo');
+
+        $componente->call('seleccionarFranja', $franjas[1]['iso'])
+            ->call('confirmarSinCobrar')
+            ->assertNotDispatched('toast-error');
+
+        $pedido = PedidoDelivery::first();
+        $this->assertSame($franjas[1]['iso'], $pedido->hora_pactada_at->toDateTimeString());
+
+        \Illuminate\Support\Carbon::setTestNow();
+    }
+
+    public function test_promesa_franjas_lo_antes_posible_queda_sin_hora(): void
+    {
+        $this->habilitarDelivery(['modo_promesa' => 'franjas']);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoDelivery::class)
+            ->assertSet('aceptaLoAntesPosible', true)
+            ->set('tipo', PedidoDelivery::TIPO_TAKE_AWAY)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('seleccionarFranja', 'asap')
+            ->call('confirmarSinCobrar')
+            ->assertNotDispatched('toast-error');
+
+        $pedido = PedidoDelivery::first();
+        $this->assertSame(PedidoDelivery::ESTADO_CONFIRMADO, $pedido->estado_pedido);
+        $this->assertNull($pedido->hora_pactada_at, '"Lo antes posible" no fija hora pactada');
+    }
+
+    public function test_aceptar_pedido_externo_con_franja_horaria(): void
+    {
+        $this->habilitarDelivery(['modo_promesa' => 'franjas']);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $pedido = $this->service->crearPedido(
+            data: $this->datosBaseDelivery(total: 500, overrides: ['origen' => PedidoDelivery::ORIGEN_TIENDA]),
+            detalles: [$this->detalleDeliveryDe($articulo, 1, 500)],
+            esBorrador: true,
+        );
+
+        $franja = now()->addHours(2)->startOfHour();
+
+        Livewire::test(\App\Livewire\Pedidos\PedidosDelivery::class)
+            ->call('abrirAceptar', $pedido->id)
+            ->assertSet('showAceptarModal', true)
+            ->call('confirmarAceptarFranja', $franja->toDateTimeString())
+            ->assertDispatched('toast-success');
+
+        $pedido->refresh();
+        $this->assertSame(PedidoDelivery::ESTADO_CONFIRMADO, $pedido->estado_pedido);
+        $this->assertTrue($pedido->hora_pactada_at->equalTo($franja));
     }
 
     public function test_promesa_existente_se_preserva_al_editar_sin_cambiarla(): void
