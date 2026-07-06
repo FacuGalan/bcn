@@ -195,6 +195,26 @@ class NuevoPedidoDelivery extends Component
     /** ok | fuera_de_alcance | desconocido (CotizacionEnvio::ALCANCE_*). */
     public string $alcanceEnvio = CotizacionEnvio::ALCANCE_DESCONOCIDO;
 
+    // ==================== PROMESA DE ENTREGA (RF-15 core) ====================
+
+    /** Modo de promesa de la sucursal: manual | automatica (franjas = Fase 8). */
+    public string $modoPromesa = 'manual';
+
+    /** Botones de demora (minutos) para el modo manual. */
+    public array $botonesDemora = [];
+
+    /** Botón de demora elegido por el operador (modo manual). */
+    public ?int $demoraSeleccionadaMin = null;
+
+    /** Demora estimada de la última cotización (modo automática, delivery). */
+    public ?int $demoraEstimadaMin = null;
+
+    /** Demora base de la config (estimación para take-away en modo automática). */
+    public int $demoraBaseMin = 15;
+
+    /** Promesa ya persistida del pedido en edición (se preserva si no se cambia). */
+    public ?string $horaPactadaExistente = null;
+
     public bool $modoEdicion = false;
 
     /** Estado del pedido en modo edición (para mostrarlo y validar transiciones). */
@@ -217,6 +237,13 @@ class NuevoPedidoDelivery extends Component
      * (no se recrea ni se modifica el carrito).
      */
     public bool $modoCobroRapido = false;
+
+    /**
+     * Saldo pendiente del pedido en modo cobro rápido (total_final − cobrado −
+     * planificado). Lo fija iniciarCobroRapido() y calcularVenta() lo re-aplica
+     * como total a cubrir en cada recálculo.
+     */
+    public ?float $saldoCobroRapido = null;
 
     /**
      * Diferencia el modo del modal de pago:
@@ -440,6 +467,7 @@ class NuevoPedidoDelivery extends Component
         if (! is_array($this->resultado)) {
             $this->resultado = [];
         }
+        $this->saldoCobroRapido = $saldo;
         $this->resultado['total_final'] = $saldo;
 
         // El desglose en cobro rapido empieza vacio: los pagos existentes
@@ -636,6 +664,13 @@ class NuevoPedidoDelivery extends Component
         $this->takeawayHabilitado = (bool) ($config['takeaway_habilitado'] ?? true);
         $this->georreferenciarPedidos = (bool) ($config['georreferenciar_pedidos'] ?? false);
 
+        // Promesa de entrega (RF-15 core): 'franjas' está diferido a Fase 8 →
+        // cae a manual. Los botones alimentan el selector inline del alta.
+        $modo = (string) ($config['modo_promesa'] ?? 'manual');
+        $this->modoPromesa = $modo === 'automatica' ? 'automatica' : 'manual';
+        $this->botonesDemora = array_values(array_map('intval', (array) ($config['botones_demora'] ?? [])));
+        $this->demoraBaseMin = (int) ($config['demora_base_min'] ?? 15);
+
         // Si el take-away está deshabilitado y el tipo actual es take_away,
         // volver a delivery (y viceversa cuando la sucursal no usa delivery).
         if ($this->tipo === PedidoDelivery::TIPO_TAKE_AWAY && ! $this->takeawayHabilitado) {
@@ -815,6 +850,7 @@ class NuevoPedidoDelivery extends Component
         $this->distanciaKm = $cotizacion->distanciaKm;
         $this->zonaEnvioId = $cotizacion->zona?->id;
         $this->zonaEnvioNombre = $cotizacion->zona?->nombre;
+        $this->demoraEstimadaMin = $cotizacion->demoraEstimadaMin;
 
         if (! $this->costoEnvioManual && $cotizacion->costo !== null) {
             $this->costoEnvio = $cotizacion->costo;
@@ -851,6 +887,72 @@ class NuevoPedidoDelivery extends Component
         $this->zonaEnvioNombre = null;
         $this->distanciaKm = null;
         $this->alcanceEnvio = CotizacionEnvio::ALCANCE_DESCONOCIDO;
+        $this->demoraEstimadaMin = null;
+    }
+
+    // ==================== PROMESA DE ENTREGA (RF-15 core) ====================
+
+    /**
+     * Botón de demora del alta (modo manual). Click sobre el ya elegido lo
+     * des-selecciona (pedido sin promesa).
+     */
+    public function seleccionarDemora(int $min): void
+    {
+        $this->demoraSeleccionadaMin = $this->demoraSeleccionadaMin === $min ? null : $min;
+    }
+
+    /**
+     * Promesa estimada para MOSTRAR en el alta (la definitiva se resuelve al
+     * persistir, ver resolverHoraPactada). En automática: demora cotizada por
+     * km (delivery) o demora base (take-away). En manual: el botón elegido.
+     */
+    public function getHoraPactadaEstimadaProperty(): ?\Carbon\Carbon
+    {
+        if ($this->demoraSeleccionadaMin !== null) {
+            return now()->addMinutes($this->demoraSeleccionadaMin);
+        }
+
+        if ($this->modoEdicion && $this->horaPactadaExistente) {
+            return \Carbon\Carbon::parse($this->horaPactadaExistente);
+        }
+
+        if ($this->modoPromesa === 'automatica') {
+            $demora = $this->tipo === PedidoDelivery::TIPO_DELIVERY
+                ? $this->demoraEstimadaMin
+                : $this->demoraBaseMin;
+
+            return $demora !== null ? now()->addMinutes((int) $demora) : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * hora_pactada_at que va al service al persistir:
+     * - Botón manual elegido → now + demora (alta o edición, pisa lo anterior).
+     * - Edición sin cambio → preserva la promesa existente.
+     * - Automática → now + demora cotizada (delivery) / demora base (take-away).
+     * - Manual sin botón → null (sin promesa).
+     */
+    protected function resolverHoraPactada(): ?string
+    {
+        if ($this->demoraSeleccionadaMin !== null) {
+            return now()->addMinutes($this->demoraSeleccionadaMin)->toDateTimeString();
+        }
+
+        if ($this->modoEdicion && $this->horaPactadaExistente) {
+            return $this->horaPactadaExistente;
+        }
+
+        if ($this->modoPromesa === 'automatica') {
+            $demora = $this->tipo === PedidoDelivery::TIPO_DELIVERY
+                ? $this->demoraEstimadaMin
+                : $this->demoraBaseMin;
+
+            return $demora !== null ? now()->addMinutes((int) $demora)->toDateTimeString() : null;
+        }
+
+        return null;
     }
 
     protected function resetDireccion(): void
@@ -877,6 +979,25 @@ class NuevoPedidoDelivery extends Component
     {
         $this->calcularVentaCarrito();
         $this->aplicarEnvioAlResultado();
+
+        // En cobro rápido el total a cubrir es el SALDO pendiente del pedido,
+        // no el total recalculado del carrito: iniciarCobroRapido() lo setea,
+        // pero cualquier recálculo posterior (ej. updatedFormaPagoId, que
+        // además resetea el desglose y su pendiente) pisaría el override —
+        // lo re-aplicamos acá.
+        if ($this->modoCobroRapido && $this->saldoCobroRapido !== null && is_array($this->resultado)) {
+            $this->resultado['total_final'] = $this->saldoCobroRapido;
+            $desglosado = (float) collect($this->desglosePagos)->sum('monto_base');
+            $this->montoPendienteDesglose = max(0, round($this->saldoCobroRapido - $desglosado, 2));
+        }
+
+        // El ajuste por forma de pago se calculó DENTRO de calcularVentaCarrito()
+        // sobre el total sin envío. Recalcularlo sobre el total definitivo:
+        // total_con_ajuste es la base del monto_final de los pagos — si queda
+        // sin el envío, todo cobro nace corto y el pedido queda "parcial".
+        if ($this->formaPagoId) {
+            $this->calcularAjusteFormaPago();
+        }
     }
 
     protected function aplicarEnvioAlResultado(): void
@@ -1382,6 +1503,7 @@ class NuevoPedidoDelivery extends Component
         $this->alcanceEnvio = $pedido->fuera_de_alcance
             ? CotizacionEnvio::ALCANCE_FUERA
             : ($this->entregaLatitud !== null ? CotizacionEnvio::ALCANCE_OK : CotizacionEnvio::ALCANCE_DESCONOCIDO);
+        $this->horaPactadaExistente = $pedido->hora_pactada_at?->toDateTimeString();
 
         $this->items = $pedido->detalles
             ->filter(fn ($d) => ! $d->es_costo_envio)
@@ -2018,6 +2140,9 @@ class NuevoPedidoDelivery extends Component
             'costo_envio_usuario_id' => $this->costoEnvioManual ? Auth::id() : null,
             'distancia_km' => $this->distanciaKm,
             'fuera_de_alcance' => $this->alcanceEnvio === CotizacionEnvio::ALCANCE_FUERA,
+            // Promesa de entrega (RF-15 core): explícita desde el alta; null en
+            // manual sin botón (y el service no la autocalcula en ese modo).
+            'hora_pactada_at' => $this->resolverHoraPactada(),
             '_actualizar_direccion_cliente' => ! $this->entregarEnOtraDireccion,
             'subtotal' => round((float) ($r['subtotal'] ?? 0) - $envio, 2),
             'iva' => round((float) ($r['iva_total'] ?? 0) - $ivaEnvio, 2),
@@ -2563,20 +2688,14 @@ class NuevoPedidoDelivery extends Component
 
             // Validaciones que sí o sí deben estar al persistir (mismas que
             // confirmarPedido pero a prueba de cualquier ruta de entrada).
-            if ($this->sucursalUsaBeepers && empty(trim($this->numeroBeeper ?? ''))) {
+            if ($this->tipo === PedidoDelivery::TIPO_TAKE_AWAY
+                && $this->sucursalUsaBeepers && empty(trim($this->numeroBeeper ?? ''))) {
                 $this->dispatch('toast-error', message: __('El número de beeper es obligatorio'));
 
                 return;
             }
-            if (! $this->clienteSeleccionado) {
-                $nombreTemp = trim($this->nombreClienteTemporal ?? '');
-                $telTemp = trim($this->telefonoClienteTemporal ?? '');
-                if ($nombreTemp === '' || $telTemp === '') {
-                    $this->dispatch('toast-error', message: __('Seleccioná un cliente o ingresá nombre y teléfono temporales'));
-
-                    return;
-                }
-            }
+            // Cliente NO es obligatorio: sin cliente ni datos temporales se graba
+            // "Consumidor final" (ver construirDataPedido). El teléfono es opcional.
 
             // Validar caja abierta si algún pago la requiere (no CC).
             $cajaId = $this->cajaSeleccionada ?? caja_activa();

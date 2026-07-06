@@ -2142,15 +2142,8 @@ class NuevoPedidoMostrador extends Component
 
                 return;
             }
-            if (! $this->clienteSeleccionado) {
-                $nombreTemp = trim($this->nombreClienteTemporal ?? '');
-                $telTemp = trim($this->telefonoClienteTemporal ?? '');
-                if ($nombreTemp === '' || $telTemp === '') {
-                    $this->dispatch('toast-error', message: __('Seleccioná un cliente o ingresá nombre y teléfono temporales'));
-
-                    return;
-                }
-            }
+            // Cliente NO es obligatorio: sin cliente ni datos temporales se graba
+            // "Consumidor final" (ver construirDataPedido). El teléfono es opcional.
 
             // Validar caja abierta si algún pago la requiere (no CC).
             $cajaId = $this->cajaSeleccionada ?? caja_activa();

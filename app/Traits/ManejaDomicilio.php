@@ -108,6 +108,26 @@ trait ManejaDomicilio
         $this->domLongitud = (string) round($lng, 7);
     }
 
+    /**
+     * Recibe la dirección legible (calle y número) del punto elegido en el
+     * mapa. Solo la invoca el JS cuando el partial se incluye con
+     * `autocompletarDireccion` (modal de entrega delivery): el texto pisa el
+     * input pero queda editable para que el operador lo ajuste al final.
+     */
+    public function setDireccionDesdeMapa($texto): void
+    {
+        if (! is_string($texto)) {
+            return;
+        }
+
+        $texto = trim($texto);
+        if ($texto === '' || mb_strlen($texto) > 255) {
+            return;
+        }
+
+        $this->domDireccion = $texto;
+    }
+
     /** ¿Hay API key de Google Maps configurada? Decide map vs inputs manuales. */
     public function mapsHabilitado(): bool
     {

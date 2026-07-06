@@ -7,6 +7,13 @@
       - $conDireccion (bool)       : muestra el campo dirección (default true)
       - $conReferencia (bool)      : muestra el campo referencia piso/depto/timbre (default false)
       - $conGeo (bool)             : muestra los campos latitud/longitud (default true)
+      - $conUbicacion (bool)       : muestra los selects provincia/localidad (default true).
+                                     En false quedan ocultos pero domProvincia/domLocalidadId
+                                     siguen acotando el mapa (setearlos desde el host, ej.
+                                     domicilioDefaultDesdeSucursal).
+      - $direccionAlFinal (bool)   : renderiza dirección+referencia DESPUÉS del mapa (default false)
+      - $autocompletarDireccion (bool): el picker completa domDireccion con calle y número
+                                     al elegir/mover el punto (default false)
       - $provinciaRequerida (bool) : marca la provincia como obligatoria (default true)
       - $idPrefix (string)         : prefijo para los ids de los <label for> (default 'dom')
 --}}
@@ -14,6 +21,9 @@
 @php($conDireccion = $conDireccion ?? true)
 @php($conReferencia = $conReferencia ?? false)
 @php($conGeo = $conGeo ?? true)
+@php($conUbicacion = $conUbicacion ?? true)
+@php($direccionAlFinal = $direccionAlFinal ?? false)
+@php($autocompletarDireccion = $autocompletarDireccion ?? false)
 @php($provinciaRequerida = $provinciaRequerida ?? true)
 @php($idPrefix = $idPrefix ?? 'dom')
 @php($direccionLabel = $direccionLabel ?? __('Dirección'))
@@ -31,49 +41,37 @@
         </div>
     @endif
 
-    {{-- Provincia (ISO) --}}
-    <div>
-        <label for="{{ $idPrefix }}-provincia" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Provincia') }} @if($provinciaRequerida)<span class="text-red-500">*</span>@endif</label>
-        <select id="{{ $idPrefix }}-provincia" wire:model.live="domProvincia"
-            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-            <option value="">{{ __('Seleccionar...') }}</option>
-            @foreach($this->provinciasDomicilio as $codigo => $nombre)
-                <option value="{{ $codigo }}">{{ $nombre }}</option>
-            @endforeach
-        </select>
-        @error('domProvincia') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
-    </div>
-
-    {{-- Localidad (dependiente de la provincia) --}}
-    <div>
-        <label for="{{ $idPrefix }}-localidad" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Localidad') }}</label>
-        <select id="{{ $idPrefix }}-localidad" wire:model.live="domLocalidadId" @disabled(empty($domLocalidades))
-            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-60">
-            <option value="">{{ empty($domLocalidades) ? __('Seleccione provincia primero') : __('Seleccionar...') }}</option>
-            @foreach($domLocalidades as $id => $nombre)
-                <option value="{{ $id }}">{{ $nombre }}</option>
-            @endforeach
-        </select>
-    </div>
-
-    {{-- Dirección --}}
-    @if($conDireccion)
-        <div class="sm:col-span-2">
-            <label for="{{ $idPrefix }}-direccion" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ $direccionLabel }}</label>
-            <input id="{{ $idPrefix }}-direccion" type="text" wire:model="domDireccion" maxlength="255" placeholder="{{ __('Calle y número') }}"
+    @if($conUbicacion)
+        {{-- Provincia (ISO) --}}
+        <div>
+            <label for="{{ $idPrefix }}-provincia" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Provincia') }} @if($provinciaRequerida)<span class="text-red-500">*</span>@endif</label>
+            <select id="{{ $idPrefix }}-provincia" wire:model.live="domProvincia"
                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-            @error('domDireccion') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                <option value="">{{ __('Seleccionar...') }}</option>
+                @foreach($this->provinciasDomicilio as $codigo => $nombre)
+                    <option value="{{ $codigo }}">{{ $nombre }}</option>
+                @endforeach
+            </select>
+            @error('domProvincia') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+        </div>
+
+        {{-- Localidad (dependiente de la provincia) --}}
+        <div>
+            <label for="{{ $idPrefix }}-localidad" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Localidad') }}</label>
+            <select id="{{ $idPrefix }}-localidad" wire:model.live="domLocalidadId" @disabled(empty($domLocalidades))
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-60">
+                <option value="">{{ empty($domLocalidades) ? __('Seleccione provincia primero') : __('Seleccionar...') }}</option>
+                @foreach($domLocalidades as $id => $nombre)
+                    <option value="{{ $id }}">{{ $nombre }}</option>
+                @endforeach
+            </select>
         </div>
     @endif
 
-    {{-- Referencia de entrega (piso/depto/timbre) --}}
-    @if($conReferencia)
-        <div class="sm:col-span-2">
-            <label for="{{ $idPrefix }}-referencia" class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Referencia') }} <span class="text-gray-400">({{ __('piso, depto, timbre...') }})</span></label>
-            <input id="{{ $idPrefix }}-referencia" type="text" wire:model="domReferencia" maxlength="255"
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-        </div>
-    @endif
+    {{-- Dirección + referencia (posición clásica: antes del mapa) --}}
+    @unless($direccionAlFinal)
+        @include('livewire.partials._domicilio-direccion')
+    @endunless
 
     {{-- Geo opcional --}}
     @if($conGeo)
@@ -89,6 +87,7 @@
                     'key' => config('services.google_maps.key'),
                     'mapId' => config('services.google_maps.map_id'),
                     'txtGeoError' => __('No pudimos obtener tu ubicación'),
+                    'autocompletarDireccion' => (bool) $autocompletarDireccion,
                 ]))">
                 <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Ubicar en el mapa') }} <span class="text-gray-400">({{ __('opcional') }})</span></label>
 
@@ -108,7 +107,7 @@
                 {{-- Estado abierto: el mapa (oculto hasta abrir; el contenedor queda en el
                      DOM para que Livewire no se rompa con el morph) --}}
                 <div x-show="abierto" x-cloak>
-                    <p x-show="!tieneCentro" class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Elegí provincia y localidad para ubicar el domicilio') }}</p>
+                    <p x-show="!tieneCentro" class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $conUbicacion ? __('Elegí provincia y localidad para ubicar el domicilio') : __('Configurá la localidad de la sucursal para acotar el mapa y el buscador') }}</p>
 
                     <div wire:ignore class="mt-1 space-y-2">
                         <div x-ref="autocompleteSlot"></div>
@@ -167,5 +166,10 @@
                 @error('domLongitud') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
             </div>
         @endif
+    @endif
+
+    {{-- Dirección + referencia al final (autocompletada desde el mapa, editable última) --}}
+    @if($direccionAlFinal)
+        @include('livewire.partials._domicilio-direccion')
     @endif
 </div>

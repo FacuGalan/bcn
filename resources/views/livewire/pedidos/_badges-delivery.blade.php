@@ -20,6 +20,16 @@
         </span>
     @endif
 
+    {{-- Promesa de entrega (RF-15): vencida en rojo mientras el pedido siga activo --}}
+    @if($pedido->hora_pactada_at)
+        @php($promesaVencida = $pedido->hora_pactada_at->isPast() && ! in_array($pedido->estado_pedido, [\App\Models\PedidoDelivery::ESTADO_ENTREGADO, \App\Models\PedidoDelivery::ESTADO_FACTURADO, \App\Models\PedidoDelivery::ESTADO_CANCELADO], true))
+        <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold {{ $promesaVencida ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200' }}"
+            title="{{ $pedido->tipo === \App\Models\PedidoDelivery::TIPO_TAKE_AWAY ? __('Listo para retirar') : __('Entrega estimada') }}: {{ $pedido->hora_pactada_at->format('d/m H:i') }}">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            {{ $pedido->hora_pactada_at->isToday() ? $pedido->hora_pactada_at->format('H:i') : $pedido->hora_pactada_at->format('d/m H:i') }}
+        </span>
+    @endif
+
     @if($pedido->tipo === \App\Models\PedidoDelivery::TIPO_DELIVERY)
         @if($pedido->direccion_entrega)
             <span class="inline-flex items-center gap-0.5 text-[11px] text-gray-600 dark:text-gray-300 min-w-0 max-w-[14rem]" title="{{ $pedido->direccion_entrega }}{{ $pedido->direccion_referencia ? ' — '.$pedido->direccion_referencia : '' }}">

@@ -505,6 +505,53 @@
                     </div>
                 @endif
 
+                {{-- Promesa de entrega (RF-15 core: automática por km / manual con botones) --}}
+                <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-2 space-y-1.5">
+                    <div class="flex items-center justify-between gap-2">
+                        <label class="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            {{ $tipo === 'take_away' ? __('Listo para retirar') : __('Entrega estimada') }}
+                        </label>
+                        @if($this->horaPactadaEstimada)
+                            <span class="inline-flex items-center gap-1 text-xs font-semibold text-cyan-700 dark:text-cyan-300">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                ~{{ $this->horaPactadaEstimada->format('H:i') }}
+                            </span>
+                        @endif
+                    </div>
+
+                    @if($modoPromesa === 'automatica')
+                        @if($this->horaPactadaEstimada)
+                            <p class="text-[11px] text-gray-500 dark:text-gray-400">
+                                {{ $tipo === 'take_away'
+                                    ? __('Calculada con la demora base de la sucursal.')
+                                    : __('Calculada automáticamente por distancia.') }}
+                            </p>
+                        @else
+                            <p class="text-[11px] text-gray-400 dark:text-gray-500">
+                                {{ __('Se calcula por distancia al cargar la dirección.') }}
+                            </p>
+                        @endif
+                    @elseif(!empty($botonesDemora))
+                        <div class="grid grid-cols-6 gap-1">
+                            @foreach($botonesDemora as $demora)
+                                <button type="button" wire:click="seleccionarDemora({{ (int) $demora }})"
+                                    class="px-1 py-1 border rounded-md text-[11px] font-semibold transition-colors {{ $demoraSeleccionadaMin === (int) $demora
+                                        ? 'bg-cyan-600 border-cyan-600 text-white shadow'
+                                        : 'border-cyan-300 dark:border-cyan-600 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600 hover:text-white' }}">
+                                    @if((int) $demora === 0) {{ __('Ya') }} @else +{{ (int) $demora }}′ @endif
+                                </button>
+                            @endforeach
+                        </div>
+                        <p class="text-[11px] text-gray-400 dark:text-gray-500">
+                            {{ $demoraSeleccionadaMin !== null
+                                ? __('El botón fija la hora pactada y se informa al consumidor.')
+                                : __('Opcional: elegí en cuántos minutos estará.') }}
+                        </p>
+                    @endif
+                </div>
+
                 {{-- Beeper (solo take-away y si la sucursal lo usa) --}}
                 @if($sucursalUsaBeepers && $tipo === 'take_away')
                     <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-2">
@@ -848,11 +895,16 @@
             <x-slot:body>
                 <div class="space-y-3">
                     @if($georreferenciarPedidos)
-                        {{-- Georreferenciado ON: dirección + referencia + mapa (picker) --}}
+                        {{-- Georreferenciado ON: mapa primero; la dirección se autocompleta
+                             desde el punto elegido y queda editable al final. Provincia y
+                             localidad NO se muestran: las fija la sucursal (acotan el mapa). --}}
                         @include('livewire.partials.domicilio-form', [
                             'conTipo' => false,
                             'conReferencia' => true,
                             'conGeo' => true,
+                            'conUbicacion' => false,
+                            'direccionAlFinal' => true,
+                            'autocompletarDireccion' => true,
                             'provinciaRequerida' => false,
                             'idPrefix' => 'entrega',
                             'direccionLabel' => __('Dirección de entrega'),
@@ -866,6 +918,7 @@
                             'conTipo' => false,
                             'conReferencia' => true,
                             'conGeo' => false,
+                            'conUbicacion' => false,
                             'provinciaRequerida' => false,
                             'idPrefix' => 'entrega',
                             'direccionLabel' => __('Dirección de entrega'),

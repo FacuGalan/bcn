@@ -95,11 +95,35 @@ function aLatLng(pos) {
     return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
 }
 
+/**
+ * Calle y número desde address components — SIN localidad/provincia/país
+ * (nada de ", Provincia de Buenos Aires, Argentina"). Soporta las dos formas
+ * de la API: Place.addressComponents ({longText}) y Geocoder ({long_name}).
+ */
+function direccionDesdeComponents(components) {
+    if (!Array.isArray(components)) {
+        return '';
+    }
+    const texto = (c) => c?.longText ?? c?.long_name ?? '';
+    const buscar = (tipo) => components.find((c) => (c.types || []).includes(tipo));
+    const calle = texto(buscar('route'));
+    const numero = texto(buscar('street_number'));
+
+    return calle ? (numero ? `${calle} ${numero}` : calle) : '';
+}
+
+// Geocoder compartido (reverse geocoding del pin) — fuera del componente para
+// que Alpine no lo envuelva en un Proxy reactivo.
+let geocoder = null;
+
 document.addEventListener('alpine:init', () => {
     window.Alpine.data('domicilioMapa', (config = {}) => ({
         key: config.key || '',
         mapId: config.mapId || 'DEMO_MAP_ID',
         txtGeoError: config.txtGeoError || '',
+        // Opt-in: escribir la dirección (calle y número) en domDireccion al
+        // elegir/mover el punto. Solo lo activa el modal de entrega de delivery.
+        autocompletarDireccion: config.autocompletarDireccion || false,
 
         map: null,
         marker: null,
@@ -201,10 +225,14 @@ document.addEventListener('alpine:init', () => {
             this.$refs.autocompleteSlot.appendChild(this.autocomplete);
             this.autocomplete.addEventListener('gmp-select', async ({ placePrediction }) => {
                 const place = placePrediction.toPlace();
-                await place.fetchFields({ fields: ['location'] });
+                await place.fetchFields({
+                    fields: this.autocompletarDireccion ? ['location', 'addressComponents'] : ['location'],
+                });
                 const loc = aLatLng(place.location);
                 if (loc) {
-                    this.colocar(loc.lat, loc.lng, 17);
+                    // La predicción ya trae los componentes: evita el reverse
+                    // geocoding que colocar() haría sin dirección explícita.
+                    this.colocar(loc.lat, loc.lng, 17, direccionDesdeComponents(place.addressComponents));
                 }
             });
 
@@ -322,13 +350,14 @@ document.addEventListener('alpine:init', () => {
                 if (p) {
                     this.coords = p;
                     this.push(p.lat, p.lng);
+                    this.reverseYPush(p.lat, p.lng);
                 }
             });
 
             this.coords = { lat: Number(pos.lat), lng: Number(pos.lng) };
         },
 
-        colocar(lat, lng, zoom) {
+        colocar(lat, lng, zoom, direccion = null) {
             this.mostrarMarker({ lat, lng });
             if (this.map) {
                 this.map.setCenter({ lat, lng });
@@ -337,10 +366,39 @@ document.addEventListener('alpine:init', () => {
                 }
             }
             this.push(lat, lng);
+            if (direccion) {
+                this.pushDireccion(direccion);
+            } else {
+                this.reverseYPush(lat, lng);
+            }
         },
 
         push(lat, lng) {
             this.$wire.setCoordenadasDesdeMapa(lat, lng);
+        },
+
+        pushDireccion(texto) {
+            if (this.autocompletarDireccion && texto) {
+                this.$wire.setDireccionDesdeMapa(texto);
+            }
+        },
+
+        /** Reverse geocoding del punto → calle y número al input de dirección. */
+        async reverseYPush(lat, lng) {
+            if (!this.autocompletarDireccion) {
+                return;
+            }
+            try {
+                if (!geocoder) {
+                    const { Geocoder } = await google.maps.importLibrary('geocoding');
+                    geocoder = new Geocoder();
+                }
+                const { results } = await geocoder.geocode({ location: { lat, lng } });
+                this.pushDireccion(direccionDesdeComponents(results?.[0]?.address_components));
+            } catch (e) {
+                // Sin dirección legible para el punto: el input queda como está.
+                console.warn('[domicilio-mapa] reverse geocoding falló', e);
+            }
         },
 
         usarMiUbicacion() {
